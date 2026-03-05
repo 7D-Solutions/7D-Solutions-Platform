@@ -37,6 +37,11 @@ use crate::{
 // Types
 // ============================================================================
 
+/// Allowed values for receipt source_type.
+pub const SOURCE_TYPE_PURCHASE: &str = "purchase";
+pub const SOURCE_TYPE_PRODUCTION: &str = "production";
+pub const SOURCE_TYPE_RETURN: &str = "return";
+
 /// Input for POST /api/inventory/receipts
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReceiptRequest {
@@ -52,6 +57,10 @@ pub struct ReceiptRequest {
     /// Unit cost in minor currency units, e.g. cents (must be > 0)
     pub unit_cost_minor: i64,
     pub currency: String,
+    /// Origin of receipt: "purchase" (default) | "production" | "return".
+    /// Production receipts require caller-provided unit_cost.
+    #[serde(default = "default_source_type")]
+    pub source_type: String,
     pub purchase_order_id: Option<Uuid>,
     /// Caller-supplied idempotency key (required; scoped per tenant)
     pub idempotency_key: String,
@@ -69,6 +78,10 @@ pub struct ReceiptRequest {
     /// When absent, `quantity` is assumed to already be in base_uom units.
     #[serde(default)]
     pub uom_id: Option<Uuid>,
+}
+
+fn default_source_type() -> String {
+    SOURCE_TYPE_PURCHASE.to_string()
 }
 
 /// Result returned on successful or replayed receipt
@@ -90,6 +103,8 @@ pub struct ReceiptResult {
     pub quantity: i64,
     pub unit_cost_minor: i64,
     pub currency: String,
+    /// Origin of receipt: "purchase" | "production" | "return"
+    pub source_type: String,
     pub received_at: chrono::DateTime<Utc>,
     /// Lot id, present when item.tracking_mode == Lot.
     #[serde(default)]
@@ -220,9 +235,9 @@ pub async fn process_receipt(
         INSERT INTO inventory_ledger
             (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
              unit_cost_minor, currency, source_event_id, source_event_type,
-             reference_type, reference_id, posted_at)
+             reference_type, reference_id, source_type, posted_at)
         VALUES
-            ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9, $10, $11, $12)
+            ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id, entry_id
         "#,
     )
@@ -237,6 +252,7 @@ pub async fn process_receipt(
     .bind(EVENT_TYPE_ITEM_RECEIVED)
     .bind(req.purchase_order_id.map(|_| "purchase_order"))
     .bind(req.purchase_order_id.map(|id| id.to_string()))
+    .bind(&req.source_type)
     .bind(received_at)
     .fetch_one(&mut *tx)
     .await?;
@@ -247,7 +263,7 @@ pub async fn process_receipt(
     // Step 2: Upsert lot if lot-tracked (must precede layer insert to get lot_id)
     let lot_id: Option<Uuid> = if item.tracking_mode == TrackingMode::Lot {
         // validated above: lot_code is Some and non-empty
-        let code = req.lot_code.as_deref().unwrap();
+        let code = req.lot_code.as_deref().ok_or_else(|| ReceiptError::Guard(GuardError::Validation("lot_code required for lot-tracked item".into())))?;
         let id = upsert_lot(
             &mut tx,
             &req.tenant_id,
@@ -289,7 +305,7 @@ pub async fn process_receipt(
     // Step 3b: Insert serial instances if serial-tracked
     let serial_instance_ids: Vec<Uuid> = if item.tracking_mode == TrackingMode::Serial {
         // validated above: serial_codes is Some and len == quantity
-        let codes = req.serial_codes.as_deref().unwrap();
+        let codes = req.serial_codes.as_deref().ok_or_else(|| ReceiptError::Guard(GuardError::Validation("serial_codes required for serial-tracked item".into())))?;
         insert_serial_instances(
             &mut tx,
             &req.tenant_id,
@@ -345,6 +361,7 @@ pub async fn process_receipt(
         quantity,
         unit_cost_minor: req.unit_cost_minor,
         currency: req.currency.clone(),
+        source_type: req.source_type.clone(),
         purchase_order_id: req.purchase_order_id,
         received_at,
     };
@@ -438,6 +455,7 @@ pub async fn process_receipt(
         quantity,
         unit_cost_minor: req.unit_cost_minor,
         currency: req.currency.clone(),
+        source_type: req.source_type.clone(),
         received_at,
         lot_id,
         serial_instance_ids,
@@ -500,6 +518,16 @@ fn validate_request(req: &ReceiptRequest) -> Result<(), ReceiptError> {
         return Err(ReceiptError::Guard(GuardError::Validation(
             "currency is required".to_string(),
         )));
+    }
+    // Validate source_type enum
+    match req.source_type.as_str() {
+        SOURCE_TYPE_PURCHASE | SOURCE_TYPE_PRODUCTION | SOURCE_TYPE_RETURN => {}
+        _ => {
+            return Err(ReceiptError::Guard(GuardError::Validation(format!(
+                "source_type must be one of: purchase, production, return (got '{}')",
+                req.source_type
+            ))));
+        }
     }
     guard_quantity_positive(req.quantity)?;
     guard_cost_present(req.unit_cost_minor)?;
@@ -571,6 +599,7 @@ mod tests {
             quantity: 10,
             unit_cost_minor: 5000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: "idem-001".to_string(),
             correlation_id: None,
@@ -579,6 +608,27 @@ mod tests {
             serial_codes: None,
             uom_id: None,
         }
+    }
+
+    #[test]
+    fn validate_rejects_invalid_source_type() {
+        let mut r = valid_req();
+        r.source_type = "invalid".to_string();
+        assert!(matches!(validate_request(&r), Err(ReceiptError::Guard(_))));
+    }
+
+    #[test]
+    fn validate_accepts_production_source_type() {
+        let mut r = valid_req();
+        r.source_type = "production".to_string();
+        assert!(validate_request(&r).is_ok());
+    }
+
+    #[test]
+    fn validate_accepts_return_source_type() {
+        let mut r = valid_req();
+        r.source_type = "return".to_string();
+        assert!(validate_request(&r).is_ok());
     }
 
     #[test]

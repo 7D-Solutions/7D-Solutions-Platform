@@ -55,6 +55,7 @@ fn make_item(tenant_id: &str, sku: &str) -> CreateItemRequest {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::None,
+        make_buy: None,
     }
 }
 
@@ -74,6 +75,7 @@ fn receipt(
         quantity: qty,
         unit_cost_minor: cost,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: key.to_string(),
         correlation_id: None,

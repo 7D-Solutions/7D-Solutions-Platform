@@ -35,8 +35,8 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Phase | Goal | Beads | Status |
 |-------|------|-------|--------|
-| 0 | Design lock — cost rollup + identity graph + naming | 1 | DRAFTED — Pending sign-off |
-| A | Inventory retrofit + BOM core | 2 | NOT STARTED |
+| 0 | Design lock — cost rollup + identity graph + naming | 1 | COMPLETE |
+| A | Inventory retrofit + BOM core | 2 | IN PROGRESS |
 | B | Production v1 execution spine | 3-4 | NOT STARTED |
 | C1 | Quality — Receiving inspection | 1-2 | NOT STARTED |
 | C2 | Quality — In-process + final inspection | 2-3 | NOT STARTED |
@@ -61,7 +61,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | BOM schema decisions confirmed (depth model, effectivity model, from prerequisites doc) | DONE | bd-p4mx2 | 2026-03-05 |
 | Workcenter ownership path confirmed (Production owns from Phase B; Maintenance workcenter_id unvalidated until Phase E) | DONE | bd-p4mx2 | 2026-03-05 |
 | Event contract naming review (existing modules + new manufacturing subjects) | DONE | bd-p4mx2 | 2026-03-05 |
-| Design doc signed off by all reviewers | PENDING SIGN-OFF | bd-p4mx2 | — |
+| Design doc signed off by all reviewers | DONE | bd-p4mx2 | 2026-03-05 |
 
 **Not in this phase:** Any implementation code.
 
@@ -77,17 +77,17 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
-| Inventory: `source_type` field on receipts (purchase/production/return) | NOT STARTED | — | — |
-| Inventory: production receipt path (caller-provided unit cost) | NOT STARTED | — | — |
-| Inventory: issue path with source_type tagging (no work_order_id yet) | NOT STARTED | — | — |
-| Inventory: make/buy classification on items | NOT STARTED | — | — |
-| Inventory: event payload extended with source_type | NOT STARTED | — | — |
-| BOM: module scaffold (bom-rs crate) | NOT STARTED | — | — |
-| BOM: multi-level structure (header, revision, lines) | NOT STARTED | — | — |
-| BOM: date-based effectivity with non-overlapping constraint | NOT STARTED | — | — |
-| BOM: multi-level explosion query with depth guard | NOT STARTED | — | — |
-| BOM: where-used reverse lookup | NOT STARTED | — | — |
-| BOM: events emitted on NATS | NOT STARTED | — | — |
+| Inventory: `source_type` field on receipts (purchase/production/return) | DONE | bd-194cd | 2026-03-05 |
+| Inventory: production receipt path (caller-provided unit cost) | DONE | bd-194cd | 2026-03-05 |
+| Inventory: issue path with source_type tagging (no work_order_id yet) | DONE | bd-194cd | 2026-03-05 |
+| Inventory: make/buy classification on items | DONE | bd-194cd | 2026-03-05 |
+| Inventory: event payload extended with source_type | DONE | bd-194cd | 2026-03-05 |
+| BOM: module scaffold (bom-rs crate) | IN PROGRESS | bd-1uy2l | — |
+| BOM: multi-level structure (header, revision, lines) | IN PROGRESS | bd-1uy2l | — |
+| BOM: date-based effectivity with non-overlapping constraint | IN PROGRESS | bd-1uy2l | — |
+| BOM: multi-level explosion query with depth guard | IN PROGRESS | bd-1uy2l | — |
+| BOM: where-used reverse lookup | IN PROGRESS | bd-1uy2l | — |
+| BOM: events emitted on NATS | IN PROGRESS | bd-1uy2l | — |
 
 **Not in this phase:** ECO lifecycle, workcenters (Production owns from Phase B — no temporary table in Maintenance), inspection bridge, CostBreakdown JSONB, backflush, serial-number effectivity, `produced` entry_type enum (source_type disambiguates).
 
@@ -274,3 +274,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-04 | All | Incorporated 5 agent reviews + ChatGPT review: split Phase C, trimmed Phase A, deferred CostBreakdown JSONB, added variance policy + GL trigger model to Phase 0, added Deferred Items + Key Decisions sections | BrightHill | — |
 | 2026-03-04 | All | Incorporated Claude Desktop review: added BOM/workcenter decisions to Phase 0, added regression test (A), cost arithmetic check (B), quarantine round-trip (C1), added existing capabilities to audit checklist, added Proof column | BrightHill | — |
 | 2026-03-05 | 0 | Phase 0 design lock document drafted (bd-p4mx2): cost rollup flow, identity graph, WIP decision, variance policy, GL trigger model, BOM/workcenter confirmations, event naming review. Pending sign-off. | MaroonHarbor | docs/plans/MANUFACTURING-DESIGN-LOCK.md |
+| 2026-03-05 | A | Inventory retrofit complete (bd-194cd): source_type on receipts + ledger + events, production/return receipt paths, make/buy classification with Guard→Mutation→Outbox pattern, event contract extended. 237 unit tests pass. Integration tests blocked by pre-existing DB TLS issue (bd-194cd.1). | MaroonHarbor | modules/inventory/tests/phase_a_integration.rs |

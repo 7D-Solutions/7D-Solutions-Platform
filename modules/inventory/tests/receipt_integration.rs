@@ -52,6 +52,7 @@ fn create_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::None,
+        make_buy: None,
     }
 }
 
@@ -63,6 +64,7 @@ fn receipt_req(tenant_id: &str, item_id: Uuid, idem_key: &str) -> ReceiptRequest
         quantity: 50,
         unit_cost_minor: 10_00, // $10.00
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: idem_key.to_string(),
         correlation_id: Some("corr-test".to_string()),
@@ -367,6 +369,7 @@ async fn receipt_lot_tracked_creates_lot_and_associates_layer() {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::Lot,
+        make_buy: None,
     };
     let item = ItemRepo::create(&pool, &item_req)
         .await
@@ -475,6 +478,7 @@ async fn receipt_lot_tracked_rejects_missing_lot_code() {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::Lot,
+        make_buy: None,
     };
     let item = ItemRepo::create(&pool, &item_req)
         .await
@@ -521,6 +525,7 @@ async fn receipt_serial_tracked_creates_serial_instances() {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::Serial,
+        make_buy: None,
     };
     let item = ItemRepo::create(&pool, &item_req)
         .await
@@ -623,6 +628,7 @@ async fn receipt_serial_tracked_rejects_count_mismatch() {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::Serial,
+        make_buy: None,
     };
     let item = ItemRepo::create(&pool, &item_req)
         .await

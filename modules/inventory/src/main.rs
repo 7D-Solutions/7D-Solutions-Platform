@@ -17,6 +17,7 @@ use inventory_rs::{
         health::{health, ready, version},
         issues::post_issue,
         items::{create_item, deactivate_item, get_item, update_item},
+        make_buy::put_make_buy,
         locations::{
             create_location, deactivate_location, get_location, list_locations, update_location,
         },
@@ -91,6 +92,10 @@ async fn main() {
         .route(
             "/api/inventory/items/{id}/deactivate",
             axum::routing::post(deactivate_item),
+        )
+        .route(
+            "/api/inventory/items/{id}/make-buy",
+            axum::routing::put(put_make_buy),
         )
         // Stock receipts — write
         .route("/api/inventory/receipts", axum::routing::post(post_receipt))

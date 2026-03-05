@@ -9,6 +9,7 @@ pub mod history;
 pub mod issues;
 pub mod items;
 pub mod labels;
+pub mod make_buy;
 pub mod locations;
 pub mod lots;
 pub mod receipts;

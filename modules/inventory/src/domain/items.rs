@@ -87,6 +87,8 @@ pub struct Item {
     /// How stock movements are tracked. Immutable after creation.
     #[sqlx(try_from = "String")]
     pub tracking_mode: TrackingMode,
+    /// Manufacturing classification: "make" | "buy" (NULL = unset).
+    pub make_buy: Option<String>,
     pub active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -113,6 +115,9 @@ pub struct CreateItemRequest {
     pub uom: Option<String>,
     /// Lot/serial tracking mode. Required; immutable after creation.
     pub tracking_mode: TrackingMode,
+    /// Manufacturing classification: "make" | "buy" (optional)
+    #[serde(default)]
+    pub make_buy: Option<String>,
 }
 
 /// Input for PUT /api/inventory/items/:id
@@ -171,6 +176,7 @@ impl CreateItemRequest {
         if let Some(ref uom) = self.uom {
             require_non_empty(uom, "uom")?;
         }
+        super::make_buy::validate_make_buy(&self.make_buy)?;
         Ok(())
     }
 }
@@ -220,9 +226,9 @@ impl ItemRepo {
             INSERT INTO items
                 (id, tenant_id, sku, name, description,
                  inventory_account_ref, cogs_account_ref, variance_account_ref,
-                 uom, tracking_mode, active, created_at, updated_at)
+                 uom, tracking_mode, make_buy, active, created_at, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, $11, $11)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE, $12, $12)
             RETURNING *
             "#,
         )
@@ -236,6 +242,7 @@ impl ItemRepo {
         .bind(req.variance_account_ref.trim())
         .bind(uom)
         .bind(req.tracking_mode.as_str())
+        .bind(req.make_buy.as_deref())
         .bind(now)
         .fetch_one(pool)
         .await
@@ -331,6 +338,7 @@ impl ItemRepo {
 
         Ok(item)
     }
+
 }
 
 // ============================================================================
@@ -352,6 +360,7 @@ mod tests {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         }
     }
 
@@ -413,6 +422,22 @@ mod tests {
             variance_account_ref: None,
             uom: None,
         };
+        assert!(r.validate().is_ok());
+    }
+
+    #[test]
+    fn create_request_invalid_make_buy_rejected() {
+        let mut r = valid_create();
+        r.make_buy = Some("invalid".to_string());
+        assert!(matches!(r.validate(), Err(ItemError::Validation(_))));
+    }
+
+    #[test]
+    fn create_request_valid_make_buy_accepted() {
+        let mut r = valid_create();
+        r.make_buy = Some("make".to_string());
+        assert!(r.validate().is_ok());
+        r.make_buy = Some("buy".to_string());
         assert!(r.validate().is_ok());
     }
 

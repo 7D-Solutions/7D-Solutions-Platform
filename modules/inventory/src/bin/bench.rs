@@ -140,6 +140,7 @@ async fn create_test_item(pool: &PgPool, tenant_id: &str) -> Uuid {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::None,
+        make_buy: None,
     };
     let item = ItemRepo::create(pool, &req)
         .await
@@ -158,6 +159,7 @@ async fn bench_receipt(pool: &PgPool, tenant_id: &str, item_id: Uuid, bench: &mu
         quantity: 100,
         unit_cost_minor: 1000,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: format!("bench-recv-{}", Uuid::new_v4()),
         correlation_id: Some("bench".to_string()),
@@ -291,6 +293,7 @@ async fn main() {
             quantity: 1_000_000,
             unit_cost_minor: 1000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("seed-{}-{}", item, wh),
             correlation_id: Some("bench-seed".to_string()),

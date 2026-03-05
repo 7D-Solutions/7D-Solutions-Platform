@@ -47,6 +47,7 @@
 
 pub mod classification_assigned;
 pub mod contracts;
+pub mod make_buy_changed;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
 pub mod expiry_alert;
@@ -151,6 +152,10 @@ pub use valuation_run_completed::{
 pub use classification_assigned::{
     build_classification_assigned_envelope, ClassificationAssignedPayload,
     EVENT_TYPE_CLASSIFICATION_ASSIGNED,
+};
+
+pub use make_buy_changed::{
+    build_make_buy_changed_envelope, MakeBuyChangedPayload, EVENT_TYPE_MAKE_BUY_CHANGED,
 };
 
 // ============================================================================

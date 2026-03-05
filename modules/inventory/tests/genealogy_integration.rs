@@ -58,6 +58,7 @@ async fn create_lot_item(pool: &sqlx::PgPool, tenant_id: &str) -> Uuid {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::Lot,
+        make_buy: None,
         },
     )
     .await
@@ -81,6 +82,7 @@ async fn receive_lot(
             quantity: qty,
             unit_cost_minor: 1000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("rc-gen-{}-{}", lot_code, Uuid::new_v4()),
             correlation_id: None,

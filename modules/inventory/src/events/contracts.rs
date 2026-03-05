@@ -61,6 +61,8 @@ pub struct ItemReceivedPayload {
     /// Unit cost in minor currency units (e.g. cents)
     pub unit_cost_minor: i64,
     pub currency: String,
+    /// Origin of this receipt: "purchase" | "production" | "return"
+    pub source_type: String,
     /// Source purchase order, if applicable
     pub purchase_order_id: Option<Uuid>,
     pub received_at: DateTime<Utc>,
@@ -278,6 +280,7 @@ mod tests {
             quantity: 100,
             unit_cost_minor: 5000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             received_at: Utc::now(),
         };

@@ -46,6 +46,7 @@ fn make_lot_item(tenant_id: &str, sku: &str) -> CreateItemRequest {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::Lot,
+        make_buy: None,
     }
 }
 
@@ -152,6 +153,7 @@ async fn receipt_computes_expiry_from_active_revision_policy() {
             quantity: 10,
             unit_cost_minor: 1000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("idem-rc-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -211,6 +213,7 @@ async fn manual_expiry_set_is_idempotent() {
             quantity: 5,
             unit_cost_minor: 1200,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("idem-rc-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -282,6 +285,7 @@ async fn alert_scan_dedupes_and_is_tenant_scoped() {
             quantity: 3,
             unit_cost_minor: 800,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("idem-rc-a-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -305,6 +309,7 @@ async fn alert_scan_dedupes_and_is_tenant_scoped() {
             quantity: 3,
             unit_cost_minor: 800,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("idem-rc-b-{}", Uuid::new_v4()),
             correlation_id: None,

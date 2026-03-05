@@ -17,6 +17,7 @@ modules/ar/src/routes/invoices.rs         # 771 LOC — invoice routes (bd-18wm:
 modules/ar/src/routes/subscriptions.rs    # 562 LOC — subscription routes
 modules/ar/src/routes/charges.rs          # 511 LOC — charge routes
 modules/inventory/src/domain/issue_service.rs       # 530 LOC — issue service (refactor in future bead)
+modules/inventory/src/domain/receipt_service.rs     # 724 LOC — receipt service + production path (refactor in future bead)
 modules/inventory/src/domain/adjust_service.rs      # 580 LOC — adjustment service (refactor in future bead)
 modules/inventory/src/domain/reservation_service.rs # 592 LOC — reservation service (refactor in future bead)
 modules/inventory/src/routes/reservations.rs        # ~262 LOC — reservation routes + fulfill handler

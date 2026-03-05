@@ -95,6 +95,7 @@ fn item_received_full_contract() {
         quantity: 100,
         unit_cost_minor: 5000,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: Some(Uuid::new_v4()),
         received_at: Utc::now(),
     };
@@ -552,6 +553,7 @@ fn causation_id_none_leaves_field_absent() {
             quantity: 1,
             unit_cost_minor: 100,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             received_at: Utc::now(),
         },
@@ -605,6 +607,7 @@ fn full_envelope_json_round_trip() {
         quantity: 42,
         unit_cost_minor: 999,
         currency: "gbp".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         received_at: Utc::now(),
     };
