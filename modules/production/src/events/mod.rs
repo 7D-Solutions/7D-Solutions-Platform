@@ -349,3 +349,77 @@ pub fn build_routing_released_envelope(
         },
     )
 }
+
+// ============================================================================
+// Operation event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OperationStartedPayload {
+    pub operation_id: Uuid,
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub operation_name: String,
+    pub sequence_number: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OperationCompletedPayload {
+    pub operation_id: Uuid,
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub operation_name: String,
+    pub sequence_number: i32,
+}
+
+// ============================================================================
+// Operation envelope builders
+// ============================================================================
+
+pub fn build_operation_started_envelope(
+    operation_id: Uuid,
+    work_order_id: Uuid,
+    tenant_id: String,
+    operation_name: String,
+    sequence_number: i32,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<OperationStartedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::OperationStarted.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        OperationStartedPayload {
+            operation_id,
+            work_order_id,
+            tenant_id,
+            operation_name,
+            sequence_number,
+        },
+    )
+}
+
+pub fn build_operation_completed_envelope(
+    operation_id: Uuid,
+    work_order_id: Uuid,
+    tenant_id: String,
+    operation_name: String,
+    sequence_number: i32,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<OperationCompletedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::OperationCompleted.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        OperationCompletedPayload {
+            operation_id,
+            work_order_id,
+            tenant_id,
+            operation_name,
+            sequence_number,
+        },
+    )
+}

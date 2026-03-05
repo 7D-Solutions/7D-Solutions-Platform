@@ -13,6 +13,7 @@ use tracing_subscriber::EnvFilter;
 use production_rs::{
     db::resolver::resolve_pool,
     http::health::{health as health_fn, ready, version},
+    http::operations,
     http::routings,
     http::work_orders,
     http::workcenters,
@@ -69,6 +70,10 @@ async fn main() {
         .route("/api/production/work-orders/{id}", get(work_orders::get_work_order))
         .route("/api/production/work-orders/{id}/release", post(work_orders::release_work_order))
         .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
+        .route("/api/production/work-orders/{id}/operations", get(operations::list_operations))
+        .route("/api/production/work-orders/{id}/operations/initialize", post(operations::initialize_operations))
+        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/start", post(operations::start_operation))
+        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/complete", post(operations::complete_operation))
         .route("/api/production/routings", get(routings::list_routings).post(routings::create_routing))
         .route("/api/production/routings/by-item", get(routings::find_routings_by_item))
         .route("/api/production/routings/{id}", get(routings::get_routing).put(routings::update_routing))
