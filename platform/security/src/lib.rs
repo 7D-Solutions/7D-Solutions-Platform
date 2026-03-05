@@ -13,6 +13,7 @@
 //! println!("user={} tenant={}", claims.user_id, claims.tenant_id);
 //! ```
 
+pub mod audit_log;
 pub mod authz_middleware;
 pub mod claims;
 pub mod middleware;
@@ -23,6 +24,9 @@ pub mod redaction;
 pub mod service_auth;
 pub mod tracing;
 pub mod webhook_verify;
+
+// Re-export security audit log types
+pub use audit_log::{security_event, SecurityOutcome};
 
 // Re-export webhook verifier types
 pub use webhook_verify::{

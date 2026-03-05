@@ -61,6 +61,7 @@ Shared crates used by services. Not independently deployed.
 | audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement |  |
 | doc-mgmt | doc_mgmt | 0.1.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) |  |
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
+| event-consumer | event-consumer | 0.1.0 | Consumer-side event dispatch: handler registry, router, and context |  |
 | health | health | 0.1.0 | Shared health and readiness check endpoints for all services |  |
 | platform-contracts | platform_contracts | 0.1.0 | Platform-wide event and command contract conventions — canonical types and constants |  |
 | projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |

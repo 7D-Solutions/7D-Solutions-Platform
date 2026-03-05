@@ -23,6 +23,7 @@
 //!     .layer(ClaimsLayer::permissive(verifier));
 //! ```
 
+use crate::audit_log::{security_event, SecurityOutcome};
 use crate::claims::{JwtVerifier, VerifiedClaims};
 use axum::{
     extract::{Request, State},
@@ -36,7 +37,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
-use tracing::warn;
 
 // ── Claims Extraction ──────────────────────────────────────────────
 
@@ -112,9 +112,13 @@ where
             if let Some(verified) = claims {
                 req.extensions_mut().insert(verified);
             } else if strict {
-                warn!(
-                    path = %req.uri().path(),
-                    "authz: strict mode rejected — no valid claims"
+                let path = req.uri().path().to_string();
+                security_event(
+                    None,
+                    None,
+                    &path,
+                    SecurityOutcome::Denied,
+                    "strict mode rejected — no valid claims",
                 );
                 return Ok(StatusCode::UNAUTHORIZED.into_response());
             }
@@ -236,19 +240,25 @@ where
                         .collect();
 
                     if !missing.is_empty() {
-                        warn!(
-                            path = %req.uri().path(),
-                            user_id = %claims.user_id,
-                            ?missing,
-                            "authz: insufficient permissions"
+                        let path = req.uri().path().to_string();
+                        security_event(
+                            Some(claims.tenant_id),
+                            Some(claims.user_id),
+                            &path,
+                            SecurityOutcome::Denied,
+                            &format!("insufficient permissions, missing: {missing:?}"),
                         );
                         return Ok(StatusCode::FORBIDDEN.into_response());
                     }
                 }
                 None => {
-                    warn!(
-                        path = %req.uri().path(),
-                        "authz: no claims present — permission check failed"
+                    let path = req.uri().path().to_string();
+                    security_event(
+                        None,
+                        None,
+                        &path,
+                        SecurityOutcome::Denied,
+                        "no claims present — permission check failed",
                     );
                     return Ok(StatusCode::UNAUTHORIZED.into_response());
                 }
@@ -297,18 +307,18 @@ mod tests {
 
     fn make_test_keys() -> TestKeys {
         let mut rng = rand::thread_rng();
-        let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key generation");
         let pub_key = priv_key.to_public_key();
-        let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).unwrap();
-        let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).unwrap();
-        let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).unwrap());
+        let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("PEM encoding");
+        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("public PEM");
+        let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key");
+        let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier"));
         TestKeys { encoding, verifier }
     }
 
     fn sign_token(enc: &EncodingKey, claims: &TestClaims) -> String {
         let header = Header::new(Algorithm::RS256);
-        jsonwebtoken::encode(&header, claims, enc).unwrap()
+        jsonwebtoken::encode(&header, claims, enc).expect("sign token")
     }
 
     fn default_claims(perms: Vec<String>) -> TestClaims {
@@ -349,8 +359,8 @@ mod tests {
         let req = HttpRequest::builder()
             .uri("/open")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -362,8 +372,8 @@ mod tests {
         let req = HttpRequest::builder()
             .uri("/open")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
@@ -378,8 +388,8 @@ mod tests {
             .uri("/open")
             .header("authorization", bearer(&token))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -392,8 +402,8 @@ mod tests {
             .uri("/open")
             .header("authorization", "Bearer not-a-real-jwt")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
@@ -406,8 +416,8 @@ mod tests {
             .uri("/open")
             .header("authorization", "Bearer garbage")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -431,8 +441,8 @@ mod tests {
             .uri("/guarded")
             .header("authorization", bearer(&token))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -448,8 +458,8 @@ mod tests {
             .uri("/guarded")
             .header("authorization", bearer(&token))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 
@@ -461,8 +471,8 @@ mod tests {
         let req = HttpRequest::builder()
             .uri("/guarded")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 
@@ -478,8 +488,8 @@ mod tests {
             .uri("/guarded")
             .header("authorization", bearer(&token))
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 }
