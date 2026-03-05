@@ -1,3 +1,4 @@
+use crate::domain::service::QiError;
 use crate::events::QualityInspectionEventType;
 
 pub async fn enqueue_event<T: serde::Serialize>(
@@ -9,9 +10,8 @@ pub async fn enqueue_event<T: serde::Serialize>(
     envelope: &event_bus::EventEnvelope<T>,
     correlation_id: &str,
     causation_id: Option<&str>,
-) -> Result<(), sqlx::Error> {
-    let envelope_json = serde_json::to_string(envelope)
-        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+) -> Result<(), QiError> {
+    let envelope_json = serde_json::to_string(envelope)?;
 
     sqlx::query(
         r#"

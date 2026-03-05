@@ -3,7 +3,7 @@ use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
     },
-    optional_claims_mw, JwtVerifier,
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -12,7 +12,14 @@ use tracing_subscriber::EnvFilter;
 
 use quality_inspection_rs::{
     db::resolver::resolve_pool,
-    http::health::{health as health_fn, ready, version},
+    http::{
+        health::{health as health_fn, ready, version},
+        inspection_routes::{
+            get_inspection, get_inspection_plan, get_inspections_by_part_rev,
+            get_inspections_by_receipt, post_activate_plan, post_inspection_plan,
+            post_receiving_inspection,
+        },
+    },
     metrics::{metrics_handler, QualityInspectionMetrics},
     AppState, Config,
 };
@@ -50,6 +57,46 @@ async fn main() {
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
+    let qi_mutations = Router::new()
+        .route(
+            "/api/quality-inspection/plans",
+            axum::routing::post(post_inspection_plan),
+        )
+        .route(
+            "/api/quality-inspection/plans/{plan_id}/activate",
+            axum::routing::post(post_activate_plan),
+        )
+        .route(
+            "/api/quality-inspection/inspections",
+            axum::routing::post(post_receiving_inspection),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::QUALITY_INSPECTION_MUTATE,
+        ]))
+        .with_state(app_state.clone());
+
+    let qi_reads = Router::new()
+        .route(
+            "/api/quality-inspection/plans/{plan_id}",
+            axum::routing::get(get_inspection_plan),
+        )
+        .route(
+            "/api/quality-inspection/inspections/{inspection_id}",
+            axum::routing::get(get_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/by-part-rev",
+            axum::routing::get(get_inspections_by_part_rev),
+        )
+        .route(
+            "/api/quality-inspection/inspections/by-receipt",
+            axum::routing::get(get_inspections_by_receipt),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::QUALITY_INSPECTION_READ,
+        ]))
+        .with_state(app_state.clone());
+
     let app = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/health", get(health_fn))
@@ -57,6 +104,8 @@ async fn main() {
         .route("/api/version", get(version))
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
+        .merge(qi_reads)
+        .merge(qi_mutations)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
             security::tracing::tracing_context_middleware,

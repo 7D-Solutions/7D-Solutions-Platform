@@ -128,6 +128,11 @@ pub const BOM_READ: &str = "bom.read";
 pub const WORKFORCE_COMPETENCE_MUTATE: &str = "workforce_competence.mutate";
 pub const WORKFORCE_COMPETENCE_READ: &str = "workforce_competence.read";
 
+// ── Quality Inspection ──────────────────────────────────────────────
+
+pub const QUALITY_INSPECTION_MUTATE: &str = "quality_inspection.mutate";
+pub const QUALITY_INSPECTION_READ: &str = "quality_inspection.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +257,7 @@ mod tests {
             WORKFLOW_MUTATE,
             WORKFORCE_COMPETENCE_MUTATE,
             BOM_MUTATE,
+            QUALITY_INSPECTION_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(
@@ -300,6 +306,7 @@ mod tests {
         assert_ne!(WORKFORCE_COMPETENCE_MUTATE, WORKFORCE_COMPETENCE_READ);
         assert_ne!(REPORTING_MUTATE, REPORTING_READ);
         assert_ne!(BOM_MUTATE, BOM_READ);
+        assert_ne!(QUALITY_INSPECTION_MUTATE, QUALITY_INSPECTION_READ);
     }
 
     #[test]

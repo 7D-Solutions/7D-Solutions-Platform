@@ -137,8 +137,8 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
 | Inspection: module scaffold (quality-inspection-rs crate) | DONE | bd-2f1xv | 2026-03-05 |
-| Inspection: inspection plan model (characteristics, tolerances, sampling) | NOT STARTED | — | — |
-| Inspection: receiving inspection records | NOT STARTED | — | — |
+| Inspection: inspection plan model (characteristics, tolerances, sampling) | DONE | bd-1y2nc | 2026-03-05 |
+| Inspection: receiving inspection records | DONE | bd-1y2nc | 2026-03-05 |
 | Inspection: quarantine/hold before disposition | NOT STARTED | — | — |
 | Inspection: disposition outcomes (accept, reject-to-hold, release) | NOT STARTED | — | — |
 | Inspection: inspector authorization via Workforce-Competence | NOT STARTED | — | — |
@@ -281,3 +281,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | A | GL consumer source_type branching (bd-2vc9u): item_issued branches purchase→COGS / production→WIP, item_received production→FG receipt (DR INVENTORY / CR WIP). Unknown source_type hard-fails. New SourceDocType variants (ProductionIssue, ProductionReceipt). 5 integration tests pass against real GL DB. | CopperRiver | modules/gl/tests/gl_inventory_source_type_test.rs |
 | 2026-03-05 | A | BOM Docker/CI wiring (bd-1mgdw): Dockerfile.workspace (multi-stage cargo-chef), compose service on port 8107, gateway depends_on, CI build-bom job, fixed port conflict (8098→8107). Service catalog auto-updated. | PurpleCliff | modules/bom/Dockerfile.workspace |
 | 2026-03-05 | C1 | Quality inspection scaffold complete (bd-2f1xv): quality-inspection-rs crate with Axum app, health/ready/version endpoints, Prometheus metrics, outbox pattern, migration (inspection_plans, inspections, dispositions, outbox, processed_events). Docker container + compose service on port 8106, DB on port 5459. Builds and passes all tests. | DarkOwl | modules/quality-inspection/ |
+| 2026-03-05 | C1 | Inspection plan model + receiving inspection core (bd-1y2nc): characteristics JSONB, tolerances, sampling method/size on plans. Receiving inspections with receipt_id/part_id/part_revision anchors. Query by part-rev and by receipt. Plan activation workflow. Events via outbox (plan_created, inspection_recorded). Permission constants added. 6 integration tests pass against real Postgres. | DarkOwl | modules/quality-inspection/tests/inspection_integration.rs |
