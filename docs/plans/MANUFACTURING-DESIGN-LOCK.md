@@ -148,6 +148,7 @@ A separate WIP ledger (in Inventory or Production) would:
 - **WIP valuation** is always derived from GL account balances, not from an Inventory or Production query.
 - **WIP aging** (how long a WO has been open) is derived from Production's work order timestamps.
 - **Material on the floor** (issued but not yet consumed in an operation) is cost-tracked solely via GL WIP. If an issued component is returned unused, Production triggers a return that reverses the original issue.
+- **Inventory persists `work_order_id`** on production issue and receipt ledger records for audit traceability. This is a stored reference, not a WIP ledger — it links the Inventory movement to its originating work order so auditors can trace cost flows.
 - **Phase B must implement** a WO cost accumulator that tracks material + labor + overhead totals for the rollup calculation, but this is a Production-internal data structure — not an inventory position or quantity bucket.
 
 ---
@@ -274,23 +275,23 @@ The prerequisites doc proposed a temporary workcenter table in Maintenance durin
 
 ### Existing Pattern (Codebase Reality)
 
-There are two related identifiers:
+**NATS subject = event_type.** They are the same string.
 
-1. **`event_type`** (in EventEnvelope): The logical event name. Format: `<module>.<entity>_<action>`.
-   - Examples: `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`
+The `event_type` field in the EventEnvelope is also the NATS subject that the event is published on. Format: `<module>.<entity>_<action>`.
 
-2. **NATS subject** (wire transport): The stream subject the event is published on. Format: `<module>.events.<event_type>`.
-   - Examples: `inventory.events.inventory.item_received`, `gl.events.gl.posting.request`
+Verified examples from codebase:
+- `inventory.item_issued` — GL subscribes to this exact string (`gl_inventory_consumer.rs` line 149)
+- `inventory.item_received` — AP subscribes to this exact string
+- `ar.credit_note_issued` — GL subscribes to this exact string
+- `timekeeping.labor_cost` — GL subscribes to this exact string
 
-Consumers subscribe to the **NATS subject**. The `event_type` field is metadata inside the envelope. GL's inventory consumer subscribes to the plain NATS subject `inventory.item_issued` (see `gl_inventory_consumer.rs` line 149) — this works because NATS allows subscribing to a suffix of the full subject.
-
-**Note:** The existing codebase has some inconsistency in NATS subject patterns. Some modules use the full `<module>.events.<event_type>` pattern, others publish to shorter subjects. New manufacturing modules must not break existing consumers.
+**Note:** `EVENT-SUBSCRIPTIONS-MAP.md` documents a `<module>.events.<event_type>` pattern, but the actual codebase publishes and subscribes using the plain `event_type` string as the NATS subject. New manufacturing modules follow the codebase reality, not the aspirational doc.
 
 ### Rule for New Manufacturing Modules
 
-- **`event_type`** follows: `<module>.<entity>_<action>` — e.g., `bom.revision_released`, `production.work_order_created`
-- **NATS subject** follows: `<module>.events.<event_type>` — e.g., `bom.events.bom.revision_released`
-- Existing inventory events keep their current subjects. GL consumers subscribe to existing subjects unchanged.
+- **NATS subject = event_type** = `<module>.<entity>_<action>`
+- Examples: `bom.revision_released`, `production.work_order_created`, `inspection.record_completed`
+- Existing inventory events keep their current subjects unchanged.
 - The `source_type` / `source_ref.source_type` field inside the payload differentiates production vs purchase flows — not the NATS subject.
 
 ### Minimal New Manufacturing Events (Phases A-C)
@@ -306,16 +307,14 @@ Consumers subscribe to the **NATS subject**. The `event_type` field is metadata 
 | `bom.line_added` | Component line added to a BOM revision |
 | `bom.line_removed` | Component line removed from a BOM revision |
 
-NATS subjects follow the rule: `bom.events.<event_type>` (e.g., `bom.events.bom.revision_released`).
-
 #### Phase A — Inventory Extensions (No New Events)
 
-The existing `inventory.item_received` and `inventory.item_issued` events are unchanged in event_type and NATS subject. The `ItemReceivedPayload` gains a `source_type` field. The `ItemIssuedPayload` already has `source_ref.source_type`. No new event types — the same events serve purchase and production flows, differentiated by `source_type`.
+The existing `inventory.item_received` and `inventory.item_issued` events are unchanged in event_type / NATS subject. The `ItemReceivedPayload` gains a `source_type` field. The `ItemIssuedPayload` already has `source_ref.source_type`. No new event types — the same events serve purchase and production flows, differentiated by `source_type`.
 
 #### Phase B — Production Module
 
-| event_type | Emitted When |
-|------------|-------------|
+| event_type (= NATS subject) | Emitted When |
+|------------------------------|-------------|
 | `production.work_order_created` | WO created (not yet released) |
 | `production.work_order_released` | WO released to floor |
 | `production.work_order_closed` | WO completed, FG receipt triggered |
@@ -326,18 +325,14 @@ The existing `inventory.item_received` and `inventory.item_issued` events are un
 | `production.workcenter_created` | New workcenter defined |
 | `production.workcenter_updated` | Workcenter details changed |
 
-NATS subjects follow the rule: `production.events.<event_type>`.
-
 #### Phase C1 — Receiving Inspection
 
-| event_type | Emitted When |
-|------------|-------------|
+| event_type (= NATS subject) | Emitted When |
+|------------------------------|-------------|
 | `inspection.plan_created` | Inspection plan defined for item/revision |
 | `inspection.record_created` | Inspection record opened (e.g., from S-R receipt) |
 | `inspection.record_completed` | All characteristics inspected |
 | `inspection.disposition_decided` | Accept/reject/hold decision recorded |
-
-NATS subjects follow the rule: `inspection.events.<event_type>`.
 
 #### Phase C2 — In-Process/Final Inspection
 
