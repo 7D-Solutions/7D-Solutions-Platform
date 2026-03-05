@@ -1,0 +1,30 @@
+[package]
+name = "bom-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used"
+
+[dependencies]
+axum = "0.8"
+security = { path = "../../platform/security" }
+health = { path = "../../platform/health" }
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+tower-http = { version = "0.6", features = ["cors"] }
+tower = { version = "0.5", features = ["util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+prometheus = "0.13"
+event-bus = { path = "../../platform/event-bus" }
+
+[dev-dependencies]
+serial_test = "3.3.1"
+
+[lints]
+workspace = true

@@ -33,6 +33,7 @@ members = [
   "modules/workflow",
   "modules/customer-portal",
   "modules/workforce-competence",
+  "modules/bom",
   "tools/contract-tests",
   "tools/simulation",
   "tools/tenantctl",

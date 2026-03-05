@@ -812,6 +812,37 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  bom-postgres:
+    container_name: 7d-bom-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5450:5432"
+    environment:
+      POSTGRES_DB: ${BOM_POSTGRES_DB:-bom_db}
+      POSTGRES_USER: ${BOM_POSTGRES_USER:-bom_user}
+      POSTGRES_PASSWORD: ${BOM_POSTGRES_PASSWORD:-bom_pass}
+    volumes:
+      - bom_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${BOM_POSTGRES_USER:-bom_user} -d ${BOM_POSTGRES_DB:-bom_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "bom-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -895,4 +926,7 @@ volumes:
     external: true
   workforce_competence_pgdata:
     name: 7d-workforce-competence-pgdata
+    external: true
+  bom_pgdata:
+    name: 7d-bom-pgdata
     external: true

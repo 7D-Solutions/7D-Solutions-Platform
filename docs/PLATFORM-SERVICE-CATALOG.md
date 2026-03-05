@@ -30,6 +30,7 @@ No version bump discipline required yet.
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| bom | bom-rs | 0.1.0 |  | 127.0.0.1 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used |  |
 | consolidation | consolidation | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
 | customer-portal | customer-portal | 0.1.0 |  |  | External customer portal auth boundary service |  |
 | fixed-assets | fixed-assets | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |

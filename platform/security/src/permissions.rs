@@ -118,6 +118,11 @@ pub const WORKFLOW_READ: &str = "workflow.read";
 pub const NUMBERING_ALLOCATE: &str = "numbering.allocate";
 pub const NUMBERING_READ: &str = "numbering.read";
 
+// ── BOM (Bill of Materials) ──────────────────────────────────────────
+
+pub const BOM_MUTATE: &str = "bom.mutate";
+pub const BOM_READ: &str = "bom.read";
+
 // ── Workforce Competence ─────────────────────────────────────────────
 
 pub const WORKFORCE_COMPETENCE_MUTATE: &str = "workforce_competence.mutate";
@@ -217,6 +222,12 @@ mod tests {
     }
 
     #[test]
+    fn test_permissions_bom_constants_are_non_empty() {
+        assert!(!BOM_MUTATE.is_empty());
+        assert!(!BOM_READ.is_empty());
+    }
+
+    #[test]
     fn test_permissions_follow_dot_convention() {
         // Every mutate permission must follow "module.mutate" or "module.post" pattern
         let mutate_perms = [
@@ -240,6 +251,7 @@ mod tests {
             SHIPPING_RECEIVING_MUTATE,
             WORKFLOW_MUTATE,
             WORKFORCE_COMPETENCE_MUTATE,
+            BOM_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(
@@ -287,6 +299,7 @@ mod tests {
         assert_ne!(WORKFLOW_MUTATE, WORKFLOW_READ);
         assert_ne!(WORKFORCE_COMPETENCE_MUTATE, WORKFORCE_COMPETENCE_READ);
         assert_ne!(REPORTING_MUTATE, REPORTING_READ);
+        assert_ne!(BOM_MUTATE, BOM_READ);
     }
 
     #[test]
