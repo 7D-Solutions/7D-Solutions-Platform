@@ -1,0 +1,42 @@
+[
+  {
+    "id": "b-mme22j9j-1uvsok",
+    "content": "When scaffolding a new module, check docker-compose.*.yml and PLATFORM-SERVICE-CATALOG.md for port allocations before choosing service and DB ports",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme22j9m-591qht",
+    "content": "Always create a dedicated integration proof bead at phase boundaries to verify cross-module contracts before starting the next phase",
+    "category": "testing"
+  },
+  {
+    "id": "b-mme22j9n-fmk22e",
+    "content": "State machine entities must emit an event on every transition (not just creation) — downstream consumers need the full lifecycle for auditing and reactive processing",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme22j9o-he3s3g",
+    "content": "When adding FK-like columns (receipt_id, part_id) to a table, always create indexes for the query patterns those columns will serve",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme22j9o-8b4e9w",
+    "content": "Keep Docker/CI wiring in a separate bead from domain logic — infrastructure port conflicts and config issues should not pollute domain commits",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mme22j9p-956ojx",
+    "content": "New module scaffolds follow a standard 18-file template: Cargo.toml, Dockerfile.workspace, migration, config, db/resolver, domain/outbox, events/mod, http/health, http/tenant, lib, main, metrics — copy from the most recent scaffold",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme22j9p-bunjc7",
+    "content": "Integration proof tests should cover regression of existing behavior — e.g. purchase receipt tests must still pass after adding production receipt support",
+    "category": "testing"
+  },
+  {
+    "id": "b-mme22j9q-oe23by",
+    "content": "Disposition and inspection event payloads must include both the previous and new state values so consumers can determine the transition direction without querying the source",
+    "category": "integration"
+  }
+]

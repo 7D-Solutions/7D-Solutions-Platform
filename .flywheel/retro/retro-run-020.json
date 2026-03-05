@@ -1,0 +1,23 @@
+{
+  "retro_run": 20,
+  "trigger": "count-based",
+  "timestamp": "2026-03-05T22:30:00Z",
+  "runner": "SageDesert",
+  "bead_id": "bd-sqeld",
+  "window": {
+    "from_seq": 445,
+    "to_seq": 450,
+    "bead_count": 6
+  },
+  "beads_analyzed": [
+    {"id": "bd-2f1xv", "title": "Phase C1: quality-inspection-rs scaffold + Docker/CI wiring", "agent": "DarkOwl", "commits": 1},
+    {"id": "bd-1y2nc", "title": "Phase C1: Inspection plan model + receiving inspection record core", "agent": "DarkOwl", "commits": 1},
+    {"id": "bd-2g7el", "title": "Phase A: Integration proof (Inventory retrofit + BOM core) end-to-end", "agent": "CopperRiver", "commits": 1},
+    {"id": "bd-1mgdw", "title": "Phase A: bom-rs Docker/CI container + compose watch wiring", "agent": "PurpleCliff", "commits": 2},
+    {"id": "bd-16fy6", "title": "Phase C1: Quarantine/hold + disposition outcomes with events", "agent": "DarkOwl", "commits": 1},
+    {"id": "bd-2ya5w", "title": "Phase B: production-rs scaffold + Docker/CI wiring", "agent": "SageDesert", "commits": 2}
+  ],
+  "rules_extracted": 8,
+  "rules_added": 8,
+  "rules_skipped": 0
+}
