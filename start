@@ -56,6 +56,119 @@ fi
 
 # Continue in current terminal
 
+# ─── Account Selection ────────────────────────────────────────────────────────
+SCRIPT_DIR_ABS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLYWHEEL_DIR="$SCRIPT_DIR_ABS/.flywheel"
+ACCOUNTS_CONF="$FLYWHEEL_DIR/accounts.conf"
+ACTIVE_ACCOUNT_FILE="$FLYWHEEL_DIR/active-account"
+SESSION_NAME="agentcore"
+
+# First-time setup wizard
+_setup_accounts() {
+    echo ""
+    echo "════════════════════════════════════════════════"
+    echo "  Claude Account Setup"
+    echo "════════════════════════════════════════════════"
+    echo ""
+    echo "No accounts configured yet. Enter your account names"
+    echo "(e.g. 'work', 'personal') one at a time. Press Enter with"
+    echo "no name when done."
+    echo ""
+    mkdir -p "$FLYWHEEL_DIR"
+    > "$ACCOUNTS_CONF"
+    local count=0
+    while true; do
+        read -p "  Account name (or Enter to finish): " acct_name
+        [ -z "$acct_name" ] && break
+        local config_dir="$HOME/.claude-${acct_name}"
+        mkdir -p "$config_dir"
+        echo "${acct_name}:${config_dir}" >> "$ACCOUNTS_CONF"
+        echo "  ✓ Config dir created: $config_dir"
+        count=$((count + 1))
+    done
+    if [ "$count" -eq 0 ]; then
+        echo "  No accounts added. Exiting."
+        exit 1
+    fi
+    echo ""
+    echo "✓ Accounts saved. To log in to each account, run:"
+    while IFS=: read -r name dir; do
+        echo "  CLAUDE_CONFIG_DIR=$dir claude"
+    done < "$ACCOUNTS_CONF"
+    echo ""
+    echo "Then re-run ./start to continue."
+    exit 0
+}
+
+# Setup if no accounts configured
+if [ ! -f "$ACCOUNTS_CONF" ] || [ ! -s "$ACCOUNTS_CONF" ]; then
+    _setup_accounts
+fi
+
+# Load accounts
+_account_names=()
+_account_dirs=()
+while IFS=: read -r _name _dir; do
+    _account_names+=("$_name")
+    _account_dirs+=("$_dir")
+done < "$ACCOUNTS_CONF"
+
+# If session already running, offer attach or kill+restart
+if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    _current=$(cat "$ACTIVE_ACCOUNT_FILE" 2>/dev/null || echo "unknown")
+    echo ""
+    echo "════════════════════════════════════════════════"
+    echo "  Session '$SESSION_NAME' is already running"
+    echo "  Active account: $_current"
+    echo "════════════════════════════════════════════════"
+    echo ""
+    echo "  1) Attach to existing session  [default]"
+    echo "  2) Kill and restart with a different account"
+    echo ""
+    read -p "Your choice [1]: " _session_choice
+    _session_choice="${_session_choice:-1}"
+    if [ "$_session_choice" = "1" ]; then
+        exec tmux attach -t "$SESSION_NAME"
+    else
+        echo "  Killing session '$SESSION_NAME'..."
+        tmux kill-session -t "$SESSION_NAME"
+        echo "  ✓ Session stopped"
+    fi
+fi
+
+# Account picker (skip if only one account)
+if [ ${#_account_names[@]} -eq 1 ]; then
+    _selected_name="${_account_names[0]}"
+    _selected_dir="${_account_dirs[0]}"
+else
+    echo ""
+    echo "════════════════════════════════════════════════"
+    echo "  Select Claude Account"
+    echo "════════════════════════════════════════════════"
+    echo ""
+    for _i in "${!_account_names[@]}"; do
+        echo "  $((_i+1))) ${_account_names[$_i]}"
+    done
+    echo ""
+    read -p "Your choice [1]: " _acct_choice
+    _acct_choice="${_acct_choice:-1}"
+    _idx=$((_acct_choice - 1))
+    _selected_name="${_account_names[$_idx]}"
+    _selected_dir="${_account_dirs[$_idx]}"
+fi
+
+export CLAUDE_CONFIG_DIR="$_selected_dir"
+echo "$_selected_name" > "$ACTIVE_ACCOUNT_FILE"
+# Write config dir to file so agent-runner can read it without relying on tmux env
+echo "$_selected_dir" > "$FLYWHEEL_DIR/claude-config-dir"
+# Also propagate to tmux global env for any processes that check it directly
+tmux set-environment -g CLAUDE_CONFIG_DIR "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+echo ""
+echo "  ✓ Account: $_selected_name"
+echo "    Config:  $CLAUDE_CONFIG_DIR"
+echo ""
+# ─── End Account Selection ────────────────────────────────────────────────────
+
 # Auto-install dependencies if package.json exists and node_modules is missing/stale
 if [ -f "package.json" ]; then
     NEEDS_INSTALL=false
@@ -89,6 +202,43 @@ fi
 if command -v fsfs &>/dev/null; then
     echo "🔍 Indexing project with fsfs..."
     fsfs index . >/dev/null 2>&1 &
+fi
+
+# Run UBS baseline bug scan on all active projects (background, non-blocking)
+# Reports summary when done and mails orchestrator if critical findings exist.
+if command -v ubs &>/dev/null; then
+    echo "🔍 Running UBS baseline scans..."
+    for _ubs_dir in "$SCRIPT_DIR_ABS" "$HOME/Projects/7D-Solutions Platform"; do
+        if [ -d "$_ubs_dir" ]; then
+            _ubs_name=$(basename "$_ubs_dir")
+            _ubs_report="$_ubs_dir/.flywheel/ubs-baseline.json"
+            mkdir -p "$_ubs_dir/.flywheel"
+            (
+                cd "$_ubs_dir"
+                ubs --quiet --report-json="$_ubs_report" . >/dev/null 2>&1
+                # Summarize results
+                if [ -f "$_ubs_report" ]; then
+                    _c=$(jq -r '.totals.critical // 0' "$_ubs_report" 2>/dev/null)
+                    _w=$(jq -r '.totals.warning // 0' "$_ubs_report" 2>/dev/null)
+                    _f=$(jq -r '.totals.files // 0' "$_ubs_report" 2>/dev/null)
+                    if [ "${_f:-0}" -gt 0 ] 2>/dev/null; then
+                        echo "UBS [$_ubs_name]: ${_c} critical, ${_w} warning across ${_f} files"
+                    else
+                        echo "UBS [$_ubs_name]: ${_c} critical, ${_w} warning"
+                    fi
+                    # Mail orchestrator if critical findings exist
+                    if [ "${_c:-0}" -gt 0 ] && [ -f "$SCRIPT_DIR_ABS/.flywheel/orchestrator-name" ]; then
+                        _orch=$(cat "$SCRIPT_DIR_ABS/.flywheel/orchestrator-name" 2>/dev/null)
+                        if [ -n "$_orch" ] && [ -f "$SCRIPT_DIR_ABS/scripts/agent-mail-helper.sh" ]; then
+                            TMUX_PANE="${TMUX_PANE:-}" "$SCRIPT_DIR_ABS/scripts/agent-mail-helper.sh" send "$_orch" \
+                                "UBS baseline: ${_c} critical in $_ubs_name" \
+                                "UBS baseline scan found ${_c} critical, ${_w} warning in $_ubs_name. Report: $_ubs_report" 2>/dev/null || true
+                        fi
+                    fi
+                fi
+            ) &
+        fi
+    done
 fi
 
 # Always try visual interface first - it will handle fzf installation
