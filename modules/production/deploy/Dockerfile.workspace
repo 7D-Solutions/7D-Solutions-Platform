@@ -42,9 +42,9 @@ COPY --from=builder /app/target/release/production-rs /usr/local/bin/production-
 COPY --from=builder /app/modules/production/db/migrations /app/migrations
 
 ENV HOST=0.0.0.0
-ENV PORT=8106
+ENV PORT=8108
 
-EXPOSE 8106
+EXPOSE 8108
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1

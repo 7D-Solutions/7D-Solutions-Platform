@@ -110,14 +110,14 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
-| Production: module scaffold (production-rs crate) | NOT STARTED | — | — |
+| Production: module scaffold (production-rs crate) | DONE | bd-2ya5w | 2026-03-05 |
 | Production: work order lifecycle (create/release/close) | NOT STARTED | — | — |
 | Production: workcenter master table (owned by Production) | NOT STARTED | — | — |
 | Production: routing/operations model (sequence, workcenter, status) | NOT STARTED | — | — |
 | Production: explicit component issue workflow → Inventory | NOT STARTED | — | — |
 | Production: FG receipt → Inventory at rolled-up cost | NOT STARTED | — | — |
 | Production: timekeeping link (operation events → clock events) — optional B-late | NOT STARTED | — | — |
-| Docker: production-rs container with compose watch | NOT STARTED | — | — |
+| Docker: production-rs container with compose watch | DONE | bd-2ya5w | 2026-03-05 |
 
 **Not in this phase:** Backflush, CostBreakdown JSONB (deferred to future costing phase), quality inspection execution, ECO, NCR/CAPA, capacity planning, scheduling.
 

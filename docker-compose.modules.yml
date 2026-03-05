@@ -743,14 +743,14 @@ services:
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
-      PORT: 8106
+      PORT: 8108
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "127.0.0.1:8106:8106"
+      - "127.0.0.1:8108:8108"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8106/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8108/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

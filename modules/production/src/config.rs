@@ -24,7 +24,7 @@ impl Config {
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
 
         let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8106".to_string())
+            .unwrap_or_else(|_| "8108".to_string())
             .parse()
             .map_err(|_| {
                 format!(
