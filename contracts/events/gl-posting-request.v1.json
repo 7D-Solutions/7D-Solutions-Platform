@@ -80,6 +80,8 @@
             "AP_PAYMENT",
             "INVENTORY_RECEIPT",
             "INVENTORY_ISSUE",
+            "PRODUCTION_ISSUE",
+            "PRODUCTION_RECEIPT",
             "PAYROLL_RUN"
           ]
         },

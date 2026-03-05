@@ -220,6 +220,8 @@ impl std::fmt::Display for crate::contracts::gl_posting_request_v1::SourceDocTyp
             Self::ApPayment => write!(f, "AP_PAYMENT"),
             Self::InventoryReceipt => write!(f, "INVENTORY_RECEIPT"),
             Self::InventoryIssue => write!(f, "INVENTORY_ISSUE"),
+            Self::ProductionIssue => write!(f, "PRODUCTION_ISSUE"),
+            Self::ProductionReceipt => write!(f, "PRODUCTION_RECEIPT"),
             Self::PayrollRun => write!(f, "PAYROLL_RUN"),
             Self::GlAccrual => write!(f, "GL_ACCRUAL"),
             Self::LaborCostAccrual => write!(f, "LABOR_COST_ACCRUAL"),

@@ -44,6 +44,8 @@ pub enum SourceDocType {
     ApPayment,
     InventoryReceipt,
     InventoryIssue,
+    ProductionIssue,
+    ProductionReceipt,
     PayrollRun,
     LaborCostAccrual,
     GlAccrual,
@@ -135,10 +137,8 @@ mod tests {
             ]
         }"#;
 
-        let result: Result<GlPostingRequestV1, _> = serde_json::from_str(json);
-        assert!(result.is_ok());
-
-        let payload = result.unwrap();
+        let payload: GlPostingRequestV1 =
+            serde_json::from_str(json).expect("valid JSON");
         assert_eq!(payload.posting_date, "2024-02-11");
         assert_eq!(payload.currency, "USD");
         assert_eq!(payload.source_doc_type, SourceDocType::ArInvoice);
@@ -169,10 +169,8 @@ mod tests {
             ]
         }"#;
 
-        let result: Result<GlPostingRequestV1, _> = serde_json::from_str(json);
-        assert!(result.is_ok());
-
-        let payload = result.unwrap();
+        let payload: GlPostingRequestV1 =
+            serde_json::from_str(json).expect("valid JSON");
         assert_eq!(payload.lines[0].memo, None);
         assert_eq!(payload.lines[0].dimensions, None);
     }
@@ -188,6 +186,8 @@ mod tests {
             ("AP_PAYMENT", SourceDocType::ApPayment),
             ("INVENTORY_RECEIPT", SourceDocType::InventoryReceipt),
             ("INVENTORY_ISSUE", SourceDocType::InventoryIssue),
+            ("PRODUCTION_ISSUE", SourceDocType::ProductionIssue),
+            ("PRODUCTION_RECEIPT", SourceDocType::ProductionReceipt),
             ("PAYROLL_RUN", SourceDocType::PayrollRun),
             ("LABOR_COST_ACCRUAL", SourceDocType::LaborCostAccrual),
         ];
@@ -198,7 +198,7 @@ mod tests {
             assert!(result.is_ok());
 
             // Verify it serializes to the correct JSON string
-            let serialized = serde_json::to_string(&expected).unwrap();
+            let serialized = serde_json::to_string(&expected).expect("serialize");
             assert_eq!(serialized, format!(r#""{}""#, json_val));
         }
     }
