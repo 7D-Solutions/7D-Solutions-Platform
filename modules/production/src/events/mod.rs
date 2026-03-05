@@ -16,6 +16,9 @@ pub enum ProductionEventType {
     WorkcenterCreated,
     WorkcenterUpdated,
     WorkcenterDeactivated,
+    RoutingCreated,
+    RoutingUpdated,
+    RoutingReleased,
 }
 
 impl ProductionEventType {
@@ -31,6 +34,9 @@ impl ProductionEventType {
             Self::WorkcenterCreated => "production.workcenter_created",
             Self::WorkcenterUpdated => "production.workcenter_updated",
             Self::WorkcenterDeactivated => "production.workcenter_deactivated",
+            Self::RoutingCreated => "production.routing_created",
+            Self::RoutingUpdated => "production.routing_updated",
+            Self::RoutingReleased => "production.routing_released",
         }
     }
 }
@@ -242,6 +248,104 @@ pub fn build_work_order_closed_envelope(
             work_order_id,
             tenant_id,
             order_number,
+        },
+    )
+}
+
+// ============================================================================
+// Routing event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoutingCreatedPayload {
+    pub routing_template_id: Uuid,
+    pub tenant_id: String,
+    pub name: String,
+    pub revision: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoutingUpdatedPayload {
+    pub routing_template_id: Uuid,
+    pub tenant_id: String,
+    pub name: String,
+    pub revision: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoutingReleasedPayload {
+    pub routing_template_id: Uuid,
+    pub tenant_id: String,
+    pub name: String,
+    pub revision: String,
+}
+
+// ============================================================================
+// Routing envelope builders
+// ============================================================================
+
+pub fn build_routing_created_envelope(
+    routing_template_id: Uuid,
+    tenant_id: String,
+    name: String,
+    revision: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<RoutingCreatedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::RoutingCreated.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        RoutingCreatedPayload {
+            routing_template_id,
+            tenant_id,
+            name,
+            revision,
+        },
+    )
+}
+
+pub fn build_routing_updated_envelope(
+    routing_template_id: Uuid,
+    tenant_id: String,
+    name: String,
+    revision: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<RoutingUpdatedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::RoutingUpdated.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        RoutingUpdatedPayload {
+            routing_template_id,
+            tenant_id,
+            name,
+            revision,
+        },
+    )
+}
+
+pub fn build_routing_released_envelope(
+    routing_template_id: Uuid,
+    tenant_id: String,
+    name: String,
+    revision: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<RoutingReleasedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::RoutingReleased.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        RoutingReleasedPayload {
+            routing_template_id,
+            tenant_id,
+            name,
+            revision,
         },
     )
 }

@@ -1,4 +1,5 @@
 pub mod health;
+pub mod routings;
 pub mod tenant;
 pub mod work_orders;
 pub mod workcenters;
