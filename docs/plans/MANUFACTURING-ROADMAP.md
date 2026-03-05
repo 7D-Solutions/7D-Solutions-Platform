@@ -89,6 +89,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | BOM: where-used reverse lookup | DONE | bd-1uy2l | 2026-03-05 |
 | BOM: events emitted via outbox | DONE | bd-1uy2l | 2026-03-05 |
 | GL: consumer branches by source_type (COGS vs WIP) + production receipt GL path | DONE | bd-2vc9u | 2026-03-05 |
+| Docker: bom-rs container with compose watch + CI build job | DONE | bd-1mgdw | 2026-03-05 |
 
 **Not in this phase:** ECO lifecycle, workcenters (Production owns from Phase B — no temporary table in Maintenance), inspection bridge, CostBreakdown JSONB, backflush, serial-number effectivity, `produced` entry_type enum (source_type disambiguates).
 
@@ -278,4 +279,5 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | A | Inventory retrofit complete (bd-194cd): source_type on receipts + ledger + events, production/return receipt paths, make/buy classification with Guard→Mutation→Outbox pattern, event contract extended. 237 unit tests pass. Integration tests blocked by pre-existing DB TLS issue (bd-194cd.1). | MaroonHarbor | modules/inventory/tests/phase_a_integration.rs |
 | 2026-03-05 | A | BOM core module complete (bd-1uy2l): scaffold, header/revision/line CRUD, date-based effectivity with exclusion constraint, multi-level explosion with depth guard + cycle detection, where-used reverse lookup, outbox events (6 event types). 5 unit + 7 integration tests pass against real Postgres. | PurpleCliff | modules/bom/tests/bom_integration.rs |
 | 2026-03-05 | A | GL consumer source_type branching (bd-2vc9u): item_issued branches purchase→COGS / production→WIP, item_received production→FG receipt (DR INVENTORY / CR WIP). Unknown source_type hard-fails. New SourceDocType variants (ProductionIssue, ProductionReceipt). 5 integration tests pass against real GL DB. | CopperRiver | modules/gl/tests/gl_inventory_source_type_test.rs |
+| 2026-03-05 | A | BOM Docker/CI wiring (bd-1mgdw): Dockerfile.workspace (multi-stage cargo-chef), compose service on port 8107, gateway depends_on, CI build-bom job, fixed port conflict (8098→8107). Service catalog auto-updated. | PurpleCliff | modules/bom/Dockerfile.workspace |
 | 2026-03-05 | C1 | Quality inspection scaffold complete (bd-2f1xv): quality-inspection-rs crate with Axum app, health/ready/version endpoints, Prometheus metrics, outbox pattern, migration (inspection_plans, inspections, dispositions, outbox, processed_events). Docker container + compose service on port 8106, DB on port 5459. Builds and passes all tests. | DarkOwl | modules/quality-inspection/ |
