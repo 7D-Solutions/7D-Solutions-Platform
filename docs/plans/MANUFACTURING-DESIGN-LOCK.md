@@ -44,16 +44,25 @@ This document locks the one-way-door architectural decisions before any manufact
 - **Inventory does not distinguish** production FIFO layers from purchase FIFO layers during future consumption. A layer is a layer.
 - **GL selects posting template** based on `source_type` in the `inventory.item_received` event payload.
 
+### source_type Field: Canonical Locations
+
+The two inventory event payloads carry source_type in different places:
+
+- **`ItemIssuedPayload`**: `source_ref.source_type` (already exists in codebase — `SourceRef` struct has `source_type: String`)
+- **`ItemReceivedPayload`**: `source_type` (new top-level field, added in Phase A — currently only has `purchase_order_id: Option<Uuid>`)
+
+GL consumers must read from these canonical locations. No `source_type` field exists on the EventEnvelope itself — it is always inside the payload.
+
 ### GL Posting Templates by Source Type
 
-| Source Type | Event | Debit | Credit |
+| source_type | Event | Debit | Credit |
 |-------------|-------|-------|--------|
 | `purchase` | `inventory.item_received` | Inventory (asset) | AP Accrual (liability) |
 | `production` | `inventory.item_received` | Finished Goods Inventory (asset) | WIP (asset) |
-| `purchase` | `inventory.item_issued` | COGS (expense) | Inventory (asset) |
-| `production` | `inventory.item_issued` | WIP (asset) | Raw Material Inventory (asset) |
+| (sale/consumption) | `inventory.item_issued` via `source_ref.source_type` | COGS (expense) | Inventory (asset) |
+| `production` | `inventory.item_issued` via `source_ref.source_type` | WIP (asset) | Raw Material Inventory (asset) |
 
-**Note:** The `inventory.item_issued` posting template already exists for COGS (see `gl_inventory_consumer.rs`). The Phase A/B work adds the `source_type` field so GL can distinguish production issues (DR WIP) from sales issues (DR COGS). The `inventory.item_received` consumer for production receipts is new — GL needs one additional consumer.
+**Note:** The `inventory.item_issued` GL consumer already exists (`gl_inventory_consumer.rs`) and posts COGS. Phase A/B extends it to check `source_ref.source_type` and select the correct debit account (COGS vs WIP). The `inventory.item_received` consumer for production receipts is new — GL needs one additional consumer.
 
 ---
 
@@ -118,28 +127,28 @@ Manufacturing entities reference each other by UUID only — no foreign key impo
 
 ## 3. WIP Representation Decision
 
-**Decision: Inventory location/state model — no separate WIP ledger.**
+**Decision: WIP exists only as a GL account balance. Inventory does not track WIP.**
 
 ### How It Works
 
-- WIP is represented as **inventory in a designated WIP location** within the same warehouse.
-- When components are issued to a work order, Inventory records an issue from the stock location. The cost leaves on-hand via FIFO consumption. The GL entry (DR WIP, CR Inventory) creates the WIP balance in GL, not in Inventory.
-- Inventory does **not** track WIP balance as a separate quantity bucket. WIP exists only as a GL account balance.
-- When the finished good is received, the GL entry (DR FG Inventory, CR WIP) closes the WIP balance.
+- When components are issued to a work order, Inventory records a standard issue — quantity leaves on-hand via FIFO consumption. Inventory's job is done.
+- The GL consumer sees the `inventory.item_issued` event with `source_ref.source_type = "production"` and posts **DR WIP (asset), CR Raw Material Inventory (asset)**. This creates the WIP balance in GL.
+- Inventory has **no WIP location, no WIP quantity bucket, no WIP state**. There is no inventory position called "WIP." The issued material is simply gone from Inventory's perspective.
+- When the finished good is received, GL posts **DR Finished Goods Inventory (asset), CR WIP (asset)**. This closes the WIP balance.
 
-### Why Not a Production Ledger
+### Why GL-Only
 
-A separate production WIP ledger would:
+A separate WIP ledger (in Inventory or Production) would:
 1. Duplicate cost tracking that GL already provides.
 2. Require reconciliation between two sources of truth for WIP valuation.
 3. Add complexity to the audit trail — auditors would need to reconcile Inventory + Production + GL instead of just Inventory + GL.
 
 ### Implications
 
-- **WIP valuation** is always derived from GL account balances, not from a production module query.
-- **WIP aging** (how long a WO has been open) is derived from Production's work order timestamps, not from inventory movement dates.
-- **Material still on the floor** (issued but not yet consumed in an operation) is cost-tracked via GL WIP, not via an intermediate inventory state. If an issued component is returned unused, Production issues a return that reverses the original issue.
-- **Phase B must implement** a WO cost accumulator that tracks material + labor + overhead totals for the rollup calculation, but this is a Production-internal data structure, not an inventory position.
+- **WIP valuation** is always derived from GL account balances, not from an Inventory or Production query.
+- **WIP aging** (how long a WO has been open) is derived from Production's work order timestamps.
+- **Material on the floor** (issued but not yet consumed in an operation) is cost-tracked solely via GL WIP. If an issued component is returned unused, Production triggers a return that reverses the original issue.
+- **Phase B must implement** a WO cost accumulator that tracks material + labor + overhead totals for the rollup calculation, but this is a Production-internal data structure — not an inventory position or quantity bucket.
 
 ---
 
@@ -200,20 +209,20 @@ This is the existing pattern — `gl_inventory_consumer.rs` already subscribes t
 
 ### Minimal Payload Fields Required for GL Posting
 
-From `inventory.item_issued`:
+From `inventory.item_issued` (payload: `ItemIssuedPayload`):
 - `tenant_id` — GL account lookup
 - `total_cost_minor` — journal amount
 - `currency` — journal currency
-- `source_ref.source_type` — template selection (sale → COGS, production → WIP)
+- `source_ref.source_type` — template selection (sale → COGS, production → WIP). **Already exists in codebase.**
 - `item_id` — dimensions (optional, for cost center reporting)
 - `warehouse_id` — dimensions (optional, for location reporting)
 
-From `inventory.item_received` (production):
+From `inventory.item_received` (payload: `ItemReceivedPayload`):
 - `tenant_id` — GL account lookup
 - `unit_cost_minor` × `quantity` — journal amount
 - `currency` — journal currency
-- `source_type` — must be "production" for FG receipt template
-- `work_order_id` — dimensions (for WO cost tracking)
+- `source_type` — **new top-level field on ItemReceivedPayload** (added in Phase A). Must be "production" for FG receipt template.
+- `work_order_id` — **new field on ItemReceivedPayload** (added in Phase A). Used for dimensions.
 
 ### SourceDocType Extension
 
@@ -263,74 +272,84 @@ The prerequisites doc proposed a temporary workcenter table in Maintenance durin
 
 ## 8. Event Contract Naming Review
 
-### Existing Pattern
+### Existing Pattern (Codebase Reality)
 
-The platform uses: `<module>.<entity>_<action>` for event types, published on NATS subject `<module>.events.<event_type>`.
+There are two related identifiers:
 
-Existing examples from codebase:
-- `inventory.item_received` → `inventory.events.inventory.item_received`
-- `inventory.item_issued` → `inventory.events.inventory.item_issued`
-- `inventory.adjusted` → `inventory.events.inventory.adjusted`
-- `gl.posting.accepted` → `gl.events.gl.posting.accepted`
-- `auth.events.password_reset_completed`
+1. **`event_type`** (in EventEnvelope): The logical event name. Format: `<module>.<entity>_<action>`.
+   - Examples: `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`
 
-### Confirmed Naming Pattern
+2. **NATS subject** (wire transport): The stream subject the event is published on. Format: `<module>.events.<event_type>`.
+   - Examples: `inventory.events.inventory.item_received`, `gl.events.gl.posting.request`
 
-Format: `<module>.<entity>_<action>` (underscored entity+action, dotted module prefix).
+Consumers subscribe to the **NATS subject**. The `event_type` field is metadata inside the envelope. GL's inventory consumer subscribes to the plain NATS subject `inventory.item_issued` (see `gl_inventory_consumer.rs` line 149) — this works because NATS allows subscribing to a suffix of the full subject.
 
-This matches the existing inventory events. The bead description suggested `{module}.{entity}_{action}` — confirmed.
+**Note:** The existing codebase has some inconsistency in NATS subject patterns. Some modules use the full `<module>.events.<event_type>` pattern, others publish to shorter subjects. New manufacturing modules must not break existing consumers.
+
+### Rule for New Manufacturing Modules
+
+- **`event_type`** follows: `<module>.<entity>_<action>` — e.g., `bom.revision_released`, `production.work_order_created`
+- **NATS subject** follows: `<module>.events.<event_type>` — e.g., `bom.events.bom.revision_released`
+- Existing inventory events keep their current subjects. GL consumers subscribe to existing subjects unchanged.
+- The `source_type` / `source_ref.source_type` field inside the payload differentiates production vs purchase flows — not the NATS subject.
 
 ### Minimal New Manufacturing Events (Phases A-C)
 
 #### Phase A — BOM Module
 
-| Event Type | NATS Subject | Emitted When |
-|------------|-------------|-------------|
-| `bom.header_created` | `bom.events.bom.header_created` | New BOM header created for a parent item |
-| `bom.revision_created` | `bom.events.bom.revision_created` | New BOM revision created (draft) |
-| `bom.revision_released` | `bom.events.bom.revision_released` | BOM revision set to released status with effectivity dates |
-| `bom.revision_obsoleted` | `bom.events.bom.revision_obsoleted` | BOM revision set to obsolete status |
-| `bom.line_added` | `bom.events.bom.line_added` | Component line added to a BOM revision |
-| `bom.line_removed` | `bom.events.bom.line_removed` | Component line removed from a BOM revision |
+| event_type | Emitted When |
+|------------|-------------|
+| `bom.header_created` | New BOM header created for a parent item |
+| `bom.revision_created` | New BOM revision created (draft) |
+| `bom.revision_released` | BOM revision set to released status with effectivity dates |
+| `bom.revision_obsoleted` | BOM revision set to obsolete status |
+| `bom.line_added` | Component line added to a BOM revision |
+| `bom.line_removed` | Component line removed from a BOM revision |
+
+NATS subjects follow the rule: `bom.events.<event_type>` (e.g., `bom.events.bom.revision_released`).
 
 #### Phase A — Inventory Extensions (No New Events)
 
-The existing `inventory.item_received` and `inventory.item_issued` events gain a `source_type` field in the payload. No new event types — the same events serve purchase and production flows, differentiated by `source_type`.
+The existing `inventory.item_received` and `inventory.item_issued` events are unchanged in event_type and NATS subject. The `ItemReceivedPayload` gains a `source_type` field. The `ItemIssuedPayload` already has `source_ref.source_type`. No new event types — the same events serve purchase and production flows, differentiated by `source_type`.
 
 #### Phase B — Production Module
 
-| Event Type | NATS Subject | Emitted When |
-|------------|-------------|-------------|
-| `production.work_order_created` | `production.events.production.work_order_created` | WO created (not yet released) |
-| `production.work_order_released` | `production.events.production.work_order_released` | WO released to floor |
-| `production.work_order_closed` | `production.events.production.work_order_closed` | WO completed, FG receipt triggered |
-| `production.component_issued` | `production.events.production.component_issued` | Component issued to WO (triggers Inventory issue) |
-| `production.operation_started` | `production.events.production.operation_started` | Operation begins at workcenter |
-| `production.operation_completed` | `production.events.production.operation_completed` | Operation finished |
-| `production.fg_received` | `production.events.production.fg_received` | Finished good receipt recorded (triggers Inventory receipt) |
-| `production.workcenter_created` | `production.events.production.workcenter_created` | New workcenter defined |
-| `production.workcenter_updated` | `production.events.production.workcenter_updated` | Workcenter details changed |
+| event_type | Emitted When |
+|------------|-------------|
+| `production.work_order_created` | WO created (not yet released) |
+| `production.work_order_released` | WO released to floor |
+| `production.work_order_closed` | WO completed, FG receipt triggered |
+| `production.component_issued` | Component issued to WO (triggers Inventory issue) |
+| `production.operation_started` | Operation begins at workcenter |
+| `production.operation_completed` | Operation finished |
+| `production.fg_received` | Finished good receipt recorded (triggers Inventory receipt) |
+| `production.workcenter_created` | New workcenter defined |
+| `production.workcenter_updated` | Workcenter details changed |
+
+NATS subjects follow the rule: `production.events.<event_type>`.
 
 #### Phase C1 — Receiving Inspection
 
-| Event Type | NATS Subject | Emitted When |
-|------------|-------------|-------------|
-| `inspection.plan_created` | `inspection.events.inspection.plan_created` | Inspection plan defined for item/revision |
-| `inspection.record_created` | `inspection.events.inspection.record_created` | Inspection record opened (e.g., from S-R receipt) |
-| `inspection.record_completed` | `inspection.events.inspection.record_completed` | All characteristics inspected |
-| `inspection.disposition_decided` | `inspection.events.inspection.disposition_decided` | Accept/reject/hold decision recorded |
+| event_type | Emitted When |
+|------------|-------------|
+| `inspection.plan_created` | Inspection plan defined for item/revision |
+| `inspection.record_created` | Inspection record opened (e.g., from S-R receipt) |
+| `inspection.record_completed` | All characteristics inspected |
+| `inspection.disposition_decided` | Accept/reject/hold decision recorded |
+
+NATS subjects follow the rule: `inspection.events.<event_type>`.
 
 #### Phase C2 — In-Process/Final Inspection
 
-No new event types beyond Phase C1 — in-process and final inspections use the same `inspection.record_*` events with a `inspection_type` field in the payload (`receiving`, `in_process`, `final`).
+No new event types beyond Phase C1 — in-process and final inspections use the same `inspection.record_*` events with an `inspection_type` field in the payload (`receiving`, `in_process`, `final`).
 
 #### Phase D — ECO
 
-| Event Type | NATS Subject | Emitted When |
-|------------|-------------|-------------|
-| `bom.eco_submitted` | `bom.events.bom.eco_submitted` | ECO submitted for approval |
-| `bom.eco_approved` | `bom.events.bom.eco_approved` | ECO approved via Workflow |
-| `bom.eco_applied` | `bom.events.bom.eco_applied` | ECO changes applied (BOM revision superseded) |
+| event_type | Emitted When |
+|------------|-------------|
+| `bom.eco_submitted` | ECO submitted for approval |
+| `bom.eco_approved` | ECO approved via Workflow |
+| `bom.eco_applied` | ECO changes applied (BOM revision superseded) |
 
 ### Events Consumed by Manufacturing Modules
 
