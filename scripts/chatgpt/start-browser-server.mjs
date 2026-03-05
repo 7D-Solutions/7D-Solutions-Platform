@@ -25,7 +25,7 @@ Usage:
   node scripts/chatgpt/start-browser-server.mjs \\
     [--pid-file .flywheel/browser-server.pid] \\
     [--endpoint-file .flywheel/browser-endpoint.txt] \\
-    [--storage-state .browser-profiles/chatgpt-state.json]
+    [--storage-state ~/.flywheel/browser-profiles/chatgpt-state.json]
 
 The browser will stay open and the process will keep running.
 Kill the process or send SIGTERM to stop the browser.
@@ -199,7 +199,7 @@ async function startBrowserServer(storageStatePath, pidFile, endpointFile) {
 
   const pidFile = args["pid-file"] || ".flywheel/browser-server.pid";
   const endpointFile = args["endpoint-file"] || ".flywheel/browser-endpoint.txt";
-  const storageStatePath = args["storage-state"] || ".browser-profiles/chatgpt-state.json";
+  const storageStatePath = args["storage-state"] || (process.env.HOME + "/.flywheel/browser-profiles/chatgpt-state.json");
 
   // Check for storage state
   if (!fs.existsSync(storageStatePath)) {

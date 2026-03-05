@@ -3,10 +3,10 @@ import { chromium } from "playwright";
 
 /**
  * Open an authenticated browser to ChatGPT
- * Uses the saved storage state from .browser-profiles/chatgpt-state.json
+ * Uses the saved storage state from ~/.flywheel/browser-profiles/chatgpt-state.json
  */
 
-const storageStatePath = ".browser-profiles/chatgpt-state.json";
+const storageStatePath = process.env.HOME + "/.flywheel/browser-profiles/chatgpt-state.json";
 
 console.log("Opening authenticated browser to ChatGPT...");
 console.log("Press Ctrl+C to close the browser.");

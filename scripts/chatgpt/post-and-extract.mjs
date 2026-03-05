@@ -31,7 +31,7 @@ Usage:
     [--timeout 60000]
 
 Requires:
-- .browser-profiles/chatgpt-state.json (auth state)
+- ~/.flywheel/browser-profiles/chatgpt-state.json (auth state)
 
 This uses Playwright directly (not MCP) to avoid context burn.
 `);
@@ -374,7 +374,7 @@ async function postAndExtract(conversationUrl, message, storageStatePath, timeou
   const message = fs.readFileSync(messageFile, "utf8");
 
   // Check for storage state
-  const storageStatePath = ".browser-profiles/chatgpt-state.json";
+  const storageStatePath = process.env.HOME + "/.flywheel/browser-profiles/chatgpt-state.json";
   if (!fs.existsSync(storageStatePath)) {
     console.error(`Storage state not found: ${storageStatePath}`);
     console.error("Run: node scripts/init-chatgpt-storage-state.mjs");
