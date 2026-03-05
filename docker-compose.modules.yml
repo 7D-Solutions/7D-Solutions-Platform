@@ -730,6 +730,54 @@ services:
         - action: rebuild
           path: platform/security/src
 
+  # =========================
+  # PRODUCTION MODULE
+  # =========================
+  production:
+    container_name: 7d-production
+    build:
+      context: .
+      dockerfile: modules/production/deploy/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8106
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8106:8106"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8106/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "production"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/production/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
 networks:
   7d-platform:
     name: 7d-platform

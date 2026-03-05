@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.3.11"
+version = "1.4.1"
 dependencies = [
  "argon2",
  "async-nats",
@@ -514,6 +514,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "bom-rs"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "health",
+ "prometheus",
+ "security",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -1149,6 +1173,7 @@ dependencies = [
  "audit",
  "axum",
  "base64",
+ "bom-rs",
  "chrono",
  "compliance-export",
  "consolidation",
@@ -3231,6 +3256,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "production-rs"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "health",
+ "prometheus",
+ "security",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "projection-rebuild"
 version = "0.1.0"
 dependencies = [
@@ -3334,6 +3383,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7186d3822593aa4393561d186d1393b3923e9d6163d3fbfd6e825e3e6cf3e6a8"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "quality-inspection-rs"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "health",
+ "prometheus",
+ "security",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
