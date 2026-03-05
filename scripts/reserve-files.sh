@@ -13,7 +13,7 @@ source "$SCRIPT_DIR/lib/project-config.sh"
 
 # Mail server configuration
 MAIL_SERVER="${MAIL_SERVER:-http://127.0.0.1:8765}"
-MCP_AGENT_MAIL_DIR="${MCP_AGENT_MAIL_DIR:-$HOME/mcp_agent_mail}"
+MCP_AGENT_MAIL_DIR="${MCP_AGENT_MAIL_DIR:-$HOME/Projects/AgentCore/mcp_agent_mail}"
 TOKEN_FILE="$MCP_AGENT_MAIL_DIR/.env"
 
 # Configuration
