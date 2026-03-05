@@ -6,6 +6,9 @@ description = "Consumer-side event dispatch: handler registry, router, and conte
 
 [dependencies]
 event-bus = { path = "../event-bus" }
+async-nats = "0.38"
+futures = "0.3"
+tokio = { version = "1", features = ["sync", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["serde", "v4"] }
