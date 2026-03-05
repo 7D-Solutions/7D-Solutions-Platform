@@ -50,12 +50,12 @@ CREATE INDEX idx_bom_revisions_status ON bom_revisions(status);
 -- We use btree_gist to combine equality (bom_id) with range overlap (tstzrange).
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
-CREATE INDEX idx_bom_revisions_effectivity_excl
-    ON bom_revisions USING gist (
+ALTER TABLE bom_revisions ADD CONSTRAINT bom_revisions_effectivity_excl
+    EXCLUDE USING gist (
         bom_id WITH =,
         tstzrange(effective_from, effective_to, '[)') WITH &&
     )
-    WHERE status = 'effective';
+    WHERE (status = 'effective');
 
 -- BOM line: a component within a revision
 CREATE TABLE bom_lines (

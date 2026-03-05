@@ -11,7 +11,8 @@ async fn setup_db() -> sqlx::PgPool {
         .unwrap_or_else(|_| "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string());
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(10))
         .connect(&url)
         .await
         .expect("Failed to connect to BOM test DB");
