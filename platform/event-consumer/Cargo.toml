@@ -1,0 +1,19 @@
+[package]
+name = "event-consumer"
+version = "0.1.0"
+edition = "2021"
+description = "Consumer-side event dispatch: handler registry, router, and context"
+
+[dependencies]
+event-bus = { path = "../event-bus" }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+
+[lints]
+workspace = true

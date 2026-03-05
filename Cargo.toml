@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "platform/event-bus",
+  "platform/event-consumer",
   "platform/identity-auth",
   "platform/audit",
   "platform/tenant-registry",
