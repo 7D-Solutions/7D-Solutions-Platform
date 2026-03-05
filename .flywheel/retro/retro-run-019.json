@@ -1,0 +1,22 @@
+{
+  "retro_run": 19,
+  "trigger": "count-based",
+  "timestamp": "2026-03-05T14:11:23Z",
+  "runner": "CopperRiver",
+  "bead_id": "bd-1t1ne",
+  "window": {
+    "from_seq": 438,
+    "to_seq": 442,
+    "bead_count": 5
+  },
+  "beads_analyzed": [
+    {"id": "bd-2gx4q", "title": "Ops: restart ChatGPT browser worker with Brave CDP", "agent": "MaroonHarbor", "commits": 0},
+    {"id": "bd-3eajx", "title": "Ops: connect ChatGPT worker to authenticated Chrome", "agent": "MaroonHarbor", "commits": 0},
+    {"id": "bd-187i8", "title": "Fix: ChatGPT scripts read from ~/.flywheel/", "agent": "MaroonHarbor", "commits": 1},
+    {"id": "bd-194cd", "title": "Phase A: Inventory retrofit — source_type + production receipt + make/buy", "agent": "MaroonHarbor", "commits": 2},
+    {"id": "bd-2vc9u", "title": "Phase A: GL consumer — branch by source_type (WIP vs COGS) + production receipts", "agent": "CopperRiver", "commits": 1}
+  ],
+  "rules_extracted": 8,
+  "rules_added": 8,
+  "rules_skipped": 0
+}

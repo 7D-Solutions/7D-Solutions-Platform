@@ -1,0 +1,42 @@
+[
+  {
+    "id": "b-mmdjnc6p-xcqd76",
+    "content": "Always include ?sslmode=disable in Postgres fallback connection strings for integration tests against non-TLS dev containers",
+    "category": "testing"
+  },
+  {
+    "id": "b-mmdjnc6p-j1q96z",
+    "content": "When a GL or financial consumer encounters an unknown enum variant (source_type, payment_method), hard-fail with a non-retriable error — never silently mispost",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mmdjnc6p-qx2va7",
+    "content": "Cross-module event consumers must declare bead dependencies on the producer module's changes — never start consumer work before producer events land",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmdjnc6p-fr42g2",
+    "content": "When a large feature bead surfaces a pre-existing env issue, spawn a child bead to isolate the fix — do not mix env fixes with domain logic commits",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmdjnc6p-0gyhuf",
+    "content": "Shared tooling config (auth state, browser profiles) belongs in ~/.flywheel/ — project-specific state (bead metadata, retro counters) stays project-local",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mmdjnc6p-x42rwp",
+    "content": "After adding a new field to a request struct, grep all test files for that struct constructor — update every call site before running tests",
+    "category": "testing"
+  },
+  {
+    "id": "b-mmdjnc6p-5sv4cj",
+    "content": "Production receipts require caller-provided unit_cost — never default or calculate cost at the inventory layer; cost evidence comes from the caller",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mmdjnc6p-7wgzgy",
+    "content": "New SourceDocType or source_type variants must be added to both the producing module event payload AND every downstream consumer match arm in the same phase",
+    "category": "integration"
+  }
+]
