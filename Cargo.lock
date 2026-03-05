@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "argon2",
  "async-nats",
@@ -3393,6 +3393,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "event-bus",
+ "futures",
  "health",
  "prometheus",
  "security",
