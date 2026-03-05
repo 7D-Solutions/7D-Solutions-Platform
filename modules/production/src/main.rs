@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -13,6 +13,7 @@ use tracing_subscriber::EnvFilter;
 use production_rs::{
     db::resolver::resolve_pool,
     http::health::{health as health_fn, ready, version},
+    http::workcenters,
     metrics::{metrics_handler, ProductionMetrics},
     AppState, Config,
 };
@@ -59,6 +60,9 @@ async fn main() {
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
         .route("/metrics", get(metrics_handler))
+        .route("/api/production/workcenters", get(workcenters::list_workcenters).post(workcenters::create_workcenter))
+        .route("/api/production/workcenters/{id}", get(workcenters::get_workcenter).put(workcenters::update_workcenter))
+        .route("/api/production/workcenters/{id}/deactivate", post(workcenters::deactivate_workcenter))
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(

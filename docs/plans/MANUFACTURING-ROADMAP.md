@@ -112,7 +112,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 |-------------|--------|------|------|
 | Production: module scaffold (production-rs crate) | DONE | bd-2ya5w | 2026-03-05 |
 | Production: work order lifecycle (create/release/close) | NOT STARTED | — | — |
-| Production: workcenter master table (owned by Production) | NOT STARTED | — | — |
+| Production: workcenter master table (owned by Production) | DONE | bd-1bcvd | 2026-03-05 |
 | Production: routing/operations model (sequence, workcenter, status) | NOT STARTED | — | — |
 | Production: explicit component issue workflow → Inventory | NOT STARTED | — | — |
 | Production: FG receipt → Inventory at rolled-up cost | NOT STARTED | — | — |
@@ -285,3 +285,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | A | Integration proof complete (bd-2g7el): 5 e2e tests against real Postgres — BOM structure/effectivity/where-used/explosion, production receipt with source_type, issue with source_type tagging, purchase receipt regression, depth guard. All Phase A exit criteria proven. | CopperRiver | e2e-tests/tests/manufacturing_phase_a_e2e.rs |
 | 2026-03-05 | C1 | Inspection plan model + receiving inspection core (bd-1y2nc): characteristics JSONB, tolerances, sampling method/size on plans. Receiving inspections with receipt_id/part_id/part_revision anchors. Query by part-rev and by receipt. Plan activation workflow. Events via outbox (plan_created, inspection_recorded). Permission constants added. 6 integration tests pass against real Postgres. | DarkOwl | modules/quality-inspection/tests/inspection_integration.rs |
 | 2026-03-05 | C1 | Quarantine/hold + disposition outcomes (bd-16fy6): disposition state machine on inspections (pending→held→accepted/rejected/released). Hold enforced before final disposition. 4 event types emitted (held, released, accepted, rejected) with full envelope metadata. Inspector ID + reason tracked. HTTP endpoints for all transitions. 5 new integration tests (valid transitions, illegal transitions rejected, event emission verified). 11 total tests pass. | DarkOwl | modules/quality-inspection/tests/inspection_integration.rs |
+| 2026-03-05 | B | Workcenter master data CRUD + events (bd-1bcvd): create/get/list/update/deactivate with tenant-scoped uniqueness (tenant_id, code). Outbox events for created/updated/deactivated with full EventEnvelope metadata. Deactivate is idempotent. 7 integration tests pass against real Postgres (create, duplicate rejection, update, list, deactivate, idempotency, event uniqueness). | SageDesert | modules/production/tests/workcenter_integration.rs |
