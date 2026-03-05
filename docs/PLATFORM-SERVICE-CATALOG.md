@@ -19,7 +19,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 |--------|-------|---------|------|---------|-------------|------|
 | ar | ar-rs | 1.0.58 | 127.0.0.1 | 127.0.0.1 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.3 | 127.0.0.1 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
-| identity-auth | auth-rs | 1.4.1 | 127.0.0.1 | 127.0.0.1 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md) |
+| identity-auth | auth-rs | 1.4.1 | 127.0.0.1 | 127.0.0.1 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.16 | 127.0.0.1 | 127.0.0.1 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |
 | ttp | ttp-rs | 2.1.5 | 127.0.0.1 | 127.0.0.1 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
@@ -33,11 +33,11 @@ No version bump discipline required yet.
 | consolidation | consolidation | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
 | customer-portal | customer-portal | 0.1.0 |  |  | External customer portal auth boundary service |  |
 | fixed-assets | fixed-assets | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |
-| gl | gl-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md) |
+| gl | gl-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | integrations | integrations-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md) |
 | inventory | inventory-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md) |
-| maintenance | maintenance-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md) |
-| notifications | notifications-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Event-driven notification delivery with scheduled dispatch and retry |  |
+| maintenance | maintenance-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| notifications | notifications-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Event-driven notification delivery with scheduled dispatch and retry | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | numbering | numbering | 0.1.0 |  | 127.0.0.1 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
 | party | party-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
@@ -60,7 +60,7 @@ Shared crates used by services. Not independently deployed.
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
 | health | health | 0.1.0 | Shared health and readiness check endpoints for all services |  |
 | platform-contracts | platform_contracts | 0.1.0 | Platform-wide event and command contract conventions — canonical types and constants |  |
-| projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap |  |
+| projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 0.1.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth |  |
 | tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules |  |
 | tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |

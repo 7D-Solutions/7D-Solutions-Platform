@@ -3,6 +3,7 @@ name = "doc_mgmt"
 version = "0.1.0"
 edition = "2021"
 description = "Document management service: core doc model, revision tracking, and lifecycle (draft → released)"
+publish = ["7d-platform"]
 
 [[bin]]
 name = "doc-mgmt"

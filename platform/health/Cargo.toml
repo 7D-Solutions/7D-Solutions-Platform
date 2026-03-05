@@ -3,6 +3,7 @@ name = "health"
 version = "0.1.0"
 edition = "2021"
 description = "Shared health and readiness check endpoints for all services"
+publish = ["7d-platform"]
 
 [dependencies]
 axum = "0.8"

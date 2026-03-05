@@ -4,6 +4,14 @@
 # Optimize build times
 incremental = true
 
+# ---------------------------------------------------------------------------
+# Private crate registry: GitHub Packages
+# Consumer repos must set CARGO_REGISTRIES_7D_PLATFORM_TOKEN to a GitHub
+# personal-access token with `read:packages` scope.
+# ---------------------------------------------------------------------------
+[registries.7d-platform]
+index = "sparse+https://cargo.pkg.github.com/7D-Solutions/index/"
+
 [test]
 # CRITICAL: Limit test parallelism to prevent overwhelming Docker containers
 # With 316+ E2E tests that create database connection pools, running in parallel

@@ -3,6 +3,7 @@ name = "platform_contracts"
 version = "0.1.0"
 edition = "2021"
 description = "Platform-wide event and command contract conventions — canonical types and constants"
+publish = ["7d-platform"]
 
 [dependencies]
 event-bus = { path = "../event-bus" }

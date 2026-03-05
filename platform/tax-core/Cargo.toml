@@ -3,6 +3,7 @@ name = "tax-core"
 version = "0.1.0"
 edition = "2021"
 description = "Shared tax models, TaxProvider trait, and error types for 7D platform modules"
+publish = ["7d-platform"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
