@@ -1,4 +1,5 @@
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -11,6 +12,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use quality_inspection_rs::{
+    consumers::receipt_event_bridge::start_receipt_event_bridge,
     db::resolver::resolve_pool,
     http::{
         health::{health as health_fn, ready, version},
@@ -49,6 +51,27 @@ async fn main() {
     let pool = resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
+
+    // Create event bus and start receipt event bridge consumer
+    let bus: Arc<dyn EventBus> = match config.bus_type.to_lowercase().as_str() {
+        "inmemory" => {
+            tracing::info!("Using InMemory event bus");
+            Arc::new(InMemoryBus::new())
+        }
+        "nats" => {
+            tracing::info!("Connecting to NATS at {}", config.nats_url);
+            let client = event_bus::connect_nats(&config.nats_url)
+                .await
+                .expect("Failed to connect to NATS");
+            Arc::new(NatsBus::new(client))
+        }
+        _ => panic!(
+            "Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'",
+            config.bus_type
+        ),
+    };
+
+    start_receipt_event_bridge(bus, pool.clone()).await;
 
     let shutdown_pool = pool.clone();
     let metrics = Arc::new(

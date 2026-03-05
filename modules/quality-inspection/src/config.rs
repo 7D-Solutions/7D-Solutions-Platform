@@ -7,6 +7,8 @@ pub struct Config {
     pub port: u16,
     pub env: String,
     pub cors_origins: Vec<String>,
+    pub nats_url: String,
+    pub bus_type: String,
 }
 
 impl Config {
@@ -42,12 +44,18 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let nats_url =
+            env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+        let bus_type = env::var("BUS_TYPE").unwrap_or_else(|_| "nats".to_string());
+
         Ok(Config {
             database_url,
             host,
             port,
             env: env_name,
             cors_origins,
+            nats_url,
+            bus_type,
         })
     }
 }
