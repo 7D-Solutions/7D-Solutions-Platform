@@ -25,7 +25,7 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
         .route("/api/auth/sod/policies", post(handlers::upsert_sod_policy))
         .route("/api/auth/sod/evaluate", post(handlers::evaluate_sod))
         .route(
-            "/api/auth/sod/policies/{tenant_id}/{action_key}",
+            "/api/auth/sod/policies/{tenant_id}/by-action/{action_key}",
             get(handlers::list_sod_policies),
         )
         .route(
