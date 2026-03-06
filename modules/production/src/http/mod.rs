@@ -1,3 +1,4 @@
+pub mod component_issue;
 pub mod health;
 pub mod operations;
 pub mod routings;

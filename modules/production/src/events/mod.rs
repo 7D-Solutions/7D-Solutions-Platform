@@ -9,6 +9,7 @@ pub enum ProductionEventType {
     WorkOrderCreated,
     WorkOrderReleased,
     WorkOrderClosed,
+    ComponentIssueRequested,
     ComponentIssued,
     OperationStarted,
     OperationCompleted,
@@ -27,6 +28,7 @@ impl ProductionEventType {
             Self::WorkOrderCreated => "production.work_order_created",
             Self::WorkOrderReleased => "production.work_order_released",
             Self::WorkOrderClosed => "production.work_order_closed",
+            Self::ComponentIssueRequested => "production.component_issue.requested",
             Self::ComponentIssued => "production.component_issued",
             Self::OperationStarted => "production.operation_started",
             Self::OperationCompleted => "production.operation_completed",
@@ -420,6 +422,52 @@ pub fn build_operation_completed_envelope(
             tenant_id,
             operation_name,
             sequence_number,
+        },
+    )
+}
+
+// ============================================================================
+// Component issue event payloads
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentIssueItem {
+    pub item_id: Uuid,
+    pub warehouse_id: Uuid,
+    pub quantity: i64,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentIssueRequestedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+    pub items: Vec<ComponentIssueItem>,
+}
+
+// ============================================================================
+// Component issue envelope builder
+// ============================================================================
+
+pub fn build_component_issue_requested_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    order_number: String,
+    items: Vec<ComponentIssueItem>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<ComponentIssueRequestedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::ComponentIssueRequested.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        ComponentIssueRequestedPayload {
+            work_order_id,
+            tenant_id,
+            order_number,
+            items,
         },
     )
 }
