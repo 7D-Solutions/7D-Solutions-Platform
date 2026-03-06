@@ -21,6 +21,10 @@ pub enum ProductionEventType {
     RoutingCreated,
     RoutingUpdated,
     RoutingReleased,
+    TimeEntryCreated,
+    TimeEntryStopped,
+    DowntimeStarted,
+    DowntimeEnded,
 }
 
 impl ProductionEventType {
@@ -41,6 +45,10 @@ impl ProductionEventType {
             Self::RoutingCreated => "production.routing_created",
             Self::RoutingUpdated => "production.routing_updated",
             Self::RoutingReleased => "production.routing_released",
+            Self::TimeEntryCreated => "production.time_entry_created",
+            Self::TimeEntryStopped => "production.time_entry_stopped",
+            Self::DowntimeStarted => "production.downtime.started",
+            Self::DowntimeEnded => "production.downtime.ended",
         }
     }
 }
@@ -517,6 +525,181 @@ pub fn build_component_issue_requested_envelope(
             tenant_id,
             order_number,
             items,
+        },
+    )
+}
+
+// ============================================================================
+// Time entry event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimeEntryCreatedPayload {
+    pub time_entry_id: Uuid,
+    pub work_order_id: Uuid,
+    pub operation_id: Option<Uuid>,
+    pub tenant_id: String,
+    pub actor_id: String,
+    pub start_ts: chrono::DateTime<chrono::Utc>,
+    pub end_ts: Option<chrono::DateTime<chrono::Utc>>,
+    pub minutes: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimeEntryStoppedPayload {
+    pub time_entry_id: Uuid,
+    pub work_order_id: Uuid,
+    pub operation_id: Option<Uuid>,
+    pub tenant_id: String,
+    pub actor_id: String,
+    pub start_ts: chrono::DateTime<chrono::Utc>,
+    pub end_ts: chrono::DateTime<chrono::Utc>,
+    pub minutes: i32,
+}
+
+// ============================================================================
+// Time entry envelope builders
+// ============================================================================
+
+pub fn build_time_entry_created_envelope(
+    time_entry_id: Uuid,
+    work_order_id: Uuid,
+    operation_id: Option<Uuid>,
+    tenant_id: String,
+    actor_id: String,
+    start_ts: chrono::DateTime<chrono::Utc>,
+    end_ts: Option<chrono::DateTime<chrono::Utc>>,
+    minutes: Option<i32>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<TimeEntryCreatedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::TimeEntryCreated.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        TimeEntryCreatedPayload {
+            time_entry_id,
+            work_order_id,
+            operation_id,
+            tenant_id,
+            actor_id,
+            start_ts,
+            end_ts,
+            minutes,
+        },
+    )
+}
+
+pub fn build_time_entry_stopped_envelope(
+    time_entry_id: Uuid,
+    work_order_id: Uuid,
+    operation_id: Option<Uuid>,
+    tenant_id: String,
+    actor_id: String,
+    start_ts: chrono::DateTime<chrono::Utc>,
+    end_ts: chrono::DateTime<chrono::Utc>,
+    minutes: i32,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<TimeEntryStoppedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::TimeEntryStopped.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        TimeEntryStoppedPayload {
+            time_entry_id,
+            work_order_id,
+            operation_id,
+            tenant_id,
+            actor_id,
+            start_ts,
+            end_ts,
+            minutes,
+        },
+    )
+}
+
+// ============================================================================
+// Downtime event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeStartedPayload {
+    pub downtime_id: Uuid,
+    pub tenant_id: String,
+    pub workcenter_id: Uuid,
+    pub reason: String,
+    pub reason_code: Option<String>,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub started_by: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DowntimeEndedPayload {
+    pub downtime_id: Uuid,
+    pub tenant_id: String,
+    pub workcenter_id: Uuid,
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    pub ended_at: chrono::DateTime<chrono::Utc>,
+    pub ended_by: Option<String>,
+}
+
+// ============================================================================
+// Downtime envelope builders
+// ============================================================================
+
+pub fn build_downtime_started_envelope(
+    downtime_id: Uuid,
+    tenant_id: String,
+    workcenter_id: Uuid,
+    reason: String,
+    reason_code: Option<String>,
+    started_at: chrono::DateTime<chrono::Utc>,
+    started_by: Option<String>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<DowntimeStartedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::DowntimeStarted.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        DowntimeStartedPayload {
+            downtime_id,
+            tenant_id,
+            workcenter_id,
+            reason,
+            reason_code,
+            started_at,
+            started_by,
+        },
+    )
+}
+
+pub fn build_downtime_ended_envelope(
+    downtime_id: Uuid,
+    tenant_id: String,
+    workcenter_id: Uuid,
+    started_at: chrono::DateTime<chrono::Utc>,
+    ended_at: chrono::DateTime<chrono::Utc>,
+    ended_by: Option<String>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<DowntimeEndedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::DowntimeEnded.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        DowntimeEndedPayload {
+            downtime_id,
+            tenant_id,
+            workcenter_id,
+            started_at,
+            ended_at,
+            ended_by,
         },
     )
 }

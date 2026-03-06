@@ -81,6 +81,19 @@ async fn main() {
     });
     tracing::info!("Maintenance: outbox publisher task started");
 
+    // Start production event consumers
+    maintenance_rs::consumers::production_workcenter_bridge::start_workcenter_bridge(
+        event_bus.clone(),
+        pool.clone(),
+    )
+    .await;
+    maintenance_rs::consumers::production_downtime_bridge::start_downtime_bridge(
+        event_bus,
+        pool.clone(),
+    )
+    .await;
+    tracing::info!("Maintenance: production event consumers started");
+
     // Spawn scheduler tick loop
     let scheduler_pool = pool.clone();
     let scheduler_interval = config.scheduler_interval_secs;

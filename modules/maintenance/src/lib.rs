@@ -3,6 +3,7 @@
 //! Exposes public modules so integration tests can call handlers directly.
 
 pub mod config;
+pub mod consumers;
 pub mod domain;
 pub mod events;
 pub mod metrics;

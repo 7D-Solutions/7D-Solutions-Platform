@@ -14,9 +14,11 @@ use production_rs::{
     db::resolver::resolve_pool,
     http::health::{health as health_fn, ready, version},
     http::component_issue,
+    http::downtime,
     http::fg_receipt,
     http::operations,
     http::routings,
+    http::time_entries,
     http::work_orders,
     http::workcenters,
     metrics::{metrics_handler, ProductionMetrics},
@@ -74,15 +76,23 @@ async fn main() {
         .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
         .route("/api/production/work-orders/{id}/component-issues", post(component_issue::post_component_issue))
         .route("/api/production/work-orders/{id}/fg-receipt", post(fg_receipt::post_fg_receipt))
+        .route("/api/production/work-orders/{id}/time-entries", get(time_entries::list_time_entries))
         .route("/api/production/work-orders/{id}/operations", get(operations::list_operations))
         .route("/api/production/work-orders/{id}/operations/initialize", post(operations::initialize_operations))
         .route("/api/production/work-orders/{wo_id}/operations/{op_id}/start", post(operations::start_operation))
         .route("/api/production/work-orders/{wo_id}/operations/{op_id}/complete", post(operations::complete_operation))
+        .route("/api/production/time-entries/start", post(time_entries::start_timer))
+        .route("/api/production/time-entries/manual", post(time_entries::manual_entry))
+        .route("/api/production/time-entries/{id}/stop", post(time_entries::stop_timer))
         .route("/api/production/routings", get(routings::list_routings).post(routings::create_routing))
         .route("/api/production/routings/by-item", get(routings::find_routings_by_item))
         .route("/api/production/routings/{id}", get(routings::get_routing).put(routings::update_routing))
         .route("/api/production/routings/{id}/release", post(routings::release_routing))
         .route("/api/production/routings/{id}/steps", get(routings::list_routing_steps).post(routings::add_routing_step))
+        .route("/api/production/workcenters/{id}/downtime/start", post(downtime::start_downtime))
+        .route("/api/production/workcenters/{id}/downtime", get(downtime::list_workcenter_downtime))
+        .route("/api/production/downtime/{id}/end", post(downtime::end_downtime))
+        .route("/api/production/downtime/active", get(downtime::list_active_downtime))
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
