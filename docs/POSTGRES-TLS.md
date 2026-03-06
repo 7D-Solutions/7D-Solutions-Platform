@@ -10,6 +10,8 @@ local development and production deployments.
 - A custom entrypoint (`infra/postgres/docker-entrypoint-tls.sh`) copies certs
   to the correct path with Postgres-required permissions (key file mode 600)
 - `pg_hba.conf` requires TLS for all TCP connections (`hostssl` only, no `host`)
+- Authentication method is `scram-sha-256` (PG16 default). Do NOT use `md5` — sqlx
+  with `runtime-tokio-rustls` cannot negotiate md5 auth over TLS
 - Unix socket connections (used by health checks) are allowed without TLS
 
 **Client side (Rust services):**
@@ -124,6 +126,11 @@ Check that `sslrootcert` points to the correct CA certificate.
 **Postgres won't start — "could not load server certificate":**
 The cert files may be missing or have wrong permissions. Run
 `./infra/postgres/tls/generate-dev-certs.sh` to regenerate dev certs.
+
+**"password authentication failed" with TLS enabled:**
+Check `infra/postgres/pg_hba.conf` — the auth method must be `scram-sha-256`, not
+`md5`. sqlx 0.8 with `runtime-tokio-rustls` cannot negotiate md5 authentication
+over TLS connections. After changing, recreate all Postgres containers.
 
 **Tests fail with connection refused:**
 Ensure the data stack is running with TLS-enabled containers:

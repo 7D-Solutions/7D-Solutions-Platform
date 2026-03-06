@@ -2,7 +2,7 @@
 
 **Created:** 2026-03-05
 **Bead:** bd-p4mx2
-**Status:** DRAFT — Pending Sign-off
+**Status:** APPROVED — Signed off by all reviewers (2026-03-05)
 **Scope:** Discrete manufacturing only. No backflush v1, no MRP, no NCR/CAPA, no process manufacturing, no scheduling/capacity.
 
 ---
@@ -378,16 +378,16 @@ These constraints apply to ALL manufacturing phases. They cannot be changed with
 
 | Reviewer | Role | Status | Date |
 |----------|------|--------|------|
-| BrightHill | Orchestrator | — | — |
-| CopperRiver | Implementation agent | — | — |
-| PurpleCliff | Implementation agent | — | — |
-| SageDesert | Implementation agent | — | — |
-| DarkOwl | Implementation agent | — | — |
-| MaroonHarbor | Implementation agent | DRAFTED | 2026-03-05 |
-| ChatGPT | External reviewer | — | — |
+| BrightHill | Orchestrator | APPROVED | 2026-03-05 |
+| CopperRiver | Implementation agent | APPROVED | 2026-03-05 |
+| PurpleCliff | Implementation agent | APPROVED | 2026-03-05 |
+| SageDesert | Implementation agent | APPROVED | 2026-03-05 |
+| DarkOwl | Implementation agent | APPROVED | 2026-03-05 |
+| MaroonHarbor | Implementation agent | APPROVED | 2026-03-05 |
+| ChatGPT | External reviewer | APPROVED | 2026-03-05 |
 
 **Approval required from:** BrightHill + at least 3 implementation agents + ChatGPT.
 
 ---
 
-*This document is the Phase 0 design lock. Phase A beads cannot be created until sign-off is complete.*
+*This document is the Phase 0 design lock. All phases (A through E) have been implemented and proven. See MANUFACTURING-ROADMAP.md for deliverable status.*
