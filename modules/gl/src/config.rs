@@ -206,6 +206,14 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
         Ok(Config {
             database_url,
             bus_type,
@@ -376,9 +384,9 @@ mod tests {
     #[test]
     fn currency_config_serializes_correctly() {
         let cfg = CurrencyConfig::new("GBP");
-        let json = serde_json::to_string(&cfg).unwrap();
+        let json = serde_json::to_string(&cfg).expect("serialize CurrencyConfig");
         assert!(json.contains("\"GBP\""));
-        let roundtrip: CurrencyConfig = serde_json::from_str(&json).unwrap();
+        let roundtrip: CurrencyConfig = serde_json::from_str(&json).expect("deserialize CurrencyConfig");
         assert_eq!(roundtrip, cfg);
     }
 

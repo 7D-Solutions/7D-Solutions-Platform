@@ -51,6 +51,16 @@ impl Config {
             env::var("DOC_MGMT_BASE_URL").unwrap_or_else(|_| "http://localhost:8095".to_string());
         let doc_mgmt_bearer_token = env::var("DOC_MGMT_BEARER_TOKEN").ok();
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
+
         Ok(Self {
             database_url,
             host,

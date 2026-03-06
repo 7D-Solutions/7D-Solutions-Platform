@@ -40,6 +40,15 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
+
         Ok(Config {
             database_url,
             host,
@@ -79,7 +88,7 @@ mod tests {
             std::env::set_var("ENV", "development");
             std::env::set_var("CORS_ORIGINS", "*");
         }
-        let config = Config::from_env().unwrap();
+        let config = Config::from_env().expect("from_env should succeed in test");
         assert_eq!(config.port, 8096);
         unsafe {
             std::env::remove_var("DATABASE_URL");

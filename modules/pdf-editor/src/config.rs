@@ -89,7 +89,7 @@ impl Config {
                 )
             })?;
 
-        let cors_origins = env::var("CORS_ORIGINS")
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "*".to_string())
             .split(',')
             .map(|s| s.trim().to_string())
@@ -100,6 +100,14 @@ impl Config {
             .unwrap_or_else(|_| "development".to_string())
             .to_lowercase();
 
+        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
         Ok(Config {
             database_url,
             bus_type,

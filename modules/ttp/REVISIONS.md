@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.6 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |
 | 2.1.5 | 2026-02-25 | bd-2wel.1 | Wired TracingContext from HTTP request extensions into envelope builders in `create_billing_run` handler. Envelopes now carry the real trace_id from the HTTP request. | Cross-module request tracing requires envelopes to carry the HTTP-originated trace_id for end-to-end correlation. | No |
 | 2.1.4 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |
 | 2.1.3 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed empty lines after doc comments, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |

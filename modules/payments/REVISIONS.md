@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.17 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |
 | 1.1.16 | 2026-03-03 | bd-1atj1 | Use `event_bus::connect_nats()` for NATS connection with URL-based auth. | NATS authentication requires credentials extracted from URL. | No |
 | 1.1.15 | 2026-03-03 | bd-mybqv | Added `payments_outbox_queue_depth` gauge metric and `count_unpublished()` to outbox module. Metrics handler refreshes gauge on each Prometheus scrape. | Outbox backlog alerting requires visibility into unpublished event count. | No |
 | 1.1.14 | 2026-03-03 | bd-284l2 | Fixed payment query handler import to use `crate::http::checkout_sessions::extract_tenant` instead of stale `crate::routes` path so the library/test target resolves correctly. | Test target compilation was blocked by unresolved module path (`E0433`) after the routes-to-http layout change. | No |

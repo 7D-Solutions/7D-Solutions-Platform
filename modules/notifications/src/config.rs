@@ -190,6 +190,14 @@ impl Config {
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(3600);
 
+        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
         Ok(Config {
             database_url,
             bus_type,
