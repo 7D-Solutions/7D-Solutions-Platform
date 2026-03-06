@@ -1,5 +1,6 @@
-use crate::events::{envelope::EventEnvelope, validate};
+use crate::events::validate;
 use async_nats::Client;
+use event_bus::EventEnvelope;
 use serde::Serialize;
 use serde_json::Value;
 

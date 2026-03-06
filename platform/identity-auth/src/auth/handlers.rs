@@ -1,10 +1,11 @@
 use crate::{
     clients::tenant_registry::{TenantGate, TenantRegistryClient},
-    events::{envelope::EventEnvelope, publisher::EventPublisher},
+    events::publisher::EventPublisher,
     metrics::Metrics,
     middleware::tracing::get_trace_id_from_extensions,
     rate_limit::KeyedLimiters,
 };
+use event_bus::EventEnvelope;
 use axum::{
     extract::{Path, State},
     http::{Extensions, HeaderMap, HeaderValue, StatusCode},
@@ -551,22 +552,18 @@ pub async fn register(
                 .with_label_values(&["success", "ok"])
                 .inc();
 
-            let env = EventEnvelope {
-                event_id: Uuid::new_v4(),
-                event_type: "auth.user.registered".to_string(),
-                schema_version: "auth.user.registered/v1".to_string(),
-                occurred_at: Utc::now(),
-                producer: state.producer.clone(),
-                tenant_id: req.tenant_id,
-                aggregate_type: "user".to_string(),
-                aggregate_id: req.user_id,
-                trace_id,
-                causation_id: None,
-                data: Data {
+            let env = EventEnvelope::new(
+                req.tenant_id.to_string(),
+                state.producer.clone(),
+                "auth.user.registered".to_string(),
+                Data {
                     user_id: req.user_id.to_string(),
                     email: email.clone(),
                 },
-            };
+            )
+            .with_schema_version("auth.user.registered/v1".to_string())
+            .with_trace_id(Some(trace_id))
+            .with_mutation_class(Some("user-data".to_string()));
 
             if state
                 .events
@@ -1054,21 +1051,18 @@ pub async fn login(
     struct Data {
         user_id: String,
     }
-    let env = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        event_type: "auth.user.logged_in".to_string(),
-        schema_version: "auth.user.logged_in/v1".to_string(),
-        occurred_at: Utc::now(),
-        producer: state.producer.clone(),
-        tenant_id: req.tenant_id,
-        aggregate_type: "user".to_string(),
-        aggregate_id: user_id,
-        trace_id,
-        causation_id: None,
-        data: Data {
+    let env = EventEnvelope::new(
+        req.tenant_id.to_string(),
+        state.producer.clone(),
+        "auth.user.logged_in".to_string(),
+        Data {
             user_id: user_id.to_string(),
         },
-    };
+    )
+    .with_schema_version("auth.user.logged_in/v1".to_string())
+    .with_trace_id(Some(trace_id))
+    .with_actor(user_id, "User".to_string())
+    .with_mutation_class(Some("user-data".to_string()));
 
     if state
         .events

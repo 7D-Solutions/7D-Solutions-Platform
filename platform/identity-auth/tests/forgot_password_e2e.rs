@@ -174,19 +174,19 @@ async fn test_nats_event_contains_raw_token() {
 
     insert_reset_token(&pool, user_id, &hash, expires_at).await;
 
-    // Build event payload exactly as the handler does
+    // Build event payload using canonical EventEnvelope structure
     let payload = serde_json::json!({
         "event_id": Uuid::new_v4().to_string(),
         "event_type": "auth.password_reset_requested",
         "schema_version": "auth.password_reset_requested/v1",
+        "source_version": "1.0.0",
         "occurred_at": Utc::now().to_rfc3339(),
-        "producer": "auth-rs@test",
+        "source_module": "auth-rs@test",
         "tenant_id": tenant_id.to_string(),
-        "aggregate_type": "user",
-        "aggregate_id": user_id.to_string(),
         "trace_id": "e2e-test-trace",
-        "causation_id": null,
-        "data": {
+        "replay_safe": true,
+        "mutation_class": "user-data",
+        "payload": {
             "user_id": user_id.to_string(),
             "email": email,
             "raw_token": raw.clone(),
@@ -219,17 +219,34 @@ async fn test_nats_event_contains_raw_token() {
         serde_json::from_slice(&msg.payload).expect("parse NATS message as JSON");
 
     assert_eq!(
-        received["data"]["raw_token"],
+        received["payload"]["raw_token"],
         serde_json::Value::String(raw),
-        "NATS event data.raw_token must match the generated raw token"
+        "NATS event payload.raw_token must match the generated raw token"
     );
     assert_eq!(
-        received["data"]["user_id"],
+        received["payload"]["user_id"],
         serde_json::Value::String(user_id.to_string()),
-        "NATS event data.user_id must match"
+        "NATS event payload.user_id must match"
     );
     assert_eq!(
         received["event_type"], "auth.password_reset_requested",
         "event_type must be auth.password_reset_requested"
+    );
+    // Canonical envelope fields present
+    assert_eq!(
+        received["source_module"], "auth-rs@test",
+        "source_module must be set"
+    );
+    assert!(
+        received["tenant_id"].is_string(),
+        "tenant_id must be a String"
+    );
+    assert_eq!(
+        received["replay_safe"], true,
+        "replay_safe must be set"
+    );
+    assert!(
+        received.get("source_version").is_some(),
+        "source_version must be present"
     );
 }

@@ -1,5 +1,5 @@
-use crate::events::envelope::EventEnvelope;
 use chrono::{DateTime, Utc};
+use event_bus::EventEnvelope;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{Postgres, Row, Transaction};
@@ -480,19 +480,16 @@ async fn append_sod_outbox_event_tx(
     producer: String,
     data: Value,
 ) -> Result<(), sqlx::Error> {
-    let envelope = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        event_type: event_type.to_string(),
-        schema_version: schema_version.to_string(),
-        occurred_at: Utc::now(),
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
         producer,
-        tenant_id,
-        aggregate_type: "sod".to_string(),
-        aggregate_id,
-        trace_id,
-        causation_id,
+        event_type.to_string(),
         data,
-    };
+    )
+    .with_schema_version(schema_version.to_string())
+    .with_trace_id(Some(trace_id))
+    .with_causation_id(causation_id.map(|u| u.to_string()))
+    .with_mutation_class(Some("user-data".to_string()));
 
     let payload =
         serde_json::to_value(&envelope).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;

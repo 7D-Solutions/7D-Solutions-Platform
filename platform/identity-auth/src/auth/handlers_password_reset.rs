@@ -6,9 +6,9 @@ use crate::{
         password_reset_repo::{claim_reset_token, insert_reset_token},
         password_reset_tokens::{generate_raw_token, sha256_token_hash},
     },
-    events::envelope::EventEnvelope,
     middleware::{client_ip::get_client_meta, tracing::get_trace_id_from_extensions},
 };
+use event_bus::EventEnvelope;
 use axum::{
     extract::State,
     http::{Extensions, StatusCode},
@@ -116,25 +116,21 @@ pub async fn forgot_password(
             correlation_id: String,
         }
 
-        let env = EventEnvelope {
-            event_id: Uuid::new_v4(),
-            event_type: "auth.password_reset_requested".to_string(),
-            schema_version: "auth.password_reset_requested/v1".to_string(),
-            occurred_at: Utc::now(),
-            producer: state.producer.clone(),
-            tenant_id,
-            aggregate_type: "user".to_string(),
-            aggregate_id: user_id,
-            trace_id: trace_id.clone(),
-            causation_id: None,
-            data: PasswordResetRequestedData {
+        let env = EventEnvelope::new(
+            tenant_id.to_string(),
+            state.producer.clone(),
+            "auth.password_reset_requested".to_string(),
+            PasswordResetRequestedData {
                 user_id: user_id.to_string(),
                 email,
                 raw_token,
                 expires_at: expires_at.to_rfc3339(),
-                correlation_id: trace_id,
+                correlation_id: trace_id.clone(),
             },
-        };
+        )
+        .with_schema_version("auth.password_reset_requested/v1".to_string())
+        .with_trace_id(Some(trace_id))
+        .with_mutation_class(Some("user-data".to_string()));
 
         if state
             .events
@@ -273,22 +269,18 @@ pub async fn reset_password(
         correlation_id: String,
     }
 
-    let env = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        event_type: "auth.events.password_reset_completed".to_string(),
-        schema_version: "auth.events.password_reset_completed/v1".to_string(),
-        occurred_at: Utc::now(),
-        producer: state.producer.clone(),
-        tenant_id,
-        aggregate_type: "user".to_string(),
-        aggregate_id: user_id,
-        trace_id: trace_id.clone(),
-        causation_id: None,
-        data: PasswordResetCompletedData {
+    let env = EventEnvelope::new(
+        tenant_id.to_string(),
+        state.producer.clone(),
+        "auth.events.password_reset_completed".to_string(),
+        PasswordResetCompletedData {
             user_id: user_id.to_string(),
-            correlation_id: trace_id,
+            correlation_id: trace_id.clone(),
         },
-    };
+    )
+    .with_schema_version("auth.events.password_reset_completed/v1".to_string())
+    .with_trace_id(Some(trace_id))
+    .with_mutation_class(Some("user-data".to_string()));
 
     if state
         .events

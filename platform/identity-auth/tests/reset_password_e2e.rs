@@ -9,10 +9,13 @@
 ///   - NATS completion event published with correct user_id
 ///   - invalid/expired token: 400 path → no password change, no revocation
 ///   - token is single-use: second call with same token leaves password unchanged
+///   - canonical EventEnvelope publish+deserialize round-trip compatibility
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::{Duration, Utc};
+use event_bus::EventEnvelope;
 use futures::StreamExt;
 use rand::{rngs::OsRng, RngCore};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{postgres::PgPoolOptions, Row};
 use uuid::Uuid;
@@ -415,19 +418,19 @@ async fn test_nats_completion_event_published() {
         .await
         .expect("subscribe to NATS subject");
 
-    // Build and publish the completion event exactly as the handler does
+    // Build and publish the completion event using canonical EventEnvelope structure
     let payload = serde_json::json!({
         "event_id": Uuid::new_v4().to_string(),
         "event_type": "auth.events.password_reset_completed",
         "schema_version": "auth.events.password_reset_completed/v1",
+        "source_version": "1.0.0",
         "occurred_at": Utc::now().to_rfc3339(),
-        "producer": "auth-rs@test",
+        "source_module": "auth-rs@test",
         "tenant_id": tenant_id.to_string(),
-        "aggregate_type": "user",
-        "aggregate_id": user_id.to_string(),
         "trace_id": "e2e-test-trace",
-        "causation_id": null,
-        "data": {
+        "replay_safe": true,
+        "mutation_class": "user-data",
+        "payload": {
             "user_id": user_id.to_string(),
             "correlation_id": "e2e-test-trace"
         }
@@ -454,13 +457,87 @@ async fn test_nats_completion_event_published() {
         "event_type must be auth.events.password_reset_completed"
     );
     assert_eq!(
-        received["data"]["user_id"],
+        received["payload"]["user_id"],
         serde_json::Value::String(user_id.to_string()),
-        "data.user_id must match"
+        "payload.user_id must match"
+    );
+    // Canonical envelope fields present
+    assert_eq!(
+        received["source_module"], "auth-rs@test",
+        "source_module must be set"
+    );
+    assert!(
+        received["tenant_id"].is_string(),
+        "tenant_id must be a String"
     );
     assert_eq!(
-        received["aggregate_id"],
-        serde_json::Value::String(user_id.to_string()),
-        "aggregate_id must match user_id"
+        received["replay_safe"], true,
+        "replay_safe must be set"
     );
+    assert!(
+        received.get("source_version").is_some(),
+        "source_version must be present"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: canonical EventEnvelope publish+deserialize round-trip
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_canonical_envelope_publish_deserialize_roundtrip() {
+    let nats = event_bus::connect_nats(&nats_url())
+        .await
+        .expect("connect to NATS");
+
+    #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+    struct TestPayload {
+        user_id: String,
+        action: String,
+    }
+
+    let tenant_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let subject = format!("auth.test.roundtrip.{}", Uuid::new_v4());
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "auth-rs@test".to_string(),
+        "auth.test.roundtrip".to_string(),
+        TestPayload {
+            user_id: user_id.to_string(),
+            action: "password_reset".to_string(),
+        },
+    )
+    .with_schema_version("auth.test.roundtrip/v1".to_string())
+    .with_trace_id(Some("roundtrip-trace".to_string()))
+    .with_mutation_class(Some("user-data".to_string()));
+
+    let mut sub = nats.subscribe(subject.clone()).await.expect("subscribe");
+
+    let bytes = serde_json::to_vec(&envelope).expect("serialize canonical envelope");
+    nats.publish(subject, bytes.into()).await.expect("publish");
+    nats.flush().await.expect("flush");
+
+    let msg = tokio::time::timeout(std::time::Duration::from_secs(5), sub.next())
+        .await
+        .expect("timeout waiting for message")
+        .expect("subscriber closed");
+
+    let deserialized: EventEnvelope<TestPayload> =
+        serde_json::from_slice(&msg.payload).expect("deserialize into canonical EventEnvelope");
+
+    assert_eq!(deserialized.event_type, "auth.test.roundtrip");
+    assert_eq!(deserialized.tenant_id, tenant_id.to_string());
+    assert_eq!(deserialized.source_module, "auth-rs@test");
+    assert_eq!(deserialized.schema_version, "auth.test.roundtrip/v1");
+    assert_eq!(deserialized.source_version, "1.0.0");
+    assert_eq!(deserialized.trace_id, Some("roundtrip-trace".to_string()));
+    assert_eq!(
+        deserialized.mutation_class,
+        Some("user-data".to_string())
+    );
+    assert!(deserialized.replay_safe);
+    assert_eq!(deserialized.payload.user_id, user_id.to_string());
+    assert_eq!(deserialized.payload.action, "password_reset");
 }

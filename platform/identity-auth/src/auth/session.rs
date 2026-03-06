@@ -1,7 +1,8 @@
 use crate::{
-    clients::tenant_registry::TenantGate, events::envelope::EventEnvelope,
+    clients::tenant_registry::TenantGate,
     middleware::tracing::get_trace_id_from_extensions,
 };
+use event_bus::EventEnvelope;
 use axum::{
     extract::State,
     http::{Extensions, StatusCode},
@@ -326,21 +327,18 @@ pub async fn refresh(
     struct Data {
         user_id: String,
     }
-    let env = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        event_type: "auth.token.refreshed".to_string(),
-        schema_version: "auth.token.refreshed/v1".to_string(),
-        occurred_at: Utc::now(),
-        producer: state.producer.clone(),
-        tenant_id: req.tenant_id,
-        aggregate_type: "user".to_string(),
-        aggregate_id: user_id,
-        trace_id,
-        causation_id: None,
-        data: Data {
+    let env = EventEnvelope::new(
+        req.tenant_id.to_string(),
+        state.producer.clone(),
+        "auth.token.refreshed".to_string(),
+        Data {
             user_id: user_id.to_string(),
         },
-    };
+    )
+    .with_schema_version("auth.token.refreshed/v1".to_string())
+    .with_trace_id(Some(trace_id))
+    .with_actor(user_id, "User".to_string())
+    .with_mutation_class(Some("user-data".to_string()));
 
     if state
         .events

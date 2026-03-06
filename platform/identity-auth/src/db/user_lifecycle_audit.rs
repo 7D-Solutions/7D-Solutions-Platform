@@ -1,5 +1,5 @@
-use crate::events::envelope::EventEnvelope;
 use chrono::{DateTime, Utc};
+use event_bus::EventEnvelope;
 use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::{Postgres, Row, Transaction};
@@ -118,19 +118,17 @@ pub async fn append_lifecycle_event_tx(
 
     let event_id: Uuid = row.get("id");
 
-    let envelope = EventEnvelope {
+    let envelope = EventEnvelope::with_event_id(
         event_id,
-        event_type: event_type.event_subject().to_string(),
-        schema_version: event_type.schema_version().to_string(),
-        occurred_at,
-        producer: ctx.producer.clone(),
-        tenant_id,
-        aggregate_type: "user".to_string(),
-        aggregate_id: user_id,
-        trace_id: ctx.trace_id.clone(),
-        causation_id: ctx.causation_id,
-        data: payload,
-    };
+        tenant_id.to_string(),
+        ctx.producer.clone(),
+        event_type.event_subject().to_string(),
+        payload,
+    )
+    .with_schema_version(event_type.schema_version().to_string())
+    .with_trace_id(Some(ctx.trace_id.clone()))
+    .with_causation_id(ctx.causation_id.map(|u| u.to_string()))
+    .with_mutation_class(Some("user-data".to_string()));
 
     let outbox_payload =
         serde_json::to_value(&envelope).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
