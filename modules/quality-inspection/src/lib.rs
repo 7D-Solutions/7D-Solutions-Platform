@@ -11,5 +11,6 @@ pub use config::Config;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
+    pub wc_pool: sqlx::PgPool,
     pub metrics: std::sync::Arc<metrics::QualityInspectionMetrics>,
 }

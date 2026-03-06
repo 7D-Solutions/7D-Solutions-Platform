@@ -1080,6 +1080,7 @@ services:
       dockerfile: modules/quality-inspection/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}:${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}@7d-quality-inspection-postgres:5432/${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}?sslmode=require
+      WORKFORCE_COMPETENCE_DATABASE_URL: postgresql://${WORKFORCE_COMPETENCE_POSTGRES_USER:-wc_user}:${WORKFORCE_COMPETENCE_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WORKFORCE_COMPETENCE_POSTGRES_DB:-workforce_competence_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0

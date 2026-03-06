@@ -9,6 +9,7 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub nats_url: String,
     pub bus_type: String,
+    pub workforce_competence_database_url: String,
 }
 
 impl Config {
@@ -48,6 +49,12 @@ impl Config {
             env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
         let bus_type = env::var("BUS_TYPE").unwrap_or_else(|_| "nats".to_string());
 
+        let workforce_competence_database_url =
+            env::var("WORKFORCE_COMPETENCE_DATABASE_URL").unwrap_or_else(|_| {
+                "postgresql://wc_user:wc_pass@localhost:5458/workforce_competence_db?sslmode=require"
+                    .to_string()
+            });
+
         Ok(Config {
             database_url,
             host,
@@ -56,6 +63,7 @@ impl Config {
             cors_origins,
             nats_url,
             bus_type,
+            workforce_competence_database_url,
         })
     }
 }

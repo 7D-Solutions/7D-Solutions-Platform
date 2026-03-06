@@ -54,6 +54,11 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
+    tracing::info!("Connecting to Workforce-Competence database...");
+    let wc_pool = resolve_pool(&config.workforce_competence_database_url)
+        .await
+        .expect("Failed to connect to Workforce-Competence database");
+
     // Create event bus and start receipt event bridge consumer
     let bus: Arc<dyn EventBus> = match config.bus_type.to_lowercase().as_str() {
         "inmemory" => {
@@ -80,7 +85,11 @@ async fn main() {
     let metrics = Arc::new(
         QualityInspectionMetrics::new().expect("Failed to create metrics registry"),
     );
-    let app_state = Arc::new(AppState { pool, metrics });
+    let app_state = Arc::new(AppState {
+        pool,
+        wc_pool,
+        metrics,
+    });
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 

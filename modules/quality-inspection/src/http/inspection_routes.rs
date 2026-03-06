@@ -28,6 +28,17 @@ fn error_response(err: QiError) -> impl IntoResponse {
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "validation_error", "message": msg })),
         ),
+        QiError::Unauthorized(msg) => (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "unauthorized_inspector", "message": msg })),
+        ),
+        QiError::ServiceUnavailable(msg) => {
+            tracing::error!(error = %msg, "workforce-competence authorization check failed");
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "error": "service_unavailable", "message": msg })),
+            )
+        }
         QiError::Serialization(e) => {
             tracing::error!(error = %e, "serialization error");
             (
@@ -172,6 +183,7 @@ pub async fn post_hold_inspection(
     };
     match service::hold_inspection(
         &state.pool,
+        &state.wc_pool,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -198,6 +210,7 @@ pub async fn post_release_inspection(
     };
     match service::release_inspection(
         &state.pool,
+        &state.wc_pool,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -224,6 +237,7 @@ pub async fn post_accept_inspection(
     };
     match service::accept_inspection(
         &state.pool,
+        &state.wc_pool,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -250,6 +264,7 @@ pub async fn post_reject_inspection(
     };
     match service::reject_inspection(
         &state.pool,
+        &state.wc_pool,
         &tenant_id,
         inspection_id,
         req.inspector_id,

@@ -38,7 +38,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | 0 | Design lock — cost rollup + identity graph + naming | 1 | COMPLETE |
 | A | Inventory retrofit + BOM core | 2 | COMPLETE |
 | B | Production v1 execution spine | 3-4 | COMPLETE |
-| C1 | Quality — Receiving inspection | 1-2 | IN PROGRESS (1 deliverable remaining) |
+| C1 | Quality — Receiving inspection | 1-2 | COMPLETE |
 | C2 | Quality — In-process + final inspection | 2-3 | COMPLETE |
 | D | ECO + Change Control | 2-3 | COMPLETE |
 | E | Maintenance workcenter consumption | 2 | COMPLETE |
@@ -147,7 +147,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | Inspection: receiving inspection records | DONE | bd-1y2nc | 2026-03-05 |
 | Inspection: quarantine/hold before disposition | DONE | bd-16fy6 | 2026-03-05 |
 | Inspection: disposition outcomes (accept, reject-to-hold, release) | DONE | bd-16fy6 | 2026-03-05 |
-| Inspection: inspector authorization via Workforce-Competence | NOT STARTED | — | — |
+| Inspection: inspector authorization via Workforce-Competence | DONE | bd-38xvm | 2026-03-06 |
 | Inspection: S-R event bridge (auto-create receiving inspection) | DONE | bd-986e4 | 2026-03-05 |
 | Docker: quality-inspection-rs container with compose watch | DONE | bd-2f1xv | 2026-03-05 |
 | Integration proof: C1 e2e (receipt → hold/release → events + evidence queries) | DONE | bd-qh5px | 2026-03-06 |
@@ -158,7 +158,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 - Receiving inspection record created from S-R event — PROVEN (e2e_receiving_hold_release_in_process_final)
 - Quarantine/hold enforced before disposition — PROVEN (e2e_receiving_hold_release_in_process_final + e2e_quarantine_round_trip_reject)
 - Disposition recorded; release emits event that Inventory/Shipping can consume to control usage (end-to-end round-trip) — PROVEN (outbox events verified)
-- Inspector authorization checked and logged — NOT YET (requires Workforce-Competence integration)
+- Inspector authorization checked and logged — PROVEN (authorize_then_dispose_flow + all_disposition_actions_enforce_authorization)
 - Evidence query: "show inspection records for part revision / receipt" — PROVEN (by_receipt + by_part_rev queries verified)
 
 ---
@@ -314,3 +314,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-06 | B | Timekeeping link to WO/operations (bd-3j1hx): time_entries table (append-only, actor_id + start/end/minutes). Start timer, stop timer, manual entry endpoints. Entries link to work_order_id (required) + operation_id (optional). Validation: WO must exist, operation must belong to WO. Stop computes minutes from duration, rejects double-stop. Events emitted: time_entry_created, time_entry_stopped. Audit-safe (append-only, no updates/deletes on rows). HTTP endpoints: POST start/stop/manual, GET by WO. 9 integration tests pass against real Postgres (start+stop, WO-only, manual entry, invalid time range rejected, double-stop rejected, events emitted, list by WO, invalid WO rejected, invalid operation rejected). 56 total production tests pass. | SageDesert | modules/production/tests/time_entry_integration.rs |
 | 2026-03-05 | D | ECO numbering integration (bd-ed0zo): NumberingClient (Http + Direct modes) integrated into BOM module. eco_number now optional in CreateEcoRequest — auto-allocated from Numbering service when omitted. Tenant-scoped sequential numbers (ECO-00001, ECO-00002...). Idempotent via correlation_id. Numbering unavailable → clear error (no silent fallback). Explicit eco_number still accepted for backward compat. 4 new numbering integration tests (auto-allocation, tenant isolation, idempotency, error on missing numbering). All 21 BOM tests pass against real Postgres + Numbering DB. Phase D → COMPLETE. | PurpleCliff | modules/bom/tests/eco_numbering_integration.rs |
 | 2026-03-05 | D | Phase D integration proof (bd-9bd80): 2 e2e tests against real BOM + Numbering DBs prove all Phase D exit criteria. Test 1: full ECO lifecycle with auto-numbering — create ECO (no eco_number, auto-allocated ECO-00001) → link BOM Rev-A→Rev-B + doc revision → submit → approve → apply → Rev-A superseded, Rev-B effective with effectivity → ECO history for part returns correct ECO → date-based explosion resolves Rev-B → doc links queryable → full audit trail (created/submitted/approved/applied) → all 6 outbox events verified (eco.created/submitted/approved/applied + bom.revision_superseded/released). Test 2: sequential numbering — 3 ECOs get ECO-00001/00002/00003, all unique. Phase D "Prove at end" all items PROVEN. Phase D status → COMPLETE. All 23 BOM tests pass. | PurpleCliff | modules/bom/tests/eco_e2e_proof.rs |
+| 2026-03-06 | C1 | Inspector authorization via Workforce-Competence (bd-38xvm): All 4 disposition actions (hold/release/accept/reject) now require inspector_id and verify authorization against Workforce-Competence service (direct library call, not HTTP). Fail-closed: WC DB unreachable → disposition rejected. No auth check at inspection creation (event bridges still work). wc_client module with verify_inspector_authorized(). AppState extended with wc_pool. HTTP 403 for unauthorized, 503 for WC unavailable. 6 new tests (authorize_then_dispose_flow, all_disposition_actions_enforce_authorization, disposition_without_inspector_id, create_without_inspector_succeeds, disposition_rejects_unauthorized, disposition_requires_inspector_id). 42 total quality-inspection tests pass against real Postgres. Phase C1 status → COMPLETE. | MaroonHarbor | modules/quality-inspection/tests/inspector_authz_integration.rs |

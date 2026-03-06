@@ -1,8 +1,13 @@
+use chrono::Utc;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
+use workforce_competence_rs::domain::{
+    models::{ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest},
+    service as wc_service,
+};
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
@@ -23,6 +28,63 @@ async fn setup_db() -> sqlx::PgPool {
         .expect("Failed to run quality-inspection migrations");
 
     pool
+}
+
+async fn setup_wc_db() -> sqlx::PgPool {
+    dotenvy::dotenv().ok();
+    let url = std::env::var("WORKFORCE_COMPETENCE_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://wc_user:wc_pass@localhost:5458/workforce_competence_db?sslmode=require"
+            .to_string()
+    });
+
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(10))
+        .connect(&url)
+        .await
+        .expect("Failed to connect to workforce-competence test DB");
+
+    sqlx::migrate!("../workforce-competence/db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run workforce-competence migrations");
+
+    pool
+}
+
+async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_id: Uuid) {
+    let artifact_req = RegisterArtifactRequest {
+        tenant_id: tenant_id.to_string(),
+        artifact_type: ArtifactType::Qualification,
+        name: "Quality Inspection Disposition Authority".to_string(),
+        code: "quality_inspection".to_string(),
+        description: Some("Authorization to perform inspection dispositions".to_string()),
+        valid_duration_days: None,
+        idempotency_key: Uuid::new_v4().to_string(),
+        correlation_id: Some("test".to_string()),
+        causation_id: None,
+    };
+
+    let (artifact, _) = wc_service::register_artifact(wc_pool, &artifact_req)
+        .await
+        .expect("register quality_inspection artifact");
+
+    let assign_req = AssignCompetenceRequest {
+        tenant_id: tenant_id.to_string(),
+        operator_id: inspector_id,
+        artifact_id: artifact.id,
+        awarded_at: Utc::now() - chrono::Duration::hours(1),
+        expires_at: None,
+        evidence_ref: Some("test-fixture".to_string()),
+        awarded_by: Some("test-harness".to_string()),
+        idempotency_key: Uuid::new_v4().to_string(),
+        correlation_id: Some("test".to_string()),
+        causation_id: None,
+    };
+
+    wc_service::assign_competence(wc_pool, &assign_req)
+        .await
+        .expect("assign quality_inspection competence");
 }
 
 fn unique_tenant() -> String {
@@ -413,9 +475,12 @@ async fn events_emitted_for_in_process_and_final() {
 #[serial]
 async fn disposition_works_on_in_process_inspection() {
     let pool = setup_db().await;
+    let wc_pool = setup_wc_db().await;
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
+
+    authorize_inspector(&wc_pool, &tenant, inspector).await;
 
     let inspection = service::create_in_process_inspection(
         &pool,
@@ -442,6 +507,7 @@ async fn disposition_works_on_in_process_inspection() {
     // Hold
     let held = service::hold_inspection(
         &pool,
+        &wc_pool,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -456,6 +522,7 @@ async fn disposition_works_on_in_process_inspection() {
     // Reject
     let rejected = service::reject_inspection(
         &pool,
+        &wc_pool,
         &tenant,
         inspection.id,
         Some(inspector),

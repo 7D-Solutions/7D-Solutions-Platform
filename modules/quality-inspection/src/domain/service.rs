@@ -14,6 +14,12 @@ pub enum QiError {
     #[error("Validation: {0}")]
     Validation(String),
 
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
@@ -406,6 +412,7 @@ fn validate_disposition_transition(current: &str, target: &str) -> Result<(), Qi
 
 async fn transition_disposition(
     pool: &PgPool,
+    wc_pool: &PgPool,
     tenant_id: &str,
     inspection_id: Uuid,
     target: &str,
@@ -415,6 +422,11 @@ async fn transition_disposition(
     correlation_id: &str,
     causation_id: Option<&str>,
 ) -> Result<Inspection, QiError> {
+    let iid = inspector_id.ok_or_else(|| {
+        QiError::Validation("inspector_id is required for disposition actions".into())
+    })?;
+    crate::domain::wc_client::verify_inspector_authorized(wc_pool, tenant_id, iid).await?;
+
     let inspection = get_inspection(pool, tenant_id, inspection_id).await?;
     validate_disposition_transition(&inspection.disposition, target)?;
 
@@ -462,6 +474,7 @@ async fn transition_disposition(
 
 pub async fn hold_inspection(
     pool: &PgPool,
+    wc_pool: &PgPool,
     tenant_id: &str,
     inspection_id: Uuid,
     inspector_id: Option<Uuid>,
@@ -471,6 +484,7 @@ pub async fn hold_inspection(
 ) -> Result<Inspection, QiError> {
     transition_disposition(
         pool,
+        wc_pool,
         tenant_id,
         inspection_id,
         "held",
@@ -485,6 +499,7 @@ pub async fn hold_inspection(
 
 pub async fn release_inspection(
     pool: &PgPool,
+    wc_pool: &PgPool,
     tenant_id: &str,
     inspection_id: Uuid,
     inspector_id: Option<Uuid>,
@@ -494,6 +509,7 @@ pub async fn release_inspection(
 ) -> Result<Inspection, QiError> {
     transition_disposition(
         pool,
+        wc_pool,
         tenant_id,
         inspection_id,
         "released",
@@ -508,6 +524,7 @@ pub async fn release_inspection(
 
 pub async fn accept_inspection(
     pool: &PgPool,
+    wc_pool: &PgPool,
     tenant_id: &str,
     inspection_id: Uuid,
     inspector_id: Option<Uuid>,
@@ -517,6 +534,7 @@ pub async fn accept_inspection(
 ) -> Result<Inspection, QiError> {
     transition_disposition(
         pool,
+        wc_pool,
         tenant_id,
         inspection_id,
         "accepted",
@@ -531,6 +549,7 @@ pub async fn accept_inspection(
 
 pub async fn reject_inspection(
     pool: &PgPool,
+    wc_pool: &PgPool,
     tenant_id: &str,
     inspection_id: Uuid,
     inspector_id: Option<Uuid>,
@@ -540,6 +559,7 @@ pub async fn reject_inspection(
 ) -> Result<Inspection, QiError> {
     transition_disposition(
         pool,
+        wc_pool,
         tenant_id,
         inspection_id,
         "rejected",

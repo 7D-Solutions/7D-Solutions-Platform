@@ -526,6 +526,7 @@ dependencies = [
  "event-bus",
  "health",
  "prometheus",
+ "reqwest",
  "security",
  "serde",
  "serde_json",
@@ -1190,6 +1191,7 @@ dependencies = [
  "notifications-rs",
  "party-rs",
  "payments-rs",
+ "production-rs",
  "projections",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -1316,6 +1318,23 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-test",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "event-consumer"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "chrono",
+ "event-bus",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "uuid",
 ]
@@ -2210,6 +2229,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "event-bus",
+ "futures",
  "health",
  "projections",
  "prometheus",
@@ -3408,6 +3428,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workforce-competence-rs",
 ]
 
 [[package]]
@@ -3994,6 +4015,7 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
