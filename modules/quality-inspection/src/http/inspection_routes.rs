@@ -265,6 +265,60 @@ pub async fn post_reject_inspection(
 }
 
 // ============================================================================
+// In-Process Inspections
+// ============================================================================
+
+pub async fn post_in_process_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(req): Json<CreateInProcessInspectionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::create_in_process_inspection(
+        &state.pool,
+        &tenant_id,
+        &req,
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(inspection) => (StatusCode::CREATED, Json(json!(inspection))).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+// ============================================================================
+// Final Inspections
+// ============================================================================
+
+pub async fn post_final_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(req): Json<CreateFinalInspectionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::create_final_inspection(
+        &state.pool,
+        &tenant_id,
+        &req,
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(inspection) => (StatusCode::CREATED, Json(json!(inspection))).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+// ============================================================================
 // Queries
 // ============================================================================
 
@@ -300,6 +354,43 @@ pub async fn get_inspections_by_receipt(
         Err(e) => return e.into_response(),
     };
     match service::list_inspections_by_receipt(&state.pool, &tenant_id, q.receipt_id).await {
+        Ok(rows) => Json(json!(rows)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+pub async fn get_inspections_by_wo(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<InspectionsByWoQuery>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::list_inspections_by_wo(
+        &state.pool,
+        &tenant_id,
+        q.wo_id,
+        q.inspection_type.as_deref(),
+    )
+    .await
+    {
+        Ok(rows) => Json(json!(rows)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+pub async fn get_inspections_by_lot(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<InspectionsByLotQuery>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::list_inspections_by_lot(&state.pool, &tenant_id, q.lot_id).await {
         Ok(rows) => Json(json!(rows)).into_response(),
         Err(e) => error_response(e).into_response(),
     }

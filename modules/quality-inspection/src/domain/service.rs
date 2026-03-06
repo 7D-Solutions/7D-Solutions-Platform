@@ -191,7 +191,169 @@ pub async fn create_receiving_inspection(
         &events::build_inspection_recorded_envelope(
             inspection.id,
             tenant_id.to_string(),
+            "receiving".to_string(),
             req.receipt_id,
+            None,
+            None,
+            req.part_id,
+            req.part_revision.clone(),
+            result_val.to_string(),
+            correlation_id.to_string(),
+            causation_id.map(String::from),
+        ),
+        correlation_id,
+        causation_id,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(inspection)
+}
+
+// ============================================================================
+// In-Process Inspections
+// ============================================================================
+
+pub async fn create_in_process_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    req: &CreateInProcessInspectionRequest,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    if tenant_id.is_empty() {
+        return Err(QiError::Validation("tenant_id is required".into()));
+    }
+
+    let result_val = req.result.as_deref().unwrap_or("pending");
+    match result_val {
+        "pending" | "pass" | "fail" | "conditional" => {}
+        other => {
+            return Err(QiError::Validation(format!(
+                "Invalid result '{}', expected one of: pending, pass, fail, conditional",
+                other
+            )));
+        }
+    }
+
+    let mut tx = pool.begin().await?;
+
+    let inspection = sqlx::query_as::<_, Inspection>(
+        r#"
+        INSERT INTO inspections
+            (tenant_id, plan_id, lot_id, inspector_id, inspection_type,
+             result, notes, wo_id, op_instance_id, part_id, part_revision,
+             inspected_at)
+        VALUES ($1, $2, $3, $4, 'in_process', $5, $6, $7, $8, $9, $10,
+                CASE WHEN $5 != 'pending' THEN NOW() ELSE NULL END)
+        RETURNING *
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(req.plan_id)
+    .bind(req.lot_id)
+    .bind(req.inspector_id)
+    .bind(result_val)
+    .bind(&req.notes)
+    .bind(req.wo_id)
+    .bind(req.op_instance_id)
+    .bind(req.part_id)
+    .bind(&req.part_revision)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    enqueue_event(
+        &mut tx,
+        tenant_id,
+        QualityInspectionEventType::InspectionRecorded,
+        "inspection",
+        &inspection.id.to_string(),
+        &events::build_inspection_recorded_envelope(
+            inspection.id,
+            tenant_id.to_string(),
+            "in_process".to_string(),
+            None,
+            Some(req.wo_id),
+            Some(req.op_instance_id),
+            req.part_id,
+            req.part_revision.clone(),
+            result_val.to_string(),
+            correlation_id.to_string(),
+            causation_id.map(String::from),
+        ),
+        correlation_id,
+        causation_id,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(inspection)
+}
+
+// ============================================================================
+// Final Inspections
+// ============================================================================
+
+pub async fn create_final_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    req: &CreateFinalInspectionRequest,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    if tenant_id.is_empty() {
+        return Err(QiError::Validation("tenant_id is required".into()));
+    }
+
+    let result_val = req.result.as_deref().unwrap_or("pending");
+    match result_val {
+        "pending" | "pass" | "fail" | "conditional" => {}
+        other => {
+            return Err(QiError::Validation(format!(
+                "Invalid result '{}', expected one of: pending, pass, fail, conditional",
+                other
+            )));
+        }
+    }
+
+    let mut tx = pool.begin().await?;
+
+    let inspection = sqlx::query_as::<_, Inspection>(
+        r#"
+        INSERT INTO inspections
+            (tenant_id, plan_id, lot_id, inspector_id, inspection_type,
+             result, notes, wo_id, part_id, part_revision,
+             inspected_at)
+        VALUES ($1, $2, $3, $4, 'final', $5, $6, $7, $8, $9,
+                CASE WHEN $5 != 'pending' THEN NOW() ELSE NULL END)
+        RETURNING *
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(req.plan_id)
+    .bind(req.lot_id)
+    .bind(req.inspector_id)
+    .bind(result_val)
+    .bind(&req.notes)
+    .bind(req.wo_id)
+    .bind(req.part_id)
+    .bind(&req.part_revision)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    enqueue_event(
+        &mut tx,
+        tenant_id,
+        QualityInspectionEventType::InspectionRecorded,
+        "inspection",
+        &inspection.id.to_string(),
+        &events::build_inspection_recorded_envelope(
+            inspection.id,
+            tenant_id.to_string(),
+            "final".to_string(),
+            None,
+            Some(req.wo_id),
+            None,
             req.part_id,
             req.part_revision.clone(),
             result_val.to_string(),
@@ -443,6 +605,60 @@ pub async fn list_inspections_by_receipt(
     )
     .bind(tenant_id)
     .bind(receipt_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+pub async fn list_inspections_by_wo(
+    pool: &PgPool,
+    tenant_id: &str,
+    wo_id: Uuid,
+    inspection_type: Option<&str>,
+) -> Result<Vec<Inspection>, QiError> {
+    let rows = if let Some(itype) = inspection_type {
+        sqlx::query_as::<_, Inspection>(
+            r#"
+            SELECT * FROM inspections
+            WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(wo_id)
+        .bind(itype)
+        .fetch_all(pool)
+        .await?
+    } else {
+        sqlx::query_as::<_, Inspection>(
+            r#"
+            SELECT * FROM inspections
+            WHERE tenant_id = $1 AND wo_id = $2
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(wo_id)
+        .fetch_all(pool)
+        .await?
+    };
+    Ok(rows)
+}
+
+pub async fn list_inspections_by_lot(
+    pool: &PgPool,
+    tenant_id: &str,
+    lot_id: Uuid,
+) -> Result<Vec<Inspection>, QiError> {
+    let rows = sqlx::query_as::<_, Inspection>(
+        r#"
+        SELECT * FROM inspections
+        WHERE tenant_id = $1 AND lot_id = $2
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(lot_id)
     .fetch_all(pool)
     .await?;
     Ok(rows)

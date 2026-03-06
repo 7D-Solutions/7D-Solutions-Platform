@@ -17,10 +17,11 @@ use quality_inspection_rs::{
     http::{
         health::{health as health_fn, ready, version},
         inspection_routes::{
-            get_inspection, get_inspection_plan, get_inspections_by_part_rev,
-            get_inspections_by_receipt, post_accept_inspection, post_activate_plan,
-            post_hold_inspection, post_inspection_plan, post_receiving_inspection,
-            post_reject_inspection, post_release_inspection,
+            get_inspection, get_inspection_plan, get_inspections_by_lot,
+            get_inspections_by_part_rev, get_inspections_by_receipt, get_inspections_by_wo,
+            post_accept_inspection, post_activate_plan, post_final_inspection,
+            post_hold_inspection, post_in_process_inspection, post_inspection_plan,
+            post_receiving_inspection, post_reject_inspection, post_release_inspection,
         },
     },
     metrics::{metrics_handler, QualityInspectionMetrics},
@@ -95,6 +96,14 @@ async fn main() {
             axum::routing::post(post_receiving_inspection),
         )
         .route(
+            "/api/quality-inspection/inspections/in-process",
+            axum::routing::post(post_in_process_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/final",
+            axum::routing::post(post_final_inspection),
+        )
+        .route(
             "/api/quality-inspection/inspections/{inspection_id}/hold",
             axum::routing::post(post_hold_inspection),
         )
@@ -131,6 +140,14 @@ async fn main() {
         .route(
             "/api/quality-inspection/inspections/by-receipt",
             axum::routing::get(get_inspections_by_receipt),
+        )
+        .route(
+            "/api/quality-inspection/inspections/by-wo",
+            axum::routing::get(get_inspections_by_wo),
+        )
+        .route(
+            "/api/quality-inspection/inspections/by-lot",
+            axum::routing::get(get_inspections_by_lot),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::QUALITY_INSPECTION_READ,

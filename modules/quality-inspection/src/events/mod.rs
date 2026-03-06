@@ -45,7 +45,10 @@ pub struct PlanCreatedPayload {
 pub struct InspectionRecordedPayload {
     pub inspection_id: Uuid,
     pub tenant_id: String,
+    pub inspection_type: String,
     pub receipt_id: Option<Uuid>,
+    pub wo_id: Option<Uuid>,
+    pub op_instance_id: Option<Uuid>,
     pub part_id: Option<Uuid>,
     pub part_revision: Option<String>,
     pub result: String,
@@ -116,7 +119,10 @@ pub fn build_plan_created_envelope(
 pub fn build_inspection_recorded_envelope(
     inspection_id: Uuid,
     tenant_id: String,
+    inspection_type: String,
     receipt_id: Option<Uuid>,
+    wo_id: Option<Uuid>,
+    op_instance_id: Option<Uuid>,
     part_id: Option<Uuid>,
     part_revision: Option<String>,
     result: String,
@@ -134,7 +140,10 @@ pub fn build_inspection_recorded_envelope(
         InspectionRecordedPayload {
             inspection_id,
             tenant_id,
+            inspection_type,
             receipt_id,
+            wo_id,
+            op_instance_id,
             part_id,
             part_revision,
             result,

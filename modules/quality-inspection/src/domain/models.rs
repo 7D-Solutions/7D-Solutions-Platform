@@ -37,6 +37,8 @@ pub struct Inspection {
     pub part_id: Option<Uuid>,
     pub part_revision: Option<String>,
     pub disposition: String,
+    pub wo_id: Option<Uuid>,
+    pub op_instance_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -78,6 +80,31 @@ pub struct CreateReceivingInspectionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CreateInProcessInspectionRequest {
+    pub wo_id: Uuid,
+    pub op_instance_id: Uuid,
+    pub plan_id: Option<Uuid>,
+    pub lot_id: Option<Uuid>,
+    pub part_id: Option<Uuid>,
+    pub part_revision: Option<String>,
+    pub inspector_id: Option<Uuid>,
+    pub result: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateFinalInspectionRequest {
+    pub wo_id: Uuid,
+    pub lot_id: Option<Uuid>,
+    pub plan_id: Option<Uuid>,
+    pub part_id: Option<Uuid>,
+    pub part_revision: Option<String>,
+    pub inspector_id: Option<Uuid>,
+    pub result: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct DispositionTransitionRequest {
     pub inspector_id: Option<Uuid>,
     pub reason: Option<String>,
@@ -92,4 +119,15 @@ pub struct InspectionsByPartRevQuery {
 #[derive(Debug, Deserialize)]
 pub struct InspectionsByReceiptQuery {
     pub receipt_id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InspectionsByWoQuery {
+    pub wo_id: Uuid,
+    pub inspection_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InspectionsByLotQuery {
+    pub lot_id: Uuid,
 }
