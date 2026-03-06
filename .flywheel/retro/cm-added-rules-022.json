@@ -1,0 +1,37 @@
+[
+  {
+    "id": "b-mme8a89w-sp4k9p",
+    "content": "Always separate cross-module consumer logic into a testable process_* function (pool, event_id, payload) and a thin NATS loop wrapper — test the process function directly against real Postgres",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme8a8a1-fhpshh",
+    "content": "Consumer crates must define their own local payload structs with Deserialize rather than importing from the producer crate — the contract is the JSON envelope, not a Rust type",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme8a8a2-1e43lh",
+    "content": "When processing multi-item events, build deterministic idempotency keys as format!(\"{prefix}-{event_id}-{item_index}\") so each item gets its own replay-safe key",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme8a8a2-ymyfuc",
+    "content": "When a receipt cost is derived from prior transactions (e.g., component issue costs), guard against zero or empty cost data before creating the receipt — never allow phantom entries with no cost basis",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme8a8a3-p5t53n",
+    "content": "In Docker Compose health checks, always use 127.0.0.1 instead of localhost — Alpine wget resolves localhost to IPv6 first, which fails if the service only binds IPv4",
+    "category": "debugging"
+  },
+  {
+    "id": "b-mme8a8a3-lpk93t",
+    "content": "Cross-module workflows use the command-request pattern: producer enqueues a .requested event via outbox, consumer processes it independently — never call the consuming module API directly",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme8a8a4-4sud1s",
+    "content": "When adding subtypes to an existing entity (e.g., in-process vs final inspection), extend the table with nullable columns and a type discriminator rather than creating separate tables",
+    "category": "architecture"
+  }
+]

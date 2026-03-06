@@ -1,0 +1,22 @@
+{
+  "retro_run": 22,
+  "trigger": "count-based",
+  "timestamp": "2026-03-06T01:45:00Z",
+  "runner": "MaroonHarbor",
+  "bead_id": "bd-rz7qv",
+  "window": {
+    "from_seq": 467,
+    "to_seq": 471,
+    "bead_count": 5
+  },
+  "beads_analyzed": [
+    {"id": "bd-13yjd", "title": "Phase C2: In-process + final inspection record types linked to WO/operations", "agent": "CopperRiver", "commits": 2},
+    {"id": "bd-nl0zm", "title": "Phase B: Explicit component issue workflow (Production to Inventory via events)", "agent": "PurpleCliff", "commits": 1},
+    {"id": "bd-23t54", "title": "Fix gateway health check IPv6 resolution failure", "agent": "BrightHill", "commits": 1},
+    {"id": "bd-1r5sw", "title": "Restart Docker and bring up services", "agent": "BrightHill", "commits": 0},
+    {"id": "bd-1j2hj", "title": "Phase B: FG receipt at rolled-up cost (Production to Inventory) + arithmetic spot-check", "agent": "PurpleCliff", "commits": 2}
+  ],
+  "rules_extracted": 7,
+  "rules_added": 7,
+  "rules_skipped": 0
+}
