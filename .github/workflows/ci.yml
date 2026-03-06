@@ -529,6 +529,15 @@ jobs:
             exit 1
           fi
 
+  check-event-conventions:
+    name: "Lint: Event Convention Guardrails"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check EventEnvelope, subject, and schema_version conventions
+        run: bash scripts/ci/check-event-conventions.sh
+
   check-migration-versioning:
     name: Check Migration Versioning
     runs-on: ubuntu-latest
