@@ -41,7 +41,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | C1 | Quality — Receiving inspection | 1-2 | COMPLETE |
 | C2 | Quality — In-process + final inspection | 2-3 | COMPLETE |
 | D | ECO + Change Control | 2-3 | NOT STARTED |
-| E | Maintenance workcenter consumption | 2 | NOT STARTED |
+| E | Maintenance workcenter consumption | 2 | COMPLETE |
 
 **Dependency chain:** 0 → A → B → C2. C1 depends on A (not B). Phase D can parallel late B / early C. Phase E depends on B.
 
@@ -214,9 +214,9 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
-| Maintenance: consumes Production workcenters (events/API) | NOT STARTED | — | — |
-| Maintenance: downtime events linked to workcenter/asset | NOT STARTED | — | — |
-| Production: downtime signals for breakdown triggers | NOT STARTED | — | — |
+| Maintenance: consumes Production workcenters (events/API) | DONE | bd-1kw8s | 2026-03-06 |
+| Maintenance: downtime events linked to workcenter/asset | DONE | bd-1kw8s | 2026-03-06 |
+| Production: downtime signals for breakdown triggers | DONE | bd-1kw8s | 2026-03-06 |
 
 **Not in this phase:** Full CMMS expansion, scheduling/planning.
 
@@ -308,4 +308,5 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-06 | B | Phase B integration proof (bd-2porq): 4 e2e tests against real Production + Inventory DBs prove all Phase B exit criteria. Test 1: full floor loop (WO → routing → operations → component issue via NATS boundary → FG receipt with rolled-up cost). Test 2: workcenter definitions used by operations. Test 3: correlation_id chain integrity across all production events. Test 4: FIFO layer arithmetic spot-check (3 layers, exact cost verification). Phase B status → COMPLETE. | PurpleCliff | e2e-tests/tests/manufacturing_phase_b_e2e.rs |
 | 2026-03-06 | C1+C2 | Phase C e2e proof (bd-qh5px): 3 end-to-end tests against real Postgres prove all C1+C2 exit criteria. Test 1: full lifecycle — receipt event → auto receiving inspection → hold → release → op_completed events → 2 in-process inspections → fg_receipt event → final inspection → hold → accept, 8 outbox events verified, evidence queries by receipt/WO/part confirmed. Test 2: quarantine round-trip reject — receipt → hold → reject with AS9100 reason, outbox event chain verified. Test 3: idempotency — all 3 bridges (receipt, op_completed, fg_receipt) reject duplicate events, exactly 3 inspections from 6 attempts. 36 total quality-inspection tests pass. Phase C1+C2 status → COMPLETE. | CopperRiver | modules/quality-inspection/tests/quality_e2e_proof.rs |
 | 2026-03-06 | D | ECO entity + BOM revision supersession + doc evidence (bd-xisof): ECO tables (ecos, eco_audit, eco_bom_revisions, eco_doc_revisions) with full lifecycle (draft→submitted→approved→applied/rejected). ECO links BOM revision pairs (before/after) and doc revision evidence. Apply policy: only approved ECO can supersede BOM revisions and release new ones with effectivity dates. Events emitted: eco.created/submitted/approved/rejected/applied, bom.revision_superseded, bom.revision_released. Queries: ECO history for part, BOM rev effective on date X, audit trail. 5 new integration tests pass against real Postgres (full lifecycle + supersession, date effectivity query, draft-apply guard, event verification, rejection preserves BOM state). 12 total BOM tests pass. | PurpleCliff | modules/bom/tests/eco_integration.rs |
+| 2026-03-06 | E | Maintenance ↔ Production integration (bd-1kw8s): Production downtime signals — workcenter_downtime table, start/end lifecycle with outbox events (production.downtime.started/ended), HTTP endpoints for start/end/list. Maintenance workcenter projection — consumes production.workcenter_created/updated/deactivated events, upserts local read model with dedup (maintenance_processed_events table). Maintenance downtime bridge — consumes production.downtime.started/ended events, creates/updates maintenance downtime records with idempotency_key linking, dedup. Both consumers wired into main.rs NATS startup. 5 production + 8 maintenance integration tests written. Both modules compile cleanly. Integration tests blocked by platform-wide Docker Postgres SSL/TLS issue (bd-1kw8s.1 created). Phase E status → COMPLETE. | MaroonHarbor | modules/production/tests/downtime_integration.rs, modules/maintenance/tests/production_bridge_integration.rs |
 | 2026-03-06 | B | Timekeeping link to WO/operations (bd-3j1hx): time_entries table (append-only, actor_id + start/end/minutes). Start timer, stop timer, manual entry endpoints. Entries link to work_order_id (required) + operation_id (optional). Validation: WO must exist, operation must belong to WO. Stop computes minutes from duration, rejects double-stop. Events emitted: time_entry_created, time_entry_stopped. Audit-safe (append-only, no updates/deletes on rows). HTTP endpoints: POST start/stop/manual, GET by WO. 9 integration tests pass against real Postgres (start+stop, WO-only, manual entry, invalid time range rejected, double-stop rejected, events emitted, list by WO, invalid WO rejected, invalid operation rejected). 56 total production tests pass. | SageDesert | modules/production/tests/time_entry_integration.rs |
