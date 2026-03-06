@@ -1,0 +1,42 @@
+[
+  {
+    "id": "b-mme570ph-vm6btr",
+    "content": "When building related domain entities, map the dependency graph first and build bottom-up — each entity must reference only previously-created entities",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme570ph-4mqbpm",
+    "content": "Always add a correlation_id column to lifecycle entities (work orders, inspections) and propagate it through all child events for end-to-end tracing",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme570ph-438dn5",
+    "content": "After releasing or finalizing an entity (routing, BOM, inspection plan), guard all mutation paths with a status check that returns an error before touching data",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme570ph-884ajz",
+    "content": "When enforcing sequential operations, use a sequence_number + is_required flag — required predecessors must complete first, optional ones can be skipped",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme570ph-0cd9bt",
+    "content": "Never rely on Axum path parameter name alone to differentiate endpoints — same-shape paths like /{action_key} and /{rule_id} collide; use a sub-path prefix instead",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mme570ph-9s2p85",
+    "content": "Investigation beads should produce a working prototype (not just a document) when scope allows — this gives subsequent beads a concrete reference implementation",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mme570ph-ir7pif",
+    "content": "Well-scoped beads (one entity, one concern, complete vertical slice) enable single-commit delivery — split scope until each bead can land in one atomic commit",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mme570ph-q3n9fk",
+    "content": "Even small fixes to proven modules (>=1.0.0) require a PATCH version bump in Cargo.toml and a REVISIONS.md entry in the same commit",
+    "category": "workflow"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "retro_run": 21,
+  "trigger": "count-based",
+  "timestamp": "2026-03-06T00:30:00Z",
+  "runner": "CopperRiver",
+  "bead_id": "bd-5wpej",
+  "window": {
+    "from_seq": 451,
+    "to_seq": 456,
+    "bead_count": 6
+  },
+  "beads_analyzed": [
+    {"id": "bd-1bcvd", "title": "Phase B: Production workcenters master data (table + CRUD + events)", "agent": "SageDesert", "commits": 1},
+    {"id": "bd-2aem0", "title": "Phase B: Work order lifecycle (create/release/close) with correlation chain", "agent": "SageDesert", "commits": 1},
+    {"id": "bd-1jo88", "title": "Phase B: Routing templates + routing operations (schema + CRUD + events)", "agent": "SageDesert", "commits": 1},
+    {"id": "bd-31f07", "title": "Phase B: Operation execution model (start/complete) tied to routing ops", "agent": "SageDesert", "commits": 1},
+    {"id": "bd-2kv4l", "title": "Fix auth route conflict: SOD policy GET/DELETE at same path", "agent": "BrightHill", "commits": 1},
+    {"id": "bd-3fjnp", "title": "Investigate Fireproof ERP reuse: Events infrastructure + DLQ + idempotency", "agent": "DarkOwl", "commits": 1}
+  ],
+  "rules_extracted": 8,
+  "rules_added": 8,
+  "rules_skipped": 0
+}
