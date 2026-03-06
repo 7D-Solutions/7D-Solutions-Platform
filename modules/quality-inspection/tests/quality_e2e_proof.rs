@@ -455,6 +455,164 @@ async fn e2e_receiving_hold_release_in_process_final() {
 }
 
 // ============================================================================
+// Inspector authorization gate: unauthorized blocked, authorized succeeds
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn e2e_inspector_authorization_gate() {
+    let pool = setup_db().await;
+    let wc_pool = setup_wc_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+    let unauthorized_inspector = Uuid::new_v4();
+    let authorized_inspector = Uuid::new_v4();
+
+    // ── Step 1: Receipt event → auto receiving inspection (no auth needed) ──
+
+    let receipt_payload = ItemReceivedPayload {
+        receipt_line_id: Uuid::new_v4(),
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        sku: "FLANGE-T7-002".to_string(),
+        warehouse_id: Uuid::new_v4(),
+        quantity: 50,
+        unit_cost_minor: 3200,
+        currency: "USD".to_string(),
+        source_type: "purchase".to_string(),
+        purchase_order_id: Some(Uuid::new_v4()),
+        received_at: Utc::now(),
+    };
+
+    let recv_insp_id = process_item_received(
+        &pool,
+        Uuid::new_v4(),
+        &tenant,
+        &receipt_payload,
+        &corr,
+        None,
+    )
+    .await
+    .expect("process_item_received should succeed")
+    .expect("Should create a receiving inspection");
+
+    // ── Step 2: Attempt hold with UNAUTHORIZED inspector → must fail ──
+
+    let hold_err = service::hold_inspection(
+        &pool,
+        &wc_pool,
+        &tenant,
+        recv_insp_id,
+        Some(unauthorized_inspector),
+        Some("Attempting hold without authorization"),
+        &corr,
+        None,
+    )
+    .await;
+
+    assert!(
+        hold_err.is_err(),
+        "Unauthorized inspector must be rejected"
+    );
+    let err_msg = hold_err.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("not authorized"),
+        "Error should indicate authorization failure, got: {}",
+        err_msg
+    );
+
+    // Verify inspection is still pending (unauthorized hold had no effect)
+    let still_pending = service::get_inspection(&pool, &tenant, recv_insp_id)
+        .await
+        .expect("get inspection");
+    assert_eq!(
+        still_pending.disposition, "pending",
+        "Disposition must remain pending after unauthorized attempt"
+    );
+
+    // ── Step 3: Grant authority to the authorized inspector via WC ──
+
+    authorize_inspector(&wc_pool, &tenant, authorized_inspector).await;
+
+    // ── Step 4: Hold with AUTHORIZED inspector → must succeed ──
+
+    let held = service::hold_inspection(
+        &pool,
+        &wc_pool,
+        &tenant,
+        recv_insp_id,
+        Some(authorized_inspector),
+        Some("Material quarantined — authorized inspector"),
+        &corr,
+        None,
+    )
+    .await
+    .expect("Authorized inspector should be able to hold");
+    assert_eq!(held.disposition, "held");
+
+    // ── Step 5: Release with AUTHORIZED inspector → must succeed ──
+
+    let released = service::release_inspection(
+        &pool,
+        &wc_pool,
+        &tenant,
+        recv_insp_id,
+        Some(authorized_inspector),
+        Some("Dimensional check passed — released"),
+        &corr,
+        None,
+    )
+    .await
+    .expect("Authorized inspector should be able to release");
+    assert_eq!(released.disposition, "released");
+
+    // ── Step 6: Verify outbox events include inspector_id ──
+
+    let held_event: (serde_json::Value,) = sqlx::query_as(
+        "SELECT payload FROM quality_inspection_outbox WHERE tenant_id = $1 AND event_type = 'quality_inspection.held'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        held_event.0["payload"]["inspector_id"],
+        authorized_inspector.to_string(),
+        "Held event must record authorized inspector_id"
+    );
+
+    let released_event: (serde_json::Value,) = sqlx::query_as(
+        "SELECT payload FROM quality_inspection_outbox WHERE tenant_id = $1 AND event_type = 'quality_inspection.released'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        released_event.0["payload"]["inspector_id"],
+        authorized_inspector.to_string(),
+        "Released event must record authorized inspector_id"
+    );
+
+    // ── Step 7: Verify NO outbox events from the unauthorized attempt ──
+    // Expected: inspection_recorded (from receipt) + held + released = 3 events only
+
+    let all_events: Vec<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM quality_inspection_outbox WHERE tenant_id = $1 ORDER BY created_at",
+    )
+    .bind(&tenant)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        all_events.len(),
+        3,
+        "Only 3 events expected — unauthorized attempt must not produce events"
+    );
+}
+
+// ============================================================================
 // Quarantine round-trip: receive → hold → reject (material blocked from use)
 // ============================================================================
 
