@@ -14,6 +14,7 @@ pub enum ProductionEventType {
     OperationStarted,
     OperationCompleted,
     FgReceived,
+    FgReceiptRequested,
     WorkcenterCreated,
     WorkcenterUpdated,
     WorkcenterDeactivated,
@@ -33,6 +34,7 @@ impl ProductionEventType {
             Self::OperationStarted => "production.operation_started",
             Self::OperationCompleted => "production.operation_completed",
             Self::FgReceived => "production.fg_received",
+            Self::FgReceiptRequested => "production.fg_receipt.requested",
             Self::WorkcenterCreated => "production.workcenter_created",
             Self::WorkcenterUpdated => "production.workcenter_updated",
             Self::WorkcenterDeactivated => "production.workcenter_deactivated",
@@ -449,6 +451,53 @@ pub struct ComponentIssueRequestedPayload {
 // ============================================================================
 // Component issue envelope builder
 // ============================================================================
+
+// ============================================================================
+// FG receipt event payloads
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FgReceiptRequestedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+    pub item_id: Uuid,
+    pub warehouse_id: Uuid,
+    pub quantity: i64,
+    pub currency: String,
+}
+
+// ============================================================================
+// FG receipt envelope builder
+// ============================================================================
+
+pub fn build_fg_receipt_requested_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    order_number: String,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+    quantity: i64,
+    currency: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<FgReceiptRequestedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::FgReceiptRequested.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        FgReceiptRequestedPayload {
+            work_order_id,
+            tenant_id,
+            order_number,
+            item_id,
+            warehouse_id,
+            quantity,
+            currency,
+        },
+    )
+}
 
 pub fn build_component_issue_requested_envelope(
     work_order_id: Uuid,
