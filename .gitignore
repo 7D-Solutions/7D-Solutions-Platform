@@ -181,3 +181,10 @@ logs/
 # Temporary planning files
 tmp/
 .frankensearch/
+
+# Draw.io temp/backup files
+docs/plans/.$*.drawio.bkp
+docs/plans/.$*.drawio.dtmp
+
+# Claude settings temp files
+.claude/settings.local.json.tmp
