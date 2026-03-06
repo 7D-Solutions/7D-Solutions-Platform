@@ -17,6 +17,11 @@ use bom_rs::{
             delete_line, get_bom, get_explosion, get_lines, get_where_used, list_revisions,
             post_bom, post_effectivity, post_line, post_revision, put_line,
         },
+        eco_routes::{
+            get_bom_revision_links, get_doc_revision_links, get_eco, get_eco_audit,
+            get_eco_history_for_part, post_apply, post_approve, post_eco, post_link_bom_revision,
+            post_link_doc_revision, post_reject, post_submit,
+        },
         health::{health as health_fn, ready, version},
     },
     metrics::{metrics_handler, BomMetrics},
@@ -72,6 +77,32 @@ async fn main() {
             "/api/bom/lines/{line_id}",
             axum::routing::put(put_line).delete(delete_line),
         )
+        // ECO mutations
+        .route("/api/eco", axum::routing::post(post_eco))
+        .route(
+            "/api/eco/{eco_id}/submit",
+            axum::routing::post(post_submit),
+        )
+        .route(
+            "/api/eco/{eco_id}/approve",
+            axum::routing::post(post_approve),
+        )
+        .route(
+            "/api/eco/{eco_id}/reject",
+            axum::routing::post(post_reject),
+        )
+        .route(
+            "/api/eco/{eco_id}/apply",
+            axum::routing::post(post_apply),
+        )
+        .route(
+            "/api/eco/{eco_id}/bom-revisions",
+            axum::routing::post(post_link_bom_revision),
+        )
+        .route(
+            "/api/eco/{eco_id}/doc-revisions",
+            axum::routing::post(post_link_doc_revision),
+        )
         .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_MUTATE]))
         .with_state(app_state.clone());
 
@@ -92,6 +123,24 @@ async fn main() {
         .route(
             "/api/bom/where-used/{item_id}",
             axum::routing::get(get_where_used),
+        )
+        // ECO reads
+        .route("/api/eco/{eco_id}", axum::routing::get(get_eco))
+        .route(
+            "/api/eco/{eco_id}/bom-revisions",
+            axum::routing::get(get_bom_revision_links),
+        )
+        .route(
+            "/api/eco/{eco_id}/doc-revisions",
+            axum::routing::get(get_doc_revision_links),
+        )
+        .route(
+            "/api/eco/{eco_id}/audit",
+            axum::routing::get(get_eco_audit),
+        )
+        .route(
+            "/api/eco/history/{part_id}",
+            axum::routing::get(get_eco_history_for_part),
         )
         .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_READ]))
         .with_state(app_state.clone());

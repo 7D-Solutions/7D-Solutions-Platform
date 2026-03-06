@@ -19,7 +19,7 @@ use crate::AppState;
 // Error mapping
 // ============================================================================
 
-fn error_response(err: BomError) -> impl IntoResponse {
+pub fn error_response(err: BomError) -> impl IntoResponse {
     match err {
         BomError::Guard(GuardError::NotFound(msg)) => (
             StatusCode::NOT_FOUND,

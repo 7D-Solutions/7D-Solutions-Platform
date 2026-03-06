@@ -13,6 +13,13 @@ pub enum BomEventType {
     LineAdded,
     LineUpdated,
     LineRemoved,
+    EcoCreated,
+    EcoSubmitted,
+    EcoApproved,
+    EcoRejected,
+    EcoApplied,
+    RevisionSuperseded,
+    RevisionReleased,
 }
 
 impl BomEventType {
@@ -24,6 +31,13 @@ impl BomEventType {
             Self::LineAdded => "bom.line_added",
             Self::LineUpdated => "bom.line_updated",
             Self::LineRemoved => "bom.line_removed",
+            Self::EcoCreated => "eco.created",
+            Self::EcoSubmitted => "eco.submitted",
+            Self::EcoApproved => "eco.approved",
+            Self::EcoRejected => "eco.rejected",
+            Self::EcoApplied => "eco.applied",
+            Self::RevisionSuperseded => "bom.revision_superseded",
+            Self::RevisionReleased => "bom.revision_released",
         }
     }
 }
@@ -241,6 +255,185 @@ pub fn build_line_removed_envelope(
             revision_id,
             tenant_id,
             component_item_id,
+        },
+    )
+}
+
+// ============================================================================
+// ECO event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EcoCreatedPayload {
+    pub eco_id: Uuid,
+    pub tenant_id: String,
+    pub eco_number: String,
+    pub title: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EcoStatusChangedPayload {
+    pub eco_id: Uuid,
+    pub tenant_id: String,
+    pub eco_number: String,
+    pub new_status: String,
+    pub actor: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EcoAppliedPayload {
+    pub eco_id: Uuid,
+    pub tenant_id: String,
+    pub eco_number: String,
+    pub bom_id: Uuid,
+    pub before_revision_id: Uuid,
+    pub after_revision_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RevisionSupersededPayload {
+    pub revision_id: Uuid,
+    pub bom_id: Uuid,
+    pub tenant_id: String,
+    pub eco_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RevisionReleasedPayload {
+    pub revision_id: Uuid,
+    pub bom_id: Uuid,
+    pub tenant_id: String,
+    pub eco_id: Uuid,
+    pub effective_from: DateTime<Utc>,
+    pub effective_to: Option<DateTime<Utc>>,
+}
+
+// ============================================================================
+// ECO envelope builders
+// ============================================================================
+
+pub fn build_eco_created_envelope(
+    eco_id: Uuid,
+    tenant_id: String,
+    eco_number: String,
+    title: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<EcoCreatedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::EcoCreated.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        EcoCreatedPayload {
+            eco_id,
+            tenant_id,
+            eco_number,
+            title,
+        },
+    )
+}
+
+pub fn build_eco_status_changed_envelope(
+    event_type: BomEventType,
+    eco_id: Uuid,
+    tenant_id: String,
+    eco_number: String,
+    new_status: String,
+    actor: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<EcoStatusChangedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        event_type.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        EcoStatusChangedPayload {
+            eco_id,
+            tenant_id,
+            eco_number,
+            new_status,
+            actor,
+        },
+    )
+}
+
+pub fn build_eco_applied_envelope(
+    eco_id: Uuid,
+    tenant_id: String,
+    eco_number: String,
+    bom_id: Uuid,
+    before_revision_id: Uuid,
+    after_revision_id: Uuid,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<EcoAppliedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::EcoApplied.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        EcoAppliedPayload {
+            eco_id,
+            tenant_id,
+            eco_number,
+            bom_id,
+            before_revision_id,
+            after_revision_id,
+        },
+    )
+}
+
+pub fn build_revision_superseded_envelope(
+    revision_id: Uuid,
+    bom_id: Uuid,
+    tenant_id: String,
+    eco_id: Uuid,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<RevisionSupersededPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::RevisionSuperseded.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        RevisionSupersededPayload {
+            revision_id,
+            bom_id,
+            tenant_id,
+            eco_id,
+        },
+    )
+}
+
+pub fn build_revision_released_envelope(
+    revision_id: Uuid,
+    bom_id: Uuid,
+    tenant_id: String,
+    eco_id: Uuid,
+    effective_from: DateTime<Utc>,
+    effective_to: Option<DateTime<Utc>>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<RevisionReleasedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::RevisionReleased.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        RevisionReleasedPayload {
+            revision_id,
+            bom_id,
+            tenant_id,
+            eco_id,
+            effective_from,
+            effective_to,
         },
     )
 }
