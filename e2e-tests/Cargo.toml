@@ -435,6 +435,10 @@ path = "tests/subscription_ttp_ar_lifecycle_e2e.rs"
 name = "manufacturing_phase_a_e2e"
 path = "tests/manufacturing_phase_a_e2e.rs"
 
+[[test]]
+name = "manufacturing_phase_b_e2e"
+path = "tests/manufacturing_phase_b_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -454,6 +458,7 @@ ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
 ap = { path = "../modules/ap" }
 inventory-rs = { path = "../modules/inventory" }
+production-rs = { path = "../modules/production" }
 bom-rs = { path = "../modules/bom" }
 shipping-receiving-rs = { path = "../modules/shipping-receiving" }
 reporting = { path = "../modules/reporting" }

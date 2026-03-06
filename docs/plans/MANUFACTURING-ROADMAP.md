@@ -37,7 +37,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 |-------|------|-------|--------|
 | 0 | Design lock — cost rollup + identity graph + naming | 1 | COMPLETE |
 | A | Inventory retrofit + BOM core | 2 | COMPLETE |
-| B | Production v1 execution spine | 3-4 | NOT STARTED |
+| B | Production v1 execution spine | 3-4 | COMPLETE |
 | C1 | Quality — Receiving inspection | 1-2 | NOT STARTED |
 | C2 | Quality — In-process + final inspection | 2-3 | NOT STARTED |
 | D | ECO + Change Control | 2-3 | NOT STARTED |
@@ -122,6 +122,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | Production: FG receipt → Inventory at rolled-up cost | DONE | bd-1j2hj | 2026-03-06 |
 | Production: timekeeping link (operation events → clock events) — optional B-late | NOT STARTED | — | — |
 | Docker: production-rs container with compose watch | DONE | bd-2ya5w | 2026-03-05 |
+| Integration proof: WO → issue → ops → FG receipt end-to-end (4 tests prove Phase B exit criteria) | DONE | bd-2porq | 2026-03-06 |
 
 **Not in this phase:** Backflush, CostBreakdown JSONB (deferred to future costing phase), quality inspection execution, ECO, NCR/CAPA, capacity planning, scheduling.
 
@@ -302,3 +303,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-06 | B | FG receipt at rolled-up cost (bd-1j2hj): Production emits `production.fg_receipt.requested` event via outbox (WO, item, warehouse, qty, currency). Inventory fg_receipt_consumer computes rolled-up unit_cost = sum(component FIFO issue costs) / fg_qty by querying layer_consumptions joined to inventory_ledger. Calls process_receipt with source_type=production. Guards against zero-cost receipts (no component issues). Emits inventory.item_received event. HTTP endpoint POST /api/production/work-orders/{id}/fg-receipt. 4 production + 6 inventory integration tests pass (cost rollup arithmetic spot-check, multi-component FIFO, idempotency, outbox verification, zero-cost rejection). | PurpleCliff | modules/production/tests/fg_receipt_integration.rs, modules/inventory/tests/fg_receipt_consumer_integration.rs |
 | 2026-03-06 | C2 | In-process + final inspection types (bd-13yjd): wo_id + op_instance_id columns on inspections. In-process inspections linked to WO + operation instance. Final inspections linked to WO + produced lot. Query by WO (with type filter), by lot, by part_rev (returns all types). Event payload extended with inspection_type/wo_id/op_instance_id. HTTP endpoints for create + query. Disposition state machine works across all inspection types. 7 new integration tests, 24 total pass against real Postgres. | CopperRiver | modules/quality-inspection/tests/in_process_final_integration.rs |
 | 2026-03-06 | C2 | Production→Quality event bridge (bd-3nul7): subscribes to `production.operation_completed` → auto-creates in-process inspection (dedup by event_id + semantic dedup by wo_id+op_instance_id). Subscribes to `production.fg_receipt.requested` → auto-creates final inspection (dedup by event_id). Different ops on same WO create separate inspections. Both bridges wired into main.rs NATS consumer startup. 9 new integration tests pass against real Postgres (auto-create, event dedup, semantic dedup, multi-op, outbox emission, queryable by WO). 33 total quality-inspection tests pass. | CopperRiver | modules/quality-inspection/tests/production_event_bridge_test.rs |
+| 2026-03-06 | B | Phase B integration proof (bd-2porq): 4 e2e tests against real Production + Inventory DBs prove all Phase B exit criteria. Test 1: full floor loop (WO → routing → operations → component issue via NATS boundary → FG receipt with rolled-up cost). Test 2: workcenter definitions used by operations. Test 3: correlation_id chain integrity across all production events. Test 4: FIFO layer arithmetic spot-check (3 layers, exact cost verification). Phase B status → COMPLETE. | PurpleCliff | e2e-tests/tests/manufacturing_phase_b_e2e.rs |
