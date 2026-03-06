@@ -1,0 +1,151 @@
+## crate test: party-rs
+## started_at_utc=2026-03-04T15:01:06Z
+## cmd=./scripts/cargo-slot.sh test -p party-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.46s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/party_rs-5ddac88400592a25)
+
+running 17 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test events::party::tests::party_created_envelope_metadata ... ok
+test events::party::tests::party_deactivated_is_lifecycle ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+DATABASE_URL_PARTY not set — skipping migration integration test
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test db::tests::test_migration_applies_and_schema_is_correct ... ok
+test domain::party::service::tests::test_deactivate_party ... ok
+test domain::party::service::tests::test_create_and_get_individual ... ok
+test domain::party::service::tests::test_create_and_get_company ... ok
+test domain::party::service::tests::test_search_by_name ... ok
+test domain::party::service::tests::test_update_party ... ok
+test domain::party::service::tests::test_party_events_in_outbox ... ok
+test domain::party::service::tests::test_get_party_wrong_app_returns_none ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-c52fb773a1fe4435)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/party-6ac0c79d59bec27d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/party_bench-86185f2de189fa9c)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/address_integration.rs (target-slot-1/debug/deps/address_integration-daf9233c88a9d8fe)
+
+running 13 tests
+test test_create_address_invalid_type ... ok
+test test_list_addresses ... ok
+test test_address_tenant_isolation ... ok
+test test_only_one_primary_address ... ok
+test test_create_address_empty_line1 ... ok
+test test_get_address_wrong_app ... ok
+test test_delete_address_not_found ... ok
+test test_create_address_party_not_found ... ok
+test test_delete_address ... ok
+test test_create_address_happy_path ... ok
+test test_get_address ... ok
+test test_update_address ... ok
+test test_update_address_not_found ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.20s
+
+     Running tests/contact_integration.rs (target-slot-1/debug/deps/contact_integration-e6d2dc529c1545a6)
+
+running 16 tests
+test test_list_contacts ... ok
+test test_get_contact_wrong_app ... ok
+test test_create_contact_invalid_email ... ok
+test test_create_contact_happy_path ... ok
+test test_contact_events_in_outbox ... ok
+test test_create_contact_party_not_found ... ok
+test test_deactivate_contact ... ok
+test test_contact_tenant_isolation ... ok
+test test_set_primary_emits_event ... ok
+test test_get_primary_contacts ... ok
+test test_update_contact ... ok
+test test_update_contact_not_found ... ok
+test test_set_primary_per_role ... ok
+test test_create_contact_empty_first_name ... ok
+test test_get_contact ... ok
+test test_deactivate_contact_not_found ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.56s
+
+     Running tests/hardening_integration.rs (target-slot-1/debug/deps/hardening_integration-f707186c97dd9f12)
+
+running 13 tests
+test test_authz_update_party_denied_without_jwt ... ok
+test test_authz_create_contact_denied_without_jwt ... ok
+test test_concurrent_reads_during_writes_isolated ... ok
+test test_guard_mutation_outbox_company_create ... ok
+test test_guard_mutation_outbox_individual_create ... ok
+test test_guard_mutation_outbox_party_update ... ok
+test test_authz_read_endpoints_allowed_without_jwt ... ok
+test test_authz_create_company_denied_without_jwt ... ok
+test test_migration_safety_all_tables_present ... ok
+test test_tenant_boundary_contacts ... ok
+test test_concurrent_tenant_isolation_parties ... ok
+test test_tenant_boundary_companies ... ok
+test test_authz_create_individual_denied_without_jwt ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.45s
+
+     Running tests/party_integration.rs (target-slot-1/debug/deps/party_integration-626228fb7b7ce88a)
+
+running 15 tests
+test test_get_party_not_found ... ok
+test test_tenant_isolation ... ok
+test test_deactivate_party ... ok
+test test_create_individual_happy_path ... ok
+test test_create_company_empty_display_name ... ok
+test test_search_parties_by_type ... ok
+test test_search_parties_by_name ... ok
+test test_update_party ... ok
+test test_create_company_happy_path ... ok
+test test_list_parties_include_inactive ... ok
+test test_create_individual_empty_first_name ... ok
+test test_list_parties_active_only ... ok
+test test_deactivate_party_not_found ... ok
+test test_update_party_not_found ... ok
+test test_get_party_by_id ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s
+
+     Running tests/vendor_qualification_integration.rs (target-slot-1/debug/deps/vendor_qualification_integration-65f8f8b74a592e7d)
+
+running 7 tests
+test test_scorecard_e2e ... ok
+test test_tenant_isolation_all_entities ... ok
+test test_vendor_qualification_e2e ... ok
+test test_contact_roles_e2e ... ok
+test test_outbox_events ... ok
+test test_credit_terms_e2e ... ok
+test test_idempotency_no_duplicate ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+
+   Doc-tests party_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T15:01:18Z

@@ -1,0 +1,157 @@
+## crate test: tenant-registry
+## started_at_utc=2026-03-04T15:02:52Z
+## cmd=./scripts/cargo-slot.sh test -p tenant-registry -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/tenant_registry-b76bdf52176461da)
+
+running 76 tests
+test lifecycle::tests::standard_sequence_has_seven_steps ... ok
+test lifecycle::tests::steps_are_ordered_sequentially ... ok
+test lifecycle::tests::get_step_definition_finds_existing_step ... ok
+test lifecycle::tests::all_steps_have_verification_checks ... ok
+test lifecycle::tests::get_step_definition_returns_none_for_unknown ... ok
+test registry::tests::active_to_deleted_is_valid ... ok
+test registry::tests::active_to_past_due_is_valid ... ok
+test registry::tests::active_to_suspended_is_valid ... ok
+test registry::tests::deleted_to_anything_is_invalid ... ok
+test registry::tests::past_due_to_active_is_valid ... ok
+test registry::tests::past_due_to_suspended_is_valid ... ok
+test registry::tests::provisioning_to_active_is_valid ... ok
+test registry::tests::provisioning_to_deleted_is_valid ... ok
+test registry::tests::provisioning_to_suspended_is_invalid ... ok
+test registry::tests::provisioning_to_trial_is_valid ... ok
+test registry::tests::self_transitions_are_invalid ... ok
+test registry::tests::suspended_to_active_is_valid ... ok
+test registry::tests::trial_to_active_is_valid ... ok
+test registry::tests::trial_to_past_due_is_valid ... ok
+test lifecycle::tests::validate_sequence_rejects_wrong_count ... ok
+test lifecycle::tests::validate_sequence_accepts_correct_order ... ok
+test lifecycle::tests::validate_sequence_rejects_wrong_order ... ok
+test health::tests::activation_error_displays_module_names ... ok
+test health::tests::format_unavailable_lists_non_ready_modules ... ok
+test routes::tests::summary_router_compiles ... ok
+test routes::tests::summary_state_new_local_has_five_modules ... ok
+test schema::tests::bundle_module_struct ... ok
+test schema::tests::bundle_status_display ... ok
+test schema::tests::bundle_status_serialization ... ok
+test schema::tests::environment_serialization ... ok
+test schema::tests::module_schema_versions_map ... ok
+test schema::tests::tenant_bundle_struct ... ok
+test schema::tests::tenant_id_creates_unique_ids ... ok
+test schema::tests::tenant_id_from_uuid ... ok
+test schema::tests::tenant_record_includes_new_fields ... ok
+test schema::tests::tenant_status_past_due_display ... ok
+test schema::tests::tenant_status_past_due_serialization ... ok
+test schema::tests::tenant_status_serialization ... ok
+test schema::tests::tenant_status_trial_serialization ... ok
+test schema::tests::verification_result_structure ... ok
+test schema::tests::bundle_struct_roundtrip ... ok
+test seed::tests::period_dates_are_valid_for_mid_year ... ok
+test seed::tests::period_dates_wrap_correctly_for_december ... ok
+test seed::tests::seed_identity_accepts_strong_password ... ok
+test seed::tests::seed_identity_rejects_empty_password ... ok
+test seed::tests::seed_identity_rejects_forbidden_password ... ok
+test seed::tests::seed_identity_rejects_missing_password ... ok
+test summary::tests::module_url_default_local_has_five_modules ... ok
+test summary::tests::overall_ready_false_when_any_module_unavailable ... ok
+test summary::tests::readiness_status_serializes_lowercase ... ok
+test summary::tests::summary_error_not_found_message ... ok
+test summary::tests::tenant_summary_serializes_correctly ... ok
+test seed::tests::seed_error_messages_are_descriptive ... ok
+test tenant_crud::derive_name_tests::app_id_wins_when_product_code_empty ... ok
+test tenant_crud::derive_name_tests::app_id_wins_when_product_code_none ... ok
+test tenant_crud::derive_name_tests::product_code_wins_over_app_id ... ok
+test tenant_crud::derive_name_tests::tenant_id_prefix_fallback ... ok
+test tenant_crud::derive_name_tests::tenant_id_prefix_fallback_when_both_empty ... ok
+test tenant_crud::tenant_list_tests::detail_returns_404_for_missing_tenant ... ok
+test plans::tests::plans_status_filter_works ... ok
+test plans::tests::plans_response_has_pagination_fields ... ok
+test plans::tests::plans_returns_200_with_all_plans ... ok
+test tenant_crud::tenant_list_tests::detail_includes_seat_limit_from_entitlements ... ok
+test plans::tests::plans_includes_starter_professional_enterprise ... ok
+test health::tests::empty_module_list_is_all_ready ... ok
+test health::tests::unavailable_url_returns_not_ready ... ok
+test routes::app_id_tests::app_id_not_found_returns_404 ... ok
+test routes::entitlement_tests::entitlements_not_found_returns_404_when_no_row ... ok
+test routes::entitlement_tests::entitlements_found_returns_200_with_limit ... ok
+test tenant_crud::tenant_list_tests::detail_returns_tenant_with_derived_name ... ok
+test routes::entitlement_tests::entitlements_missing_tenant_returns_404 ... ok
+test routes::app_id_tests::app_id_found_returns_200_with_app_id ... ok
+test routes::app_id_tests::app_id_missing_returns_409 ... ok
+test tenant_crud::tenant_list_tests::list_returns_200_with_pagination_fields ... ok
+test tenant_crud::tenant_list_tests::list_returns_seeded_tenant ... ok
+test tenant_crud::tenant_list_tests::list_tenant_name_uses_product_code ... ok
+
+test result: ok. 76 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/tenant_crud_and_mapping.rs (target-slot-1/debug/deps/tenant_crud_and_mapping-f87e7685e2d7ffec)
+
+running 16 tests
+test derive_name_priority_order ... ok
+test get_status_row_returns_none_for_missing ... ok
+test entitlements_err_for_nonexistent_tenant ... ok
+test detail_returns_404_for_nonexistent_tenant ... ok
+test app_id_nonexistent_tenant_returns_err ... ok
+test plans_endpoint_returns_seeded_plans ... ok
+test app_id_lookup_returns_correct_mapping ... ok
+test tenant_appears_in_list_endpoint ... ok
+test entitlements_none_when_no_row ... ok
+test entitlements_found_for_tenant_with_row ... ok
+test app_id_null_returns_none ... ok
+test bundle_assignment_persists ... ok
+test list_filters_by_status ... ok
+test create_and_read_tenant_via_api ... ok
+test get_status_row_returns_correct_status ... ok
+test update_tenant_plan_code ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/tenant_crud_integration.rs (target-slot-1/debug/deps/tenant_crud_integration-ec885cfb59a4f169)
+
+running 14 tests
+test tenant_status_row_none_for_missing ... ok
+test app_id_error_for_missing_tenant ... ok
+test tenant_status_row_returned ... ok
+test create_and_read_tenant ... ok
+test app_id_none_when_null ... ok
+test entitlements_none_when_no_row ... ok
+test activate_tenant_atomic_fails_if_not_provisioning ... ok
+test update_tenant_product_and_plan ... ok
+test activate_tenant_atomic_transitions_to_active ... ok
+test app_id_stored_and_retrieved ... ok
+test soft_delete_hides_tenant_from_non_deleted_queries ... ok
+test entitlements_returned_for_tenant ... ok
+test assign_plan_to_tenant ... ok
+test bundle_assignment_and_transition ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/tenant_lifecycle.rs (target-slot-1/debug/deps/tenant_lifecycle-63789615b1f1f34e)
+
+running 11 tests
+test suspended_cannot_go_to_trial ... ok
+test self_transitions_rejected ... ok
+test deleted_is_terminal ... ok
+test provisioning_cannot_skip_to_suspended ... ok
+test provisioning_state_transitions ... ok
+test trial_to_past_due ... ok
+test active_to_past_due_and_recovery ... ok
+test provisioning_directly_to_active ... ok
+test past_due_to_suspended ... ok
+test full_lifecycle_provisioning_to_deleted ... ok
+test status_update_changes_updated_at ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+   Doc-tests tenant_registry
+
+running 1 test
+test platform/tenant-registry/src/routes.rs - routes::summary_router (line 106) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T15:02:55Z

@@ -1,0 +1,67 @@
+## nats: server health check (http://localhost:8222)
+## started_at_utc=2026-03-04T14:55:41Z
+## cmd=bash -c 
+        echo '=== /healthz ==='
+        curl -sS --max-time 5 'http://localhost:8222/healthz' | jq .
+        echo
+        echo '=== /varz (server + jetstream) ==='
+        curl -sS --max-time 5 'http://localhost:8222/varz' | jq '{server_id,server_name,version,host,port,jetstream}'
+        echo
+        echo '=== /jsz (JetStream summary) ==='
+        curl -sS --max-time 5 'http://localhost:8222/jsz' | jq '{streams,consumers,messages,bytes,api,config}'
+      
+
+=== /healthz ===
+{
+  "status": "ok"
+}
+
+=== /varz (server + jetstream) ===
+{
+  "server_id": "NATZ5VKDJOZRULDHRLMBDBO7HWLUJZXLK66DAMZHPUMPPV4NWZHCG2JR",
+  "server_name": "NATZ5VKDJOZRULDHRLMBDBO7HWLUJZXLK66DAMZHPUMPPV4NWZHCG2JR",
+  "version": "2.10.29",
+  "host": "0.0.0.0",
+  "port": 4222,
+  "jetstream": {
+    "config": {
+      "max_memory": 3080994816,
+      "max_storage": 329853803520,
+      "store_dir": "/data/jetstream",
+      "sync_interval": 120000000000
+    },
+    "stats": {
+      "memory": 0,
+      "storage": 36089,
+      "reserved_memory": 0,
+      "reserved_storage": 0,
+      "accounts": 1,
+      "ha_assets": 0,
+      "api": {
+        "total": 8,
+        "errors": 0
+      }
+    }
+  }
+}
+
+=== /jsz (JetStream summary) ===
+{
+  "streams": 2,
+  "consumers": 1,
+  "messages": 65,
+  "bytes": 36089,
+  "api": {
+    "total": 8,
+    "errors": 0
+  },
+  "config": {
+    "max_memory": 3080994816,
+    "max_storage": 329853803520,
+    "store_dir": "/data/jetstream",
+    "sync_interval": 120000000000
+  }
+}
+
+## exit_code=0
+## finished_at_utc=2026-03-04T14:55:41Z
