@@ -199,15 +199,15 @@
 <div class="header">
   <div>
     <h1>Manufacturing Roadmap</h1>
-    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-03-05 17:47</span>
+    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-03-05 20:37</span>
   </div>
   <div class="meta">Roadmap updated: 2026-03-04</div>
 </div>
 <div class="summary">
-  <div class="summary-card total"><div class="label">Total Deliverables</div><div class="value">52</div></div>
-  <div class="summary-card done"><div class="label">Complete</div><div class="value">39</div></div>
+  <div class="summary-card total"><div class="label">Total Deliverables</div><div class="value">55</div></div>
+  <div class="summary-card done"><div class="label">Complete</div><div class="value">53</div></div>
   <div class="summary-card progress"><div class="label">In Progress</div><div class="value">0</div></div>
-  <div class="summary-card pending"><div class="label">Not Started</div><div class="value">13</div></div>
+  <div class="summary-card pending"><div class="label">Not Started</div><div class="value">2</div></div>
 </div>
 <div class="dep-chain">
 <strong style="margin-right:4px">Dependency:</strong>
@@ -215,13 +215,13 @@
 <span class="arrow">→</span>
 <span class="dep-chip complete">Phase A</span>
 <span class="arrow">→</span>
-<span class="dep-chip in-progress">Phase B</span>
+<span class="dep-chip complete">Phase B</span>
 <span class="arrow">→</span>
-<span class="dep-chip not-started">Phase C2</span>
+<span class="dep-chip complete">Phase C2</span>
 <span class="arrow" style="margin-left:12px">|</span>
 <span class="dep-chip in-progress">Phase C1</span>
-<span class="dep-chip not-started">Phase D</span>
-<span class="dep-chip not-started">Phase E</span>
+<span class="dep-chip in-progress">Phase D</span>
+<span class="dep-chip complete">Phase E</span>
 </div>
 <div class="extraction-section">
   <h3>Pre-B Infrastructure (Fireproof Extraction)</h3>
@@ -408,7 +408,7 @@
     </table>
   </div>
 </div>
-<div class="phase open" onclick="this.classList.toggle('open')">
+<div class="phase " onclick="this.classList.toggle('open')">
   <div class="phase-header">
     <div>
       <span class="toggle-icon">&#9654;</span>
@@ -416,11 +416,11 @@
       <span class="phase-goal">Production Execution — WO → issue → execute → receipt</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">9/12</span>
-      <span class="phase-badge badge-in-progress">IN PROGRESS</span>
+      <span style="color:var(--text-dim);font-size:12px">13/13</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
     </div>
   </div>
-  <div class="phase-progress"><div class="phase-progress-bar partial" style="width:75%"></div></div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
   <div class="phase-body">
     <table>
       <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
@@ -475,27 +475,33 @@
         </tr>
         <tr>
           <td class="deliverable-cell">Production: explicit component issue workflow → Inventory</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-nl0zm</span></td>
+          <td class="date-cell">2026-03-05</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Production: FG receipt → Inventory at rolled-up cost</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1j2hj</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Production: timekeeping link (operation events → clock events) — optional B-late</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-3j1hx</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Docker: production-rs container with compose watch</td>
           <td><span class="status-done">DONE</span></td>
           <td><span class="bead-link">bd-2ya5w</span></td>
           <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: WO → issue → ops → FG receipt end-to-end (4 tests prove Phase B exit criteria)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2porq</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
       </tbody>
     </table>
@@ -509,11 +515,11 @@
       <span class="phase-goal">Receiving Inspection — Incoming material inspection</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">7/8</span>
+      <span style="color:var(--text-dim);font-size:12px">8/9</span>
       <span class="phase-badge badge-in-progress">IN PROGRESS</span>
     </div>
   </div>
-  <div class="phase-progress"><div class="phase-progress-bar partial" style="width:87%"></div></div>
+  <div class="phase-progress"><div class="phase-progress-bar partial" style="width:88%"></div></div>
   <div class="phase-body">
     <table>
       <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
@@ -566,6 +572,12 @@
           <td><span class="bead-link">bd-2f1xv</span></td>
           <td class="date-cell">2026-03-05</td>
         </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: C1 e2e (receipt → hold/release → events + evidence queries)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-qh5px</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -578,38 +590,44 @@
       <span class="phase-goal">In-Process + Final Inspection — Production-integrated inspection</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">0/3</span>
-      <span class="phase-badge badge-not-started">NOT STARTED</span>
+      <span style="color:var(--text-dim);font-size:12px">4/4</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
     </div>
   </div>
-  <div class="phase-progress"><div class="phase-progress-bar " style="width:0%"></div></div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
   <div class="phase-body">
     <table>
       <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
       <tbody>
         <tr>
           <td class="deliverable-cell">Inspection: in-process inspection records (linked to operations)</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-13yjd</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Inspection: final inspection records</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-13yjd</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
-          <td class="deliverable-cell">Inspection: production event bridge (auto-create in-process inspections)</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td class="deliverable-cell">Inspection: production event bridge (auto-create in-process + final inspections)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-3nul7</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: C2 e2e (op_completed → in-process, fg_receipt → final, hold/accept, evidence queries)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-qh5px</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
       </tbody>
     </table>
   </div>
 </div>
-<div class="phase " onclick="this.classList.toggle('open')">
+<div class="phase open" onclick="this.classList.toggle('open')">
   <div class="phase-header">
     <div>
       <span class="toggle-icon">&#9654;</span>
@@ -617,26 +635,26 @@
       <span class="phase-goal">ECO + Change Control — Change control evidence</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">0/3</span>
-      <span class="phase-badge badge-not-started">NOT STARTED</span>
+      <span style="color:var(--text-dim);font-size:12px">2/3</span>
+      <span class="phase-badge badge-in-progress">IN PROGRESS</span>
     </div>
   </div>
-  <div class="phase-progress"><div class="phase-progress-bar " style="width:0%"></div></div>
+  <div class="phase-progress"><div class="phase-progress-bar partial" style="width:66%"></div></div>
   <div class="phase-body">
     <table>
       <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
       <tbody>
         <tr>
           <td class="deliverable-cell">ECO: entity + workflow template integration</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-3mqw9</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">ECO: links to BOM revision changes + released docs</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-xisof</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">ECO: numbering integration for ECO identifiers</td>
@@ -656,32 +674,32 @@
       <span class="phase-goal">Maintenance Workcenter — Production ↔ Maintenance loop</span>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
-      <span style="color:var(--text-dim);font-size:12px">0/3</span>
-      <span class="phase-badge badge-not-started">NOT STARTED</span>
+      <span style="color:var(--text-dim);font-size:12px">3/3</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
     </div>
   </div>
-  <div class="phase-progress"><div class="phase-progress-bar " style="width:0%"></div></div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
   <div class="phase-body">
     <table>
       <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
       <tbody>
         <tr>
           <td class="deliverable-cell">Maintenance: consumes Production workcenters (events/API)</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1kw8s</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Maintenance: downtime events linked to workcenter/asset</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1kw8s</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
         <tr>
           <td class="deliverable-cell">Production: downtime signals for breakdown triggers</td>
-          <td><span class="status-not-started">NOT STARTED</span></td>
-          <td>—</td>
-          <td class="date-cell">—</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1kw8s</span></td>
+          <td class="date-cell">2026-03-06</td>
         </tr>
       </tbody>
     </table>

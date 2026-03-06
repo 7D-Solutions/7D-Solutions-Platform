@@ -38,9 +38,9 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | 0 | Design lock — cost rollup + identity graph + naming | 1 | COMPLETE |
 | A | Inventory retrofit + BOM core | 2 | COMPLETE |
 | B | Production v1 execution spine | 3-4 | COMPLETE |
-| C1 | Quality — Receiving inspection | 1-2 | COMPLETE |
+| C1 | Quality — Receiving inspection | 1-2 | IN PROGRESS (1 deliverable remaining) |
 | C2 | Quality — In-process + final inspection | 2-3 | COMPLETE |
-| D | ECO + Change Control | 2-3 | NOT STARTED |
+| D | ECO + Change Control | 2-3 | IN PROGRESS (1 deliverable remaining) |
 | E | Maintenance workcenter consumption | 2 | COMPLETE |
 
 **Dependency chain:** 0 → A → B → C2. C1 depends on A (not B). Phase D can parallel late B / early C. Phase E depends on B.
