@@ -12,6 +12,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use quality_inspection_rs::{
+    consumers::production_event_bridge::start_production_event_bridge,
     consumers::receipt_event_bridge::start_receipt_event_bridge,
     db::resolver::resolve_pool,
     http::{
@@ -72,7 +73,8 @@ async fn main() {
         ),
     };
 
-    start_receipt_event_bridge(bus, pool.clone()).await;
+    start_receipt_event_bridge(bus.clone(), pool.clone()).await;
+    start_production_event_bridge(bus, pool.clone()).await;
 
     let shutdown_pool = pool.clone();
     let metrics = Arc::new(
