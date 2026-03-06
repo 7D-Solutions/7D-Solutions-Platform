@@ -189,7 +189,7 @@ services:
       - shipping-receiving
       - bom
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/api/gateway/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/api/gateway/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
