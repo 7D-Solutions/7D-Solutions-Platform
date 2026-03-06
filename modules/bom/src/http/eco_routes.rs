@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Extension, Json,
 };
@@ -22,13 +22,28 @@ fn correlation_id() -> String {
 pub async fn post_eco(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    headers: HeaderMap,
     Json(req): Json<CreateEcoRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
         Err(e) => return e.into_response(),
     };
-    match eco_service::create_eco(&state.pool, &tenant_id, &req, &correlation_id(), None).await {
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    match eco_service::create_eco(
+        &state.pool,
+        &tenant_id,
+        &req,
+        Some(&state.numbering),
+        auth_header.as_deref(),
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
         Ok(eco) => (StatusCode::CREATED, Json(json!(eco))).into_response(),
         Err(e) => error_response(e).into_response(),
     }

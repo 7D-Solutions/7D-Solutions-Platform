@@ -152,11 +152,13 @@ async fn eco_full_lifecycle_applies_bom_revision_supersession() {
         &pool,
         &tenant,
         &CreateEcoRequest {
-            eco_number: "ECO-001".to_string(),
+            eco_number: Some("ECO-001".to_string()),
             title: "Update assembly components".to_string(),
             description: Some("Replace old component with new spec".to_string()),
             created_by: "engineer-1".to_string(),
         },
+        None,
+        None,
         &corr,
         None,
     )
@@ -319,11 +321,13 @@ async fn query_bom_revision_effective_on_date() {
         &pool,
         &tenant,
         &CreateEcoRequest {
-            eco_number: "ECO-DATE-TEST".to_string(),
+            eco_number: Some("ECO-DATE-TEST".to_string()),
             title: "Date effectivity test".to_string(),
             description: None,
             created_by: "eng-1".to_string(),
         },
+        None,
+        None,
         &corr,
         None,
     )
@@ -423,11 +427,13 @@ async fn cannot_apply_draft_eco() {
         &pool,
         &tenant,
         &CreateEcoRequest {
-            eco_number: "ECO-GUARD".to_string(),
+            eco_number: Some("ECO-GUARD".to_string()),
             title: "Guard test".to_string(),
             description: None,
             created_by: "eng-1".to_string(),
         },
+        None,
+        None,
         &corr,
         None,
     )
@@ -477,11 +483,13 @@ async fn eco_events_emitted_to_outbox() {
         &pool,
         &tenant,
         &CreateEcoRequest {
-            eco_number: "ECO-EVENTS".to_string(),
+            eco_number: Some("ECO-EVENTS".to_string()),
             title: "Event test".to_string(),
             description: None,
             created_by: "eng-1".to_string(),
         },
+        None,
+        None,
         &corr,
         None,
     )
@@ -616,11 +624,13 @@ async fn eco_rejection_preserves_bom_state() {
         &pool,
         &tenant,
         &CreateEcoRequest {
-            eco_number: "ECO-REJECT".to_string(),
+            eco_number: Some("ECO-REJECT".to_string()),
             title: "Reject test".to_string(),
             description: None,
             created_by: "eng-1".to_string(),
         },
+        None,
+        None,
         &corr,
         None,
     )

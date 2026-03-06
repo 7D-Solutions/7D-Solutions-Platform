@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::domain::eco_models::*;
 use crate::domain::guards::{guard_non_empty, GuardError};
+use crate::domain::numbering_client::NumberingClient;
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, BomEventType};
 
@@ -16,12 +17,28 @@ pub async fn create_eco(
     pool: &PgPool,
     tenant_id: &str,
     req: &CreateEcoRequest,
+    numbering: Option<&NumberingClient>,
+    auth_header: Option<&str>,
     correlation_id: &str,
     causation_id: Option<&str>,
 ) -> Result<Eco, BomError> {
-    guard_non_empty(&req.eco_number, "eco_number")?;
     guard_non_empty(&req.title, "title")?;
     guard_non_empty(&req.created_by, "created_by")?;
+
+    // Resolve eco_number: explicit value wins, otherwise auto-allocate.
+    let eco_number = match &req.eco_number {
+        Some(n) if !n.is_empty() => n.clone(),
+        _ => {
+            let nc = numbering.ok_or_else(|| {
+                GuardError::Validation(
+                    "eco_number required when numbering service is not configured"
+                        .to_string(),
+                )
+            })?;
+            nc.allocate_eco_number(tenant_id, correlation_id, auth_header)
+                .await?
+        }
+    };
 
     let mut tx = pool.begin().await?;
 
@@ -33,7 +50,7 @@ pub async fn create_eco(
         "#,
     )
     .bind(tenant_id)
-    .bind(&req.eco_number)
+    .bind(&eco_number)
     .bind(&req.title)
     .bind(&req.description)
     .bind(&req.created_by)
@@ -52,7 +69,7 @@ pub async fn create_eco(
         &events::build_eco_created_envelope(
             eco.id,
             tenant_id.to_string(),
-            req.eco_number.clone(),
+            eco_number.clone(),
             req.title.clone(),
             correlation_id.to_string(),
             causation_id.map(String::from),
@@ -63,6 +80,12 @@ pub async fn create_eco(
     .await?;
 
     tx.commit().await?;
+
+    // Best-effort confirm after successful INSERT.
+    if let Some(nc) = numbering {
+        nc.confirm_eco_number(correlation_id, auth_header).await;
+    }
+
     Ok(eco)
 }
 

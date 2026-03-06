@@ -40,7 +40,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | B | Production v1 execution spine | 3-4 | COMPLETE |
 | C1 | Quality — Receiving inspection | 1-2 | IN PROGRESS (1 deliverable remaining) |
 | C2 | Quality — In-process + final inspection | 2-3 | COMPLETE |
-| D | ECO + Change Control | 2-3 | IN PROGRESS (1 deliverable remaining) |
+| D | ECO + Change Control | 2-3 | DONE |
 | E | Maintenance workcenter consumption | 2 | COMPLETE |
 
 **Dependency chain:** 0 → A → B → C2. C1 depends on A (not B). Phase D can parallel late B / early C. Phase E depends on B.
@@ -195,7 +195,7 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 |-------------|--------|------|------|
 | ECO: entity + workflow template integration | DONE | bd-3mqw9 | 2026-03-06 |
 | ECO: links to BOM revision changes + released docs | DONE | bd-xisof | 2026-03-06 |
-| ECO: numbering integration for ECO identifiers | NOT STARTED | — | — |
+| ECO: numbering integration for ECO identifiers | DONE | bd-ed0zo | 2026-03-05 |
 
 **Not in this phase:** Deviation/waiver systems.
 
@@ -310,3 +310,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-06 | D | ECO entity + BOM revision supersession + doc evidence (bd-xisof): ECO tables (ecos, eco_audit, eco_bom_revisions, eco_doc_revisions) with full lifecycle (draft→submitted→approved→applied/rejected). ECO links BOM revision pairs (before/after) and doc revision evidence. Apply policy: only approved ECO can supersede BOM revisions and release new ones with effectivity dates. Events emitted: eco.created/submitted/approved/rejected/applied, bom.revision_superseded, bom.revision_released. Queries: ECO history for part, BOM rev effective on date X, audit trail. 5 new integration tests pass against real Postgres (full lifecycle + supersession, date effectivity query, draft-apply guard, event verification, rejection preserves BOM state). 12 total BOM tests pass. | PurpleCliff | modules/bom/tests/eco_integration.rs |
 | 2026-03-06 | E | Maintenance ↔ Production integration (bd-1kw8s): Production downtime signals — workcenter_downtime table, start/end lifecycle with outbox events (production.downtime.started/ended), HTTP endpoints for start/end/list. Maintenance workcenter projection — consumes production.workcenter_created/updated/deactivated events, upserts local read model with dedup (maintenance_processed_events table). Maintenance downtime bridge — consumes production.downtime.started/ended events, creates/updates maintenance downtime records with idempotency_key linking, dedup. Both consumers wired into main.rs NATS startup. 5 production + 8 maintenance integration tests written. Both modules compile cleanly. Integration tests blocked by platform-wide Docker Postgres SSL/TLS issue (bd-1kw8s.1 created). Phase E status → COMPLETE. | MaroonHarbor | modules/production/tests/downtime_integration.rs, modules/maintenance/tests/production_bridge_integration.rs |
 | 2026-03-06 | B | Timekeeping link to WO/operations (bd-3j1hx): time_entries table (append-only, actor_id + start/end/minutes). Start timer, stop timer, manual entry endpoints. Entries link to work_order_id (required) + operation_id (optional). Validation: WO must exist, operation must belong to WO. Stop computes minutes from duration, rejects double-stop. Events emitted: time_entry_created, time_entry_stopped. Audit-safe (append-only, no updates/deletes on rows). HTTP endpoints: POST start/stop/manual, GET by WO. 9 integration tests pass against real Postgres (start+stop, WO-only, manual entry, invalid time range rejected, double-stop rejected, events emitted, list by WO, invalid WO rejected, invalid operation rejected). 56 total production tests pass. | SageDesert | modules/production/tests/time_entry_integration.rs |
+| 2026-03-05 | D | ECO numbering integration (bd-ed0zo): NumberingClient (Http + Direct modes) integrated into BOM module. eco_number now optional in CreateEcoRequest — auto-allocated from Numbering service when omitted. Tenant-scoped sequential numbers (ECO-00001, ECO-00002...). Idempotent via correlation_id. Numbering unavailable → clear error (no silent fallback). Explicit eco_number still accepted for backward compat. 4 new numbering integration tests (auto-allocation, tenant isolation, idempotency, error on missing numbering). All 21 BOM tests pass against real Postgres + Numbering DB. Phase D → COMPLETE. | PurpleCliff | modules/bom/tests/eco_numbering_integration.rs |

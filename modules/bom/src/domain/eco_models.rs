@@ -55,7 +55,9 @@ pub struct EcoDocRevision {
 
 #[derive(Debug, Deserialize)]
 pub struct CreateEcoRequest {
-    pub eco_number: String,
+    /// If omitted, auto-allocated from the Numbering service.
+    #[serde(default)]
+    pub eco_number: Option<String>,
     pub title: String,
     pub description: Option<String>,
     pub created_by: String,

@@ -25,7 +25,7 @@ use bom_rs::{
         health::{health as health_fn, ready, version},
     },
     metrics::{metrics_handler, BomMetrics},
-    AppState, Config,
+    AppState, Config, NumberingClient,
 };
 
 #[tokio::main]
@@ -55,7 +55,12 @@ async fn main() {
 
     let shutdown_pool = pool.clone();
     let metrics = Arc::new(BomMetrics::new().expect("Failed to create metrics registry"));
-    let app_state = Arc::new(AppState { pool, metrics });
+    let numbering = NumberingClient::http(config.numbering_url.clone());
+    let app_state = Arc::new(AppState {
+        pool,
+        metrics,
+        numbering,
+    });
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
