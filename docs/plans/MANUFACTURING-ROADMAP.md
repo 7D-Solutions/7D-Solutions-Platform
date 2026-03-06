@@ -169,8 +169,8 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
-| Inspection: in-process inspection records (linked to operations) | NOT STARTED | — | — |
-| Inspection: final inspection records | NOT STARTED | — | — |
+| Inspection: in-process inspection records (linked to operations) | DONE | bd-13yjd | 2026-03-06 |
+| Inspection: final inspection records | DONE | bd-13yjd | 2026-03-06 |
 | Inspection: production event bridge (auto-create in-process inspections) | NOT STARTED | — | — |
 
 **Not in this phase:** NCR/CAPA lifecycle, special process catalogs, automated sampling rule libraries.
@@ -298,3 +298,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | B | Event consumer crate core dispatch (bd-23vfl): HandlerContext, HandlerRegistry + RegistryBuilder, EventRouter + RouteOutcome. Pure Rust — no DB/NATS deps. Builder-pattern registration with panic-on-duplicate safety. Router validates envelopes, dispatches by (event_type, schema_version), returns Handled/Skipped/DeadLettered/Invalid/HandlerError. 16 unit tests + 1 doctest pass. | MaroonHarbor | platform/event-consumer/ |
 | 2026-03-05 | B | Event consumer persistence layer (bd-25rtl): with_dedupe() idempotency guard using INSERT ON CONFLICT DO NOTHING for atomic claim, rollback-on-failure for retry safety. DLQ handler with FailureKind taxonomy (Retryable/Fatal/Poison), write_dlq_entry, list_dlq_entries, classify_handler_error bridge from HandlerError. SQL migration templates for event_dedupe + event_dlq tables. 7 integration tests (dedupe execute-once, retry-after-failure, different-IDs, DLQ write fatal/poison, upsert overwrite, classify mapping). | CopperRiver | platform/event-consumer/src/idempotency.rs, platform/event-consumer/src/dlq.rs |
 | 2026-03-05 | B | Event consumer JetStream client (bd-3dcpg): JetStreamConsumer pull-based manager adapted for platform use. Decodes EventEnvelope → routes via EventRouter → with_dedupe idempotency → retry with exponential backoff → DLQ on exhaustion. Acks only after full resolution (success or DLQ). ConsumerHealth atomic counters + HealthSnapshot for service HTTP endpoints. ConsumerConfig (stream, consumer, filter, retry policy). 2 integration tests against real NATS JetStream + Postgres (successful consume+ack, retry-then-DLQ with attempt counting + DLQ row verification). All 26 event-consumer tests pass. | CopperRiver | platform/event-consumer/src/jetstream.rs |
+| 2026-03-06 | C2 | In-process + final inspection types (bd-13yjd): wo_id + op_instance_id columns on inspections. In-process inspections linked to WO + operation instance. Final inspections linked to WO + produced lot. Query by WO (with type filter), by lot, by part_rev (returns all types). Event payload extended with inspection_type/wo_id/op_instance_id. HTTP endpoints for create + query. Disposition state machine works across all inspection types. 7 new integration tests, 24 total pass against real Postgres. | CopperRiver | modules/quality-inspection/tests/in_process_final_integration.rs |
