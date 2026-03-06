@@ -2,7 +2,7 @@
   "streams": [
     {
       "name": "AUTH_EVENTS",
-      "subjects": ["auth.events.>"],
+      "subjects": ["auth.>"],
       "retention": "limits",
       "max_age": 604800000000000,
       "max_msgs": 1000000,

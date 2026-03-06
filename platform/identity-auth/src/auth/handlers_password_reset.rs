@@ -128,14 +128,14 @@ pub async fn forgot_password(
                 correlation_id: trace_id.clone(),
             },
         )
-        .with_schema_version("auth.password_reset_requested/v1".to_string())
+        .with_schema_version("1.0.0".to_string())
         .with_trace_id(Some(trace_id))
         .with_mutation_class(Some("user-data".to_string()));
 
         if state
             .events
             .publish(
-                "auth.events.password_reset_requested",
+                "auth.password_reset_requested",
                 "auth.password_reset_requested.v1.json",
                 &env,
             )
@@ -272,21 +272,21 @@ pub async fn reset_password(
     let env = EventEnvelope::new(
         tenant_id.to_string(),
         state.producer.clone(),
-        "auth.events.password_reset_completed".to_string(),
+        "auth.password_reset_completed".to_string(),
         PasswordResetCompletedData {
             user_id: user_id.to_string(),
             correlation_id: trace_id.clone(),
         },
     )
-    .with_schema_version("auth.events.password_reset_completed/v1".to_string())
+    .with_schema_version("1.0.0".to_string())
     .with_trace_id(Some(trace_id))
     .with_mutation_class(Some("user-data".to_string()));
 
     if state
         .events
         .publish(
-            "auth.events.password_reset_completed",
-            "auth.events.password_reset_completed.v1.json",
+            "auth.password_reset_completed",
+            "auth.password_reset_completed.v1.json",
             &env,
         )
         .await

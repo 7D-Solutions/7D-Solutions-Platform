@@ -34,15 +34,15 @@ Platform uses **NATS JetStream** for async events.
 ```
 ar.events.invoice.created
 ar.events.payment.collection.requested
-auth.events.user.registered
-auth.events.user.logged_in
+auth.user_registered
+auth.user_logged_in
 gl.events.journal.posted
 yourapp.events.order.created      ← your events
 yourapp.events.order.completed      ← your events
 ```
 
 Source: AR publisher at `modules/ar/src/events/publisher.rs` line 56: `format!("ar.events.{}", event.event_type)`.
-Source: identity-auth at `platform/identity-auth/src/auth/handlers.rs`: publishes to `"auth.events.user.registered"`, `"auth.events.user.logged_in"`.
+Source: identity-auth at `platform/identity-auth/src/auth/handlers.rs`: publishes to `"auth.user_registered"`, `"auth.user_logged_in"`.
 
 **Note:** Some older subjects may exist in flat format (e.g. `invoice.issued`). When subscribing, use the exact subject strings. When publishing new events, always use the namespaced `{module}.events.{type}` format.
 
@@ -150,11 +150,11 @@ All events are deduplicated by `event_id`. Your consumer must check and skip alr
 
 | Subject | Trigger |
 |---------|---------|
-| `auth.events.user.registered` | User registered |
-| `auth.events.user.logged_in` | Successful login |
-| `auth.events.token.refreshed` | JWT token refreshed |
-| `auth.events.password_reset_requested` | Forgot-password initiated |
-| `auth.events.password_reset_completed` | Password reset completed |
+| `auth.user_registered` | User registered |
+| `auth.user_logged_in` | Successful login |
+| `auth.token_refreshed` | JWT token refreshed |
+| `auth.password_reset_requested` | Forgot-password initiated |
+| `auth.password_reset_completed` | Password reset completed |
 | `auth.sod.policy.upserted` | SoD policy created or updated |
 | `auth.sod.policy.deleted` | SoD policy deleted |
 | `auth.sod.decision.recorded` | SoD evaluation decision logged |

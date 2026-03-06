@@ -5,8 +5,8 @@
   "required": ["event_id","event_type","schema_version","occurred_at","producer","tenant_id","aggregate_type","aggregate_id","trace_id","data"],
   "properties": {
     "event_id": {"type":"string"},
-    "event_type": {"const":"auth.user.logged_in"},
-    "schema_version": {"const":"auth.user.logged_in/v1"},
+    "event_type": {"const":"auth.user_logged_in"},
+    "schema_version": {"const":"1.0.0"},
     "occurred_at": {"type":"string"},
     "producer": {"type":"string"},
     "tenant_id": {"type":"string"},

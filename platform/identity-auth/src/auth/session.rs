@@ -330,12 +330,12 @@ pub async fn refresh(
     let env = EventEnvelope::new(
         req.tenant_id.to_string(),
         state.producer.clone(),
-        "auth.token.refreshed".to_string(),
+        "auth.token_refreshed".to_string(),
         Data {
             user_id: user_id.to_string(),
         },
     )
-    .with_schema_version("auth.token.refreshed/v1".to_string())
+    .with_schema_version("1.0.0".to_string())
     .with_trace_id(Some(trace_id))
     .with_actor(user_id, "User".to_string())
     .with_mutation_class(Some("user-data".to_string()));
@@ -343,7 +343,7 @@ pub async fn refresh(
     if state
         .events
         .publish(
-            "auth.events.token.refreshed",
+            "auth.token_refreshed",
             "auth.token.refreshed.v1.json",
             &env,
         )
@@ -353,7 +353,7 @@ pub async fn refresh(
         state
             .metrics
             .auth_nats_publish_fail_total
-            .with_label_values(&["auth.token.refreshed"])
+            .with_label_values(&["auth.token_refreshed"])
             .inc();
     }
 

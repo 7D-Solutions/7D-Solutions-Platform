@@ -197,12 +197,12 @@ async fn test_nats_event_contains_raw_token() {
 
     // Subscribe BEFORE publishing
     let mut sub = nats
-        .subscribe("auth.events.password_reset_requested")
+        .subscribe("auth.password_reset_requested")
         .await
         .expect("subscribe to NATS subject");
 
     nats.publish(
-        "auth.events.password_reset_requested",
+        "auth.password_reset_requested",
         serde_json::to_vec(&payload).unwrap().into(),
     )
     .await

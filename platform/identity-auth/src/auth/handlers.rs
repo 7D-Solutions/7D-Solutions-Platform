@@ -555,20 +555,20 @@ pub async fn register(
             let env = EventEnvelope::new(
                 req.tenant_id.to_string(),
                 state.producer.clone(),
-                "auth.user.registered".to_string(),
+                "auth.user_registered".to_string(),
                 Data {
                     user_id: req.user_id.to_string(),
                     email: email.clone(),
                 },
             )
-            .with_schema_version("auth.user.registered/v1".to_string())
+            .with_schema_version("1.0.0".to_string())
             .with_trace_id(Some(trace_id))
             .with_mutation_class(Some("user-data".to_string()));
 
             if state
                 .events
                 .publish(
-                    "auth.events.user.registered",
+                    "auth.user_registered",
                     "auth.user.registered.v1.json",
                     &env,
                 )
@@ -578,7 +578,7 @@ pub async fn register(
                 state
                     .metrics
                     .auth_nats_publish_fail_total
-                    .with_label_values(&["auth.user.registered"])
+                    .with_label_values(&["auth.user_registered"])
                     .inc();
             }
 
@@ -1054,12 +1054,12 @@ pub async fn login(
     let env = EventEnvelope::new(
         req.tenant_id.to_string(),
         state.producer.clone(),
-        "auth.user.logged_in".to_string(),
+        "auth.user_logged_in".to_string(),
         Data {
             user_id: user_id.to_string(),
         },
     )
-    .with_schema_version("auth.user.logged_in/v1".to_string())
+    .with_schema_version("1.0.0".to_string())
     .with_trace_id(Some(trace_id))
     .with_actor(user_id, "User".to_string())
     .with_mutation_class(Some("user-data".to_string()));
@@ -1067,7 +1067,7 @@ pub async fn login(
     if state
         .events
         .publish(
-            "auth.events.user.logged_in",
+            "auth.user_logged_in",
             "auth.user.logged_in.v1.json",
             &env,
         )
@@ -1077,7 +1077,7 @@ pub async fn login(
         state
             .metrics
             .auth_nats_publish_fail_total
-            .with_label_values(&["auth.user.logged_in"])
+            .with_label_values(&["auth.user_logged_in"])
             .inc();
     }
 

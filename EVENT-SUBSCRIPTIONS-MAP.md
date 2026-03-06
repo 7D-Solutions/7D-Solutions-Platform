@@ -33,7 +33,7 @@ Where:
 | Payments | payments.payment.succeeded | `payments.events.payments.payment.succeeded` |
 | Payments | payments.payment.failed | `payments.events.payments.payment.failed` |
 | Payments | payments.refund.succeeded | `payments.events.payments.refund.succeeded` |
-| Auth | auth.user.registered | `auth.events.user.registered` |
+| Auth | auth.user_registered | `auth.user_registered` |
 | Notifications | notifications.delivery.succeeded | `notifications.events.notifications.delivery.succeeded` |
 | Subscriptions | subscriptions.created | `subscriptions.events.subscriptions.created` |
 | GL | gl.posting.accepted | `gl.events.gl.posting.accepted` |
