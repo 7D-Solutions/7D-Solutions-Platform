@@ -186,10 +186,31 @@ pub async fn create_tenant(tenant_id: &str) -> Result<ProvisioningResult> {
     Ok(result)
 }
 
+/// Validate that a database name contains only alphanumeric characters and underscores.
+///
+/// Returns `Ok(())` if valid, or an error with a clear message if not.
+fn validate_db_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        anyhow::bail!("Database name must not be empty");
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        anyhow::bail!(
+            "Database name '{}' contains invalid characters. \
+             Only alphanumeric characters and underscores are allowed.",
+            name
+        );
+    }
+    Ok(())
+}
+
 /// Provision a single module's database for a tenant
 async fn provision_tenant_module(tenant_id: TenantId, module: &ModuleConfig) -> Result<String> {
-    // Generate tenant-specific database name
-    let tenant_db_name = format!("tenant_{}_{}_db", tenant_id, module.name);
+    // Generate tenant-specific database name, replacing UUID hyphens with underscores
+    let sanitized_id = tenant_id.to_string().replace('-', "_");
+    let tenant_db_name = format!("tenant_{}_{}_db", sanitized_id, module.name);
+
+    validate_db_name(&tenant_db_name)
+        .context("Tenant database name validation failed")?;
 
     // Connect to PostgreSQL instance (using default postgres DB)
     let base_url = format!(
@@ -364,5 +385,39 @@ mod tests {
         // Different inputs should produce different UUIDs
         let uuid3 = uuid::Uuid::new_v5(&namespace, "t2".as_bytes());
         assert_ne!(uuid1, uuid3);
+    }
+
+    #[test]
+    fn validate_db_name_accepts_valid_names() {
+        assert!(validate_db_name("tenant_abc123_ar_db").is_ok());
+        assert!(validate_db_name("tenant_550e8400_e29b_41d4_a716_446655440000_gl_db").is_ok());
+        assert!(validate_db_name("simple").is_ok());
+    }
+
+    #[test]
+    fn validate_db_name_rejects_empty() {
+        let err = validate_db_name("").unwrap_err();
+        assert!(err.to_string().contains("must not be empty"));
+    }
+
+    #[test]
+    fn validate_db_name_rejects_hyphens() {
+        let err = validate_db_name("tenant_550e8400-e29b_db").unwrap_err();
+        assert!(err.to_string().contains("invalid characters"));
+    }
+
+    #[test]
+    fn validate_db_name_rejects_special_chars() {
+        assert!(validate_db_name("tenant; DROP TABLE --").is_err());
+        assert!(validate_db_name("name\"with\"quotes").is_err());
+        assert!(validate_db_name("name.with.dots").is_err());
+    }
+
+    #[test]
+    fn sanitized_tenant_id_produces_valid_db_name() {
+        let tid = TenantId::from_uuid("550e8400-e29b-41d4-a716-446655440000".parse().unwrap());
+        let sanitized_id = tid.to_string().replace('-', "_");
+        let db_name = format!("tenant_{}_{}_db", sanitized_id, "ar");
+        assert!(validate_db_name(&db_name).is_ok());
     }
 }
