@@ -9,7 +9,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://production_user:production_pass@localhost:5461/production_db?sslmode=require".to_string()
+        "postgres://production_user:production_pass@localhost:5461/production_db".to_string()
     });
 
     let pool = PgPoolOptions::new()
