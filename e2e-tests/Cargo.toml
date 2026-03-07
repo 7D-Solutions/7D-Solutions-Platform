@@ -695,3 +695,7 @@ path = "tests/workforce_competence_http_smoke.rs"
 [[test]]
 name = "control_plane_http_smoke"
 path = "tests/control_plane_http_smoke.rs"
+
+[[test]]
+name = "party_http_smoke"
+path = "tests/party_http_smoke.rs"
