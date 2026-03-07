@@ -9,10 +9,14 @@ mod middleware;
 mod rate_limit;
 mod routes;
 
-use axum::{middleware::from_fn_with_state, routing::get, Router};
+use axum::{extract::DefaultBodyLimit, middleware::from_fn_with_state, routing::get, Router};
 use std::sync::Arc;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+/// Default maximum request body size: 2 MiB (matches platform security constant).
+const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 // TODO: Re-enable when tower_governor compatibility with axum 0.7 is fixed
 // use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -164,6 +168,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let auth_router = routes::auth::router(auth_state);
 
+    let cors_layer = build_cors_layer(&cfg);
+
     let app = Router::new()
         .merge(health_router)
         .merge(metrics_router)
@@ -184,6 +190,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ))
         // per-IP limiter - TODO: re-enable when tower_governor works with axum 0.7
         // .layer(governor_layer)
+        .layer(cors_layer)
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(TraceLayer::new_for_http());
 
     let addr = format!("{}:{}", cfg.host, cfg.port);
@@ -201,6 +209,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Shutdown complete");
 
     Ok(())
+}
+
+fn build_cors_layer(config: &config::Config) -> CorsLayer {
+    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+
+    if is_wildcard && config.env != "development" {
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
+    }
+
+    let layer = if is_wildcard {
+        CorsLayer::new().allow_origin(AllowOrigin::any())
+    } else {
+        let origins: Vec<_> = config
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new().allow_origin(origins)
+    };
+
+    layer
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(false)
 }
 
 async fn shutdown_signal() {

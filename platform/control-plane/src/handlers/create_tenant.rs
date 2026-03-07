@@ -295,7 +295,7 @@ fn db_error(e: sqlx::Error) -> (StatusCode, Json<ErrorBody>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorBody {
-            error: format!("Database error: {e}"),
+            error: "Internal database error".to_string(),
         }),
     )
 }
@@ -310,7 +310,8 @@ mod tests {
 
     #[test]
     fn derive_app_id_is_stable() {
-        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")
+            .expect("valid UUID literal");
         let app_id = derive_app_id(id);
         assert_eq!(app_id, "app-550e8400e29b");
         // Calling again returns the same value
@@ -344,7 +345,7 @@ mod tests {
             "product_code": "starter",
             "plan_code": "monthly"
         }"#;
-        let req: CreateTenantRequest = serde_json::from_str(json).unwrap();
+        let req: CreateTenantRequest = serde_json::from_str(json).expect("valid JSON");
         assert_eq!(req.product_code, "starter");
         assert_eq!(req.plan_code, "monthly");
         assert!(req.concurrent_user_limit.is_none());
@@ -359,7 +360,7 @@ mod tests {
             "plan_code": "annual",
             "concurrent_user_limit": 50
         }"#;
-        let req: CreateTenantRequest = serde_json::from_str(json).unwrap();
+        let req: CreateTenantRequest = serde_json::from_str(json).expect("valid JSON");
         assert_eq!(req.concurrent_user_limit, Some(50));
     }
 

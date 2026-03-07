@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.19 | 2026-03-06 | bd-ubp52 | Sanitize DB errors in checkout_sessions and payments HTTP handlers — no longer leak sqlx error details in HTTP responses. | Security audit H3: DB error details leaked in HTTP responses. | No |
 | 1.1.18 | 2026-03-06 | bd-3vto7 | Add fail-fast check for TILLED_WEBHOOK_SECRET when ENV != development and PAYMENTS_PROVIDER=tilled. Webhook secret is no longer silently optional in production. | Security audit M6: webhook secrets were silently optional, allowing production deployment without signature verification. | No |
 | 1.1.17 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |
 | 1.1.16 | 2026-03-03 | bd-1atj1 | Use `event_bus::connect_nats()` for NATS connection with URL-based auth. | NATS authentication requires credentials extracted from URL. | No |

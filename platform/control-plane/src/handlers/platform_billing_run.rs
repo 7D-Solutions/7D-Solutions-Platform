@@ -97,7 +97,7 @@ pub async fn platform_billing_run(
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorBody {
-                error: format!("Failed to fetch tenants: {e}"),
+                error: "Failed to fetch eligible tenants".to_string(),
             }),
         )
     })?;
@@ -127,7 +127,7 @@ pub async fn platform_billing_run(
                 );
                 skipped.push(SkippedEntry {
                     tenant_id: tenant.tenant_id,
-                    reason: format!("plan_fee_lookup_failed: {e}"),
+                    reason: "plan_fee_lookup_failed".to_string(),
                 });
                 continue;
             }
@@ -143,7 +143,7 @@ pub async fn platform_billing_run(
                 );
                 skipped.push(SkippedEntry {
                     tenant_id: tenant.tenant_id,
-                    reason: format!("customer_upsert_failed: {e}"),
+                    reason: "customer_upsert_failed".to_string(),
                 });
                 continue;
             }
@@ -204,7 +204,7 @@ pub async fn platform_billing_run(
                 );
                 skipped.push(SkippedEntry {
                     tenant_id: tenant.tenant_id,
-                    reason: format!("invoice_creation_failed: {e}"),
+                    reason: "invoice_creation_failed".to_string(),
                 });
             }
         }

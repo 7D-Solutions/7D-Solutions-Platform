@@ -76,9 +76,12 @@ pub async fn get_payment(
     // Load projection cursor to check staleness
     let cursor = ProjectionCursor::load(&app_state.pool, "payment_projection", &tenant_id)
         .await
-        .map_err(|e| PaymentErrorResponse {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("Failed to load projection cursor: {}", e),
+        .map_err(|e| {
+            tracing::error!("Failed to load projection cursor: {}", e);
+            PaymentErrorResponse {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Internal database error".to_string(),
+            }
         })?;
 
     // Check if projection is stale and fallback is possible
@@ -116,9 +119,12 @@ pub async fn get_payment(
     // Query projection normally (fast path or fallback failed)
     let payment = query_projection(&app_state.pool, &tenant_id, params.payment_id)
         .await
-        .map_err(|e| PaymentErrorResponse {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("Failed to query projection: {}", e),
+        .map_err(|e| {
+            tracing::error!("Failed to query payment projection: {}", e);
+            PaymentErrorResponse {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Internal database error".to_string(),
+            }
         })?;
 
     Ok(Json(payment))

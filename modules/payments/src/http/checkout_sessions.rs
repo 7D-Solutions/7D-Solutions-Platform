@@ -196,9 +196,12 @@ pub async fn create_checkout_session(
     .bind(&req.cancel_url)
     .fetch_one(&state.pool)
     .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Failed to insert checkout session: {}", e);
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?;
 
     tracing::info!(
@@ -248,9 +251,12 @@ pub async fn get_checkout_session(
     .bind(&tenant_id)
     .fetch_optional(&state.pool)
     .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?;
 
     let session = row.ok_or_else(|| ApiError {

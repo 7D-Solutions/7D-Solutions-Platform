@@ -7,10 +7,14 @@
 ///
 /// Connects to the tenant-registry database (required) and the AR database (optional).
 /// Runs SQLx migrations on startup.
+use axum::extract::DefaultBodyLimit;
 use control_plane::routes;
 use control_plane::state;
 
 use sqlx::postgres::PgPoolOptions;
+
+/// Default maximum request body size: 2 MiB (matches platform security constant).
+const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 use std::sync::Arc;
 use tenant_registry::routes::SummaryState;
 
@@ -69,7 +73,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app_state = Arc::new(state::AppState::new(pool.clone(), ar_pool));
     let summary_state = Arc::new(SummaryState::new_local(pool));
 
-    let app = routes::build_router(app_state, summary_state);
+    let app = routes::build_router(app_state, summary_state)
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT));
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8092".to_string());
     let addr = format!("0.0.0.0:{port}");

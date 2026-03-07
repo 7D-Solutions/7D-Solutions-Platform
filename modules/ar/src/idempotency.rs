@@ -71,9 +71,10 @@ pub async fn check_idempotency(
     .fetch_optional(&db)
     .await
     .map_err(|e| {
+        tracing::error!("Idempotency key lookup failed: {}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("database_error", e.to_string())),
+            Json(ErrorResponse::new("database_error", "Internal database error")),
         )
     })?;
 

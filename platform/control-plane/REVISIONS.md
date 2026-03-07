@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.4 | 2026-03-06 | bd-ubp52 | Sanitize DB errors in all handlers (create_tenant, retention, platform_billing_run). Add DefaultBodyLimit (2MB) to router. | Security audit H3/M4: DB error details leaked in HTTP responses; no request body size limit. | No |
 | 1.0.3 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |
 | 1.0.2 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed empty lines after doc comments, simplified borrowed expressions. | Enable cargo clippy -D warnings in CI. | No |
 | 1.0.1 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |

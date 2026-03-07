@@ -58,6 +58,10 @@ pub struct Config {
     pub forgot_per_min_per_email: u32,
     pub forgot_per_min_per_ip: u32,
     pub reset_per_min_per_ip: u32,
+
+    // CORS
+    pub env: String,
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -152,6 +156,94 @@ impl Config {
             reset_per_min_per_ip: env::var("RESET_PER_MIN_PER_IP")
                 .unwrap_or_else(|_| "5".to_string())
                 .parse()?,
+
+            env: env::var("ENV").unwrap_or_else(|_| "development".to_string()),
+            cors_origins: {
+                let origins: Vec<String> = env::var("CORS_ORIGINS")
+                    .unwrap_or_else(|_| "*".to_string())
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+                if env_name == "production" && origins.iter().any(|o| o == "*") {
+                    return Err(
+                        "CORS_ORIGINS=* is not allowed in production. \
+                         Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                         (e.g. https://app.example.com)"
+                            .into(),
+                    );
+                }
+                origins
+            },
         })
+    }
+
+    /// Parse CORS origins and validate against environment.
+    /// Extracted for testability without requiring full env setup.
+    pub fn parse_cors_origins(
+        raw: &str,
+        env_name: &str,
+    ) -> Result<Vec<String>, String> {
+        let origins: Vec<String> = raw
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if env_name == "production" && origins.iter().any(|o| o == "*") {
+            return Err(
+                "CORS_ORIGINS=* is not allowed in production. \
+                 Set CORS_ORIGINS to a comma-separated list of allowed origins \
+                 (e.g. https://app.example.com)"
+                    .to_string(),
+            );
+        }
+        Ok(origins)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cors_wildcard_rejected_in_production() {
+        let result = Config::parse_cors_origins("*", "production");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("CORS_ORIGINS=*"));
+        assert!(err.contains("not allowed in production"));
+    }
+
+    #[test]
+    fn cors_wildcard_allowed_in_development() {
+        let result = Config::parse_cors_origins("*", "development");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec!["*"]);
+    }
+
+    #[test]
+    fn cors_specific_origins_allowed_in_production() {
+        let result = Config::parse_cors_origins(
+            "https://app.example.com,https://admin.example.com",
+            "production",
+        );
+        assert!(result.is_ok());
+        let origins = result.unwrap();
+        assert_eq!(origins.len(), 2);
+        assert_eq!(origins[0], "https://app.example.com");
+        assert_eq!(origins[1], "https://admin.example.com");
+    }
+
+    #[test]
+    fn cors_trims_whitespace() {
+        let result = Config::parse_cors_origins(
+            " https://a.com , https://b.com ",
+            "production",
+        );
+        assert!(result.is_ok());
+        let origins = result.unwrap();
+        assert_eq!(origins[0], "https://a.com");
+        assert_eq!(origins[1], "https://b.com");
     }
 }

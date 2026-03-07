@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.60 | 2026-03-06 | bd-ubp52 | Sanitize DB error in idempotency middleware — no longer leaks sqlx error details in HTTP response. | Security audit H3: DB error details leaked in HTTP responses. | No |
 | 1.0.59 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |
 | 1.0.58 | 2026-03-03 | bd-1atj1 | Use `event_bus::connect_nats()` for NATS connection with URL-based auth. | NATS authentication requires credentials extracted from URL. | No |
 | 1.0.57 | 2026-03-03 | bd-mybqv | Added `ar_outbox_queue_depth` gauge metric and `count_unpublished()` to outbox module. Metrics handler refreshes gauge on each Prometheus scrape. | Outbox backlog alerting requires visibility into unpublished event count. | No |

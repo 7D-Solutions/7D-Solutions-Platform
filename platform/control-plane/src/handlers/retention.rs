@@ -305,7 +305,7 @@ fn db_err(e: sqlx::Error) -> (StatusCode, Json<ErrorBody>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorBody {
-            error: format!("Database error: {e}"),
+            error: "Internal database error".to_string(),
         }),
     )
 }
@@ -352,9 +352,10 @@ mod retention_tests {
     /// RetentionConfig serialises to the expected JSON shape.
     #[tokio::test]
     async fn retention_config_serialises() {
-        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+            .expect("valid UUID literal");
         let now = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
-            .unwrap()
+            .expect("valid RFC 3339 date")
             .with_timezone(&Utc);
         let config = RetentionConfig {
             tenant_id,
@@ -366,7 +367,7 @@ mod retention_tests {
             created_at: now,
             updated_at: now,
         };
-        let v = serde_json::to_value(&config).unwrap();
+        let v = serde_json::to_value(&config).expect("RetentionConfig serialises to JSON");
         assert_eq!(v["data_retention_days"], 2555);
         assert_eq!(v["export_format"], "jsonl");
         assert_eq!(v["auto_tombstone_days"], 30);
@@ -378,7 +379,7 @@ mod retention_tests {
     #[tokio::test]
     async fn retention_set_request_partial_deserialises() {
         let json_str = r#"{"data_retention_days": 365}"#;
-        let req: SetRetentionRequest = serde_json::from_str(json_str).unwrap();
+        let req: SetRetentionRequest = serde_json::from_str(json_str).expect("valid JSON");
         assert_eq!(req.data_retention_days, Some(365));
         assert!(req.auto_tombstone_days.is_none());
     }
