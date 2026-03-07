@@ -565,6 +565,10 @@ name = "smoke_inventory_lots_serials"
 path = "tests/smoke_inventory_lots_serials.rs"
 
 [[test]]
+name = "smoke_maintenance_work_orders"
+path = "tests/smoke_maintenance_work_orders.rs"
+
+[[test]]
 name = "smoke_production_work_orders"
 path = "tests/smoke_production_work_orders.rs"
 
