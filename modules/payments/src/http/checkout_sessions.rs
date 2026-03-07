@@ -168,9 +168,12 @@ pub async fn create_checkout_session(
     ) {
         create_tilled_payment_intent(api_key, account_id, req.amount, &req.currency)
             .await
-            .map_err(|e| ApiError {
-                status: StatusCode::BAD_GATEWAY,
-                message: format!("Tilled API error: {}", e),
+            .map_err(|e| {
+                tracing::error!("Tilled API error: {}", e);
+                ApiError {
+                    status: StatusCode::BAD_GATEWAY,
+                    message: "Payment processor error".to_string(),
+                }
             })?
     } else {
         // Mock provider: generate fake IDs for dev/test
@@ -330,9 +333,12 @@ pub async fn present_checkout_session(
     .bind(&tenant_id)
     .execute(&state.pool)
     .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error updating checkout session: {}", e);
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?
     .rows_affected();
 
@@ -345,9 +351,12 @@ pub async fn present_checkout_session(
         .bind(&tenant_id)
         .fetch_one(&state.pool)
         .await
-        .map_err(|e| ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("Database error: {}", e),
+        .map_err(|e| {
+            tracing::error!("Database error checking session existence: {}", e);
+            ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: "Internal database error".to_string(),
+            }
         })?;
 
         if !exists {
@@ -382,9 +391,12 @@ pub async fn poll_checkout_session_status(
             .bind(&tenant_id)
             .fetch_optional(&state.pool)
             .await
-            .map_err(|e| ApiError {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: format!("Database error: {}", e),
+            .map_err(|e| {
+                tracing::error!("Database error polling session status: {}", e);
+                ApiError {
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                    message: "Internal database error".to_string(),
+                }
             })?;
 
     let status = status.ok_or_else(|| ApiError {
@@ -466,9 +478,12 @@ pub async fn tilled_webhook(
     .bind(pi_id)
     .execute(&state.pool)
     .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error in webhook handler: {}", e);
+        ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?
     .rows_affected();
 
