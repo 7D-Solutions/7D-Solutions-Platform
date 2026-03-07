@@ -4,8 +4,7 @@ use axum::{
     routing::{get, post, put},
     Extension, Router,
 };
-use http::HeaderName;
-use pdf_editor_rs::{config, config::Config, db, event_bus, http as handlers, metrics};
+use pdf_editor_rs::{config, config::Config, cors::build_cors_layer, db, event_bus, http as handlers, metrics};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -14,7 +13,6 @@ use security::{
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -240,41 +238,4 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("Shutdown signal received — draining in-flight requests");
-}
-
-/// Build CORS layer from configuration.
-///
-/// - `CORS_ORIGINS=*` → allow any origin
-/// - `CORS_ORIGINS=http://localhost:3000,https://app.example.com` → specific origins
-///
-/// Always allows `If-Match` header for optimistic concurrency on document updates.
-fn build_cors_layer(config: &Config) -> CorsLayer {
-    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
-
-    if is_wildcard && config.env != "development" {
-        tracing::warn!(
-            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
-        );
-    }
-
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let origins: Vec<_> = config
-            .cors_origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
-        CorsLayer::new().allow_origin(origins)
-    };
-
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers([
-            http::header::CONTENT_TYPE,
-            http::header::AUTHORIZATION,
-            HeaderName::from_static("if-match"),
-            HeaderName::from_static("if-none-match"),
-        ])
-        .expose_headers([http::header::ETAG])
 }

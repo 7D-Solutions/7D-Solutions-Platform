@@ -50,7 +50,7 @@ impl Config {
     /// - `NATS_URL`: NATS server URL (required if BUS_TYPE=nats)
     /// - `HOST`: Bind host (default: '0.0.0.0')
     /// - `PORT`: HTTP port (default: '8102')
-    /// - `CORS_ORIGINS`: Comma-separated allowed origins (default: '*')
+    /// - `CORS_ORIGINS`: Comma-separated allowed origins (omit to deny all cross-origin requests)
     pub fn from_env() -> Result<Self, String> {
         let database_url = env::var("DATABASE_URL").map_err(|_| {
             "DATABASE_URL is required but not set. \
@@ -90,24 +90,25 @@ impl Config {
             })?;
 
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+            .unwrap_or_default()
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
-        let env_name = env::var("ENV")
-            .unwrap_or_else(|_| "development".to_string())
-            .to_lowercase();
-
-        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
+        if cors_origins.iter().any(|o| o == "*") {
             return Err(
-                "CORS_ORIGINS=* is not allowed in production. \
+                "CORS_ORIGINS=* (wildcard) is not allowed. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
-                 (e.g. https://app.example.com)"
+                 (e.g. https://app.example.com). \
+                 Omit CORS_ORIGINS to deny all cross-origin requests."
                     .to_string(),
             );
         }
+
+        let env_name = env::var("ENV")
+            .unwrap_or_else(|_| "development".to_string())
+            .to_lowercase();
         Ok(Config {
             database_url,
             bus_type,

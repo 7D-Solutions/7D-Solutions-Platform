@@ -4,6 +4,7 @@
 //! handler functions directly.
 
 pub mod config;
+pub mod cors;
 pub mod db;
 pub mod domain;
 pub mod event_bus;

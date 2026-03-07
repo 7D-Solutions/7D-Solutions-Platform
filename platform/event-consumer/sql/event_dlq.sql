@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS event_dlq (
     failure_kind  TEXT        NOT NULL CHECK (failure_kind IN ('retryable', 'fatal', 'poison')),
     error_message TEXT        NOT NULL,
     payload       JSONB       NOT NULL,
+    payload_hash  TEXT        NOT NULL DEFAULT '',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
