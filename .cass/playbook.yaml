@@ -10,9 +10,8 @@ bullets:
 - id: b-mm2m4jne-vgc9jn
   scope: workspace
   category: debugging
-  content: 'When grepping for unwrap()/expect()/panic! violations, always check if
-    the match is inside a #[cfg(test)] block before creating a bead — test code is
-    exempt'
+  content: 'When grepping for unwrap()/expect()/panic! violations, always check if the match is inside a #[cfg(test)] block
+    before creating a bead — test code is exempt'
   source: learned
   type: rule
   isNegative: false
@@ -24,8 +23,8 @@ bullets:
 - id: b-mm2m4jnj-rfg98n
   scope: workspace
   category: testing
-  content: Always run cargo clippy --workspace -- -D warnings locally before committing
-    Rust code to catch anti-patterns that compile but are logically wrong
+  content: Always run cargo clippy --workspace -- -D warnings locally before committing Rust code to catch anti-patterns that
+    compile but are logically wrong
   source: learned
   type: rule
   isNegative: false
@@ -37,8 +36,8 @@ bullets:
 - id: b-mm4buorn-nropdx
   scope: workspace
   category: architecture
-  content: When extracting shared code into a new crate, verify all downstream consumers
-    compile with updated imports before closing the bead
+  content: When extracting shared code into a new crate, verify all downstream consumers compile with updated imports before
+    closing the bead
   source: learned
   type: rule
   isNegative: false
@@ -50,8 +49,8 @@ bullets:
 - id: b-mm4f9ayk-widrq4
   scope: workspace
   category: integration
-  content: When writing Rust types for external APIs, use serde(alias) to accept both
-    documented and actual field names rather than assuming API docs are accurate
+  content: When writing Rust types for external APIs, use serde(alias) to accept both documented and actual field names rather
+    than assuming API docs are accurate
   source: learned
   type: rule
   isNegative: false
@@ -63,8 +62,8 @@ bullets:
 - id: b-mm4f9ayl-9mtr94
   scope: workspace
   category: collaboration
-  content: When multiple agents work on the same module, check the current Cargo.toml
-    version before bumping — concurrent version bumps cause merge conflicts
+  content: When multiple agents work on the same module, check the current Cargo.toml version before bumping — concurrent
+    version bumps cause merge conflicts
   source: learned
   type: rule
   isNegative: false
@@ -76,9 +75,8 @@ bullets:
 - id: b-mm4f9ayn-f22ozw
   scope: workspace
   category: workflow
-  content: When adding new API client methods to an existing module, register the
-    new test file in mod.rs in the same commit to prevent dead code and missing test
-    execution
+  content: When adding new API client methods to an existing module, register the new test file in mod.rs in the same commit
+    to prevent dead code and missing test execution
   source: learned
   type: rule
   isNegative: false
@@ -90,9 +88,8 @@ bullets:
 - id: b-mm4t87na-qia3no
   scope: workspace
   category: integration
-  content: When adding new API client methods, run a single real sandbox call to capture
-    the actual response JSON shape before writing Rust deserialize types — provider
-    docs frequently omit optional fields
+  content: When adding new API client methods, run a single real sandbox call to capture the actual response JSON shape before
+    writing Rust deserialize types — provider docs frequently omit optional fields
   source: learned
   type: rule
   isNegative: false
@@ -104,9 +101,8 @@ bullets:
 - id: b-mm4y34pz-sedk17
   scope: workspace
   category: collaboration
-  content: When multiple agents bump the same module version in parallel, always read
-    the current version from Cargo.toml immediately before committing — never cache
-    a version number from earlier in the session
+  content: When multiple agents bump the same module version in parallel, always read the current version from Cargo.toml
+    immediately before committing — never cache a version number from earlier in the session
   source: learned
   type: rule
   isNegative: false
@@ -118,9 +114,8 @@ bullets:
 - id: b-mm4y34q3-ypim41
   scope: workspace
   category: integration
-  content: When wrapping a third-party API, always compare the actual API response
-    JSON against your Rust struct fields before writing tests — missing or renamed
-    fields cause silent failures
+  content: When wrapping a third-party API, always compare the actual API response JSON against your Rust struct fields before
+    writing tests — missing or renamed fields cause silent failures
   source: learned
   type: rule
   isNegative: false
@@ -132,9 +127,8 @@ bullets:
 - id: b-mm4y34q5-60iapv
   scope: workspace
   category: integration
-  content: When adding client methods for a REST API, always deserialize the real
-    sandbox response first to validate struct completeness — never write types from
-    documentation alone
+  content: When adding client methods for a REST API, always deserialize the real sandbox response first to validate struct
+    completeness — never write types from documentation alone
   source: learned
   type: rule
   isNegative: false
@@ -146,9 +140,8 @@ bullets:
 - id: b-mm53knc8-6vlpj4
   scope: workspace
   category: collaboration
-  content: When multiple agents bump the same module version in parallel, check the
-    current version in Cargo.toml immediately before committing — never assume the
-    version from when you started the bead
+  content: When multiple agents bump the same module version in parallel, check the current version in Cargo.toml immediately
+    before committing — never assume the version from when you started the bead
   source: learned
   type: rule
   isNegative: false
@@ -160,9 +153,8 @@ bullets:
 - id: b-mm53kncb-lp76l0
   scope: workspace
   category: testing
-  content: After adding a new test file to a Rust crate, always register it in the
-    crate mod.rs or test harness entry point — unregistered test files silently never
-    run
+  content: After adding a new test file to a Rust crate, always register it in the crate mod.rs or test harness entry point
+    — unregistered test files silently never run
   source: learned
   type: rule
   isNegative: false
@@ -174,9 +166,8 @@ bullets:
 - id: b-mm53kncb-n0oval
   scope: workspace
   category: integration
-  content: When writing serde structs for external APIs, always add serde(default)
-    on Optional fields and include a round-trip deserialization test with real API
-    response JSON
+  content: When writing serde structs for external APIs, always add serde(default) on Optional fields and include a round-trip
+    deserialization test with real API response JSON
   source: learned
   type: rule
   isNegative: false
@@ -188,9 +179,8 @@ bullets:
 - id: b-mm5k5l5z-seg6gb
   scope: workspace
   category: architecture
-  content: When multiple agents compile Rust concurrently, route all cargo commands
-    through a slot system with independent CARGO_TARGET_DIR directories — direct cargo
-    calls will fight over the target/ lock
+  content: When multiple agents compile Rust concurrently, route all cargo commands through a slot system with independent
+    CARGO_TARGET_DIR directories — direct cargo calls will fight over the target/ lock
   source: learned
   type: rule
   isNegative: false
@@ -202,9 +192,8 @@ bullets:
 - id: b-mm5nwlux-wj1kzn
   scope: workspace
   category: architecture
-  content: When a source or test file approaches 500 LOC, extract shared helpers into
-    a tests/common/mod.rs or dedicated helper module before it crosses the limit —
-    the pre-commit hook will reject files over 500 lines
+  content: When a source or test file approaches 500 LOC, extract shared helpers into a tests/common/mod.rs or dedicated helper
+    module before it crosses the limit — the pre-commit hook will reject files over 500 lines
   source: learned
   type: rule
   isNegative: false
@@ -216,9 +205,8 @@ bullets:
 - id: b-mm5nwsxo-uo7pwo
   scope: workspace
   category: testing
-  content: Integration tests must use sqlx::migrate\!("db/migrations").run(&pool)
-    at setup and connect to the module's dedicated Postgres port — never share a DB
-    port between modules
+  content: Integration tests must use sqlx::migrate\!("db/migrations").run(&pool) at setup and connect to the module's dedicated
+    Postgres port — never share a DB port between modules
   source: learned
   type: rule
   isNegative: false
@@ -230,8 +218,8 @@ bullets:
 - id: b-mm6z3ijz-de3lvl
   scope: workspace
   category: security
-  content: Never define Rust structs that accept raw card numbers or CVVs — use tokenized
-    references (pm_xxx) from the payment provider instead
+  content: Never define Rust structs that accept raw card numbers or CVVs — use tokenized references (pm_xxx) from the payment
+    provider instead
   source: learned
   type: rule
   isNegative: false
@@ -243,8 +231,7 @@ bullets:
 - id: b-mm716xvs-la8ke5
   scope: workspace
   category: architecture
-  content: Never hardcode module lists in CI scripts — use auto-discovery by scanning
-    Cargo.toml or directory structure
+  content: Never hardcode module lists in CI scripts — use auto-discovery by scanning Cargo.toml or directory structure
   source: learned
   type: rule
   isNegative: false
@@ -256,8 +243,8 @@ bullets:
 - id: b-mm716xvs-5ktfna
   scope: workspace
   category: architecture
-  content: When normalizing dependency versions across workspace, use workspace-level
-    dep inheritance in Cargo.toml to prevent future drift
+  content: When normalizing dependency versions across workspace, use workspace-level dep inheritance in Cargo.toml to prevent
+    future drift
   source: learned
   type: rule
   isNegative: false
@@ -269,8 +256,7 @@ bullets:
 - id: b-mm716xvs-i31g6a
   scope: workspace
   category: debugging
-  content: When fixing migration directory drift, check that both the filesystem path
-    and the sqlx migrate macro path match
+  content: When fixing migration directory drift, check that both the filesystem path and the sqlx migrate macro path match
   source: learned
   type: rule
   isNegative: false
@@ -282,8 +268,8 @@ bullets:
 - id: b-mm74i0xo-i57ug8
   scope: workspace
   category: debugging
-  content: When exploring a Rust codebase, check Cargo.toml for feature flags and
-    dependencies before reading source files — it reveals the architecture faster
+  content: When exploring a Rust codebase, check Cargo.toml for feature flags and dependencies before reading source files
+    — it reveals the architecture faster
   source: learned
   type: rule
   isNegative: false
@@ -295,8 +281,8 @@ bullets:
 - id: b-mm9dnr6g-18oif3
   scope: workspace
   category: architecture
-  content: When exploring an unfamiliar Rust codebase, start with main.rs and Cargo.toml
-    to understand entry points and dependencies before diving into modules
+  content: When exploring an unfamiliar Rust codebase, start with main.rs and Cargo.toml to understand entry points and dependencies
+    before diving into modules
   source: learned
   type: rule
   isNegative: false
@@ -308,9 +294,8 @@ bullets:
 - id: b-mm9vy0jq-pkne3o
   scope: workspace
   category: debugging
-  content: When defining sqlx FromRow structs with TIMESTAMPTZ columns, annotate the
-    field type explicitly as DateTime<Utc> — sqlx type inference can pick the wrong
-    Rust type when the column has a default.
+  content: When defining sqlx FromRow structs with TIMESTAMPTZ columns, annotate the field type explicitly as DateTime<Utc>
+    — sqlx type inference can pick the wrong Rust type when the column has a default.
   source: learned
   type: rule
   isNegative: false
@@ -322,8 +307,8 @@ bullets:
 - id: b-mma4xv9u-0wira9
   scope: workspace
   category: debugging
-  content: When adding Rust code to a workspace, compile the full workspace first
-    — latent borrow-checker and lint errors in untouched crates will surface
+  content: When adding Rust code to a workspace, compile the full workspace first — latent borrow-checker and lint errors
+    in untouched crates will surface
   source: learned
   type: rule
   isNegative: false
@@ -335,8 +320,8 @@ bullets:
 - id: b-mma4xv9y-oh4kcz
   scope: workspace
   category: debugging
-  content: Clone owned values before moving the parent struct in Rust — E0505 borrow-after-move
-    is the most common async handler error
+  content: Clone owned values before moving the parent struct in Rust — E0505 borrow-after-move is the most common async handler
+    error
   source: learned
   type: rule
   isNegative: false
@@ -348,8 +333,8 @@ bullets:
 - id: b-mma4xva1-gp1prp
   scope: workspace
   category: architecture
-  content: When converting domain aggregates to Rust, co-locate value objects and
-    constants in the same crate with the aggregate root
+  content: When converting domain aggregates to Rust, co-locate value objects and constants in the same crate with the aggregate
+    root
   source: learned
   type: rule
   isNegative: false
@@ -361,8 +346,8 @@ bullets:
 - id: b-mma4xva4-ryydd7
   scope: workspace
   category: architecture
-  content: Replace unwrap() with proper error propagation in non-test Rust code —
-    use ? operator or map_err for production paths
+  content: Replace unwrap() with proper error propagation in non-test Rust code — use ? operator or map_err for production
+    paths
   source: learned
   type: rule
   isNegative: false
@@ -374,8 +359,7 @@ bullets:
 - id: b-mmarbk7t-x151fp
   scope: workspace
   category: testing
-  content: Always run focused crate or module tests immediately after implementing
-    a bead-scoped change.
+  content: Always run focused crate or module tests immediately after implementing a bead-scoped change.
   source: learned
   type: rule
   isNegative: false
@@ -387,8 +371,7 @@ bullets:
 - id: b-mmarfs6u-2ymdq2
   scope: workspace
   category: integration
-  content: Run full crate tests after cross-cutting service changes to catch integration
-    regressions.
+  content: Run full crate tests after cross-cutting service changes to catch integration regressions.
   source: learned
   type: rule
   isNegative: false
@@ -400,8 +383,8 @@ bullets:
 - id: b-mmarjsld-xe8cz6
   scope: workspace
   category: architecture
-  content: 'When converting JS services to Rust, follow the sequence: migration, repository,
-    domain types, service, integration tests — skipping steps causes compilation failures'
+  content: 'When converting JS services to Rust, follow the sequence: migration, repository, domain types, service, integration
+    tests — skipping steps causes compilation failures'
   source: learned
   type: rule
   isNegative: false
@@ -413,8 +396,8 @@ bullets:
 - id: b-mmb5osk2-9majxm
   scope: workspace
   category: testing
-  content: Always append ?sslmode=disable to fallback DATABASE_URL values in Rust
-    test code when targeting Docker Postgres containers without SSL.
+  content: Always append ?sslmode=disable to fallback DATABASE_URL values in Rust test code when targeting Docker Postgres
+    containers without SSL.
   source: learned
   type: rule
   isNegative: false
@@ -426,8 +409,8 @@ bullets:
 - id: b-mmb6vjoj-945aw2
   scope: workspace
   category: testing
-  content: Never share a reqwest::Client in a global OnceCell across tokio test runtimes
-    — cache only tokens, create fresh clients per test
+  content: Never share a reqwest::Client in a global OnceCell across tokio test runtimes — cache only tokens, create fresh
+    clients per test
   source: learned
   type: rule
   isNegative: false
@@ -439,8 +422,8 @@ bullets:
 - id: b-mmb6vjoj-zxthbj
   scope: workspace
   category: architecture
-  content: When Dockerizing a Rust workspace, use cargo-chef for layer caching — plain
-    cargo build invalidates cache on any source change
+  content: When Dockerizing a Rust workspace, use cargo-chef for layer caching — plain cargo build invalidates cache on any
+    source change
   source: learned
   type: rule
   isNegative: false
@@ -452,9 +435,8 @@ bullets:
 - id: b-mmbi261r-mx13pa
   scope: workspace
   category: testing
-  content: When multiple tests need authenticated sessions against a rate-limited
-    auth service, cache tokens in a shared OnceCell and create fresh HTTP clients
-    per test
+  content: When multiple tests need authenticated sessions against a rate-limited auth service, cache tokens in a shared OnceCell
+    and create fresh HTTP clients per test
   source: learned
   type: rule
   isNegative: false
@@ -466,9 +448,8 @@ bullets:
 - id: b-mmbi5xgh-p8s7ir
   scope: workspace
   category: testing
-  content: When multiple integration tests share auth, cache tokens in a global OnceCell
-    but create fresh HTTP clients per test — sharing clients across tokio runtimes
-    causes panics
+  content: When multiple integration tests share auth, cache tokens in a global OnceCell but create fresh HTTP clients per
+    test — sharing clients across tokio runtimes causes panics
   source: learned
   type: rule
   isNegative: false
@@ -480,9 +461,8 @@ bullets:
 - id: b-mmc15uzq-j5ckqe
   scope: workspace
   category: workflow
-  content: When pre-commit hooks catch code style issues like unwrap(), create a child
-    bead for the fix rather than expanding the parent bead — keeps commits focused
-    and traceable
+  content: When pre-commit hooks catch code style issues like unwrap(), create a child bead for the fix rather than expanding
+    the parent bead — keeps commits focused and traceable
   source: learned
   type: rule
   isNegative: false
@@ -494,9 +474,8 @@ bullets:
 - id: b-mmc16nu2-es3f0k
   scope: workspace
   category: workflow
-  content: Create a small housekeeping bead to commit accumulated pending changes
-    (Cargo.lock, proof artifacts, infra files) rather than letting uncommitted changes
-    pile up across agents
+  content: Create a small housekeeping bead to commit accumulated pending changes (Cargo.lock, proof artifacts, infra files)
+    rather than letting uncommitted changes pile up across agents
   source: learned
   type: rule
   isNegative: false
@@ -508,8 +487,8 @@ bullets:
 - id: b-mmc2ieep-kizu66
   scope: workspace
   category: workflow
-  content: When exploring a Rust CLI tool codebase, start with --help output and main.rs
-    to map the command structure before diving into individual modules
+  content: When exploring a Rust CLI tool codebase, start with --help output and main.rs to map the command structure before
+    diving into individual modules
   source: learned
   type: rule
   isNegative: false
@@ -521,8 +500,8 @@ bullets:
 - id: b-mmc4tuw7-wopz0w
   scope: workspace
   category: debugging
-  content: When sqlx panics with VersionMissing after migrations are applied, rebuild
-    the Docker image — the binary was compiled before the migration files existed
+  content: When sqlx panics with VersionMissing after migrations are applied, rebuild the Docker image — the binary was compiled
+    before the migration files existed
   source: learned
   type: rule
   isNegative: false
@@ -534,8 +513,8 @@ bullets:
 - id: b-mmc6989z-8uf9td
   scope: workspace
   category: integration
-  content: Before modifying a Dockerfile, verify all crate paths exist relative to
-    the Docker build context — external crates need explicit COPY directives
+  content: Before modifying a Dockerfile, verify all crate paths exist relative to the Docker build context — external crates
+    need explicit COPY directives
   source: learned
   type: rule
   isNegative: false
@@ -547,8 +526,8 @@ bullets:
 - id: b-mmc698g1-i0fzjn
   scope: workspace
   category: debugging
-  content: When fixing pre-commit compliance issues like unwrap(), prefer expect()
-    with descriptive messages over suppressing the error
+  content: When fixing pre-commit compliance issues like unwrap(), prefer expect() with descriptive messages over suppressing
+    the error
   source: learned
   type: rule
   isNegative: false
@@ -560,8 +539,8 @@ bullets:
 - id: b-mmc7jopy-vz7m03
   scope: workspace
   category: testing
-  content: When fixing pre-commit hook failures, replace unwrap() with expect() containing
-    descriptive context, not just a generic message
+  content: When fixing pre-commit hook failures, replace unwrap() with expect() containing descriptive context, not just a
+    generic message
   source: learned
   type: rule
   isNegative: false
@@ -573,8 +552,7 @@ bullets:
 - id: b-mmc7jpxv-eo0plv
   scope: workspace
   category: git
-  content: Always run cargo clippy before committing Rust code to catch unwrap and
-    other lint issues early
+  content: Always run cargo clippy before committing Rust code to catch unwrap and other lint issues early
   source: learned
   type: rule
   isNegative: false
@@ -586,9 +564,8 @@ bullets:
 - id: b-mme570ph-0cd9bt
   scope: workspace
   category: architecture
-  content: Never rely on Axum path parameter name alone to differentiate endpoints
-    — same-shape paths like /{action_key} and /{rule_id} collide; use a sub-path prefix
-    instead
+  content: Never rely on Axum path parameter name alone to differentiate endpoints — same-shape paths like /{action_key} and
+    /{rule_id} collide; use a sub-path prefix instead
   source: learned
   type: rule
   isNegative: false
@@ -600,9 +577,8 @@ bullets:
 - id: b-mme8a8a1-fhpshh
   scope: workspace
   category: architecture
-  content: Consumer crates must define their own local payload structs with Deserialize
-    rather than importing from the producer crate — the contract is the JSON envelope,
-    not a Rust type
+  content: Consumer crates must define their own local payload structs with Deserialize rather than importing from the producer
+    crate — the contract is the JSON envelope, not a Rust type
   source: learned
   type: rule
   isNegative: false
@@ -614,8 +590,7 @@ bullets:
 - id: b-mmec3ic5-t2ilur
   scope: workspace
   category: debugging
-  content: When sqlx connection fails with auth errors, check pg_hba.conf uses scram-sha-256
-    not md5 for rustls compatibility
+  content: When sqlx connection fails with auth errors, check pg_hba.conf uses scram-sha-256 not md5 for rustls compatibility
   source: learned
   type: rule
   isNegative: false
@@ -627,8 +602,8 @@ bullets:
 - id: b-mmetum6u-v6xsq4
   scope: workspace
   category: security
-  content: When using Rust format! for SQL identifiers (CREATE DATABASE, schema names),
-    validate inputs against a strict allowlist — format! does not escape SQL
+  content: When using Rust format! for SQL identifiers (CREATE DATABASE, schema names), validate inputs against a strict allowlist
+    — format! does not escape SQL
   source: learned
   type: rule
   isNegative: false
@@ -640,8 +615,8 @@ bullets:
 - id: b-mmeuu9uz-sb2ud2
   scope: workspace
   category: architecture
-  content: When Docker Desktop has limited memory (under 6GB), set CARGO_BUILD_JOBS=2
-    in Dockerfiles to prevent OOM crashes during Rust release builds
+  content: When Docker Desktop has limited memory (under 6GB), set CARGO_BUILD_JOBS=2 in Dockerfiles to prevent OOM crashes
+    during Rust release builds
   source: learned
   type: rule
   isNegative: false
@@ -653,8 +628,8 @@ bullets:
 - id: b-mmewmv60-j7nawk
   scope: workspace
   category: integration
-  content: When migrating event envelope formats, version-bump the event-bus crate
-    and update all downstream tests to assert canonical field structure
+  content: When migrating event envelope formats, version-bump the event-bus crate and update all downstream tests to assert
+    canonical field structure
   source: learned
   type: rule
   isNegative: false
@@ -666,8 +641,8 @@ bullets:
 - id: b-mmf1jeg7-wf3oxx
   scope: workspace
   category: git
-  content: When modifying a shared module like mod.rs, commit immediately — other
-    agents may overwrite your changes before you commit
+  content: When modifying a shared module like mod.rs, commit immediately — other agents may overwrite your changes before
+    you commit
   source: learned
   type: rule
   isNegative: false
@@ -679,8 +654,8 @@ bullets:
 - id: b-mmf1jeow-z0z8cp
   scope: workspace
   category: architecture
-  content: When adding a fire-and-forget background writer in Rust, use OnceLock with
-    tokio::spawn to avoid threading pool references through call chains
+  content: When adding a fire-and-forget background writer in Rust, use OnceLock with tokio::spawn to avoid threading pool
+    references through call chains
   source: learned
   type: rule
   isNegative: false
@@ -692,8 +667,8 @@ bullets:
 - id: b-mmf1jfp6-bqoeqw
   scope: workspace
   category: testing
-  content: Always verify cargo test compiles before closing a Rust bead — type mismatches
-    across module boundaries are common in multi-agent work
+  content: Always verify cargo test compiles before closing a Rust bead — type mismatches across module boundaries are common
+    in multi-agent work
   source: learned
   type: rule
   isNegative: false
@@ -705,9 +680,8 @@ bullets:
 - id: b-mmf1lm4d-t0l1ok
   scope: workspace
   category: architecture
-  content: When adding a new Rust module, wire it in both mod.rs (pub mod declaration)
-    AND the route/handler registration in main.rs — missing either causes compilation
-    errors
+  content: When adding a new Rust module, wire it in both mod.rs (pub mod declaration) AND the route/handler registration
+    in main.rs — missing either causes compilation errors
   source: learned
   type: rule
   isNegative: false
@@ -719,8 +693,8 @@ bullets:
 - id: b-mmf1lmio-wke53d
   scope: workspace
   category: workflow
-  content: After multiple agents merge parallel work, create a child bead for compilation
-    fixes — parallel module additions often break mod.rs and route wiring
+  content: After multiple agents merge parallel work, create a child bead for compilation fixes — parallel module additions
+    often break mod.rs and route wiring
   source: learned
   type: rule
   isNegative: false
@@ -729,3 +703,2855 @@ bullets:
   maturity: candidate
   createdAt: '2026-03-07T00:43:57.000Z'
   updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc2ier8-wd5xtj
+  scope: workspace
+  category: debugging
+  content: When Docker Desktop allocates limited memory across many containers, monitor total memory pressure — a single rebuild
+    can cascade OOM kills across unrelated containers
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 01:12:57.290000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:53.780000+00:00
+  updatedAt: 2026-03-06 01:12:57.291000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-i3po18
+  scope: workspace
+  category: architecture
+  content: When an entity has lifecycle states, create a dedicated state_machine.rs with a validation function that enumerates
+    all legal transitions
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 21:42:36.305000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-04 21:42:36.305000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc7jp23-isa2f7
+  scope: workspace
+  category: integration
+  content: When integrating with platform services, read the existing client.rs pattern before writing new integration code
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-06 18:51:39.542000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 15:44:51.867000+00:00
+  updatedAt: 2026-03-06 18:51:39.542000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmedmew2-lpb343
+  scope: workspace
+  category: integration
+  content: When verifying API endpoint paths or manifests, read the actual source code and router registrations rather than
+    trusting documentation alone
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 2
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-06 15:21:40.416000+00:00
+  - type: helpful
+    timestamp: 2026-03-06 18:51:39.999000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 04:10:28.706000+00:00
+  updatedAt: 2026-03-06 18:51:39.999000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc9yxyt-jdkynj
+  scope: workspace
+  category: security
+  content: When hardening Docker containers with cap_drop ALL, enumerate every Linux capability the entrypoint process uses
+    by checking capability documentation first
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 16:52:42.485000+00:00
+  updatedAt: 2026-03-04 16:52:42.485000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbkkbpt-ndscbs
+  scope: workspace
+  category: security
+  content: Use entrypoint wrapper scripts to convert Docker secrets to environment variables at container startup — avoids
+    changing application code while securing production credentials
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 05:01:30.065000+00:00
+  updatedAt: 2026-03-04 05:01:30.065000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpue32-eh3jdl
+  scope: workspace
+  category: integration
+  content: Never trust stdout from CLI tools as structured data — check for error markers before parsing, as errors may be
+    written to stdout instead of stderr
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:40:22.478000+00:00
+  updatedAt: 2026-03-07 02:40:22.478000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdjnc6p-j1q96z
+  scope: workspace
+  category: architecture
+  content: When a GL or financial consumer encounters an unknown enum variant (source_type, payment_method), hard-fail with
+    a non-retriable error — never silently mispost
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 14:11:23.377000+00:00
+  updatedAt: 2026-03-05 14:11:23.377000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc2ie8k-2l703y
+  scope: workspace
+  category: architecture
+  content: Always run service containers from the main project repo rather than standalone repos so compose and config changes
+    are tracked in version control
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:53.108000+00:00
+  updatedAt: 2026-03-04 13:23:53.108000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mme22j9j-1uvsok
+  scope: workspace
+  category: architecture
+  content: When scaffolding a new module, check docker-compose.*.yml and PLATFORM-SERVICE-CATALOG.md for port allocations
+    before choosing service and DB ports
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 22:47:05.479000+00:00
+  updatedAt: 2026-03-05 22:47:05.479000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbhoyb4-zd74b4
+  scope: workspace
+  category: security
+  content: Always bind infrastructure monitoring ports to 127.0.0.1 in Docker Compose unless external access is explicitly
+    required — prevents accidental exposure of admin interfaces
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 03:41:07.120000+00:00
+  updatedAt: 2026-03-04 03:41:07.120000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm5k68pb-04oxmu
+  scope: workspace
+  category: testing
+  content: Every test must generate a unique tenant_id (test-{uuid}) and run against real Postgres — no mocks, no stubs, no
+    test interference
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-06 20:06:10.383000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 00:03:55.919000+00:00
+  updatedAt: 2026-03-06 20:06:10.383000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc16nu2-d65ksc
+  scope: workspace
+  category: integration
+  content: 'Always set explicit container_name in compose services to prevent naming drift when switching between build: and
+    image: directives or adding compose overrides'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:46.058000+00:00
+  updatedAt: 2026-03-04 12:46:46.058000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfdmwbt-ovp3q0
+  scope: workspace
+  category: architecture
+  content: When building an extension table keyed by (tenant_id, entity_id), use ON CONFLICT DO UPDATE for idempotent upserts
+    — avoids separate insert and update code paths
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:58:37.481000+00:00
+  updatedAt: 2026-03-06 20:58:37.481000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfl2yri-mncg2s
+  scope: workspace
+  category: testing
+  content: Never silently skip integration tests when DATABASE_URL is missing — use expect() to hard-fail so test results
+    always reflect reality
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 00:27:04.446000+00:00
+  updatedAt: 2026-03-07 00:27:04.446000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm5k5n9t-pl49pz
+  scope: workspace
+  category: testing
+  content: When writing integration tests, generate a unique tenant_id per test (e.g. test-{uuid}) and run against real Postgres
+    — no mocks, no stubs, no cleanup needed
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: active
+  maturity: established
+  helpfulCount: 4
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-01 00:23:29.151000+00:00
+  - type: helpful
+    timestamp: 2026-03-03 13:29:44.626000+00:00
+  - type: helpful
+    timestamp: 2026-03-03 15:10:01+00:00
+  - type: helpful
+    timestamp: 2026-03-04 03:36:23.330000+00:00
+  - type: harmful
+    timestamp: 2026-03-06 15:08:38.779000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 00:03:28.145000+00:00
+  updatedAt: 2026-03-06 20:31:11.950944+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-9ya9a1
+  scope: workspace
+  category: architecture
+  content: Use JSONB columns for tenant-configurable or frequently-evolving configuration data to avoid migration churn
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-03 07:11:11.383000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm6z3iom-9cn3nx
+  scope: workspace
+  category: architecture
+  content: When wrapping a third-party REST API, group endpoints by resource (customers, payments, subscriptions) into separate
+    module files rather than one monolithic client
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 23:49:29.302000+00:00
+  updatedAt: 2026-02-28 23:49:29.302000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfd2m4l-64eo8q
+  scope: workspace
+  category: architecture
+  content: 'When adding a new ERP domain module, follow the standard sequence: SQL migration, types.rs, repository.rs, facade.rs,
+    RBAC scopes, route registration in main.rs, integration tests'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:42:51.141000+00:00
+  updatedAt: 2026-03-06 20:42:51.141000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpnd4q-gm751i
+  scope: workspace
+  category: testing
+  content: When identity-auth tests fail, check IDENTITY_AUTH_DATABASE_URL credentials and port first — wrong connection strings
+    cause bulk failures that look like code bugs
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:34:54.650000+00:00
+  updatedAt: 2026-03-07 02:34:54.650000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm5nwndf-hntb87
+  scope: workspace
+  category: architecture
+  content: Every EventEnvelope must carry tenant_id, correlation_id, and causation_id — these are constitutional metadata
+    fields required for cross-module tracing and audit
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-02-28 23:43:14.855000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 01:48:26.835000+00:00
+  updatedAt: 2026-02-28 23:43:14.855000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfdmwje-6es8jl
+  scope: workspace
+  category: testing
+  content: When writing integration tests for extension tables, always include a tenant isolation test that creates data under
+    two tenant IDs and verifies queries never leak across tenants
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:58:37.754000+00:00
+  updatedAt: 2026-03-06 20:58:37.754000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm53knc4-244ekm
+  scope: workspace
+  category: integration
+  content: When integrating with a third-party API, always verify response field names against a live API call before writing
+    struct definitions — never assume field names from documentation alone
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-03 05:58:56.216000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 16:19:14.596000+00:00
+  updatedAt: 2026-03-03 05:58:56.216000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm6z3iyy-7solcm
+  scope: workspace
+  category: architecture
+  content: When removing a database column, create a new migration file rather than editing the original — never modify existing
+    applied migrations
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 23:49:29.674000+00:00
+  updatedAt: 2026-02-28 23:49:29.674000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmarjsld-070jrj
+  scope: workspace
+  category: testing
+  content: When writing integration tests for converted services, generate a unique tenant_id per test and seed via test_seed_phase2
+    — never share state between test cases
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: active
+  maturity: established
+  helpfulCount: 3
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-05 14:27:22.010000+00:00
+  - type: helpful
+    timestamp: 2026-03-05 22:19:49.973000+00:00
+  - type: helpful
+    timestamp: 2026-03-06 01:47:43.314000+00:00
+  - type: harmful
+    timestamp: 2026-03-06 13:51:14.670000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 15:29:16.417000+00:00
+  updatedAt: 2026-03-06 20:31:11.950944+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmficgo7-x1u3bw
+  scope: workspace
+  category: testing
+  content: Always add ensure_tenant() when creating integration tests that insert into tables with tenant_id FK constraints
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 23:10:28.711000+00:00
+  updatedAt: 2026-03-06 23:10:28.711000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbi261r-s0jlvo
+  scope: workspace
+  category: debugging
+  content: When a service crash occurs, check Docker logs for OOM/panic before attempting fixes — user-initiated kills and
+    real crashes look identical from container status
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 2
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-04 12:25:34.258000+00:00
+  - type: helpful
+    timestamp: 2026-03-04 15:42:53.324000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 03:51:23.679000+00:00
+  updatedAt: 2026-03-04 15:42:53.324000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmetum6v-wim9f7
+  scope: workspace
+  category: debugging
+  content: When pg_hba.conf uses scram-sha-256, ensure all client connection strings and password hashes match — md5/scram
+    mismatch causes cryptic auth failures
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 13:52:56.556000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 11:44:45.271000+00:00
+  updatedAt: 2026-03-06 13:52:56.556000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc7jp88-6tj8yq
+  scope: workspace
+  category: debugging
+  content: 'PITFALL: Docker containers with nginx may crash on setgid permission errors — bypass the load balancer and connect
+    directly when LB is non-essential'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-04 15:46:05.338000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 15:44:52.088000+00:00
+  updatedAt: 2026-03-04 15:46:05.338000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpn91w-fccsjd
+  scope: workspace
+  category: integration
+  content: When verifying cross-system artifacts like manifests or schemas, enumerate all sources independently then diff
+    — do not trust one source as complete
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:34:49.364000+00:00
+  updatedAt: 2026-03-07 02:34:49.364000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-7enj9b
+  scope: workspace
+  category: testing
+  content: Always add new tables to the module migration_safety_test expected/rollback/tenant lists when creating migrations
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-03 07:11:11.383000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm5o7bcy-ghozwz
+  scope: workspace
+  category: security
+  content: Never accept tenant_id from request body or query params — always extract it from JWT claims in middleware to prevent
+    tenant spoofing
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-03 13:08:49.702000+00:00
+  - type: harmful
+    timestamp: 2026-03-05 22:19:51.035000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 01:56:44.482000+00:00
+  updatedAt: 2026-03-05 22:19:51.035000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmb6vjoj-wcb7yl
+  scope: workspace
+  category: integration
+  content: When wiring Docker services to external networks, declare the network as external and use service names as hostnames
+    — not localhost
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-05 14:17:49.153000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 22:38:18.979000+00:00
+  updatedAt: 2026-03-05 14:17:49.153000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmec3iq1-uyaepm
+  scope: workspace
+  category: testing
+  content: 'When integration tests fail on auth, check the full chain: pg_hba method, password encoding, and TLS requirements'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 03:27:47.593000+00:00
+  updatedAt: 2026-03-06 03:27:47.593000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmarbk7t-hdjxxu
+  scope: workspace
+  category: security
+  content: Use tenant-scoped keys and claims-derived identifiers for user state to avoid cross-tenant leakage.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 15:22:52.313000+00:00
+  updatedAt: 2026-03-03 15:22:52.313000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc2iekv-gn7psb
+  scope: workspace
+  category: workflow
+  content: When decomposing Docker infrastructure problems, separate diagnosis beads from fix beads — investigate root cause
+    first, then create targeted fix beads
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-05 19:12:30.365000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:53.551000+00:00
+  updatedAt: 2026-03-05 19:12:30.365000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfdmvom-0j0s09
+  scope: workspace
+  category: testing
+  content: When writing DTOs for external Platform services, add unit tests that deserialize from JSON fixtures with both
+    full and minimal field sets to catch missing serde defaults
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:58:36.646000+00:00
+  updatedAt: 2026-03-06 20:58:36.646000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmb6vjoj-zj65f8
+  scope: workspace
+  category: architecture
+  content: Split docker-compose into data and services layers — start data first, then services, matching platform conventions
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 22:38:18.979000+00:00
+  updatedAt: 2026-03-03 22:38:18.979000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-95f7g8
+  scope: workspace
+  category: integration
+  content: Before creating a migration file, check existing migration filenames in db/migrations/ to avoid sequence number
+    collisions with parallel agents
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-03 07:11:11.383000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdfulf3-dq0qkl
+  scope: workspace
+  category: integration
+  content: NATS subjects in this platform are plain event_type strings like inventory.item_issued — never use hierarchical
+    module.events.event_type patterns
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 12:25:03.471000+00:00
+  updatedAt: 2026-03-05 12:25:03.471000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm9vy0jp-pck8aw
+  scope: workspace
+  category: testing
+  content: When adding E2E tests to real_e2e.rs, proactively add the test file to .file-size-allowlist before the build —
+    these files routinely exceed the 500 LOC limit.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-07 01:18:04.357000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 00:44:32.197000+00:00
+  updatedAt: 2026-03-07 01:18:04.357000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc16nu2-tfgbgy
+  scope: workspace
+  category: architecture
+  content: Use compose override files (docker-compose.production.yml) for production-specific config like pinned images —
+    never modify the base compose files that developers use daily
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:46.058000+00:00
+  updatedAt: 2026-03-04 12:46:46.058000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmarjsld-b02m09
+  scope: workspace
+  category: collaboration
+  content: When multiple agents convert services in parallel, declare blocks/blockedBy dependencies on shared tables — this
+    prevents migration conflicts without file reservations
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 15:29:16.417000+00:00
+  updatedAt: 2026-03-03 15:29:16.417000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbkkbpt-0s8ydi
+  scope: workspace
+  category: integration
+  content: When making infrastructure changes (ports, auth, networking) in Docker Compose, grep ALL compose file variants
+    (data, services, modules, platform, infrastructure, production) — never assume one file covers it
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-05 15:27:04.915000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 05:01:30.065000+00:00
+  updatedAt: 2026-03-05 15:27:04.915000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmb5osk2-1g7aa4
+  scope: workspace
+  category: integration
+  content: 'Never use GHA services: blocks for containers that need custom command args — use docker run in a setup step instead.'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 22:05:04.274000+00:00
+  updatedAt: 2026-03-03 22:05:04.274000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpndu7-ue0p0l
+  scope: workspace
+  category: debugging
+  content: When a container enters a restart loop, check migration idempotency before looking at application code
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:34:55.567000+00:00
+  updatedAt: 2026-03-07 02:34:55.567000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfl2zdz-w6l433
+  scope: workspace
+  category: workflow
+  content: When building test infrastructure, decompose into ordered gates with explicit dependency chains — bootstrap before
+    verify, verify before run, run before triage
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 00:27:05.255000+00:00
+  updatedAt: 2026-03-07 00:27:05.255000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmf4aqq0-a83sgk
+  scope: workspace
+  category: workflow
+  content: When restarting Docker containers for a service, track it as a bead so the restart reason and outcome are searchable
+    in close-events
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 16:37:13.800000+00:00
+  updatedAt: 2026-03-06 16:37:13.800000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm4f9aym-bpazz8
+  scope: workspace
+  category: testing
+  content: When testing against payment sandbox APIs, add retry-with-delay for operations that depend on async backend processing
+    like charge batching before refund
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-03 06:44:37.640000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 04:58:34.558000+00:00
+  updatedAt: 2026-03-03 06:44:37.640000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbkkbpt-i1fc9z
+  scope: workspace
+  category: debugging
+  content: After rebasing or merging branches that touch migration files, verify _sqlx_migrations table consistency — removed
+    or renamed migrations cause VersionMissing crash loops
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 05:01:30.065000+00:00
+  updatedAt: 2026-03-04 05:01:30.065000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm4t87n8-uen31s
+  scope: workspace
+  category: testing
+  content: When writing payment API tests, always verify whether the API key is scoped to partner or merchant level — partner
+    keys cannot access merchant-scoped endpoints like balance transactions
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 20:08:30.690000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 11:29:38.228000+00:00
+  updatedAt: 2026-03-06 20:08:30.690000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmb5osk2-awmrbc
+  scope: workspace
+  category: integration
+  content: Prefer container HTTP monitoring APIs over docker exec CLI commands — minimal container images often lack CLI tools.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 02:18:56.491000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 22:05:04.274000+00:00
+  updatedAt: 2026-03-04 02:18:56.491000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbkkbpt-7wdnfh
+  scope: workspace
+  category: collaboration
+  content: Always reserve shared files via reserve-files.sh before editing when multiple agents may be active — prevents merge
+    conflicts on compose files and shared configs
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 05:01:30.065000+00:00
+  updatedAt: 2026-03-04 05:01:30.065000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc16nu2-2r0c3e
+  scope: workspace
+  category: security
+  content: When enabling TLS on any database, grep ALL connection strings including test fixtures and CI scripts — hardcoded
+    sslmode=disable in tests bypasses encryption silently
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-06 02:00:12.375000+00:00
+  - type: harmful
+    timestamp: 2026-03-06 15:08:41.391000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:46.058000+00:00
+  updatedAt: 2026-03-06 15:08:41.391000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfloveu-dqs740
+  scope: workspace
+  category: integration
+  content: NATS subject names and schema_version formats must be enforced by CI lint, not just documentation
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 00:44:06.534000+00:00
+  updatedAt: 2026-03-07 00:44:06.534000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc16nu2-849cdf
+  scope: workspace
+  category: collaboration
+  content: Structure security hardening as independent beads touching separate file sets (Dockerfiles, compose-data, compose-services)
+    to enable parallel agent execution without file conflicts
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:46.058000+00:00
+  updatedAt: 2026-03-04 12:46:46.058000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfll5pf-cswzf7
+  scope: workspace
+  category: integration
+  content: NATS subject names and schema_version formats must be enforced by CI lint, not just documentation
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 00:41:13.251000+00:00
+  updatedAt: 2026-03-07 00:41:13.251000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-5j5iv8
+  scope: workspace
+  category: testing
+  content: Always assert outbox EventEnvelope payload under the "payload" key, never "data" — this is the canonical envelope
+    structure
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-06 12:27:36.013000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-06 12:27:36.013000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfnc7m6-w2a0qb
+  scope: workspace
+  category: integration
+  content: Use scripts/cargo-slot.sh instead of raw cargo commands to avoid target directory lock contention between agents
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 01:30:15.054000+00:00
+  updatedAt: 2026-03-07 01:30:15.054000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc16nu2-l0rvs5
+  scope: workspace
+  category: debugging
+  content: 'After changing compose structure (build: to image:, adding overrides), verify container names with docker compose
+    ps — compose may generate unexpected prefixed names'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:46.058000+00:00
+  updatedAt: 2026-03-04 12:46:46.058000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm4t87na-hw1zak
+  scope: workspace
+  category: debugging
+  content: When docker guard hooks block container removal commands, use docker restart or docker compose restart instead
+    — the hook enforces this to prevent accidental data loss
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-02-28 00:20:43.867000+00:00
+  - type: harmful
+    timestamp: 2026-02-28 23:59:41.302000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 11:29:38.230000+00:00
+  updatedAt: 2026-02-28 23:59:41.302000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmea3elj-cj4oxp
+  scope: workspace
+  category: debugging
+  content: When Docker containers OOM-kill during parallel builds, increase memory limits before investigating code — the
+    default 4GB is insufficient for 5+ agents compiling concurrently
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 02:31:43.015000+00:00
+  updatedAt: 2026-03-06 02:31:43.015000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmeuu9v1-y5d6jb
+  scope: workspace
+  category: debugging
+  content: Before building Docker containers, check how many containers are already running and available memory — stop non-essential
+    stacks to free resources
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 12:12:28.909000+00:00
+  updatedAt: 2026-03-06 12:12:28.909000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mme22j9o-8b4e9w
+  scope: workspace
+  category: workflow
+  content: Keep Docker/CI wiring in a separate bead from domain logic — infrastructure port conflicts and config issues should
+    not pollute domain commits
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 22:47:05.484000+00:00
+  updatedAt: 2026-03-05 22:47:05.484000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm53knc7-n848ki
+  scope: workspace
+  category: debugging
+  content: When matching sandbox API objects by ID, verify which ID field the API actually populates — related object IDs
+    (charge_id vs payment_intent_id) may be null depending on the query context
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-02-28 23:59:45.697000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 16:19:14.599000+00:00
+  updatedAt: 2026-02-28 23:59:45.697000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfichbq-mqscgt
+  scope: workspace
+  category: architecture
+  content: Use Option<Extension<Arc<T>>> pattern when a platform client should be optionally injected in Axum handlers
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 23:10:29.558000+00:00
+  updatedAt: 2026-03-06 23:10:29.558000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfichrv-b9eelf
+  scope: workspace
+  category: testing
+  content: When fixing FK constraint errors in tests, add ensure_tenant to ALL test functions in the file, not just the failing
+    one
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-07 01:18:21.243000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 23:10:30.139000+00:00
+  updatedAt: 2026-03-07 01:18:21.243000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mma9r95j-ohdpk7
+  scope: workspace
+  category: integration
+  content: When renumbering migrations to resolve collisions, update all references in test files (migration_safety_test,
+    tenant_boundary) in the same commit
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-03 13:17:44.809000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:11:11.383000+00:00
+  updatedAt: 2026-03-03 13:17:44.809000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpnjhq-dh1nps
+  scope: workspace
+  category: debugging
+  content: When a Docker container enters a restart loop, check logs for the actual crash reason before modifying entrypoint
+    or healthcheck — the root cause is usually a missing env var or port conflict
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:35:02.894000+00:00
+  updatedAt: 2026-03-07 02:35:02.894000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfdmvwg-uqtvs1
+  scope: workspace
+  category: architecture
+  content: When adding extension overlay tables that augment Platform entities, validate enum values and numeric constraints
+    in the handler before the database call — the DB constraint alone gives opaque errors
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:58:36.928000+00:00
+  updatedAt: 2026-03-06 20:58:36.928000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdjnc6p-x42rwp
+  scope: workspace
+  category: testing
+  content: After adding a new field to a request struct, grep all test files for that struct constructor — update every call
+    site before running tests
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 14:11:23.377000+00:00
+  updatedAt: 2026-03-05 14:11:23.377000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm53knca-xxtr6j
+  scope: workspace
+  category: security
+  content: When a security audit replaces client-supplied tenant IDs with JWT-extracted claims, verify every HTTP handler
+    in the module — partial migration leaves tenant isolation gaps
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-02-28 23:45:38.020000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 16:19:14.602000+00:00
+  updatedAt: 2026-02-28 23:45:38.020000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mme8a8a3-p5t53n
+  scope: workspace
+  category: debugging
+  content: In Docker Compose health checks, always use 127.0.0.1 instead of localhost — Alpine wget resolves localhost to
+    IPv6 first, which fails if the service only binds IPv4
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 01:41:02.187000+00:00
+  updatedAt: 2026-03-06 01:41:02.187000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmea3ef4-f6x5ni
+  scope: workspace
+  category: testing
+  content: When connecting to real PostgreSQL in integration tests, always use sslmode=require — sslmode=disable fails against
+    production-like configurations
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 02:31:42.784000+00:00
+  updatedAt: 2026-03-06 02:31:42.784000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbhoyb4-tsjra3
+  scope: workspace
+  category: integration
+  content: Infrastructure changes (auth, ports, networking) must be applied consistently across all Docker Compose variants
+    — check data, services, modules, and legacy compose files
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 03:41:07.120000+00:00
+  updatedAt: 2026-03-04 03:41:07.120000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmaaj196-oceet4
+  scope: workspace
+  category: architecture
+  content: When adding a new value to a column governed by a CHECK constraint, create a migration to DROP and re-ADD the constraint
+    with the extended list before inserting data.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 12:38:15.021000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:32:47.514000+00:00
+  updatedAt: 2026-03-04 12:38:15.021000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfd2mjs-3v24jb
+  scope: workspace
+  category: security
+  content: When adding RBAC scopes for a new module, define them as string constants in identity_auth/rbac.rs scopes module
+    using the pattern module_name:read and module_name:write
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 20:42:51.688000+00:00
+  updatedAt: 2026-03-06 20:42:51.688000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpnde3-uq5y1v
+  scope: workspace
+  category: architecture
+  content: Always use IF NOT EXISTS on CREATE INDEX in migrations — without it, re-running migrations causes container restart
+    loops
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:34:54.987000+00:00
+  updatedAt: 2026-03-07 02:34:54.987000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmewmv63-bl6kpl
+  scope: workspace
+  category: integration
+  content: When converting tenant_id from Uuid to String at module boundaries, use Uuid::to_string() which produces lowercase
+    hyphenated format consistently
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 13:02:42.507000+00:00
+  updatedAt: 2026-03-06 13:02:42.507000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm9vy0js-5wc7ew
+  scope: workspace
+  category: security
+  content: Always scope database queries to tenant_id extracted from VerifiedClaims — no cross-tenant data access is permitted
+    in any module handler.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 00:44:32.200000+00:00
+  updatedAt: 2026-03-03 00:44:32.200000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfpnkz8-7rtffd
+  scope: workspace
+  category: testing
+  content: 'PITFALL: Tests that silently skip on missing DATABASE_URL appear to pass — always verify test output shows actual
+    assertions, not zero-assertion passes'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 02:35:04.820000+00:00
+  updatedAt: 2026-03-07 02:35:04.820000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmaxj0q9-ge4xyv
+  scope: workspace
+  category: workflow
+  content: When a feature spawns immediate follow-up fixes (identity bug, noise reduction), decompose into child beads rather
+    than reopening the original
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 17:07:18.075000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 18:16:38.001000+00:00
+  updatedAt: 2026-03-06 17:07:18.075000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm5jvk8r-7hgg8n
+  scope: workspace
+  category: architecture
+  content: When a hook uses regex pattern matching on shell commands, anchor patterns to word boundaries to prevent substring
+    false positives like ps -p matching docker port flags
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: active
+  maturity: established
+  helpfulCount: 3
+  harmfulCount: 1
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-02-28 00:02:29.829000+00:00
+  - type: helpful
+    timestamp: 2026-02-28 00:16:22.734000+00:00
+  - type: helpful
+    timestamp: 2026-02-28 01:22:03.177000+00:00
+  - type: harmful
+    timestamp: 2026-02-28 23:59:40.970000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 23:55:37.659000+00:00
+  updatedAt: 2026-03-06 20:31:11.950944+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm6z3it8-8vkkki
+  scope: workspace
+  category: integration
+  content: When a payment provider API has rate limits on specific endpoints, use a dedicated RetryPolicy with longer delays
+    rather than the default retry policy
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 23:49:29.468000+00:00
+  updatedAt: 2026-02-28 23:49:29.468000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbkkbpt-weed7i
+  scope: workspace
+  category: workflow
+  content: When a prior bead misses file variants (legacy compose, production overlay), create a follow-up bead to sweep remaining
+    files rather than reopening the closed bead
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 17:24:06.561000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 05:01:30.065000+00:00
+  updatedAt: 2026-03-06 17:24:06.561000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc2idq1-73l59e
+  scope: workspace
+  category: architecture
+  content: When running many Docker containers on a memory-constrained host, set mem_limit and mem_reservation in compose
+    files to prevent OOM kills during rebuild spikes
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:52.441000+00:00
+  updatedAt: 2026-03-04 13:23:52.441000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmbhoyb4-8pzl3f
+  scope: workspace
+  category: integration
+  content: Always check for port conflicts across all compose files and co-located projects before assigning a new service
+    port — use non-standard ports when defaults collide
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 03:41:07.120000+00:00
+  updatedAt: 2026-03-04 03:41:07.120000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfl2yz6-enstn1
+  scope: workspace
+  category: testing
+  content: After applying database migrations, run an explicit schema verification step that checks for expected tables —
+    migration success alone does not guarantee schema completeness
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-07 00:27:04.722000+00:00
+  updatedAt: 2026-03-07 00:27:04.722000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc15uzp-pprdnp
+  scope: workspace
+  category: integration
+  content: When upstream platform services lack HTTP endpoints, write client code against the expected API and defer integration
+    tests — do not publish directly to their internal NATS subjects
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 12:36:17.599000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 12:46:08.678000+00:00
+  updatedAt: 2026-03-06 12:36:17.599000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmewmv60-lar8l5
+  scope: workspace
+  category: integration
+  content: NATS subjects must follow {module}.{event_name} format and schema_version must be semver — reject file-path-style
+    versions and nested .events. subjects
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 13:02:42.504000+00:00
+  updatedAt: 2026-03-06 13:02:42.504000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm4t87n4-1ghe46
+  scope: workspace
+  category: integration
+  content: When deserializing paginated list responses from external APIs, verify the actual JSON field name (items vs data
+    vs results) by making a real API call before writing struct definitions — API documentation often lies
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 2
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-02-28 23:59:45.530000+00:00
+    reason: wrong_context
+  - type: harmful
+    timestamp: 2026-03-04 21:59:21.884000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 11:29:38.224000+00:00
+  updatedAt: 2026-03-04 21:59:21.884000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdfulf3-3y41s6
+  scope: workspace
+  category: documentation
+  content: Design lock documents should explicitly distinguish event_type field values from NATS subject strings to prevent
+    consumer confusion
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 12:25:03.471000+00:00
+  updatedAt: 2026-03-05 12:25:03.471000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm9vy0js-6fr1ky
+  scope: workspace
+  category: testing
+  content: After implementing event-emitting endpoints, write envelope completeness tests verifying every event type contains
+    all required EventEnvelope constitutional fields.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 12:49:51.506000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 00:44:32.200000+00:00
+  updatedAt: 2026-03-04 12:49:51.506000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdjnc6p-xcqd76
+  scope: workspace
+  category: testing
+  content: Always include ?sslmode=disable in Postgres fallback connection strings for integration tests against non-TLS dev
+    containers
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 14:11:23.377000+00:00
+  updatedAt: 2026-03-05 14:11:23.377000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmeuu9v0-w77y26
+  scope: workspace
+  category: architecture
+  content: 'Docker compose include directives are invisible to grep checks on root compose files — add a develop: comment
+    or marker in the root file if generators need to detect it'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 12:12:28.908000+00:00
+  updatedAt: 2026-03-06 12:12:28.908000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mme8a8a2-1e43lh
+  scope: workspace
+  category: architecture
+  content: When processing multi-item events, build deterministic idempotency keys as format!("{prefix}-{event_id}-{item_index}")
+    so each item gets its own replay-safe key
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 01:41:02.186000+00:00
+  updatedAt: 2026-03-06 01:41:02.186000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm4f9aym-s7ui6k
+  scope: workspace
+  category: debugging
+  content: Always distinguish between partner/platform accounts and merchant accounts in payment API configs — using the wrong
+    account type silently disables payment method features
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-02-28 23:48:12.441000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-27 04:58:34.558000+00:00
+  updatedAt: 2026-02-28 23:48:12.441000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmeuu9uz-1uz73u
+  scope: workspace
+  category: workflow
+  content: Always verify MEMORY.md entries against the actual source document before trusting them — ordering and detail errors
+    persist across sessions
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 12:12:28.907000+00:00
+  updatedAt: 2026-03-06 12:12:28.907000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmeuu9v2-0p9yxw
+  scope: workspace
+  category: architecture
+  content: The docker compose watch --no-up flag only watches for changes but does not start containers — always run docker
+    compose up first
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 12:12:28.910000+00:00
+  updatedAt: 2026-03-06 12:12:28.910000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmaaj196-717pmz
+  scope: workspace
+  category: debugging
+  content: After adding a new domain type to a module, grep the codebase for CHECK constraints, enum lists, and event subject
+    counts that reference the old set of values.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 07:32:47.514000+00:00
+  updatedAt: 2026-03-03 07:32:47.514000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm6z3if7-o3vt9j
+  scope: workspace
+  category: security
+  content: Never store payment provider secrets (client_secret, session tokens) in the database — return them only in the
+    initial API response and discard
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 23:49:28.963000+00:00
+  updatedAt: 2026-02-28 23:49:28.963000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmb6vjoj-o1udgu
+  scope: workspace
+  category: workflow
+  content: Pre-decompose cross-cutting integration test setup beads — auth, CSRF, tenant isolation, and runtime lifecycle
+    are distinct concerns
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 21:42:36.538000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 22:38:18.979000+00:00
+  updatedAt: 2026-03-04 21:42:36.538000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm2mtmrx-6p6xp9
+  scope: workspace
+  category: integration
+  content: 'AVOID: Removing .env file mounts from Docker compose without auditing what env vars they provide — missing RBAC
+    vars default to read-only and break agent sends'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-01 00:04:09.848000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-25 22:54:47.949000+00:00
+  updatedAt: 2026-03-01 00:04:09.848000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm6z3jcv-wuepsw
+  scope: workspace
+  category: debugging
+  content: When a sandbox API returns 401 on file operations, check if the API key scope covers the resource — some providers
+    scope file access to merchant accounts only
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-06 20:08:33.060000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-28 23:49:30.175000+00:00
+  updatedAt: 2026-03-06 20:08:33.060000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmdfulf3-8nzxi5
+  scope: workspace
+  category: documentation
+  content: Always validate NATS subject patterns against actual codebase subscriber filters before documenting them in design
+    locks
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-05 12:25:03.471000+00:00
+  updatedAt: 2026-03-05 12:25:03.471000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmfichk9-5lb2wx
+  scope: workspace
+  category: integration
+  content: Always check for yanked transitive dependencies before adding new crates — run cargo check after Cargo.toml changes
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 23:10:29.865000+00:00
+  updatedAt: 2026-03-06 23:10:29.865000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmaxj0ku-rf7h7t
+  scope: workspace
+  category: architecture
+  content: When building alert systems, require 2+ consecutive bad polls before firing — single-poll alerts create noise from
+    transient Docker restart cycles
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 1
+  harmfulCount: 0
+  feedbackEvents:
+  - type: helpful
+    timestamp: 2026-03-03 18:19:31.877000+00:00
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 18:16:37.806000+00:00
+  updatedAt: 2026-03-03 18:19:31.877000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm2l36ej-sjkr7e
+  scope: workspace
+  category: debugging
+  content: When diagnosing Docker service failures, run docker logs first before examining compose configuration — runtime
+    errors appear in logs
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-02 22:59:35.648000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-02-25 22:06:14.059000+00:00
+  updatedAt: 2026-03-02 22:59:35.648000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmewmv5z-g55wth
+  scope: workspace
+  category: architecture
+  content: Never allow modules to define their own EventEnvelope struct — all events must use the canonical event_bus::EventEnvelope
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-06 13:02:42.503000+00:00
+  updatedAt: 2026-03-06 13:02:42.503000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mm9vy0js-87mk2z
+  scope: workspace
+  category: architecture
+  content: Import nats_subject and mutation_classes from platform_contracts for all event naming — never hardcode NATS subjects
+    or mutation class strings in module code.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-04 12:31:35.165000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-03 00:44:32.200000+00:00
+  updatedAt: 2026-03-04 12:31:35.165000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc2ie2g-guvys4
+  scope: workspace
+  category: debugging
+  content: When a container exits with code 137, investigate OOM conditions before assuming application bugs — check Docker
+    Desktop memory allocation and container limits
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 2
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-05 19:13:07.135000+00:00
+    reason: wrong_context
+  - type: harmful
+    timestamp: 2026-03-06 17:07:17.106000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:52.888000+00:00
+  updatedAt: 2026-03-06 17:07:17.106000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc2idw6-r25uio
+  scope: workspace
+  category: performance
+  content: When multiple docker-watch services start simultaneously, stagger startups with supervisord priority settings to
+    avoid resource contention
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 0
+  feedbackEvents: []
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 13:23:52.662000+00:00
+  updatedAt: 2026-03-04 13:23:52.662000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
+- id: b-mmc4tuw7-0bpzp3
+  scope: workspace
+  category: integration
+  content: When compose watch applies new migrations but container binaries predate them, the fix is docker compose up --build,
+    not a code change
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  helpfulCount: 0
+  harmfulCount: 1
+  feedbackEvents:
+  - type: harmful
+    timestamp: 2026-03-05 14:45:22.213000+00:00
+    reason: wrong_context
+  confidenceDecayHalfLifeDays: 90
+  createdAt: 2026-03-04 14:28:47.143000+00:00
+  updatedAt: 2026-03-05 14:45:22.213000+00:00
+  pinned: false
+  deprecated: false
+  sourceSessions:
+  - manual-cli
+  sourceAgents:
+  - unknown
+  tags: []
