@@ -699,3 +699,7 @@ path = "tests/control_plane_http_smoke.rs"
 [[test]]
 name = "party_http_smoke"
 path = "tests/party_http_smoke.rs"
+
+[[test]]
+name = "bom_lifecycle_e2e"
+path = "tests/bom_lifecycle_e2e.rs"

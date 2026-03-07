@@ -151,6 +151,7 @@ async fn timekeeping_core_http_smoke() {
     {
         let url = format!("{}/api/timekeeping/employees", base);
         let body = json!({
+            "app_id": tenant_id,
             "employee_code": format!("EMP-{}", uid),
             "first_name": "Smoke",
             "last_name": "Tester",
@@ -226,6 +227,7 @@ async fn timekeeping_core_http_smoke() {
     {
         let url = format!("{}/api/timekeeping/projects", base);
         let body = json!({
+            "app_id": tenant_id,
             "project_code": format!("PROJ-{}", uid),
             "name": "Smoke Test Project",
             "description": "Created by timekeeping core smoke test",
@@ -298,6 +300,7 @@ async fn timekeeping_core_http_smoke() {
     if let Some(pid) = project_id {
         let url = format!("{}/api/timekeeping/tasks", base);
         let body = json!({
+            "app_id": tenant_id,
             "project_id": pid,
             "task_code": format!("TASK-{}", uid),
             "name": "Smoke Test Task"
@@ -372,6 +375,7 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = employee_id {
         let url = format!("{}/api/timekeeping/entries", base);
         let body = json!({
+            "app_id": tenant_id,
             "employee_id": eid,
             "project_id": project_id,
             "task_id": task_id,
@@ -394,7 +398,7 @@ async fn timekeeping_core_http_smoke() {
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
-            entry_id = v["id"].as_str().and_then(|s| s.parse().ok());
+            entry_id = v["entry_id"].as_str().and_then(|s| s.parse().ok());
             println!("   entry_id: {:?}", entry_id);
         } else {
             println!("   body: {}", &resp_body[..resp_body.len().min(300)]);
@@ -424,6 +428,7 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = entry_id {
         let url = format!("{}/api/timekeeping/entries/correct", base);
         let body = json!({
+            "app_id": tenant_id,
             "entry_id": eid,
             "minutes": 420,
             "description": "Corrected to 7 hours"
@@ -457,6 +462,7 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = entry_id {
         let url = format!("{}/api/timekeeping/entries/void", base);
         let body = json!({
+            "app_id": tenant_id,
             "entry_id": eid
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
