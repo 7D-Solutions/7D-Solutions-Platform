@@ -593,6 +593,10 @@ name = "doc_mgmt_http_smoke"
 path = "tests/doc_mgmt_http_smoke.rs"
 
 [[test]]
+name = "ttp_http_smoke"
+path = "tests/ttp_http_smoke.rs"
+
+[[test]]
 name = "identity_auth_http_smoke"
 path = "tests/identity_auth_http_smoke.rs"
 
