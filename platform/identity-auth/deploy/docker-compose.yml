@@ -22,7 +22,9 @@ services:
       - nats_data:/data
 
   auth-rs:
-    build: .
+    build:
+      context: ../../..
+      dockerfile: platform/identity-auth/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth_db
       NATS_URL: nats://nats:4222

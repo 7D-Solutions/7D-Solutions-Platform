@@ -79,7 +79,7 @@ fi
 # ---------------------------------------------------------------------------
 declare -a SERVICES=(
     "control-plane|cargo|platform/control-plane/Cargo.toml|platform/control-plane/Dockerfile.workspace|."
-    "identity-auth|cargo|platform/identity-auth/Cargo.toml|platform/identity-auth/deploy/Dockerfile|platform/identity-auth"
+    "identity-auth|cargo|platform/identity-auth/Cargo.toml|platform/identity-auth/Dockerfile.workspace|."
     "ttp|cargo|modules/ttp/Cargo.toml|modules/ttp/Dockerfile.workspace|."
     "ar|cargo|modules/ar/Cargo.toml|modules/ar/deploy/Dockerfile.workspace|."
     "payments|cargo|modules/payments/Cargo.toml|modules/payments/Dockerfile|modules/payments"

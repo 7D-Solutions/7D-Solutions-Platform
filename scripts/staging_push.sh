@@ -27,7 +27,7 @@ fi
 #   build_context: Docker build context directory
 
 SERVICES=(
-    "auth|platform/identity-auth/Cargo.toml|toml|platform/identity-auth/deploy/Dockerfile|platform/identity-auth"
+    "auth|platform/identity-auth/Cargo.toml|toml|platform/identity-auth/Dockerfile.workspace|."
     "ar|modules/ar/Cargo.toml|toml|modules/ar/deploy/Dockerfile.workspace|."
     "tcp-ui|apps/tenant-control-plane-ui/package.json|json|apps/tenant-control-plane-ui/Dockerfile|apps/tenant-control-plane-ui"
 )
