@@ -24,10 +24,6 @@ fn ar_url() -> String {
     std::env::var("AR_URL").unwrap_or_else(|_| AR_DEFAULT_URL.to_string())
 }
 
-// ---------------------------------------------------------------------------
-// JWT helpers — sign tokens with the dev private key from .env
-// ---------------------------------------------------------------------------
-
 #[derive(Serialize)]
 struct TestClaims {
     sub: String,
@@ -46,8 +42,7 @@ struct TestClaims {
 
 fn dev_private_key() -> Option<EncodingKey> {
     let pem = std::env::var("JWT_PRIVATE_KEY_PEM").ok()?;
-    let pem = pem.replace("\\n", "\n");
-    EncodingKey::from_rsa_pem(pem.as_bytes()).ok()
+    EncodingKey::from_rsa_pem(pem.replace("\\n", "\n").as_bytes()).ok()
 }
 
 fn make_jwt(key: &EncodingKey, tenant_id: &str, perms: &[&str]) -> String {
@@ -69,26 +64,34 @@ fn make_jwt(key: &EncodingKey, tenant_id: &str, perms: &[&str]) -> String {
     jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, key).unwrap()
 }
 
-// ---------------------------------------------------------------------------
-// Service readiness
-// ---------------------------------------------------------------------------
-
 async fn wait_for_ar(client: &Client) -> bool {
     let url = format!("{}/api/health", ar_url());
     for attempt in 1..=15 {
         match client.get(&url).send().await {
             Ok(r) if r.status().is_success() => return true,
-            Ok(r) => eprintln!("  AR health attempt {}/15: status {}", attempt, r.status()),
-            Err(e) => eprintln!("  AR health attempt {}/15: {}", attempt, e),
+            Ok(r) => eprintln!("  AR health {}/15: {}", attempt, r.status()),
+            Err(e) => eprintln!("  AR health {}/15: {}", attempt, e),
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
     false
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Value>) {
+    let req = match method {
+        "GET" => client.get(url),
+        "POST" => client.post(url),
+        _ => panic!("unsupported method"),
+    };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
+    let resp = req.send().await.expect("unauth request failed");
+    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    println!("  no-JWT → 401 ✓");
+}
 
 #[tokio::test]
 async fn smoke_ar_customer_invoice() {
@@ -106,7 +109,7 @@ async fn smoke_ar_customer_invoice() {
     println!("AR service healthy at {}", ar_url());
 
     let Some(key) = dev_private_key() else {
-        eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping (cannot sign test JWTs)");
+        eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
         return;
     };
 
@@ -114,488 +117,292 @@ async fn smoke_ar_customer_invoice() {
     let jwt = make_jwt(&key, &tenant_id, &["ar.mutate", "ar.read"]);
     let base = ar_url();
 
-    // Gate: verify the AR service accepts our JWT (has JWT_PUBLIC_KEY configured).
-    // If not, the service returns 401 for all requests regardless of JWT validity.
-    {
-        let probe = client
-            .get(format!("{}/api/ar/customers", base))
-            .bearer_auth(&jwt)
-            .send()
-            .await
-            .expect("JWT probe request failed");
-        if probe.status().as_u16() == 401 {
-            eprintln!(
-                "AR service at {} returns 401 even with valid JWT — \
-                 JWT_PUBLIC_KEY likely not configured. Skipping.\n\
-                 Fix: set JWT_PUBLIC_KEY in the AR container env (see docker-compose.services.yml)",
-                base
-            );
-            return;
-        }
+    // Gate: verify the AR service accepts our JWT (has JWT_PUBLIC_KEY configured)
+    let probe = client
+        .get(format!("{base}/api/ar/customers"))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .expect("JWT probe failed");
+    if probe.status().as_u16() == 401 {
+        eprintln!(
+            "AR service returns 401 with valid JWT — JWT_PUBLIC_KEY not configured. Skipping.\n\
+             Fix: set JWT_PUBLIC_KEY in docker-compose.services.yml for the AR container"
+        );
+        return;
     }
 
-    // =================================================================
-    // 1. POST /api/ar/customers — create customer (happy path)
-    // =================================================================
+    // --- 1. POST /api/ar/customers ---
     println!("\n--- 1. POST /api/ar/customers ---");
     let email = format!("smoke-{}@test.local", Uuid::new_v4());
     let resp = client
-        .post(format!("{}/api/ar/customers", base))
+        .post(format!("{base}/api/ar/customers"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "email": email,
-            "name": "Smoke Test Customer"
-        }))
+        .json(&json!({"email": email, "name": "Smoke Test Customer"}))
         .send()
         .await
-        .expect("create customer request failed");
-
+        .expect("create customer failed");
     assert_eq!(resp.status().as_u16(), 201, "expected 201 Created");
-    let customer: Value = resp.json().await.expect("invalid JSON from create customer");
+    let customer: Value = resp.json().await.unwrap();
     let customer_id = customer["id"].as_i64().expect("customer.id missing");
-    println!("  created customer id={}", customer_id);
+    println!("  created customer id={customer_id}");
 
-    // 1b. Auth enforcement: no JWT → 401
-    let resp = client
-        .post(format!("{}/api/ar/customers", base))
-        .json(&json!({"email": "no-jwt@test.local", "name": "No JWT"}))
-        .send()
-        .await
-        .expect("unauth create customer request failed");
-    assert_eq!(
-        resp.status().as_u16(),
-        401,
-        "expected 401 without JWT, got {}",
-        resp.status()
-    );
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/customers"),
+        Some(json!({"email": "x@test.local", "name": "X"})),
+    ).await;
 
-    // =================================================================
-    // 2. GET /api/ar/customers/{id} — retrieve customer
-    // =================================================================
+    // --- 2. GET /api/ar/customers/{id} ---
     println!("\n--- 2. GET /api/ar/customers/{{id}} ---");
     let resp = client
-        .get(format!("{}/api/ar/customers/{}", base, customer_id))
+        .get(format!("{base}/api/ar/customers/{customer_id}"))
         .bearer_auth(&jwt)
         .send()
         .await
-        .expect("get customer request failed");
-
-    assert_eq!(resp.status().as_u16(), 200, "expected 200 OK");
-    let body: Value = resp.json().await.expect("invalid JSON from get customer");
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: Value = resp.json().await.unwrap();
     assert_eq!(body["id"].as_i64().unwrap(), customer_id);
     assert_eq!(body["email"].as_str().unwrap(), email);
-    println!("  retrieved customer email={}", email);
+    println!("  retrieved customer email={email}");
 
-    // 2b. Auth enforcement
-    let resp = client
-        .get(format!("{}/api/ar/customers/{}", base, customer_id))
-        .send()
-        .await
-        .expect("unauth get customer request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(&client, "GET", &format!("{base}/api/ar/customers/{customer_id}"), None).await;
 
-    // =================================================================
-    // 3. POST /api/ar/invoices — create invoice
-    // =================================================================
+    // --- 3. POST /api/ar/invoices ---
     println!("\n--- 3. POST /api/ar/invoices ---");
     let resp = client
-        .post(format!("{}/api/ar/invoices", base))
+        .post(format!("{base}/api/ar/invoices"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "ar_customer_id": customer_id,
-            "amount_cents": 5000,
-            "currency": "usd"
-        }))
+        .json(&json!({"ar_customer_id": customer_id, "amount_cents": 5000, "currency": "usd"}))
         .send()
         .await
-        .expect("create invoice request failed");
-
-    assert_eq!(resp.status().as_u16(), 201, "expected 201 Created");
-    let invoice: Value = resp.json().await.expect("invalid JSON from create invoice");
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 201);
+    let invoice: Value = resp.json().await.unwrap();
     let invoice_id = invoice["id"].as_i64().expect("invoice.id missing");
     assert_eq!(invoice["amount_cents"].as_i64().unwrap(), 5000);
     assert_eq!(invoice["status"].as_str().unwrap(), "draft");
-    println!("  created invoice id={}, amount=5000, status=draft", invoice_id);
+    println!("  created invoice id={invoice_id}, amount=5000, status=draft");
 
-    // 3b. Auth enforcement
-    let resp = client
-        .post(format!("{}/api/ar/invoices", base))
-        .json(&json!({"ar_customer_id": customer_id, "amount_cents": 100}))
-        .send()
-        .await
-        .expect("unauth create invoice request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/invoices"),
+        Some(json!({"ar_customer_id": customer_id, "amount_cents": 100})),
+    ).await;
 
-    // =================================================================
-    // 4. GET /api/ar/invoices/{id} — retrieve invoice
-    // =================================================================
+    // --- 4. GET /api/ar/invoices/{id} ---
     println!("\n--- 4. GET /api/ar/invoices/{{id}} ---");
     let resp = client
-        .get(format!("{}/api/ar/invoices/{}", base, invoice_id))
+        .get(format!("{base}/api/ar/invoices/{invoice_id}"))
         .bearer_auth(&jwt)
         .send()
         .await
-        .expect("get invoice request failed");
-
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
-    let body: Value = resp.json().await.expect("invalid JSON from get invoice");
+    let body: Value = resp.json().await.unwrap();
     assert_eq!(body["id"].as_i64().unwrap(), invoice_id);
-    assert_eq!(body["ar_customer_id"].as_i64().unwrap(), customer_id);
-    println!("  retrieved invoice id={}", invoice_id);
+    println!("  retrieved invoice id={invoice_id}");
 
-    // 4b. Auth enforcement
-    let resp = client
-        .get(format!("{}/api/ar/invoices/{}", base, invoice_id))
-        .send()
-        .await
-        .expect("unauth get invoice request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(&client, "GET", &format!("{base}/api/ar/invoices/{invoice_id}"), None).await;
 
-    // =================================================================
-    // 5. POST /api/ar/invoices/{id}/finalize — finalize invoice
-    // =================================================================
+    // --- 5. POST /api/ar/invoices/{id}/finalize ---
     println!("\n--- 5. POST /api/ar/invoices/{{id}}/finalize ---");
     let resp = client
-        .post(format!("{}/api/ar/invoices/{}/finalize", base, invoice_id))
+        .post(format!("{base}/api/ar/invoices/{invoice_id}/finalize"))
         .bearer_auth(&jwt)
         .json(&json!({}))
         .send()
         .await
-        .expect("finalize invoice request failed");
-
-    assert_eq!(resp.status().as_u16(), 200, "expected 200 OK for finalize");
-    let body: Value = resp.json().await.expect("invalid JSON from finalize invoice");
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: Value = resp.json().await.unwrap();
     assert_eq!(body["status"].as_str().unwrap(), "open");
-    println!("  finalized invoice → status=open");
+    println!("  finalized → status=open");
 
-    // 5b. Auth enforcement
-    let resp = client
-        .post(format!("{}/api/ar/invoices/{}/finalize", base, invoice_id))
-        .json(&json!({}))
-        .send()
-        .await
-        .expect("unauth finalize request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/invoices/{invoice_id}/finalize"),
+        Some(json!({})),
+    ).await;
 
-    // =================================================================
-    // 6. POST /api/ar/invoices/{id}/bill-usage — bill usage to invoice
-    // =================================================================
+    // --- 6. POST /api/ar/invoices/{id}/bill-usage ---
     println!("\n--- 6. POST /api/ar/invoices/{{id}}/bill-usage ---");
-
-    // Create a second draft invoice for bill-usage (finalized one is already open)
     let resp = client
-        .post(format!("{}/api/ar/invoices", base))
+        .post(format!("{base}/api/ar/invoices"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "ar_customer_id": customer_id,
-            "amount_cents": 0,
-            "currency": "usd"
-        }))
+        .json(&json!({"ar_customer_id": customer_id, "amount_cents": 0, "currency": "usd"}))
         .send()
         .await
-        .expect("create invoice for bill-usage failed");
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 201);
-    let bill_invoice: Value = resp.json().await.unwrap();
-    let bill_invoice_id = bill_invoice["id"].as_i64().unwrap();
+    let bill_inv: Value = resp.json().await.unwrap();
+    let bill_inv_id = bill_inv["id"].as_i64().unwrap();
 
     let now = Utc::now();
-    let period_start = (now - chrono::Duration::days(30)).to_rfc3339();
-    let period_end = now.to_rfc3339();
+    let ps = (now - chrono::Duration::days(30)).to_rfc3339();
+    let pe = now.to_rfc3339();
 
     let resp = client
-        .post(format!(
-            "{}/api/ar/invoices/{}/bill-usage",
-            base, bill_invoice_id
-        ))
+        .post(format!("{base}/api/ar/invoices/{bill_inv_id}/bill-usage"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "customer_id": customer_id,
-            "period_start": period_start,
-            "period_end": period_end,
-            "correlation_id": Uuid::new_v4().to_string()
-        }))
+        .json(&json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
+                       "correlation_id": Uuid::new_v4().to_string()}))
         .send()
         .await
-        .expect("bill-usage request failed");
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let body: Value = resp.json().await.unwrap();
+    assert!(body.get("billed_count").is_some(), "missing billed_count");
+    println!("  bill-usage → billed_count={}", body["billed_count"]);
 
-    // 200 with billed_count (may be 0 if no usage records exist — that's fine)
-    assert_eq!(resp.status().as_u16(), 200, "expected 200 for bill-usage");
-    let body: Value = resp.json().await.expect("invalid JSON from bill-usage");
-    assert!(
-        body.get("billed_count").is_some(),
-        "bill-usage response must include billed_count"
-    );
-    println!(
-        "  bill-usage → billed_count={}, total={}",
-        body["billed_count"], body["total_amount_minor"]
-    );
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/invoices/{bill_inv_id}/bill-usage"),
+        Some(json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
+                     "correlation_id": Uuid::new_v4().to_string()})),
+    ).await;
 
-    // 6b. Auth enforcement
-    let resp = client
-        .post(format!(
-            "{}/api/ar/invoices/{}/bill-usage",
-            base, bill_invoice_id
-        ))
-        .json(&json!({
-            "customer_id": customer_id,
-            "period_start": period_start,
-            "period_end": period_end,
-            "correlation_id": Uuid::new_v4().to_string()
-        }))
-        .send()
-        .await
-        .expect("unauth bill-usage request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
-
-    // =================================================================
-    // 7. POST /api/ar/charges — create charge
-    //    Note: requires customer to have a default_payment_method_id.
-    //    Without it, we get 409 Conflict. That's correct behavior — we
-    //    verify the charge route accepts the request shape and validates.
-    // =================================================================
+    // --- 7. POST /api/ar/charges ---
+    // Requires default_payment_method_id on customer; 409 without is valid behavior.
     println!("\n--- 7. POST /api/ar/charges ---");
-    let reference_id = format!("smoke-ref-{}", Uuid::new_v4());
+    let ref_id = format!("smoke-ref-{}", Uuid::new_v4());
     let resp = client
-        .post(format!("{}/api/ar/charges", base))
+        .post(format!("{base}/api/ar/charges"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "ar_customer_id": customer_id,
-            "amount_cents": 2500,
-            "reason": "Smoke test charge",
-            "reference_id": reference_id,
-            "currency": "usd"
-        }))
+        .json(&json!({"ar_customer_id": customer_id, "amount_cents": 2500,
+                       "reason": "Smoke test", "reference_id": ref_id, "currency": "usd"}))
         .send()
         .await
-        .expect("create charge request failed");
+        .unwrap();
+    let charge_status = resp.status().as_u16();
+    assert!(charge_status == 201 || charge_status == 409,
+        "expected 201 or 409, got {charge_status}");
+    let _charge_body: Value = resp.json().await.unwrap();
+    println!("  create charge → {charge_status}");
 
-    // 201 if customer has payment method, 409 if not — both prove the route works
-    let status = resp.status().as_u16();
-    assert!(
-        status == 201 || status == 409,
-        "expected 201 or 409 for create charge, got {}",
-        status
-    );
-    let charge_body: Value = resp.json().await.expect("invalid JSON from create charge");
-    if status == 201 {
-        let charge_id = charge_body["id"].as_i64().expect("charge.id missing");
-        println!("  created charge id={}", charge_id);
-    } else {
-        println!(
-            "  409 Conflict (no payment method) — expected for smoke test: {}",
-            charge_body["message"]
-                .as_str()
-                .unwrap_or("no message field")
-        );
-    }
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/charges"),
+        Some(json!({"ar_customer_id": customer_id, "amount_cents": 100,
+                     "reason": "x", "reference_id": format!("x-{}", Uuid::new_v4())})),
+    ).await;
 
-    // 7b. Auth enforcement
-    let resp = client
-        .post(format!("{}/api/ar/charges", base))
-        .json(&json!({
-            "ar_customer_id": customer_id,
-            "amount_cents": 100,
-            "reason": "no auth",
-            "reference_id": format!("no-auth-{}", Uuid::new_v4())
-        }))
-        .send()
-        .await
-        .expect("unauth create charge request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
-
-    // =================================================================
-    // 8. GET /api/ar/charges/{id} — retrieve charge
-    //    Use list endpoint to find a charge ID if one was created
-    // =================================================================
+    // --- 8. GET /api/ar/charges/{id} ---
     println!("\n--- 8. GET /api/ar/charges/{{id}} ---");
     let resp = client
-        .get(format!(
-            "{}/api/ar/charges?customer_id={}",
-            base, customer_id
-        ))
+        .get(format!("{base}/api/ar/charges?customer_id={customer_id}"))
         .bearer_auth(&jwt)
         .send()
         .await
-        .expect("list charges request failed");
-
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
-    let charges: Vec<Value> = resp.json().await.expect("invalid JSON from list charges");
+    let charges: Vec<Value> = resp.json().await.unwrap();
 
-    if let Some(first_charge) = charges.first() {
-        let charge_id = first_charge["id"].as_i64().unwrap();
+    if let Some(ch) = charges.first() {
+        let cid = ch["id"].as_i64().unwrap();
         let resp = client
-            .get(format!("{}/api/ar/charges/{}", base, charge_id))
+            .get(format!("{base}/api/ar/charges/{cid}"))
             .bearer_auth(&jwt)
             .send()
             .await
-            .expect("get charge request failed");
+            .unwrap();
         assert_eq!(resp.status().as_u16(), 200);
-        let body: Value = resp.json().await.expect("invalid JSON from get charge");
-        assert_eq!(body["id"].as_i64().unwrap(), charge_id);
-        println!("  retrieved charge id={}", charge_id);
+        println!("  retrieved charge id={cid}");
     } else {
-        println!("  no charges to retrieve (customer had no payment method)");
-        // Verify the route still responds correctly for non-existent ID
         let resp = client
-            .get(format!("{}/api/ar/charges/999999", base))
+            .get(format!("{base}/api/ar/charges/999999"))
             .bearer_auth(&jwt)
             .send()
             .await
-            .expect("get nonexistent charge request failed");
+            .unwrap();
         assert_eq!(resp.status().as_u16(), 404);
-        println!("  GET nonexistent charge → 404 ✓");
+        println!("  nonexistent charge → 404 ✓");
     }
 
-    // 8b. Auth enforcement
-    let resp = client
-        .get(format!("{}/api/ar/charges/1", base))
-        .send()
-        .await
-        .expect("unauth get charge request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(&client, "GET", &format!("{base}/api/ar/charges/1"), None).await;
 
-    // =================================================================
-    // 9. POST /api/ar/charges/{id}/capture — capture charge
-    //    Requires charge in "authorized" status with a provider ID.
-    //    Our smoke test charge (if it exists) is "pending" → expect 400 or 404.
-    // =================================================================
+    // --- 9. POST /api/ar/charges/{id}/capture ---
+    // Requires "authorized" status + provider ID; pending → 400 is valid.
     println!("\n--- 9. POST /api/ar/charges/{{id}}/capture ---");
-    if let Some(first_charge) = charges.first() {
-        let charge_id = first_charge["id"].as_i64().unwrap();
+    if let Some(ch) = charges.first() {
+        let cid = ch["id"].as_i64().unwrap();
         let resp = client
-            .post(format!("{}/api/ar/charges/{}/capture", base, charge_id))
+            .post(format!("{base}/api/ar/charges/{cid}/capture"))
             .bearer_auth(&jwt)
             .json(&json!({}))
             .send()
             .await
-            .expect("capture charge request failed");
-
-        // 400 (not authorized status) proves the route works and validates state
-        let status = resp.status().as_u16();
-        assert!(
-            status == 200 || status == 400 || status == 409,
-            "expected 200/400/409 for capture, got {}",
-            status
-        );
-        println!("  capture charge → {} (expected for pending charge)", status);
+            .unwrap();
+        let s = resp.status().as_u16();
+        assert!(s == 200 || s == 400 || s == 409, "expected 200/400/409, got {s}");
+        println!("  capture → {s} (expected for pending)");
     } else {
-        // No charges exist — capture a nonexistent charge → 404
         let resp = client
-            .post(format!("{}/api/ar/charges/999999/capture", base))
+            .post(format!("{base}/api/ar/charges/999999/capture"))
             .bearer_auth(&jwt)
             .json(&json!({}))
             .send()
             .await
-            .expect("capture nonexistent charge request failed");
+            .unwrap();
         assert_eq!(resp.status().as_u16(), 404);
         println!("  capture nonexistent → 404 ✓");
     }
 
-    // 9b. Auth enforcement
-    let resp = client
-        .post(format!("{}/api/ar/charges/1/capture", base))
-        .json(&json!({}))
-        .send()
-        .await
-        .expect("unauth capture request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/charges/1/capture"),
+        Some(json!({})),
+    ).await;
 
-    // =================================================================
-    // 10. POST /api/ar/usage — record usage
-    // =================================================================
+    // --- 10. POST /api/ar/usage ---
     println!("\n--- 10. POST /api/ar/usage ---");
-    let idempotency_key = Uuid::new_v4();
+    let idem_key = Uuid::new_v4();
+    let usage_body = json!({
+        "idempotency_key": idem_key, "customer_id": customer_id.to_string(),
+        "metric_name": "api_calls", "quantity": 42.0, "unit": "calls",
+        "unit_price_minor": 10, "period_start": ps, "period_end": pe
+    });
+
     let resp = client
-        .post(format!("{}/api/ar/usage", base))
+        .post(format!("{base}/api/ar/usage"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "idempotency_key": idempotency_key,
-            "customer_id": customer_id.to_string(),
-            "metric_name": "api_calls",
-            "quantity": 42.0,
-            "unit": "calls",
-            "unit_price_minor": 10,
-            "period_start": period_start,
-            "period_end": period_end
-        }))
+        .json(&usage_body)
         .send()
         .await
-        .expect("capture usage request failed");
-
-    assert_eq!(resp.status().as_u16(), 200, "expected 200 for usage capture");
-    let usage: Value = resp.json().await.expect("invalid JSON from usage capture");
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let usage: Value = resp.json().await.unwrap();
     assert_eq!(usage["metric_name"].as_str().unwrap(), "api_calls");
-    println!(
-        "  captured usage: metric={}, quantity={}",
-        usage["metric_name"], usage["quantity"]
-    );
+    println!("  captured usage: metric=api_calls, qty={}", usage["quantity"]);
 
-    // Idempotency: same key returns same record
+    // Idempotency replay
     let resp = client
-        .post(format!("{}/api/ar/usage", base))
+        .post(format!("{base}/api/ar/usage"))
         .bearer_auth(&jwt)
-        .json(&json!({
-            "idempotency_key": idempotency_key,
-            "customer_id": customer_id.to_string(),
-            "metric_name": "api_calls",
-            "quantity": 42.0,
-            "unit": "calls",
-            "unit_price_minor": 10,
-            "period_start": period_start,
-            "period_end": period_end
-        }))
+        .json(&usage_body)
         .send()
         .await
-        .expect("idempotent usage request failed");
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     println!("  idempotent replay → 200 ✓");
 
-    // 10b. Auth enforcement
-    let resp = client
-        .post(format!("{}/api/ar/usage", base))
-        .json(&json!({
-            "idempotency_key": Uuid::new_v4(),
-            "customer_id": "1",
-            "metric_name": "x",
-            "quantity": 1.0,
-            "unit": "x",
-            "unit_price_minor": 1,
-            "period_start": period_start,
-            "period_end": period_end
-        }))
-        .send()
-        .await
-        .expect("unauth usage request failed");
-    assert_eq!(resp.status().as_u16(), 401);
-    println!("  no-JWT → 401 ✓");
+    assert_unauth(
+        &client, "POST", &format!("{base}/api/ar/usage"),
+        Some(json!({"idempotency_key": Uuid::new_v4(), "customer_id": "1",
+                     "metric_name": "x", "quantity": 1.0, "unit": "x",
+                     "unit_price_minor": 1, "period_start": ps, "period_end": pe})),
+    ).await;
 
-    // =================================================================
-    // Verify no SQL/stack traces leaked in error responses
-    // =================================================================
-    println!("\n--- Error response sanitization check ---");
+    // --- Error response sanitization ---
+    println!("\n--- Error response sanitization ---");
     let resp = client
-        .get(format!("{}/api/ar/customers/999999", base))
+        .get(format!("{base}/api/ar/customers/999999"))
         .bearer_auth(&jwt)
         .send()
         .await
-        .expect("error sanitization check failed");
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 404);
     let body = resp.text().await.unwrap();
     assert!(
         !body.contains("SELECT") && !body.contains("sqlx") && !body.contains("panicked"),
-        "error response must not leak SQL or stack traces: {}",
-        &body[..body.len().min(200)]
+        "error leaks internals: {}", &body[..body.len().min(200)]
     );
-    println!("  404 response is sanitized ✓");
+    println!("  404 sanitized ✓");
 
     println!("\n=== All 10 AR smoke tests passed ===");
 }
