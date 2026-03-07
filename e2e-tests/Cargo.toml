@@ -451,6 +451,10 @@ path = "tests/security_primitives_e2e.rs"
 name = "security_consumer_validation_e2e"
 path = "tests/security_consumer_validation_e2e.rs"
 
+[[test]]
+name = "security_dlq_redaction_e2e"
+path = "tests/security_dlq_redaction_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
