@@ -233,9 +233,12 @@ pub async fn get_close_status(
     .bind(&tenant_id)
     .fetch_optional(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?
     .ok_or_else(|| PeriodCloseHttpError {
         status: StatusCode::NOT_FOUND,

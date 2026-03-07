@@ -297,13 +297,16 @@ async fn lookup_cached_quote(
             }),
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: format!("Database error: {}", e),
-            }),
-        )
-            .into_response(),
+        Err(e) => {
+            tracing::error!("Database error loading tax quote: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody {
+                    error: "Internal database error".to_string(),
+                }),
+            )
+                .into_response()
+        }
     }
 }
 

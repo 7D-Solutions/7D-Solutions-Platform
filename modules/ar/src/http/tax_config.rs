@@ -408,10 +408,11 @@ pub(crate) fn row_to_rule(
 }
 
 pub(crate) fn db_error(e: sqlx::Error) -> axum::response::Response {
+    tracing::error!("Database error: {}", e);
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorBody {
-            error: format!("Database error: {}", e),
+            error: "Internal database error".to_string(),
         }),
     )
         .into_response()

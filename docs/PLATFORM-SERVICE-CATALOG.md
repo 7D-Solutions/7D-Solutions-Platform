@@ -17,7 +17,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ar | ar-rs | 1.0.60 | 127.0.0.1 | 127.0.0.1 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ar | ar-rs | 1.0.61 | 127.0.0.1 | 127.0.0.1 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 127.0.0.1 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | identity-auth | auth-rs | 1.6.2 | 127.0.0.1 | 127.0.0.1 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.19 | 127.0.0.1 | 127.0.0.1 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |

@@ -127,9 +127,12 @@ pub async fn complete_checklist_item(
     .bind(&tenant_id)
     .fetch_optional(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?
     .ok_or_else(|| PeriodCloseHttpError {
         status: StatusCode::NOT_FOUND,
@@ -167,9 +170,12 @@ pub async fn waive_checklist_item(
     .bind(&tenant_id)
     .fetch_optional(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?
     .ok_or_else(|| PeriodCloseHttpError {
         status: StatusCode::NOT_FOUND,
@@ -202,9 +208,12 @@ pub async fn get_checklist_status(
     .bind(period_id)
     .fetch_all(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?;
 
     Ok(Json(rows.into_iter().map(to_checklist_response).collect()))
@@ -330,9 +339,12 @@ pub async fn get_approvals(
     .bind(period_id)
     .fetch_all(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Database error: {}", e),
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "Internal database error".to_string(),
+        }
     })?;
 
     Ok(Json(
