@@ -112,9 +112,9 @@ async fn smoke_bom_eco() {
     let jwt = make_jwt(&key, &tenant_id, &["bom.mutate", "bom.read"]);
     let base = bom_url();
 
-    // Gate: verify the BOM service accepts our JWT
+    // Gate: verify the BOM service accepts our JWT (probe an auth-required route)
     let probe = client
-        .get(format!("{base}/api/health"))
+        .get(format!("{base}/api/bom/{}", Uuid::new_v4()))
         .bearer_auth(&jwt)
         .send()
         .await
