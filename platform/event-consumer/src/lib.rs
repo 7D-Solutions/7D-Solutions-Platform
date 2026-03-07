@@ -28,10 +28,12 @@ pub mod idempotency;
 pub mod jetstream;
 pub mod registry;
 pub mod router;
+pub mod validation;
 
 pub use context::HandlerContext;
-pub use dlq::{classify_handler_error, write_dlq_entry, DlqEntry, DlqError, FailureKind};
+pub use dlq::{classify_handler_error, redact_payload, write_dlq_entry, DlqEntry, DlqError, FailureKind};
 pub use idempotency::{with_dedupe, DedupeError, DedupeOutcome};
 pub use jetstream::{ConsumerConfig, ConsumerError, ConsumerHealth, HealthSnapshot, JetStreamConsumer};
 pub use registry::{HandlerError, HandlerFn, HandlerRegistry, LookupResult, RegistryBuilder};
 pub use router::{EventRouter, RouteOutcome};
+pub use validation::{validate_incoming, ValidationError};

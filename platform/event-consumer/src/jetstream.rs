@@ -21,6 +21,7 @@ use tracing::{debug, info, warn};
 use crate::dlq::{classify_handler_error, write_dlq_entry, FailureKind};
 use crate::idempotency::{with_dedupe, DedupeError, DedupeOutcome};
 use crate::router::{EventRouter, RouteOutcome};
+use crate::validation::validate_incoming;
 
 /// Configuration for a JetStream consumer.
 #[derive(Debug, Clone)]
@@ -209,6 +210,24 @@ impl JetStreamConsumer {
                     return;
                 }
             };
+
+        // Validate envelope + subject BEFORE any routing or handler dispatch.
+        // Failures are non-retryable — go straight to DLQ.
+        if let Err(e) = validate_incoming(&envelope, &subject) {
+            warn!(subject = %subject, error = %e, "Validation rejected incoming message");
+            let _ = write_dlq_entry(
+                &self.pool,
+                envelope.event_id,
+                &subject,
+                FailureKind::Poison,
+                &format!("validation: {e}"),
+                &serde_json::to_value(&envelope).unwrap_or_default(),
+            )
+            .await;
+            self.health.dlq.fetch_add(1, Ordering::Relaxed);
+            let _ = message.ack().await;
+            return;
+        }
 
         let event_id = envelope.event_id;
         let max = self.config.retry_config.max_attempts;
