@@ -745,6 +745,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8108
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8108:8108"
     networks:
