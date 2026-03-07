@@ -687,3 +687,7 @@ path = "tests/workflow_http_smoke.rs"
 [[test]]
 name = "numbering_http_smoke"
 path = "tests/numbering_http_smoke.rs"
+
+[[test]]
+name = "workforce_competence_http_smoke"
+path = "tests/workforce_competence_http_smoke.rs"
