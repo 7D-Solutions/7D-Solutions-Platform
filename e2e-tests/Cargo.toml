@@ -573,8 +573,16 @@ name = "smoke_production_work_orders"
 path = "tests/smoke_production_work_orders.rs"
 
 [[test]]
+name = "smoke_quality_inspection"
+path = "tests/smoke_quality_inspection.rs"
+
+[[test]]
 name = "smoke_ap_pos_bills_payments"
 path = "tests/smoke_ap_pos_bills_payments.rs"
+
+[[test]]
+name = "smoke_production_routings_time"
+path = "tests/smoke_production_routings_time.rs"
 
 [[test]]
 name = "identity_auth_http_smoke"
