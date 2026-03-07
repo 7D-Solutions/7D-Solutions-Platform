@@ -463,6 +463,14 @@ path = "tests/stress/db_pool_exhaustion_identity_auth_e2e.rs"
 name = "auth_rate_limit_under_load_e2e"
 path = "tests/stress/auth_rate_limit_under_load_e2e.rs"
 
+[[test]]
+name = "event_bus_flood_jetstream_e2e"
+path = "tests/stress/event_bus_flood_jetstream_e2e.rs"
+
+[[test]]
+name = "financial_double_spend_allocation_e2e"
+path = "tests/stress/financial_double_spend_allocation_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
