@@ -135,6 +135,11 @@ services:
     depends_on:
       - auth-1
       - auth-2
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "platform"
