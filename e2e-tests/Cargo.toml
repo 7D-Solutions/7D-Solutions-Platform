@@ -439,6 +439,14 @@ path = "tests/manufacturing_phase_a_e2e.rs"
 name = "manufacturing_phase_b_e2e"
 path = "tests/manufacturing_phase_b_e2e.rs"
 
+[[test]]
+name = "security_pdf_editor_cors_e2e"
+path = "tests/security_pdf_editor_cors_e2e.rs"
+
+[[test]]
+name = "security_primitives_e2e"
+path = "tests/security_primitives_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -467,6 +475,7 @@ consolidation = { path = "../modules/consolidation" }
 fixed-assets = { path = "../modules/fixed-assets" }
 timekeeping = { path = "../modules/timekeeping" }
 notifications-rs = { path = "../modules/notifications" }
+customer-portal = { path = "../modules/customer-portal" }
 tower = { version = "0.5", features = ["util"] }
 axum = "0.8"
 audit = { path = "../platform/audit" }
