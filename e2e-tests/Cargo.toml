@@ -544,6 +544,10 @@ path = "tests/smoke_inventory_items.rs"
 name = "smoke_ar_credits_disputes"
 path = "tests/smoke_ar_credits_disputes.rs"
 
+[[test]]
+name = "smoke_bom_eco"
+path = "tests/smoke_bom_eco.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
