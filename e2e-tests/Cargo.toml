@@ -479,6 +479,11 @@ path = "tests/stress/financial_double_spend_allocation_e2e.rs"
 name = "gl_double_post_idempotency_e2e"
 path = "tests/stress/gl_double_post_idempotency_e2e.rs"
 
+
+[[test]]
+name = "gl_double_post_e2e"
+path = "tests/stress/gl_double_post_e2e.rs"
+
 [[test]]
 name = "inventory_oversell_at_scale_e2e"
 path = "tests/stress/inventory_oversell_at_scale_e2e.rs"
