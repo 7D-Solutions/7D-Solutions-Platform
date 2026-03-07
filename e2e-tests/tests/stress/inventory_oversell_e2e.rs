@@ -1,12 +1,14 @@
 //! Stress test: Inventory oversell — 50 concurrent reservations prove stock limits
 //!
-//! Proves that under 50 concurrent issue requests (each for 1 unit) against
-//! 10 units of stock, the conservation invariant holds: exactly 10 succeed,
-//! 40 fail with clean business errors, on-hand never goes negative.
+//! Proves that under 50 concurrent reservation requests (each for 1 unit) against
+//! 10 units of stock, the conservation invariant holds: exactly 10 reservations
+//! succeed, 40 are rejected with insufficient stock, quantity_available ends at 0,
+//! and quantity_on_hand remains unchanged (reservations hold, not consume).
 //!
-//! The inventory module uses `SELECT … FOR UPDATE` (blocking) on FIFO layers,
-//! so concurrent requests serialize at the row lock. Exactly 10 should succeed
-//! (10 / 1 = 10), and 40 should fail with `InsufficientQuantity`.
+//! The reservation service must check available stock under row-level locking
+//! (SELECT … FOR UPDATE on item_on_hand) so concurrent requests serialize at the
+//! lock. This prevents the classic oversell: two transactions both read available=1,
+//! both succeed, driving available negative.
 //!
 //! ## Running
 //! ```bash
@@ -14,9 +16,9 @@
 //! ```
 
 use inventory_rs::domain::{
-    issue_service::{process_issue, IssueError, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptRequest},
+    reservation_service::{process_reserve, ReservationError, ReserveRequest},
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -26,18 +28,17 @@ use uuid::Uuid;
 
 const CONCURRENCY: usize = 50;
 const INITIAL_STOCK: i64 = 10;
-const ISSUE_QTY: i64 = 1;
+const RESERVE_QTY: i64 = 1;
 
 async fn get_inventory_pool() -> PgPool {
     let url = std::env::var("INVENTORY_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| {
-            "postgres://fireproof:fireproof_dev@localhost:5460/fireproof_erp"
-                .to_string()
+            "postgresql://inventory_user:inventory_pass@localhost:5442/inventory_db".to_string()
         });
     let pool = PgPoolOptions::new()
-        .max_connections(55)
-        .acquire_timeout(Duration::from_secs(10))
+        .max_connections(100)
+        .acquire_timeout(Duration::from_secs(30))
         .connect(&url)
         .await
         .expect("failed to connect to inventory DB");
@@ -69,8 +70,8 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
 }
 
 #[derive(Debug)]
-struct IssueOutcome {
-    issued_qty: i64,
+struct ReserveOutcome {
+    reserved_qty: i64,
     is_insufficient: bool,
     is_unexpected_error: bool,
     error_msg: Option<String>,
@@ -79,15 +80,15 @@ struct IssueOutcome {
 #[tokio::test]
 async fn inventory_oversell_e2e() {
     let pool = Arc::new(get_inventory_pool().await);
-    let tenant_id = Arc::new(format!("stress-oversell-{}", Uuid::new_v4()));
+    let tenant_id = Arc::new(format!("stress-rsv-{}", Uuid::new_v4()));
 
-    // --- Phase 1: Seed — create item with 10 units on hand ---
+    // --- Phase 1: Seed — create item and receive 10 units ---
     let item = ItemRepo::create(
         &pool,
         &CreateItemRequest {
             tenant_id: (*tenant_id).clone(),
-            sku: format!("OVERSELL-{}", Uuid::new_v4()),
-            name: "Stress Test Oversell Item".to_string(),
+            sku: format!("STRESS-RSV-{}", Uuid::new_v4()),
+            name: "Stress Test Oversell Reservation Item".to_string(),
             description: None,
             inventory_account_ref: "1200".to_string(),
             cogs_account_ref: "5000".to_string(),
@@ -115,7 +116,7 @@ async fn inventory_oversell_e2e() {
             currency: "usd".to_string(),
             source_type: "purchase".to_string(),
             purchase_order_id: None,
-            idempotency_key: format!("oversell-rcpt-{}", Uuid::new_v4()),
+            idempotency_key: format!("stress-rcpt-{}", Uuid::new_v4()),
             correlation_id: None,
             causation_id: None,
             lot_code: None,
@@ -132,12 +133,13 @@ async fn inventory_oversell_e2e() {
         tenant_id, item_id, warehouse_id, INITIAL_STOCK
     );
 
-    // --- Phase 2: Burst — fire 50 concurrent issues of 1 unit each ---
+    // --- Phase 2: Burst — fire 50 concurrent reservations of 1 unit each ---
+    // Total attempted = 50 > 10 available. Exactly 10 should succeed.
     println!(
-        "\n--- {} concurrent issues of {} unit(s) (total attempted: {}, stock: {}) ---",
+        "\n--- {} concurrent reservations of {} unit(s) (total attempted: {}, stock: {}) ---",
         CONCURRENCY,
-        ISSUE_QTY,
-        CONCURRENCY as i64 * ISSUE_QTY,
+        RESERVE_QTY,
+        CONCURRENCY as i64 * RESERVE_QTY,
         INITIAL_STOCK
     );
 
@@ -148,54 +150,45 @@ async fn inventory_oversell_e2e() {
             let pool = Arc::clone(&pool);
             let tenant_id = Arc::clone(&tenant_id);
             tokio::spawn(async move {
-                match process_issue(
+                match process_reserve(
                     &pool,
-                    &IssueRequest {
+                    &ReserveRequest {
                         tenant_id: (*tenant_id).clone(),
                         item_id,
                         warehouse_id,
-                        location_id: None,
-                        quantity: ISSUE_QTY,
-                        currency: "usd".to_string(),
-                        source_module: "stress-test".to_string(),
-                        source_type: "sales_order".to_string(),
-                        source_id: format!("OVERSELL-SO-{:03}", i),
-                        source_line_id: None,
-                        idempotency_key: format!("oversell-issue-{}-{}", i, Uuid::new_v4()),
-                        correlation_id: Some(format!("oversell-{}", i)),
+                        quantity: RESERVE_QTY,
+                        reference_type: Some("sales_order".to_string()),
+                        reference_id: Some(format!("STRESS-SO-{:03}", i)),
+                        expires_at: None,
+                        idempotency_key: format!("stress-rsv-{}-{}", i, Uuid::new_v4()),
+                        correlation_id: Some(format!("stress-{}", i)),
                         causation_id: None,
-                        uom_id: None,
-                        lot_code: None,
-                        serial_codes: None,
                     },
-                    None,
                 )
                 .await
                 {
-                    Ok((result, _is_replay)) => IssueOutcome {
-                        issued_qty: result.quantity,
+                    Ok((result, _is_replay)) => ReserveOutcome {
+                        reserved_qty: result.quantity,
                         is_insufficient: false,
                         is_unexpected_error: false,
                         error_msg: None,
                     },
-                    Err(IssueError::InsufficientQuantity { .. }) => IssueOutcome {
-                        issued_qty: 0,
-                        is_insufficient: true,
-                        is_unexpected_error: false,
-                        error_msg: None,
-                    },
-                    Err(IssueError::NoLayersAvailable) => IssueOutcome {
-                        issued_qty: 0,
-                        is_insufficient: true,
-                        is_unexpected_error: false,
-                        error_msg: None,
-                    },
-                    Err(e) => IssueOutcome {
-                        issued_qty: 0,
-                        is_insufficient: false,
-                        is_unexpected_error: true,
-                        error_msg: Some(format!("{}", e)),
-                    },
+                    Err(ReservationError::InsufficientAvailable { .. }) => {
+                        ReserveOutcome {
+                            reserved_qty: 0,
+                            is_insufficient: true,
+                            is_unexpected_error: false,
+                            error_msg: None,
+                        }
+                    }
+                    Err(e) => {
+                        ReserveOutcome {
+                            reserved_qty: 0,
+                            is_insufficient: false,
+                            is_unexpected_error: true,
+                            error_msg: Some(format!("{}", e)),
+                        }
+                    }
                 }
             })
         })
@@ -208,16 +201,16 @@ async fn inventory_oversell_e2e() {
     let elapsed = start.elapsed();
 
     // --- Phase 3: Analyze results ---
-    let total_issued: i64 = outcomes.iter().map(|o| o.issued_qty).sum();
-    let success_count = outcomes.iter().filter(|o| o.issued_qty > 0).count();
+    let total_reserved: i64 = outcomes.iter().map(|o| o.reserved_qty).sum();
+    let success_count = outcomes.iter().filter(|o| o.reserved_qty > 0).count();
     let insufficient_count = outcomes.iter().filter(|o| o.is_insufficient).count();
     let unexpected_error_count = outcomes.iter().filter(|o| o.is_unexpected_error).count();
 
     println!("completed in {:?}", elapsed);
-    println!("  successful issues: {} (issued > 0)", success_count);
+    println!("  successful reservations: {} (reserved > 0)", success_count);
     println!("  insufficient stock rejections: {}", insufficient_count);
     println!("  unexpected errors: {}", unexpected_error_count);
-    println!("  total issued from responses: {} units", total_issued);
+    println!("  total reserved from responses: {} units", total_reserved);
 
     for (i, o) in outcomes.iter().enumerate() {
         if o.is_unexpected_error {
@@ -232,23 +225,23 @@ async fn inventory_oversell_e2e() {
     // --- Assertion 1: No unexpected errors ---
     assert_eq!(
         unexpected_error_count, 0,
-        "no unexpected errors expected — all rejections should be clean InsufficientQuantity"
+        "no unexpected errors expected — all rejections should be clean insufficient-stock errors"
     );
 
     // --- Assertion 2: Conservation invariant (response-level) ---
     assert!(
-        total_issued <= INITIAL_STOCK,
-        "CONSERVATION VIOLATION (responses): total issued {} exceeds initial stock {}",
-        total_issued,
+        total_reserved <= INITIAL_STOCK,
+        "CONSERVATION VIOLATION (responses): total reserved {} exceeds initial stock {}",
+        total_reserved,
         INITIAL_STOCK
     );
 
     // --- Assertion 3: Exactly 10 succeeded (10 / 1) ---
-    let expected_successes = (INITIAL_STOCK / ISSUE_QTY) as usize;
+    let expected_successes = (INITIAL_STOCK / RESERVE_QTY) as usize;
     assert_eq!(
         success_count, expected_successes,
-        "expected exactly {} successful issues (stock {} / qty {}), got {}",
-        expected_successes, INITIAL_STOCK, ISSUE_QTY, success_count
+        "expected exactly {} successful reservations (stock {} / qty {}), got {}",
+        expected_successes, INITIAL_STOCK, RESERVE_QTY, success_count
     );
 
     // --- Assertion 4: All others rejected cleanly ---
@@ -260,52 +253,69 @@ async fn inventory_oversell_e2e() {
         insufficient_count
     );
 
-    // --- Assertion 5: Total issued == initial stock (exact drain) ---
+    // --- Assertion 5: Total reserved == initial stock (exact drain of available) ---
     assert_eq!(
-        total_issued, INITIAL_STOCK,
-        "total issued ({}) must equal initial stock ({}) — exact drain",
-        total_issued, INITIAL_STOCK
+        total_reserved, INITIAL_STOCK,
+        "total reserved ({}) must equal initial stock ({}) — exact drain",
+        total_reserved, INITIAL_STOCK
     );
 
-    // --- Assertion 6: DB-level conservation — on-hand is 0, never negative ---
-    let db_on_hand: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity_remaining), 0)::BIGINT FROM inventory_layers WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3",
+    // --- Assertion 6: DB-level conservation — quantity_available is 0 ---
+    let db_available: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(quantity_available, 0)::BIGINT FROM item_on_hand WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3 AND location_id IS NULL",
     )
     .bind(tenant_id.as_ref())
     .bind(item_id)
     .bind(warehouse_id)
     .fetch_one(pool.as_ref())
     .await
-    .expect("failed to query on-hand");
+    .expect("failed to query quantity_available");
 
-    println!("\n  DB on-hand (layer sum): {} units", db_on_hand);
+    println!("\n  DB quantity_available: {} units", db_available);
 
     assert!(
-        db_on_hand >= 0,
-        "on-hand must never be negative, got {}",
-        db_on_hand
+        db_available >= 0,
+        "quantity_available must never be negative, got {}",
+        db_available
     );
 
     assert_eq!(
-        db_on_hand, 0,
-        "on-hand must be 0 after full drain, got {}",
-        db_on_hand
+        db_available, 0,
+        "quantity_available must be 0 after full reservation drain, got {}",
+        db_available
     );
 
-    // --- Assertion 7: DB ledger row count matches successes ---
-    let ledger_issue_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::BIGINT FROM inventory_ledger WHERE tenant_id = $1 AND item_id = $2 AND entry_type = 'issued'",
+    // --- Assertion 7: DB reservation row count matches successes ---
+    let db_reservation_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::BIGINT FROM inventory_reservations WHERE tenant_id = $1 AND item_id = $2 AND status = 'active' AND reverses_reservation_id IS NULL",
     )
     .bind(tenant_id.as_ref())
     .bind(item_id)
     .fetch_one(pool.as_ref())
     .await
-    .expect("failed to query ledger");
+    .expect("failed to query reservations");
 
     assert_eq!(
-        ledger_issue_count, expected_successes as i64,
-        "ledger issue rows ({}) must match successful issues ({})",
-        ledger_issue_count, expected_successes
+        db_reservation_count, expected_successes as i64,
+        "active reservation rows ({}) must match successful reservations ({})",
+        db_reservation_count, expected_successes
+    );
+
+    // --- Assertion 8: quantity_on_hand unchanged (reservations hold, not consume) ---
+    let db_on_hand: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(quantity_on_hand, 0)::BIGINT FROM item_on_hand WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3 AND location_id IS NULL",
+    )
+    .bind(tenant_id.as_ref())
+    .bind(item_id)
+    .bind(warehouse_id)
+    .fetch_one(pool.as_ref())
+    .await
+    .expect("failed to query quantity_on_hand");
+
+    assert_eq!(
+        db_on_hand, INITIAL_STOCK,
+        "quantity_on_hand must remain {} (reservations hold, not consume), got {}",
+        INITIAL_STOCK, db_on_hand
     );
 
     // --- Post-burst health check ---
@@ -313,9 +323,11 @@ async fn inventory_oversell_e2e() {
         .fetch_one(pool.as_ref())
         .await
         .expect("post-burst health check FAILED — DB pool unhealthy");
-    assert_eq!(health_check.0, 1, "post-burst health check returned unexpected value");
+    assert_eq!(health_check.0, 1);
 
-    println!("\n  ledger issue rows: {}", ledger_issue_count);
+    println!("  reservation rows (active): {}", db_reservation_count);
+    println!("  quantity_on_hand: {} (unchanged)", db_on_hand);
+    println!("  quantity_available: {} (fully reserved)", db_available);
     println!("  on-hand non-negative: YES");
     println!("  conservation invariant: PASSED");
     println!("  post-burst health check: PASSED");
