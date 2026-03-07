@@ -217,19 +217,18 @@ mod tests {
 
     #[test]
     fn cors_wildcard_allowed_in_development() {
-        let result = Config::parse_cors_origins("*", "development");
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec!["*"]);
+        let origins = Config::parse_cors_origins("*", "development")
+            .expect("wildcard should be allowed in development");
+        assert_eq!(origins, vec!["*"]);
     }
 
     #[test]
     fn cors_specific_origins_allowed_in_production() {
-        let result = Config::parse_cors_origins(
+        let origins = Config::parse_cors_origins(
             "https://app.example.com,https://admin.example.com",
             "production",
-        );
-        assert!(result.is_ok());
-        let origins = result.unwrap();
+        )
+        .expect("specific origins should be allowed in production");
         assert_eq!(origins.len(), 2);
         assert_eq!(origins[0], "https://app.example.com");
         assert_eq!(origins[1], "https://admin.example.com");
@@ -237,12 +236,11 @@ mod tests {
 
     #[test]
     fn cors_trims_whitespace() {
-        let result = Config::parse_cors_origins(
+        let origins = Config::parse_cors_origins(
             " https://a.com , https://b.com ",
             "production",
-        );
-        assert!(result.is_ok());
-        let origins = result.unwrap();
+        )
+        .expect("trimmed origins should parse successfully");
         assert_eq!(origins[0], "https://a.com");
         assert_eq!(origins[1], "https://b.com");
     }
