@@ -266,6 +266,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8086
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       TILLED_WEBHOOK_SECRET: ${TILLED_WEBHOOK_SECRET:-dev-placeholder-secret}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
