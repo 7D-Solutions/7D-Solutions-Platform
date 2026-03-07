@@ -99,6 +99,7 @@ async fn setup_inventory(
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await?;
@@ -132,6 +133,7 @@ async fn setup_inventory(
             quantity: initial_qty,
             unit_cost_minor: 1_000,
             currency: "USD".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             lot_code: None,
             serial_codes: None,
@@ -140,6 +142,7 @@ async fn setup_inventory(
             correlation_id: Some("e2e-setup".to_string()),
             causation_id: None,
         },
+        None,
     )
     .await?;
 
@@ -317,6 +320,7 @@ async fn low_stock_signal_emitted_and_notification_persisted() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("process_issue");
@@ -385,6 +389,7 @@ async fn low_stock_dedup_no_second_signal_while_below_threshold() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("process_issue #1");
@@ -415,6 +420,7 @@ async fn low_stock_dedup_no_second_signal_while_below_threshold() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("process_issue #2");
@@ -469,6 +475,7 @@ async fn low_stock_rearm_after_recovery() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("process_issue crossing #1");
@@ -493,6 +500,7 @@ async fn low_stock_rearm_after_recovery() {
             correlation_id: Some("e2e-recovery".to_string()),
             causation_id: None,
         },
+        None,
     )
     .await
     .expect("recovery adjustment");
@@ -527,6 +535,7 @@ async fn low_stock_rearm_after_recovery() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("process_issue crossing #2");
