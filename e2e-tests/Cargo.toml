@@ -632,3 +632,6 @@ serial_test = "3.0"
 
 [lints]
 workspace = true
+[[test]]
+name = "smoke_notifications"
+path = "tests/smoke_notifications.rs"
