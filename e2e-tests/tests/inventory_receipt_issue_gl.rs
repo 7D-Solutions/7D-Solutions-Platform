@@ -261,6 +261,7 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -279,6 +280,7 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
             quantity: 100,
             unit_cost_minor: 2500, // $25.00
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("rcpt-pipeline-{}", Uuid::new_v4()),
             correlation_id: Some("e2e-pipeline".to_string()),
@@ -287,6 +289,7 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt must succeed");
@@ -360,6 +363,7 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue must succeed");
@@ -471,6 +475,7 @@ async fn inventory_gl_period_close_protection() -> Result<()> {
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -488,6 +493,7 @@ async fn inventory_gl_period_close_protection() -> Result<()> {
             quantity: 100,
             unit_cost_minor: 1000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("rcpt-cp-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -496,6 +502,7 @@ async fn inventory_gl_period_close_protection() -> Result<()> {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt must succeed");
@@ -520,6 +527,7 @@ async fn inventory_gl_period_close_protection() -> Result<()> {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue must succeed");

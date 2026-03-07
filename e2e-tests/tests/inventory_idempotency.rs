@@ -184,6 +184,7 @@ async fn inventory_idempotency_duplicate_receipt_is_replay() {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -198,6 +199,7 @@ async fn inventory_idempotency_duplicate_receipt_is_replay() {
         quantity: 100,
         unit_cost_minor: 1000,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: idempotency_key.clone(),
         correlation_id: None,
@@ -207,10 +209,10 @@ async fn inventory_idempotency_duplicate_receipt_is_replay() {
         uom_id: None,
     };
 
-    let (r1, is_replay1) = process_receipt(&pool, &req).await.expect("first receipt");
+    let (r1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first receipt");
     assert!(!is_replay1, "first call must not be replay");
 
-    let (r2, is_replay2) = process_receipt(&pool, &req).await.expect("second receipt");
+    let (r2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second receipt");
     assert!(is_replay2, "second call must be replay");
 
     // Stored result must be identical
@@ -273,6 +275,7 @@ async fn inventory_idempotency_duplicate_reserve_is_replay() {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -351,6 +354,7 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -367,6 +371,7 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
             quantity: 100,
             unit_cost_minor: 2000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("rcpt-idem-issue-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -375,6 +380,7 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("seed stock");
@@ -398,11 +404,11 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
         serial_codes: None,
     };
 
-    let (i1, is_replay1) = process_issue(&pool, &issue_req).await.expect("first issue");
+    let (i1, is_replay1) = process_issue(&pool, &issue_req, None).await.expect("first issue");
     assert!(!is_replay1);
     assert_eq!(i1.quantity, 25);
 
-    let (i2, is_replay2) = process_issue(&pool, &issue_req)
+    let (i2, is_replay2) = process_issue(&pool, &issue_req, None)
         .await
         .expect("second issue (replay)");
     assert!(is_replay2, "second issue must be replay");
@@ -481,6 +487,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -497,6 +504,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         quantity: 100,
         unit_cost_minor: 3000, // $30.00
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: format!("rcpt-full-{}", Uuid::new_v4()),
         correlation_id: None,
@@ -505,7 +513,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         serial_codes: None,
         uom_id: None,
     };
-    let (rcpt1, _) = process_receipt(&inv_pool, &rcpt_req)
+    let (rcpt1, _) = process_receipt(&inv_pool, &rcpt_req, None)
         .await
         .expect("receipt");
 
@@ -528,7 +536,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         lot_code: None,
         serial_codes: None,
     };
-    let (issue1, _) = process_issue(&inv_pool, &issue_req).await.expect("issue");
+    let (issue1, _) = process_issue(&inv_pool, &issue_req, None).await.expect("issue");
     assert_eq!(
         issue1.total_cost_minor, 30_000,
         "10 × $30 = $300 (30000 minor units)"
@@ -550,7 +558,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
     assert_eq!(je_count1, 1, "exactly 1 journal entry after first GL post");
 
     // --- Step 4: Replay receipt ---
-    let (rcpt2, is_replay) = process_receipt(&inv_pool, &rcpt_req)
+    let (rcpt2, is_replay) = process_receipt(&inv_pool, &rcpt_req, None)
         .await
         .expect("replay receipt");
     assert!(is_replay, "second receipt must be replay");
@@ -566,7 +574,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
     assert_eq!(ledger_count, 2, "no new rows from replay receipt");
 
     // --- Step 5: Replay issue ---
-    let (issue2, is_replay) = process_issue(&inv_pool, &issue_req)
+    let (issue2, is_replay) = process_issue(&inv_pool, &issue_req, None)
         .await
         .expect("replay issue");
     assert!(is_replay, "second issue must be replay");
@@ -646,6 +654,7 @@ async fn inventory_idempotency_conflicting_key_rejected() {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -663,6 +672,7 @@ async fn inventory_idempotency_conflicting_key_rejected() {
         quantity: 100,
         unit_cost_minor: 1000,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: idempotency_key.clone(),
         correlation_id: None,
@@ -671,7 +681,7 @@ async fn inventory_idempotency_conflicting_key_rejected() {
         serial_codes: None,
         uom_id: None,
     };
-    let (_, is_replay) = process_receipt(&pool, &req1).await.expect("first call");
+    let (_, is_replay) = process_receipt(&pool, &req1, None).await.expect("first call");
     assert!(!is_replay);
 
     // Second call: different quantity (conflicting payload)
@@ -679,7 +689,7 @@ async fn inventory_idempotency_conflicting_key_rejected() {
         quantity: 999, // different!
         ..req1
     };
-    let err = process_receipt(&pool, &req2)
+    let err = process_receipt(&pool, &req2, None)
         .await
         .expect_err("conflicting key must fail");
 
@@ -739,6 +749,7 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -756,6 +767,7 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
             quantity: 50,
             unit_cost_minor: 500,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("rcpt-dg-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -764,6 +776,7 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("seed stock");
@@ -788,8 +801,8 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
     };
 
     // Issue twice (same idempotency_key)
-    let (i1, _) = process_issue(&inv_pool, &issue_req).await.expect("issue 1");
-    let (i2, is_replay) = process_issue(&inv_pool, &issue_req)
+    let (i1, _) = process_issue(&inv_pool, &issue_req, None).await.expect("issue 1");
+    let (i2, is_replay) = process_issue(&inv_pool, &issue_req, None)
         .await
         .expect("issue 2 (replay)");
     assert!(is_replay);

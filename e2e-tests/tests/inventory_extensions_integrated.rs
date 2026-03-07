@@ -106,6 +106,7 @@ fn item_req(tenant_id: &str, sku: &str, tracking: TrackingMode) -> CreateItemReq
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: tracking,
+        make_buy: None,
     }
 }
 
@@ -172,6 +173,7 @@ async fn lot_tracked_flow() {
             quantity: 20,
             unit_cost_minor: 500,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -180,6 +182,7 @@ async fn lot_tracked_flow() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("lot receipt");
@@ -205,6 +208,7 @@ async fn lot_tracked_flow() {
             lot_code: Some("LOT-2026-01".to_string()),
             serial_codes: None,
         },
+        None,
     )
     .await;
     assert!(
@@ -235,6 +239,7 @@ async fn lot_tracked_flow() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await;
     assert!(
@@ -282,6 +287,7 @@ async fn serial_tracked_flow() {
             quantity: 3,
             unit_cost_minor: 1_000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -290,6 +296,7 @@ async fn serial_tracked_flow() {
             serial_codes: Some(serials.clone()),
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("serial receipt");
@@ -315,6 +322,7 @@ async fn serial_tracked_flow() {
             lot_code: None,
             serial_codes: Some(vec!["SN-001".to_string(), "SN-002".to_string()]),
         },
+        None,
     )
     .await;
     assert!(
@@ -345,6 +353,7 @@ async fn serial_tracked_flow() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await;
     assert!(bad.is_err(), "serial issue without serial_codes must fail");
@@ -394,6 +403,7 @@ async fn cycle_count_full_scope() {
             quantity: 50,
             unit_cost_minor: 200,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -402,6 +412,7 @@ async fn cycle_count_full_scope() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt to location");
@@ -504,6 +515,7 @@ async fn status_buckets_quarantine_and_restore() {
             quantity: 30,
             unit_cost_minor: 100,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -512,6 +524,7 @@ async fn status_buckets_quarantine_and_restore() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -678,6 +691,7 @@ async fn uom_receipt_issue_converts_correctly() {
             variance_account_ref: "5010".to_string(),
             uom: None, // string label (not used by guard_convert_to_base)
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -718,6 +732,7 @@ async fn uom_receipt_issue_converts_correctly() {
             quantity: 2,
             unit_cost_minor: 600, // per box = 50 per ea after conversion
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -726,6 +741,7 @@ async fn uom_receipt_issue_converts_correctly() {
             serial_codes: None,
             uom_id: Some(uom_box.id),
         },
+        None,
     )
     .await
     .expect("receipt 2 boxes");
@@ -765,6 +781,7 @@ async fn uom_receipt_issue_converts_correctly() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue 1 box");
@@ -820,6 +837,7 @@ async fn valuation_snapshot_matches_fifo() {
             quantity: 10,
             unit_cost_minor: 500,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -828,6 +846,7 @@ async fn valuation_snapshot_matches_fifo() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt 10 units");
@@ -853,6 +872,7 @@ async fn valuation_snapshot_matches_fifo() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue 4 units");
@@ -950,6 +970,7 @@ async fn low_stock_dedup_and_rearm() {
             quantity: 20,
             unit_cost_minor: 1_000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -958,6 +979,7 @@ async fn low_stock_dedup_and_rearm() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -983,6 +1005,7 @@ async fn low_stock_dedup_and_rearm() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("first issue");
@@ -1017,6 +1040,7 @@ async fn low_stock_dedup_and_rearm() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("second issue while below threshold");
@@ -1040,6 +1064,7 @@ async fn low_stock_dedup_and_rearm() {
             quantity: 20,
             unit_cost_minor: 1_000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: key(),
             correlation_id: None,
@@ -1048,6 +1073,7 @@ async fn low_stock_dedup_and_rearm() {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("recovery receipt — pushes qty to 23, re-arms reorder state");
@@ -1073,6 +1099,7 @@ async fn low_stock_dedup_and_rearm() {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("third issue — re-arm trigger");

@@ -47,7 +47,7 @@ async fn ensure_control_plane_tables(pool: &PgPool) {
 
 /// Helper: build in-process provisioning router
 async fn make_router(pool: PgPool) -> axum::Router {
-    let state = Arc::new(AppState::new(pool));
+    let state = Arc::new(AppState::new(pool, None));
     provisioning_router(state)
 }
 

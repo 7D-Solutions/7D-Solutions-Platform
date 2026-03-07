@@ -59,6 +59,7 @@ fn item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::None,
+        make_buy: None,
     }
 }
 
@@ -77,6 +78,7 @@ fn receipt_req(
         quantity: qty,
         unit_cost_minor: cost,
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: format!("rcpt-fifo-{}", Uuid::new_v4()),
         correlation_id: Some("e2e-fifo".to_string()),
@@ -160,6 +162,7 @@ async fn inventory_fifo_two_layers_consumed_oldest_first() {
     let (rcpt_a, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1000),
+        None,
     )
     .await
     .expect("Layer A receipt");
@@ -171,13 +174,14 @@ async fn inventory_fifo_two_layers_consumed_oldest_first() {
     let (rcpt_b, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 40, 2000),
+        None,
     )
     .await
     .expect("Layer B receipt");
 
     // Issue 40 units — must consume 30 from A then 10 from B
     let (issue, is_replay) =
-        process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 40))
+        process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 40), None)
             .await
             .expect("issue must succeed");
     assert!(!is_replay);
@@ -278,6 +282,7 @@ async fn inventory_fifo_three_layers_full_consumption() {
     let (rcpt_a, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 10, 500),
+        None,
     )
     .await
     .expect("Layer A");
@@ -285,6 +290,7 @@ async fn inventory_fifo_three_layers_full_consumption() {
     let (rcpt_b, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 20, 800),
+        None,
     )
     .await
     .expect("Layer B");
@@ -292,12 +298,13 @@ async fn inventory_fifo_three_layers_full_consumption() {
     let (rcpt_c, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1200),
+        None,
     )
     .await
     .expect("Layer C");
 
     // Issue all 60 units
-    let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 60))
+    let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 60), None)
         .await
         .expect("issue must succeed");
 
@@ -368,11 +375,12 @@ async fn inventory_fifo_partial_consumption_exact() {
     let (rcpt, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 100, 1500),
+        None,
     )
     .await
     .expect("receipt");
 
-    let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 37))
+    let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 37), None)
         .await
         .expect("issue must succeed");
 
@@ -438,6 +446,7 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
     let (rcpt_a, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 20, 1000),
+        None,
     )
     .await
     .expect("Layer A");
@@ -445,12 +454,13 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
     let (rcpt_b, _) = process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, 20, 3000),
+        None,
     )
     .await
     .expect("Layer B");
 
     // Issue 1: 15 units — all from Layer A
-    let (issue1, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 15))
+    let (issue1, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 15), None)
         .await
         .expect("issue 1");
     assert_eq!(issue1.total_cost_minor, 15_000, "issue1: 15 × $10 = $150");
@@ -458,7 +468,7 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
     assert_eq!(issue1.consumed_layers.len(), 1);
 
     // Issue 2: 15 units — 5 from Layer A remainder + 10 from Layer B
-    let (issue2, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 15))
+    let (issue2, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 15), None)
         .await
         .expect("issue 2");
     assert_eq!(
@@ -478,7 +488,7 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
     assert_eq!(issue2.consumed_layers[1].quantity, 10);
 
     // Issue 3: 10 units — all from Layer B remainder
-    let (issue3, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 10))
+    let (issue3, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 10), None)
         .await
         .expect("issue 3");
     assert_eq!(issue3.total_cost_minor, 30_000, "issue3: 10 × $30 = $300");
