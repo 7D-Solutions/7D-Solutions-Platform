@@ -501,6 +501,10 @@ name = "large_payload_rejection_e2e"
 path = "tests/stress/large_payload_rejection_e2e.rs"
 
 [[test]]
+name = "security_infra_hardening_e2e"
+path = "tests/security_infra_hardening_e2e.rs"
+
+[[test]]
 name = "multi_tenant_hammer_no_leak_e2e"
 path = "tests/stress/multi_tenant_hammer_no_leak_e2e.rs"
 
