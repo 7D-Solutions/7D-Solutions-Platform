@@ -91,6 +91,13 @@ fn reservation_error_response(err: ReservationError) -> impl IntoResponse {
                 "message": "Reservation already has a compensating release or fulfillment entry"
             })),
         ),
+        ReservationError::InsufficientAvailable { requested, available } => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "insufficient_available",
+                "message": format!("Insufficient available stock: requested {}, available {}", requested, available)
+            })),
+        ),
         ReservationError::ConflictingIdempotencyKey => (
             StatusCode::CONFLICT,
             Json(json!({

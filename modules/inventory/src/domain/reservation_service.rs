@@ -106,6 +106,9 @@ pub enum ReservationError {
     #[error("Reservation already released or fulfilled")]
     AlreadyReleased,
 
+    #[error("Insufficient available stock: requested {requested}, available {available}")]
+    InsufficientAvailable { requested: i64, available: i64 },
+
     #[error("Idempotency key conflict: same key used with a different request body")]
     ConflictingIdempotencyKey,
 
@@ -173,6 +176,33 @@ pub async fn process_reserve(
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     let mut tx = pool.begin().await?;
+
+    // Step 0: Lock item_on_hand row and check available stock.
+    //   SELECT FOR UPDATE serializes concurrent reservations at the row lock.
+    //   quantity_available = quantity_on_hand - quantity_reserved (generated column).
+    let available: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT quantity_available
+        FROM item_on_hand
+        WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+          AND location_id IS NULL
+        FOR UPDATE
+        "#,
+    )
+    .bind(&req.tenant_id)
+    .bind(req.item_id)
+    .bind(req.warehouse_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+
+    let current_available = available.unwrap_or(0);
+    if current_available < req.quantity {
+        return Err(ReservationError::InsufficientAvailable {
+            requested: req.quantity,
+            available: current_available,
+        });
+    }
 
     // Step 1: Insert primary reservation row.
     //   status = 'active', reverses_reservation_id = NULL (primary entry).
