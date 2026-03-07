@@ -1,0 +1,731 @@
+schema_version: 2
+name: repo-playbook
+description: Project-specific rules for 7D-Solutions Platform (Rust workspace)
+metadata:
+  createdAt: '2026-03-06T20:30:00.000Z'
+  totalReflections: 0
+  totalSessionsProcessed: 0
+deprecatedPatterns: []
+bullets:
+- id: b-mm2m4jne-vgc9jn
+  scope: workspace
+  category: debugging
+  content: 'When grepping for unwrap()/expect()/panic! violations, always check if
+    the match is inside a #[cfg(test)] block before creating a bead — test code is
+    exempt'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm2m4jnj-rfg98n
+  scope: workspace
+  category: testing
+  content: Always run cargo clippy --workspace -- -D warnings locally before committing
+    Rust code to catch anti-patterns that compile but are logically wrong
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4buorn-nropdx
+  scope: workspace
+  category: architecture
+  content: When extracting shared code into a new crate, verify all downstream consumers
+    compile with updated imports before closing the bead
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4f9ayk-widrq4
+  scope: workspace
+  category: integration
+  content: When writing Rust types for external APIs, use serde(alias) to accept both
+    documented and actual field names rather than assuming API docs are accurate
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4f9ayl-9mtr94
+  scope: workspace
+  category: collaboration
+  content: When multiple agents work on the same module, check the current Cargo.toml
+    version before bumping — concurrent version bumps cause merge conflicts
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4f9ayn-f22ozw
+  scope: workspace
+  category: workflow
+  content: When adding new API client methods to an existing module, register the
+    new test file in mod.rs in the same commit to prevent dead code and missing test
+    execution
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4t87na-qia3no
+  scope: workspace
+  category: integration
+  content: When adding new API client methods, run a single real sandbox call to capture
+    the actual response JSON shape before writing Rust deserialize types — provider
+    docs frequently omit optional fields
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4y34pz-sedk17
+  scope: workspace
+  category: collaboration
+  content: When multiple agents bump the same module version in parallel, always read
+    the current version from Cargo.toml immediately before committing — never cache
+    a version number from earlier in the session
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4y34q3-ypim41
+  scope: workspace
+  category: integration
+  content: When wrapping a third-party API, always compare the actual API response
+    JSON against your Rust struct fields before writing tests — missing or renamed
+    fields cause silent failures
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm4y34q5-60iapv
+  scope: workspace
+  category: integration
+  content: When adding client methods for a REST API, always deserialize the real
+    sandbox response first to validate struct completeness — never write types from
+    documentation alone
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm53knc8-6vlpj4
+  scope: workspace
+  category: collaboration
+  content: When multiple agents bump the same module version in parallel, check the
+    current version in Cargo.toml immediately before committing — never assume the
+    version from when you started the bead
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm53kncb-lp76l0
+  scope: workspace
+  category: testing
+  content: After adding a new test file to a Rust crate, always register it in the
+    crate mod.rs or test harness entry point — unregistered test files silently never
+    run
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm53kncb-n0oval
+  scope: workspace
+  category: integration
+  content: When writing serde structs for external APIs, always add serde(default)
+    on Optional fields and include a round-trip deserialization test with real API
+    response JSON
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm5k5l5z-seg6gb
+  scope: workspace
+  category: architecture
+  content: When multiple agents compile Rust concurrently, route all cargo commands
+    through a slot system with independent CARGO_TARGET_DIR directories — direct cargo
+    calls will fight over the target/ lock
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm5nwlux-wj1kzn
+  scope: workspace
+  category: architecture
+  content: When a source or test file approaches 500 LOC, extract shared helpers into
+    a tests/common/mod.rs or dedicated helper module before it crosses the limit —
+    the pre-commit hook will reject files over 500 lines
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm5nwsxo-uo7pwo
+  scope: workspace
+  category: testing
+  content: Integration tests must use sqlx::migrate\!("db/migrations").run(&pool)
+    at setup and connect to the module's dedicated Postgres port — never share a DB
+    port between modules
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm6z3ijz-de3lvl
+  scope: workspace
+  category: security
+  content: Never define Rust structs that accept raw card numbers or CVVs — use tokenized
+    references (pm_xxx) from the payment provider instead
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm716xvs-la8ke5
+  scope: workspace
+  category: architecture
+  content: Never hardcode module lists in CI scripts — use auto-discovery by scanning
+    Cargo.toml or directory structure
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm716xvs-5ktfna
+  scope: workspace
+  category: architecture
+  content: When normalizing dependency versions across workspace, use workspace-level
+    dep inheritance in Cargo.toml to prevent future drift
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm716xvs-i31g6a
+  scope: workspace
+  category: debugging
+  content: When fixing migration directory drift, check that both the filesystem path
+    and the sqlx migrate macro path match
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: active
+  maturity: established
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm74i0xo-i57ug8
+  scope: workspace
+  category: debugging
+  content: When exploring a Rust codebase, check Cargo.toml for feature flags and
+    dependencies before reading source files — it reveals the architecture faster
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm9dnr6g-18oif3
+  scope: workspace
+  category: architecture
+  content: When exploring an unfamiliar Rust codebase, start with main.rs and Cargo.toml
+    to understand entry points and dependencies before diving into modules
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mm9vy0jq-pkne3o
+  scope: workspace
+  category: debugging
+  content: When defining sqlx FromRow structs with TIMESTAMPTZ columns, annotate the
+    field type explicitly as DateTime<Utc> — sqlx type inference can pick the wrong
+    Rust type when the column has a default.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mma4xv9u-0wira9
+  scope: workspace
+  category: debugging
+  content: When adding Rust code to a workspace, compile the full workspace first
+    — latent borrow-checker and lint errors in untouched crates will surface
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mma4xv9y-oh4kcz
+  scope: workspace
+  category: debugging
+  content: Clone owned values before moving the parent struct in Rust — E0505 borrow-after-move
+    is the most common async handler error
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mma4xva1-gp1prp
+  scope: workspace
+  category: architecture
+  content: When converting domain aggregates to Rust, co-locate value objects and
+    constants in the same crate with the aggregate root
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mma4xva4-ryydd7
+  scope: workspace
+  category: architecture
+  content: Replace unwrap() with proper error propagation in non-test Rust code —
+    use ? operator or map_err for production paths
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmarbk7t-x151fp
+  scope: workspace
+  category: testing
+  content: Always run focused crate or module tests immediately after implementing
+    a bead-scoped change.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmarfs6u-2ymdq2
+  scope: workspace
+  category: integration
+  content: Run full crate tests after cross-cutting service changes to catch integration
+    regressions.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmarjsld-xe8cz6
+  scope: workspace
+  category: architecture
+  content: 'When converting JS services to Rust, follow the sequence: migration, repository,
+    domain types, service, integration tests — skipping steps causes compilation failures'
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmb5osk2-9majxm
+  scope: workspace
+  category: testing
+  content: Always append ?sslmode=disable to fallback DATABASE_URL values in Rust
+    test code when targeting Docker Postgres containers without SSL.
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmb6vjoj-945aw2
+  scope: workspace
+  category: testing
+  content: Never share a reqwest::Client in a global OnceCell across tokio test runtimes
+    — cache only tokens, create fresh clients per test
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmb6vjoj-zxthbj
+  scope: workspace
+  category: architecture
+  content: When Dockerizing a Rust workspace, use cargo-chef for layer caching — plain
+    cargo build invalidates cache on any source change
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmbi261r-mx13pa
+  scope: workspace
+  category: testing
+  content: When multiple tests need authenticated sessions against a rate-limited
+    auth service, cache tokens in a shared OnceCell and create fresh HTTP clients
+    per test
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmbi5xgh-p8s7ir
+  scope: workspace
+  category: testing
+  content: When multiple integration tests share auth, cache tokens in a global OnceCell
+    but create fresh HTTP clients per test — sharing clients across tokio runtimes
+    causes panics
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc15uzq-j5ckqe
+  scope: workspace
+  category: workflow
+  content: When pre-commit hooks catch code style issues like unwrap(), create a child
+    bead for the fix rather than expanding the parent bead — keeps commits focused
+    and traceable
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc16nu2-es3f0k
+  scope: workspace
+  category: workflow
+  content: Create a small housekeeping bead to commit accumulated pending changes
+    (Cargo.lock, proof artifacts, infra files) rather than letting uncommitted changes
+    pile up across agents
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc2ieep-kizu66
+  scope: workspace
+  category: workflow
+  content: When exploring a Rust CLI tool codebase, start with --help output and main.rs
+    to map the command structure before diving into individual modules
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc4tuw7-wopz0w
+  scope: workspace
+  category: debugging
+  content: When sqlx panics with VersionMissing after migrations are applied, rebuild
+    the Docker image — the binary was compiled before the migration files existed
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc6989z-8uf9td
+  scope: workspace
+  category: integration
+  content: Before modifying a Dockerfile, verify all crate paths exist relative to
+    the Docker build context — external crates need explicit COPY directives
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc698g1-i0fzjn
+  scope: workspace
+  category: debugging
+  content: When fixing pre-commit compliance issues like unwrap(), prefer expect()
+    with descriptive messages over suppressing the error
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc7jopy-vz7m03
+  scope: workspace
+  category: testing
+  content: When fixing pre-commit hook failures, replace unwrap() with expect() containing
+    descriptive context, not just a generic message
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmc7jpxv-eo0plv
+  scope: workspace
+  category: git
+  content: Always run cargo clippy before committing Rust code to catch unwrap and
+    other lint issues early
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mme570ph-0cd9bt
+  scope: workspace
+  category: architecture
+  content: Never rely on Axum path parameter name alone to differentiate endpoints
+    — same-shape paths like /{action_key} and /{rule_id} collide; use a sub-path prefix
+    instead
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mme8a8a1-fhpshh
+  scope: workspace
+  category: architecture
+  content: Consumer crates must define their own local payload structs with Deserialize
+    rather than importing from the producer crate — the contract is the JSON envelope,
+    not a Rust type
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmec3ic5-t2ilur
+  scope: workspace
+  category: debugging
+  content: When sqlx connection fails with auth errors, check pg_hba.conf uses scram-sha-256
+    not md5 for rustls compatibility
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmetum6u-v6xsq4
+  scope: workspace
+  category: security
+  content: When using Rust format! for SQL identifiers (CREATE DATABASE, schema names),
+    validate inputs against a strict allowlist — format! does not escape SQL
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmeuu9uz-sb2ud2
+  scope: workspace
+  category: architecture
+  content: When Docker Desktop has limited memory (under 6GB), set CARGO_BUILD_JOBS=2
+    in Dockerfiles to prevent OOM crashes during Rust release builds
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmewmv60-j7nawk
+  scope: workspace
+  category: integration
+  content: When migrating event envelope formats, version-bump the event-bus crate
+    and update all downstream tests to assert canonical field structure
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmf1jeg7-wf3oxx
+  scope: workspace
+  category: git
+  content: When modifying a shared module like mod.rs, commit immediately — other
+    agents may overwrite your changes before you commit
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmf1jeow-z0z8cp
+  scope: workspace
+  category: architecture
+  content: When adding a fire-and-forget background writer in Rust, use OnceLock with
+    tokio::spawn to avoid threading pool references through call chains
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmf1jfp6-bqoeqw
+  scope: workspace
+  category: testing
+  content: Always verify cargo test compiles before closing a Rust bead — type mismatches
+    across module boundaries are common in multi-agent work
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmf1lm4d-t0l1ok
+  scope: workspace
+  category: architecture
+  content: When adding a new Rust module, wire it in both mod.rs (pub mod declaration)
+    AND the route/handler registration in main.rs — missing either causes compilation
+    errors
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
+- id: b-mmf1lmio-wke53d
+  scope: workspace
+  category: workflow
+  content: After multiple agents merge parallel work, create a child bead for compilation
+    fixes — parallel module additions often break mod.rs and route wiring
+  source: learned
+  type: rule
+  isNegative: false
+  kind: workflow_rule
+  state: draft
+  maturity: candidate
+  createdAt: '2026-03-07T00:43:57.000Z'
+  updatedAt: '2026-03-07T00:43:57.000Z'
