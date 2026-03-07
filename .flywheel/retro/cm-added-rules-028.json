@@ -1,0 +1,40 @@
+{
+  "added_rules": [
+    {
+      "content": "When writing stress tests, target a specific invariant (e.g. balance never negative, exactly-once) rather than generic load — invariant-first tests produce sharper assertions",
+      "category": "testing",
+      "playbook_id": "b-mmga9sl4-iwdnht"
+    },
+    {
+      "content": "After establishing a stress test pattern, reuse the seed-hammer-assert template for new concurrency tests — do not reinvent the structure each time",
+      "category": "testing",
+      "playbook_id": "b-mmga9sl4-h6ood4"
+    },
+    {
+      "content": "Always verify container image builds for workspace crates in CI — single-service build files break when workspace dependencies are outside the build context",
+      "category": "integration",
+      "playbook_id": "b-mmga9sl4-5gjcra"
+    },
+    {
+      "content": "Security audit cycle must follow fix-then-prove: every security fix bead gets a paired E2E test bead that validates at real HTTP boundary with real databases",
+      "category": "security",
+      "playbook_id": "b-mmga9sl4-lmx944"
+    },
+    {
+      "content": "When multiple stress tests run in the same sprint, serialize them via bead dependencies to avoid cargo build lock contention across agents",
+      "category": "workflow",
+      "playbook_id": "b-mmga9sl4-jj977v"
+    },
+    {
+      "content": "Keep retro analysis windows to 5-10 bead closes — larger windows produce diminishing insight and slow down the retro bead itself",
+      "category": "workflow",
+      "playbook_id": "b-mmga9sl4-qghzve"
+    },
+    {
+      "content": "Negative monetary validation must be tested at HTTP boundary in every money-handling module — never trust DB constraints alone for business rule enforcement",
+      "category": "testing",
+      "playbook_id": "b-mmga9sl4-xugcw3"
+    }
+  ],
+  "max_rules_per_run": 10
+}

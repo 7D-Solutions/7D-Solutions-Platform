@@ -1,0 +1,26 @@
+{
+  "run": 28,
+  "trigger": "count-based",
+  "timestamp": "2026-03-07T12:10:00Z",
+  "runner": "PurpleCliff",
+  "bead_id": "bd-24s02",
+  "window": {
+    "from_seq": 548,
+    "to_seq": 554,
+    "count": 7
+  },
+  "beads_analyzed": [
+    {"id": "bd-1zst4", "agent": "CopperRiver"},
+    {"id": "bd-sti2l", "agent": "MaroonHarbor"},
+    {"id": "bd-1k8g5", "agent": "DarkOwl"},
+    {"id": "bd-xj60d", "agent": "PurpleCliff"},
+    {"id": "bd-327sl", "agent": "DarkOwl"},
+    {"id": "bd-22wio", "agent": "BrightHill"},
+    {"id": "bd-1otyt", "agent": "SageDesert"}
+  ],
+  "signals": {
+    "avg_cycle_minutes": 3,
+    "reopen_count": 0,
+    "theme": "Stress testing sprint"
+  }
+}
