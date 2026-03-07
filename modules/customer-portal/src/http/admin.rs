@@ -1,5 +1,8 @@
 use axum::{extract::State, Extension, Json};
+use base64::Engine as _;
 use chrono::Utc;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -69,7 +72,10 @@ pub async fn invite_user(
         }));
     }
 
-    let password_hash = crate::hash_password("TempPassw0rd!temp")
+    let mut pw_bytes = [0u8; 24];
+    OsRng.fill_bytes(&mut pw_bytes);
+    let temp_password = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pw_bytes);
+    let password_hash = crate::hash_password(&temp_password)
         .map_err(|e| internal_err_text(&format!("password hash: {e}")))?;
 
     let mut tx = state.pool.begin().await.map_err(internal_err)?;

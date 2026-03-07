@@ -141,13 +141,24 @@ impl Config {
         let provider_str = env::var("PAYMENTS_PROVIDER").unwrap_or_else(|_| "mock".to_string());
         let payments_provider = PaymentsProvider::from_str(&provider_str)?;
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
         // Conditional: Tilled credentials (required if PAYMENTS_PROVIDER=tilled)
         let tilled_api_key = env::var("TILLED_API_KEY").ok();
         let tilled_account_id = env::var("TILLED_ACCOUNT_ID").ok();
         let tilled_webhook_secret = env::var("TILLED_WEBHOOK_SECRET").ok();
         let tilled_webhook_secret_prev = env::var("TILLED_WEBHOOK_SECRET_PREV").ok();
 
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        // Fail-fast: webhook secret is mandatory for Tilled in non-development environments
+        if env != "development" && payments_provider == PaymentsProvider::Tilled {
+            if tilled_webhook_secret.is_none() {
+                return Err(
+                    "TILLED_WEBHOOK_SECRET is required when PAYMENTS_PROVIDER=tilled and ENV != development. \
+                     Webhook signature verification cannot be skipped in production."
+                        .to_string(),
+                );
+            }
+        }
 
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "*".to_string())
@@ -349,5 +360,35 @@ mod tests {
             ..base_config()
         };
         assert!(config3.validate().is_ok());
+    }
+
+    #[test]
+    fn config_required_webhook_secret_in_production() {
+        // Tilled in production without webhook secret must fail
+        let config = Config {
+            payments_provider: PaymentsProvider::Tilled,
+            tilled_api_key: Some("sk_test_key".to_string()),
+            tilled_account_id: Some("acct_test".to_string()),
+            tilled_webhook_secret: None,
+            env: "production".to_string(),
+            ..base_config()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.contains("TILLED_WEBHOOK_SECRET"),
+            "production Tilled config must require webhook secret"
+        );
+
+        // Tilled in production WITH webhook secret must succeed
+        let config_ok = Config {
+            payments_provider: PaymentsProvider::Tilled,
+            tilled_api_key: Some("sk_test_key".to_string()),
+            tilled_account_id: Some("acct_test".to_string()),
+            tilled_webhook_secret: Some("whsec_prod".to_string()),
+            env: "production".to_string(),
+            cors_origins: vec!["https://app.example.com".to_string()],
+            ..base_config()
+        };
+        assert!(config_ok.validate().is_ok());
     }
 }

@@ -5,6 +5,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use platform_contracts::portal_identity::{
     PortalAccessClaims, PORTAL_ACTOR_TYPE, PORTAL_AUDIENCE, PORTAL_CLAIMS_VERSION, PORTAL_ISSUER,
 };
+use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 use base64::Engine as _;
@@ -71,7 +72,7 @@ impl PortalJwt {
 
 pub fn generate_refresh_token() -> String {
     let mut bytes = [0_u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    OsRng.fill_bytes(&mut bytes);
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
@@ -116,4 +117,21 @@ pub fn unauthorized() -> (axum::http::StatusCode, axum::Json<serde_json::Value>)
         axum::http::StatusCode::UNAUTHORIZED,
         axum::Json(serde_json::json!({"error": "unauthorized"})),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secure_rng_produces_unique_refresh_tokens() {
+        let tokens: Vec<String> = (0..100).map(|_| generate_refresh_token()).collect();
+        let unique: std::collections::HashSet<&String> = tokens.iter().collect();
+        assert_eq!(
+            tokens.len(),
+            unique.len(),
+            "refresh tokens must be unique — OsRng should never repeat"
+        );
+        assert_eq!(tokens[0].len(), 43, "base64url(32 bytes) should be 43 chars");
+    }
 }
