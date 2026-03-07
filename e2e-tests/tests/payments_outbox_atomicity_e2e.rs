@@ -234,6 +234,7 @@ async fn test_payments_webhook_handler_atomicity() -> Result<()> {
         &webhook_event_id,
         WebhookSource::Internal,
         &headers,
+        b"",
         &[],
     )
     .await
@@ -254,6 +255,7 @@ async fn test_payments_webhook_handler_atomicity() -> Result<()> {
         &webhook_event_id,
         WebhookSource::Internal,
         &headers,
+        b"",
         &[],
     )
     .await
