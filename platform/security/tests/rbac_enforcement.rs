@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use security::authz_middleware::{ClaimsLayer, RequirePermissionsLayer};
 use security::claims::JwtVerifier;
+#[allow(deprecated)]
 use security::rbac::{Operation, RbacPolicy, Role};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -289,6 +290,7 @@ async fn strict_mode_accepts_valid_token() {
 
 // ── RbacPolicy direct tests (cross-role matrix) ─────────────────────────
 
+#[allow(deprecated)]
 #[test]
 fn admin_can_do_everything() {
     let ops = [
@@ -309,6 +311,7 @@ fn admin_can_do_everything() {
     }
 }
 
+#[allow(deprecated)]
 #[test]
 fn operator_denied_deprovision_and_fleet_migrate() {
     assert!(!RbacPolicy::has_permission(
@@ -321,6 +324,7 @@ fn operator_denied_deprovision_and_fleet_migrate() {
     ));
 }
 
+#[allow(deprecated)]
 #[test]
 fn operator_allowed_suspend_and_projections() {
     assert!(RbacPolicy::has_permission(
@@ -345,6 +349,7 @@ fn operator_allowed_suspend_and_projections() {
     ));
 }
 
+#[allow(deprecated)]
 #[test]
 fn auditor_read_only() {
     assert!(RbacPolicy::has_permission(
@@ -378,6 +383,7 @@ fn auditor_read_only() {
     ));
 }
 
+#[allow(deprecated)]
 #[test]
 fn authorize_returns_error_with_context() {
     let err = RbacPolicy::authorize(
@@ -398,6 +404,7 @@ fn authorize_returns_error_with_context() {
     assert!(msg.contains("tenant-abc"), "error should mention resource");
 }
 
+#[allow(deprecated)]
 #[test]
 fn authorize_success_returns_ok() {
     assert!(
@@ -405,6 +412,7 @@ fn authorize_success_returns_ok() {
     );
 }
 
+#[allow(deprecated)]
 #[test]
 fn role_parsing_case_insensitive() {
     assert_eq!(Role::from_str("Admin"), Some(Role::Admin));

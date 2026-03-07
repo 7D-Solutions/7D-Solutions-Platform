@@ -4,7 +4,10 @@
 //! Tenants are selected by explicit `--status` filter (never "all" by default).
 
 use anyhow::{bail, Context, Result};
-use security::{Operation, RbacPolicy, Role};
+use security::{
+    check_permissions, VerifiedClaims, PERM_FLEET_MIGRATE, PERM_PROJECTION_VERIFY,
+    PERM_TENANT_SUSPEND,
+};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -41,13 +44,12 @@ impl BulkAction {
         }
     }
 
-    /// Bulk suspend is destructive and requires TenantSuspend permission.
-    /// Activate uses FleetMigrate (fleet-level write). Verify is read-only.
-    fn required_operation(&self) -> Operation {
+    /// Permission string required for this bulk action.
+    fn required_permission(&self) -> &'static str {
         match self {
-            BulkAction::Suspend => Operation::TenantSuspend,
-            BulkAction::Activate => Operation::FleetMigrate,
-            BulkAction::Verify => Operation::ProjectionVerify,
+            BulkAction::Suspend => PERM_TENANT_SUSPEND,
+            BulkAction::Activate => PERM_FLEET_MIGRATE,
+            BulkAction::Verify => PERM_PROJECTION_VERIFY,
         }
     }
 }
@@ -62,15 +64,14 @@ struct TenantRow {
 
 /// Execute a bulk operation on tenants matching a status filter.
 pub async fn run_bulk(
-    role: Role,
-    actor: &str,
+    claims: &VerifiedClaims,
     action: BulkAction,
     status_filter: &str,
     dry_run: bool,
     confirmed: bool,
 ) -> Result<CommandOutput> {
     // Authorize
-    RbacPolicy::authorize(role, action.required_operation(), actor, "bulk")?;
+    check_permissions(claims, &[action.required_permission()])?;
 
     let pool = registry_pool().await?;
 
@@ -228,5 +229,15 @@ mod tests {
         assert_eq!(BulkAction::Suspend.to_string(), "suspend");
         assert_eq!(BulkAction::Activate.to_string(), "activate");
         assert_eq!(BulkAction::Verify.to_string(), "verify");
+    }
+
+    #[test]
+    fn bulk_action_permission_strings() {
+        assert_eq!(BulkAction::Suspend.required_permission(), "tenant.suspend");
+        assert_eq!(BulkAction::Activate.required_permission(), "fleet.migrate");
+        assert_eq!(
+            BulkAction::Verify.required_permission(),
+            "projection.verify"
+        );
     }
 }

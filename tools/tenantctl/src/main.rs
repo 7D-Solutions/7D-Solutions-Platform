@@ -32,7 +32,7 @@ mod verify;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use output::{render, render_and_exit, CommandOutput};
-use security::Role;
+use security::{JwtVerifier, VerifiedClaims};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // ============================================================================
@@ -45,13 +45,9 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[command(about = "Tenant lifecycle management operations", long_about = None)]
 #[command(version)]
 struct Cli {
-    /// Role for authorization (admin, operator, auditor)
-    #[arg(long, env = "TENANTCTL_ROLE")]
-    role: Option<String>,
-
-    /// Actor identifier (e.g., username, service account)
-    #[arg(long, env = "TENANTCTL_ACTOR", default_value = "unknown")]
-    actor: String,
+    /// JWT token for authorization (also reads CLI_AUTH_TOKEN env)
+    #[arg(long, env = "CLI_AUTH_TOKEN")]
+    token: Option<String>,
 
     /// Output as JSON instead of human-readable text
     #[arg(long, global = true)]
@@ -171,6 +167,33 @@ enum FleetOperation {
 }
 
 // ============================================================================
+// JWT Verification
+// ============================================================================
+
+/// Verify the JWT token and return claims, or exit with an error.
+fn verify_token(token_str: &str) -> Result<VerifiedClaims> {
+    let verifier = JwtVerifier::from_env()
+        .or_else(|| {
+            // Fallback: try JWT_PUBLIC_KEY_PREV for rotation overlap
+            JwtVerifier::from_env_with_overlap()
+        })
+        .context("JWT_PUBLIC_KEY environment variable not set — cannot verify token")?;
+
+    verifier
+        .verify(token_str)
+        .map_err(|e| anyhow::anyhow!("Token verification failed: {}", e))
+}
+
+/// Require a valid JWT token from CLI args or env. Returns verified claims.
+fn require_claims(cli: &Cli) -> Result<VerifiedClaims> {
+    let token_str = cli
+        .token
+        .as_deref()
+        .context("--token <JWT> or CLI_AUTH_TOKEN env var required for this operation")?;
+    verify_token(token_str)
+}
+
+// ============================================================================
 // Main Entry Point
 // ============================================================================
 
@@ -184,19 +207,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let json_output = cli.json;
 
-    let role = if let Some(role_str) = &cli.role {
-        Role::from_str(role_str).context(format!(
-            "Invalid role: '{}'. Valid roles: admin, operator, auditor",
-            role_str
-        ))?
-    } else {
-        Role::Admin
-    };
-
-    let actor = &cli.actor;
-
     match cli.command {
-        Commands::Tenant { operation } => match operation {
+        Commands::Tenant { ref operation } => match operation {
             TenantOperation::Show { tenant } => {
                 let out = show::show_tenant(&tenant).await?;
                 render_and_exit(out, json_output);
@@ -244,13 +256,15 @@ async fn main() -> Result<()> {
                 render_and_exit(out, json_output);
             }
             TenantOperation::Suspend { tenant } => {
-                lifecycle::suspend_tenant(role, actor, &tenant).await?;
+                let claims = require_claims(&cli)?;
+                lifecycle::suspend_tenant(&claims, &tenant).await?;
                 let out = CommandOutput::ok("suspended", &tenant).with_state("suspended");
                 render(&out, json_output);
                 Ok(())
             }
             TenantOperation::Deprovision { tenant } => {
-                lifecycle::deprovision_tenant(role, actor, &tenant).await?;
+                let claims = require_claims(&cli)?;
+                lifecycle::deprovision_tenant(&claims, &tenant).await?;
                 let out = CommandOutput::ok("deprovisioned", &tenant).with_state("deleted");
                 render(&out, json_output);
                 Ok(())
@@ -260,7 +274,7 @@ async fn main() -> Result<()> {
                 seed,
                 ar_url,
             } => {
-                let result = lifecycle::demo_reset_tenant(&tenant, seed, &ar_url).await?;
+                let result = lifecycle::demo_reset_tenant(&tenant, *seed, &ar_url).await?;
                 let out = CommandOutput::ok("demo-reset", &tenant).with_data(serde_json::json!({
                     "tenant_uuid": result.tenant_id,
                     "dataset_digest": result.dataset_digest,
@@ -285,22 +299,22 @@ async fn main() -> Result<()> {
                 confirm,
                 dry_run,
             } => {
+                let claims = require_claims(&cli)?;
                 let bulk_action = bulk::BulkAction::from_str(&action)?;
-                let effective_dry_run = if confirm { false } else { dry_run };
+                let effective_dry_run = if *confirm { false } else { *dry_run };
                 let out = bulk::run_bulk(
-                    role,
-                    actor,
+                    &claims,
                     bulk_action,
                     &status,
                     effective_dry_run,
-                    confirm,
+                    *confirm,
                 )
                 .await?;
                 render(&out, json_output);
                 Ok(())
             }
         },
-        Commands::Fleet { operation } => match operation {
+        Commands::Fleet { ref operation } => match operation {
             FleetOperation::Health => {
                 let out = fleet_health::fleet_health().await?;
                 render(&out, json_output);
@@ -317,7 +331,8 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             FleetOperation::Migrate { tenants, parallel } => {
-                fleet_migrate::run_fleet_migration(role, actor, tenants, parallel).await?;
+                let claims = require_claims(&cli)?;
+                fleet_migrate::run_fleet_migration(&claims, *tenants, *parallel).await?;
                 Ok(())
             }
         },
@@ -347,5 +362,19 @@ mod tests {
             .find(|a| a.get_id() == "json")
             .expect("--json arg should exist");
         assert!(json_arg.is_global_set());
+    }
+
+    #[test]
+    fn token_flag_reads_env() {
+        use clap::CommandFactory;
+        let cmd = Cli::command();
+        let token_arg = cmd
+            .get_arguments()
+            .find(|a| a.get_id() == "token")
+            .expect("--token arg should exist");
+        assert!(
+            token_arg.get_env().is_some(),
+            "--token should read CLI_AUTH_TOKEN env"
+        );
     }
 }

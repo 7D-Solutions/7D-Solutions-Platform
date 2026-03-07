@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result};
 use futures::stream::{self, StreamExt};
-use security::{Operation, RbacPolicy, Role};
+use security::{check_permissions, VerifiedClaims, PERM_FLEET_MIGRATE};
 use sqlx::{Connection, PgConnection};
 use std::sync::Arc;
 use tenant_registry::{ModuleSchemaVersions, TenantId};
@@ -28,22 +28,16 @@ type ResultsTracker = Arc<Mutex<Vec<TenantMigrationResult>>>;
 
 /// Run fleet migration for N tenants with bounded parallelism
 pub async fn run_fleet_migration(
-    role: Role,
-    actor: &str,
+    claims: &VerifiedClaims,
     num_tenants: usize,
     parallelism: usize,
 ) -> Result<()> {
     // Authorize operation
-    RbacPolicy::authorize(
-        role,
-        Operation::FleetMigrate,
-        actor,
-        &format!("{} tenants", num_tenants),
-    )?;
+    check_permissions(claims, &[PERM_FLEET_MIGRATE])?;
 
+    let actor = claims.user_id.to_string();
     info!(
-        actor = actor,
-        role = ?role,
+        actor = %actor,
         num_tenants = num_tenants,
         parallelism = parallelism,
         "Starting fleet migration"

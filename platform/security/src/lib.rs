@@ -41,6 +41,12 @@ pub use service_auth::{
 };
 
 // Re-export RBAC types
+pub use rbac::check_permissions;
+pub use rbac::{
+    PERM_FLEET_MIGRATE, PERM_PROJECTION_LIST, PERM_PROJECTION_REBUILD, PERM_PROJECTION_STATUS,
+    PERM_PROJECTION_VERIFY, PERM_TENANT_DEPROVISION, PERM_TENANT_SUSPEND,
+};
+#[allow(deprecated)]
 pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 
 // Re-export JWT-backed authz middleware types

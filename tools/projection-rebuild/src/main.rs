@@ -22,7 +22,10 @@ mod swap;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use security::{Operation, RbacPolicy, Role};
+use security::{
+    check_permissions, JwtVerifier, VerifiedClaims, PERM_PROJECTION_LIST,
+    PERM_PROJECTION_REBUILD, PERM_PROJECTION_STATUS, PERM_PROJECTION_VERIFY,
+};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -36,15 +39,9 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 #[command(about = "Rebuild projections from event sources", long_about = None)]
 #[command(version)]
 struct Cli {
-    /// Role for authorization (admin, operator, auditor)
-    /// Can also be set via PROJECTION_REBUILD_ROLE environment variable
-    #[arg(long, env = "PROJECTION_REBUILD_ROLE")]
-    role: Option<String>,
-
-    /// Actor identifier (e.g., username, service account)
-    /// Can also be set via PROJECTION_REBUILD_ACTOR environment variable
-    #[arg(long, env = "PROJECTION_REBUILD_ACTOR", default_value = "unknown")]
-    actor: String,
+    /// JWT token for authorization (also reads CLI_AUTH_TOKEN env)
+    #[arg(long, env = "CLI_AUTH_TOKEN")]
+    token: Option<String>,
 
     #[command(subcommand)]
     command: Commands,
@@ -81,6 +78,26 @@ enum Commands {
 }
 
 // ============================================================================
+// JWT Verification
+// ============================================================================
+
+/// Require a valid JWT token from CLI args or env. Returns verified claims.
+fn require_claims(cli: &Cli) -> Result<VerifiedClaims> {
+    let token_str = cli
+        .token
+        .as_deref()
+        .context("--token <JWT> or CLI_AUTH_TOKEN env var required for this operation")?;
+
+    let verifier = JwtVerifier::from_env()
+        .or_else(|| JwtVerifier::from_env_with_overlap())
+        .context("JWT_PUBLIC_KEY environment variable not set — cannot verify token")?;
+
+    verifier
+        .verify(token_str)
+        .map_err(|e| anyhow::anyhow!("Token verification failed: {}", e))
+}
+
+// ============================================================================
 // Main Entry Point
 // ============================================================================
 
@@ -94,32 +111,18 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    // Parse role for operations that require authorization
-    // Default to Admin if not specified
-    let role = if let Some(role_str) = &cli.role {
-        Role::from_str(role_str).context(format!(
-            "Invalid role: '{}'. Valid roles: admin, operator, auditor",
-            role_str
-        ))?
-    } else {
-        Role::Admin
-    };
-
-    let actor = &cli.actor;
-
-    match cli.command {
+    match &cli.command {
         Commands::Rebuild {
             projection,
             tenant_id,
         } => {
-            let resource = format!("projection:{}", projection);
-            RbacPolicy::authorize(role, Operation::ProjectionRebuild, actor, &resource)?;
+            let claims = require_claims(&cli)?;
+            check_permissions(&claims, &[PERM_PROJECTION_REBUILD])?;
 
             tracing::info!(
                 projection = %projection,
                 tenant_id = ?tenant_id,
-                actor = actor,
-                role = ?role,
+                user_id = %claims.user_id,
                 "Rebuild command invoked"
             );
 
@@ -164,13 +167,12 @@ async fn main() -> Result<()> {
         }
 
         Commands::Status { projection } => {
-            let resource = format!("projection:{}", projection);
-            RbacPolicy::authorize(role, Operation::ProjectionStatus, actor, &resource)?;
+            let claims = require_claims(&cli)?;
+            check_permissions(&claims, &[PERM_PROJECTION_STATUS])?;
 
             tracing::info!(
                 projection = %projection,
-                actor = actor,
-                role = ?role,
+                user_id = %claims.user_id,
                 "Status command invoked"
             );
 
@@ -221,14 +223,13 @@ async fn main() -> Result<()> {
             order_by,
             tenant_id,
         } => {
-            let resource = format!("projection:{}", projection);
-            RbacPolicy::authorize(role, Operation::ProjectionVerify, actor, &resource)?;
+            let claims = require_claims(&cli)?;
+            check_permissions(&claims, &[PERM_PROJECTION_VERIFY])?;
 
             tracing::info!(
                 projection = %projection,
                 tenant_id = ?tenant_id,
-                actor = actor,
-                role = ?role,
+                user_id = %claims.user_id,
                 "Verify command invoked"
             );
 
@@ -276,11 +277,11 @@ async fn main() -> Result<()> {
         }
 
         Commands::List => {
-            RbacPolicy::authorize(role, Operation::ProjectionList, actor, "all")?;
+            let claims = require_claims(&cli)?;
+            check_permissions(&claims, &[PERM_PROJECTION_LIST])?;
 
             tracing::info!(
-                actor = actor,
-                role = ?role,
+                user_id = %claims.user_id,
                 "List command invoked"
             );
 
@@ -346,5 +347,19 @@ mod tests {
         // Ensures CLI structure compiles and basic parsing works
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn token_flag_reads_env() {
+        use clap::CommandFactory;
+        let cmd = Cli::command();
+        let token_arg = cmd
+            .get_arguments()
+            .find(|a| a.get_id() == "token")
+            .expect("--token arg should exist");
+        assert!(
+            token_arg.get_env().is_some(),
+            "--token should read CLI_AUTH_TOKEN env"
+        );
     }
 }

@@ -9,7 +9,7 @@
 use anyhow::{bail, Context, Result};
 use audit::schema::{MutationClass, WriteAuditRequest};
 use audit::writer::AuditWriter;
-use security::{Operation, RbacPolicy, Role};
+use security::{check_permissions, VerifiedClaims, PERM_TENANT_DEPROVISION, PERM_TENANT_SUSPEND};
 use sqlx::{PgPool, Postgres, Transaction};
 use tenant_registry::{is_valid_state_transition, TenantStatus};
 use uuid::Uuid;
@@ -45,7 +45,7 @@ async fn get_registry_pool() -> Result<PgPool> {
 /// Suspend a tenant (disable access, retain data)
 ///
 /// This operation:
-/// 1. Authorizes role can perform operation
+/// 1. Checks JWT claims for `tenant.suspend` permission
 /// 2. Verifies tenant exists and is Active
 /// 3. Updates tenant status to Suspended
 /// 4. Records audit log entry
@@ -57,11 +57,12 @@ async fn get_registry_pool() -> Result<PgPool> {
 /// - Tenant not found
 /// - Tenant not in Active state
 /// - Database connection/transaction errors
-pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<()> {
+pub async fn suspend_tenant(claims: &VerifiedClaims, tenant_id: &str) -> Result<()> {
     // Authorize operation
-    RbacPolicy::authorize(role, Operation::TenantSuspend, actor, tenant_id)?;
+    check_permissions(claims, &[PERM_TENANT_SUSPEND])?;
 
-    tracing::info!(tenant_id, actor, role = ?role, "Suspending tenant");
+    let actor = claims.user_id.to_string();
+    tracing::info!(tenant_id, actor = %actor, "Suspending tenant");
 
     let registry_pool = get_registry_pool().await?;
     let audit_pool = get_audit_pool().await?;
@@ -130,7 +131,7 @@ pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<
 /// Deprovision a tenant (soft delete, mark for cleanup)
 ///
 /// This operation:
-/// 1. Authorizes role can perform operation
+/// 1. Checks JWT claims for `tenant.deprovision` permission
 /// 2. Verifies tenant exists and is Active or Suspended
 /// 3. Updates tenant status to Deleted
 /// 4. Sets deleted_at timestamp
@@ -144,11 +145,12 @@ pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<
 /// - Tenant not found
 /// - Tenant not in Active or Suspended state
 /// - Database connection/transaction errors
-pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<()> {
+pub async fn deprovision_tenant(claims: &VerifiedClaims, tenant_id: &str) -> Result<()> {
     // Authorize operation
-    RbacPolicy::authorize(role, Operation::TenantDeprovision, actor, tenant_id)?;
+    check_permissions(claims, &[PERM_TENANT_DEPROVISION])?;
 
-    tracing::info!(tenant_id, actor, role = ?role, "Deprovisioning tenant");
+    let actor = claims.user_id.to_string();
+    tracing::info!(tenant_id, actor = %actor, "Deprovisioning tenant");
 
     let registry_pool = get_registry_pool().await?;
     let audit_pool = get_audit_pool().await?;

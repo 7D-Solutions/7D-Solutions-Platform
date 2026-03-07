@@ -1,16 +1,74 @@
 //! Role-Based Access Control (RBAC) utilities
 //!
-//! Enforces role-based authorization for operator actions:
-//! - tenant suspend/deprovision
-//! - projection rebuild/verify
-//! - fleet migration
+//! ## Migration: Role enum → JWT permissions
 //!
-//! Unauthorized attempts are rejected and audited.
+//! The legacy [`Role`] / [`RbacPolicy`] system is deprecated.  CLI tools now
+//! authenticate via JWT (same as HTTP endpoints) and check permission strings
+//! from [`VerifiedClaims::perms`](crate::claims::VerifiedClaims).
+//!
+//! Use [`check_permissions`] for CLI authorization and the `PERM_*` constants
+//! below for the required permission strings.
 
+use crate::claims::VerifiedClaims;
+use crate::SecurityError;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
+// ============================================================================
+// Permission string constants for CLI / operator actions
+// ============================================================================
+
+pub const PERM_TENANT_SUSPEND: &str = "tenant.suspend";
+pub const PERM_TENANT_DEPROVISION: &str = "tenant.deprovision";
+pub const PERM_PROJECTION_REBUILD: &str = "projection.rebuild";
+pub const PERM_PROJECTION_VERIFY: &str = "projection.verify";
+pub const PERM_PROJECTION_STATUS: &str = "projection.status";
+pub const PERM_PROJECTION_LIST: &str = "projection.list";
+pub const PERM_FLEET_MIGRATE: &str = "fleet.migrate";
+
+// ============================================================================
+// JWT-based permission check (replaces RbacPolicy)
+// ============================================================================
+
+/// Check that `claims` contain every permission in `required`.
+///
+/// Returns `Ok(())` when all required permissions are present, or
+/// `Err(SecurityError::InsufficientPermissions)` with a warning log
+/// listing the missing entries.
+pub fn check_permissions(claims: &VerifiedClaims, required: &[&str]) -> Result<(), SecurityError> {
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|p| !claims.perms.iter().any(|cp| cp == *p))
+        .copied()
+        .collect();
+
+    if missing.is_empty() {
+        info!(
+            user_id = %claims.user_id,
+            tenant_id = %claims.tenant_id,
+            "CLI authorization granted"
+        );
+        Ok(())
+    } else {
+        warn!(
+            user_id = %claims.user_id,
+            tenant_id = %claims.tenant_id,
+            missing = ?missing,
+            "CLI authorization denied — insufficient permissions"
+        );
+        Err(SecurityError::InsufficientPermissions)
+    }
+}
+
+// ============================================================================
+// Deprecated types — kept for backward compatibility
+// ============================================================================
+
 /// Roles for operator actions
+#[deprecated(
+    since = "0.2.0",
+    note = "Use JWT permission strings (PERM_* constants) with check_permissions() instead"
+)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Role {
     /// Full access - can perform all operations
@@ -21,6 +79,7 @@ pub enum Role {
     Auditor,
 }
 
+#[allow(deprecated)]
 impl Role {
     /// Parse role from string (case-insensitive)
     #[allow(clippy::should_implement_trait)]
@@ -44,6 +103,10 @@ impl Role {
 }
 
 /// Operations that require authorization
+#[deprecated(
+    since = "0.2.0",
+    note = "Use JWT permission strings (PERM_* constants) with check_permissions() instead"
+)]
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum Operation {
     /// Suspend tenant (disable access, retain data)
@@ -62,6 +125,7 @@ pub enum Operation {
     FleetMigrate,
 }
 
+#[allow(deprecated)]
 impl Operation {
     /// Convert operation to string
     pub fn as_str(&self) -> &'static str {
@@ -78,8 +142,13 @@ impl Operation {
 }
 
 /// RBAC policy enforcement
+#[deprecated(
+    since = "0.2.0",
+    note = "Use check_permissions() with VerifiedClaims instead"
+)]
 pub struct RbacPolicy;
 
+#[allow(deprecated)]
 impl RbacPolicy {
     pub fn new() -> Self {
         Self
@@ -159,6 +228,7 @@ impl RbacPolicy {
     }
 }
 
+#[allow(deprecated)]
 impl Default for RbacPolicy {
     fn default() -> Self {
         Self::new()
@@ -166,8 +236,13 @@ impl Default for RbacPolicy {
 }
 
 /// RBAC error types
+#[deprecated(
+    since = "0.2.0",
+    note = "Use SecurityError::InsufficientPermissions instead"
+)]
 #[derive(Debug, thiserror::Error)]
 pub enum RbacError {
+    #[allow(deprecated)]
     #[error("Insufficient permissions: role={role:?} cannot perform operation={operation:?} on resource={resource} (actor={actor})")]
     InsufficientPermissions {
         role: Role,
@@ -178,6 +253,7 @@ pub enum RbacError {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 
@@ -312,5 +388,60 @@ mod tests {
         assert_eq!(Role::from_str("operator"), Some(Role::Operator));
         assert_eq!(Role::from_str("auditor"), Some(Role::Auditor));
         assert_eq!(Role::from_str("invalid"), None);
+    }
+
+    // ── New permission-based tests ──────────────────────────────────
+
+    #[test]
+    fn check_permissions_grants_with_all_required() {
+        let claims = test_claims(vec![
+            PERM_TENANT_SUSPEND.to_string(),
+            PERM_FLEET_MIGRATE.to_string(),
+        ]);
+        assert!(check_permissions(&claims, &[PERM_TENANT_SUSPEND]).is_ok());
+        assert!(check_permissions(&claims, &[PERM_FLEET_MIGRATE]).is_ok());
+        assert!(check_permissions(&claims, &[PERM_TENANT_SUSPEND, PERM_FLEET_MIGRATE]).is_ok());
+    }
+
+    #[test]
+    fn check_permissions_denies_with_missing() {
+        let claims = test_claims(vec![PERM_TENANT_SUSPEND.to_string()]);
+        assert!(check_permissions(&claims, &[PERM_FLEET_MIGRATE]).is_err());
+        assert!(check_permissions(&claims, &[PERM_TENANT_SUSPEND, PERM_FLEET_MIGRATE]).is_err());
+    }
+
+    #[test]
+    fn check_permissions_grants_empty_required() {
+        let claims = test_claims(vec![]);
+        assert!(check_permissions(&claims, &[]).is_ok());
+    }
+
+    #[test]
+    fn perm_constants_match_operation_strings() {
+        assert_eq!(PERM_TENANT_SUSPEND, Operation::TenantSuspend.as_str());
+        assert_eq!(PERM_TENANT_DEPROVISION, Operation::TenantDeprovision.as_str());
+        assert_eq!(PERM_PROJECTION_REBUILD, Operation::ProjectionRebuild.as_str());
+        assert_eq!(PERM_PROJECTION_VERIFY, Operation::ProjectionVerify.as_str());
+        assert_eq!(PERM_PROJECTION_STATUS, Operation::ProjectionStatus.as_str());
+        assert_eq!(PERM_PROJECTION_LIST, Operation::ProjectionList.as_str());
+        assert_eq!(PERM_FLEET_MIGRATE, Operation::FleetMigrate.as_str());
+    }
+
+    /// Build a minimal VerifiedClaims for unit tests (no real JWT involved).
+    fn test_claims(perms: Vec<String>) -> VerifiedClaims {
+        use chrono::Utc;
+        use uuid::Uuid;
+        VerifiedClaims {
+            user_id: Uuid::new_v4(),
+            tenant_id: Uuid::new_v4(),
+            app_id: None,
+            roles: vec!["admin".into()],
+            perms,
+            actor_type: crate::claims::ActorType::User,
+            issued_at: Utc::now(),
+            expires_at: Utc::now() + chrono::Duration::minutes(15),
+            token_id: Uuid::new_v4(),
+            version: "1".to_string(),
+        }
     }
 }
