@@ -500,6 +500,10 @@ path = "tests/stress/double_spend_budget_e2e.rs"
 name = "large_payload_rejection_e2e"
 path = "tests/stress/large_payload_rejection_e2e.rs"
 
+
+[[test]]
+name = "large_payload_e2e"
+path = "tests/stress/large_payload_e2e.rs"
 [[test]]
 name = "security_infra_hardening_e2e"
 path = "tests/security_infra_hardening_e2e.rs"
