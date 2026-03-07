@@ -27,7 +27,7 @@
 
 mod common;
 
-use ar_rs::{metrics::ArMetrics, routes::ar_router};
+use ar_rs::{metrics::ArMetrics, http::ar_router};
 use axum::{
     body::Body,
     http::{Request, StatusCode},
