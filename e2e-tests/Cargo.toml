@@ -585,6 +585,10 @@ name = "smoke_production_routings_time"
 path = "tests/smoke_production_routings_time.rs"
 
 [[test]]
+name = "doc_mgmt_http_smoke"
+path = "tests/doc_mgmt_http_smoke.rs"
+
+[[test]]
 name = "identity_auth_http_smoke"
 path = "tests/identity_auth_http_smoke.rs"
 
@@ -651,3 +655,7 @@ workspace = true
 [[test]]
 name = "smoke_notifications"
 path = "tests/smoke_notifications.rs"
+
+[[test]]
+name = "timekeeping_core_http_smoke"
+path = "tests/timekeeping_core_http_smoke.rs"
