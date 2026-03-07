@@ -47,8 +47,10 @@ mod tests {
         }
     }
 
+    type BoxErr = Box<dyn std::error::Error>;
+
     #[tokio::test]
-    async fn cors_disallowed_origin_gets_no_headers() {
+    async fn cors_disallowed_origin_gets_no_headers() -> Result<(), BoxErr> {
         let config = test_config(vec!["https://allowed.example.com".to_string()]);
         let cors = build_cors_layer(&config);
 
@@ -61,20 +63,19 @@ mod tests {
                 Request::builder()
                     .uri("/test")
                     .header("origin", "https://evil.example.com")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
+                    .body(axum::body::Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert!(
             !resp.headers().contains_key("access-control-allow-origin"),
             "disallowed origin must not receive CORS allow header"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn cors_empty_origins_denies_all() {
+    async fn cors_empty_origins_denies_all() -> Result<(), BoxErr> {
         let config = test_config(vec![]);
         let cors = build_cors_layer(&config);
 
@@ -87,20 +88,19 @@ mod tests {
                 Request::builder()
                     .uri("/test")
                     .header("origin", "https://any.example.com")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
+                    .body(axum::body::Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert!(
             !resp.headers().contains_key("access-control-allow-origin"),
             "empty allowlist must deny all origins"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn cors_allowed_origin_gets_headers() {
+    async fn cors_allowed_origin_gets_headers() -> Result<(), BoxErr> {
         let config = test_config(vec!["https://allowed.example.com".to_string()]);
         let cors = build_cors_layer(&config);
 
@@ -113,11 +113,9 @@ mod tests {
                 Request::builder()
                     .uri("/test")
                     .header("origin", "https://allowed.example.com")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
+                    .body(axum::body::Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(
             resp.headers()
@@ -125,10 +123,11 @@ mod tests {
                 .expect("allowed origin must receive CORS header"),
             "https://allowed.example.com"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn cors_preflight_disallowed_origin_no_headers() {
+    async fn cors_preflight_disallowed_origin_no_headers() -> Result<(), BoxErr> {
         let config = test_config(vec!["https://allowed.example.com".to_string()]);
         let cors = build_cors_layer(&config);
 
@@ -143,15 +142,14 @@ mod tests {
                     .uri("/test")
                     .header("origin", "https://evil.example.com")
                     .header("access-control-request-method", "POST")
-                    .body(axum::body::Body::empty())
-                    .unwrap(),
+                    .body(axum::body::Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert!(
             !resp.headers().contains_key("access-control-allow-origin"),
             "preflight for disallowed origin must not receive CORS headers"
         );
+        Ok(())
     }
 }
