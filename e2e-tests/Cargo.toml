@@ -500,6 +500,10 @@ path = "tests/stress/double_spend_budget_e2e.rs"
 name = "large_payload_rejection_e2e"
 path = "tests/stress/large_payload_rejection_e2e.rs"
 
+[[test]]
+name = "multi_tenant_hammer_no_leak_e2e"
+path = "tests/stress/multi_tenant_hammer_no_leak_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
