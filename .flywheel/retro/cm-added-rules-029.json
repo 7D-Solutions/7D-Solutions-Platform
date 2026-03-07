@@ -1,0 +1,45 @@
+{
+  "added_rules": [
+    {
+      "content": "Add a Docker health pre-flight check before running stress test beads — containers may be unhealthy from prior stress runs",
+      "category": "testing",
+      "playbook_id": "b-mmgcnmfw-vqkwbl"
+    },
+    {
+      "content": "When a stress test exposes a missing invariant, create a child bead for the fix rather than bundling the fix into the test bead",
+      "category": "workflow",
+      "playbook_id": "b-mmgcnmfw-wud8o1"
+    },
+    {
+      "content": "Compile all E2E test files after each merge — rapid multi-agent commits break shared type imports silently",
+      "category": "integration",
+      "playbook_id": "b-mmgcnmfw-45tgm4"
+    },
+    {
+      "content": "Multi-tenant isolation stress tests must be part of every release gate for SaaS platforms, not one-off verification",
+      "category": "testing",
+      "playbook_id": "b-mmgcnmfw-1zq97s"
+    },
+    {
+      "content": "Every security fix bead must have a paired E2E test bead that proves the fix at the real HTTP boundary — treat this as a hard rule",
+      "category": "security",
+      "playbook_id": "b-mmgcnmfw-1kn8zn"
+    },
+    {
+      "content": "When stress testing inventory or financial modules, use SELECT FOR UPDATE to guard concurrent mutations — optimistic checks are insufficient",
+      "category": "architecture",
+      "playbook_id": "b-mmgcnmfw-kd3lsb"
+    },
+    {
+      "content": "Monitor Docker container health actively during stress test sprints — assign an ops bead to watch containers when 3+ stress tests run concurrently",
+      "category": "workflow",
+      "playbook_id": "b-mmgcnmfw-1st50v"
+    },
+    {
+      "content": "After fixing DB error sanitization in one module handler, grep for the same pattern across all handlers in that module — leaks cluster",
+      "category": "security",
+      "playbook_id": "b-mmgcnmfw-duynnl"
+    }
+  ],
+  "max_rules_per_run": 10
+}

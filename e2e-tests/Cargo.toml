@@ -505,6 +505,10 @@ path = "tests/stress/large_payload_rejection_e2e.rs"
 name = "large_payload_e2e"
 path = "tests/stress/large_payload_e2e.rs"
 [[test]]
+name = "quality_inspection_e2e"
+path = "tests/quality_inspection_e2e.rs"
+
+[[test]]
 name = "security_infra_hardening_e2e"
 path = "tests/security_infra_hardening_e2e.rs"
 
@@ -551,6 +555,9 @@ security = { path = "../platform/security" }
 event-consumer = { path = "../platform/event-consumer" }
 compliance-export = { path = "../tools/compliance-export" }
 integrations-rs = { path = "../modules/integrations" }
+quality-inspection-rs = { path = "../modules/quality-inspection" }
+workforce-competence-rs = { path = "../modules/workforce-competence" }
+dotenvy = "0.15"
 party-rs = { path = "../modules/party" }
 ttp-rs = { path = "../modules/ttp" }
 anyhow = "1.0"

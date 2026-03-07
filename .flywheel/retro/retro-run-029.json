@@ -1,0 +1,30 @@
+{
+  "run": 29,
+  "trigger": "count-based",
+  "timestamp": "2026-03-07T13:18:00Z",
+  "runner": "SageDesert",
+  "bead_id": "bd-2gbpy",
+  "window": {
+    "from_seq": 555,
+    "to_seq": 565,
+    "count": 11
+  },
+  "beads_analyzed": [
+    {"id": "bd-24s02", "agent": "PurpleCliff"},
+    {"id": "bd-3a34u", "agent": "BrightHill"},
+    {"id": "bd-2y7x8", "agent": "CopperRiver"},
+    {"id": "bd-1dsdn", "agent": "BrightHill"},
+    {"id": "bd-bua9l", "agent": "DarkOwl"},
+    {"id": "bd-2yiaz", "agent": "SageDesert"},
+    {"id": "bd-3elol", "agent": "DarkOwl"},
+    {"id": "bd-11vob", "agent": "DarkOwl"},
+    {"id": "bd-1l8u8", "agent": "BrightHill"},
+    {"id": "bd-22oam", "agent": "SageDesert"},
+    {"id": "bd-1d89q", "agent": "BrightHill"}
+  ],
+  "signals": {
+    "avg_cycle_minutes": 4,
+    "reopen_count": 0,
+    "theme": "Stabilization sprint"
+  }
+}
