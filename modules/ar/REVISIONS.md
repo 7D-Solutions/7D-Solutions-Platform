@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.63 | 2026-03-07 | bd-2y7x8 | Sanitize DB error leaks in credit memo HTTP handlers (create/approve/issue) — catch-all `Err(e)` arms no longer format raw sqlx errors into responses. Also sanitize `From<sqlx::Error>` in credit_notes.rs and write_offs.rs to store opaque message. | Security: DB constraint names, table names, SQL keywords were leaking in HTTP responses. | No |
 | 1.0.62 | 2026-03-07 | bd-1otyt.1 | Sanitize DB errors in credit_notes.rs and write_offs.rs HTTP handlers — `issue_credit_note_route` and `write_off_invoice_route` no longer leak sqlx error details via `format!("{:?}", e)`. | E2E test caught DB error leaks in credit note and write-off handlers. | No |
 | 1.0.61 | 2026-03-07 | bd-ubp52.1 | Sanitize DB errors in tax.rs and tax_config.rs HTTP handlers — no longer leak sqlx error details in HTTP responses. | Security audit H3: DB error details leaked in HTTP responses. | No |
 | 1.0.60 | 2026-03-06 | bd-ubp52 | Sanitize DB error in idempotency middleware — no longer leaks sqlx error details in HTTP response. | Security audit H3: DB error details leaked in HTTP responses. | No |

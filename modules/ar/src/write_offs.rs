@@ -136,7 +136,8 @@ impl std::error::Error for WriteOffError {}
 
 impl From<sqlx::Error> for WriteOffError {
     fn from(e: sqlx::Error) -> Self {
-        Self::DatabaseError(e.to_string())
+        tracing::error!("Write-off sqlx error: {:?}", e);
+        Self::DatabaseError("internal database error".to_string())
     }
 }
 
@@ -327,8 +328,8 @@ mod tests {
         let err = WriteOffError::InvalidCurrency;
         assert_eq!(err.to_string(), "Currency must not be empty");
 
-        let err = WriteOffError::DatabaseError("connection refused".to_string());
-        assert_eq!(err.to_string(), "Database error: connection refused");
+        let err = WriteOffError::DatabaseError("internal database error".to_string());
+        assert_eq!(err.to_string(), "Database error: internal database error");
     }
 
     #[test]

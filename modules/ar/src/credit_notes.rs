@@ -262,7 +262,8 @@ impl std::error::Error for CreditNoteError {}
 
 impl From<sqlx::Error> for CreditNoteError {
     fn from(e: sqlx::Error) -> Self {
-        Self::DatabaseError(e.to_string())
+        tracing::error!("Credit note sqlx error: {:?}", e);
+        Self::DatabaseError("internal database error".to_string())
     }
 }
 
@@ -776,8 +777,8 @@ mod tests {
         let err = CreditNoteError::InvalidCurrency;
         assert_eq!(err.to_string(), "Currency must not be empty");
 
-        let err = CreditNoteError::DatabaseError("connection refused".to_string());
-        assert_eq!(err.to_string(), "Database error: connection refused");
+        let err = CreditNoteError::DatabaseError("internal database error".to_string());
+        assert_eq!(err.to_string(), "Database error: internal database error");
     }
 
     #[test]
