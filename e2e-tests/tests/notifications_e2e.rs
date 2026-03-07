@@ -17,7 +17,7 @@ mod common;
 use common::generate_test_tenant;
 use event_bus::BusMessage;
 use notifications_rs::{
-    consumer::EventConsumer,
+    consumers::EventConsumer,
     handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded},
     models::{
         EnvelopeMetadata, InvoiceIssuedPayload, PaymentFailedPayload, PaymentSucceededPayload,
