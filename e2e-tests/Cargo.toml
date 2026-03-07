@@ -456,6 +456,10 @@ name = "security_dlq_redaction_e2e"
 path = "tests/security_dlq_redaction_e2e.rs"
 
 [[test]]
+name = "security_api_sanitization_e2e"
+path = "tests/security_api_sanitization_e2e.rs"
+
+[[test]]
 name = "db_pool_exhaustion_identity_auth_e2e"
 path = "tests/stress/db_pool_exhaustion_identity_auth_e2e.rs"
 
