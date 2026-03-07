@@ -585,6 +585,10 @@ name = "smoke_production_routings_time"
 path = "tests/smoke_production_routings_time.rs"
 
 [[test]]
+name = "smoke_shipping_receiving"
+path = "tests/smoke_shipping_receiving.rs"
+
+[[test]]
 name = "doc_mgmt_http_smoke"
 path = "tests/doc_mgmt_http_smoke.rs"
 
