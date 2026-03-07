@@ -509,6 +509,10 @@ name = "quality_inspection_e2e"
 path = "tests/quality_inspection_e2e.rs"
 
 [[test]]
+name = "maintenance_e2e"
+path = "tests/maintenance_e2e.rs"
+
+[[test]]
 name = "security_infra_hardening_e2e"
 path = "tests/security_infra_hardening_e2e.rs"
 
@@ -560,6 +564,7 @@ event-consumer = { path = "../platform/event-consumer" }
 compliance-export = { path = "../tools/compliance-export" }
 integrations-rs = { path = "../modules/integrations" }
 quality-inspection-rs = { path = "../modules/quality-inspection" }
+maintenance-rs = { path = "../modules/maintenance" }
 workforce-competence-rs = { path = "../modules/workforce-competence" }
 dotenvy = "0.15"
 party-rs = { path = "../modules/party" }
