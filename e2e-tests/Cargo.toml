@@ -597,6 +597,10 @@ name = "ttp_http_smoke"
 path = "tests/ttp_http_smoke.rs"
 
 [[test]]
+name = "reporting_http_smoke"
+path = "tests/reporting_http_smoke.rs"
+
+[[test]]
 name = "identity_auth_http_smoke"
 path = "tests/identity_auth_http_smoke.rs"
 
