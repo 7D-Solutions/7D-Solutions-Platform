@@ -52,10 +52,21 @@ pub async fn issue_credit_note_route(
                 "credit_note_id": credit_note_id,
             })),
         )),
-        Err(e) => Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("credit_note_error", format!("{:?}", e))),
-        )),
+        Err(e) => {
+            tracing::error!("Credit note error: {:?}", e);
+            let (status, msg) = match &e {
+                crate::credit_notes::CreditNoteError::DatabaseError(_) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal database error".to_string(),
+                ),
+                crate::credit_notes::CreditNoteError::InvalidAmount(n) => (
+                    StatusCode::BAD_REQUEST,
+                    format!("Amount must be > 0, got {}", n),
+                ),
+                other => (StatusCode::BAD_REQUEST, format!("{}", other)),
+            };
+            Err((status, Json(ErrorResponse::new("credit_note_error", msg))))
+        }
     }
 }
 
@@ -374,13 +385,26 @@ pub async fn create_credit_memo_handler(
                 ),
             )),
         )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "credit_memo_error",
-                format!("Failed to create credit memo: {}", e),
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
+            tracing::error!("Credit memo create DB error: {}", msg);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "database_error",
+                    "Failed to create credit memo",
+                )),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Credit memo create error: {:?}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "credit_memo_error",
+                    "Failed to create credit memo",
+                )),
+            ))
+        }
     }
 }
 
@@ -442,13 +466,26 @@ pub async fn approve_credit_memo_handler(
                 format!("Expected status '{}', got '{}'", expected, actual),
             )),
         )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "credit_memo_error",
-                format!("Failed to approve credit memo: {}", e),
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
+            tracing::error!("Credit memo approve DB error: {}", msg);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "database_error",
+                    "Failed to approve credit memo",
+                )),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Credit memo approve error: {:?}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "credit_memo_error",
+                    "Failed to approve credit memo",
+                )),
+            ))
+        }
     }
 }
 
@@ -511,12 +548,25 @@ pub async fn issue_credit_memo_handler(
                 format!("Expected status '{}', got '{}'", expected, actual),
             )),
         )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "credit_memo_error",
-                format!("Failed to issue credit memo: {}", e),
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
+            tracing::error!("Credit memo issue DB error: {}", msg);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "database_error",
+                    "Failed to issue credit memo",
+                )),
+            ))
+        }
+        Err(e) => {
+            tracing::error!("Credit memo issue error: {:?}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "credit_memo_error",
+                    "Failed to issue credit memo",
+                )),
+            ))
+        }
     }
 }

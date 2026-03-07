@@ -55,9 +55,20 @@ pub async fn write_off_invoice_route(
                 format!("Invoice {} already has a write-off applied", invoice_id),
             )),
         )),
-        Err(e) => Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("write_off_error", format!("{:?}", e))),
-        )),
+        Err(e) => {
+            tracing::error!("Write-off error: {:?}", e);
+            let (status, msg) = match &e {
+                crate::write_offs::WriteOffError::DatabaseError(_) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal database error".to_string(),
+                ),
+                crate::write_offs::WriteOffError::InvalidAmount(n) => (
+                    StatusCode::BAD_REQUEST,
+                    format!("Amount must be > 0, got {}", n),
+                ),
+                other => (StatusCode::BAD_REQUEST, format!("{}", other)),
+            };
+            Err((status, Json(ErrorResponse::new("write_off_error", msg))))
+        }
     }
 }
