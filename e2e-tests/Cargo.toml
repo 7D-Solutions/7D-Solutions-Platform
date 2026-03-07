@@ -679,3 +679,7 @@ path = "tests/fixed_assets_http_smoke.rs"
 [[test]]
 name = "smoke_gl_reporting"
 path = "tests/smoke_gl_reporting.rs"
+
+[[test]]
+name = "workflow_http_smoke"
+path = "tests/workflow_http_smoke.rs"
