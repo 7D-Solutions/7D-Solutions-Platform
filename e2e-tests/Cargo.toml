@@ -447,6 +447,10 @@ path = "tests/security_pdf_editor_cors_e2e.rs"
 name = "security_primitives_e2e"
 path = "tests/security_primitives_e2e.rs"
 
+[[test]]
+name = "security_consumer_validation_e2e"
+path = "tests/security_consumer_validation_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -483,6 +487,7 @@ projections = { path = "../platform/projections" }
 tenant-registry = { path = "../platform/tenant-registry" }
 control-plane = { path = "../platform/control-plane" }
 security = { path = "../platform/security" }
+event-consumer = { path = "../platform/event-consumer" }
 compliance-export = { path = "../tools/compliance-export" }
 integrations-rs = { path = "../modules/integrations" }
 party-rs = { path = "../modules/party" }
