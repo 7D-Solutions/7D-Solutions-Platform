@@ -705,5 +705,9 @@ name = "payments_http_smoke"
 path = "tests/payments_http_smoke.rs"
 
 [[test]]
+name = "integrations_http_smoke"
+path = "tests/integrations_http_smoke.rs"
+
+[[test]]
 name = "bom_lifecycle_e2e"
 path = "tests/bom_lifecycle_e2e.rs"
