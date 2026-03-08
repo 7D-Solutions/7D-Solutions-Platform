@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "1.0.62"
+version = "1.0.63"
 dependencies = [
  "async-nats",
  "axum",
@@ -1180,6 +1180,7 @@ dependencies = [
  "consolidation",
  "control-plane",
  "customer-portal",
+ "dotenvy",
  "event-bus",
  "event-consumer",
  "fixed-assets",
@@ -1190,11 +1191,13 @@ dependencies = [
  "integrations-rs",
  "inventory-rs",
  "jsonwebtoken",
+ "maintenance-rs",
  "notifications-rs",
  "party-rs",
  "payments-rs",
  "production-rs",
  "projections",
+ "quality-inspection-rs",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "reporting",
@@ -1217,6 +1220,7 @@ dependencies = [
  "treasury",
  "ttp-rs",
  "uuid",
+ "workforce-competence-rs",
 ]
 
 [[package]]
