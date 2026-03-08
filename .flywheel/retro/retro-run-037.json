@@ -1,0 +1,81 @@
+{
+  "run_num": 37,
+  "run_num_fmt": "037",
+  "run_date": "2026-03-08",
+  "trigger_type": "count-based",
+  "analysis_window": {
+    "max_events": 5,
+    "max_days": 183,
+    "actual_events": 5
+  },
+  "bead_ids_in_window": [
+    "bd-1kd28",
+    "bd-399dq",
+    "bd-frtr8",
+    "bd-1n0ot",
+    "bd-3cmkf"
+  ],
+  "rows": [
+    {
+      "bead_id": "bd-1kd28",
+      "title": "Test ping \u2014 send mail and close",
+      "agent": "MaroonHarbor",
+      "cycle_days": 0.0,
+      "cycle_str": "0m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-399dq",
+      "title": "Test ping \u2014 send mail and close",
+      "agent": "DarkOwl",
+      "cycle_days": 0.001,
+      "cycle_str": "0m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-frtr8",
+      "title": "Test ping \u2014 send mail and close",
+      "agent": "CopperRiver",
+      "cycle_days": 0.0,
+      "cycle_str": "0m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-1n0ot",
+      "title": "Fix Claude Desktop startup failures \u2014 OOM, cache, CCD version",
+      "agent": "BrightHill",
+      "cycle_days": 0.002,
+      "cycle_str": "2m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-3cmkf",
+      "title": "Verify Claude Desktop reinstall fix",
+      "agent": "BrightHill",
+      "cycle_days": 0.0,
+      "cycle_str": "0m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    }
+  ],
+  "signals": {
+    "avg_cycle_days": 0.001,
+    "reopen_total": 0,
+    "deviation_count": 0,
+    "agent_counts": {
+      "MaroonHarbor": 1,
+      "DarkOwl": 1,
+      "CopperRiver": 1,
+      "BrightHill": 2
+    }
+  }
+}

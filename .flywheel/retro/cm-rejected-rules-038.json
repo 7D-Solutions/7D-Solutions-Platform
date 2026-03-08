@@ -1,0 +1,32 @@
+{
+  "rejected_sessions": [
+    {
+      "source": "/Users/james/.claude/projects/-Users-james-Projects-7D-Solutions-Platform/bec230d9-01a2-4177-8f66-c8fbd1239e7c.jsonl",
+      "reason": "error",
+      "detail": "Unterminated string starting at: line 70 column 23 (char 2131)"
+    }
+  ],
+  "rejected_rules": [
+    {
+      "content": "When claiming a bead, check git log for existing commits with that bead ID before starting implementation \u2014 another agent may have partially completed it",
+      "category": "workflow",
+      "lint_reason": "duplicate",
+      "similar_to": "Always check bead status before claiming \u2014 another agent may have completed it",
+      "similarity_score": 0.4074074074074074
+    },
+    {
+      "content": "When splitting files to stay under the 500 LOC limit, update all import paths in dependent files within the same commit to avoid broken builds",
+      "category": "architecture",
+      "lint_reason": "duplicate",
+      "similar_to": "When splitting large files into modules, update all include_str! and mod paths in the same commit to",
+      "similarity_score": 0.5
+    },
+    {
+      "content": "When implementing CRUD endpoints in a module, follow the existing route registration pattern in that module rather than inventing a new convention",
+      "category": "architecture",
+      "lint_reason": "duplicate",
+      "similar_to": "When implementing CRUD API routes, read and follow the existing route pattern in the codebase before",
+      "similarity_score": 0.4074074074074074
+    }
+  ]
+}

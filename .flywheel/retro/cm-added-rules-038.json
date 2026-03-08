@@ -1,0 +1,64 @@
+{
+  "sessions_prepared": 4,
+  "added_rules": [
+    {
+      "content": "When implementing scheduler or timer-based services, include idempotency guards using unique constraint or dedup key to prevent duplicate processing on retick",
+      "category": "architecture",
+      "playbook_id": "b-mmi1lx1a-mja3bt"
+    },
+    {
+      "content": "When receiving STOP or URGENT mail from the orchestrator, immediately cease implementation, commit any partial progress, and release the bead",
+      "category": "collaboration",
+      "playbook_id": "b-mmi1lx97-zzvf83"
+    },
+    {
+      "content": "When implementing event-driven workflows, test the full emit-to-consume-to-side-effect path in E2E tests rather than testing emitter and consumer separately",
+      "category": "testing",
+      "playbook_id": "b-mmi1lxhd-skm5sp"
+    },
+    {
+      "content": "When a bead lists files_to_create and files_to_modify, treat those as the authoritative scope \u2014 do not expand scope beyond listed files without creating a child bead",
+      "category": "workflow",
+      "playbook_id": "b-mmi1lxpg-nog4bd"
+    },
+    {
+      "content": "When a user rejects or interrupts a tool use, stop the current approach entirely and wait for new direction rather than retrying the same action",
+      "category": "workflow",
+      "playbook_id": "b-mmi1lxxf-lrlaqd"
+    }
+  ],
+  "max_rules_per_run": 10,
+  "extraction_brief": "/Users/james/Projects/7D-Solutions Platform/.flywheel/retro/cm-extraction-brief-038.md",
+  "lint_config": {
+    "min_length": 20,
+    "max_length": 200,
+    "valid_categories": [
+      "architecture",
+      "collaboration",
+      "debugging",
+      "documentation",
+      "git",
+      "integration",
+      "performance",
+      "security",
+      "testing",
+      "workflow"
+    ],
+    "requires_imperative": true,
+    "stoplist_patterns": [
+      "be careful",
+      "pay attention",
+      "make sure",
+      "remember to",
+      "don't forget",
+      "try to",
+      "consider",
+      "think about",
+      "keep in mind",
+      "be aware",
+      "always test",
+      "write clean code",
+      "follow best practices"
+    ]
+  }
+}
