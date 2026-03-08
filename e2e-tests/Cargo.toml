@@ -711,3 +711,15 @@ path = "tests/integrations_http_smoke.rs"
 [[test]]
 name = "bom_lifecycle_e2e"
 path = "tests/bom_lifecycle_e2e.rs"
+
+[[test]]
+name = "production_work_order_e2e"
+path = "tests/production_work_order_e2e.rs"
+
+[[test]]
+name = "shipping_receiving_e2e"
+path = "tests/shipping_receiving_e2e.rs"
+
+[[test]]
+name = "subscriptions_http_smoke"
+path = "tests/subscriptions_http_smoke.rs"
