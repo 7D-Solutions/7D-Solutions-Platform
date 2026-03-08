@@ -80,7 +80,7 @@ if [ ! -f "$ACCOUNTS_CONF" ] || [ ! -s "$ACCOUNTS_CONF" ]; then
     echo "Then re-run ./start to continue."
     exit 0
 fi
-# Account selection happens per-session inside smart_start (visual session manager).
+# Account selection was removed — accounts.conf gates first-time setup only.
 # ─── End Setup ────────────────────────────────────────────────────────────────
 
 # Auto-install dependencies if package.json exists and node_modules is missing/stale
@@ -107,10 +107,7 @@ if [ -f "package.json" ]; then
     fi
 fi
 
-# Start disk space monitor if not already running
-if [ -f "./scripts/disk-space-monitor.sh" ]; then
-    ./scripts/disk-space-monitor.sh start
-fi
+# Disk space monitor is started by visual-session-manager (ensure_disk_monitor).
 
 # Index project with fsfs for semantic codebase search (background, non-blocking)
 if command -v fsfs &>/dev/null; then
@@ -122,7 +119,10 @@ fi
 # Reports summary when done and mails orchestrator if critical findings exist.
 if command -v ubs &>/dev/null; then
     echo "🔍 Running UBS baseline scans..."
-    for _ubs_dir in "$SCRIPT_DIR_ABS" "$HOME/Projects/7D-Solutions Platform"; do
+    _ubs_dirs=("$SCRIPT_DIR_ABS")
+    [[ "$SCRIPT_DIR_ABS" != "$HOME/Projects/7D-Solutions Platform" ]] && \
+        _ubs_dirs+=("$HOME/Projects/7D-Solutions Platform")
+    for _ubs_dir in "${_ubs_dirs[@]}"; do
         if [ -d "$_ubs_dir" ]; then
             _ubs_name=$(basename "$_ubs_dir")
             _ubs_report="$_ubs_dir/.flywheel/ubs-baseline.json"
@@ -132,9 +132,7 @@ if command -v ubs &>/dev/null; then
                 ubs --quiet --report-json="$_ubs_report" . >/dev/null 2>&1
                 # Summarize results
                 if [ -f "$_ubs_report" ]; then
-                    _c=$(jq -r '.totals.critical // 0' "$_ubs_report" 2>/dev/null)
-                    _w=$(jq -r '.totals.warning // 0' "$_ubs_report" 2>/dev/null)
-                    _f=$(jq -r '.totals.files // 0' "$_ubs_report" 2>/dev/null)
+                    read -r _c _w _f < <(jq -r '[.totals.critical // 0, .totals.warning // 0, .totals.files // 0] | @tsv' "$_ubs_report" 2>/dev/null)
                     if [ "${_f:-0}" -gt 0 ] 2>/dev/null; then
                         echo "UBS [$_ubs_name]: ${_c} critical, ${_w} warning across ${_f} files"
                     else
