@@ -324,6 +324,7 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -339,6 +340,7 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
             quantity: 50,
             unit_cost_minor: 2000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("sr-e2e-rcpt-{shipment_id}"),
             correlation_id: Some(format!("sr-e2e-{shipment_id}")),
@@ -347,6 +349,7 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("inventory receipt");
@@ -387,6 +390,7 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("inventory issue");

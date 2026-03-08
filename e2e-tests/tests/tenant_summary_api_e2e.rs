@@ -69,7 +69,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: Uuid) {
 
 /// Build an Axum test app with unreachable module URLs (to test timeout handling)
 fn build_test_app_unreachable_modules(pool: PgPool) -> axum::Router {
-    let app_state = Arc::new(AppState::new(pool.clone()));
+    let app_state = Arc::new(AppState::new(pool.clone(), None));
     let summary_state = Arc::new(SummaryState::new_with_urls(
         pool,
         vec![

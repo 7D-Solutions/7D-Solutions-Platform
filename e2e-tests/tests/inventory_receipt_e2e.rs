@@ -54,6 +54,7 @@ fn test_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         variance_account_ref: "5010".to_string(),
         uom: None,
         tracking_mode: TrackingMode::None,
+        make_buy: None,
     }
 }
 
@@ -66,6 +67,7 @@ fn test_receipt_req(tenant_id: &str, item_id: Uuid) -> ReceiptRequest {
         quantity: 100,
         unit_cost_minor: 25_00, // $25.00
         currency: "usd".to_string(),
+        source_type: "purchase".to_string(),
         purchase_order_id: None,
         idempotency_key: format!("e2e-idem-{}", Uuid::new_v4()),
         correlation_id: Some("e2e-corr".to_string()),
@@ -119,7 +121,7 @@ async fn inventory_receipt_creates_ledger_layer_outbox() {
         .expect("create item");
 
     let req = test_receipt_req(&tenant_id, item.id);
-    let (result, is_replay) = process_receipt(&pool, &req)
+    let (result, is_replay) = process_receipt(&pool, &req, None)
         .await
         .expect("receipt must succeed");
 
@@ -176,10 +178,10 @@ async fn inventory_receipt_idempotency_replay() {
 
     let req = test_receipt_req(&tenant_id, item.id);
 
-    let (r1, is_replay1) = process_receipt(&pool, &req).await.expect("first call");
+    let (r1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first call");
     assert!(!is_replay1);
 
-    let (r2, is_replay2) = process_receipt(&pool, &req).await.expect("second call");
+    let (r2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second call");
     assert!(is_replay2, "second call must be a replay");
 
     // Stored result must be identical
@@ -223,7 +225,7 @@ async fn inventory_receipt_guard_inactive_item() {
         .expect("deactivate item");
 
     let req = test_receipt_req(&tenant_id, item.id);
-    let err = process_receipt(&pool, &req)
+    let err = process_receipt(&pool, &req, None)
         .await
         .expect_err("inactive item must be rejected");
 
@@ -246,7 +248,7 @@ async fn inventory_receipt_guard_zero_quantity() {
         ..test_receipt_req(&tenant_id, Uuid::new_v4())
     };
 
-    let err = process_receipt(&pool, &req)
+    let err = process_receipt(&pool, &req, None)
         .await
         .expect_err("zero quantity must be rejected");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
@@ -262,7 +264,7 @@ async fn inventory_receipt_guard_zero_cost() {
         ..test_receipt_req(&tenant_id, Uuid::new_v4())
     };
 
-    let err = process_receipt(&pool, &req)
+    let err = process_receipt(&pool, &req, None)
         .await
         .expect_err("zero cost must be rejected");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);

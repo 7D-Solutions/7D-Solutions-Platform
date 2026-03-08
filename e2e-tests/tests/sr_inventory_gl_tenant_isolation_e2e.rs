@@ -161,6 +161,7 @@ async fn sr_inventory_gl_cross_tenant_isolation() -> Result<()> {
             variance_account_ref: "COGS".to_string(),
             uom: None,
             tracking_mode: TrackingMode::None,
+            make_buy: None,
         },
     )
     .await
@@ -176,6 +177,7 @@ async fn sr_inventory_gl_cross_tenant_isolation() -> Result<()> {
             quantity: 20,
             unit_cost_minor: 1000,
             currency: "usd".to_string(),
+            source_type: "purchase".to_string(),
             purchase_order_id: None,
             idempotency_key: format!("iso-rcpt-{}", Uuid::new_v4()),
             correlation_id: None,
@@ -184,6 +186,7 @@ async fn sr_inventory_gl_cross_tenant_isolation() -> Result<()> {
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -208,6 +211,7 @@ async fn sr_inventory_gl_cross_tenant_isolation() -> Result<()> {
             lot_code: None,
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue");
