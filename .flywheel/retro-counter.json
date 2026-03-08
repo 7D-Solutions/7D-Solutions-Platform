@@ -1,11 +1,11 @@
 {
-  "counter": 7,
+  "counter": 4,
   "threshold": 5,
-  "last_retro_closed_at": "2026-03-07T00:45:02Z",
-  "last_processed_close_key": "bd-1e5zz",
-  "last_triggered_counter_value": 11,
+  "last_retro_closed_at": "2026-03-07T20:16:11Z",
+  "last_processed_close_key": "bd-1qoi5",
+  "last_triggered_counter_value": 5,
   "time_trigger_due": false,
-  "last_retro_created_at": "2026-03-07T01:51:24Z",
-  "last_retro_dedup_key": "retro-after-bd-2k8v5",
-  "open_retro_guard": "bd-1zst4"
+  "last_retro_created_at": "2026-03-07T20:19:25Z",
+  "last_retro_dedup_key": "retro-after-bd-lz63v",
+  "open_retro_guard": "bd-2bo9k"
 }
