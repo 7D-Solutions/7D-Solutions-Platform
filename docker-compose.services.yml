@@ -947,6 +947,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8102
       CORS_ORIGINS: ${PDF_EDITOR_CORS_ORIGINS}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "127.0.0.1:8102:8102"

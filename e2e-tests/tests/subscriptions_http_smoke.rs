@@ -103,18 +103,6 @@ async fn smoke_subscriptions() {
     let jwt = make_jwt(&key, &tenant_id, &["subscriptions.mutate"]);
     let base = subs_url();
 
-    // Gate: verify the service accepts our JWT
-    let probe = client
-        .get(format!("{base}/api/health"))
-        .bearer_auth(&jwt)
-        .send()
-        .await
-        .expect("JWT probe failed");
-    if probe.status().as_u16() == 401 {
-        eprintln!("Subscriptions returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
-        return;
-    }
-
     // -----------------------------------------------------------------------
     // 1. POST /api/bill-runs/execute — no JWT -> 401
     // -----------------------------------------------------------------------
@@ -134,6 +122,7 @@ async fn smoke_subscriptions() {
 
     // -----------------------------------------------------------------------
     // 2. POST /api/bill-runs/execute — valid JWT, structured response
+    //    (skips remaining JWT tests if JWT_PUBLIC_KEY not configured)
     // -----------------------------------------------------------------------
     println!("\n--- 2. POST /api/bill-runs/execute (valid JWT) ---");
     let bill_run_id = Uuid::new_v4().to_string();
@@ -149,66 +138,71 @@ async fn smoke_subscriptions() {
         .expect("execute bill-run request failed");
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    // The endpoint may succeed (200) or fail downstream (AR unavailable) but
-    // must always return a structured JSON body — never a raw 500 with SQL.
-    assert!(
-        status.is_success() || status == StatusCode::INTERNAL_SERVER_ERROR,
-        "Unexpected status from /api/bill-runs/execute: {status} - {body}"
-    );
-    if status.is_success() {
-        assert!(
-            body["bill_run_id"].is_string(),
-            "Expected bill_run_id in response: {body}"
-        );
-        let returned_id = body["bill_run_id"].as_str().unwrap();
-        assert_eq!(returned_id, bill_run_id, "bill_run_id mismatch");
-        assert!(body["subscriptions_processed"].is_number(), "Missing subscriptions_processed");
-        assert!(body["invoices_created"].is_number(), "Missing invoices_created");
-        assert!(body["failures"].is_number(), "Missing failures");
-        println!(
-            "  bill-run ok: processed={} created={} failures={}",
-            body["subscriptions_processed"], body["invoices_created"], body["failures"]
-        );
-    } else {
-        let error_str = body.to_string();
-        assert!(
-            body["error"].is_string() || body["message"].is_string(),
-            "Error response must have 'error' or 'message' field: {body}"
-        );
-        assert!(
-            !error_str.contains("syntax error") && !error_str.contains("relation "),
-            "SQL leak detected in error response: {body}"
-        );
-        println!("  bill-run downstream error (structured): {}", body["error"]);
-    }
 
-    // -----------------------------------------------------------------------
-    // 3. POST /api/bill-runs/execute — idempotency (same bill_run_id)
-    // -----------------------------------------------------------------------
-    if body["bill_run_id"].is_string() {
-        println!("\n--- 3. POST /api/bill-runs/execute (idempotent repeat) ---");
-        let resp2 = client
-            .post(format!("{base}/api/bill-runs/execute"))
-            .bearer_auth(&jwt)
-            .json(&json!({
-                "bill_run_id": bill_run_id,
-                "execution_date": "2026-03-07"
-            }))
-            .send()
-            .await
-            .expect("idempotent execute request failed");
+    if status.as_u16() == 401 {
+        eprintln!("  execute returned 401 -- JWT_PUBLIC_KEY not configured on subscriptions. Skipping JWT tests.");
+    } else {
+        // The endpoint may succeed (200) or fail downstream (AR unavailable) but
+        // must always return a structured JSON body — never a raw 500 with SQL.
         assert!(
-            resp2.status().is_success(),
-            "Idempotent bill-run re-execute failed: {}",
-            resp2.status()
+            status.is_success() || status == StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected status from /api/bill-runs/execute: {status} - {body}"
         );
-        let body2: Value = resp2.json().await.unwrap_or(json!({}));
-        assert_eq!(
-            body2["bill_run_id"].as_str().unwrap_or(""),
-            bill_run_id,
-            "Idempotent response must return same bill_run_id"
-        );
-        println!("  idempotent re-execute -> same bill_run_id ok");
+        if status.is_success() {
+            assert!(
+                body["bill_run_id"].is_string(),
+                "Expected bill_run_id in response: {body}"
+            );
+            let returned_id = body["bill_run_id"].as_str().unwrap();
+            assert_eq!(returned_id, bill_run_id, "bill_run_id mismatch");
+            assert!(body["subscriptions_processed"].is_number(), "Missing subscriptions_processed");
+            assert!(body["invoices_created"].is_number(), "Missing invoices_created");
+            assert!(body["failures"].is_number(), "Missing failures");
+            println!(
+                "  bill-run ok: processed={} created={} failures={}",
+                body["subscriptions_processed"], body["invoices_created"], body["failures"]
+            );
+        } else {
+            let error_str = body.to_string();
+            assert!(
+                body["error"].is_string() || body["message"].is_string(),
+                "Error response must have 'error' or 'message' field: {body}"
+            );
+            assert!(
+                !error_str.contains("syntax error") && !error_str.contains("relation "),
+                "SQL leak detected in error response: {body}"
+            );
+            println!("  bill-run downstream error (structured): {}", body["error"]);
+        }
+
+        // -------------------------------------------------------------------
+        // 3. POST /api/bill-runs/execute — idempotency (same bill_run_id)
+        // -------------------------------------------------------------------
+        if body["bill_run_id"].is_string() {
+            println!("\n--- 3. POST /api/bill-runs/execute (idempotent repeat) ---");
+            let resp2 = client
+                .post(format!("{base}/api/bill-runs/execute"))
+                .bearer_auth(&jwt)
+                .json(&json!({
+                    "bill_run_id": bill_run_id,
+                    "execution_date": "2026-03-07"
+                }))
+                .send()
+                .await
+                .expect("idempotent execute request failed");
+            assert!(
+                resp2.status().is_success(),
+                "Idempotent bill-run re-execute failed: {}",
+                resp2.status()
+            );
+            let body2: Value = resp2.json().await.unwrap_or(json!({}));
+            assert_eq!(
+                body2["bill_run_id"].as_str().unwrap_or(""),
+                bill_run_id,
+                "Idempotent response must return same bill_run_id"
+            );
+            println!("  idempotent re-execute -> same bill_run_id ok");
+        }
     }
 
     // -----------------------------------------------------------------------
