@@ -53,6 +53,7 @@ SERVICES=(
   "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|workforce-competence-rs"
   "customer-portal|customer-portal|7d-customer-portal|8111|customer-portal"
   "reporting|reporting|7d-reporting|8096|reporting"
+  "control-plane|control-plane|7d-control-plane|8091|control-plane"
 )
 
 # ── Helpers ───────────────────────────────────────────────────────

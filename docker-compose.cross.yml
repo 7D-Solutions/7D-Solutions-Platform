@@ -159,3 +159,10 @@ services:
     command: ["/usr/local/bin/reporting"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/reporting:/usr/local/bin/reporting:ro
+
+  control-plane:
+    image: 7d-runtime
+    command: ["/usr/local/bin/control-plane"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/control-plane:/usr/local/bin/control-plane:ro
+      - ./platform/tenant-registry/db/migrations:/app/platform/tenant-registry/db/migrations:ro
