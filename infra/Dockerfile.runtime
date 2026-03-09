@@ -1,0 +1,15 @@
+# Thin runtime base image for cross-compiled Rust services.
+# No Rust compilation — the binary is volume-mounted from the host.
+# Build once: docker build -t 7d-runtime -f infra/Dockerfile.runtime .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libssl3 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
+WORKDIR /app
+
+USER appuser

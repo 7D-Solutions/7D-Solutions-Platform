@@ -12,6 +12,9 @@ incremental = true
 [registries.7d-platform]
 index = "sparse+https://cargo.pkg.github.com/7D-Solutions/index/"
 
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
+
 [test]
 # CRITICAL: Limit test parallelism to prevent overwhelming Docker containers
 # With 316+ E2E tests that create database connection pools, running in parallel

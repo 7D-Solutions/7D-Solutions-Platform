@@ -1,0 +1,161 @@
+# Cross-compilation overlay — mounts host-compiled Linux binaries into containers.
+# Use with: docker compose -f docker-compose.services.yml -f docker-compose.cross.yml up -d
+#
+# Binaries are cross-compiled on macOS targeting aarch64-unknown-linux-musl:
+#   target/aarch64-unknown-linux-musl/debug/<binary-name>
+#
+# Services use 7d-runtime as base image (thin debian + ca-certificates + curl).
+# Build it once: docker build -t 7d-runtime -f infra/Dockerfile.runtime .
+#
+# Script: scripts/dev-cross.sh <service>
+
+services:
+  ar:
+    image: 7d-runtime
+    command: ["/usr/local/bin/ar-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/usr/local/bin/ar-rs:ro
+
+  subscriptions:
+    image: 7d-runtime
+    command: ["/usr/local/bin/subscriptions-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/subscriptions-rs:/usr/local/bin/subscriptions-rs:ro
+
+  payments:
+    image: 7d-runtime
+    command: ["/usr/local/bin/payments-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/payments-rs:/usr/local/bin/payments-rs:ro
+
+  notifications:
+    image: 7d-runtime
+    command: ["/usr/local/bin/notifications-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/notifications-rs:/usr/local/bin/notifications-rs:ro
+
+  gl:
+    image: 7d-runtime
+    command: ["/usr/local/bin/gl-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/gl-rs:/usr/local/bin/gl-rs:ro
+
+  inventory:
+    image: 7d-runtime
+    command: ["/usr/local/bin/inventory-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/inventory-rs:/usr/local/bin/inventory-rs:ro
+
+  ap:
+    image: 7d-runtime
+    command: ["/usr/local/bin/ap"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/ap:/usr/local/bin/ap:ro
+
+  treasury:
+    image: 7d-runtime
+    command: ["/usr/local/bin/treasury"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/treasury:/usr/local/bin/treasury:ro
+
+  fixed-assets:
+    image: 7d-runtime
+    command: ["/usr/local/bin/fixed-assets"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/fixed-assets:/usr/local/bin/fixed-assets:ro
+
+  consolidation:
+    image: 7d-runtime
+    command: ["/usr/local/bin/consolidation"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/consolidation:/usr/local/bin/consolidation:ro
+
+  timekeeping:
+    image: 7d-runtime
+    command: ["/usr/local/bin/timekeeping"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/timekeeping:/usr/local/bin/timekeeping:ro
+
+  party:
+    image: 7d-runtime
+    command: ["/usr/local/bin/party"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/party:/usr/local/bin/party:ro
+
+  integrations:
+    image: 7d-runtime
+    command: ["/usr/local/bin/integrations"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/integrations:/usr/local/bin/integrations:ro
+
+  ttp:
+    image: 7d-runtime
+    command: ["/usr/local/bin/ttp"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/ttp:/usr/local/bin/ttp:ro
+
+  pdf-editor:
+    image: 7d-runtime
+    command: ["/usr/local/bin/pdf-editor-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/usr/local/bin/pdf-editor-rs:ro
+
+  maintenance:
+    image: 7d-runtime
+    command: ["/usr/local/bin/maintenance-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/maintenance-rs:/usr/local/bin/maintenance-rs:ro
+
+  shipping-receiving:
+    image: 7d-runtime
+    command: ["/usr/local/bin/shipping-receiving-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/usr/local/bin/shipping-receiving-rs:ro
+
+  quality-inspection:
+    image: 7d-runtime
+    command: ["/usr/local/bin/quality-inspection-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/quality-inspection-rs:/usr/local/bin/quality-inspection-rs:ro
+
+  bom:
+    image: 7d-runtime
+    command: ["/usr/local/bin/bom-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/bom-rs:/usr/local/bin/bom-rs:ro
+
+  production:
+    image: 7d-runtime
+    command: ["/usr/local/bin/production-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/production-rs:/usr/local/bin/production-rs:ro
+
+  workflow:
+    image: 7d-runtime
+    command: ["/usr/local/bin/workflow"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/workflow:/usr/local/bin/workflow:ro
+
+  numbering:
+    image: 7d-runtime
+    command: ["/usr/local/bin/numbering"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/numbering:/usr/local/bin/numbering:ro
+
+  workforce-competence:
+    image: 7d-runtime
+    command: ["/usr/local/bin/workforce-competence-rs"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/workforce-competence-rs:/usr/local/bin/workforce-competence-rs:ro
+
+  customer-portal:
+    image: 7d-runtime
+    command: ["/usr/local/bin/customer-portal"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/customer-portal:/usr/local/bin/customer-portal:ro
+
+  reporting:
+    image: 7d-runtime
+    command: ["/usr/local/bin/reporting"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/reporting:/usr/local/bin/reporting:ro

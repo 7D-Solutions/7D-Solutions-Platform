@@ -32,7 +32,7 @@ security = { path = "../security" }
 health = { path = "../health" }
 
 [dev-dependencies]
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 
 [lints]
