@@ -21,35 +21,36 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # ── Service registry ──────────────────────────────────────────────
-# Format: service|crate_name|container|service_port|pg_host_port|pg_user|pg_pass|pg_db
-# Crate name = the -p argument to cargo. Usually matches the directory name.
+# Format: service|crate_name|container|service_port|pg_host_port|pg_user|pg_pass|pg_db|bin_name
+# crate_name = the -p argument to cargo.
+# bin_name   = the --bin argument (when binary name differs from crate name).
 # pg_host_port is the localhost port mapped in docker-compose.infrastructure.yml.
 SERVICES=(
-  "ar|ar-rs|7d-ar|8086|5434|ar_user|ar_pass|ar_db"
-  "subscriptions|subscriptions-rs|7d-subscriptions|8087|5435|subscriptions_user|subscriptions_pass|subscriptions_db"
-  "payments|payments-rs|7d-payments|8088|5436|payments_user|payments_pass|payments_db"
-  "notifications|notifications-rs|7d-notifications|8089|5437|notifications_user|notifications_pass|notifications_db"
-  "gl|gl-rs|7d-gl|8090|5438|gl_user|gl_pass|gl_db"
-  "inventory|inventory-rs|7d-inventory|8092|5442|inventory_user|inventory_pass|inventory_db"
-  "ap|ap|7d-ap|8093|5443|ap_user|ap_pass|ap_db"
-  "treasury|treasury|7d-treasury|8094|5444|treasury_user|treasury_pass|treasury_db"
-  "fixed-assets|fixed-assets|7d-fixed-assets|8104|5445|fixed_assets_user|fixed_assets_pass|fixed_assets_db"
-  "consolidation|consolidation|7d-consolidation|8105|5446|consolidation_user|consolidation_pass|consolidation_db"
-  "timekeeping|timekeeping|7d-timekeeping|8097|5447|timekeeping_user|timekeeping_pass|timekeeping_db"
-  "party|party-rs|7d-party|8098|5448|party_user|party_pass|party_db"
-  "integrations|integrations-rs|7d-integrations|8099|5449|integrations_user|integrations_pass|integrations_db"
-  "ttp|ttp-rs|7d-ttp|8100|5451|ttp_user|ttp_pass|ttp_db"
-  "pdf-editor|pdf-editor-rs|7d-pdf-editor|8102|5453|pdf_editor_user|pdf_editor_pass|pdf_editor_db"
-  "maintenance|maintenance-rs|7d-maintenance|8101|5452|maintenance_user|maintenance_pass|maintenance_db"
-  "shipping-receiving|shipping-receiving-rs|7d-shipping-receiving|8103|5454|sr_user|sr_pass|sr_db"
-  "quality-inspection|quality-inspection-rs|7d-quality-inspection|8106|5459|quality_inspection_user|quality_inspection_pass|quality_inspection_db"
-  "bom|bom-rs|7d-bom|8107|5450|bom_user|bom_pass|bom_db"
-  "production|production-rs|7d-production|8108|5461|production_user|production_pass|production_db"
-  "workflow|workflow|7d-workflow|8110|5457|workflow_user|workflow_pass|workflow_db"
-  "numbering|numbering|7d-numbering|8120|5456|numbering_user|numbering_pass|numbering_db"
-  "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|5458|wc_user|wc_pass|workforce_competence_db"
-  "customer-portal|customer-portal|7d-customer-portal|8111|5464|customer_portal_user|customer_portal_pass|customer_portal_db"
-  "reporting|reporting|7d-reporting|8096|5463|reporting_user|reporting_pass|reporting_db"
+  "ar|ar-rs|7d-ar|8086|5434|ar_user|ar_pass|ar_db|ar-rs"
+  "subscriptions|subscriptions-rs|7d-subscriptions|8087|5435|subscriptions_user|subscriptions_pass|subscriptions_db|subscriptions-rs"
+  "payments|payments-rs|7d-payments|8088|5436|payments_user|payments_pass|payments_db|payments-rs"
+  "notifications|notifications-rs|7d-notifications|8089|5437|notifications_user|notifications_pass|notifications_db|notifications-rs"
+  "gl|gl-rs|7d-gl|8090|5438|gl_user|gl_pass|gl_db|gl-rs"
+  "inventory|inventory-rs|7d-inventory|8092|5442|inventory_user|inventory_pass|inventory_db|inventory-rs"
+  "ap|ap|7d-ap|8093|5443|ap_user|ap_pass|ap_db|ap"
+  "treasury|treasury|7d-treasury|8094|5444|treasury_user|treasury_pass|treasury_db|treasury"
+  "fixed-assets|fixed-assets|7d-fixed-assets|8104|5445|fixed_assets_user|fixed_assets_pass|fixed_assets_db|fixed-assets"
+  "consolidation|consolidation|7d-consolidation|8105|5446|consolidation_user|consolidation_pass|consolidation_db|consolidation"
+  "timekeeping|timekeeping|7d-timekeeping|8097|5447|timekeeping_user|timekeeping_pass|timekeeping_db|timekeeping"
+  "party|party-rs|7d-party|8098|5448|party_user|party_pass|party_db|party"
+  "integrations|integrations-rs|7d-integrations|8099|5449|integrations_user|integrations_pass|integrations_db|integrations"
+  "ttp|ttp-rs|7d-ttp|8100|5451|ttp_user|ttp_pass|ttp_db|ttp"
+  "pdf-editor|pdf-editor-rs|7d-pdf-editor|8102|5453|pdf_editor_user|pdf_editor_pass|pdf_editor_db|pdf-editor-rs"
+  "maintenance|maintenance-rs|7d-maintenance|8101|5452|maintenance_user|maintenance_pass|maintenance_db|maintenance-rs"
+  "shipping-receiving|shipping-receiving-rs|7d-shipping-receiving|8103|5454|shipping_receiving_user|shipping_receiving_pass|shipping_receiving_db|shipping-receiving-rs"
+  "quality-inspection|quality-inspection-rs|7d-quality-inspection|8106|5459|quality_inspection_user|quality_inspection_pass|quality_inspection_db|quality-inspection-rs"
+  "bom|bom-rs|7d-bom|8107|5450|bom_user|bom_pass|bom_db|bom-rs"
+  "production|production-rs|7d-production|8108|5461|production_user|production_pass|production_db|production-rs"
+  "workflow|workflow|7d-workflow|8110|5457|workflow_user|workflow_pass|workflow_db|workflow"
+  "numbering|numbering|7d-numbering|8120|5456|numbering_user|numbering_pass|numbering_db|numbering"
+  "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|5458|wc_user|wc_pass|workforce_competence_db|workforce-competence-rs"
+  "customer-portal|customer-portal|7d-customer-portal|8111|5464|customer_portal_user|customer_portal_pass|customer_portal_db|customer-portal"
+  "reporting|reporting|7d-reporting|8096|5463|reporting_user|reporting_pass|reporting_db|reporting"
 )
 
 # NATS connection for native processes (localhost, not Docker network)
@@ -104,7 +105,7 @@ ENTRY=$(find_service "$SERVICE_NAME") || {
   exit 1
 }
 
-IFS='|' read -r SVC CRATE CONTAINER PORT PG_PORT PG_USER PG_PASS PG_DB <<< "$ENTRY"
+IFS='|' read -r SVC CRATE CONTAINER PORT PG_PORT PG_USER PG_PASS PG_DB BIN_NAME <<< "$ENTRY"
 
 # ── Verify prerequisites ─────────────────────────────────────────
 
@@ -184,9 +185,9 @@ trap 'echo ""; echo "Restarting container $CONTAINER..."; docker start "$CONTAIN
 if [ "$MODE" = "--run" ]; then
   echo "One-shot run (Ctrl+C to stop and restart container)..."
   echo ""
-  cargo run -p "$CRATE" --bin "$CRATE"
+  cargo run -p "$CRATE" --bin "$BIN_NAME"
 else
   echo "Watching for changes (Ctrl+C to stop and restart container)..."
   echo ""
-  cargo watch -x "run -p $CRATE --bin $CRATE"
+  cargo watch -x "run -p $CRATE --bin $BIN_NAME"
 fi
