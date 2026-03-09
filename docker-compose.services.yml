@@ -413,6 +413,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8089
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "127.0.0.1:8089:8089"
