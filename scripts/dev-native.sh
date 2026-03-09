@@ -48,7 +48,7 @@ SERVICES=(
   "workflow|workflow|7d-workflow|8110|5457|workflow_user|workflow_pass|workflow_db"
   "numbering|numbering|7d-numbering|8120|5456|numbering_user|numbering_pass|numbering_db"
   "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|5458|wc_user|wc_pass|workforce_competence_db"
-  "customer-portal|customer-portal|7d-customer-portal|8111|5462|customer_portal_user|customer_portal_pass|customer_portal_db"
+  "customer-portal|customer-portal|7d-customer-portal|8111|5464|customer_portal_user|customer_portal_pass|customer_portal_db"
   "reporting|reporting|7d-reporting|8096|5463|reporting_user|reporting_pass|reporting_db"
 )
 

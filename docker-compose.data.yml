@@ -911,7 +911,7 @@ services:
     entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
     command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
-      - "127.0.0.1:5462:5432"
+      - "127.0.0.1:5464:5432"
     environment:
       POSTGRES_DB: ${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}
       POSTGRES_USER: ${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}
