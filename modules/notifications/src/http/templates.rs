@@ -72,7 +72,7 @@ async fn publish_template(
         "notifications.events.template.published".to_string(),
         None,
         None,
-        "STATE_CHANGE".to_string(),
+        "ADMINISTRATIVE".to_string(),
         event_payload,
     );
     enqueue_event(
