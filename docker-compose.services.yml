@@ -1179,6 +1179,294 @@ services:
         - action: rebuild
           path: platform/security/src
 
+  # =========================
+  # PRODUCTION MODULE
+  # =========================
+  production:
+    container_name: 7d-production
+    build:
+      context: .
+      dockerfile: modules/production/deploy/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
+      HOST: 0.0.0.0
+      PORT: 8108
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8108:8108"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8108/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "production"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/production/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # WORKFLOW MODULE
+  # =========================
+  workflow:
+    container_name: 7d-workflow
+    build:
+      context: .
+      dockerfile: modules/workflow/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${WORKFLOW_POSTGRES_USER:-workflow_user}:${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}@7d-workflow-postgres:5432/${WORKFLOW_POSTGRES_DB:-workflow_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8110
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8110:8110"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8110/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "workflow"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/workflow/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # NUMBERING MODULE
+  # =========================
+  numbering:
+    container_name: 7d-numbering
+    build:
+      context: .
+      dockerfile: modules/numbering/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${NUMBERING_POSTGRES_USER:-numbering_user}:${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}@7d-numbering-postgres:5432/${NUMBERING_POSTGRES_DB:-numbering_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8120
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8120:8120"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8120/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "numbering"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/numbering/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # WORKFORCE COMPETENCE MODULE
+  # =========================
+  workforce-competence:
+    container_name: 7d-workforce-competence
+    build:
+      context: .
+      dockerfile: modules/workforce-competence/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${WC_POSTGRES_USER:-wc_user}:${WC_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WC_POSTGRES_DB:-workforce_competence_db}?sslmode=require
+      HOST: 0.0.0.0
+      PORT: 8121
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8121:8121"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8121/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "workforce-competence"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/workforce-competence/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # CUSTOMER PORTAL MODULE
+  # =========================
+  customer-portal:
+    container_name: 7d-customer-portal
+    build:
+      context: .
+      dockerfile: modules/customer-portal/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}:${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}@7d-customer-portal-postgres:5432/${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}?sslmode=require
+      HOST: 0.0.0.0
+      PORT: 8111
+      PORTAL_JWT_PRIVATE_KEY: ${PORTAL_JWT_PRIVATE_KEY:-}
+      PORTAL_JWT_PUBLIC_KEY: ${PORTAL_JWT_PUBLIC_KEY:-}
+      DOC_MGMT_BASE_URL: http://7d-doc-mgmt:8095
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8111:8111"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8111/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "customer-portal"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/customer-portal/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # REPORTING MODULE
+  # =========================
+  reporting:
+    container_name: 7d-reporting
+    build:
+      context: .
+      dockerfile: modules/reporting/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${REPORTING_POSTGRES_USER:-reporting_user}:${REPORTING_POSTGRES_PASSWORD:-reporting_pass}@7d-reporting-postgres:5432/${REPORTING_POSTGRES_DB:-reporting_db}?sslmode=require
+      HOST: 0.0.0.0
+      PORT: 8096
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8096:8096"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8096/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "reporting"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/reporting/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
 networks:
   7d-platform:
     name: 7d-platform

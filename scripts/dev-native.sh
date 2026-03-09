@@ -41,9 +41,15 @@ SERVICES=(
   "ttp|ttp-rs|7d-ttp|8100|5451|ttp_user|ttp_pass|ttp_db"
   "pdf-editor|pdf-editor-rs|7d-pdf-editor|8102|5453|pdf_editor_user|pdf_editor_pass|pdf_editor_db"
   "maintenance|maintenance-rs|7d-maintenance|8101|5452|maintenance_user|maintenance_pass|maintenance_db"
-  "shipping-receiving|shipping-receiving-rs|7d-shipping-receiving|8103|0|sr_user|sr_pass|sr_db"
-  "quality-inspection|quality-inspection-rs|7d-quality-inspection|8106|0|qi_user|qi_pass|qi_db"
-  "bom|bom-rs|7d-bom|8107|0|bom_user|bom_pass|bom_db"
+  "shipping-receiving|shipping-receiving-rs|7d-shipping-receiving|8103|5454|sr_user|sr_pass|sr_db"
+  "quality-inspection|quality-inspection-rs|7d-quality-inspection|8106|5459|quality_inspection_user|quality_inspection_pass|quality_inspection_db"
+  "bom|bom-rs|7d-bom|8107|5450|bom_user|bom_pass|bom_db"
+  "production|production-rs|7d-production|8108|5461|production_user|production_pass|production_db"
+  "workflow|workflow|7d-workflow|8110|5457|workflow_user|workflow_pass|workflow_db"
+  "numbering|numbering|7d-numbering|8120|5456|numbering_user|numbering_pass|numbering_db"
+  "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|5458|wc_user|wc_pass|workforce_competence_db"
+  "customer-portal|customer-portal|7d-customer-portal|8111|5462|customer_portal_user|customer_portal_pass|customer_portal_db"
+  "reporting|reporting|7d-reporting|8096|5463|reporting_user|reporting_pass|reporting_db"
 )
 
 # NATS connection for native processes (localhost, not Docker network)

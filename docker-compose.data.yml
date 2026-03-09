@@ -905,6 +905,68 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  customer-portal-postgres:
+    container_name: 7d-customer-portal-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5462:5432"
+    environment:
+      POSTGRES_DB: ${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}
+      POSTGRES_USER: ${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}
+      POSTGRES_PASSWORD: ${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}
+    volumes:
+      - customer_portal_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user} -d ${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "customer-portal-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  reporting-postgres:
+    container_name: 7d-reporting-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5463:5432"
+    environment:
+      POSTGRES_DB: ${REPORTING_POSTGRES_DB:-reporting_db}
+      POSTGRES_USER: ${REPORTING_POSTGRES_USER:-reporting_user}
+      POSTGRES_PASSWORD: ${REPORTING_POSTGRES_PASSWORD:-reporting_pass}
+    volumes:
+      - reporting_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${REPORTING_POSTGRES_USER:-reporting_user} -d ${REPORTING_POSTGRES_DB:-reporting_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "reporting-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -997,4 +1059,10 @@ volumes:
     external: true
   quality_inspection_pgdata:
     name: 7d-quality-inspection-pgdata
+    external: true
+  customer_portal_pgdata:
+    name: 7d-customer-portal-pgdata
+    external: true
+  reporting_pgdata:
+    name: 7d-reporting-pgdata
     external: true
