@@ -2,15 +2,19 @@ use axum::{extract::State, http::StatusCode, Json};
 use health::{
     build_ready_response, db_check_with_pool, ready_response_to_axum, PoolMetrics, ReadyResponse,
 };
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Instant;
+
+static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 /// Health check endpoint - returns basic service status (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {
+    let uptime = START_TIME.elapsed().as_secs();
     Json(serde_json::json!({
         "status": "healthy",
         "service": "inventory-rs",
-        "version": env!("CARGO_PKG_VERSION")
+        "version": env!("CARGO_PKG_VERSION"),
+        "uptime_secs": uptime
     }))
 }
 

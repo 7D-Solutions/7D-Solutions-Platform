@@ -178,9 +178,9 @@ trap 'echo ""; echo "Restarting container $CONTAINER..."; docker start "$CONTAIN
 if [ "$MODE" = "--run" ]; then
   echo "One-shot run (Ctrl+C to stop and restart container)..."
   echo ""
-  cargo run -p "$CRATE"
+  cargo run -p "$CRATE" --bin "$CRATE"
 else
   echo "Watching for changes (Ctrl+C to stop and restart container)..."
   echo ""
-  cargo watch -x "run -p $CRATE"
+  cargo watch -x "run -p $CRATE --bin $CRATE"
 fi
