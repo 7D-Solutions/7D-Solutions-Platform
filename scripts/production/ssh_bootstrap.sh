@@ -274,6 +274,11 @@ VOLUMES=(
     7d-doc-mgmt-pgdata
     7d-workflow-pgdata
     7d-workforce-competence-pgdata
+    7d-bom-pgdata
+    7d-production-pgdata
+    7d-quality-inspection-pgdata
+    7d-customer-portal-pgdata
+    7d-reporting-pgdata
 )
 
 for vol in "${VOLUMES[@]}"; do

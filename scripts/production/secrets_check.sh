@@ -67,7 +67,8 @@ REQUIRED_DB_PREFIXES=(
     "projections" "audit" "tenant_registry" "inventory" "ap" "treasury"
     "fixed_assets" "consolidation" "timekeeping" "party" "integrations"
     "ttp" "maintenance" "pdf_editor" "shipping_receiving" "numbering"
-    "doc_mgmt" "workflow" "wc"
+    "doc_mgmt" "workflow" "wc" "bom" "production" "quality_inspection"
+    "customer_portal" "reporting"
 )
 
 # =========================================================================

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# backup_all_dbs.sh — Dump all 25 7D Platform Postgres databases to local backup storage.
+# backup_all_dbs.sh — Dump all 30 7D Platform Postgres databases to local backup storage.
 #
 # Runs pg_dump (per-database) and pg_dumpall --globals-only via docker exec.
 # Each invocation creates a timestamped directory under BACKUP_DIR containing
@@ -89,6 +89,11 @@ declare -a DB_CONFIGS=(
     "7d-doc-mgmt-postgres|DOC_MGMT_POSTGRES_DB|DOC_MGMT_POSTGRES_USER|DOC_MGMT_POSTGRES_PASSWORD"
     "7d-workflow-postgres|WORKFLOW_POSTGRES_DB|WORKFLOW_POSTGRES_USER|WORKFLOW_POSTGRES_PASSWORD"
     "7d-workforce-competence-postgres|WC_POSTGRES_DB|WC_POSTGRES_USER|WC_POSTGRES_PASSWORD"
+    "7d-bom-postgres|BOM_POSTGRES_DB|BOM_POSTGRES_USER|BOM_POSTGRES_PASSWORD"
+    "7d-production-postgres|PRODUCTION_POSTGRES_DB|PRODUCTION_POSTGRES_USER|PRODUCTION_POSTGRES_PASSWORD"
+    "7d-quality-inspection-postgres|QUALITY_INSPECTION_POSTGRES_DB|QUALITY_INSPECTION_POSTGRES_USER|QUALITY_INSPECTION_POSTGRES_PASSWORD"
+    "7d-customer-portal-postgres|CUSTOMER_PORTAL_POSTGRES_DB|CUSTOMER_PORTAL_POSTGRES_USER|CUSTOMER_PORTAL_POSTGRES_PASSWORD"
+    "7d-reporting-postgres|REPORTING_POSTGRES_DB|REPORTING_POSTGRES_USER|REPORTING_POSTGRES_PASSWORD"
 )
 
 # ---------------------------------------------------------------------------
