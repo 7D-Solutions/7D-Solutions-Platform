@@ -134,25 +134,45 @@ Alertmanager receives alerts from Prometheus and routes them to notification cha
 - Critical alerts suppress warnings for the same alert name (avoids duplicate noise).
 - `NATSDown` suppresses all event-delivery warnings (downstream effect of bus outage).
 
-### Notification Channel
+### Notification Channel — Slack
 
-The default receiver is `ops-webhook`, configured to POST alert payloads to a webhook URL. To change the notification channel:
+The default receiver is `ops-webhook`, configured to post alerts to a Slack channel (`#ops-alerts`). Before first deployment, set the real webhook URL:
 
-1. Edit `infra/monitoring/alertmanager.yml`
-2. Replace the `receivers` section with your preferred channel (Slack, email, PagerDuty)
-3. Reload Alertmanager: `curl -X POST http://localhost:9094/-/reload`
+1. Create a Slack app at https://api.slack.com/apps and enable Incoming Webhooks.
+2. Add a webhook for the `#ops-alerts` channel (or your preferred channel).
+3. Copy the webhook URL and replace the placeholder in `infra/monitoring/alertmanager.yml`:
+   ```yaml
+   api_url: 'https://hooks.slack.com/services/REPLACE/WITH/REAL-WEBHOOK-URL'
+   ```
+4. Reload Alertmanager: `curl -X POST http://localhost:9094/-/reload`
 
-Example Slack receiver:
-```yaml
-receivers:
-  - name: ops-webhook
-    slack_configs:
-      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
-        channel: '#ops-alerts'
-        send_resolved: true
-        title: '{{ .GroupLabels.alertname }}'
-        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+Alert messages include the alert name, severity, module, and summary annotation. Colors indicate status: red for critical firing, yellow for warning firing, green for resolved.
+
+To switch to email or PagerDuty, replace `slack_configs` in the `receivers` section. See https://prometheus.io/docs/alerting/latest/configuration/
+
+#### Testing Alert Delivery
+
+Fire a synthetic alert to confirm Slack delivery:
+
+```bash
+# Post a test alert to Alertmanager
+curl -X POST http://localhost:9094/api/v2/alerts \
+  -H 'Content-Type: application/json' \
+  -d '[{
+    "labels": {
+      "alertname": "TestAlert",
+      "severity": "warning",
+      "module": "test"
+    },
+    "annotations": {
+      "summary": "This is a test alert — safe to ignore."
+    },
+    "startsAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+    "endsAt": "'$(date -u -v+5M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d "+5 min" +%Y-%m-%dT%H:%M:%SZ)'"
+  }]'
 ```
+
+You should see the test alert appear in the `#ops-alerts` Slack channel within 30 seconds.
 
 ### Verifying Alertmanager
 
@@ -259,6 +279,6 @@ After provisioning a new VPS:
 5. Verify alert rules loaded: Prometheus → Alerts (all rules should be listed).
 6. Run the health audit: `bash scripts/production/health_audit.sh`
 7. Run the smoke suite: `bash scripts/production/smoke.sh --host <VPS> --dry-run` then without `--dry-run`.
-8. Alertmanager starts automatically with the monitoring stack. Edit `infra/monitoring/alertmanager.yml` to set your notification channel (Slack, email, PagerDuty).
+8. Set the Slack webhook URL in `infra/monitoring/alertmanager.yml` (replace the placeholder `api_url`). See "Notification Channel — Slack" above.
 9. Verify Alertmanager is healthy: `curl -s http://localhost:9094/-/healthy`
 10. Verify Prometheus is connected: Prometheus → Status → Alertmanagers (should show `7d-alertmanager:9093`).

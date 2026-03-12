@@ -8,11 +8,12 @@
 #   - All other modules → standard 5-minute grouping
 #
 # Receiver setup:
-#   By default, alerts go to the 'ops-webhook' receiver which posts to a
-#   configurable webhook URL. Set ALERTMANAGER_WEBHOOK_URL in your env.
+#   Alerts go to the 'ops-webhook' receiver which posts to a Slack channel.
+#   Before deploying, replace the placeholder api_url below with your real
+#   Slack webhook URL. Create one at https://api.slack.com/messaging/webhooks
 #
-#   To switch to Slack, email, or PagerDuty, replace the receiver config
-#   below. See: https://prometheus.io/docs/alerting/latest/configuration/
+#   To switch to email or PagerDuty, replace the receiver config below.
+#   See: https://prometheus.io/docs/alerting/latest/configuration/
 #
 # Inhibition:
 #   - Critical alerts suppress warning alerts for the same module
@@ -81,9 +82,18 @@ route:
 
 receivers:
   - name: ops-webhook
-    webhook_configs:
-      - url: 'http://host.docker.internal:9095/alertmanager'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/REPLACE/WITH/REAL-WEBHOOK-URL'
+        channel: '#ops-alerts'
         send_resolved: true
+        title: '{{ template "slack.default.title" . }}'
+        text: >-
+          {{ range .Alerts -}}
+          *{{ .Labels.alertname }}* ({{ .Labels.severity }})
+          {{ if .Labels.module }}Module: {{ .Labels.module }}{{ end }}
+          {{ .Annotations.summary }}
+          {{ end }}
+        color: '{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}{{ else }}good{{ end }}'
 
 inhibit_rules:
   # Critical suppresses warning for same alertname
