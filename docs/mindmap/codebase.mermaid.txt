@@ -1,0 +1,155 @@
+mindmap
+  root((7D Solutions Platform))
+    Platform Core
+      Identity & Auth
+        JWT Ed25519
+        RBAC & Lockout
+      Event Bus
+        NATS JetStream
+        Outbox Relay
+        DLQ
+      Event Consumer
+      Control Plane
+        Tenant Provisioning
+        Platform Billing
+      Tenant Registry
+      Security
+        AuthZ Middleware
+        Rate Limiting
+      Audit
+        Field-Level Diffs
+        Actor Propagation
+      Projections
+        Cursor-Based Rebuild
+        Blue-Green Swap
+      Health
+      Tax Core
+      Platform Contracts
+      Document Mgmt
+    Business Modules
+      Financial Core
+        AR
+        AP
+        GL
+        Payments
+        Treasury
+      Financial Extended
+        Subscriptions
+        Fixed Assets
+        Consolidation
+        Timekeeping
+        Reporting
+      Manufacturing
+        Inventory
+        BOM
+        Production
+        Quality Inspection
+        Shipping & Receiving
+        Maintenance
+      Cross-Cutting
+        Notifications
+        Party
+        Integrations
+        PDF Editor
+        Numbering
+        Workflow
+        Customer Portal
+        Workforce Competence
+      Platform Billing
+        TTP Metering
+    Infrastructure
+      NATS
+        JetStream Enabled
+        Token Auth
+      PostgreSQL
+        DB Per Module
+        TLS Connections
+      Monitoring
+        Prometheus
+        Alertmanager
+        Grafana
+      Nginx
+        Auth Load Balancer
+        API Gateway
+    Contracts
+      API Contracts
+      Event Schemas
+      Per-Module Contracts
+    Tools
+      CLI & Operations
+        tenantctl
+        demo-seed
+        compliance-export
+        projection-rebuild
+      Testing
+        contract-tests
+        simulation
+        stabilization-gate
+      Performance
+    Testing
+      E2E Tests
+        140+ Test Files
+        No Mocks
+      Unit & Integration
+      Stress Tests
+        Pool Exhaustion
+        Double-Spend Prevention
+    Scripts
+      Development
+        cargo-slot
+        dev-watch
+        dev-native
+      CI/CD
+        proof-runbook
+        convention-checks
+      Production
+        deploy & rollback
+        backup pipeline
+        secrets lifecycle
+      Staging
+      Versioning
+      DR Drills
+      Agent Coordination
+    Deployment
+      Compose Stacks
+        Data Layer
+        Services
+        Monitoring
+        Production
+      Deploy Configs
+        Production
+        Staging
+    Documentation
+      Architecture
+        ADRs
+        Module Standards
+      Operations
+        Runbooks
+      Governance
+      Plans
+        Manufacturing Roadmap
+    Agent System
+      Beads
+        Work Tracking
+        Pre-Edit Hooks
+      Flywheel
+        Auto-Retro
+      Agent Mail
+        MCP Messaging
+        Swarm Broadcast
+      Search Tools
+        fsfs Semantic
+        cass Sessions
+    Build System
+      Cargo Workspace
+        33 Members
+        Rust 2021
+      Build Slots
+        4 Target Dirs
+        Parallel Compile
+      CI Workflows
+        File Size Lint
+        Version Enforcement
+    Proofs
+      Runbook Outputs
+      Cross-Phase Validation

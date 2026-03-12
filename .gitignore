@@ -188,3 +188,13 @@ docs/plans/.$*.drawio.dtmp
 
 # Claude settings temp files
 .claude/settings.local.json.tmp
+
+# SLB local state
+.slb/
+
+# E2E test temp/generated files
+e2e-tests/tests/.gen.py
+e2e-tests/tests/.tmp_b64
+
+# AgentCore symlinked directory (created at runtime, points outside this repo)
+flywheel_tools

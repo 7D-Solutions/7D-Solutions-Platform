@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7D Solutions Platform — Codebase Mindmap</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#1a1a2e;--bg2:#16213e;--bg3:#0f3460;--text:#e0e0e0;--accent:#e94560;--accent2:#ff6b6b;--border:#2a2a4a;--hover:#533483}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{background:var(--bg2);border-bottom:2px solid var(--accent);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:10}
+header h1{font-size:1.4rem;font-weight:700;color:var(--accent)}
+header h1 span{color:var(--text);font-weight:400;font-size:0.85rem;margin-left:12px;opacity:0.7}
+header .meta{font-size:0.75rem;color:var(--text);opacity:0.5}
+.container{display:flex;flex:1;overflow:hidden}
+.panel{overflow:hidden;position:relative}
+.panel-diagram{flex:2;border-right:1px solid var(--border);position:relative;cursor:grab}
+.panel-diagram.grabbing{cursor:grabbing}
+.panel-outline{flex:1;min-width:280px;max-width:420px;overflow-y:auto;background:var(--bg2);padding:16px}
+.panel-outline::-webkit-scrollbar{width:6px}
+.panel-outline::-webkit-scrollbar-track{background:var(--bg2)}
+.panel-outline::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.panel-outline::-webkit-scrollbar-thumb:hover{background:var(--hover)}
+.zoom-controls{position:absolute;top:12px;left:12px;z-index:20;display:flex;flex-direction:column;gap:4px}
+.zoom-controls button{width:36px;height:36px;border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:6px;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.zoom-controls button:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.zoom-level{font-size:0.65rem;text-align:center;color:var(--text);opacity:0.6;margin-top:2px}
+#diagram-viewport{width:100%;height:100%;overflow:hidden;position:relative}
+#diagram-canvas{transform-origin:0 0;position:absolute;top:0;left:0;min-width:100%;min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:40px}
+#mermaid-container{display:inline-block}
+.outline-title{font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.outline-desc{font-size:0.78rem;color:var(--text);opacity:0.7;line-height:1.5;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.tree-node{margin:0;padding:0;list-style:none}
+.tree-item{margin:2px 0}
+.tree-toggle{display:flex;align-items:flex-start;gap:6px;padding:4px 6px;border-radius:4px;cursor:pointer;transition:background 0.12s;font-size:0.82rem;line-height:1.4}
+.tree-toggle:hover{background:rgba(233,69,96,0.1)}
+.tree-toggle .arrow{flex-shrink:0;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:var(--accent);transition:transform 0.2s;margin-top:1px}
+.tree-toggle .arrow.expanded{transform:rotate(90deg)}
+.tree-toggle .arrow.leaf{color:var(--border);font-size:0.5rem}
+.tree-toggle .label{flex:1}
+.tree-toggle .label .h1{font-weight:700;color:var(--accent);font-size:0.95rem}
+.tree-toggle .label .h2{font-weight:700;color:var(--accent2);font-size:0.88rem}
+.tree-toggle .label .h3{font-weight:600;color:#a78bfa;font-size:0.84rem}
+.tree-toggle .label .detail{color:var(--text);opacity:0.8}
+.tree-toggle .label .code{color:#4ade80;font-family:'SF Mono',Consolas,monospace;font-size:0.76rem;opacity:0.8}
+.tree-toggle .label .port{color:#fbbf24;font-size:0.72rem;margin-left:6px}
+.tree-children{margin-left:16px;overflow:hidden;transition:max-height 0.25s ease}
+.tree-children.collapsed{max-height:0!important;overflow:hidden}
+.separator{height:1px;background:var(--border);margin:12px 0}
+@media(max-width:900px){
+.container{flex-direction:column}
+.panel-diagram{flex:none;height:50vh;border-right:none;border-bottom:1px solid var(--border)}
+.panel-outline{flex:none;max-width:none;height:50vh}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>7D Solutions Platform<span>Codebase Mindmap</span></h1>
+<div class="meta" id="timestamp"></div>
+</header>
+<div class="container">
+<div class="panel panel-diagram" id="diagramPanel">
+<div class="zoom-controls">
+<button onclick="zoomIn()" title="Zoom in">+</button>
+<button onclick="zoomOut()" title="Zoom out">−</button>
+<button onclick="zoomReset()" title="Reset zoom" style="font-size:0.7rem">⊙</button>
+<div class="zoom-level" id="zoomLevel">100%</div>
+</div>
+<div id="diagram-viewport">
+<div id="diagram-canvas">
+<div id="mermaid-container">
+<pre class="mermaid">
+mindmap
+  root((7D Solutions Platform))
+    Platform Core
+      Identity & Auth
+        JWT Ed25519
+        RBAC & Lockout
+      Event Bus
+        NATS JetStream
+        Outbox Relay
+        DLQ
+      Event Consumer
+      Control Plane
+        Tenant Provisioning
+        Platform Billing
+      Tenant Registry
+      Security
+        AuthZ Middleware
+        Rate Limiting
+      Audit
+        Field-Level Diffs
+        Actor Propagation
+      Projections
+        Cursor-Based Rebuild
+        Blue-Green Swap
+      Health
+      Tax Core
+      Platform Contracts
+      Document Mgmt
+    Business Modules
+      Financial Core
+        AR
+        AP
+        GL
+        Payments
+        Treasury
+      Financial Extended
+        Subscriptions
+        Fixed Assets
+        Consolidation
+        Timekeeping
+        Reporting
+      Manufacturing
+        Inventory
+        BOM
+        Production
+        Quality Inspection
+        Shipping & Receiving
+        Maintenance
+      Cross-Cutting
+        Notifications
+        Party
+        Integrations
+        PDF Editor
+        Numbering
+        Workflow
+        Customer Portal
+        Workforce Competence
+      Platform Billing
+        TTP Metering
+    Infrastructure
+      NATS
+        JetStream Enabled
+        Token Auth
+      PostgreSQL
+        DB Per Module
+        TLS Connections
+      Monitoring
+        Prometheus
+        Alertmanager
+        Grafana
+      Nginx
+        Auth Load Balancer
+        API Gateway
+    Contracts
+      API Contracts
+      Event Schemas
+      Per-Module Contracts
+    Tools
+      CLI & Operations
+        tenantctl
+        demo-seed
+        compliance-export
+        projection-rebuild
+      Testing
+        contract-tests
+        simulation
+        stabilization-gate
+      Performance
+    Testing
+      E2E Tests
+        140+ Test Files
+        No Mocks
+      Unit & Integration
+      Stress Tests
+        Pool Exhaustion
+        Double-Spend Prevention
+    Scripts
+      Development
+        cargo-slot
+        dev-watch
+        dev-native
+      CI/CD
+        proof-runbook
+        convention-checks
+      Production
+        deploy & rollback
+        backup pipeline
+        secrets lifecycle
+      Staging
+      Versioning
+      DR Drills
+      Agent Coordination
+    Deployment
+      Compose Stacks
+        Data Layer
+        Services
+        Monitoring
+        Production
+      Deploy Configs
+        Production
+        Staging
+    Documentation
+      Architecture
+        ADRs
+        Module Standards
+      Operations
+        Runbooks
+      Governance
+      Plans
+        Manufacturing Roadmap
+    Agent System
+      Beads
+        Work Tracking
+        Pre-Edit Hooks
+      Flywheel
+        Auto-Retro
+      Agent Mail
+        MCP Messaging
+        Swarm Broadcast
+      Search Tools
+        fsfs Semantic
+        cass Sessions
+    Build System
+      Cargo Workspace
+        33 Members
+        Rust 2021
+      Build Slots
+        4 Target Dirs
+        Parallel Compile
+      CI Workflows
+        File Size Lint
+        Version Enforcement
+    Proofs
+      Runbook Outputs
+      Cross-Phase Validation
+</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="panel panel-outline" id="outlinePanel">
+<div class="outline-title">Codebase Outline</div>
+<div class="outline-desc">Modular Rust backend for vertical business applications. Each module is an independent Axum microservice with its own PostgreSQL database, communicating via NATS JetStream events.</div>
+<div id="outline-tree"></div>
+</div>
+</div>
+
+<script>
+document.getElementById('timestamp').textContent = 'Generated: ' + new Date().toISOString().replace('T',' ').slice(0,19) + ' UTC';
+
+// Zoom & Pan
+let scale = 1, panX = 0, panY = 0, isPanning = false, startX, startY;
+const viewport = document.getElementById('diagram-viewport');
+const canvas = document.getElementById('diagram-canvas');
+const panel = document.getElementById('diagramPanel');
+
+function updateTransform(){
+canvas.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+document.getElementById('zoomLevel').textContent = Math.round(scale*100)+'%';
+}
+function zoomIn(){scale=Math.min(scale*1.2,5);updateTransform()}
+function zoomOut(){scale=Math.max(scale/1.2,0.1);updateTransform()}
+function zoomReset(){scale=1;panX=0;panY=0;updateTransform()}
+
+viewport.addEventListener('mousedown',e=>{if(e.button===0){isPanning=true;startX=e.clientX-panX;startY=e.clientY-panY;panel.classList.add('grabbing');e.preventDefault()}});
+window.addEventListener('mousemove',e=>{if(isPanning){panX=e.clientX-startX;panY=e.clientY-startY;updateTransform()}});
+window.addEventListener('mouseup',()=>{isPanning=false;panel.classList.remove('grabbing')});
+
+viewport.addEventListener('wheel',e=>{
+if(e.metaKey||e.ctrlKey){
+e.preventDefault();
+const rect=viewport.getBoundingClientRect();
+const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+const oldScale=scale;
+if(e.deltaY<0)scale=Math.min(scale*1.1,5);
+else scale=Math.max(scale/1.1,0.1);
+panX=mx-(mx-panX)*(scale/oldScale);
+panY=my-(my-panY)*(scale/oldScale);
+updateTransform();
+}
+},{passive:false});
+
+// Outline tree data
+const outlineData=[
+{h:1,t:'Platform Core',code:'platform/',items:[
+{h:2,t:'Identity & Auth',code:'platform/identity-auth',desc:'JWT-based authentication with Ed25519 key pairs. RBAC, password reset, account lockout, Argon2 hashing. Runs 2 instances behind Nginx LB.',port:'8080'},
+{h:2,t:'Event Bus',code:'platform/event-bus',desc:'NATS JetStream wrapper with outbox relay and DLQ. Guard → Mutation → Outbox atomicity pattern. EventEnvelope constitutional metadata.'},
+{h:2,t:'Event Consumer',code:'platform/event-consumer',desc:'Consumes events from NATS JetStream.'},
+{h:2,t:'Control Plane',code:'platform/control-plane',desc:'Tenant provisioning and platform billing orchestration.',port:'8091'},
+{h:2,t:'Tenant Registry',code:'platform/tenant-registry',desc:'Multi-tenant registry, lifecycle, plan management.'},
+{h:2,t:'Security',code:'platform/security',desc:'AuthZ middleware, rate limiting, webhook verification.'},
+{h:2,t:'Audit',code:'platform/audit',desc:'Append-only audit trail with field-level diffs. Actor propagation across services.'},
+{h:2,t:'Projections',code:'platform/projections',desc:'Cursor-based event projection rebuild. Blue-green swap for zero-downtime rebuilds.'},
+{h:2,t:'Health',code:'platform/health',desc:'Readiness/liveness probe contract (/api/health, /api/ready).'},
+{h:2,t:'Tax Core',code:'platform/tax-core',desc:'Tax jurisdiction resolution. Local and zero-rate providers.'},
+{h:2,t:'Platform Contracts',code:'platform/platform-contracts',desc:'Shared contract types and interfaces.'},
+{h:2,t:'Document Management',code:'platform/doc-mgmt',desc:'Document storage and lifecycle.',port:'8095'}
+]},
+{h:1,t:'Business Modules',code:'modules/',items:[
+{h:2,t:'Financial Core',items:[
+{h:3,t:'AR',code:'modules/ar',desc:'Accounts receivable: invoices, aging, dunning, credit notes, write-offs, Tilled integration.',port:'8086'},
+{h:3,t:'AP',code:'modules/ap',desc:'Accounts payable: bills, POs, payment runs, vendor management.',port:'8093'},
+{h:3,t:'GL',code:'modules/gl',desc:'General ledger: journals, trial balance, rev-rec, FX, accruals.',port:'8090'},
+{h:3,t:'Payments',code:'modules/payments',desc:'Payment processing, reconciliation, retry logic.',port:'8088'},
+{h:3,t:'Treasury',code:'modules/treasury',desc:'Bank accounts, bank reconciliation, cash position, forecasting.',port:'8094'}
+]},
+{h:2,t:'Financial Extended',items:[
+{h:3,t:'Subscriptions',code:'modules/subscriptions',desc:'Recurring billing, lifecycle state machine; calls AR.',port:'8087'},
+{h:3,t:'Fixed Assets',code:'modules/fixed-assets',desc:'Asset register, depreciation, disposals.',port:'8104'},
+{h:3,t:'Consolidation',code:'modules/consolidation',desc:'Multi-entity financial consolidation, eliminations.',port:'8105'},
+{h:3,t:'Timekeeping',code:'modules/timekeeping',desc:'Time entries, approvals, billing, GL labor cost.',port:'8097'},
+{h:3,t:'Reporting',code:'modules/reporting',desc:'Financial statements, aging reports, KPIs, forecasting.',port:'8096'}
+]},
+{h:2,t:'Manufacturing & Supply Chain',items:[
+{h:3,t:'Inventory',code:'modules/inventory',desc:'Stock tracking, FIFO costing, reservations, cycle counts, lot/serial tracking.',port:'8092'},
+{h:3,t:'BOM',code:'modules/bom',desc:'Bill of materials, ECO management.',port:'8107'},
+{h:3,t:'Production',code:'modules/production',desc:'Work orders, routings, time tracking.',port:'8108'},
+{h:3,t:'Quality Inspection',code:'modules/quality-inspection',desc:'Inspection plans, results; cross-references workforce-competence.',port:'8106'},
+{h:3,t:'Shipping & Receiving',code:'modules/shipping-receiving',desc:'Inbound/outbound shipments, inventory integration.',port:'8103'},
+{h:3,t:'Maintenance',code:'modules/maintenance',desc:'Work orders, preventive maintenance plans, meters.',port:'8101'}
+]},
+{h:2,t:'Cross-Cutting Services',items:[
+{h:3,t:'Notifications',code:'modules/notifications',desc:'Event-driven notifications, scheduled dispatch.',port:'8089'},
+{h:3,t:'Party',code:'modules/party',desc:'Party master: customers, vendors, contacts, addresses.',port:'8098'},
+{h:3,t:'Integrations',code:'modules/integrations',desc:'External connectors, webhook routing, external refs.',port:'8099'},
+{h:3,t:'PDF Editor',code:'modules/pdf-editor',desc:'PDF template forms, annotations, submission validation.',port:'8102'},
+{h:3,t:'Numbering',code:'modules/numbering',desc:'Configurable sequence generation for documents.',port:'8120'},
+{h:3,t:'Workflow',code:'modules/workflow',desc:'Approval workflows, state machines.',port:'8110'},
+{h:3,t:'Customer Portal',code:'modules/customer-portal',desc:'Tenant-facing self-service; calls doc-mgmt.',port:'8111'},
+{h:3,t:'Workforce Competence',code:'modules/workforce-competence',desc:'Employee skills, certifications.',port:'8121'}
+]},
+{h:2,t:'Platform Billing',items:[
+{h:3,t:'TTP',code:'modules/ttp',desc:'Tenant technology platform: metering, billing, service agreements.',port:'8100'}
+]}
+]},
+{h:1,t:'Infrastructure',code:'infra/',items:[
+{h:2,t:'NATS',code:'infra/nats',desc:'NATS 2.10-alpine with JetStream enabled. Auth token-based access.',port:'4222'},
+{h:2,t:'PostgreSQL',code:'infra/postgres',desc:'Postgres 16-alpine, one instance per module (30+ databases). TLS-enabled connections.',port:'5433-5464'},
+{h:2,t:'Monitoring',items:[
+{h:3,t:'Prometheus',desc:'Scrapes /metrics from all services, 30-day retention.',port:'9091'},
+{h:3,t:'Alertmanager',desc:'Alert routing and notification.',port:'9094'},
+{h:3,t:'Grafana',desc:'Dashboards for billing, operations.',port:'3002'}
+]},
+{h:2,t:'Nginx',code:'nginx/',desc:'Auth load balancer for auth-1/auth-2. API gateway with edge rate limiting.',port:'8000'}
+]},
+{h:1,t:'Contracts',code:'contracts/',items:[
+{h:2,t:'API Contracts',desc:'Shared API contracts and OpenAPI specs.'},
+{h:2,t:'Event Schemas',desc:'Event envelope schemas with examples.'},
+{h:2,t:'Per-Module Contracts',desc:'AR, GL, payments, auth, control-plane, tenant-registry, etc.'}
+]},
+{h:1,t:'Tools',code:'tools/',items:[
+{h:2,t:'CLI & Operations',items:[
+{h:3,t:'tenantctl',desc:'Tenant management CLI.'},
+{h:3,t:'demo-seed',desc:'Seed demo data for development.'},
+{h:3,t:'compliance-export',desc:'Export compliance artifacts.'},
+{h:3,t:'projection-rebuild',desc:'Rebuild event projections.'}
+]},
+{h:2,t:'Testing & Validation',items:[
+{h:3,t:'contract-tests',desc:'Event schema and OpenAPI validation.'},
+{h:3,t:'simulation',desc:'Load simulation using AR, payments, subscriptions, GL.'},
+{h:3,t:'stabilization-gate',desc:'Automated stabilization checks.'}
+]},
+{h:2,t:'Performance',desc:'Performance testing configs and CI helpers.'}
+]},
+{h:1,t:'Testing',items:[
+{h:2,t:'E2E Tests',code:'e2e-tests/',desc:'140+ end-to-end test files. No mocks or stubs. Tests run against real databases.'},
+{h:2,t:'Unit & Integration',desc:'Each module has tests/ directory. Run via cargo-slot.sh.'},
+{h:2,t:'Stress Tests',desc:'Pool exhaustion, rate limit, event bus flood, double-spend prevention, multi-tenant isolation.'}
+]},
+{h:1,t:'Scripts',code:'scripts/',items:[
+{h:2,t:'Development',desc:'cargo-slot.sh, dev-watch.sh, dev-native.sh, dev-cross.sh, seed scripts.'},
+{h:2,t:'CI/CD',code:'scripts/ci/',desc:'proof-runbook, convention checks, migration versioning, OpenAPI diff, crate publishing.'},
+{h:2,t:'Production',code:'scripts/production/',desc:'Deploy & rollback, backup pipeline, DR restore, secrets lifecycle, VPS provisioning.'},
+{h:2,t:'Staging',code:'scripts/staging/',desc:'Image build/push, staging deploy, smoke tests, payment loop.'},
+{h:2,t:'Versioning',code:'scripts/versioning/',desc:'Version intent detection, REVISIONS.md lint, module promotion, pre-commit hooks.'},
+{h:2,t:'DR Drills',code:'scripts/drills/',desc:'DLQ replay drill, JetStream backup/restore drill.'},
+{h:2,t:'Agent Coordination',desc:'Agent mail, file reservations, plan-to-agents, session hooks.'}
+]},
+{h:1,t:'Deployment',items:[
+{h:2,t:'Compose Stacks',desc:'Data layer, services, monitoring, production, cross-compiled overlay.'},
+{h:2,t:'Deploy Configs',desc:'Production and staging manifests. Manifest → env conversion.'}
+]},
+{h:1,t:'Documentation',code:'docs/',items:[
+{h:2,t:'Architecture',desc:'Module standards, layering rules, ADRs.'},
+{h:2,t:'Operations',desc:'Operational runbooks for DR, deployment, backup.'},
+{h:2,t:'Governance',desc:'Domain ownership, mutation classes, retention policies.'},
+{h:2,t:'Plans',desc:'Manufacturing roadmap, phase plans, .drawio flowcharts.'}
+]},
+{h:1,t:'Agent System',items:[
+{h:2,t:'Beads',code:'.beads/',desc:'Work tracking system. Pre-edit hooks enforce bead requirement. Lifecycle: draft → open → in_progress → closed.'},
+{h:2,t:'Flywheel',code:'.flywheel/',desc:'Auto-retro system (every 5 bead closes). Retro artifacts and counter state.'},
+{h:2,t:'Agent Mail',desc:'MCP-based inter-agent messaging. Broadcast to swarm groups.'},
+{h:2,t:'Search Tools',code:'.frankensearch/',desc:'fsfs semantic + keyword search. cass prior session search.'}
+]},
+{h:1,t:'Build System',items:[
+{h:2,t:'Cargo Workspace',desc:'33 workspace members. Rust 2021 edition, resolver v2. Axum 0.8, sqlx 0.8, Tower 0.5.'},
+{h:2,t:'Build Slots',desc:'4 independent target directories. cargo-slot.sh routes builds to available slots.'},
+{h:2,t:'CI Workflows',code:'.github/workflows/',desc:'File size lint (500 LOC max), version enforcement, event conventions, migration versioning.'}
+]},
+{h:1,t:'Proofs',code:'proofs/',items:[
+{h:2,t:'Runbook Outputs',desc:'20+ timestamped proof runbook outputs.'},
+{h:2,t:'Cross-Phase Validation',desc:'33/33 crates green, platform contracts pass, NATS JetStream healthy.'}
+]}
+];
+
+function buildTree(items,container){
+const ul=document.createElement('ul');
+ul.className='tree-node';
+items.forEach(item=>{
+const li=document.createElement('li');
+li.className='tree-item';
+const toggle=document.createElement('div');
+toggle.className='tree-toggle';
+const arrow=document.createElement('span');
+arrow.className='arrow'+(item.items?' expanded':' leaf');
+arrow.textContent=item.items?'▶':'•';
+const label=document.createElement('div');
+label.className='label';
+const hClass=item.h===1?'h1':item.h===2?'h2':'h3';
+let html='<span class="'+hClass+'">'+item.t+'</span>';
+if(item.code) html+=' <span class="code">'+item.code+'</span>';
+if(item.port) html+='<span class="port">:'+item.port+'</span>';
+if(item.desc) html+='<br><span class="detail">'+item.desc+'</span>';
+label.innerHTML=html;
+toggle.appendChild(arrow);
+toggle.appendChild(label);
+li.appendChild(toggle);
+if(item.items){
+const children=document.createElement('div');
+children.className='tree-children';
+buildTree(item.items,children);
+li.appendChild(children);
+toggle.addEventListener('click',()=>{
+const isCollapsed=children.classList.toggle('collapsed');
+arrow.classList.toggle('expanded',!isCollapsed);
+});
+}
+ul.appendChild(li);
+});
+container.appendChild(ul);
+}
+buildTree(outlineData,document.getElementById('outline-tree'));
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({
+startOnLoad:true,
+theme:'dark',
+themeVariables:{
+primaryColor:'#e94560',
+primaryTextColor:'#e0e0e0',
+primaryBorderColor:'#533483',
+lineColor:'#533483',
+secondaryColor:'#0f3460',
+tertiaryColor:'#16213e',
+fontFamily:'Segoe UI, system-ui, sans-serif',
+fontSize:'13px'
+},
+mindmap:{useMaxWidth:false,padding:16}
+});
+</script>
+</body>
+</html>
