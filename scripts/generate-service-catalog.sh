@@ -31,7 +31,8 @@ with open('$REPO_ROOT/docker-compose.services.yml') as f:
     data = yaml.safe_load(f)
 for name, svc in data.get('services', {}).items():
     ports = svc.get('ports', [])
-    port = ports[0].split(':')[0] if ports else ''
+    parts = ports[0].split(':') if ports else []
+    port = parts[1] if len(parts) >= 2 else (parts[0] if parts else '')
     print(f'{name}|{port}')
 ")
 fi
@@ -49,7 +50,8 @@ for name, svc in data.get('services', {}).items():
     if name == 'nats':
         continue
     ports = svc.get('ports', [])
-    port = ports[0].split(':')[0] if ports else ''
+    parts = ports[0].split(':') if ports else []
+    port = parts[1] if len(parts) >= 2 else (parts[0] if parts else '')
     print(f'{name}|{port}')
 ")
 fi
