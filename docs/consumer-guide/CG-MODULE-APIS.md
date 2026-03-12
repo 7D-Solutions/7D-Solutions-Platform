@@ -1,7 +1,7 @@
 # Consumer Guide — Module APIs
 
 > **Who reads this:** Agents building vertical apps on the 7D Platform.
-> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, AP Module, TTP Module, Treasury Module, Fixed Assets Module, Consolidation Module, BOM Module, Production Module, Quality Inspection Module, Numbering Module, Workflow Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
+> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, AP Module, TTP Module, Treasury Module, Fixed Assets Module, Consolidation Module, BOM Module, Production Module, Quality Inspection Module, Numbering Module, Workflow Module, Maintenance, Identity SoD, Notifications, Timekeeping, Integrations, Shipping/Receiving, Workforce Competence, Customer Portal, PDF Editor, Reporting, and the canonical "First Invoice" flow.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
 ## Contents
@@ -27,7 +27,14 @@
 19. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
 20. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
 21. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
-22. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
+22. [Timekeeping Module](#timekeeping-module) — employees, projects, tasks, time entries, approvals, allocations, rollups, billing, exports
+23. [Integrations Module](#integrations-module) — external refs, connectors, inbound webhooks
+24. [Shipping/Receiving Module](#shippingreceiving-module) — shipments, lines, receive, ship, deliver, close, inspection routing, PO/source-ref queries
+25. [Workforce Competence Module](#workforce-competence-module) — artifacts, assignments, authorization checks, acceptance authorities
+26. [Customer Portal Module](#customer-portal-module) — portal auth (login/refresh/logout), user invite, documents, status feed, acknowledgments
+27. [PDF Editor Module](#pdf-editor-module) — form templates, fields, submissions, PDF generation, annotations
+28. [Reporting Module](#reporting-module) — P&L, balance sheet, cash flow, AR/AP aging, KPIs, forecast, rebuild
+29. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
 
 ---
 
@@ -40,6 +47,7 @@
 | 3.0 | 2026-03-12 | DarkOwl | Added GL module (financial reports, period close, FX rates, accruals, revrec, exports), Inventory module (items, receipts, issues, transfers, reservations, lots/serials, locations, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy), Subscriptions module (bill runs), Payments module (checkout sessions, webhooks). |
 | 4.0 | 2026-03-11 | DarkOwl | Added AP module (vendors, POs, bills, 3-way matching, payment terms, payment runs, aging, tax reports), TTP module (billing runs, metering, service agreements), Treasury module (accounts, reconciliation, GL linkage, statement import, cash position, forecast), Fixed Assets module (categories, assets, depreciation, disposals), Consolidation module (groups, entities, COA mappings, eliminations, FX policies, intercompany, consolidated statements). |
 | 5.0 | 2026-03-11 | DarkOwl | Added BOM module (headers, revisions, effectivity, lines, explosion, where-used, ECOs with lifecycle), Production module (workcenters, work orders, routings, operations, component issues, FG receipts, time entries, downtime), Quality Inspection module (plans, receiving/in-process/final inspections, disposition state machine), Numbering module (allocation, gap-free reservations, confirmation, formatting policies), Workflow module (definitions, instances, transitions). |
+| 6.0 | 2026-03-11 | DarkOwl | Added Timekeeping module (employees, projects, tasks, entries, approvals, allocations, rollups, billing, exports), Integrations module (external refs, connectors, webhooks), Shipping/Receiving module (shipments, lines, receive/ship/deliver/close, inspection routing, PO refs), Workforce Competence module (artifacts, assignments, authorization, acceptance authorities), Customer Portal module (auth, invite, docs, status feed, acknowledgments), PDF Editor module (templates, fields, submissions, generation, annotations), Reporting module (P&L, balance sheet, cashflow, aging, KPIs, forecast, rebuild). |
 
 ---
 
@@ -3249,6 +3257,656 @@ Require `X-Admin-Token` header.
 POST /api/notifications/admin/projection-status
 POST /api/notifications/admin/consistency-check
 GET  /api/notifications/admin/projections
+```
+
+---
+
+## Timekeeping Module
+
+Source: `modules/timekeeping/src/http/mod.rs`, `modules/timekeeping/src/http/entries.rs`, `modules/timekeeping/src/http/employees.rs`, `modules/timekeeping/src/http/projects.rs`, `modules/timekeeping/src/http/approvals.rs`, `modules/timekeeping/src/http/allocations.rs`, `modules/timekeeping/src/http/billing.rs`, `modules/timekeeping/src/http/export.rs`
+
+**Base URL:** `http://7d-timekeeping:8097`
+
+Full-featured time tracking: employees, projects/tasks, timesheet entries (append-only with correction/void), approval workflows, cost allocations, billing rates/runs, and payroll exports. Mutation routes require `timekeeping.mutate` permission.
+
+### Employees
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/employees` | Create employee |
+| `GET` | `/api/timekeeping/employees` | List employees |
+| `GET` | `/api/timekeeping/employees/{id}` | Get employee by ID |
+| `PUT` | `/api/timekeeping/employees/{id}` | Update employee |
+| `DELETE` | `/api/timekeeping/employees/{id}` | Deactivate employee |
+
+**Create employee:**
+
+```bash
+curl -X POST http://7d-timekeeping:8097/api/timekeeping/employees \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employee_code": "EMP-001",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane@acme.com",
+    "department": "Engineering",
+    "external_payroll_id": "ADP-12345",
+    "hourly_rate_minor": 5000,
+    "currency": "USD"
+  }'
+```
+
+Required: **`employee_code`**, **`first_name`**, **`last_name`**. `employee_code` must be unique per tenant.
+
+Response `201 Created`:
+```json
+{
+  "id": "uuid",
+  "app_id": "...",
+  "employee_code": "EMP-001",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane@acme.com",
+  "department": "Engineering",
+  "external_payroll_id": "ADP-12345",
+  "hourly_rate_minor": 5000,
+  "currency": "USD",
+  "active": true,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Projects and Tasks
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/projects` | Create project |
+| `GET` | `/api/timekeeping/projects` | List projects |
+| `GET` | `/api/timekeeping/projects/{id}` | Get project |
+| `PUT` | `/api/timekeeping/projects/{id}` | Update project |
+| `DELETE` | `/api/timekeeping/projects/{id}` | Deactivate project |
+| `POST` | `/api/timekeeping/tasks` | Create task (under a project) |
+| `GET` | `/api/timekeeping/projects/{project_id}/tasks` | List tasks for project |
+| `GET` | `/api/timekeeping/tasks/{id}` | Get task |
+| `PUT` | `/api/timekeeping/tasks/{id}` | Update task |
+| `DELETE` | `/api/timekeeping/tasks/{id}` | Deactivate task |
+
+### Timesheet Entries
+
+Append-only model: entries are never updated. Corrections create a new version; voids mark the entry cancelled. Only the latest version (`is_current = true`) counts toward totals.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/entries` | Create time entry |
+| `POST` | `/api/timekeeping/entries/correct` | Correct an existing entry (new version) |
+| `POST` | `/api/timekeeping/entries/void` | Void an entry |
+| `GET` | `/api/timekeeping/entries` | List entries (?employee_id=&from=YYYY-MM-DD&to=YYYY-MM-DD) |
+| `GET` | `/api/timekeeping/entries/{entry_id}/history` | Entry version history |
+
+**Create entry:**
+
+```bash
+curl -X POST http://7d-timekeeping:8097/api/timekeeping/entries \
+  -H "Authorization: Bearer $JWT" \
+  -H "Idempotency-Key: unique-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "employee_id": "uuid",
+    "project_id": "uuid",
+    "task_id": "uuid",
+    "work_date": "2026-03-11",
+    "minutes": 480,
+    "description": "Feature implementation"
+  }'
+```
+
+Required: **`employee_id`**, **`work_date`**, **`minutes`**. Supports `Idempotency-Key` header.
+
+Response `201 Created`:
+```json
+{
+  "id": 1,
+  "entry_id": "uuid",
+  "version": 1,
+  "employee_id": "uuid",
+  "project_id": "uuid",
+  "task_id": "uuid",
+  "work_date": "2026-03-11",
+  "minutes": 480,
+  "description": "Feature implementation",
+  "entry_type": "original",
+  "is_current": true,
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `404` entry not found (correct/void), `409` overlap (duplicate employee/date/project/task) or period locked, `422` validation.
+
+### Approvals
+
+State machine: `draft` → `submitted` → `approved`/`rejected`. Submitted entries can be recalled back to draft.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/approvals/submit` | Submit entries for approval |
+| `POST` | `/api/timekeeping/approvals/approve` | Approve submitted entries |
+| `POST` | `/api/timekeeping/approvals/reject` | Reject submitted entries |
+| `POST` | `/api/timekeeping/approvals/recall` | Recall submission back to draft |
+| `GET` | `/api/timekeeping/approvals` | List approvals (?employee_id=&from=&to=) |
+| `GET` | `/api/timekeeping/approvals/pending` | List pending reviews |
+| `GET` | `/api/timekeeping/approvals/{id}` | Get approval by ID |
+| `GET` | `/api/timekeeping/approvals/{id}/actions` | Available actions for approval |
+
+### Allocations and Rollups
+
+Budget allocations map employees to projects with planned hours. Rollup endpoints aggregate actual time from entries.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/allocations` | Create allocation |
+| `GET` | `/api/timekeeping/allocations` | List allocations (?employee_id=&project_id=&active_only=true) |
+| `GET` | `/api/timekeeping/allocations/{id}` | Get allocation |
+| `PUT` | `/api/timekeeping/allocations/{id}` | Update allocation |
+| `DELETE` | `/api/timekeeping/allocations/{id}` | Deactivate allocation |
+| `GET` | `/api/timekeeping/rollups/by-project` | Actual hours by project (?from=&to=) |
+| `GET` | `/api/timekeeping/rollups/by-employee` | Actual hours by employee (?from=&to=) |
+| `GET` | `/api/timekeeping/rollups/by-task/{project_id}` | Actual hours by task (?from=&to=) |
+
+### Billing and Exports
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/timekeeping/rates` | Create billing rate |
+| `GET` | `/api/timekeeping/rates` | List billing rates |
+| `POST` | `/api/timekeeping/billing-runs` | Create billing run (processes unbilled entries) |
+| `POST` | `/api/timekeeping/exports` | Create export run (payroll/GL export) |
+| `GET` | `/api/timekeeping/exports` | List exports (?export_type=) |
+| `GET` | `/api/timekeeping/exports/{id}` | Get export by ID |
+
+---
+
+## Integrations Module
+
+Source: `modules/integrations/src/http/mod.rs`, `modules/integrations/src/http/external_refs.rs`, `modules/integrations/src/http/connectors.rs`, `modules/integrations/src/http/webhooks.rs`
+
+**Base URL:** `http://7d-integrations:8099`
+
+Cross-system integration hub: external reference mapping (link internal entities to external system IDs), connector registration (configure and test third-party connectors), and inbound webhook ingestion (Stripe, GitHub, Tilled, internal). Mutation routes require `integrations.mutate`; read routes require `integrations.read`.
+
+### External Refs
+
+Map platform entity IDs to external system IDs (e.g., a Party → Stripe customer, an Invoice → QuickBooks invoice).
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/integrations/external-refs` | Create/upsert external ref |
+| `GET` | `/api/integrations/external-refs/by-entity` | List refs by entity (?entity_type=&entity_id=) |
+| `GET` | `/api/integrations/external-refs/by-system` | Lookup by external system (?system=&external_id=) |
+| `GET` | `/api/integrations/external-refs/{id}` | Get ref by ID |
+| `PUT` | `/api/integrations/external-refs/{id}` | Update label/metadata |
+| `DELETE` | `/api/integrations/external-refs/{id}` | Delete ref |
+
+**Create external ref:**
+
+```bash
+curl -X POST http://7d-integrations:8099/api/integrations/external-refs \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Correlation-Id: corr-123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entity_type": "party",
+    "entity_id": "uuid-of-party",
+    "system": "stripe",
+    "external_id": "cus_abc123",
+    "label": "Stripe Customer",
+    "metadata": { "plan": "enterprise" }
+  }'
+```
+
+Response `201 Created`:
+```json
+{
+  "id": 1,
+  "app_id": "...",
+  "entity_type": "party",
+  "entity_id": "uuid-of-party",
+  "system": "stripe",
+  "external_id": "cus_abc123",
+  "label": "Stripe Customer",
+  "metadata": { "plan": "enterprise" },
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `409` conflict (duplicate system+external_id), `422` validation, `404` not found.
+
+### Connectors
+
+Register and test third-party integration connectors.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/integrations/connectors/types` | List available connector types and capabilities |
+| `POST` | `/api/integrations/connectors` | Register a connector config |
+| `GET` | `/api/integrations/connectors` | List tenant's connectors (?enabled_only=true) |
+| `GET` | `/api/integrations/connectors/{id}` | Get connector config |
+| `POST` | `/api/integrations/connectors/{id}/test` | Run test action against connector |
+
+### Inbound Webhooks
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/webhooks/inbound/{system}` | Receive inbound webhook |
+
+Supported systems: `stripe` (HMAC-SHA256 via `Stripe-Signature`), `github` (HMAC-SHA256 via `X-Hub-Signature-256`), `tilled` (via `x-tilled-account` header), `internal` (requires JWT).
+
+Idempotency: pass `X-Webhook-Id` header. Stripe event IDs are automatically extracted. Duplicate delivery returns `200 OK` with `"status": "duplicate"`.
+
+Response:
+```json
+{
+  "status": "accepted",
+  "ingest_id": "uuid"
+}
+```
+
+---
+
+## Shipping/Receiving Module
+
+Source: `modules/shipping-receiving/src/routes.rs`, `modules/shipping-receiving/src/http/shipments/handlers.rs`, `modules/shipping-receiving/src/http/inspection_routing.rs`, `modules/shipping-receiving/src/http/refs.rs`
+
+**Base URL:** `http://7d-shipping-receiving:8120`
+
+Manages inbound (purchase-order receipts) and outbound (sales-order fulfillment) shipments. Tracks per-line quantities through receive → inspect → accept/reject flows. Integrates with Inventory for stock postings on status transitions. Mutation routes require `shipping_receiving.mutate`.
+
+### Shipments
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/shipping-receiving/shipments` | Create shipment (inbound or outbound) |
+| `GET` | `/api/shipping-receiving/shipments` | List shipments (?direction=&status=&limit=50&offset=0) |
+| `GET` | `/api/shipping-receiving/shipments/{id}` | Get shipment by ID |
+| `PATCH` | `/api/shipping-receiving/shipments/{id}/status` | Transition shipment status |
+| `POST` | `/api/shipping-receiving/shipments/{id}/ship` | Mark outbound shipment as shipped |
+| `POST` | `/api/shipping-receiving/shipments/{id}/deliver` | Mark shipment as delivered |
+| `POST` | `/api/shipping-receiving/shipments/{id}/close` | Close shipment |
+
+**Create shipment:**
+
+```bash
+curl -X POST http://7d-shipping-receiving:8120/api/shipping-receiving/shipments \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "direction": "inbound",
+    "carrier_party_id": "uuid",
+    "tracking_number": "1Z999AA10123456784",
+    "freight_cost_minor": 15000,
+    "currency": "USD",
+    "expected_arrival_date": "2026-03-15T00:00:00Z"
+  }'
+```
+
+Required: **`direction`** (`"inbound"` or `"outbound"`). All others optional. Initial status is `draft`.
+
+Response `201 Created`:
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "direction": "inbound",
+  "status": "draft",
+  "carrier_party_id": "uuid",
+  "tracking_number": "1Z999AA10123456784",
+  "freight_cost_minor": 15000,
+  "currency": "USD",
+  "expected_arrival_date": "2026-03-15T00:00:00Z",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Inbound status flow:** `draft` → `in_transit` → `receiving` → `received` → `closed`
+
+**Outbound status flow:** `draft` → `picking` → `packed` → `shipped` → `delivered` → `closed`
+
+### Shipment Lines
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/shipping-receiving/shipments/{id}/lines` | Add line to shipment |
+| `POST` | `/api/shipping-receiving/shipments/{id}/lines/{line_id}/receive` | Record received quantities (inbound only) |
+| `POST` | `/api/shipping-receiving/shipments/{id}/lines/{line_id}/accept` | Accept full received qty |
+| `POST` | `/api/shipping-receiving/shipments/{id}/lines/{line_id}/ship-qty` | Record shipped quantity (outbound only) |
+
+**Add line:**
+
+```bash
+curl -X POST http://7d-shipping-receiving:8120/api/shipping-receiving/shipments/{id}/lines \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sku": "WIDGET-001",
+    "uom": "EA",
+    "warehouse_id": "uuid",
+    "qty_expected": 100,
+    "po_id": "uuid",
+    "po_line_id": "uuid"
+  }'
+```
+
+Required: **`qty_expected`** (must be >= 0). Cannot add lines to a shipment in terminal status.
+
+### Inspection Routing
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/shipping-receiving/shipments/{id}/lines/{line_id}/route` | Route received line to inspection decision |
+| `GET` | `/api/shipping-receiving/shipments/{id}/routings` | List all routings for a shipment |
+
+Routing decisions: `accept`, `reject`, `rework`, `scrap`. Only valid for inbound shipments in `receiving` status. Each line can only be routed once.
+
+### PO and Source-Ref Queries
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/shipping-receiving/po/{po_id}/shipments` | Shipments linked to a purchase order |
+| `GET` | `/api/shipping-receiving/po-lines/{po_line_id}/lines` | Shipment lines linked to a PO line |
+| `GET` | `/api/shipping-receiving/source/{ref_type}/{ref_id}/shipments` | Shipments by source reference |
+
+---
+
+## Workforce Competence Module
+
+Source: `modules/workforce-competence/src/http/handlers.rs`, `modules/workforce-competence/src/main.rs`
+
+**Base URL:** `http://7d-workforce-competence:8121`
+
+Tracks operator qualifications, certifications, and acceptance authorities for regulated manufacturing (AS9100, NADCAP). Register competence artifacts (e.g., NDT Level II cert), assign them to operators with validity windows, and query authorization at a point in time. Mutation routes require `workforce_competence.mutate`; read routes require `workforce_competence.read`.
+
+### Competence Artifacts and Assignments
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/workforce-competence/artifacts` | Register competence artifact (cert type, training record) |
+| `GET` | `/api/workforce-competence/artifacts/{id}` | Get artifact by ID |
+| `POST` | `/api/workforce-competence/assignments` | Assign competence to operator |
+| `GET` | `/api/workforce-competence/authorization` | Check operator authorization (?operator_id=&artifact_code=&at_time=) |
+
+**Register artifact:**
+
+```bash
+curl -X POST http://7d-workforce-competence:8121/api/workforce-competence/artifacts \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "artifact_code": "NDT-UT-L2",
+    "name": "NDT Ultrasonic Testing Level II",
+    "description": "ASNT SNT-TC-1A compliant UT Level II certification",
+    "category": "certification",
+    "requires_renewal": true,
+    "default_validity_days": 365
+  }'
+```
+
+Response `201 Created` (or `200` for idempotent replay):
+```json
+{
+  "id": "uuid",
+  "tenant_id": "uuid",
+  "artifact_code": "NDT-UT-L2",
+  "name": "NDT Ultrasonic Testing Level II",
+  "category": "certification",
+  "active": true,
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Check authorization:**
+
+```bash
+curl "http://7d-workforce-competence:8121/api/workforce-competence/authorization?\
+operator_id=uuid&artifact_code=NDT-UT-L2&at_time=2026-03-11T10:00:00Z" \
+  -H "Authorization: Bearer $JWT"
+```
+
+Returns `{ "authorized": true/false, "assignment": {...}, "expires_at": "..." }`.
+
+### Acceptance Authorities
+
+Manage who can sign off on inspections/tests within specific capability scopes.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/workforce-competence/acceptance-authorities` | Grant acceptance authority |
+| `POST` | `/api/workforce-competence/acceptance-authorities/{id}/revoke` | Revoke authority |
+| `GET` | `/api/workforce-competence/acceptance-authority-check` | Check authority (?operator_id=&capability_scope=&at_time=) |
+
+---
+
+## Customer Portal Module
+
+Source: `modules/customer-portal/src/lib.rs`, `modules/customer-portal/src/http/auth.rs`, `modules/customer-portal/src/http/admin.rs`, `modules/customer-portal/src/http/protected.rs`, `modules/customer-portal/src/http/status.rs`, `modules/customer-portal/src/http/docs.rs`
+
+**Base URL:** `http://7d-customer-portal:8111`
+
+External-facing customer portal with its own JWT identity system (separate from platform auth). Customers log in, view documents, see status updates, and record acknowledgments. Admin routes (inviting users, linking docs, creating status cards) require platform JWT with `party.mutate` permission. Customer-facing routes use portal-issued JWTs with scoped access.
+
+### Authentication (Portal-Issued JWT)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/portal/auth/login` | Login with email/password → access + refresh tokens |
+| `POST` | `/portal/auth/refresh` | Refresh access token (rotates refresh token) |
+| `POST` | `/portal/auth/logout` | Revoke refresh token |
+
+**Login:**
+
+```bash
+curl -X POST http://7d-customer-portal:8111/portal/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "uuid",
+    "email": "customer@example.com",
+    "password": "secret",
+    "idempotency_key": "login-key-123"
+  }'
+```
+
+Required: **`tenant_id`**, **`email`**, **`password`**.
+
+Response `200 OK`:
+```json
+{
+  "access_token": "eyJhbGciOiJFZDI1NTE5...",
+  "refresh_token": "base64-random-token",
+  "token_type": "Bearer"
+}
+```
+
+Errors: `401` invalid credentials, `403` account disabled, `423` account locked.
+
+### Customer-Facing Endpoints (Portal JWT)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/portal/me` | Current user profile (user_id, tenant_id, party_id, scopes) |
+| `GET` | `/portal/docs` | List documents linked to this customer (requires `documents.read` scope) |
+| `GET` | `/portal/status/feed` | List status cards for this customer |
+| `POST` | `/portal/acknowledgments` | Record acknowledgment (requires `acknowledgments.write` or `documents.acknowledge` scope) |
+| `GET` | `/portal/party/{party_id}/probe` | Verify party access (returns 404 if party_id doesn't match claims) |
+
+### Admin Endpoints (Platform JWT)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/portal/admin/users` | Invite portal user (creates account with temp password) |
+| `POST` | `/portal/admin/docs/link` | Link a document to a customer's portal view |
+| `POST` | `/portal/admin/status-cards` | Create status card (e.g., "Your order shipped") |
+
+**Invite user:**
+
+```bash
+curl -X POST http://7d-customer-portal:8111/portal/admin/users \
+  -H "Authorization: Bearer $PLATFORM_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "uuid",
+    "party_id": "uuid",
+    "email": "customer@example.com",
+    "display_name": "Jane Customer",
+    "scopes": ["documents.read", "acknowledgments.write"],
+    "idempotency_key": "invite-123"
+  }'
+```
+
+Response `200 OK`:
+```json
+{
+  "user_id": "uuid",
+  "tenant_id": "uuid",
+  "party_id": "uuid",
+  "replay": false
+}
+```
+
+---
+
+## PDF Editor Module
+
+Source: `modules/pdf-editor/src/main.rs`, `modules/pdf-editor/src/http/templates.rs`, `modules/pdf-editor/src/http/fields.rs`, `modules/pdf-editor/src/http/submissions.rs`, `modules/pdf-editor/src/http/generate.rs`, `modules/pdf-editor/src/http/annotations.rs`
+
+**Base URL:** `http://7d-pdf-editor:8100`
+
+Form-driven PDF generation: define templates with positioned fields, collect form submissions, then generate filled PDFs. Also supports annotation rendering on existing PDFs. Mutation routes require `pdf_editor.mutate`; read routes require `pdf_editor.read`.
+
+### Form Templates
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/pdf/forms/templates` | Create template |
+| `GET` | `/api/pdf/forms/templates` | List templates (?limit=&offset=) |
+| `GET` | `/api/pdf/forms/templates/{id}` | Get template |
+| `PUT` | `/api/pdf/forms/templates/{id}` | Update template |
+
+### Form Fields
+
+Fields define the data-entry points on a template, each with a `pdf_position` for overlay placement.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/pdf/forms/templates/{id}/fields` | Create field on template |
+| `GET` | `/api/pdf/forms/templates/{id}/fields` | List fields for template |
+| `PUT` | `/api/pdf/forms/templates/{tid}/fields/{fid}` | Update field |
+| `POST` | `/api/pdf/forms/templates/{id}/fields/reorder` | Reorder fields |
+
+### Form Submissions
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/pdf/forms/submissions` | Create draft submission |
+| `PUT` | `/api/pdf/forms/submissions/{id}` | Autosave field_data |
+| `POST` | `/api/pdf/forms/submissions/{id}/submit` | Validate and submit |
+| `GET` | `/api/pdf/forms/submissions/{id}` | Get submission |
+| `GET` | `/api/pdf/forms/submissions` | List submissions (?template_id=&status=&limit=&offset=) |
+
+Submission lifecycle: `draft` → `submitted`. Autosave updates `field_data` without validation. Submit validates all required fields and locks the submission.
+
+### PDF Generation
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/pdf/forms/submissions/{id}/generate` | Generate filled PDF from submitted form |
+
+**Generate PDF:** Send multipart form data with a `file` field containing the PDF template bytes. The service overlays field values at their `pdf_position` coordinates and returns the filled PDF (`application/pdf`).
+
+```bash
+curl -X POST http://7d-pdf-editor:8100/api/pdf/forms/submissions/{id}/generate \
+  -H "Authorization: Bearer $JWT" \
+  -F "file=@template.pdf"
+```
+
+Requires submission to be in `submitted` status. Returns `200 OK` with `Content-Type: application/pdf`.
+
+### Annotation Rendering
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/pdf/render-annotations` | Burn annotations into a PDF |
+
+Send multipart with `file` (PDF bytes) and `annotations` (JSON array). Supports text, stamps, highlights, and other annotation types positioned by page and coordinates. Body limit: 50 MB.
+
+---
+
+## Reporting Module
+
+Source: `modules/reporting/src/main.rs`, `modules/reporting/src/http/statements.rs`, `modules/reporting/src/http/cashflow.rs`, `modules/reporting/src/http/aging.rs`, `modules/reporting/src/http/kpis.rs`, `modules/reporting/src/http/forecast.rs`, `modules/reporting/src/http/admin.rs`
+
+**Base URL:** `http://7d-reporting:8096`
+
+Read-only reporting from pre-computed caches (populated by NATS event ingestion). Financial statements, aging reports, KPI snapshots, and probabilistic cash forecasts. Read routes require `reporting.read`; rebuild requires `reporting.mutate`.
+
+### Financial Statements
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/reporting/pl` | Profit & Loss statement (?from=YYYY-MM-DD&to=YYYY-MM-DD) |
+| `GET` | `/api/reporting/balance-sheet` | Balance Sheet (?as_of=YYYY-MM-DD) |
+| `GET` | `/api/reporting/cashflow` | Cash Flow statement (?from=YYYY-MM-DD&to=YYYY-MM-DD) |
+
+**P&L example:**
+
+```bash
+curl "http://7d-reporting:8096/api/reporting/pl?from=2026-01-01&to=2026-03-31" \
+  -H "Authorization: Bearer $JWT"
+```
+
+Returns revenue, COGS, operating expenses, and net income grouped by currency.
+
+### Aging Reports
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/reporting/ar-aging` | AR aging buckets (?as_of=YYYY-MM-DD) |
+| `GET` | `/api/reporting/ap-aging` | AP aging report (?as_of=YYYY-MM-DD) |
+
+Returns current/30/60/90/90+ day buckets aggregated per currency.
+
+### KPIs and Forecast
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/reporting/kpis` | Unified KPI snapshot (?as_of=YYYY-MM-DD) |
+| `GET` | `/api/reporting/forecast` | Probabilistic cash collection forecast (?horizons=7,14,30,60,90) |
+
+**Forecast** returns currency-grouped expected collections with confidence bands (P25, P50, P75) and an at-risk invoice list. Horizons default to `7,14,30,60,90` days.
+
+### Admin / Rebuild
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/reporting/rebuild` | Trigger cache rebuild for a date range |
+| `POST` | `/api/reporting/admin/projection-status` | Query projection cursor status |
+| `POST` | `/api/reporting/admin/consistency-check` | Run consistency check on projection |
+| `GET` | `/api/reporting/admin/projections` | List all projections |
+
+Admin endpoints require `X-Admin-Token` header matching the `ADMIN_TOKEN` environment variable.
+
+**Rebuild:**
+
+```bash
+curl -X POST http://7d-reporting:8096/api/reporting/rebuild \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-Admin-Token: $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "acme",
+    "from": "2026-01-01",
+    "to": "2026-03-31"
+  }'
 ```
 
 ---
