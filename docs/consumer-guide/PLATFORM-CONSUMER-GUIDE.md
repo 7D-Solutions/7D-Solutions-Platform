@@ -205,8 +205,7 @@ Source: `docker-compose.yml` and each module's `main.rs`.
 | Inventory | **8092** | 5442 | 7d-inventory |
 | AP | **8093** | 5443 | 7d-ap |
 | Treasury | **8094** | 5444 | 7d-treasury |
-| Fixed Assets | **8104** | 5445 | 7d-fixed-assets |
-| Consolidation | **8105** | 5446 | 7d-consolidation |
+| Reporting | **8096** | 5463 | 7d-reporting |
 | Timekeeping | **8097** | 5447 | 7d-timekeeping |
 | Party Master | **8098** | 5448 | 7d-party |
 | Integrations | **8099** | 5449 | 7d-integrations |
@@ -214,6 +213,15 @@ Source: `docker-compose.yml` and each module's `main.rs`.
 | Maintenance | **8101** | 5452 | 7d-maintenance |
 | PDF Editor | **8102** | 5453 | 7d-pdf-editor |
 | Shipping-Receiving | **8103** | 5454 | 7d-shipping-receiving |
+| Fixed Assets | **8104** | 5445 | 7d-fixed-assets |
+| Consolidation | **8105** | 5446 | 7d-consolidation |
+| Quality Inspection | **8106** | 5459 | 7d-quality-inspection |
+| BOM | **8107** | 5450 | 7d-bom |
+| Production | **8108** | 5461 | 7d-production |
+| Workflow | **8110** | 5457 | 7d-workflow |
+| Customer Portal | **8111** | 5464 | 7d-customer-portal |
+| Numbering | **8120** | 5456 | 7d-numbering |
+| Workforce Competence | **8121** | 5458 | 7d-workforce-competence |
 
 **Standard endpoints on every module:**
 ```
