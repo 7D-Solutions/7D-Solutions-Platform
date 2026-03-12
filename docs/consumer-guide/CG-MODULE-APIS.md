@@ -1,7 +1,7 @@
 # Consumer Guide — Module APIs
 
 > **Who reads this:** Agents building vertical apps on the 7D Platform.
-> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
+> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, AP Module, TTP Module, Treasury Module, Fixed Assets Module, Consolidation Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
 ## Contents
@@ -14,10 +14,15 @@
 6. [Inventory Module](#inventory-module) — items, receipts, issues, transfers, adjustments, reservations, locations, lots/serials, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy
 7. [Subscriptions Module](#subscriptions-module) — bill run execution
 8. [Payments Module](#payments-module) — checkout sessions, webhooks, payment queries
-9. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
-10. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
-11. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
-12. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
+9. [AP Module](#ap-module--accounts-payable) — vendors, purchase orders, bills, 3-way matching, payment terms, payment runs, aging, tax reports
+10. [TTP Module](#ttp-module--third-party-pricing) — billing runs, metering events, service agreements, price trace
+11. [Treasury Module](#treasury-module) — bank/credit-card accounts, reconciliation, GL linkage, statement import, cash position, forecast
+12. [Fixed Assets Module](#fixed-assets-module) — categories, assets, depreciation schedules/runs, disposals
+13. [Consolidation Module](#consolidation-module) — groups, entities, COA mappings, elimination rules, FX policies, intercompany matching, consolidated statements
+14. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
+15. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
+16. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
+17. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
 
 ---
 
@@ -28,6 +33,7 @@
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. Party Master endpoints, AR endpoints, complete first-invoice flow. |
 | 2.0 | 2026-03-04 | MaroonHarbor | Added Party Contacts/Addresses extension, Maintenance module, Identity SoD, Notifications module (templates, sends, inbox, DLQ). |
 | 3.0 | 2026-03-12 | DarkOwl | Added GL module (financial reports, period close, FX rates, accruals, revrec, exports), Inventory module (items, receipts, issues, transfers, reservations, lots/serials, locations, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy), Subscriptions module (bill runs), Payments module (checkout sessions, webhooks). |
+| 4.0 | 2026-03-11 | DarkOwl | Added AP module (vendors, POs, bills, 3-way matching, payment terms, payment runs, aging, tax reports), TTP module (billing runs, metering, service agreements), Treasury module (accounts, reconciliation, GL linkage, statement import, cash position, forecast), Fixed Assets module (categories, assets, depreciation, disposals), Consolidation module (groups, entities, COA mappings, eliminations, FX policies, intercompany, consolidated statements). |
 
 ---
 
@@ -1065,6 +1071,1005 @@ Receives Tilled payment processor callbacks. No JWT required — authenticated v
 - `payment_intent.canceled` → `canceled`
 
 Unknown event types are acknowledged with `200 OK`.
+
+---
+
+## AP Module — Accounts Payable
+
+Source: `modules/ap/src/main.rs`, `modules/ap/src/http/`
+
+**Base URL:** `http://7d-ap:8093`
+
+Full accounts payable lifecycle: vendors, purchase orders, bills with 3-way matching, payment terms, payment runs, aging reports, and tax reports. Mutation routes require `ap.mutate`, read routes require `ap.read`.
+
+### Vendors
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/vendors` | Create vendor |
+| `GET` | `/api/ap/vendors` | List vendors |
+| `GET` | `/api/ap/vendors/{vendor_id}` | Get vendor by ID |
+| `PUT` | `/api/ap/vendors/{vendor_id}` | Update vendor |
+| `POST` | `/api/ap/vendors/{vendor_id}/deactivate` | Deactivate vendor |
+
+**Create vendor:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/vendors \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Acme Supplies",
+    "currency": "USD",
+    "payment_method": "ach",
+    "default_gl_account_id": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+```json
+{
+  "vendor_id": "a1b2c3d4-...",
+  "tenant_id": "...",
+  "name": "Acme Supplies",
+  "currency": "USD",
+  "payment_method": "ach",
+  "default_gl_account_id": "550e8400-...",
+  "status": "active",
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `404` vendor not found, `409` duplicate vendor name, `422` validation failure.
+
+### Purchase Orders
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/pos` | Create purchase order (draft) |
+| `GET` | `/api/ap/pos` | List POs (filter: `?vendor_id=...&status=...`) |
+| `GET` | `/api/ap/pos/{po_id}` | Get PO with lines |
+| `PUT` | `/api/ap/pos/{po_id}/lines` | Update PO lines |
+| `POST` | `/api/ap/pos/{po_id}/approve` | Approve PO |
+
+**Create purchase order:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/pos \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendor_id": "a1b2c3d4-...",
+    "currency": "USD",
+    "lines": [
+      {
+        "description": "Widget A",
+        "quantity": 100,
+        "unit_price_minor": 1500,
+        "gl_account_id": "..."
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "po_id": "...",
+  "tenant_id": "...",
+  "vendor_id": "a1b2c3d4-...",
+  "status": "draft",
+  "currency": "USD",
+  "lines": [
+    {
+      "line_id": "...",
+      "description": "Widget A",
+      "quantity": 100,
+      "unit_price_minor": 1500,
+      "gl_account_id": "..."
+    }
+  ],
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Bills
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/bills` | Create vendor bill |
+| `GET` | `/api/ap/bills` | List bills (filter: `?vendor_id=...&include_voided=true`) |
+| `GET` | `/api/ap/bills/{bill_id}` | Get bill with lines |
+| `POST` | `/api/ap/bills/{bill_id}/match` | Run 3-way match (PO + receipt + bill) |
+| `POST` | `/api/ap/bills/{bill_id}/approve` | Approve bill (enforces match policy) |
+| `POST` | `/api/ap/bills/{bill_id}/void` | Void bill (requires `reason`) |
+| `POST` | `/api/ap/bills/{bill_id}/tax-quote` | Get tax quote for bill |
+
+**Create bill:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/bills \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vendor_id": "a1b2c3d4-...",
+    "po_id": "...",
+    "invoice_number": "INV-2026-001",
+    "currency": "USD",
+    "lines": [
+      {
+        "description": "Widget A",
+        "quantity": 100,
+        "unit_price_minor": 1500,
+        "gl_account_id": "..."
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "bill_id": "...",
+  "tenant_id": "...",
+  "vendor_id": "a1b2c3d4-...",
+  "po_id": "...",
+  "invoice_number": "INV-2026-001",
+  "status": "pending",
+  "currency": "USD",
+  "lines": [...],
+  "match_status": null,
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**3-way match:** Compares bill lines against the purchase order and receiving records. Returns match result with discrepancies.
+
+**Void bill:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/bills/{bill_id}/void \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{ "reason": "Duplicate invoice" }'
+```
+
+### Bill Allocations
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/bills/{bill_id}/allocations` | Create payment allocation |
+| `GET` | `/api/ap/bills/{bill_id}/allocations` | List allocations for bill |
+| `GET` | `/api/ap/bills/{bill_id}/balance` | Get remaining bill balance |
+
+**Create allocation** (idempotent via `idempotency_key`):
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/bills/{bill_id}/allocations \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "amount_minor": 150000,
+    "currency": "USD",
+    "allocation_type": "payment",
+    "payment_run_id": "...",
+    "idempotency_key": "alloc-001"
+  }'
+```
+
+```json
+{
+  "allocation_id": "...",
+  "bill_id": "...",
+  "amount_minor": 150000,
+  "currency": "USD",
+  "allocation_type": "payment",
+  "payment_run_id": "...",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Payment Terms
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/payment-terms` | Create payment terms (idempotent via `idempotency_key`) |
+| `GET` | `/api/ap/payment-terms` | List payment terms |
+| `GET` | `/api/ap/payment-terms/{term_id}` | Get payment terms by ID |
+| `PUT` | `/api/ap/payment-terms/{term_id}` | Update payment terms |
+| `POST` | `/api/ap/bills/{bill_id}/assign-terms` | Assign terms to bill |
+
+**Create payment terms:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/payment-terms \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Net 30",
+    "due_days": 30,
+    "discount_days": 10,
+    "discount_percent": "2.00",
+    "idempotency_key": "terms-net30"
+  }'
+```
+
+```json
+{
+  "term_id": "...",
+  "tenant_id": "...",
+  "name": "Net 30",
+  "due_days": 30,
+  "discount_days": 10,
+  "discount_percent": "2.00",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Payment Runs
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ap/payment-runs` | Create payment run (idempotent via `run_id`) |
+| `GET` | `/api/ap/payment-runs/{run_id}` | Get payment run status |
+| `POST` | `/api/ap/payment-runs/{run_id}/execute` | Execute payment run |
+
+**Create payment run:**
+
+```bash
+curl -X POST http://7d-ap:8093/api/ap/payment-runs \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "run_id": "run-2026-03-11",
+    "currency": "USD",
+    "scheduled_date": "2026-03-15",
+    "payment_method": "ach",
+    "created_by": "user-uuid",
+    "due_on_or_before": "2026-03-15",
+    "vendor_ids": ["a1b2c3d4-..."]
+  }'
+```
+
+```json
+{
+  "run_id": "run-2026-03-11",
+  "tenant_id": "...",
+  "status": "pending",
+  "currency": "USD",
+  "scheduled_date": "2026-03-15",
+  "payment_method": "ach",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Execute:** Submits all pending payments in the run and records allocations against bills.
+
+### Aging Report
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/ap/aging` | AP aging report |
+
+**Query parameters:** `as_of` (date, `YYYY-MM-DD`), `by_vendor` (bool, default false).
+
+```bash
+curl "http://7d-ap:8093/api/ap/aging?as_of=2026-03-11&by_vendor=true" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+```json
+{
+  "as_of": "2026-03-11",
+  "buckets_by_currency": {
+    "USD": { "current": 50000, "days_30": 25000, "days_60": 10000, "days_90": 5000, "over_90": 0 }
+  },
+  "vendor_breakdown": [
+    {
+      "vendor_id": "...",
+      "vendor_name": "Acme Supplies",
+      "buckets": { "current": 50000, "days_30": 25000, "days_60": 0, "days_90": 0, "over_90": 0 }
+    }
+  ]
+}
+```
+
+### Tax Reports
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/ap/tax/reports/summary` | Tax summary for period |
+| `GET` | `/api/ap/tax/reports/export` | Export tax report (CSV or JSON) |
+
+**Query parameters:** `from`, `to` (dates, `YYYY-MM-DD`). Export also accepts `format=csv|json`.
+
+```bash
+curl "http://7d-ap:8093/api/ap/tax/reports/summary?from=2026-01-01&to=2026-03-31" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+---
+
+## TTP Module — Third-Party Pricing
+
+Source: `modules/ttp/src/http/mod.rs`, `modules/ttp/src/http/`
+
+**Base URL:** `http://7d-ttp:8100`
+
+Usage-based billing engine: ingest metering events, execute billing runs, manage service agreements. Mutation routes require `ttp.mutate`.
+
+### Billing Runs
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/ttp/billing-runs` | Execute billing run for a period |
+
+**Execute billing run** (idempotent via `idempotency_key`):
+
+```bash
+curl -X POST http://7d-ttp:8100/api/ttp/billing-runs \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "billing_period": "2026-03",
+    "idempotency_key": "bill-2026-03-run1"
+  }'
+```
+
+```json
+{
+  "run_id": "...",
+  "tenant_id": "...",
+  "billing_period": "2026-03",
+  "parties_billed": 12,
+  "total_amount_minor": 4500000,
+  "currency": "USD",
+  "was_noop": false
+}
+```
+
+`was_noop: true` when the same idempotency key was already processed — no new invoices created.
+
+### Metering Events
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/metering/events` | Ingest metering events (batch) |
+| `GET` | `/api/metering/trace` | Price trace for a billing period |
+
+**Ingest events:**
+
+```bash
+curl -X POST http://7d-ttp:8100/api/metering/events \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      {
+        "dimension": "api_calls",
+        "quantity": 1500,
+        "occurred_at": "2026-03-11T08:30:00Z",
+        "idempotency_key": "evt-20260311-0830",
+        "source_ref": "batch-42"
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "ingested": 1,
+  "duplicates": 0,
+  "results": [
+    { "idempotency_key": "evt-20260311-0830", "status": "accepted" }
+  ]
+}
+```
+
+Each event has its own `idempotency_key` for deduplication. Duplicate events return `"status": "duplicate"`.
+
+**Price trace** — shows how metered usage maps to pricing for a period:
+
+```bash
+curl "http://7d-ttp:8100/api/metering/trace?period=2026-03" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+### Service Agreements
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/ttp/service-agreements` | List service agreements |
+
+**Query parameters:** `status` — `active`, `suspended`, `cancelled`, or `all` (default: `active`).
+
+```bash
+curl "http://7d-ttp:8100/api/ttp/service-agreements?status=active" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+```json
+{
+  "tenant_id": "...",
+  "items": [
+    {
+      "agreement_id": "...",
+      "party_id": "...",
+      "plan_code": "enterprise-monthly",
+      "amount_minor": 500000,
+      "currency": "USD",
+      "billing_cycle": "monthly",
+      "status": "active",
+      "effective_from": "2026-01-01",
+      "effective_to": null
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+## Treasury Module
+
+Source: `modules/treasury/src/main.rs`, `modules/treasury/src/http/`
+
+**Base URL:** `http://7d-treasury:8094`
+
+Bank and credit-card account management, bank reconciliation with auto/manual matching, GL linkage, statement import (CSV), cash position and forecasting. Mutation routes require `treasury.mutate`.
+
+### Accounts
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/treasury/accounts/bank` | Create bank account |
+| `POST` | `/api/treasury/accounts/credit-card` | Create credit card account |
+| `GET` | `/api/treasury/accounts` | List all accounts |
+| `GET` | `/api/treasury/accounts/{id}` | Get account by ID |
+| `PUT` | `/api/treasury/accounts/{id}` | Update account |
+| `POST` | `/api/treasury/accounts/{id}/deactivate` | Deactivate account |
+
+**Create bank account** (idempotent via `X-Idempotency-Key` header):
+
+```bash
+curl -X POST http://7d-treasury:8094/api/treasury/accounts/bank \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "X-Idempotency-Key: bank-acct-001" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Operating Account",
+    "bank_name": "First National",
+    "account_number_last4": "1234",
+    "currency": "USD",
+    "gl_account_id": "..."
+  }'
+```
+
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "account_type": "bank",
+  "name": "Operating Account",
+  "bank_name": "First National",
+  "account_number_last4": "1234",
+  "currency": "USD",
+  "gl_account_id": "...",
+  "status": "active",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Create credit card account** — same pattern, POST to `/api/treasury/accounts/credit-card`.
+
+### Reconciliation
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/treasury/recon/auto-match` | Auto-match statement lines to payments |
+| `POST` | `/api/treasury/recon/manual-match` | Manually match a statement line to a payment |
+| `GET` | `/api/treasury/recon/matches` | List matches (filter: `?account_id=...&include_superseded=true`) |
+| `GET` | `/api/treasury/recon/unmatched` | List unmatched items |
+
+**Auto-match:**
+
+```bash
+curl -X POST http://7d-treasury:8094/api/treasury/recon/auto-match \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{ "account_id": "..." }'
+```
+
+**Unmatched items** response splits into `statement_lines` (imported but unmatched) and `payment_transactions` (recorded but not on statement).
+
+### GL Linkage
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/treasury/recon/gl-link` | Link bank transaction to GL journal entry |
+| `GET` | `/api/treasury/recon/gl-unmatched-txns` | List bank transactions not linked to GL |
+| `POST` | `/api/treasury/recon/gl-unmatched-entries` | Find unmatched GL entries from a list of IDs |
+
+**Link to GL:**
+
+```bash
+curl -X POST http://7d-treasury:8094/api/treasury/recon/gl-link \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bank_transaction_id": "...",
+    "gl_entry_id": "..."
+  }'
+```
+
+### Statement Import
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/treasury/statements/import` | Import bank/credit-card statement (CSV, multipart) |
+
+**Multipart form upload:**
+
+```bash
+curl -X POST http://7d-treasury:8094/api/treasury/statements/import \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -F "file=@statement.csv" \
+  -F "account_id=..." \
+  -F "period_start=2026-03-01" \
+  -F "period_end=2026-03-31" \
+  -F "opening_balance_minor=1000000" \
+  -F "closing_balance_minor=1250000" \
+  -F "format=generic"
+```
+
+Supported formats: `generic`, `chase_credit`, `amex_credit`.
+
+```json
+{
+  "statement_id": "...",
+  "account_id": "...",
+  "lines_imported": 47,
+  "period_start": "2026-03-01",
+  "period_end": "2026-03-31",
+  "opening_balance_minor": 1000000,
+  "closing_balance_minor": 1250000
+}
+```
+
+### Cash Position & Forecast
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/treasury/cash-position` | Current cash position by account and currency |
+| `GET` | `/api/treasury/forecast` | Cash flow forecast (reads AR/AP aging) |
+
+**Cash position:**
+
+```bash
+curl http://7d-treasury:8094/api/treasury/cash-position \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+```json
+{
+  "positions": [
+    {
+      "account_id": "...",
+      "account_name": "Operating Account",
+      "currency": "USD",
+      "balance_minor": 1250000
+    }
+  ],
+  "totals_by_currency": {
+    "USD": 1250000
+  }
+}
+```
+
+**Forecast** aggregates AR aging (expected inflows) and AP aging (expected outflows) from their respective databases to project future cash balances.
+
+---
+
+## Fixed Assets Module
+
+Source: `modules/fixed-assets/src/main.rs`, `modules/fixed-assets/src/http/`
+
+**Base URL:** `http://7d-fixed-assets:8104`
+
+Asset lifecycle management: categories, asset register, straight-line depreciation with schedule generation and run execution, and disposals/impairments. Mutation routes require `fixed_assets.mutate`.
+
+### Categories
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/fixed-assets/categories` | Create category |
+| `GET` | `/api/fixed-assets/categories` | List categories |
+| `GET` | `/api/fixed-assets/categories/{id}` | Get category by ID |
+| `PUT` | `/api/fixed-assets/categories/{id}` | Update category |
+| `DELETE` | `/api/fixed-assets/categories/{id}` | Deactivate category |
+
+**Create category:**
+
+```bash
+curl -X POST http://7d-fixed-assets:8104/api/fixed-assets/categories \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "MACH",
+    "name": "Machinery & Equipment",
+    "useful_life_months": 120,
+    "depreciation_method": "straight_line",
+    "asset_gl_account_id": "...",
+    "depreciation_gl_account_id": "...",
+    "expense_gl_account_id": "..."
+  }'
+```
+
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "code": "MACH",
+  "name": "Machinery & Equipment",
+  "useful_life_months": 120,
+  "depreciation_method": "straight_line",
+  "asset_gl_account_id": "...",
+  "depreciation_gl_account_id": "...",
+  "expense_gl_account_id": "...",
+  "status": "active",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `404` not found, `409` duplicate category code, `422` validation failure.
+
+### Assets
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/fixed-assets/assets` | Register asset |
+| `GET` | `/api/fixed-assets/assets` | List assets (filter: `?status=active`) |
+| `GET` | `/api/fixed-assets/assets/{id}` | Get asset by ID |
+| `PUT` | `/api/fixed-assets/assets/{id}` | Update asset |
+| `DELETE` | `/api/fixed-assets/assets/{id}` | Deactivate asset |
+
+**Register asset:**
+
+```bash
+curl -X POST http://7d-fixed-assets:8104/api/fixed-assets/assets \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tag": "MACH-001",
+    "name": "CNC Milling Machine",
+    "category_id": "...",
+    "acquisition_date": "2026-01-15",
+    "acquisition_cost_minor": 5000000,
+    "residual_value_minor": 500000,
+    "currency": "USD",
+    "location": "Building A, Floor 2"
+  }'
+```
+
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "tag": "MACH-001",
+  "name": "CNC Milling Machine",
+  "category_id": "...",
+  "acquisition_date": "2026-01-15",
+  "acquisition_cost_minor": 5000000,
+  "residual_value_minor": 500000,
+  "currency": "USD",
+  "location": "Building A, Floor 2",
+  "status": "active",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `404` not found, `409` duplicate asset tag, `422` validation failure, `400` invalid status transition.
+
+### Depreciation
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/fixed-assets/depreciation/schedule` | Generate depreciation schedule for an asset |
+| `POST` | `/api/fixed-assets/depreciation/runs` | Execute depreciation run (posts journal entries) |
+| `GET` | `/api/fixed-assets/depreciation/runs` | List depreciation runs |
+| `GET` | `/api/fixed-assets/depreciation/runs/{id}` | Get depreciation run by ID |
+
+**Generate schedule** (idempotent — regenerates if called again):
+
+```bash
+curl -X POST http://7d-fixed-assets:8104/api/fixed-assets/depreciation/schedule \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{ "asset_id": "..." }'
+```
+
+Uses straight-line method: `(acquisition_cost - residual_value) / useful_life_months`.
+
+**Execute depreciation run** (idempotent — posts unposted periods up to `as_of_date`):
+
+```bash
+curl -X POST http://7d-fixed-assets:8104/api/fixed-assets/depreciation/runs \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{ "as_of_date": "2026-03-31" }'
+```
+
+```json
+{
+  "run_id": "...",
+  "tenant_id": "...",
+  "as_of_date": "2026-03-31",
+  "assets_processed": 15,
+  "periods_posted": 45,
+  "total_depreciation_minor": 375000,
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Disposals
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/fixed-assets/disposals` | Dispose or impair an asset |
+| `GET` | `/api/fixed-assets/disposals` | List disposals |
+| `GET` | `/api/fixed-assets/disposals/{id}` | Get disposal by ID |
+
+**Dispose asset** (idempotent):
+
+```bash
+curl -X POST http://7d-fixed-assets:8104/api/fixed-assets/disposals \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "asset_id": "...",
+    "disposal_date": "2026-03-11",
+    "disposal_type": "sale",
+    "proceeds_minor": 2000000,
+    "currency": "USD",
+    "reason": "Equipment upgrade"
+  }'
+```
+
+```json
+{
+  "id": "...",
+  "asset_id": "...",
+  "disposal_date": "2026-03-11",
+  "disposal_type": "sale",
+  "proceeds_minor": 2000000,
+  "net_book_value_minor": 2500000,
+  "gain_loss_minor": -500000,
+  "currency": "USD",
+  "reason": "Equipment upgrade",
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+---
+
+## Consolidation Module
+
+Source: `modules/consolidation/src/http/mod.rs`, `modules/consolidation/src/http/`
+
+**Base URL:** `http://7d-consolidation:8105`
+
+Multi-entity financial consolidation: group management, entity mapping, chart-of-accounts mapping, elimination rules, FX policies, intercompany matching and elimination, and consolidated financial statements. Mutation routes require `consolidation.mutate`.
+
+### Groups
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups` | Create consolidation group |
+| `GET` | `/api/consolidation/groups` | List groups |
+| `GET` | `/api/consolidation/groups/{id}` | Get group by ID |
+| `PUT` | `/api/consolidation/groups/{id}` | Update group |
+| `DELETE` | `/api/consolidation/groups/{id}` | Delete group |
+| `GET` | `/api/consolidation/groups/{id}/validate` | Validate group configuration |
+
+**Create group:**
+
+```bash
+curl -X POST http://7d-consolidation:8105/api/consolidation/groups \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ACME Holdings",
+    "reporting_currency": "USD",
+    "fiscal_year_end_month": 12
+  }'
+```
+
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "name": "ACME Holdings",
+  "reporting_currency": "USD",
+  "fiscal_year_end_month": 12,
+  "created_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Validate** checks that entities, COA mappings, elimination rules, and FX policies are consistent.
+
+### Entities
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups/{group_id}/entities` | Add entity to group |
+| `GET` | `/api/consolidation/groups/{group_id}/entities` | List entities in group |
+| `GET` | `/api/consolidation/entities/{id}` | Get entity by ID |
+| `PUT` | `/api/consolidation/entities/{id}` | Update entity |
+| `DELETE` | `/api/consolidation/entities/{id}` | Remove entity from group |
+
+**Add entity:**
+
+```bash
+curl -X POST http://7d-consolidation:8105/api/consolidation/groups/{group_id}/entities \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ACME Manufacturing",
+    "entity_code": "ACME-MFG",
+    "functional_currency": "EUR",
+    "ownership_percent": "100.00",
+    "gl_database_url": "postgres://..."
+  }'
+```
+
+### COA Mappings
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups/{group_id}/coa-mappings` | Create COA mapping |
+| `GET` | `/api/consolidation/groups/{group_id}/coa-mappings` | List COA mappings |
+| `DELETE` | `/api/consolidation/coa-mappings/{id}` | Delete COA mapping |
+
+Maps entity-level chart of accounts codes to consolidated group-level accounts.
+
+### Elimination Rules
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups/{group_id}/elimination-rules` | Create elimination rule |
+| `GET` | `/api/consolidation/groups/{group_id}/elimination-rules` | List elimination rules |
+| `GET` | `/api/consolidation/elimination-rules/{id}` | Get elimination rule |
+| `PUT` | `/api/consolidation/elimination-rules/{id}` | Update elimination rule |
+| `DELETE` | `/api/consolidation/elimination-rules/{id}` | Delete elimination rule |
+
+Rules define how intercompany balances are eliminated during consolidation (e.g., intercompany receivables vs payables).
+
+### FX Policies
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `PUT` | `/api/consolidation/groups/{group_id}/fx-policies` | Set FX translation policy |
+| `GET` | `/api/consolidation/groups/{group_id}/fx-policies` | Get FX policies |
+| `DELETE` | `/api/consolidation/fx-policies/{id}` | Delete FX policy |
+
+Controls how foreign-currency entity balances are translated to the group reporting currency.
+
+### Consolidation Engine
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups/{group_id}/consolidate` | Run consolidation |
+| `GET` | `/api/consolidation/groups/{group_id}/trial-balance` | Get consolidated trial balance (cached) |
+
+**Run consolidation:**
+
+```bash
+curl -X POST http://7d-consolidation:8105/api/consolidation/groups/{group_id}/consolidate \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "period_id": "2026-Q1",
+    "as_of": "2026-03-31"
+  }'
+```
+
+```json
+{
+  "rows": [
+    {
+      "account_code": "1000",
+      "account_name": "Cash",
+      "debit_minor": 5000000,
+      "credit_minor": 0,
+      "currency": "USD"
+    }
+  ],
+  "input_hash": "sha256:...",
+  "entity_hashes": {
+    "ACME-MFG": "sha256:...",
+    "ACME-DIST": "sha256:..."
+  }
+}
+```
+
+**Trial balance** (GET) returns cached result with `?as_of=YYYY-MM-DD` query parameter.
+
+### Intercompany
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/consolidation/groups/{group_id}/intercompany-match` | Match intercompany balances |
+| `POST` | `/api/consolidation/groups/{group_id}/eliminations` | Post elimination journal entries to GL |
+
+**Intercompany match:**
+
+```bash
+curl -X POST http://7d-consolidation:8105/api/consolidation/groups/{group_id}/intercompany-match \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "period_id": "2026-Q1",
+    "as_of": "2026-03-31"
+  }'
+```
+
+Returns matched intercompany pairs and suggested elimination entries.
+
+**Post eliminations** (idempotent per group + period):
+
+```bash
+curl -X POST http://7d-consolidation:8105/api/consolidation/groups/{group_id}/eliminations \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "period_id": "2026-Q1",
+    "as_of": "2026-03-31",
+    "reporting_currency": "USD"
+  }'
+```
+
+Posts elimination journal entries to the GL module.
+
+### Consolidated Statements
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/consolidation/groups/{group_id}/pl` | Consolidated P&L |
+| `GET` | `/api/consolidation/groups/{group_id}/balance-sheet` | Consolidated balance sheet |
+
+**Query parameter:** `as_of` (date, `YYYY-MM-DD`).
+
+```bash
+curl "http://7d-consolidation:8105/api/consolidation/groups/{group_id}/pl?as_of=2026-03-31" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
 
 ---
 
