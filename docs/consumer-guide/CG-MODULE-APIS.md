@@ -1,7 +1,7 @@
 # Consumer Guide — Module APIs
 
 > **Who reads this:** Agents building vertical apps on the 7D Platform.
-> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, AP Module, TTP Module, Treasury Module, Fixed Assets Module, Consolidation Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
+> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, AP Module, TTP Module, Treasury Module, Fixed Assets Module, Consolidation Module, BOM Module, Production Module, Quality Inspection Module, Numbering Module, Workflow Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
 ## Contents
@@ -19,10 +19,15 @@
 11. [Treasury Module](#treasury-module) — bank/credit-card accounts, reconciliation, GL linkage, statement import, cash position, forecast
 12. [Fixed Assets Module](#fixed-assets-module) — categories, assets, depreciation schedules/runs, disposals
 13. [Consolidation Module](#consolidation-module) — groups, entities, COA mappings, elimination rules, FX policies, intercompany matching, consolidated statements
-14. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
-15. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
-16. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
-17. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
+14. [BOM Module](#bom-module) — BOM headers, revisions, effectivity, lines, explosion, where-used, ECOs
+15. [Production Module](#production-module) — workcenters, work orders, routings, operations, component issues, FG receipts, time entries, downtime
+16. [Quality Inspection Module](#quality-inspection-module) — inspection plans, receiving/in-process/final inspections, disposition transitions, queries
+17. [Numbering Module](#numbering-module) — sequence allocation, gap-free reservations, confirmation, formatting policies
+18. [Workflow Module](#workflow-module) — definitions, instances, transitions, advance
+19. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
+20. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
+21. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
+22. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
 
 ---
 
@@ -34,6 +39,7 @@
 | 2.0 | 2026-03-04 | MaroonHarbor | Added Party Contacts/Addresses extension, Maintenance module, Identity SoD, Notifications module (templates, sends, inbox, DLQ). |
 | 3.0 | 2026-03-12 | DarkOwl | Added GL module (financial reports, period close, FX rates, accruals, revrec, exports), Inventory module (items, receipts, issues, transfers, reservations, lots/serials, locations, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy), Subscriptions module (bill runs), Payments module (checkout sessions, webhooks). |
 | 4.0 | 2026-03-11 | DarkOwl | Added AP module (vendors, POs, bills, 3-way matching, payment terms, payment runs, aging, tax reports), TTP module (billing runs, metering, service agreements), Treasury module (accounts, reconciliation, GL linkage, statement import, cash position, forecast), Fixed Assets module (categories, assets, depreciation, disposals), Consolidation module (groups, entities, COA mappings, eliminations, FX policies, intercompany, consolidated statements). |
+| 5.0 | 2026-03-11 | DarkOwl | Added BOM module (headers, revisions, effectivity, lines, explosion, where-used, ECOs with lifecycle), Production module (workcenters, work orders, routings, operations, component issues, FG receipts, time entries, downtime), Quality Inspection module (plans, receiving/in-process/final inspections, disposition state machine), Numbering module (allocation, gap-free reservations, confirmation, formatting policies), Workflow module (definitions, instances, transitions). |
 
 ---
 
@@ -2070,6 +2076,900 @@ curl "http://7d-consolidation:8105/api/consolidation/groups/{group_id}/pl?as_of=
   -H "Authorization: Bearer $JWT" \
   -H "X-App-Id: my-vertical"
 ```
+
+---
+
+## BOM Module
+
+Source: `modules/bom/src/http/bom_routes.rs`, `modules/bom/src/http/eco_routes.rs`, `modules/bom/src/main.rs`
+
+**Base URL:** `http://7d-bom:8107`
+
+Bill of Materials management with multi-level revision control, effectivity dating, multi-level explosion, where-used analysis, and Engineering Change Orders (ECOs). Read routes require `bom.read`, mutation routes require `bom.mutate`.
+
+### BOM Headers
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/bom` | Create BOM header for a part |
+| `GET` | `/api/bom/{bom_id}` | Get BOM header by ID |
+
+**Create BOM:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/bom \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "part_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Main assembly BOM"
+  }'
+```
+
+Required: **`part_id`**. `description` is optional.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "part_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "description": "Main assembly BOM",
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Revisions
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/bom/{bom_id}/revisions` | Create new revision |
+| `GET` | `/api/bom/{bom_id}/revisions` | List all revisions |
+| `POST` | `/api/bom/revisions/{revision_id}/effectivity` | Set effectivity date range |
+
+**Create revision:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/bom/{bom_id}/revisions \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{ "revision_label": "A" }'
+```
+
+Required: **`revision_label`**.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "bom_id": "...",
+  "tenant_id": "...",
+  "revision_label": "A",
+  "status": "draft",
+  "effective_from": null,
+  "effective_to": null,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Set effectivity:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/bom/revisions/{revision_id}/effectivity \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "effective_from": "2026-04-01T00:00:00Z",
+    "effective_to": "2027-03-31T23:59:59Z"
+  }'
+```
+
+Required: **`effective_from`**. `effective_to` is optional (open-ended if null). Returns `409` if date range overlaps an existing revision.
+
+### Lines (Components)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/bom/revisions/{revision_id}/lines` | Add component line |
+| `GET` | `/api/bom/revisions/{revision_id}/lines` | List lines for revision |
+| `PUT` | `/api/bom/lines/{line_id}` | Update component line |
+| `DELETE` | `/api/bom/lines/{line_id}` | Remove component line |
+
+**Add component line:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/bom/revisions/{revision_id}/lines \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "component_item_id": "...",
+    "quantity": 2.0,
+    "uom": "EA",
+    "scrap_factor": 0.05,
+    "find_number": 10
+  }'
+```
+
+Required: **`component_item_id`**, **`quantity`**. Others optional.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "revision_id": "...",
+  "tenant_id": "...",
+  "component_item_id": "...",
+  "quantity": 2.0,
+  "uom": "EA",
+  "scrap_factor": 0.05,
+  "find_number": 10,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Update line** (PUT) accepts partial updates: `quantity`, `uom`, `scrap_factor`, `find_number` — all optional.
+
+**Delete line** returns `204 No Content`.
+
+### Explosion & Where-Used
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/bom/{bom_id}/explosion` | Multi-level BOM explosion |
+| `GET` | `/api/bom/where-used/{item_id}` | Where-used analysis for a component |
+
+**Explosion** recursively expands all sub-assemblies into a flat list of components with rolled-up quantities:
+
+```bash
+curl "http://7d-bom:8107/api/bom/{bom_id}/explosion?date=2026-04-01T00:00:00Z&max_depth=5" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+Query parameters: `date` (ISO 8601, filters by effectivity), `max_depth` (limits recursion depth).
+
+```json
+[
+  {
+    "level": 1,
+    "parent_part_id": "...",
+    "component_item_id": "...",
+    "quantity": 2.0,
+    "uom": "EA",
+    "scrap_factor": 0.05,
+    "revision_id": "...",
+    "revision_label": "A"
+  }
+]
+```
+
+Returns `422` if a cycle is detected in the BOM structure.
+
+**Where-used** finds all BOMs that reference a given item as a component:
+
+```bash
+curl "http://7d-bom:8107/api/bom/where-used/{item_id}?date=2026-04-01T00:00:00Z" \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical"
+```
+
+```json
+[
+  {
+    "bom_id": "...",
+    "part_id": "...",
+    "revision_id": "...",
+    "revision_label": "A",
+    "quantity": 2.0,
+    "uom": "EA"
+  }
+]
+```
+
+### Engineering Change Orders (ECO)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/eco` | Create ECO (auto-numbers via Numbering service) |
+| `GET` | `/api/eco/{eco_id}` | Get ECO |
+| `POST` | `/api/eco/{eco_id}/submit` | Submit ECO for review |
+| `POST` | `/api/eco/{eco_id}/approve` | Approve ECO |
+| `POST` | `/api/eco/{eco_id}/reject` | Reject ECO |
+| `POST` | `/api/eco/{eco_id}/apply` | Apply ECO (sets effectivity on linked revisions) |
+| `POST` | `/api/eco/{eco_id}/bom-revisions` | Link BOM revision to ECO |
+| `GET` | `/api/eco/{eco_id}/bom-revisions` | List BOM revision links |
+| `POST` | `/api/eco/{eco_id}/doc-revisions` | Link document revision to ECO |
+| `GET` | `/api/eco/{eco_id}/doc-revisions` | List document revision links |
+| `GET` | `/api/eco/{eco_id}/audit` | Get ECO audit trail |
+| `GET` | `/api/eco/history/{part_id}` | ECO history for a specific part |
+
+**Create ECO:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/eco \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Update gear ratio for Model X",
+    "description": "Change gear component from 3:1 to 4:1 ratio",
+    "created_by": "engineer-001"
+  }'
+```
+
+Required: **`title`**, **`created_by`**. `eco_number` is optional — if omitted, auto-allocated from the Numbering service.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "eco_number": "ECO-00001",
+  "title": "Update gear ratio for Model X",
+  "description": "Change gear component from 3:1 to 4:1 ratio",
+  "status": "draft",
+  "created_by": "engineer-001",
+  "approved_by": null,
+  "approved_at": null,
+  "applied_at": null,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**ECO lifecycle:** `draft` → `submitted` → `approved`/`rejected` → `applied`. Each transition requires `actor` and optional `comment`. Apply also requires `effective_from` and optional `effective_to`.
+
+**Link BOM revision to ECO:**
+
+```bash
+curl -X POST http://7d-bom:8107/api/eco/{eco_id}/bom-revisions \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bom_id": "...",
+    "before_revision_id": "...",
+    "after_revision_id": "..."
+  }'
+```
+
+---
+
+## Production Module
+
+Source: `modules/production/src/http/`, `modules/production/src/main.rs`
+
+**Base URL:** `http://7d-production:8108`
+
+Shop floor execution: workcenters, work orders (draft→released→closed), routing templates with steps, operation tracking, component issues, finished goods receipts, labor time entries, and workcenter downtime.
+
+### Workcenters
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/workcenters` | Create workcenter |
+| `GET` | `/api/production/workcenters` | List workcenters |
+| `GET` | `/api/production/workcenters/{id}` | Get workcenter |
+| `PUT` | `/api/production/workcenters/{id}` | Update workcenter |
+| `POST` | `/api/production/workcenters/{id}/deactivate` | Deactivate workcenter |
+
+**Create workcenter:**
+
+```bash
+curl -X POST http://7d-production:8108/api/production/workcenters \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "CNC-01",
+    "name": "CNC Milling Center 1",
+    "description": "5-axis CNC mill",
+    "capacity": 8,
+    "cost_rate_minor": 15000
+  }'
+```
+
+Required: **`code`**, **`name`**. Others optional. `cost_rate_minor` is in minor currency units (cents).
+
+Response `201 Created`:
+```json
+{
+  "workcenter_id": "...",
+  "tenant_id": "...",
+  "code": "CNC-01",
+  "name": "CNC Milling Center 1",
+  "description": "5-axis CNC mill",
+  "capacity": 8,
+  "cost_rate_minor": 15000,
+  "is_active": true,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `409` duplicate workcenter code, `422` validation failure.
+
+### Work Orders
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/work-orders` | Create work order (starts in `draft`) |
+| `GET` | `/api/production/work-orders/{id}` | Get work order |
+| `POST` | `/api/production/work-orders/{id}/release` | Release: draft → released |
+| `POST` | `/api/production/work-orders/{id}/close` | Close: released → closed |
+
+**Create work order:**
+
+```bash
+curl -X POST http://7d-production:8108/api/production/work-orders \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "order_number": "WO-2026-001",
+    "item_id": "...",
+    "bom_revision_id": "...",
+    "routing_template_id": "...",
+    "planned_quantity": 100,
+    "planned_start": "2026-04-01T08:00:00Z",
+    "planned_end": "2026-04-05T17:00:00Z",
+    "correlation_id": "unique-idempotency-key"
+  }'
+```
+
+Required: **`order_number`**, **`item_id`**, **`bom_revision_id`**, **`planned_quantity`** (> 0). `correlation_id` enables idempotent creation — duplicate requests return the existing work order.
+
+Response `201 Created`:
+```json
+{
+  "work_order_id": "...",
+  "tenant_id": "...",
+  "order_number": "WO-2026-001",
+  "status": "draft",
+  "item_id": "...",
+  "bom_revision_id": "...",
+  "routing_template_id": "...",
+  "planned_quantity": 100,
+  "completed_quantity": 0,
+  "planned_start": "2026-04-01T08:00:00Z",
+  "planned_end": "2026-04-05T17:00:00Z",
+  "actual_start": null,
+  "actual_end": null,
+  "material_cost_minor": 0,
+  "labor_cost_minor": 0,
+  "overhead_cost_minor": 0,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Status lifecycle:** `draft` → `released` (sets `actual_start`) → `closed` (sets `actual_end`). Invalid transitions return `422`.
+
+### Routings
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/routings` | Create routing template |
+| `GET` | `/api/production/routings` | List routing templates |
+| `GET` | `/api/production/routings/{id}` | Get routing template |
+| `PUT` | `/api/production/routings/{id}` | Update routing (draft only) |
+| `POST` | `/api/production/routings/{id}/release` | Release: draft → released (immutable) |
+| `GET` | `/api/production/routings/{id}/steps` | List routing steps |
+| `POST` | `/api/production/routings/{id}/steps` | Add routing step (draft only) |
+| `GET` | `/api/production/routings/by-item?item_id=&effective_date=` | Find routings by item and date |
+
+**Create routing:**
+
+```bash
+curl -X POST http://7d-production:8108/api/production/routings \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Standard Assembly Routing",
+    "description": "3-step assembly process",
+    "item_id": "...",
+    "bom_revision_id": "...",
+    "revision": "1",
+    "effective_from_date": "2026-04-01"
+  }'
+```
+
+Required: **`name`**. Others optional. `revision` defaults to `"1"`.
+
+**Add routing step:**
+
+```bash
+curl -X POST http://7d-production:8108/api/production/routings/{id}/steps \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sequence_number": 10,
+    "workcenter_id": "...",
+    "operation_name": "CNC Milling",
+    "description": "Mill housing to spec",
+    "setup_time_minutes": 30,
+    "run_time_minutes": 45,
+    "is_required": true
+  }'
+```
+
+Required: **`sequence_number`** (> 0), **`workcenter_id`**, **`operation_name`**. Workcenter must be active. Cannot add steps to released routings.
+
+### Operations (Work Order Execution)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/production/work-orders/{id}/operations` | List operations for a work order |
+| `POST` | `/api/production/work-orders/{id}/operations/initialize` | Initialize operations from routing template |
+| `POST` | `/api/production/work-orders/{wo_id}/operations/{op_id}/start` | Start operation |
+| `POST` | `/api/production/work-orders/{wo_id}/operations/{op_id}/complete` | Complete operation |
+
+Initialize copies routing steps into the work order as executable operation instances.
+
+### Component Issues & FG Receipts
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/work-orders/{id}/component-issues` | Issue components to work order |
+| `POST` | `/api/production/work-orders/{id}/fg-receipt` | Receive finished goods from work order |
+
+These transactions record material consumption and production output, updating material cost accumulators.
+
+### Time Entries
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/time-entries/start` | Start labor timer |
+| `POST` | `/api/production/time-entries/manual` | Record manual time entry |
+| `POST` | `/api/production/time-entries/{id}/stop` | Stop running timer |
+| `GET` | `/api/production/work-orders/{id}/time-entries` | List time entries for work order |
+
+### Workcenter Downtime
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/production/workcenters/{id}/downtime/start` | Start downtime period |
+| `GET` | `/api/production/workcenters/{id}/downtime` | List downtime for workcenter |
+| `POST` | `/api/production/downtime/{id}/end` | End downtime period |
+| `GET` | `/api/production/downtime/active` | List all active downtime |
+
+---
+
+## Quality Inspection Module
+
+Source: `modules/quality-inspection/src/http/inspection_routes.rs`, `modules/quality-inspection/src/main.rs`
+
+**Base URL:** `http://7d-quality-inspection:8106`
+
+Quality inspection management: inspection plans with characteristics, receiving inspections (triggered by inventory receipts), in-process inspections (during production operations), final inspections (work order completion), and disposition state machine. Mutation routes require `quality_inspection.mutate`, read routes require `quality_inspection.read`. Inspector authorization is checked against the Workforce-Competence database.
+
+### Inspection Plans
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/quality-inspection/plans` | Create inspection plan |
+| `GET` | `/api/quality-inspection/plans/{plan_id}` | Get inspection plan |
+| `POST` | `/api/quality-inspection/plans/{plan_id}/activate` | Activate plan |
+
+**Create inspection plan:**
+
+```bash
+curl -X POST http://7d-quality-inspection:8106/api/quality-inspection/plans \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "part_id": "...",
+    "plan_name": "Gear Housing Inspection",
+    "revision": "A",
+    "characteristics": [
+      {
+        "name": "Outer Diameter",
+        "characteristic_type": "dimensional",
+        "nominal": 25.4,
+        "tolerance_low": 25.35,
+        "tolerance_high": 25.45,
+        "uom": "mm"
+      }
+    ],
+    "sampling_method": "100_percent",
+    "sample_size": null
+  }'
+```
+
+Required: **`part_id`**, **`plan_name`**, **`characteristics`** (array). Others optional.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "part_id": "...",
+  "plan_name": "Gear Housing Inspection",
+  "revision": "A",
+  "status": "draft",
+  "characteristics": [...],
+  "sampling_method": "100_percent",
+  "sample_size": null,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+### Inspections
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/quality-inspection/inspections` | Create receiving inspection |
+| `POST` | `/api/quality-inspection/inspections/in-process` | Create in-process inspection |
+| `POST` | `/api/quality-inspection/inspections/final` | Create final inspection |
+| `GET` | `/api/quality-inspection/inspections/{inspection_id}` | Get inspection |
+
+**Create receiving inspection** (triggered when goods are received):
+
+```bash
+curl -X POST http://7d-quality-inspection:8106/api/quality-inspection/inspections \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plan_id": "...",
+    "receipt_id": "...",
+    "lot_id": "...",
+    "part_id": "...",
+    "part_revision": "A",
+    "inspector_id": "...",
+    "result": "pass",
+    "notes": "All dimensions within spec"
+  }'
+```
+
+All fields optional. The receiving inspection is also auto-created by the receipt event bridge when inventory receipts arrive via NATS.
+
+**Create in-process inspection** (during production):
+
+```bash
+curl -X POST http://7d-quality-inspection:8106/api/quality-inspection/inspections/in-process \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wo_id": "...",
+    "op_instance_id": "...",
+    "plan_id": "...",
+    "inspector_id": "...",
+    "result": "pass"
+  }'
+```
+
+Required: **`wo_id`**, **`op_instance_id`**.
+
+**Create final inspection** (at work order completion):
+
+```bash
+curl -X POST http://7d-quality-inspection:8106/api/quality-inspection/inspections/final \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wo_id": "...",
+    "lot_id": "...",
+    "plan_id": "...",
+    "inspector_id": "...",
+    "result": "pass"
+  }'
+```
+
+Required: **`wo_id`**.
+
+### Disposition Transitions
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/quality-inspection/inspections/{inspection_id}/hold` | Place on hold |
+| `POST` | `/api/quality-inspection/inspections/{inspection_id}/release` | Release from hold |
+| `POST` | `/api/quality-inspection/inspections/{inspection_id}/accept` | Accept inspection |
+| `POST` | `/api/quality-inspection/inspections/{inspection_id}/reject` | Reject inspection |
+
+Each transition requires authorization check against the Workforce-Competence database to verify the inspector has the required certification. Returns `403` if inspector is not authorized.
+
+```bash
+curl -X POST http://7d-quality-inspection:8106/api/quality-inspection/inspections/{inspection_id}/accept \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inspector_id": "...",
+    "reason": "All characteristics within tolerance"
+  }'
+```
+
+### Inspection Queries
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/quality-inspection/inspections/by-part-rev?part_id=&part_revision=` | Inspections by part+revision |
+| `GET` | `/api/quality-inspection/inspections/by-receipt?receipt_id=` | Inspections by receipt |
+| `GET` | `/api/quality-inspection/inspections/by-wo?wo_id=&inspection_type=` | Inspections by work order |
+| `GET` | `/api/quality-inspection/inspections/by-lot?lot_id=` | Inspections by lot |
+
+All query endpoints accept the specified query parameters. `part_revision` and `inspection_type` are optional filters.
+
+---
+
+## Numbering Module
+
+Source: `modules/numbering/src/http/`, `modules/numbering/src/main.rs`
+
+**Base URL:** `http://7d-numbering:8120`
+
+Centralized, atomic, idempotent sequence numbering for all platform entities (invoices, work orders, ECOs, etc.). Supports standard (immediate) and gap-free (reserved→confirmed) modes with configurable formatting policies. Allocation routes require `numbering.allocate`.
+
+### Allocate Number
+
+```
+POST /allocate
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "entity": "work_order",
+  "idempotency_key": "wo-create-abc123",
+  "gap_free": false
+}
+```
+
+Required: **`entity`** (1-100 chars), **`idempotency_key`** (1-512 chars). `gap_free` is optional (default `false`, only honoured on first allocation for a new sequence).
+
+Response `201 Created` (new allocation) or `200 OK` (idempotent replay):
+```json
+{
+  "tenant_id": "...",
+  "entity": "work_order",
+  "number_value": 42,
+  "formatted_number": "WO-000042",
+  "idempotency_key": "wo-create-abc123",
+  "replay": false,
+  "status": "confirmed",
+  "expires_at": null
+}
+```
+
+For gap-free sequences, `status` is `"reserved"` and `expires_at` contains the ISO 8601 expiry timestamp. Reserved numbers must be confirmed via `POST /confirm` before expiry or they will be recycled.
+
+### Confirm Number (Gap-Free)
+
+```
+POST /confirm
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "entity": "invoice",
+  "idempotency_key": "inv-create-xyz789"
+}
+```
+
+Response `200 OK`:
+```json
+{
+  "tenant_id": "...",
+  "entity": "invoice",
+  "number_value": 1001,
+  "idempotency_key": "inv-create-xyz789",
+  "status": "confirmed",
+  "replay": false
+}
+```
+
+Returns `404` if no reservation found, `409` if reservation is in an invalid state.
+
+### Formatting Policies
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `PUT` | `/policies/{entity}` | Upsert formatting policy |
+| `GET` | `/policies/{entity}` | Get formatting policy |
+
+**Upsert policy:**
+
+```bash
+curl -X PUT http://7d-numbering:8120/policies/work_order \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pattern": "{prefix}{number}",
+    "prefix": "WO-",
+    "padding": 6
+  }'
+```
+
+Required: **`pattern`** (must contain `{number}` token). `prefix` defaults to `""`, `padding` defaults to `0` (range 0-20).
+
+Response `200 OK`:
+```json
+{
+  "tenant_id": "...",
+  "entity": "work_order",
+  "pattern": "{prefix}{number}",
+  "prefix": "WO-",
+  "padding": 6,
+  "version": 1
+}
+```
+
+Once a policy is set, all future allocations for that entity return a `formatted_number` field in addition to the raw `number_value`.
+
+---
+
+## Workflow Module
+
+Source: `modules/workflow/src/http/definitions.rs`, `modules/workflow/src/http/instances.rs`, `modules/workflow/src/main.rs`
+
+**Base URL:** `http://7d-workflow:8110`
+
+Generic, definition-driven workflow engine. Define step graphs with allowed transitions, then start instances against entities (e.g., purchase orders, ECOs). Every state change is recorded as a transition with full audit trail. All routes require `workflow.mutate`.
+
+### Definitions
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/workflow/definitions` | Create workflow definition |
+| `GET` | `/api/workflow/definitions` | List definitions (?active_only=true&limit=50&offset=0) |
+| `GET` | `/api/workflow/definitions/{def_id}` | Get definition by ID |
+
+**Create definition:**
+
+```bash
+curl -X POST http://7d-workflow:8110/api/workflow/definitions \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Purchase Order Approval",
+    "description": "Two-step PO approval workflow",
+    "steps": [
+      {
+        "step_id": "pending_review",
+        "label": "Pending Review",
+        "allowed_transitions": ["manager_approved", "__cancelled__"]
+      },
+      {
+        "step_id": "manager_approved",
+        "label": "Manager Approved",
+        "allowed_transitions": ["__completed__", "__cancelled__"]
+      }
+    ],
+    "initial_step_id": "pending_review"
+  }'
+```
+
+Required: **`name`**, **`steps`** (JSON array), **`initial_step_id`** (must match a `step_id` in steps). Steps must have unique `step_id` values.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "name": "Purchase Order Approval",
+  "description": "Two-step PO approval workflow",
+  "version": 1,
+  "steps": [...],
+  "initial_step_id": "pending_review",
+  "is_active": true,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+Errors: `400` validation failure (empty steps, missing initial_step_id), `409` duplicate name+version.
+
+### Instances
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/workflow/instances` | Start workflow instance |
+| `GET` | `/api/workflow/instances` | List instances (?entity_type=&entity_id=&status=&definition_id=&limit=50&offset=0) |
+| `GET` | `/api/workflow/instances/{instance_id}` | Get instance |
+| `PATCH` | `/api/workflow/instances/{instance_id}/advance` | Advance to next step |
+| `GET` | `/api/workflow/instances/{instance_id}/transitions` | List transition history |
+
+**Start instance:**
+
+```bash
+curl -X POST http://7d-workflow:8110/api/workflow/instances \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "definition_id": "...",
+    "entity_type": "purchase_order",
+    "entity_id": "PO-2026-001",
+    "context": { "amount": 50000, "department": "engineering" },
+    "idempotency_key": "start-po-2026-001"
+  }'
+```
+
+Required: **`definition_id`**, **`entity_type`**, **`entity_id`**. Definition must be active. `idempotency_key` enables safe retries.
+
+Response `201 Created`:
+```json
+{
+  "id": "...",
+  "tenant_id": "...",
+  "definition_id": "...",
+  "entity_type": "purchase_order",
+  "entity_id": "PO-2026-001",
+  "current_step_id": "pending_review",
+  "status": "active",
+  "context": { "amount": 50000, "department": "engineering" },
+  "started_at": "2026-03-11T10:00:00Z",
+  "completed_at": null,
+  "cancelled_at": null,
+  "created_at": "2026-03-11T10:00:00Z",
+  "updated_at": "2026-03-11T10:00:00Z"
+}
+```
+
+**Advance instance:**
+
+```bash
+curl -X PATCH http://7d-workflow:8110/api/workflow/instances/{instance_id}/advance \
+  -H "Authorization: Bearer $JWT" \
+  -H "X-App-Id: my-vertical" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to_step_id": "manager_approved",
+    "action": "approve",
+    "actor_id": "...",
+    "actor_type": "user",
+    "comment": "Budget approved",
+    "metadata": { "approved_amount": 50000 },
+    "idempotency_key": "approve-po-2026-001"
+  }'
+```
+
+Required: **`to_step_id`**, **`action`**. Target step must exist in the definition. Special pseudo-steps: `__completed__` (terminates with completed status), `__cancelled__` (terminates with cancelled status).
+
+Response `200 OK`:
+```json
+{
+  "instance": {
+    "id": "...",
+    "current_step_id": "manager_approved",
+    "status": "active",
+    "...": "..."
+  },
+  "transition": {
+    "id": "...",
+    "instance_id": "...",
+    "from_step_id": "pending_review",
+    "to_step_id": "manager_approved",
+    "action": "approve",
+    "actor_id": "...",
+    "actor_type": "user",
+    "comment": "Budget approved",
+    "transitioned_at": "2026-03-11T10:05:00Z"
+  }
+}
+```
+
+Errors: `404` instance/definition not found, `422` invalid transition or instance not active.
 
 ---
 
