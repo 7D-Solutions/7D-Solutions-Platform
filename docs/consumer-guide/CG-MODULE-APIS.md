@@ -1,7 +1,7 @@
 # Consumer Guide — Module APIs
 
 > **Who reads this:** Agents building vertical apps on the 7D Platform.
-> **What it covers:** Party Master (+ contacts, addresses), AR Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
+> **What it covers:** Party Master (+ contacts, addresses), AR Module, GL Module, Inventory Module, Subscriptions Module, Payments Module, Maintenance, Identity SoD, Notifications, and the canonical "First Invoice" flow.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
 ## Contents
@@ -10,10 +10,14 @@
 2. [Party Contacts Extension](#party-contacts-extension) — create/list/update/delete contacts, set-primary, primary-contacts
 3. [Party Addresses Extension](#party-addresses-extension) — create/list/get/update/delete addresses
 4. [AR Module — Customers and Invoices](#ar-module--customers-and-invoices) — create AR customer, create invoice, lookup, all endpoints
-5. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
-6. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
-7. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
-8. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
+5. [GL Module](#gl-module) — trial balance, income statement, balance sheet, cash flow, period close, FX rates, accruals, revenue recognition, exports
+6. [Inventory Module](#inventory-module) — items, receipts, issues, transfers, adjustments, reservations, locations, lots/serials, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy
+7. [Subscriptions Module](#subscriptions-module) — bill run execution
+8. [Payments Module](#payments-module) — checkout sessions, webhooks, payment queries
+9. [Maintenance Module](#maintenance-module) — assets, calibration, downtime, meters, work orders, plans
+10. [Identity SoD (Segregation of Duties)](#identity-sod-segregation-of-duties) — policy CRUD, evaluate, decision log
+11. [Notifications Module](#notifications-module) — templates, send, deliveries, inbox, DLQ
+12. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
 
 ---
 
@@ -23,6 +27,7 @@
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. Party Master endpoints, AR endpoints, complete first-invoice flow. |
 | 2.0 | 2026-03-04 | MaroonHarbor | Added Party Contacts/Addresses extension, Maintenance module, Identity SoD, Notifications module (templates, sends, inbox, DLQ). |
+| 3.0 | 2026-03-12 | DarkOwl | Added GL module (financial reports, period close, FX rates, accruals, revrec, exports), Inventory module (items, receipts, issues, transfers, reservations, lots/serials, locations, cycle counts, valuation, reorder, revisions, labels, expiry, genealogy), Subscriptions module (bill runs), Payments module (checkout sessions, webhooks). |
 
 ---
 
@@ -447,6 +452,619 @@ GET    /api/ar/customers/{id}
 GET    /api/ar/subscriptions
 GET    /api/ar/aging
 ```
+
+---
+
+## GL Module
+
+Source: `modules/gl/src/http/`, `modules/gl/src/main.rs`
+
+**Base URL:** `http://7d-gl:8090`
+
+General Ledger — financial reporting, period close lifecycle, FX rates, accruals, revenue recognition, and data exports. Tenant identity derived from JWT claims. Read routes are open; mutation routes require `gl.post` permission.
+
+### Financial Reports
+
+```
+GET /api/gl/trial-balance?period_id={uuid}&currency=USD
+GET /api/gl/income-statement?period_id={uuid}&currency=USD
+GET /api/gl/balance-sheet?period_id={uuid}&currency=USD
+GET /api/gl/cash-flow?period_id={uuid}&currency=USD
+GET /api/gl/detail?period_id={uuid}&account_code={code}
+GET /api/gl/accounts/{account_code}/activity?period_id={uuid}
+GET /api/gl/periods/{period_id}/summary
+Authorization: Bearer <jwt>
+```
+
+All report endpoints accept `period_id` (UUID) and optional `currency` (ISO 4217, defaults to USD).
+
+### Reporting Currency Reports
+
+Multi-currency reporting — same reports translated into the tenant's reporting currency.
+
+```
+GET /api/gl/reporting/trial-balance?period_id={uuid}
+GET /api/gl/reporting/income-statement?period_id={uuid}
+GET /api/gl/reporting/balance-sheet?period_id={uuid}
+Authorization: Bearer <jwt>
+```
+
+### Period Close Lifecycle
+
+```
+POST /api/gl/periods/{period_id}/validate-close   — pre-flight validation (read-only)
+POST /api/gl/periods/{period_id}/close             — atomically close period
+GET  /api/gl/periods/{period_id}/close-status      — query close status
+Authorization: Bearer <jwt>
+```
+
+**Validate close** request body:
+```json
+{}
+```
+
+Response `200 OK`:
+```json
+{
+  "period_id": "uuid",
+  "tenant_id": "tenant-abc",
+  "can_close": true,
+  "validation_report": [ ... ],
+  "validated_at": "2026-03-12T00:00:00Z"
+}
+```
+
+**Close period** request body:
+```json
+{
+  "closed_by": "user-uuid",
+  "close_reason": "Month-end close March 2026"
+}
+```
+
+Response `200 OK`:
+```json
+{
+  "period_id": "uuid",
+  "tenant_id": "tenant-abc",
+  "success": true,
+  "close_status": { ... },
+  "validation_report": [ ... ],
+  "timestamp": "2026-03-12T00:00:00Z"
+}
+```
+
+Error cases:
+- `404 Not Found`: period not found for tenant
+- `409 Conflict`: period already closed (idempotent — returns existing close status)
+
+### Close Checklist & Approvals
+
+```
+POST /api/gl/periods/{period_id}/checklist                         — create checklist item
+GET  /api/gl/periods/{period_id}/checklist                         — get checklist status
+POST /api/gl/periods/{period_id}/checklist/{item_id}/complete      — mark item complete
+POST /api/gl/periods/{period_id}/checklist/{item_id}/waive         — waive item
+POST /api/gl/periods/{period_id}/approvals                         — create approval
+GET  /api/gl/periods/{period_id}/approvals                         — list approvals
+Authorization: Bearer <jwt>
+```
+
+### Period Reopen
+
+```
+POST /api/gl/periods/{period_id}/reopen                            — request controlled reopen
+GET  /api/gl/periods/{period_id}/reopen                            — list reopen requests
+POST /api/gl/periods/{period_id}/reopen/{request_id}/approve       — approve reopen
+POST /api/gl/periods/{period_id}/reopen/{request_id}/reject        — reject reopen
+Authorization: Bearer <jwt>
+```
+
+**Request reopen** body:
+```json
+{
+  "requested_by": "user-uuid",
+  "reason": "Missed accrual entry for vendor invoice"
+}
+```
+
+### FX Rates
+
+```
+POST /api/gl/fx-rates            — create FX rate (idempotent on idempotency_key)
+GET  /api/gl/fx-rates/latest     — get latest rate for currency pair
+Authorization: Bearer <jwt>
+```
+
+**Create FX rate** request body:
+```json
+{
+  "base_currency": "EUR",
+  "quote_currency": "USD",
+  "rate": 1.0850,
+  "effective_at": "2026-03-12T00:00:00Z",
+  "source": "ECB",
+  "idempotency_key": "fx-eur-usd-20260312"
+}
+```
+
+Response `200 OK`:
+```json
+{
+  "rate_id": "uuid",
+  "created": true
+}
+```
+
+**Get latest rate** query:
+```
+GET /api/gl/fx-rates/latest?base_currency=EUR&quote_currency=USD&as_of=2026-03-12T00:00:00Z
+```
+
+Response:
+```json
+{
+  "id": "uuid",
+  "tenant_id": "tenant-abc",
+  "base_currency": "EUR",
+  "quote_currency": "USD",
+  "rate": 1.085,
+  "inverse_rate": 0.9217,
+  "effective_at": "2026-03-12T00:00:00Z",
+  "source": "ECB",
+  "created_at": "2026-03-12T00:00:00Z"
+}
+```
+
+### Revenue Recognition (Revrec)
+
+```
+POST /api/gl/revrec/contracts          — create revenue contract with obligations
+POST /api/gl/revrec/schedules          — generate recognition schedule for an obligation
+POST /api/gl/revrec/recognition-runs   — execute recognition run for a period
+POST /api/gl/revrec/amendments         — amend a contract (mid-cycle versioning)
+Authorization: Bearer <jwt>
+```
+
+All revrec endpoints are idempotent — duplicates return `409 Conflict`.
+
+**Create contract** request body:
+```json
+{
+  "contract_id": "uuid",
+  "customer_id": "cust-001",
+  "contract_name": "Annual support agreement",
+  "contract_start": "2026-01-01",
+  "contract_end": "2026-12-31",
+  "total_transaction_price_minor": 1200000,
+  "currency": "USD",
+  "performance_obligations": [
+    {
+      "obligation_id": "uuid",
+      "name": "Premium support",
+      "allocated_amount_minor": 1200000,
+      "recognition_pattern": { "type": "straight_line" },
+      "satisfaction_start": "2026-01-01",
+      "satisfaction_end": "2026-12-31"
+    }
+  ]
+}
+```
+
+**Recognition run** request body:
+```json
+{
+  "period": "2026-03",
+  "posting_date": "2026-03-31"
+}
+```
+
+### Accruals
+
+```
+POST /api/gl/accruals/templates           — create accrual template
+POST /api/gl/accruals/create              — create accrual instance from template
+POST /api/gl/accruals/reversals/execute   — execute auto-reversals for target period
+Authorization: Bearer <jwt>
+```
+
+### Exports
+
+```
+POST /api/gl/exports
+Authorization: Bearer <jwt>
+```
+
+Request body:
+```json
+{
+  "format": "quickbooks",
+  "export_type": "chart_of_accounts",
+  "idempotency_key": "export-coa-20260312",
+  "period_id": "uuid"
+}
+```
+
+Supported formats: `quickbooks`, `xero`. Export types: `chart_of_accounts`, `journal_entries`. `period_id` required for `journal_entries`.
+
+---
+
+## Inventory Module
+
+Source: `modules/inventory/src/http/`, `modules/inventory/src/main.rs`
+
+**Base URL:** `http://7d-inventory:8092`
+
+Inventory management — item master, stock movements (receipts/issues/transfers/adjustments), reservations, lot/serial tracking, cycle counts, valuation snapshots, reorder policies, item revisions, labels, expiry management, and lot genealogy. Tenant identity derived from JWT claims. Read routes require `inventory.read`, mutation routes require `inventory.mutate`.
+
+### Item Master
+
+```
+POST  /api/inventory/items                   — create item
+GET   /api/inventory/items/{id}              — get item
+PUT   /api/inventory/items/{id}              — update item
+POST  /api/inventory/items/{id}/deactivate   — soft-delete item
+PUT   /api/inventory/items/{id}/make-buy     — set make/buy classification
+Authorization: Bearer <jwt>
+```
+
+**Create item** request body:
+```json
+{
+  "sku": "WIDGET-001",
+  "name": "Standard Widget",
+  "description": "10mm steel widget",
+  "inventory_account_ref": "1200",
+  "cogs_account_ref": "5000",
+  "variance_account_ref": "5010",
+  "uom": "ea",
+  "tracking_mode": "lot",
+  "make_buy": "buy"
+}
+```
+
+Required fields: **`sku`**, **`name`**, **`inventory_account_ref`**, **`cogs_account_ref`**, **`variance_account_ref`**, **`tracking_mode`** (`none` | `lot` | `serial`).
+
+Response `201 Created` → Item object with `id` (UUID), `tenant_id`, `sku`, `name`, `active`, `tracking_mode`, `make_buy`, GL account refs, `created_at`, `updated_at`.
+
+Error cases:
+- `409 Conflict`: SKU already exists for tenant
+- `422 Unprocessable Entity`: validation failure
+
+### Stock Receipts
+
+```
+POST /api/inventory/receipts
+Authorization: Bearer <jwt>
+```
+
+Request body:
+```json
+{
+  "item_id": "uuid",
+  "warehouse_id": "uuid",
+  "location_id": "uuid",
+  "quantity": 100,
+  "unit_cost_minor": 1500,
+  "currency": "USD",
+  "source_type": "purchase",
+  "purchase_order_id": "uuid",
+  "idempotency_key": "rcpt-20260312-001",
+  "lot_code": "LOT-2026-03A",
+  "serial_codes": null,
+  "uom_id": "uuid"
+}
+```
+
+Required fields: **`item_id`**, **`warehouse_id`**, **`quantity`** (>0), **`unit_cost_minor`** (>0), **`currency`**, **`idempotency_key`**. `lot_code` required for lot-tracked items. `serial_codes` required for serial-tracked items (length must equal quantity).
+
+Source types: `purchase` (default), `production`, `return`.
+
+Response `201 Created` / `200 OK` (idempotency replay):
+```json
+{
+  "receipt_line_id": "uuid",
+  "ledger_entry_id": 42,
+  "layer_id": "uuid",
+  "event_id": "uuid",
+  "tenant_id": "tenant-abc",
+  "item_id": "uuid"
+}
+```
+
+### Stock Issues
+
+```
+POST /api/inventory/issues
+Authorization: Bearer <jwt>
+```
+
+Issues consume stock using FIFO costing. Same pattern as receipts — requires `item_id`, `warehouse_id`, `quantity`, `idempotency_key`.
+
+### Transfers
+
+```
+POST /api/inventory/transfers           — transfer stock between warehouses
+POST /api/inventory/status-transfers    — transfer stock between statuses
+Authorization: Bearer <jwt>
+```
+
+### Adjustments
+
+```
+POST /api/inventory/adjustments
+Authorization: Bearer <jwt>
+```
+
+### Reservations
+
+```
+POST /api/inventory/reservations/reserve       — reserve stock for a demand source
+POST /api/inventory/reservations/release       — release a reservation
+POST /api/inventory/reservations/{id}/fulfill  — fulfill a reservation (issue stock)
+Authorization: Bearer <jwt>
+```
+
+### Locations
+
+```
+POST  /api/inventory/locations                              — create location
+GET   /api/inventory/locations/{id}                         — get location
+PUT   /api/inventory/locations/{id}                         — update location
+POST  /api/inventory/locations/{id}/deactivate              — soft-delete location
+GET   /api/inventory/warehouses/{warehouse_id}/locations    — list locations in warehouse
+Authorization: Bearer <jwt>
+```
+
+### Units of Measure (UoM)
+
+```
+POST /api/inventory/uoms                           — create UoM
+GET  /api/inventory/uoms                           — list UoMs
+POST /api/inventory/items/{id}/uom-conversions     — create UoM conversion for item
+GET  /api/inventory/items/{id}/uom-conversions     — list UoM conversions for item
+Authorization: Bearer <jwt>
+```
+
+### Lot & Serial Queries
+
+```
+GET /api/inventory/items/{item_id}/lots                              — list lots for item
+GET /api/inventory/items/{item_id}/serials                           — list serials for item
+GET /api/inventory/items/{item_id}/lots/{lot_code}/trace             — trace lot through movements
+GET /api/inventory/items/{item_id}/serials/{serial_code}/trace       — trace serial through movements
+Authorization: Bearer <jwt>
+```
+
+### Movement History
+
+```
+GET /api/inventory/items/{item_id}/history
+Authorization: Bearer <jwt>
+```
+
+### Cycle Counts
+
+```
+POST /api/inventory/cycle-count-tasks                       — create cycle count task
+POST /api/inventory/cycle-count-tasks/{task_id}/submit      — submit count results
+POST /api/inventory/cycle-count-tasks/{task_id}/approve     — approve cycle count
+Authorization: Bearer <jwt>
+```
+
+### Reorder Policies
+
+```
+POST /api/inventory/reorder-policies                    — create reorder policy
+PUT  /api/inventory/reorder-policies/{id}               — update reorder policy
+GET  /api/inventory/reorder-policies/{id}               — get reorder policy
+GET  /api/inventory/items/{item_id}/reorder-policies    — list policies for item
+Authorization: Bearer <jwt>
+```
+
+### Valuation Snapshots
+
+```
+POST /api/inventory/valuation-snapshots         — create valuation snapshot
+GET  /api/inventory/valuation-snapshots         — list snapshots
+GET  /api/inventory/valuation-snapshots/{id}    — get snapshot detail
+Authorization: Bearer <jwt>
+```
+
+### Item Revisions
+
+```
+POST /api/inventory/items/{item_id}/revisions                                   — create revision
+GET  /api/inventory/items/{item_id}/revisions                                   — list revisions
+GET  /api/inventory/items/{item_id}/revisions/at?as_of=2026-03-12T00:00:00Z    — get revision at point in time
+POST /api/inventory/items/{item_id}/revisions/{revision_id}/activate            — activate revision
+PUT  /api/inventory/items/{item_id}/revisions/{revision_id}/policy-flags        — update revision policy flags
+Authorization: Bearer <jwt>
+```
+
+### Labels
+
+```
+POST /api/inventory/items/{item_id}/labels     — generate label
+GET  /api/inventory/items/{item_id}/labels     — list labels for item
+GET  /api/inventory/labels/{label_id}          — get label by id
+Authorization: Bearer <jwt>
+```
+
+### Expiry Management
+
+```
+PUT  /api/inventory/lots/{lot_id}/expiry          — set/update lot expiry date
+POST /api/inventory/expiry-alerts/scan            — scan for expiring lots
+Authorization: Bearer <jwt>
+```
+
+### Lot Genealogy
+
+```
+POST /api/inventory/lots/split                — split a lot into child lots
+POST /api/inventory/lots/merge                — merge lots into a parent lot
+GET  /api/inventory/lots/{lot_id}/children    — get child lots
+GET  /api/inventory/lots/{lot_id}/parents     — get parent lots
+Authorization: Bearer <jwt>
+```
+
+---
+
+## Subscriptions Module
+
+Source: `modules/subscriptions/src/http.rs`, `modules/subscriptions/src/main.rs`
+
+**Base URL:** `http://7d-subscriptions:8087`
+
+Subscription billing — manages recurring billing cycles. Finds active subscriptions due for billing, creates and finalizes invoices via the AR module, and advances the next bill date. Mutation routes require `subscriptions.mutate` permission.
+
+### Execute Bill Run
+
+```
+POST /api/bill-runs/execute
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "bill_run_id": "br-2026-03-12",
+  "execution_date": "2026-03-12"
+}
+```
+
+Both fields are optional. `bill_run_id` is auto-generated if omitted. `execution_date` defaults to today.
+
+Response `200 OK`:
+```json
+{
+  "bill_run_id": "br-2026-03-12",
+  "subscriptions_processed": 15,
+  "invoices_created": 14,
+  "failures": 1,
+  "execution_time": "2026-03-12T10:00:00Z"
+}
+```
+
+Idempotent: if `bill_run_id` was already executed, returns the cached result.
+
+The bill run:
+1. Finds all active subscriptions for the tenant with `next_bill_date <= execution_date`
+2. Creates an AR invoice for each subscription via `POST http://7d-ar:8086/api/ar/invoices`
+3. Finalizes each invoice via `POST http://7d-ar:8086/api/ar/invoices/{id}/finalize`
+4. Advances `next_bill_date` based on the subscription's schedule (`weekly`, `monthly`, or 4-week default)
+5. Emits a `billrun.completed` event via outbox
+
+---
+
+## Payments Module
+
+Source: `modules/payments/src/http/`, `modules/payments/src/main.rs`
+
+**Base URL:** `http://7d-payments:8088`
+
+Payment processing — checkout session management backed by Tilled.js. Platform owns the payment processor integration; vertical apps never call Tilled directly. All routes (except webhook) require `payments.mutate` permission.
+
+### Create Checkout Session
+
+```
+POST /api/payments/checkout-sessions
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+Request body:
+```json
+{
+  "invoice_id": "inv-001",
+  "tenant_id": "tenant-abc",
+  "amount": 15000,
+  "currency": "usd",
+  "return_url": "https://app.example.com/payment/success",
+  "cancel_url": "https://app.example.com/payment/cancel"
+}
+```
+
+Required fields: **`invoice_id`**, **`amount`** (positive, in minor currency units), **`currency`**. `return_url` and `cancel_url` must be absolute HTTPS URLs.
+
+Response `200 OK`:
+```json
+{
+  "session_id": "uuid",
+  "payment_intent_id": "pi_xxx",
+  "client_secret": "pi_xxx_secret_yyy"
+}
+```
+
+Pass `client_secret` to Tilled.js `confirmPayment()` on the frontend.
+
+### Get Checkout Session
+
+```
+GET /api/payments/checkout-sessions/{id}
+Authorization: Bearer <jwt>
+```
+
+Response `200 OK`:
+```json
+{
+  "session_id": "uuid",
+  "status": "presented",
+  "payment_intent_id": "pi_xxx",
+  "invoice_id": "inv-001",
+  "tenant_id": "tenant-abc",
+  "amount": 15000,
+  "currency": "usd",
+  "return_url": "https://...",
+  "cancel_url": "https://..."
+}
+```
+
+For non-terminal sessions (`created`, `presented`), this endpoint polls Tilled for live status.
+
+### Present Checkout Session
+
+```
+POST /api/payments/checkout-sessions/{id}/present
+Authorization: Bearer <jwt>
+```
+
+Idempotent transition: `created` → `presented` (called when the hosted pay page loads). Returns `200 OK`.
+
+### Poll Checkout Session Status
+
+```
+GET /api/payments/checkout-sessions/{id}/status
+Authorization: Bearer <jwt>
+```
+
+Lightweight status poll (no secrets returned). Used for client-side polling after payment.
+
+Response `200 OK`:
+```json
+{
+  "session_id": "uuid",
+  "status": "completed"
+}
+```
+
+Session status values: `created` → `presented` → `completed` | `failed` | `canceled` | `expired`
+
+### Tilled Webhook
+
+```
+POST /api/payments/webhook/tilled
+```
+
+Receives Tilled payment processor callbacks. No JWT required — authenticated via webhook signature (`tilled-signature` header). Transitions checkout session status based on payment intent events:
+
+- `payment_intent.succeeded` → `completed`
+- `payment_intent.payment_failed` → `failed`
+- `payment_intent.canceled` → `canceled`
+
+Unknown event types are acknowledged with `200 OK`.
 
 ---
 
