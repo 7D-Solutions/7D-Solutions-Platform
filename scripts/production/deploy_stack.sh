@@ -71,7 +71,7 @@ if [[ -z "$TAG" ]]; then
     # Extract unique non-pending image tags from manifest table.
     # Manifest columns: | Description | `canonical` | version | sha | `full-image-tag` | notes |
     RESOLVED_TAGS=()
-    while IFS='|' read -r _desc canonical _ver sha_field full_tag _notes; do
+    while IFS='|' read -r _empty _desc canonical _ver sha_field full_tag _notes; do
         canonical="$(echo "$canonical" | tr -d '[:space:]`')"
         sha_field="$(echo "$sha_field" | tr -d '[:space:]')"
         full_tag="$(echo "$full_tag"   | tr -d '[:space:]`')"
@@ -155,6 +155,23 @@ if ! $DRY_RUN; then
 fi
 
 if $USE_MANIFEST; then
+    # -----------------------------------------------------------------------
+    # Pre-deploy gate: block deploy if any manifest entries are unresolved
+    # -----------------------------------------------------------------------
+    banner "Manifest validation (--strict)"
+    VALIDATE_SCRIPT="${REPO_ROOT}/scripts/production/manifest_validate.sh"
+    if [[ -x "$VALIDATE_SCRIPT" ]]; then
+        if ! bash "$VALIDATE_SCRIPT" --strict "$MANIFEST_FILE"; then
+            echo "ERROR: Manifest validation failed. All entries must have resolved image tags." >&2
+            echo "       Resolve pending entries in ${MANIFEST_FILE} before deploying." >&2
+            exit 1
+        fi
+        log "Manifest validation passed (--strict)"
+    else
+        echo "ERROR: manifest_validate.sh not found at ${VALIDATE_SCRIPT}" >&2
+        exit 1
+    fi
+
     log "Manifest: ${MANIFEST_FILE}"
     log "Services with resolved tags:"
     for entry in "${RESOLVED_TAGS[@]}"; do
@@ -211,15 +228,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2b: Detect secrets overlay
+# Step 2b: Detect secrets overlay + set production overlay
+# The production overlay (docker-compose.production.yml) provides image: fields
+# and is ALWAYS required for production deploys — it ensures containers run from
+# manifest-pinned images instead of local builds.
 # ---------------------------------------------------------------------------
-PROD_SVC_OVERLAY=""
 PROD_DATA_OVERLAY=""
 if ! $DRY_RUN; then
     HAS_SECRETS="$(ssh $SSH_OPTS "$SSH_TARGET" \
         "test -d /etc/7d/production/secrets && echo yes || echo no")"
     if [[ "$HAS_SECRETS" == "yes" ]]; then
-        PROD_SVC_OVERLAY="-f docker-compose.production.yml"
         PROD_DATA_OVERLAY="-f docker-compose.production-data.yml"
         log "Docker secrets overlay: ENABLED"
     else
@@ -227,12 +245,16 @@ if ! $DRY_RUN; then
         log "  Falling back to env-var injection. See docs/SECRETS.md to migrate."
     fi
 else
-    PROD_SVC_OVERLAY="-f docker-compose.production.yml"
     PROD_DATA_OVERLAY="-f docker-compose.production-data.yml"
 fi
 
 # ---------------------------------------------------------------------------
 # Step 3: Apply images — restart stacks without rebuild
+#
+# All compose commands load .deploy.env so image tags resolve from the manifest.
+# The production overlay (-f docker-compose.production.yml) provides image:
+# fields that reference these env vars, overriding the build: directives in the
+# base compose files.
 # ---------------------------------------------------------------------------
 banner "Restarting stacks"
 
@@ -241,15 +263,15 @@ run_remote "docker compose -f docker-compose.data.yml ${PROD_DATA_OVERLAY} up -d
 
 if $USE_MANIFEST; then
     # Platform stack
-    run_remote "docker compose -f docker-compose.platform.yml ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
+    run_remote "docker compose --env-file .deploy.env -f docker-compose.platform.yml -f docker-compose.production.yml up -d --no-build --pull never"
     # Backend modules
-    run_remote "docker compose ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
+    run_remote "docker compose --env-file .deploy.env -f docker-compose.services.yml -f docker-compose.production.yml up -d --no-build --pull never"
     # Frontend
-    run_remote "docker compose -f docker-compose.frontend.yml up -d --no-build --pull never"
+    run_remote "docker compose --env-file .deploy.env -f docker-compose.frontend.yml up -d --no-build --pull never"
 else
-    run_remote "IMAGE_TAG=${TAG} docker compose -f docker-compose.platform.yml ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
-    run_remote "IMAGE_TAG=${TAG} docker compose ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
-    run_remote "IMAGE_TAG=${TAG} docker compose -f docker-compose.frontend.yml up -d --no-build --pull never"
+    run_remote "IMAGE_TAG=${TAG} docker compose --env-file .deploy.env -f docker-compose.platform.yml -f docker-compose.production.yml up -d --no-build --pull never"
+    run_remote "IMAGE_TAG=${TAG} docker compose --env-file .deploy.env -f docker-compose.services.yml -f docker-compose.production.yml up -d --no-build --pull never"
+    run_remote "IMAGE_TAG=${TAG} docker compose --env-file .deploy.env -f docker-compose.frontend.yml up -d --no-build --pull never"
 fi
 
 # ---------------------------------------------------------------------------

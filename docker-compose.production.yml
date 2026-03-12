@@ -7,18 +7,18 @@
 
 services:
   auth-1:
-    image: ${AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
+    image: ${IDENTITY_AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
 
   auth-2:
-    image: ${AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
+    image: ${IDENTITY_AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
 
   auth-lb:
-    image: ${NGINX_AUTH_LB_IMAGE:-nginx:alpine}
+    image: ${AUTH_LB_IMAGE:-nginx:alpine}
     cap_add:
       - CHOWN
 
   gateway:
-    image: ${NGINX_GATEWAY_IMAGE:-nginx:alpine}
+    image: ${GATEWAY_IMAGE:-nginx:alpine}
     cap_add:
       - CHOWN
 
@@ -75,3 +75,27 @@ services:
 
   shipping-receiving:
     image: ${SHIPPING_RECEIVING_IMAGE:-7dsolutions/shipping-receiving:phase66-d3b0e8932887}
+
+  quality-inspection:
+    image: ${QUALITY_INSPECTION_IMAGE:-7dsolutions/quality-inspection:phase66-d3b0e8932887}
+
+  bom:
+    image: ${BOM_IMAGE:-7dsolutions/bom:phase66-d3b0e8932887}
+
+  production:
+    image: ${PRODUCTION_IMAGE:-7dsolutions/production:phase66-d3b0e8932887}
+
+  workflow:
+    image: ${WORKFLOW_IMAGE:-7dsolutions/workflow:phase66-d3b0e8932887}
+
+  numbering:
+    image: ${NUMBERING_IMAGE:-7dsolutions/numbering:phase66-d3b0e8932887}
+
+  workforce-competence:
+    image: ${WORKFORCE_COMPETENCE_IMAGE:-7dsolutions/workforce-competence:phase66-d3b0e8932887}
+
+  customer-portal:
+    image: ${CUSTOMER_PORTAL_IMAGE:-7dsolutions/customer-portal:phase66-d3b0e8932887}
+
+  reporting:
+    image: ${REPORTING_IMAGE:-7dsolutions/reporting:phase66-d3b0e8932887}

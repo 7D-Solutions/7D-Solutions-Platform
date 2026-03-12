@@ -4,10 +4,10 @@
   "git_sha": "d3b0e8932887",
   "generated_utc": "2026-03-04T14:22:00Z",
   "services": [
-    {"service": "auth-1", "env_var": "AUTH_IMAGE", "image": "7dsolutions/identity-auth:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
-    {"service": "auth-2", "env_var": "AUTH_IMAGE", "image": "7dsolutions/identity-auth:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
-    {"service": "auth-lb", "env_var": "NGINX_AUTH_LB_IMAGE", "image": "nginx:alpine", "git_sha": "upstream-nginx"},
-    {"service": "gateway", "env_var": "NGINX_GATEWAY_IMAGE", "image": "nginx:alpine", "git_sha": "upstream-nginx"},
+    {"service": "auth-1", "env_var": "IDENTITY_AUTH_IMAGE", "image": "7dsolutions/identity-auth:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "auth-2", "env_var": "IDENTITY_AUTH_IMAGE", "image": "7dsolutions/identity-auth:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "auth-lb", "env_var": "AUTH_LB_IMAGE", "image": "nginx:alpine", "git_sha": "upstream-nginx"},
+    {"service": "gateway", "env_var": "GATEWAY_IMAGE", "image": "nginx:alpine", "git_sha": "upstream-nginx"},
     {"service": "control-plane", "env_var": "CONTROL_PLANE_IMAGE", "image": "7dsolutions/control-plane:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
     {"service": "ar", "env_var": "AR_IMAGE", "image": "7dsolutions/ar:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
     {"service": "subscriptions", "env_var": "SUBSCRIPTIONS_IMAGE", "image": "7dsolutions/subscriptions:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
@@ -25,6 +25,14 @@
     {"service": "ttp", "env_var": "TTP_IMAGE", "image": "7dsolutions/ttp:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
     {"service": "pdf-editor", "env_var": "PDF_EDITOR_IMAGE", "image": "7dsolutions/pdf-editor:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
     {"service": "maintenance", "env_var": "MAINTENANCE_IMAGE", "image": "7dsolutions/maintenance:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
-    {"service": "shipping-receiving", "env_var": "SHIPPING_RECEIVING_IMAGE", "image": "7dsolutions/shipping-receiving:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"}
+    {"service": "shipping-receiving", "env_var": "SHIPPING_RECEIVING_IMAGE", "image": "7dsolutions/shipping-receiving:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "quality-inspection", "env_var": "QUALITY_INSPECTION_IMAGE", "image": "7dsolutions/quality-inspection:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "bom", "env_var": "BOM_IMAGE", "image": "7dsolutions/bom:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "production", "env_var": "PRODUCTION_IMAGE", "image": "7dsolutions/production:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "workflow", "env_var": "WORKFLOW_IMAGE", "image": "7dsolutions/workflow:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "numbering", "env_var": "NUMBERING_IMAGE", "image": "7dsolutions/numbering:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "workforce-competence", "env_var": "WORKFORCE_COMPETENCE_IMAGE", "image": "7dsolutions/workforce-competence:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "customer-portal", "env_var": "CUSTOMER_PORTAL_IMAGE", "image": "7dsolutions/customer-portal:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"},
+    {"service": "reporting", "env_var": "REPORTING_IMAGE", "image": "7dsolutions/reporting:phase66-d3b0e8932887", "git_sha": "d3b0e8932887"}
   ]
 }
