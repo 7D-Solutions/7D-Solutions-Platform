@@ -35,6 +35,7 @@ services:
       LOGIN_PER_MIN_PER_EMAIL: "5"
       REGISTER_PER_MIN_PER_EMAIL: "5"
       REFRESH_PER_MIN_PER_TOKEN: "20"
+      TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: info,auth_rs=debug
     networks:
       - 7d-platform
@@ -88,6 +89,7 @@ services:
       LOGIN_PER_MIN_PER_EMAIL: "5"
       REGISTER_PER_MIN_PER_EMAIL: "5"
       REFRESH_PER_MIN_PER_TOKEN: "20"
+      TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: info,auth_rs=debug
     networks:
       - 7d-platform

@@ -20,7 +20,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | ar | ar-rs | 1.0.63 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | identity-auth | auth-rs | 1.6.2 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |
+| payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ttp | ttp-rs | 2.1.6 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
@@ -30,27 +30,27 @@ No version bump discipline required yet.
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 0.1.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| bom | bom-rs | 0.1.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used |  |
-| consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
-| customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service |  |
-| fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |
+| bom | bom-rs | 0.1.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md) |
-| inventory | inventory-rs | 0.1.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md) |
+| integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| inventory | inventory-rs | 0.1.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | maintenance | maintenance-rs | 0.1.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | notifications | notifications-rs | 0.1.0 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| numbering | numbering | 0.1.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
+| numbering | numbering | 0.1.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | party | party-rs | 0.1.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
-| production | production-rs | 0.1.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows |  |
-| quality-inspection | quality-inspection-rs | 0.1.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking |  |
-| reporting | reporting | 0.1.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md) |
-| shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md) |
+| pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| production | production-rs | 0.1.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| quality-inspection | quality-inspection-rs | 0.1.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| reporting | reporting | 0.1.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
-| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
-| workflow | workflow | 0.1.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution |  |
-| workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries |  |
+| timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| workflow | workflow | 0.1.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Platform Libraries
 
@@ -58,7 +58,7 @@ Shared crates used by services. Not independently deployed.
 
 | Library | Crate | Version | Description | Docs |
 |---------|-------|---------|-------------|------|
-| audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement |  |
+| audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | doc-mgmt | doc_mgmt | 0.1.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) |  |
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
 | event-consumer | event-consumer | 0.1.0 | Consumer-side event dispatch: handler registry, router, and context |  |
