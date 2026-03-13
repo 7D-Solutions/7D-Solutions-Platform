@@ -66,7 +66,7 @@ fn test_notifications_openapi_spec_valid() {
     let required_paths = vec![
         "/api/health",
         "/api/notifications/send",
-        "/api/notifications/{notification_id}",
+        "/api/notifications/{id}",
     ];
 
     check_required_paths(&spec, &required_paths, "notifications-v0.1.0.yaml")

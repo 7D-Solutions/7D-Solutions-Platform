@@ -1,9 +1,13 @@
 {
   "event_id": "e7f1a2b3-c4d5-4e6f-a7b8-c9d0e1f2a3b4",
+  "event_type": "work_order.created",
   "occurred_at": "2026-02-24T14:30:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "maintenance",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
+  "mutation_class": "DATA_MUTATION",
   "correlation_id": "cor_01HPQZ7M2P9KY3W6V5R8XJ4N2T",
   "payload": {
     "wo_id": "d1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a",

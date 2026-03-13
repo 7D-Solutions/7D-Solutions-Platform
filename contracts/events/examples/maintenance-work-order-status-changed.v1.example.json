@@ -1,9 +1,13 @@
 {
   "event_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+  "event_type": "work_order.status_changed",
   "occurred_at": "2026-02-24T15:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "maintenance",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
+  "mutation_class": "LIFECYCLE",
   "payload": {
     "wo_id": "d1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a",
     "old_status": "scheduled",
