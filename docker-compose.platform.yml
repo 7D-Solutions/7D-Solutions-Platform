@@ -166,6 +166,10 @@ services:
     restart: unless-stopped
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
     read_only: true
     tmpfs:
       - /tmp
