@@ -166,3 +166,19 @@ services:
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/control-plane:/usr/local/bin/control-plane:ro
       - ./platform/tenant-registry/db/migrations:/app/platform/tenant-registry/db/migrations:ro
+
+  auth-1:
+    image: 7d-runtime
+    command: ["/usr/local/bin/identity-auth"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
+      - ./platform/identity-auth/db/migrations:/app/migrations:ro
+      - ./platform/identity-auth/src/events/schemas:/app/schemas:ro
+
+  auth-2:
+    image: 7d-runtime
+    command: ["/usr/local/bin/identity-auth"]
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
+      - ./platform/identity-auth/db/migrations:/app/migrations:ro
+      - ./platform/identity-auth/src/events/schemas:/app/schemas:ro
