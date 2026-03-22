@@ -32,6 +32,7 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
             "/api/auth/sod/policies/{tenant_id}/{rule_id}",
             delete(handlers::delete_sod_policy),
         )
+        .route("/api/auth/users", get(handlers::get_user_by_email))
         .route(
             "/api/auth/forgot-password",
             post(handlers_password_reset::forgot_password),

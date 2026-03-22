@@ -1091,3 +1091,53 @@ pub async fn login(
         }),
     ))
 }
+
+// ---------------------------------------------------------------------------
+// GET /api/auth/users — lookup user by email + tenant_id
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct UserLookupQuery {
+    pub email: String,
+    pub tenant_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserLookupResponse {
+    pub id: Uuid,
+    pub email: String,
+    pub tenant_id: Uuid,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+pub async fn get_user_by_email(
+    State(state): State<Arc<AuthState>>,
+    axum::extract::Query(q): axum::extract::Query<UserLookupQuery>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let email = q.email.trim().to_lowercase();
+    if email.is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "email is required"));
+    }
+
+    let row = sqlx::query(
+        "SELECT user_id, email, tenant_id, created_at FROM credentials WHERE tenant_id = $1 AND email = $2",
+    )
+    .bind(q.tenant_id)
+    .bind(&email)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+
+    match row {
+        Some(row) => Ok((
+            StatusCode::OK,
+            Json(UserLookupResponse {
+                id: row.get("user_id"),
+                email: row.get("email"),
+                tenant_id: row.get("tenant_id"),
+                created_at: row.get("created_at"),
+            }),
+        )),
+        None => Err(err(StatusCode::NOT_FOUND, "user not found")),
+    }
+}

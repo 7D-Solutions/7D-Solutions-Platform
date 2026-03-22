@@ -153,6 +153,7 @@ pub struct ManifestBuilder {
     tenant_id: String,
     seed: u64,
     digest: String,
+    admin_user_id: Option<Uuid>,
     numbering_policies: Option<Vec<String>>,
     gl: Option<GlAccounts>,
     parties: Option<PartyIds>,
@@ -167,6 +168,7 @@ impl ManifestBuilder {
             tenant_id,
             seed,
             digest,
+            admin_user_id: None,
             numbering_policies: None,
             gl: None,
             parties: None,
@@ -174,6 +176,11 @@ impl ManifestBuilder {
             bom: None,
             production: None,
         }
+    }
+
+    pub fn with_admin_user_id(mut self, id: Option<Uuid>) -> Self {
+        self.admin_user_id = id;
+        self
     }
 
     pub fn with_numbering(mut self, policies: Vec<String>) -> Self {
@@ -209,7 +216,7 @@ impl ManifestBuilder {
     pub fn build(self) -> Manifest {
         let users = Some(ManifestUsers {
             admin: ManifestUser {
-                id: None,
+                id: self.admin_user_id,
                 email: "admin@7dsolutions.local".to_string(),
             },
         });

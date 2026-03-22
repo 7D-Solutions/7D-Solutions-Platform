@@ -96,6 +96,10 @@ struct Cli {
     #[arg(long, env = "PRODUCTION_BASE_URL", default_value = "http://localhost:8108")]
     production_url: String,
 
+    /// Auth service base URL (for user lookup in manifest)
+    #[arg(long, env = "AUTH_BASE_URL", default_value = "http://localhost:8080")]
+    auth_url: String,
+
     // --- AR-specific flags ---
     /// Number of customers to create
     #[arg(long, default_value_t = 2)]
@@ -284,13 +288,17 @@ async fn main() -> Result<()> {
     info!(digest = %digest, tenant = %cli.tenant, seed = cli.seed, "Demo-seed complete");
     println!("{}", digest);
 
+    // Look up admin user for manifest (best-effort, non-fatal)
+    let admin_user_id = lookup_admin_user(&client, &cli.auth_url, &cli.tenant).await;
+
     // Build and output manifest
     let manifest_path = cli.manifest_out.as_deref();
     let mut builder = manifest::ManifestBuilder::new(
         cli.tenant.clone(),
         cli.seed,
         digest,
-    );
+    )
+    .with_admin_user_id(admin_user_id);
     if let Some(p) = numbering_policies {
         builder = builder.with_numbering(p);
     }
@@ -319,6 +327,50 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Look up the admin user UUID from the auth service (best-effort).
+/// Uses the platform tenant ID (00000000-0000-0000-0000-000000000000) since
+/// seed-dev.sh creates the admin under that tenant.
+async fn lookup_admin_user(
+    client: &reqwest::Client,
+    auth_url: &str,
+    _tenant: &str,
+) -> Option<uuid::Uuid> {
+    let platform_tenant = "00000000-0000-0000-0000-000000000000";
+    let url = format!(
+        "{}/api/auth/users?email={}&tenant_id={}",
+        auth_url, "admin@7dsolutions.local", platform_tenant
+    );
+
+    let resp = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            info!(error = %e, "Auth service not reachable — admin user ID will be null in manifest");
+            return None;
+        }
+    };
+
+    if !resp.status().is_success() {
+        info!(status = %resp.status(), "Admin user lookup returned non-200 — ID will be null");
+        return None;
+    }
+
+    #[derive(serde::Deserialize)]
+    struct UserResp {
+        id: uuid::Uuid,
+    }
+
+    match resp.json::<UserResp>().await {
+        Ok(u) => {
+            info!(admin_user_id = %u.id, "Admin user UUID resolved for manifest");
+            Some(u.id)
+        }
+        Err(e) => {
+            info!(error = %e, "Failed to parse admin user response");
+            None
+        }
+    }
 }
 
 /// Run AR seeding (extracted to preserve exact original logic).
