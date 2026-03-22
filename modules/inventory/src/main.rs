@@ -16,7 +16,7 @@ use inventory_rs::{
         adjustments::post_adjustment,
         health::{health, ready, version},
         issues::post_issue,
-        items::{create_item, deactivate_item, get_item, update_item},
+        items::{create_item, deactivate_item, get_item, list_items, update_item},
         make_buy::put_make_buy,
         locations::{
             create_location, deactivate_location, get_location, list_locations, update_location,
@@ -217,6 +217,7 @@ async fn main() {
 
     let inv_reads = Router::new()
         // Item master — read
+        .route("/api/inventory/items", axum::routing::get(list_items))
         .route("/api/inventory/items/{id}", axum::routing::get(get_item))
         // UoM — read
         .route("/api/inventory/uoms", axum::routing::get(list_uoms))

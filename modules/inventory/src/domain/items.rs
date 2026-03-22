@@ -1,4 +1,4 @@
-//! Item master domain model and repository.
+//! Item master domain model — types, validation, and error definitions.
 //!
 //! Invariants enforced here:
 //! - SKU is unique per tenant (DB constraint + application guard)
@@ -6,12 +6,15 @@
 //! - SKU and name must be non-empty
 //! - Deactivate is idempotent (already-inactive items return Ok)
 //! - tracking_mode is set on creation and is immutable (none|lot|serial)
+//!
+//! Repository operations live in [`super::items_repo`].
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
+
+pub use super::items_repo::{ItemRepo, ListItemsQuery};
 
 // ============================================================================
 // Tracking mode
@@ -201,144 +204,6 @@ impl UpdateItemRequest {
         }
         Ok(())
     }
-}
-
-// ============================================================================
-// Repository
-// ============================================================================
-
-pub struct ItemRepo;
-
-impl ItemRepo {
-    /// Create a new item.
-    ///
-    /// Guard: validates input, then checks SKU uniqueness via DB constraint.
-    /// Returns DuplicateSku if the (tenant_id, sku) pair already exists.
-    pub async fn create(pool: &PgPool, req: &CreateItemRequest) -> Result<Item, ItemError> {
-        req.validate()?;
-
-        let uom = req.uom.as_deref().unwrap_or("ea");
-        let id = Uuid::new_v4();
-        let now = Utc::now();
-
-        let item = sqlx::query_as::<_, Item>(
-            r#"
-            INSERT INTO items
-                (id, tenant_id, sku, name, description,
-                 inventory_account_ref, cogs_account_ref, variance_account_ref,
-                 uom, tracking_mode, make_buy, active, created_at, updated_at)
-            VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE, $12, $12)
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(&req.tenant_id)
-        .bind(req.sku.trim())
-        .bind(req.name.trim())
-        .bind(req.description.as_deref())
-        .bind(req.inventory_account_ref.trim())
-        .bind(req.cogs_account_ref.trim())
-        .bind(req.variance_account_ref.trim())
-        .bind(uom)
-        .bind(req.tracking_mode.as_str())
-        .bind(req.make_buy.as_deref())
-        .bind(now)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            if let sqlx::Error::Database(ref dbe) = e {
-                // PostgreSQL unique violation = code 23505
-                if dbe.code().as_deref() == Some("23505") {
-                    return ItemError::DuplicateSku(req.sku.clone(), req.tenant_id.clone());
-                }
-            }
-            ItemError::Database(e)
-        })?;
-
-        Ok(item)
-    }
-
-    /// Update mutable fields of an existing item.
-    ///
-    /// Only fields present in the request are updated; missing fields are left unchanged.
-    /// Scoped to tenant_id to prevent cross-tenant mutation.
-    pub async fn update(
-        pool: &PgPool,
-        id: Uuid,
-        req: &UpdateItemRequest,
-    ) -> Result<Item, ItemError> {
-        req.validate()?;
-
-        let item = sqlx::query_as::<_, Item>(
-            r#"
-            UPDATE items
-            SET
-                name                 = COALESCE($3, name),
-                description          = CASE WHEN $4::TEXT IS NOT NULL THEN $4 ELSE description END,
-                inventory_account_ref = COALESCE($5, inventory_account_ref),
-                cogs_account_ref     = COALESCE($6, cogs_account_ref),
-                variance_account_ref = COALESCE($7, variance_account_ref),
-                uom                  = COALESCE($8, uom),
-                updated_at           = NOW()
-            WHERE id = $1
-              AND tenant_id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(&req.tenant_id)
-        .bind(req.name.as_deref())
-        .bind(req.description.as_deref())
-        .bind(req.inventory_account_ref.as_deref())
-        .bind(req.cogs_account_ref.as_deref())
-        .bind(req.variance_account_ref.as_deref())
-        .bind(req.uom.as_deref())
-        .fetch_optional(pool)
-        .await?
-        .ok_or(ItemError::NotFound)?;
-
-        Ok(item)
-    }
-
-    /// Deactivate an item (soft delete).
-    ///
-    /// Idempotent: already-inactive items are returned without error.
-    /// Scoped to tenant_id to prevent cross-tenant mutation.
-    pub async fn deactivate(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Item, ItemError> {
-        let item = sqlx::query_as::<_, Item>(
-            r#"
-            UPDATE items
-            SET active = FALSE, updated_at = NOW()
-            WHERE id = $1 AND tenant_id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or(ItemError::NotFound)?;
-
-        Ok(item)
-    }
-
-    /// Fetch an item by id, scoped to tenant.
-    pub async fn find_by_id(
-        pool: &PgPool,
-        id: Uuid,
-        tenant_id: &str,
-    ) -> Result<Option<Item>, ItemError> {
-        let item =
-            sqlx::query_as::<_, Item>("SELECT * FROM items WHERE id = $1 AND tenant_id = $2")
-                .bind(id)
-                .bind(tenant_id)
-                .fetch_optional(pool)
-                .await?;
-
-        Ok(item)
-    }
-
 }
 
 // ============================================================================

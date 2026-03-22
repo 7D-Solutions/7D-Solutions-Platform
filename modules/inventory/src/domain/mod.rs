@@ -9,6 +9,7 @@ pub mod guards;
 pub mod history;
 pub mod issue_service;
 pub mod items;
+pub mod items_repo;
 pub mod labels;
 pub mod make_buy;
 pub mod locations;

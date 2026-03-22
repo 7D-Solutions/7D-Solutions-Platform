@@ -9,7 +9,7 @@
 //! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use super::tenant::extract_tenant;
 use crate::{
-    domain::items::{CreateItemRequest, ItemError, ItemRepo, UpdateItemRequest},
+    domain::items::{CreateItemRequest, ItemError, ItemRepo, ListItemsQuery, UpdateItemRequest},
     AppState,
 };
 
@@ -127,6 +127,35 @@ pub async fn update_item(
     req.tenant_id = tenant_id;
     match ItemRepo::update(&state.pool, id, &req).await {
         Ok(item) => (StatusCode::OK, Json(json!(item))).into_response(),
+        Err(e) => item_error_response(e).into_response(),
+    }
+}
+
+/// GET /api/inventory/items
+///
+/// List items with optional search, filtering, and pagination.
+/// Tenant derived from JWT VerifiedClaims.
+pub async fn list_items(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(query): Query<ListItemsQuery>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    match ItemRepo::list(&state.pool, &tenant_id, &query).await {
+        Ok((items, total)) => (
+            StatusCode::OK,
+            Json(json!({
+                "items": items,
+                "total": total,
+                "limit": query.limit.clamp(1, 200),
+                "offset": query.offset.max(0),
+            })),
+        )
+            .into_response(),
         Err(e) => item_error_response(e).into_response(),
     }
 }
