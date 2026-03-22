@@ -20,6 +20,7 @@
 //! ```
 
 mod ar;
+mod bom;
 mod digest;
 mod gl;
 mod inventory;
@@ -159,8 +160,9 @@ async fn main() -> Result<()> {
     // RNG is created just before AR seeding to preserve the exact call sequence
     // for backwards compatibility. Numbering doesn't use the RNG.
 
-    // Inventory IDs are stored here so downstream modules (production) can reference them
+    // Inventory IDs are stored here so downstream modules (bom, production) can reference them
     let mut item_id_map: HashMap<String, uuid::Uuid> = HashMap::new();
+    let mut inventory_items: Option<Vec<(uuid::Uuid, String, String)>> = None;
 
     // Execute modules in dependency order
     for &module_name in MODULE_ORDER {
@@ -221,13 +223,32 @@ async fn main() -> Result<()> {
                     warehouse_id = %inv_ids.warehouse_id,
                     "Inventory seeding complete"
                 );
-                // Store item SKU → UUID map for downstream modules
+                // Store item data for downstream modules (bom, production)
                 for (id, sku, _make_buy) in &inv_ids.items {
                     item_id_map.insert(sku.clone(), *id);
                 }
+                inventory_items = Some(inv_ids.items);
             }
             "bom" => {
-                info!(module = module_name, "Module not yet implemented — skipping");
+                let items = match &inventory_items {
+                    Some(items) => items.clone(),
+                    None => {
+                        info!("Inventory not run this session — fetching items from API");
+                        bom::fetch_items_from_inventory(&client, &cli.inventory_url).await?
+                    }
+                };
+                let bom_ids = bom::seed_boms(
+                    &client,
+                    &cli.bom_url,
+                    &items,
+                    &mut tracker,
+                )
+                .await?;
+                info!(
+                    boms = bom_ids.boms.len(),
+                    revisions = bom_ids.revisions.len(),
+                    "BOM seeding complete"
+                );
             }
             "production" => {
                 if item_id_map.is_empty() && active_modules.contains("inventory") {
