@@ -1,11 +1,4 @@
-//! Inventory module seeder for demo-seed
-//!
-//! Creates units of measure, warehouse locations, and items (parts) via the
-//! Inventory service API. Items reference GL accounts created by the GL seeder.
-//!
-//! - UoM creation: POST /api/inventory/uoms — 409 Conflict treated as success
-//! - Location creation: POST /api/inventory/locations — 409 Conflict treated as success
-//! - Item creation: POST /api/inventory/items — 409 Conflict triggers GET search for existing UUID
+//! Inventory item seeding for demo-seed
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -15,33 +8,8 @@ use uuid::Uuid;
 use crate::digest::DigestTracker;
 
 // ---------------------------------------------------------------------------
-// Deterministic warehouse UUID
-// ---------------------------------------------------------------------------
-
-/// Generate a deterministic warehouse UUID from tenant + seed.
-fn warehouse_uuid(tenant: &str, seed: u64) -> Uuid {
-    let name = format!("{}-warehouse-{}", tenant, seed);
-    Uuid::new_v5(&Uuid::NAMESPACE_DNS, name.as_bytes())
-}
-
-// ---------------------------------------------------------------------------
 // API request/response types
 // ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-struct CreateUomRequest {
-    code: String,
-    name: String,
-}
-
-#[derive(Serialize)]
-struct CreateLocationRequest {
-    warehouse_id: Uuid,
-    code: String,
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
-}
 
 #[derive(Serialize)]
 struct CreateItemRequest {
@@ -64,16 +32,6 @@ struct ItemResponse {
     id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
-struct UomResponse {
-    id: Uuid,
-}
-
-#[derive(Debug, Deserialize)]
-struct LocationResponse {
-    id: Uuid,
-}
-
 /// Item returned from GET /api/inventory/items search
 #[derive(Debug, Deserialize)]
 struct ItemSearchItem {
@@ -91,47 +49,18 @@ struct ItemSearchResponse {
 // Static seed data
 // ---------------------------------------------------------------------------
 
-struct UomDef {
-    code: &'static str,
-    name: &'static str,
-}
-
-const UOMS: &[UomDef] = &[
-    UomDef { code: "EA", name: "Each" },
-    UomDef { code: "KG", name: "Kilogram" },
-    UomDef { code: "LB", name: "Pound" },
-    UomDef { code: "M", name: "Meter" },
-    UomDef { code: "IN", name: "Inch" },
-];
-
-struct LocationDef {
-    code: &'static str,
-    name: &'static str,
-    description: &'static str,
-}
-
-const LOCATIONS: &[LocationDef] = &[
-    LocationDef { code: "RECV-DOCK", name: "Receiving Dock", description: "Inbound material receiving area" },
-    LocationDef { code: "RAW-WH", name: "Raw Material Warehouse", description: "Bulk raw material storage" },
-    LocationDef { code: "WIP-FLOOR", name: "WIP Production Floor", description: "Active production work-in-progress area" },
-    LocationDef { code: "FG-WH", name: "Finished Goods Warehouse", description: "Completed product storage" },
-    LocationDef { code: "SHIP-DOCK", name: "Shipping Dock", description: "Outbound shipping and dispatch area" },
-    LocationDef { code: "QA-HOLD", name: "Quality Hold Area", description: "Quarantine area for quality inspection" },
-    LocationDef { code: "MRB", name: "Material Review Board", description: "Non-conforming material review and disposition" },
-];
-
-struct ItemDef {
-    sku: &'static str,
-    name: &'static str,
-    description: &'static str,
-    uom: &'static str,
-    tracking_mode: &'static str,
-    make_buy: &'static str,
+pub(super) struct ItemDef {
+    pub sku: &'static str,
+    pub name: &'static str,
+    pub description: &'static str,
+    pub uom: &'static str,
+    pub tracking_mode: &'static str,
+    pub make_buy: &'static str,
     /// GL account code for inventory asset
-    inventory_account: &'static str,
+    pub inventory_account: &'static str,
 }
 
-const ITEMS: &[ItemDef] = &[
+pub(super) const ITEMS: &[ItemDef] = &[
     // Raw materials (buy, lot-tracked)
     ItemDef {
         sku: "TI64-BAR-001",
@@ -260,105 +189,10 @@ const COGS_ACCOUNT_REF: &str = "5000";
 const VARIANCE_ACCOUNT_REF: &str = "5100";
 
 // ---------------------------------------------------------------------------
-// Public return type
-// ---------------------------------------------------------------------------
-
-/// Created inventory resource IDs for downstream modules (BOM, production)
-pub struct InventoryIds {
-    pub warehouse_id: Uuid,
-    pub items: Vec<(Uuid, String, String)>, // (id, sku, make_buy)
-    pub locations: Vec<(Uuid, String)>,     // (id, code)
-    pub uoms: Vec<(Uuid, String)>,          // (id, code)
-    pub uom_count: usize,
-}
-
-// ---------------------------------------------------------------------------
 // HTTP operations
 // ---------------------------------------------------------------------------
 
-async fn create_uom(
-    client: &reqwest::Client,
-    inventory_url: &str,
-    uom: &UomDef,
-) -> Result<Option<Uuid>> {
-    let url = format!("{}/api/inventory/uoms", inventory_url);
-
-    let body = CreateUomRequest {
-        code: uom.code.to_string(),
-        name: uom.name.to_string(),
-    };
-
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .with_context(|| format!("POST /api/inventory/uoms ({}) network error", uom.code))?;
-
-    let status = resp.status();
-
-    if status == reqwest::StatusCode::CONFLICT {
-        info!(code = uom.code, "UoM already exists");
-        return Ok(None);
-    }
-
-    if status == reqwest::StatusCode::CREATED || status.is_success() {
-        let uom_resp: UomResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse UoM response for {}", uom.code))?;
-        return Ok(Some(uom_resp.id));
-    }
-
-    let text = resp.text().await.unwrap_or_default();
-    bail!("POST /api/inventory/uoms ({}) failed {status}: {text}", uom.code);
-}
-
-async fn create_location(
-    client: &reqwest::Client,
-    inventory_url: &str,
-    wh_id: Uuid,
-    loc: &LocationDef,
-) -> Result<Option<Uuid>> {
-    let url = format!("{}/api/inventory/locations", inventory_url);
-
-    let body = CreateLocationRequest {
-        warehouse_id: wh_id,
-        code: loc.code.to_string(),
-        name: loc.name.to_string(),
-        description: Some(loc.description.to_string()),
-    };
-
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .with_context(|| format!("POST /api/inventory/locations ({}) network error", loc.code))?;
-
-    let status = resp.status();
-
-    if status == reqwest::StatusCode::CONFLICT {
-        info!(code = loc.code, "Location already exists");
-        return Ok(None);
-    }
-
-    if status == reqwest::StatusCode::CREATED || status.is_success() {
-        let loc_resp: LocationResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse location response for {}", loc.code))?;
-        return Ok(Some(loc_resp.id));
-    }
-
-    let text = resp.text().await.unwrap_or_default();
-    bail!(
-        "POST /api/inventory/locations ({}) failed {status}: {text}",
-        loc.code
-    );
-}
-
-async fn create_item(
+pub(super) async fn create_item(
     client: &reqwest::Client,
     inventory_url: &str,
     item: &ItemDef,
@@ -448,59 +282,14 @@ async fn find_item_by_sku(
 }
 
 // ---------------------------------------------------------------------------
-// Public entry point
+// Seeding logic
 // ---------------------------------------------------------------------------
 
-/// Seed inventory data (UoMs, locations, items). Returns IDs for downstream modules.
-pub async fn seed_inventory(
+pub(super) async fn seed_items(
     client: &reqwest::Client,
     inventory_url: &str,
-    tenant: &str,
-    seed: u64,
     tracker: &mut DigestTracker,
-) -> Result<InventoryIds> {
-    let wh_id = warehouse_uuid(tenant, seed);
-    info!(warehouse_id = %wh_id, "Using deterministic warehouse UUID");
-
-    // --- UoMs ---
-    let mut uom_count = 0;
-    let mut uoms = Vec::with_capacity(UOMS.len());
-    for uom in UOMS {
-        let maybe_id = create_uom(client, inventory_url, uom).await?;
-        let uom_id = if let Some(id) = maybe_id {
-            tracker.record_uom(id, uom.code);
-            id
-        } else {
-            // 409 — still record for digest determinism using a deterministic placeholder
-            let placeholder = Uuid::new_v5(&Uuid::NAMESPACE_DNS, format!("uom-{}", uom.code).as_bytes());
-            tracker.record_uom(placeholder, uom.code);
-            placeholder
-        };
-        uoms.push((uom_id, uom.code.to_string()));
-        uom_count += 1;
-        info!(code = uom.code, name = uom.name, "UoM seeded");
-    }
-
-    // --- Locations ---
-    let mut locations = Vec::with_capacity(LOCATIONS.len());
-    for loc in LOCATIONS {
-        let maybe_id = create_location(client, inventory_url, wh_id, loc).await?;
-        let loc_id = match maybe_id {
-            Some(id) => id,
-            None => {
-                // 409 — use deterministic placeholder
-                Uuid::new_v5(
-                    &Uuid::NAMESPACE_DNS,
-                    format!("{}-location-{}", tenant, loc.code).as_bytes(),
-                )
-            }
-        };
-        tracker.record_location(loc_id, loc.code);
-        locations.push((loc_id, loc.code.to_string()));
-        info!(code = loc.code, name = loc.name, location_id = %loc_id, "Location seeded");
-    }
-
-    // --- Items ---
+) -> Result<Vec<(Uuid, String, String)>> {
     let mut items = Vec::with_capacity(ITEMS.len());
     for item in ITEMS {
         let item_id = create_item(client, inventory_url, item).await?;
@@ -515,14 +304,7 @@ pub async fn seed_inventory(
             "Item seeded"
         );
     }
-
-    Ok(InventoryIds {
-        warehouse_id: wh_id,
-        items,
-        locations,
-        uoms,
-        uom_count,
-    })
+    Ok(items)
 }
 
 // ---------------------------------------------------------------------------
@@ -534,34 +316,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn five_uoms_defined() {
-        assert_eq!(UOMS.len(), 5, "Expected 5 UoMs");
-    }
-
-    #[test]
-    fn seven_locations_defined() {
-        assert_eq!(LOCATIONS.len(), 7, "Expected 7 locations");
-    }
-
-    #[test]
     fn thirteen_items_defined() {
         assert_eq!(ITEMS.len(), 13, "Expected 13 items");
-    }
-
-    #[test]
-    fn uom_codes_are_unique() {
-        let mut codes: Vec<&str> = UOMS.iter().map(|u| u.code).collect();
-        codes.sort();
-        codes.dedup();
-        assert_eq!(codes.len(), UOMS.len(), "Duplicate UoM codes found");
-    }
-
-    #[test]
-    fn location_codes_are_unique() {
-        let mut codes: Vec<&str> = LOCATIONS.iter().map(|l| l.code).collect();
-        codes.sort();
-        codes.dedup();
-        assert_eq!(codes.len(), LOCATIONS.len(), "Duplicate location codes found");
     }
 
     #[test]
@@ -623,7 +379,6 @@ mod tests {
         for item in ITEMS {
             assert_eq!(COGS_ACCOUNT_REF, "5000", "COGS should be 5000");
             assert_eq!(VARIANCE_ACCOUNT_REF, "5100", "Variance should be 5100");
-            // These are constants, but verify the item struct would use them
             assert!(
                 !item.sku.is_empty(),
                 "Item must have a SKU to reference GL accounts"
@@ -653,27 +408,6 @@ mod tests {
                 sku
             );
         }
-    }
-
-    #[test]
-    fn warehouse_uuid_is_deterministic() {
-        let id1 = warehouse_uuid("t1", 42);
-        let id2 = warehouse_uuid("t1", 42);
-        assert_eq!(id1, id2, "Same tenant+seed should produce same warehouse UUID");
-    }
-
-    #[test]
-    fn warehouse_uuid_differs_by_tenant() {
-        let id1 = warehouse_uuid("t1", 42);
-        let id2 = warehouse_uuid("t2", 42);
-        assert_ne!(id1, id2, "Different tenants should produce different warehouse UUIDs");
-    }
-
-    #[test]
-    fn warehouse_uuid_differs_by_seed() {
-        let id1 = warehouse_uuid("t1", 42);
-        let id2 = warehouse_uuid("t1", 99);
-        assert_ne!(id1, id2, "Different seeds should produce different warehouse UUIDs");
     }
 
     #[test]
@@ -718,24 +452,6 @@ mod tests {
         let mut tracker = DigestTracker::new();
         let id = Uuid::new_v4();
         tracker.record_item(id, "TI64-BAR-001", "buy");
-        let digest = tracker.finalize();
-        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
-    }
-
-    #[test]
-    fn digest_records_locations() {
-        let mut tracker = DigestTracker::new();
-        let id = Uuid::new_v4();
-        tracker.record_location(id, "RECV-DOCK");
-        let digest = tracker.finalize();
-        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
-    }
-
-    #[test]
-    fn digest_records_uoms() {
-        let mut tracker = DigestTracker::new();
-        let id = Uuid::new_v4();
-        tracker.record_uom(id, "EA");
         let digest = tracker.finalize();
         assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
     }

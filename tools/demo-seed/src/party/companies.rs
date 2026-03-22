@@ -1,15 +1,8 @@
-//! Party module seeder for demo-seed
-//!
-//! Creates aerospace customer and supplier companies via the Party service API.
-//! Uses search-before-create to avoid duplicates since the Party module has no
-//! idempotency mechanism or unique constraints on company names.
+//! Company data definitions and HTTP operations for party seeding
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 use uuid::Uuid;
-
-use crate::digest::DigestTracker;
 
 // ---------------------------------------------------------------------------
 // API types
@@ -41,38 +34,6 @@ struct CreateCompanyRequest {
     metadata: Option<serde_json::Value>,
 }
 
-#[derive(Serialize)]
-struct CreateContactRequest {
-    first_name: String,
-    last_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    phone: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    role: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_primary: Option<bool>,
-}
-
-#[derive(Serialize)]
-struct CreateAddressRequest {
-    line1: String,
-    city: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    address_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    label: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    state: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    postal_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    country: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    is_primary: Option<bool>,
-}
-
 #[derive(Debug, Deserialize)]
 struct CompanyResponse {
     id: Uuid,
@@ -91,35 +52,28 @@ struct SearchResponse {
     data: Vec<PartySearchItem>,
 }
 
-/// Full party view returned by GET /api/party/parties/{id}
-#[derive(Debug, Deserialize)]
-struct PartyView {
-    contacts: Vec<serde_json::Value>,
-    addresses: Vec<serde_json::Value>,
-}
-
 // ---------------------------------------------------------------------------
 // Static seed data
 // ---------------------------------------------------------------------------
 
-struct CompanyData {
-    display_name: &'static str,
-    legal_name: &'static str,
-    tax_id: Option<&'static str>,
-    city: &'static str,
-    state: Option<&'static str>,
-    postal_code: &'static str,
-    country: &'static str,
-    website: &'static str,
-    role: &'static str,
-    contact_first: &'static str,
-    contact_last: &'static str,
-    contact_email: &'static str,
-    contact_role: &'static str,
-    address_line1: &'static str,
+pub(super) struct CompanyData {
+    pub display_name: &'static str,
+    pub legal_name: &'static str,
+    pub tax_id: Option<&'static str>,
+    pub city: &'static str,
+    pub state: Option<&'static str>,
+    pub postal_code: &'static str,
+    pub country: &'static str,
+    pub website: &'static str,
+    pub role: &'static str,
+    pub contact_first: &'static str,
+    pub contact_last: &'static str,
+    pub contact_email: &'static str,
+    pub contact_role: &'static str,
+    pub address_line1: &'static str,
 }
 
-const COMPANIES: &[CompanyData] = &[
+pub(super) const COMPANIES: &[CompanyData] = &[
     // --- Customers ---
     CompanyData {
         display_name: "Boeing Defense, Space & Security",
@@ -285,21 +239,11 @@ const COMPANIES: &[CompanyData] = &[
 ];
 
 // ---------------------------------------------------------------------------
-// Party IDs returned for downstream modules
-// ---------------------------------------------------------------------------
-
-/// IDs of created parties, keyed by role
-pub struct PartyIds {
-    pub customers: Vec<(Uuid, String)>,
-    pub suppliers: Vec<(Uuid, String)>,
-}
-
-// ---------------------------------------------------------------------------
 // Search-before-create
 // ---------------------------------------------------------------------------
 
 /// Search for an existing party by exact legal_name match.
-async fn find_existing_party(
+pub(super) async fn find_existing_party(
     client: &reqwest::Client,
     party_url: &str,
     legal_name: &str,
@@ -339,42 +283,11 @@ async fn find_existing_party(
     Ok(None)
 }
 
-/// Check whether a party already has contacts and/or addresses.
-async fn party_has_children(
-    client: &reqwest::Client,
-    party_url: &str,
-    party_id: Uuid,
-) -> Result<(bool, bool)> {
-    let url = format!("{}/api/party/parties/{}", party_url, party_id);
-
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .with_context(|| format!("GET /api/party/parties/{} network error", party_id))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        bail!(
-            "GET /api/party/parties/{} failed {status}: {text}",
-            party_id
-        );
-    }
-
-    let view: PartyView = resp
-        .json()
-        .await
-        .context("Failed to parse party view response")?;
-
-    Ok((!view.contacts.is_empty(), !view.addresses.is_empty()))
-}
-
 // ---------------------------------------------------------------------------
 // Create operations
 // ---------------------------------------------------------------------------
 
-async fn create_company(
+pub(super) async fn create_company(
     client: &reqwest::Client,
     party_url: &str,
     data: &CompanyData,
@@ -420,147 +333,9 @@ async fn create_company(
     Ok(company.id)
 }
 
-async fn add_contact(
-    client: &reqwest::Client,
-    party_url: &str,
-    party_id: Uuid,
-    data: &CompanyData,
-) -> Result<()> {
-    let url = format!("{}/api/party/parties/{}/contacts", party_url, party_id);
-
-    let body = CreateContactRequest {
-        first_name: data.contact_first.to_string(),
-        last_name: data.contact_last.to_string(),
-        email: Some(data.contact_email.to_string()),
-        phone: None,
-        role: Some(data.contact_role.to_string()),
-        is_primary: Some(true),
-    };
-
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .with_context(|| format!("POST contacts for party {} network error", party_id))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        bail!(
-            "POST contacts for party {} failed {status}: {text}",
-            party_id
-        );
-    }
-
-    Ok(())
-}
-
-async fn add_address(
-    client: &reqwest::Client,
-    party_url: &str,
-    party_id: Uuid,
-    data: &CompanyData,
-) -> Result<()> {
-    let url = format!("{}/api/party/parties/{}/addresses", party_url, party_id);
-
-    let body = CreateAddressRequest {
-        line1: data.address_line1.to_string(),
-        city: data.city.to_string(),
-        address_type: Some("registered".to_string()),
-        label: Some("Headquarters".to_string()),
-        state: data.state.map(|s| s.to_string()),
-        postal_code: Some(data.postal_code.to_string()),
-        country: Some(data.country.to_string()),
-        is_primary: Some(true),
-    };
-
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .with_context(|| format!("POST addresses for party {} network error", party_id))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        bail!(
-            "POST addresses for party {} failed {status}: {text}",
-            party_id
-        );
-    }
-
-    Ok(())
-}
-
 // ---------------------------------------------------------------------------
-// Public entry point
+// Tests
 // ---------------------------------------------------------------------------
-
-/// Seed all party data (customers + suppliers). Returns party IDs for downstream use.
-pub async fn seed_parties(
-    client: &reqwest::Client,
-    party_url: &str,
-    tracker: &mut DigestTracker,
-) -> Result<PartyIds> {
-    let mut ids = PartyIds {
-        customers: Vec::new(),
-        suppliers: Vec::new(),
-    };
-
-    for data in COMPANIES {
-        // Search-before-create: check if company already exists
-        let party_id = match find_existing_party(client, party_url, data.legal_name).await? {
-            Some(existing_id) => {
-                info!(
-                    legal_name = data.legal_name,
-                    party_id = %existing_id,
-                    "Party already exists — skipping creation"
-                );
-                existing_id
-            }
-            None => {
-                let new_id = create_company(client, party_url, data).await?;
-                info!(
-                    legal_name = data.legal_name,
-                    party_id = %new_id,
-                    role = data.role,
-                    "Created party"
-                );
-                new_id
-            }
-        };
-
-        // Check existing contacts/addresses before adding
-        let (has_contacts, has_addresses) =
-            party_has_children(client, party_url, party_id).await?;
-
-        if !has_contacts {
-            add_contact(client, party_url, party_id, data).await?;
-            info!(party_id = %party_id, "Added primary contact");
-        }
-
-        if !has_addresses {
-            add_address(client, party_url, party_id, data).await?;
-            info!(party_id = %party_id, "Added registered address");
-        }
-
-        tracker.record_party(party_id, data.display_name, data.role);
-
-        match data.role {
-            "customer" => ids
-                .customers
-                .push((party_id, data.legal_name.to_string())),
-            "supplier" => ids
-                .suppliers
-                .push((party_id, data.legal_name.to_string())),
-            _ => {}
-        }
-    }
-
-    Ok(ids)
-}
 
 #[cfg(test)]
 mod tests {
