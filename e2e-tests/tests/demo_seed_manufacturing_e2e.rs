@@ -12,6 +12,9 @@
 //! **Prerequisite:** all platform services must be running (standard dev stack).
 //! Build demo-seed first: `./scripts/cargo-slot.sh build -p demo-seed`
 
+use chrono::Utc;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serde_json::Value;
 use serial_test::serial;
 use std::path::PathBuf;
@@ -82,6 +85,57 @@ impl SeedResult {
     }
 }
 
+/// JWT claims for authenticated service calls.
+#[derive(Serialize)]
+struct SeedClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    app_id: Option<String>,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+/// Build a JWT with all manufacturing permissions for a given tenant.
+fn make_seed_jwt(key: &EncodingKey, tenant_id: &str) -> String {
+    let now = Utc::now();
+    let claims = SeedClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        app_id: Some(tenant_id.to_string()),
+        roles: vec!["operator".to_string()],
+        perms: vec![
+            "NUMBERING_ALLOCATE".to_string(),
+            "party.mutate".to_string(),
+            "inventory.mutate".to_string(),
+            "bom.mutate".to_string(),
+            "bom.read".to_string(),
+            "gl.post".to_string(),
+            "production.mutate".to_string(),
+        ],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, key).unwrap()
+}
+
+/// Try to load the dev JWT signing key from environment.
+fn dev_private_key() -> Option<EncodingKey> {
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM").ok()?;
+    EncodingKey::from_rsa_pem(pem.replace("\\n", "\n").as_bytes()).ok()
+}
+
 fn run_seed(args: &[&str]) -> SeedResult {
     let binary = find_demo_seed_binary();
     let output = Command::new(&binary)
@@ -96,6 +150,14 @@ fn run_seed(args: &[&str]) -> SeedResult {
     }
 }
 
+/// Run demo-seed with a JWT token for authenticated services.
+fn run_seed_with_token(base_args: &[&str], token: &str) -> SeedResult {
+    let mut args: Vec<&str> = base_args.to_vec();
+    args.push("--token");
+    args.push(token);
+    run_seed(&args)
+}
+
 // ============================================================================
 // Test 1: Full pipeline — all modules, verify resource counts from manifest
 // ============================================================================
@@ -103,12 +165,20 @@ fn run_seed(args: &[&str]) -> SeedResult {
 #[test]
 #[serial]
 fn test_full_pipeline_resource_counts() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("full");
-    let result = run_seed(&[
+    let token = make_seed_jwt(&key, &tenant);
+    let result = run_seed_with_token(&[
         "--tenant", &tenant,
         "--seed", "42",
         "--modules", "numbering,gl,party,inventory,bom,production",
-    ]);
+    ], &token);
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);
@@ -185,14 +255,22 @@ fn test_full_pipeline_resource_counts() {
 #[test]
 #[serial]
 fn test_deterministic_rerun() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("det");
+    let token = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
     assert!(r1.success, "First run should succeed");
 
-    let r2 = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let r2 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
     assert!(r2.success, "Second run should succeed");
 
     let d1 = r1.digest().expect("First run must produce digest");
@@ -207,14 +285,22 @@ fn test_deterministic_rerun() {
 #[test]
 #[serial]
 fn test_idempotent_rerun() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("idem");
+    let token = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
     assert!(r1.success, "First run should succeed");
 
-    let r2 = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let r2 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
     assert!(r2.success, "Second run should succeed");
 
     let m1 = r1.manifest_json().expect("First manifest");
@@ -241,16 +327,25 @@ fn test_idempotent_rerun() {
 #[test]
 #[serial]
 fn test_different_seeds_different_digests() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("diff");
+    let token1 = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token1);
     assert!(r1.success, "Seed 42 should succeed");
 
     // Use a different tenant for seed 99 to avoid shared state
     let tenant2 = test_tenant("diff2");
-    let r2 = run_seed(&["--tenant", &tenant2, "--seed", "99",
-        "--modules", "numbering,gl,party,inventory,bom,production"]);
+    let token2 = make_seed_jwt(&key, &tenant2);
+    let r2 = run_seed_with_token(&["--tenant", &tenant2, "--seed", "99",
+        "--modules", "numbering,gl,party,inventory,bom,production"], &token2);
     assert!(r2.success, "Seed 99 should succeed");
 
     let d1 = r1.digest().expect("Seed 42 digest");
@@ -265,10 +360,18 @@ fn test_different_seeds_different_digests() {
 #[test]
 #[serial]
 fn test_module_selection() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("modsel");
+    let token = make_seed_jwt(&key, &tenant);
 
-    let result = run_seed(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,party"]);
+    let result = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
+        "--modules", "numbering,party"], &token);
     assert!(result.success, "Module selection should succeed");
 
     let m = result.manifest_json().expect("Manifest");
@@ -317,15 +420,23 @@ fn test_backwards_compatibility_ar() {
 #[test]
 #[serial]
 fn test_manifest_output_file() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("manifest");
+    let token = make_seed_jwt(&key, &tenant);
     let manifest_path = std::env::temp_dir().join(format!("demo-seed-test-{}.json", Uuid::new_v4()));
 
-    let result = run_seed(&[
+    let result = run_seed_with_token(&[
         "--tenant", &tenant,
         "--seed", "42",
         "--modules", "numbering,gl,party,inventory,bom,production",
         "--manifest-out", manifest_path.to_str().unwrap(),
-    ]);
+    ], &token);
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);

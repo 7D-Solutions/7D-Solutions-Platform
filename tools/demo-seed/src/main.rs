@@ -34,7 +34,7 @@ mod seed;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use tracing::{info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -116,6 +116,10 @@ struct Cli {
     /// Write JSON manifest of all created resource IDs to this file
     #[arg(long)]
     manifest_out: Option<PathBuf>,
+
+    /// JWT bearer token for authenticated services (numbering, gl, party, inventory, bom, production)
+    #[arg(long, env = "DEMO_SEED_TOKEN")]
+    token: Option<String>,
 }
 
 /// Parse the --modules flag into a set of active module names.
@@ -162,8 +166,19 @@ async fn main() -> Result<()> {
         "Starting demo-seed run",
     );
 
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    if let Some(ref token) = cli.token {
+        default_headers.insert(
+            reqwest::header::AUTHORIZATION,
+            reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token))
+                .context("Invalid token value for Authorization header")?,
+        );
+        info!("Using JWT bearer token for authenticated requests");
+    }
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
+        .default_headers(default_headers)
         .build()?;
 
     let mut tracker = digest::DigestTracker::new();

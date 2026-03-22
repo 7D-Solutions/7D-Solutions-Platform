@@ -20,6 +20,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TENANT=""
 SEED=42
 MANIFEST_OUT=""
+TOKEN="${DEMO_SEED_TOKEN:-}"
 
 # Service URLs (match docker-compose defaults)
 NUMBERING_URL="${NUMBERING_BASE_URL:-http://localhost:8120}"
@@ -35,8 +36,9 @@ while [[ $# -gt 0 ]]; do
     --tenant)       TENANT="$2"; shift 2 ;;
     --seed)         SEED="$2"; shift 2 ;;
     --manifest-out) MANIFEST_OUT="$2"; shift 2 ;;
+    --token)        TOKEN="$2"; shift 2 ;;
     --help|-h)
-      echo "Usage: $0 --tenant <TENANT_ID> [--seed N] [--manifest-out PATH]"
+      echo "Usage: $0 --tenant <TENANT_ID> [--seed N] [--manifest-out PATH] [--token JWT]"
       echo ""
       echo "Seeds manufacturing demo data into a provisioned tenant."
       echo "Run seed-dev.sh first to create the tenant and admin user."
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --tenant        Tenant ID (required)"
       echo "  --seed          RNG seed for deterministic data (default: 42)"
       echo "  --manifest-out  Write JSON manifest of created IDs to file"
+      echo "  --token         JWT bearer token for authenticated services (or set DEMO_SEED_TOKEN)"
       echo ""
       echo "Modules seeded: numbering, gl, party, inventory, bom, production"
       echo ""
@@ -148,6 +151,10 @@ SEED_ARGS=(
 
 if [[ -n "$MANIFEST_OUT" ]]; then
   SEED_ARGS+=(--manifest-out "$MANIFEST_OUT")
+fi
+
+if [[ -n "$TOKEN" ]]; then
+  SEED_ARGS+=(--token "$TOKEN")
 fi
 
 OUTPUT=$("$BINARY" "${SEED_ARGS[@]}" 2>&1)
