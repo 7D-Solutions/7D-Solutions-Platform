@@ -49,6 +49,15 @@ impl DigestTracker {
         });
     }
 
+    /// Record a created party (customer or supplier)
+    pub fn record_party(&mut self, party_id: uuid::Uuid, name: &str, role: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "party",
+            correlation_id: format!("{}/{}", role, name),
+            value: party_id.to_string(),
+        });
+    }
+
     /// Record a created invoice with its amount
     pub fn record_invoice(&mut self, invoice_id: i32, correlation_id: &str, amount_cents: i32) {
         self.entries.push(ResourceEntry {

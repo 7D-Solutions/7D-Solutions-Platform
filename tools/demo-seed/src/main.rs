@@ -22,6 +22,7 @@
 mod ar;
 mod digest;
 mod numbering;
+mod party;
 mod seed;
 
 use std::collections::HashSet;
@@ -171,7 +172,20 @@ async fn main() -> Result<()> {
                 .await?;
                 info!(count, "Numbering policies seeded");
             }
-            "gl" | "party" | "inventory" | "bom" | "production" => {
+            "party" => {
+                let party_ids = party::seed_parties(
+                    &client,
+                    &cli.party_url,
+                    &mut tracker,
+                )
+                .await?;
+                info!(
+                    customers = party_ids.customers.len(),
+                    suppliers = party_ids.suppliers.len(),
+                    "Party seeding complete"
+                );
+            }
+            "gl" | "inventory" | "bom" | "production" => {
                 info!(module = module_name, "Module not yet implemented — skipping");
             }
             "ar" => {
