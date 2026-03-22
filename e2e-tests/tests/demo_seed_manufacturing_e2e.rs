@@ -394,15 +394,23 @@ fn test_module_selection() {
 #[test]
 #[serial]
 fn test_backwards_compatibility_ar() {
+    let key = match dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set — skipping");
+            return;
+        }
+    };
     let tenant = test_tenant("arcompat");
+    let token = make_seed_jwt(&key, &tenant);
 
-    let result = run_seed(&[
+    let result = run_seed_with_token(&[
         "--tenant", &tenant,
         "--seed", "42",
         "--modules", "ar",
         "--customers", "1",
         "--invoices-per-customer", "1",
-    ]);
+    ], &token);
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);
