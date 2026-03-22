@@ -67,6 +67,33 @@ impl DigestTracker {
         });
     }
 
+    /// Record a created inventory item
+    pub fn record_item(&mut self, item_id: uuid::Uuid, sku: &str, make_buy: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "item",
+            correlation_id: sku.to_string(),
+            value: format!("{}/{}", item_id, make_buy),
+        });
+    }
+
+    /// Record a created warehouse location
+    pub fn record_location(&mut self, location_id: uuid::Uuid, code: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "location",
+            correlation_id: code.to_string(),
+            value: location_id.to_string(),
+        });
+    }
+
+    /// Record a created unit of measure
+    pub fn record_uom(&mut self, uom_id: uuid::Uuid, code: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "uom",
+            correlation_id: code.to_string(),
+            value: uom_id.to_string(),
+        });
+    }
+
     /// Record a created party (customer or supplier)
     pub fn record_party(&mut self, party_id: uuid::Uuid, name: &str, role: &str) {
         self.entries.push(ResourceEntry {

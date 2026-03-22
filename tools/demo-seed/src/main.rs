@@ -22,6 +22,7 @@
 mod ar;
 mod digest;
 mod gl;
+mod inventory;
 mod numbering;
 mod party;
 mod seed;
@@ -200,7 +201,24 @@ async fn main() -> Result<()> {
                     "GL chart of accounts seeded"
                 );
             }
-            "inventory" | "bom" | "production" => {
+            "inventory" => {
+                let inv_ids = inventory::seed_inventory(
+                    &client,
+                    &cli.inventory_url,
+                    &cli.tenant,
+                    cli.seed,
+                    &mut tracker,
+                )
+                .await?;
+                info!(
+                    uoms = inv_ids.uom_count,
+                    locations = inv_ids.locations.len(),
+                    items = inv_ids.items.len(),
+                    warehouse_id = %inv_ids.warehouse_id,
+                    "Inventory seeding complete"
+                );
+            }
+            "bom" | "production" => {
                 info!(module = module_name, "Module not yet implemented — skipping");
             }
             "ar" => {
