@@ -124,6 +124,10 @@ name = "demo_seed_determinism_e2e"
 path = "tests/demo_seed_determinism_e2e.rs"
 
 [[test]]
+name = "demo_seed_manufacturing_e2e"
+path = "tests/demo_seed_manufacturing_e2e.rs"
+
+[[test]]
 name = "ar_usage_capture_e2e"
 path = "tests/ar_usage_capture_e2e.rs"
 
