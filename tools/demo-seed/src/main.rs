@@ -13,18 +13,34 @@
 //!
 //! **Usage:**
 //! ```bash
-//! cargo run -p demo-seed -- --tenant t1 --seed 42 --ar-url http://localhost:8086
+//! cargo run -p demo-seed -- --tenant t1 --seed 42
+//! cargo run -p demo-seed -- --tenant t1 --seed 42 --modules numbering
+//! cargo run -p demo-seed -- --tenant t1 --seed 42 --modules numbering,ar
 //! cargo run -p demo-seed -- --tenant t1 --seed 42 --print-hash
 //! ```
 
 mod ar;
 mod digest;
+mod numbering;
 mod seed;
+
+use std::collections::HashSet;
 
 use anyhow::Result;
 use clap::Parser;
 use tracing::{info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
+/// All supported module names in dependency order
+const MODULE_ORDER: &[&str] = &[
+    "numbering",
+    "gl",
+    "party",
+    "inventory",
+    "bom",
+    "production",
+    "ar",
+];
 
 /// demo-seed — deterministic demo data generator
 #[derive(Parser, Debug)]
@@ -39,10 +55,40 @@ struct Cli {
     #[arg(long, default_value_t = 42)]
     seed: u64,
 
+    /// Modules to seed (comma-separated: numbering,gl,party,inventory,bom,production,ar,all)
+    #[arg(long, default_value = "all", value_delimiter = ',')]
+    modules: Vec<String>,
+
+    // --- Service URLs ---
     /// AR module base URL
     #[arg(long, env = "AR_BASE_URL", default_value = "http://localhost:8086")]
     ar_url: String,
 
+    /// Numbering service base URL
+    #[arg(long, env = "NUMBERING_BASE_URL", default_value = "http://localhost:8120")]
+    numbering_url: String,
+
+    /// GL service base URL
+    #[arg(long, env = "GL_BASE_URL", default_value = "http://localhost:8090")]
+    gl_url: String,
+
+    /// Party service base URL
+    #[arg(long, env = "PARTY_BASE_URL", default_value = "http://localhost:8098")]
+    party_url: String,
+
+    /// Inventory service base URL
+    #[arg(long, env = "INVENTORY_BASE_URL", default_value = "http://localhost:8092")]
+    inventory_url: String,
+
+    /// BOM service base URL
+    #[arg(long, env = "BOM_BASE_URL", default_value = "http://localhost:8107")]
+    bom_url: String,
+
+    /// Production service base URL
+    #[arg(long, env = "PRODUCTION_BASE_URL", default_value = "http://localhost:8108")]
+    production_url: String,
+
+    // --- AR-specific flags ---
     /// Number of customers to create
     #[arg(long, default_value_t = 2)]
     customers: usize,
@@ -54,6 +100,21 @@ struct Cli {
     /// Print dataset digest and exit (no HTTP calls)
     #[arg(long, default_value_t = false)]
     print_hash: bool,
+}
+
+/// Parse the --modules flag into a set of active module names.
+fn resolve_modules(raw: &[String]) -> HashSet<String> {
+    let mut set = HashSet::new();
+    for m in raw {
+        if m == "all" {
+            for &name in MODULE_ORDER {
+                set.insert(name.to_string());
+            }
+        } else {
+            set.insert(m.clone());
+        }
+    }
+    set
 }
 
 #[tokio::main]
@@ -77,11 +138,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    let active_modules = resolve_modules(&cli.modules);
+
     info!(
         tenant = %cli.tenant,
         seed = cli.seed,
-        customers = cli.customers,
-        invoices_per_customer = cli.invoices_per_customer,
+        modules = ?active_modules,
         "Starting demo-seed run",
     );
 
@@ -90,14 +152,57 @@ async fn main() -> Result<()> {
         .build()?;
 
     let mut tracker = digest::DigestTracker::new();
-    let mut rng = seed::DemoSeed::new(cli.seed);
+    // RNG is created just before AR seeding to preserve the exact call sequence
+    // for backwards compatibility. Numbering doesn't use the RNG.
 
-    // Create customers and invoices
+    // Execute modules in dependency order
+    for &module_name in MODULE_ORDER {
+        if !active_modules.contains(module_name) {
+            continue;
+        }
+
+        match module_name {
+            "numbering" => {
+                let count = numbering::seed_numbering_policies(
+                    &client,
+                    &cli.numbering_url,
+                    &mut tracker,
+                )
+                .await?;
+                info!(count, "Numbering policies seeded");
+            }
+            "gl" | "party" | "inventory" | "bom" | "production" => {
+                info!(module = module_name, "Module not yet implemented — skipping");
+            }
+            "ar" => {
+                let mut rng = seed::DemoSeed::new(cli.seed);
+                seed_ar(&client, &cli, &mut rng, &mut tracker).await?;
+            }
+            _ => {
+                warn!(module = module_name, "Unknown module — skipping");
+            }
+        }
+    }
+
+    let digest = tracker.finalize();
+    info!(digest = %digest, tenant = %cli.tenant, seed = cli.seed, "Demo-seed complete");
+    println!("{}", digest);
+
+    Ok(())
+}
+
+/// Run AR seeding (extracted to preserve exact original logic).
+async fn seed_ar(
+    client: &reqwest::Client,
+    cli: &Cli,
+    rng: &mut seed::DemoSeed,
+    tracker: &mut digest::DigestTracker,
+) -> Result<()> {
     for customer_idx in 0..cli.customers {
         let customer_corr_id = rng.correlation_id(&cli.tenant, "customer", customer_idx);
 
         let customer_id = ar::create_customer(
-            &client,
+            client,
             &cli.ar_url,
             &cli.tenant,
             customer_idx,
@@ -119,7 +224,7 @@ async fn main() -> Result<()> {
             let due_days = rng.due_days(14, 60);
 
             let invoice_id = ar::create_and_finalize_invoice(
-                &client,
+                client,
                 &cli.ar_url,
                 customer_id,
                 amount_cents,
@@ -140,9 +245,49 @@ async fn main() -> Result<()> {
         }
     }
 
-    let digest = tracker.finalize();
-    info!(digest = %digest, tenant = %cli.tenant, seed = cli.seed, "Demo-seed complete");
-    println!("{}", digest);
-
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_modules_all_expands() {
+        let input = vec!["all".to_string()];
+        let modules = resolve_modules(&input);
+        for &name in MODULE_ORDER {
+            assert!(modules.contains(name), "Missing module: {name}");
+        }
+    }
+
+    #[test]
+    fn resolve_modules_single() {
+        let input = vec!["numbering".to_string()];
+        let modules = resolve_modules(&input);
+        assert_eq!(modules.len(), 1);
+        assert!(modules.contains("numbering"));
+    }
+
+    #[test]
+    fn resolve_modules_multiple() {
+        let input = vec!["numbering".to_string(), "ar".to_string()];
+        let modules = resolve_modules(&input);
+        assert_eq!(modules.len(), 2);
+        assert!(modules.contains("numbering"));
+        assert!(modules.contains("ar"));
+    }
+
+    #[test]
+    fn resolve_modules_deduplicates() {
+        let input = vec!["ar".to_string(), "ar".to_string()];
+        let modules = resolve_modules(&input);
+        assert_eq!(modules.len(), 1);
+    }
+
+    #[test]
+    fn module_order_includes_all_expected() {
+        let expected = ["numbering", "gl", "party", "inventory", "bom", "production", "ar"];
+        assert_eq!(MODULE_ORDER, &expected);
+    }
 }

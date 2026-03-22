@@ -40,6 +40,15 @@ impl DigestTracker {
         });
     }
 
+    /// Record a created numbering policy
+    pub fn record_numbering_policy(&mut self, entity: &str, prefix: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "numbering_policy",
+            correlation_id: entity.to_string(),
+            value: prefix.to_string(),
+        });
+    }
+
     /// Record a created invoice with its amount
     pub fn record_invoice(&mut self, invoice_id: i32, correlation_id: &str, amount_cents: i32) {
         self.entries.push(ResourceEntry {
@@ -197,5 +206,20 @@ mod tests {
             t2.finalize(),
             "Digest should be order-independent"
         );
+    }
+
+    #[test]
+    fn digest_tracker_numbering_policy() {
+        let mut t = DigestTracker::new();
+        t.record_numbering_policy("purchase-order", "PO");
+        t.record_numbering_policy("sales-order", "SO");
+        let digest = t.finalize();
+        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
+
+        // Same policies in different order should produce same digest
+        let mut t2 = DigestTracker::new();
+        t2.record_numbering_policy("sales-order", "SO");
+        t2.record_numbering_policy("purchase-order", "PO");
+        assert_eq!(digest, t2.finalize(), "Numbering digest should be order-independent");
     }
 }
