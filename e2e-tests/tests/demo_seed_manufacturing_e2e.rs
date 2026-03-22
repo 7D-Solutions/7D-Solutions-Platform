@@ -103,8 +103,14 @@ struct SeedClaims {
 }
 
 /// Build a JWT with all manufacturing permissions for a given tenant.
-fn make_seed_jwt(key: &EncodingKey, tenant_id: &str) -> String {
+/// NOTE: tenant_id and app_id in JWT claims MUST be valid UUIDs —
+/// JwtVerifier::convert_raw() calls Uuid::parse_str() on both fields.
+/// The demo-seed --tenant flag is a slug (for database naming), but the
+/// JWT tenant_id is a UUID (for auth). We generate a deterministic UUID
+/// from the tenant slug so the same slug always produces the same JWT tenant.
+fn make_seed_jwt(key: &EncodingKey, _tenant_slug: &str) -> String {
     let now = Utc::now();
+    let tenant_uuid = Uuid::new_v5(&Uuid::NAMESPACE_DNS, _tenant_slug.as_bytes());
     let claims = SeedClaims {
         sub: Uuid::new_v4().to_string(),
         iss: "auth-rs".to_string(),
@@ -112,11 +118,11 @@ fn make_seed_jwt(key: &EncodingKey, tenant_id: &str) -> String {
         iat: now.timestamp(),
         exp: (now + chrono::Duration::minutes(15)).timestamp(),
         jti: Uuid::new_v4().to_string(),
-        tenant_id: tenant_id.to_string(),
-        app_id: Some(tenant_id.to_string()),
+        tenant_id: tenant_uuid.to_string(),
+        app_id: Some(tenant_uuid.to_string()),
         roles: vec!["operator".to_string()],
         perms: vec![
-            "NUMBERING_ALLOCATE".to_string(),
+            "numbering.allocate".to_string(),
             "party.mutate".to_string(),
             "inventory.mutate".to_string(),
             "bom.mutate".to_string(),
