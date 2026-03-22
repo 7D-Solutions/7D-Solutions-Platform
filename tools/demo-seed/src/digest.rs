@@ -231,4 +231,22 @@ mod tests {
         t2.record_numbering_policy("purchase-order", "PO");
         assert_eq!(digest, t2.finalize(), "Numbering digest should be order-independent");
     }
+
+    #[test]
+    fn digest_tracker_party() {
+        let id1 = uuid::Uuid::new_v4();
+        let id2 = uuid::Uuid::new_v4();
+
+        let mut t = DigestTracker::new();
+        t.record_party(id1, "Boeing Defense", "customer");
+        t.record_party(id2, "Alcoa", "supplier");
+        let digest = t.finalize();
+        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
+
+        // Order-independent
+        let mut t2 = DigestTracker::new();
+        t2.record_party(id2, "Alcoa", "supplier");
+        t2.record_party(id1, "Boeing Defense", "customer");
+        assert_eq!(digest, t2.finalize(), "Party digest should be order-independent");
+    }
 }
