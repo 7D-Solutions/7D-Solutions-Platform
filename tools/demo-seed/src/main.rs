@@ -21,6 +21,7 @@
 
 mod ar;
 mod digest;
+mod gl;
 mod numbering;
 mod party;
 mod seed;
@@ -185,7 +186,21 @@ async fn main() -> Result<()> {
                     "Party seeding complete"
                 );
             }
-            "gl" | "inventory" | "bom" | "production" => {
+            "gl" => {
+                let gl_accounts = gl::seed_gl(
+                    &client,
+                    &cli.gl_url,
+                    &cli.tenant,
+                    cli.seed,
+                    &mut tracker,
+                )
+                .await?;
+                info!(
+                    accounts = gl_accounts.codes.len(),
+                    "GL chart of accounts seeded"
+                );
+            }
+            "inventory" | "bom" | "production" => {
                 info!(module = module_name, "Module not yet implemented — skipping");
             }
             "ar" => {

@@ -49,6 +49,24 @@ impl DigestTracker {
         });
     }
 
+    /// Record a created GL account
+    pub fn record_gl_account(&mut self, code: &str, name: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "gl_account",
+            correlation_id: code.to_string(),
+            value: name.to_string(),
+        });
+    }
+
+    /// Record a created FX rate
+    pub fn record_fx_rate(&mut self, rate_id: uuid::Uuid, pair: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "fx_rate",
+            correlation_id: pair.to_string(),
+            value: rate_id.to_string(),
+        });
+    }
+
     /// Record a created party (customer or supplier)
     pub fn record_party(&mut self, party_id: uuid::Uuid, name: &str, role: &str) {
         self.entries.push(ResourceEntry {
@@ -230,6 +248,39 @@ mod tests {
         t2.record_numbering_policy("sales-order", "SO");
         t2.record_numbering_policy("purchase-order", "PO");
         assert_eq!(digest, t2.finalize(), "Numbering digest should be order-independent");
+    }
+
+    #[test]
+    fn digest_tracker_gl_account() {
+        let mut t = DigestTracker::new();
+        t.record_gl_account("1200", "Raw Materials Inventory");
+        t.record_gl_account("5000", "COGS - Direct Materials");
+        let digest = t.finalize();
+        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
+
+        // Order-independent
+        let mut t2 = DigestTracker::new();
+        t2.record_gl_account("5000", "COGS - Direct Materials");
+        t2.record_gl_account("1200", "Raw Materials Inventory");
+        assert_eq!(digest, t2.finalize(), "GL account digest should be order-independent");
+    }
+
+    #[test]
+    fn digest_tracker_fx_rate() {
+        let id1 = uuid::Uuid::new_v4();
+        let id2 = uuid::Uuid::new_v4();
+
+        let mut t = DigestTracker::new();
+        t.record_fx_rate(id1, "USD/EUR");
+        t.record_fx_rate(id2, "USD/GBP");
+        let digest = t.finalize();
+        assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
+
+        // Order-independent
+        let mut t2 = DigestTracker::new();
+        t2.record_fx_rate(id2, "USD/GBP");
+        t2.record_fx_rate(id1, "USD/EUR");
+        assert_eq!(digest, t2.finalize(), "FX rate digest should be order-independent");
     }
 
     #[test]
