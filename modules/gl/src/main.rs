@@ -24,6 +24,7 @@ use gl_rs::{
     consumers::gl_writeoff_consumer::start_gl_writeoff_consumer,
     consumers::timekeeping_labor_cost::start_gl_labor_cost_consumer,
     http::account_activity::get_account_activity,
+    http::accounts::create_account,
     http::accruals::{
         create_accrual_handler, create_template_handler, execute_reversals_handler,
     },
@@ -231,6 +232,7 @@ async fn main() {
             post(execute_reversals_handler),
         )
         .route("/api/gl/exports", post(create_export))
+        .route("/api/gl/accounts", post(create_account))
         .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
         .with_state(app_state.clone());
 

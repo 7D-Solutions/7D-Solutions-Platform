@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
 /// Account type enum matching database account_type
-#[derive(Debug, Clone, sqlx::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "account_type", rename_all = "lowercase")]
 pub enum AccountType {
     Asset,
@@ -15,7 +16,7 @@ pub enum AccountType {
 }
 
 /// Normal balance enum matching database normal_balance
-#[derive(Debug, Clone, sqlx::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
 #[sqlx(type_name = "normal_balance", rename_all = "lowercase")]
 pub enum NormalBalance {
     Debit,
@@ -44,6 +45,9 @@ pub enum AccountError {
 
     #[error("Account is inactive: tenant_id={tenant_id}, code={code}")]
     Inactive { tenant_id: String, code: String },
+
+    #[error("Account already exists: tenant_id={tenant_id}, code={code}")]
+    Conflict { tenant_id: String, code: String },
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -151,6 +155,56 @@ pub async fn assert_active_tx(
 ) -> Result<(), AccountError> {
     find_active_by_code_tx(tx, tenant_id, code).await?;
     Ok(())
+}
+
+/// Create a new account. Returns the account on success.
+/// If an account with the same (tenant_id, code) already exists, returns
+/// `AccountError::Conflict`.
+pub async fn create_account(
+    pool: &PgPool,
+    tenant_id: &str,
+    code: &str,
+    name: &str,
+    account_type: AccountType,
+    normal_balance: NormalBalance,
+) -> Result<Account, AccountError> {
+    let id = Uuid::new_v4();
+    let now = chrono::Utc::now();
+
+    let result = sqlx::query(
+        r#"
+        INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+        ON CONFLICT (tenant_id, code) DO NOTHING
+        "#,
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .bind(code)
+    .bind(name)
+    .bind(&account_type)
+    .bind(&normal_balance)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AccountError::Conflict {
+            tenant_id: tenant_id.to_string(),
+            code: code.to_string(),
+        });
+    }
+
+    Ok(Account {
+        id,
+        tenant_id: tenant_id.to_string(),
+        code: code.to_string(),
+        name: name.to_string(),
+        account_type,
+        normal_balance,
+        is_active: true,
+        created_at: now,
+    })
 }
 
 #[cfg(test)]

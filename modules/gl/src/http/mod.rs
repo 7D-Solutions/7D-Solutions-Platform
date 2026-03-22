@@ -1,4 +1,5 @@
 pub mod account_activity;
+pub mod accounts;
 pub mod accruals;
 pub mod admin;
 pub mod admin_types;

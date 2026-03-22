@@ -174,6 +174,10 @@ pub async fn validate_accounts_against_coa(
                     tenant_id.to_string(),
                 ));
             }
+            Err(AccountError::Conflict { .. }) => {
+                // Conflict is not possible from find_active_by_code_tx; unreachable
+                unreachable!("find_active_by_code_tx cannot return Conflict");
+            }
             Err(AccountError::Database(e)) => {
                 // Database errors should be propagated as-is, not wrapped in validation error
                 // This allows the caller to distinguish between validation failures
