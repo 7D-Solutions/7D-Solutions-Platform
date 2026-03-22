@@ -118,6 +118,21 @@ pub async fn get_bom(
     }
 }
 
+pub async fn get_bom_by_part_id(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(part_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match bom_service::get_bom_by_part_id(&state.pool, &tenant_id, part_id).await {
+        Ok(header) => Json(json!(header)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
 // ============================================================================
 // Revisions
 // ============================================================================

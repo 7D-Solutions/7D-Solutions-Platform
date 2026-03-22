@@ -14,8 +14,8 @@ use bom_rs::{
     db::resolver::resolve_pool,
     http::{
         bom_routes::{
-            delete_line, get_bom, get_explosion, get_lines, get_where_used, list_revisions,
-            post_bom, post_effectivity, post_line, post_revision, put_line,
+            delete_line, get_bom, get_bom_by_part_id, get_explosion, get_lines, get_where_used,
+            list_revisions, post_bom, post_effectivity, post_line, post_revision, put_line,
         },
         eco_routes::{
             get_bom_revision_links, get_doc_revision_links, get_eco, get_eco_audit,
@@ -113,6 +113,10 @@ async fn main() {
 
     let bom_reads = Router::new()
         .route("/api/bom/{bom_id}", axum::routing::get(get_bom))
+        .route(
+            "/api/bom/by-part/{part_id}",
+            axum::routing::get(get_bom_by_part_id),
+        )
         .route(
             "/api/bom/{bom_id}/revisions",
             axum::routing::get(list_revisions),

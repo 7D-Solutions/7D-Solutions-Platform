@@ -87,6 +87,21 @@ pub async fn get_bom(
     .ok_or_else(|| GuardError::NotFound("BOM not found".to_string()).into())
 }
 
+pub async fn get_bom_by_part_id(
+    pool: &PgPool,
+    tenant_id: &str,
+    part_id: Uuid,
+) -> Result<BomHeader, BomError> {
+    sqlx::query_as::<_, BomHeader>(
+        "SELECT * FROM bom_headers WHERE part_id = $1 AND tenant_id = $2",
+    )
+    .bind(part_id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| GuardError::NotFound("No BOM found for this part".to_string()).into())
+}
+
 // BOM Revisions
 // ---
 
