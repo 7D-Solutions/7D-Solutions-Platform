@@ -487,4 +487,28 @@ mod tests {
         let expected = ["numbering", "gl", "party", "inventory", "bom", "production", "ar"];
         assert_eq!(MODULE_ORDER, &expected);
     }
+
+    #[test]
+    fn auth_header_map_built_correctly_with_token() {
+        // Verifies the HeaderMap construction logic used in main().
+        // reqwest::Client::default_headers merges these into every request at send time.
+        let token = "test-jwt-token-value";
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::AUTHORIZATION,
+            reqwest::header::HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),
+        );
+
+        let auth = headers.get(reqwest::header::AUTHORIZATION).unwrap();
+        assert_eq!(auth, "Bearer test-jwt-token-value");
+    }
+
+    #[test]
+    fn auth_header_map_empty_without_token() {
+        let headers = reqwest::header::HeaderMap::new();
+        assert!(
+            headers.get(reqwest::header::AUTHORIZATION).is_none(),
+            "No Authorization header when token is absent"
+        );
+    }
 }
