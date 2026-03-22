@@ -551,10 +551,10 @@ pub async fn seed_parties(
         match data.role {
             "customer" => ids
                 .customers
-                .push((party_id, data.display_name.to_string())),
+                .push((party_id, data.legal_name.to_string())),
             "supplier" => ids
                 .suppliers
-                .push((party_id, data.display_name.to_string())),
+                .push((party_id, data.legal_name.to_string())),
             _ => {}
         }
     }

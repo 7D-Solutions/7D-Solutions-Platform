@@ -268,6 +268,7 @@ pub struct InventoryIds {
     pub warehouse_id: Uuid,
     pub items: Vec<(Uuid, String, String)>, // (id, sku, make_buy)
     pub locations: Vec<(Uuid, String)>,     // (id, code)
+    pub uoms: Vec<(Uuid, String)>,          // (id, code)
     pub uom_count: usize,
 }
 
@@ -463,15 +464,19 @@ pub async fn seed_inventory(
 
     // --- UoMs ---
     let mut uom_count = 0;
+    let mut uoms = Vec::with_capacity(UOMS.len());
     for uom in UOMS {
         let maybe_id = create_uom(client, inventory_url, uom).await?;
-        if let Some(id) = maybe_id {
+        let uom_id = if let Some(id) = maybe_id {
             tracker.record_uom(id, uom.code);
+            id
         } else {
             // 409 — still record for digest determinism using a deterministic placeholder
             let placeholder = Uuid::new_v5(&Uuid::NAMESPACE_DNS, format!("uom-{}", uom.code).as_bytes());
             tracker.record_uom(placeholder, uom.code);
-        }
+            placeholder
+        };
+        uoms.push((uom_id, uom.code.to_string()));
         uom_count += 1;
         info!(code = uom.code, name = uom.name, "UoM seeded");
     }
@@ -515,6 +520,7 @@ pub async fn seed_inventory(
         warehouse_id: wh_id,
         items,
         locations,
+        uoms,
         uom_count,
     })
 }

@@ -96,6 +96,8 @@ const FX_SOURCE: &str = "demo-seed";
 /// Account codes created, for downstream modules to reference
 pub struct GlAccounts {
     pub codes: Vec<String>,
+    pub accounts: Vec<(String, String)>, // (code, name)
+    pub fx_rates: Vec<(uuid::Uuid, String)>, // (rate_id, pair)
 }
 
 // ---------------------------------------------------------------------------
@@ -111,12 +113,15 @@ pub async fn seed_gl(
     tracker: &mut DigestTracker,
 ) -> Result<GlAccounts> {
     let mut codes = Vec::with_capacity(ACCOUNTS.len());
+    let mut accounts = Vec::with_capacity(ACCOUNTS.len());
+    let mut fx_rates_out = Vec::with_capacity(FX_RATES.len());
 
     // Create accounts
     for acct in ACCOUNTS {
         create_account(client, gl_url, acct).await?;
         tracker.record_gl_account(acct.code, acct.name);
         codes.push(acct.code.to_string());
+        accounts.push((acct.code.to_string(), acct.name.to_string()));
         info!(code = acct.code, name = acct.name, "GL account seeded");
     }
 
@@ -126,10 +131,11 @@ pub async fn seed_gl(
         let rate_id = create_fx_rate(client, gl_url, fx, &idempotency_key).await?;
         let pair = format!("{}/{}", fx.base, fx.quote);
         tracker.record_fx_rate(rate_id, &pair);
+        fx_rates_out.push((rate_id, pair.clone()));
         info!(pair, rate = fx.rate, "FX rate seeded");
     }
 
-    Ok(GlAccounts { codes })
+    Ok(GlAccounts { codes, accounts, fx_rates: fx_rates_out })
 }
 
 async fn create_account(

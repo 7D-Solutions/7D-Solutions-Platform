@@ -17,6 +17,7 @@
 //! cargo run -p demo-seed -- --tenant t1 --seed 42 --modules numbering
 //! cargo run -p demo-seed -- --tenant t1 --seed 42 --modules numbering,ar
 //! cargo run -p demo-seed -- --tenant t1 --seed 42 --print-hash
+//! cargo run -p demo-seed -- --tenant t1 --seed 42 --manifest-out /tmp/manifest.json
 //! ```
 
 mod ar;
@@ -24,12 +25,14 @@ mod bom;
 mod digest;
 mod gl;
 mod inventory;
+mod manifest;
 mod numbering;
 mod party;
 mod production;
 mod seed;
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
@@ -105,6 +108,10 @@ struct Cli {
     /// Print dataset digest and exit (no HTTP calls)
     #[arg(long, default_value_t = false)]
     print_hash: bool,
+
+    /// Write JSON manifest of all created resource IDs to this file
+    #[arg(long)]
+    manifest_out: Option<PathBuf>,
 }
 
 /// Parse the --modules flag into a set of active module names.
@@ -132,7 +139,6 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if cli.print_hash {
-        // Compute expected digest without hitting any APIs
         let expected = digest::expected_digest(
             &cli.tenant,
             cli.seed,
@@ -157,10 +163,16 @@ async fn main() -> Result<()> {
         .build()?;
 
     let mut tracker = digest::DigestTracker::new();
-    // RNG is created just before AR seeding to preserve the exact call sequence
-    // for backwards compatibility. Numbering doesn't use the RNG.
 
-    // Inventory IDs are stored here so downstream modules (bom, production) can reference them
+    // Module results for manifest
+    let mut numbering_policies: Option<Vec<String>> = None;
+    let mut gl_result: Option<gl::GlAccounts> = None;
+    let mut party_result: Option<party::PartyIds> = None;
+    let mut inv_result: Option<inventory::InventoryIds> = None;
+    let mut bom_result: Option<bom::BomIds> = None;
+    let mut prod_result: Option<production::ProductionIds> = None;
+
+    // Inventory IDs for downstream modules (bom, production)
     let mut item_id_map: HashMap<String, uuid::Uuid> = HashMap::new();
     let mut inventory_items: Option<Vec<(uuid::Uuid, String, String)>> = None;
 
@@ -172,29 +184,26 @@ async fn main() -> Result<()> {
 
         match module_name {
             "numbering" => {
-                let count = numbering::seed_numbering_policies(
+                let policies = numbering::seed_numbering_policies(
                     &client,
                     &cli.numbering_url,
                     &mut tracker,
                 )
                 .await?;
-                info!(count, "Numbering policies seeded");
+                info!(count = policies.len(), "Numbering policies seeded");
+                numbering_policies = Some(policies);
             }
             "party" => {
-                let party_ids = party::seed_parties(
-                    &client,
-                    &cli.party_url,
-                    &mut tracker,
-                )
-                .await?;
+                let ids = party::seed_parties(&client, &cli.party_url, &mut tracker).await?;
                 info!(
-                    customers = party_ids.customers.len(),
-                    suppliers = party_ids.suppliers.len(),
+                    customers = ids.customers.len(),
+                    suppliers = ids.suppliers.len(),
                     "Party seeding complete"
                 );
+                party_result = Some(ids);
             }
             "gl" => {
-                let gl_accounts = gl::seed_gl(
+                let gl = gl::seed_gl(
                     &client,
                     &cli.gl_url,
                     &cli.tenant,
@@ -202,13 +211,11 @@ async fn main() -> Result<()> {
                     &mut tracker,
                 )
                 .await?;
-                info!(
-                    accounts = gl_accounts.codes.len(),
-                    "GL chart of accounts seeded"
-                );
+                info!(accounts = gl.codes.len(), "GL chart of accounts seeded");
+                gl_result = Some(gl);
             }
             "inventory" => {
-                let inv_ids = inventory::seed_inventory(
+                let inv = inventory::seed_inventory(
                     &client,
                     &cli.inventory_url,
                     &cli.tenant,
@@ -217,17 +224,17 @@ async fn main() -> Result<()> {
                 )
                 .await?;
                 info!(
-                    uoms = inv_ids.uom_count,
-                    locations = inv_ids.locations.len(),
-                    items = inv_ids.items.len(),
-                    warehouse_id = %inv_ids.warehouse_id,
+                    uoms = inv.uom_count,
+                    locations = inv.locations.len(),
+                    items = inv.items.len(),
+                    warehouse_id = %inv.warehouse_id,
                     "Inventory seeding complete"
                 );
-                // Store item data for downstream modules (bom, production)
-                for (id, sku, _make_buy) in &inv_ids.items {
+                for (id, sku, _make_buy) in &inv.items {
                     item_id_map.insert(sku.clone(), *id);
                 }
-                inventory_items = Some(inv_ids.items);
+                inventory_items = Some(inv.items.clone());
+                inv_result = Some(inv);
             }
             "bom" => {
                 let items = match &inventory_items {
@@ -237,24 +244,19 @@ async fn main() -> Result<()> {
                         bom::fetch_items_from_inventory(&client, &cli.inventory_url).await?
                     }
                 };
-                let bom_ids = bom::seed_boms(
-                    &client,
-                    &cli.bom_url,
-                    &items,
-                    &mut tracker,
-                )
-                .await?;
+                let ids = bom::seed_boms(&client, &cli.bom_url, &items, &mut tracker).await?;
                 info!(
-                    boms = bom_ids.boms.len(),
-                    revisions = bom_ids.revisions.len(),
+                    boms = ids.boms.len(),
+                    revisions = ids.revisions.len(),
                     "BOM seeding complete"
                 );
+                bom_result = Some(ids);
             }
             "production" => {
                 if item_id_map.is_empty() && active_modules.contains("inventory") {
                     warn!("Production requires inventory IDs but inventory map is empty");
                 }
-                let prod_ids = production::seed_production(
+                let ids = production::seed_production(
                     &client,
                     &cli.production_url,
                     &item_id_map,
@@ -262,10 +264,11 @@ async fn main() -> Result<()> {
                 )
                 .await?;
                 info!(
-                    workcenters = prod_ids.workcenters,
-                    routings = prod_ids.routings,
+                    workcenters = ids.workcenters,
+                    routings = ids.routings,
                     "Production seeding complete"
                 );
+                prod_result = Some(ids);
             }
             "ar" => {
                 let mut rng = seed::DemoSeed::new(cli.seed);
@@ -280,6 +283,40 @@ async fn main() -> Result<()> {
     let digest = tracker.finalize();
     info!(digest = %digest, tenant = %cli.tenant, seed = cli.seed, "Demo-seed complete");
     println!("{}", digest);
+
+    // Build and output manifest
+    let manifest_path = cli.manifest_out.as_deref();
+    let mut builder = manifest::ManifestBuilder::new(
+        cli.tenant.clone(),
+        cli.seed,
+        digest,
+    );
+    if let Some(p) = numbering_policies {
+        builder = builder.with_numbering(p);
+    }
+    if let Some(g) = gl_result {
+        builder = builder.with_gl(g);
+    }
+    if let Some(p) = party_result {
+        builder = builder.with_parties(p);
+    }
+    if let Some(i) = inv_result {
+        builder = builder.with_inventory(i);
+    }
+    if let Some(b) = bom_result {
+        builder = builder.with_bom(b);
+    }
+    if let Some(p) = prod_result {
+        builder = builder.with_production(p);
+    }
+    let m = builder.build();
+    let json = manifest::write_manifest(&m, manifest_path.map(std::path::Path::new))?;
+    if manifest_path.is_some() {
+        info!(path = ?manifest_path, "Manifest written");
+    } else {
+        // Print manifest to stdout after digest (separated by newline)
+        println!("{}", json);
+    }
 
     Ok(())
 }

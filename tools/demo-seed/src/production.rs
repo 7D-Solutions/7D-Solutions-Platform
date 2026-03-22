@@ -584,11 +584,13 @@ pub async fn seed_production(
 ) -> Result<ProductionIds> {
     // --- Work centers (must be created first — routing steps reference them) ---
     let mut wc_map: HashMap<String, Uuid> = HashMap::new();
+    let mut workcenter_list = Vec::with_capacity(WORKCENTERS.len());
 
     for wc in WORKCENTERS {
         let wc_id = create_workcenter(client, production_url, wc).await?;
         tracker.record_workcenter(wc_id, wc.code);
         wc_map.insert(wc.code.to_string(), wc_id);
+        workcenter_list.push((wc_id, wc.code.to_string()));
         info!(
             code = wc.code,
             name = wc.name,
@@ -600,6 +602,7 @@ pub async fn seed_production(
 
     // --- Routings and steps ---
     let mut routing_count = 0;
+    let mut routing_list = Vec::with_capacity(ROUTINGS.len());
 
     for routing in ROUTINGS {
         let item_id = item_ids.get(routing.item_sku).ok_or_else(|| {
@@ -611,6 +614,7 @@ pub async fn seed_production(
 
         let routing_id = create_routing(client, production_url, routing, *item_id).await?;
         tracker.record_routing(routing_id, *item_id, "1");
+        routing_list.push((routing_id, *item_id));
 
         // Add steps in manufacturing sequence order
         for (idx, step) in routing.steps.iter().enumerate() {
@@ -647,6 +651,8 @@ pub async fn seed_production(
     Ok(ProductionIds {
         workcenters: wc_map.len(),
         routings: routing_count,
+        workcenter_list,
+        routing_list,
     })
 }
 
@@ -654,6 +660,8 @@ pub async fn seed_production(
 pub struct ProductionIds {
     pub workcenters: usize,
     pub routings: usize,
+    pub workcenter_list: Vec<(Uuid, String)>,  // (id, code)
+    pub routing_list: Vec<(Uuid, Uuid)>,       // (routing_id, item_id)
 }
 
 // ---------------------------------------------------------------------------

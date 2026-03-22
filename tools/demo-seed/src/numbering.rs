@@ -74,13 +74,13 @@ const POLICIES: &[PolicyConfig] = &[
     },
 ];
 
-/// Seed all numbering policies. Returns the count of policies created.
+/// Seed all numbering policies. Returns the entity names of policies created.
 pub async fn seed_numbering_policies(
     client: &reqwest::Client,
     numbering_url: &str,
     tracker: &mut DigestTracker,
-) -> Result<usize> {
-    let mut count = 0;
+) -> Result<Vec<String>> {
+    let mut entities = Vec::with_capacity(POLICIES.len());
 
     for policy in POLICIES {
         let url = format!("{}/policies/{}", numbering_url, policy.entity);
@@ -106,10 +106,10 @@ pub async fn seed_numbering_policies(
 
         tracker.record_numbering_policy(policy.entity, policy.prefix);
         info!(entity = policy.entity, prefix = policy.prefix, "Created numbering policy");
-        count += 1;
+        entities.push(policy.entity.to_string());
     }
 
-    Ok(count)
+    Ok(entities)
 }
 
 #[cfg(test)]

@@ -240,8 +240,8 @@ const ALL_REFERENCED_SKUS: &[&str] = &[
 
 /// Created BOM resource IDs for downstream modules (production)
 pub struct BomIds {
-    /// (bom_id, make_item_sku)
-    pub boms: Vec<(Uuid, String)>,
+    /// (bom_id, part_id, make_item_sku)
+    pub boms: Vec<(Uuid, Uuid, String)>,
     /// (revision_id, bom_id)
     pub revisions: Vec<(Uuid, Uuid)>,
 }
@@ -595,7 +595,7 @@ pub async fn seed_boms(
         tracker.record_bom(bom_id, part_id);
         result
             .boms
-            .push((bom_id, bom_def.make_item_sku.to_string()));
+            .push((bom_id, part_id, bom_def.make_item_sku.to_string()));
         info!(bom_id = %bom_id, make_item = bom_def.make_item_sku, "BOM header ready");
 
         // Step 2: GET-before-create for revision A
