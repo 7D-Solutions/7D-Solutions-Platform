@@ -25,9 +25,10 @@ mod gl;
 mod inventory;
 mod numbering;
 mod party;
+mod production;
 mod seed;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
 use clap::Parser;
@@ -158,6 +159,9 @@ async fn main() -> Result<()> {
     // RNG is created just before AR seeding to preserve the exact call sequence
     // for backwards compatibility. Numbering doesn't use the RNG.
 
+    // Inventory IDs are stored here so downstream modules (production) can reference them
+    let mut item_id_map: HashMap<String, uuid::Uuid> = HashMap::new();
+
     // Execute modules in dependency order
     for &module_name in MODULE_ORDER {
         if !active_modules.contains(module_name) {
@@ -217,9 +221,30 @@ async fn main() -> Result<()> {
                     warehouse_id = %inv_ids.warehouse_id,
                     "Inventory seeding complete"
                 );
+                // Store item SKU → UUID map for downstream modules
+                for (id, sku, _make_buy) in &inv_ids.items {
+                    item_id_map.insert(sku.clone(), *id);
+                }
             }
-            "bom" | "production" => {
+            "bom" => {
                 info!(module = module_name, "Module not yet implemented — skipping");
+            }
+            "production" => {
+                if item_id_map.is_empty() && active_modules.contains("inventory") {
+                    warn!("Production requires inventory IDs but inventory map is empty");
+                }
+                let prod_ids = production::seed_production(
+                    &client,
+                    &cli.production_url,
+                    &item_id_map,
+                    &mut tracker,
+                )
+                .await?;
+                info!(
+                    workcenters = prod_ids.workcenters,
+                    routings = prod_ids.routings,
+                    "Production seeding complete"
+                );
             }
             "ar" => {
                 let mut rng = seed::DemoSeed::new(cli.seed);

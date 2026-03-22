@@ -94,6 +94,47 @@ impl DigestTracker {
         });
     }
 
+    /// Record a created work center
+    pub fn record_workcenter(&mut self, workcenter_id: uuid::Uuid, code: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "workcenter",
+            correlation_id: code.to_string(),
+            value: workcenter_id.to_string(),
+        });
+    }
+
+    /// Record a created routing
+    pub fn record_routing(&mut self, routing_id: uuid::Uuid, item_id: uuid::Uuid, revision: &str) {
+        self.entries.push(ResourceEntry {
+            resource_type: "routing",
+            correlation_id: format!("{}/{}", item_id, revision),
+            value: routing_id.to_string(),
+        });
+    }
+
+    /// Record a created BOM header
+    pub fn record_bom(&mut self, bom_id: uuid::Uuid, part_id: uuid::Uuid) {
+        self.entries.push(ResourceEntry {
+            resource_type: "bom",
+            correlation_id: part_id.to_string(),
+            value: bom_id.to_string(),
+        });
+    }
+
+    /// Record a created BOM line
+    pub fn record_bom_line(
+        &mut self,
+        line_id: uuid::Uuid,
+        component_item_id: uuid::Uuid,
+        quantity: f64,
+    ) {
+        self.entries.push(ResourceEntry {
+            resource_type: "bom_line",
+            correlation_id: component_item_id.to_string(),
+            value: format!("{}/{}", line_id, quantity),
+        });
+    }
+
     /// Record a created party (customer or supplier)
     pub fn record_party(&mut self, party_id: uuid::Uuid, name: &str, role: &str) {
         self.entries.push(ResourceEntry {
