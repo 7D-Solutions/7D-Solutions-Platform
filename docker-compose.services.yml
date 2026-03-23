@@ -229,6 +229,7 @@ services:
       PORT: 8091
       HOST: 0.0.0.0
       RUST_LOG: info
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     networks:
       - 7d-platform
     healthcheck:
@@ -320,6 +321,7 @@ services:
       PORT: 8087
       AR_BASE_URL: http://7d-ar:8086
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8087:8087"
     networks:
@@ -368,6 +370,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8088
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8088:8088"
     networks:
@@ -514,6 +517,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8092
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8092:8092"
     networks:
@@ -562,6 +566,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8093
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8093:8093"
     networks:
@@ -659,6 +664,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8104
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8104:8104"
     networks:
@@ -707,6 +713,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8105
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8105:8105"
     networks:
@@ -853,6 +860,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8099
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8099:8099"
     networks:
@@ -902,6 +910,7 @@ services:
       PORT: 8100
       TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: ${RUST_LOG:-info}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
     ports:
       - "127.0.0.1:8100:8100"
     networks:
