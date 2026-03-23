@@ -25,12 +25,12 @@ struct CreateRoutingRequest {
 
 #[derive(Debug, Deserialize)]
 struct RoutingResponse {
-    id: Uuid,
+    routing_template_id: Uuid,
 }
 
 #[derive(Debug, Deserialize)]
 struct RoutingByItemEntry {
-    id: Uuid,
+    routing_template_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -96,7 +96,7 @@ pub(super) async fn create_routing(
             .json()
             .await
             .with_context(|| format!("Failed to parse routing response for {}", routing.item_sku))?;
-        return Ok(rt_resp.id);
+        return Ok(rt_resp.routing_template_id);
     }
 
     let text = resp.text().await.unwrap_or_default();
@@ -145,7 +145,7 @@ async fn find_routing_by_item(
         )
     })?;
 
-    Ok(entry.id)
+    Ok(entry.routing_template_id)
 }
 
 /// Add a step to a routing. 409 = step already exists (idempotent).

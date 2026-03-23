@@ -24,12 +24,12 @@ struct CreateWorkcenterRequest {
 
 #[derive(Debug, Deserialize)]
 struct WorkcenterResponse {
-    id: Uuid,
+    workcenter_id: Uuid,
 }
 
 #[derive(Debug, Deserialize)]
 struct WorkcenterListItem {
-    id: Uuid,
+    workcenter_id: Uuid,
     code: String,
 }
 
@@ -131,7 +131,7 @@ pub(super) async fn create_workcenter(
             .json()
             .await
             .with_context(|| format!("Failed to parse workcenter response for {}", wc.code))?;
-        return Ok(wc_resp.id);
+        return Ok(wc_resp.workcenter_id);
     }
 
     let text = resp.text().await.unwrap_or_default();
@@ -168,7 +168,7 @@ async fn find_workcenter_by_code(
 
     for wc in &items {
         if wc.code == code {
-            return Ok(wc.id);
+            return Ok(wc.workcenter_id);
         }
     }
 
