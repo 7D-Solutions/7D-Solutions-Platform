@@ -39,6 +39,7 @@ pub struct ProductionIds {
 pub async fn seed_production(
     client: &reqwest::Client,
     production_url: &str,
+    tenant: &str,
     item_ids: &HashMap<String, Uuid>,
     tracker: &mut DigestTracker,
 ) -> Result<ProductionIds> {
@@ -47,7 +48,7 @@ pub async fn seed_production(
     let mut workcenter_list = Vec::with_capacity(WORKCENTERS.len());
 
     for wc in WORKCENTERS {
-        let wc_id = create_workcenter(client, production_url, wc).await?;
+        let wc_id = create_workcenter(client, production_url, tenant, wc).await?;
         tracker.record_workcenter(wc_id, wc.code);
         wc_map.insert(wc.code.to_string(), wc_id);
         workcenter_list.push((wc_id, wc.code.to_string()));
@@ -72,7 +73,7 @@ pub async fn seed_production(
             )
         })?;
 
-        let routing_id = create_routing(client, production_url, routing, *item_id).await?;
+        let routing_id = create_routing(client, production_url, tenant, routing, *item_id).await?;
         tracker.record_routing(routing_id, *item_id, "1");
         routing_list.push((routing_id, *item_id));
 
@@ -86,7 +87,7 @@ pub async fn seed_production(
             })?;
 
             let sequence = (idx as i32) + 1; // 1-based
-            add_routing_step(client, production_url, routing_id, sequence, *wc_id, step).await?;
+            add_routing_step(client, production_url, tenant, routing_id, sequence, *wc_id, step).await?;
 
             info!(
                 routing_id = %routing_id,

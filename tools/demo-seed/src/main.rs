@@ -278,6 +278,7 @@ async fn main() -> Result<()> {
                 let ids = production::seed_production(
                     &client,
                     &cli.production_url,
+                    &cli.tenant,
                     &item_id_map,
                     &mut tracker,
                 )

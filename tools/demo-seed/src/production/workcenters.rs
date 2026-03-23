@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 #[derive(Serialize)]
 struct CreateWorkcenterRequest {
+    tenant_id: String,
     code: String,
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,11 +98,13 @@ pub(super) const WORKCENTERS: &[WorkcenterDef] = &[
 pub(super) async fn create_workcenter(
     client: &reqwest::Client,
     production_url: &str,
+    tenant: &str,
     wc: &WorkcenterDef,
 ) -> Result<Uuid> {
     let url = format!("{}/api/production/workcenters", production_url);
 
     let body = CreateWorkcenterRequest {
+        tenant_id: tenant.to_string(),
         code: wc.code.to_string(),
         name: wc.name.to_string(),
         description: Some(wc.description.to_string()),

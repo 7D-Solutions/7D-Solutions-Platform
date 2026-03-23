@@ -13,6 +13,7 @@ use crate::digest::DigestTracker;
 
 #[derive(Serialize)]
 struct CreateLocationRequest {
+    tenant_id: String,
     warehouse_id: Uuid,
     code: String,
     name: String,
@@ -52,12 +53,14 @@ pub(super) const LOCATIONS: &[LocationDef] = &[
 async fn create_location(
     client: &reqwest::Client,
     inventory_url: &str,
+    tenant: &str,
     wh_id: Uuid,
     loc: &LocationDef,
 ) -> Result<Option<Uuid>> {
     let url = format!("{}/api/inventory/locations", inventory_url);
 
     let body = CreateLocationRequest {
+        tenant_id: tenant.to_string(),
         warehouse_id: wh_id,
         code: loc.code.to_string(),
         name: loc.name.to_string(),
@@ -106,7 +109,7 @@ pub(super) async fn seed_locations(
 ) -> Result<Vec<(Uuid, String)>> {
     let mut locations = Vec::with_capacity(LOCATIONS.len());
     for loc in LOCATIONS {
-        let maybe_id = create_location(client, inventory_url, wh_id, loc).await?;
+        let maybe_id = create_location(client, inventory_url, tenant, wh_id, loc).await?;
         let loc_id = match maybe_id {
             Some(id) => id,
             None => {

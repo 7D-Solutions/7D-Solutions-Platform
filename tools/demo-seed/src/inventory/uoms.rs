@@ -13,6 +13,7 @@ use crate::digest::DigestTracker;
 
 #[derive(Serialize)]
 struct CreateUomRequest {
+    tenant_id: String,
     code: String,
     name: String,
 }
@@ -46,11 +47,13 @@ pub(super) const UOMS: &[UomDef] = &[
 async fn create_uom(
     client: &reqwest::Client,
     inventory_url: &str,
+    tenant: &str,
     uom: &UomDef,
 ) -> Result<Option<Uuid>> {
     let url = format!("{}/api/inventory/uoms", inventory_url);
 
     let body = CreateUomRequest {
+        tenant_id: tenant.to_string(),
         code: uom.code.to_string(),
         name: uom.name.to_string(),
     };
@@ -88,12 +91,13 @@ async fn create_uom(
 pub(super) async fn seed_uoms(
     client: &reqwest::Client,
     inventory_url: &str,
+    tenant: &str,
     tracker: &mut DigestTracker,
 ) -> Result<(Vec<(Uuid, String)>, usize)> {
     let mut uom_count = 0;
     let mut uoms = Vec::with_capacity(UOMS.len());
     for uom in UOMS {
-        let maybe_id = create_uom(client, inventory_url, uom).await?;
+        let maybe_id = create_uom(client, inventory_url, tenant, uom).await?;
         let uom_id = if let Some(id) = maybe_id {
             tracker.record_uom(id, uom.code);
             id

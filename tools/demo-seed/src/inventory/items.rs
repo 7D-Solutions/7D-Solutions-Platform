@@ -13,6 +13,7 @@ use crate::digest::DigestTracker;
 
 #[derive(Serialize)]
 struct CreateItemRequest {
+    tenant_id: String,
     sku: String,
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -195,11 +196,13 @@ const VARIANCE_ACCOUNT_REF: &str = "5100";
 pub(super) async fn create_item(
     client: &reqwest::Client,
     inventory_url: &str,
+    tenant: &str,
     item: &ItemDef,
 ) -> Result<Uuid> {
     let url = format!("{}/api/inventory/items", inventory_url);
 
     let body = CreateItemRequest {
+        tenant_id: tenant.to_string(),
         sku: item.sku.to_string(),
         name: item.name.to_string(),
         description: Some(item.description.to_string()),
@@ -288,11 +291,12 @@ async fn find_item_by_sku(
 pub(super) async fn seed_items(
     client: &reqwest::Client,
     inventory_url: &str,
+    tenant: &str,
     tracker: &mut DigestTracker,
 ) -> Result<Vec<(Uuid, String, String)>> {
     let mut items = Vec::with_capacity(ITEMS.len());
     for item in ITEMS {
-        let item_id = create_item(client, inventory_url, item).await?;
+        let item_id = create_item(client, inventory_url, tenant, item).await?;
         tracker.record_item(item_id, item.sku, item.make_buy);
         items.push((item_id, item.sku.to_string(), item.make_buy.to_string()));
         info!(

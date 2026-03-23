@@ -13,6 +13,7 @@ pub(super) use super::data::{RoutingDef, RoutingStepDef, ROUTINGS};
 
 #[derive(Serialize)]
 struct CreateRoutingRequest {
+    tenant_id: String,
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     description: Option<String>,
@@ -34,6 +35,7 @@ struct RoutingByItemEntry {
 
 #[derive(Serialize)]
 struct AddRoutingStepRequest {
+    tenant_id: String,
     sequence_number: i32,
     workcenter_id: Uuid,
     operation_name: String,
@@ -53,12 +55,14 @@ struct AddRoutingStepRequest {
 pub(super) async fn create_routing(
     client: &reqwest::Client,
     production_url: &str,
+    tenant: &str,
     routing: &RoutingDef,
     item_id: Uuid,
 ) -> Result<Uuid> {
     let url = format!("{}/api/production/routings", production_url);
 
     let body = CreateRoutingRequest {
+        tenant_id: tenant.to_string(),
         name: routing.name.to_string(),
         description: Some(routing.description.to_string()),
         item_id: Some(item_id),
@@ -148,6 +152,7 @@ async fn find_routing_by_item(
 pub(super) async fn add_routing_step(
     client: &reqwest::Client,
     production_url: &str,
+    tenant: &str,
     routing_id: Uuid,
     sequence: i32,
     workcenter_id: Uuid,
@@ -159,6 +164,7 @@ pub(super) async fn add_routing_step(
     );
 
     let body = AddRoutingStepRequest {
+        tenant_id: tenant.to_string(),
         sequence_number: sequence,
         workcenter_id,
         operation_name: step.operation_name.to_string(),

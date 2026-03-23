@@ -56,13 +56,13 @@ pub async fn seed_inventory(
     info!(warehouse_id = %wh_id, "Using deterministic warehouse UUID");
 
     // --- UoMs ---
-    let (uoms, uom_count) = uoms::seed_uoms(client, inventory_url, tracker).await?;
+    let (uoms, uom_count) = uoms::seed_uoms(client, inventory_url, tenant, tracker).await?;
 
     // --- Locations ---
     let locations = locations::seed_locations(client, inventory_url, tenant, wh_id, tracker).await?;
 
     // --- Items ---
-    let items = items::seed_items(client, inventory_url, tracker).await?;
+    let items = items::seed_items(client, inventory_url, tenant, tracker).await?;
 
     Ok(InventoryIds {
         warehouse_id: wh_id,
