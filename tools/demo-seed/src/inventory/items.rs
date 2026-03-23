@@ -43,7 +43,7 @@ struct ItemSearchItem {
 /// Search response envelope
 #[derive(Debug, Deserialize)]
 struct ItemSearchResponse {
-    data: Vec<ItemSearchItem>,
+    items: Vec<ItemSearchItem>,
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +272,7 @@ async fn find_item_by_sku(
         .with_context(|| format!("Failed to parse item search response for {}", sku))?;
 
     // Exact match on SKU (API uses ILIKE substring match)
-    for item in &search.data {
+    for item in &search.items {
         if item.sku == sku {
             return Ok(item.id);
         }

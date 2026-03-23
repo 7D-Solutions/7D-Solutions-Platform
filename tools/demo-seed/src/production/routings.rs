@@ -138,11 +138,15 @@ async fn find_routing_by_item(
         );
     }
 
-    let entry: RoutingByItemEntry = resp.json().await.with_context(|| {
+    let entries: Vec<RoutingByItemEntry> = resp.json().await.with_context(|| {
         format!(
             "Failed to parse routing-by-item response for item {}",
             item_id
         )
+    })?;
+
+    let entry = entries.first().with_context(|| {
+        format!("No routing found for item {}", item_id)
     })?;
 
     Ok(entry.routing_template_id)

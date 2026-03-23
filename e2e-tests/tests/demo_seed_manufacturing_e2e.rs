@@ -123,12 +123,18 @@ fn make_seed_jwt(key: &EncodingKey, _tenant_slug: &str) -> String {
         roles: vec!["operator".to_string()],
         perms: vec![
             "numbering.allocate".to_string(),
+            "numbering.read".to_string(),
             "party.mutate".to_string(),
+            "party.read".to_string(),
             "inventory.mutate".to_string(),
+            "inventory.read".to_string(),
             "bom.mutate".to_string(),
             "bom.read".to_string(),
             "gl.post".to_string(),
+            "gl.read".to_string(),
             "production.mutate".to_string(),
+            "ar.mutate".to_string(),
+            "ar.read".to_string(),
         ],
         actor_type: "user".to_string(),
         ver: "1".to_string(),
@@ -273,10 +279,12 @@ fn test_deterministic_rerun() {
 
     let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
         "--modules", "numbering,gl,party,inventory,bom,production"], &token);
+    if !r1.success { eprintln!("First run STDERR:\n{}", r1.stderr); }
     assert!(r1.success, "First run should succeed");
 
     let r2 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
         "--modules", "numbering,gl,party,inventory,bom,production"], &token);
+    if !r2.success { eprintln!("Second run STDERR:\n{}", r2.stderr); }
     assert!(r2.success, "Second run should succeed");
 
     let d1 = r1.digest().expect("First run must produce digest");
