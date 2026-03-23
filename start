@@ -143,8 +143,8 @@ if command -v ubs &>/dev/null; then
                     # Mail orchestrator if critical findings exist
                     if [ "${_c:-0}" -gt 0 ] && [ -f "$SCRIPT_DIR_ABS/.flywheel/orchestrator-name" ]; then
                         _orch=$(cat "$SCRIPT_DIR_ABS/.flywheel/orchestrator-name" 2>/dev/null)
-                        if [ -n "$_orch" ] && [ -f "$SCRIPT_DIR_ABS/scripts/agent-mail-helper.sh" ]; then
-                            TMUX_PANE="${TMUX_PANE:-}" "$SCRIPT_DIR_ABS/scripts/agent-mail-helper.sh" send "$_orch" \
+                        if [ -n "$_orch" ] && [ -f "$SCRIPT_DIR_ABS/flywheel_tools/scripts/core/agent-mail-helper.sh" ]; then
+                            MAIL_SENDER_NAME="SystemNotify" TMUX_PANE="${TMUX_PANE:-}" "$SCRIPT_DIR_ABS/flywheel_tools/scripts/core/agent-mail-helper.sh" send "$_orch" \
                                 "UBS baseline: ${_c} critical in $_ubs_name" \
                                 "UBS baseline scan found ${_c} critical, ${_w} warning in $_ubs_name. Report: $_ubs_report" 2>/dev/null || true
                         fi

@@ -46,11 +46,8 @@ struct PartySearchItem {
     legal_name: Option<String>,
 }
 
-/// Search response envelope
-#[derive(Debug, Deserialize)]
-struct SearchResponse {
-    data: Vec<PartySearchItem>,
-}
+/// Party search returns a bare JSON array, not an envelope.
+type SearchResponse = Vec<PartySearchItem>;
 
 // ---------------------------------------------------------------------------
 // Static seed data
@@ -274,7 +271,7 @@ pub(super) async fn find_existing_party(
         .context("Failed to parse party search response")?;
 
     // Exact match on legal_name to avoid false positives
-    for item in &search.data {
+    for item in &search {
         if item.legal_name.as_deref() == Some(legal_name) {
             return Ok(Some(item.id));
         }
