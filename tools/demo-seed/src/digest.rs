@@ -59,88 +59,88 @@ impl DigestTracker {
     }
 
     /// Record a created FX rate
-    pub fn record_fx_rate(&mut self, rate_id: uuid::Uuid, pair: &str) {
+    pub fn record_fx_rate(&mut self, pair: &str, idempotency_key: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "fx_rate",
             correlation_id: pair.to_string(),
-            value: rate_id.to_string(),
+            value: idempotency_key.to_string(),
         });
     }
 
-    /// Record a created inventory item
-    pub fn record_item(&mut self, item_id: uuid::Uuid, sku: &str, make_buy: &str) {
+    /// Record a created inventory item (deterministic: sku + make_buy only, no server UUID)
+    pub fn record_item(&mut self, _item_id: uuid::Uuid, sku: &str, make_buy: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "item",
             correlation_id: sku.to_string(),
-            value: format!("{}/{}", item_id, make_buy),
+            value: make_buy.to_string(),
         });
     }
 
-    /// Record a created warehouse location
-    pub fn record_location(&mut self, location_id: uuid::Uuid, code: &str) {
+    /// Record a created warehouse location (deterministic: code only)
+    pub fn record_location(&mut self, _location_id: uuid::Uuid, code: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "location",
             correlation_id: code.to_string(),
-            value: location_id.to_string(),
+            value: code.to_string(),
         });
     }
 
-    /// Record a created unit of measure
-    pub fn record_uom(&mut self, uom_id: uuid::Uuid, code: &str) {
+    /// Record a created unit of measure (deterministic: code only)
+    pub fn record_uom(&mut self, _uom_id: uuid::Uuid, code: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "uom",
             correlation_id: code.to_string(),
-            value: uom_id.to_string(),
+            value: code.to_string(),
         });
     }
 
-    /// Record a created work center
-    pub fn record_workcenter(&mut self, workcenter_id: uuid::Uuid, code: &str) {
+    /// Record a created work center (deterministic: code only)
+    pub fn record_workcenter(&mut self, _workcenter_id: uuid::Uuid, code: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "workcenter",
             correlation_id: code.to_string(),
-            value: workcenter_id.to_string(),
+            value: code.to_string(),
         });
     }
 
-    /// Record a created routing
-    pub fn record_routing(&mut self, routing_id: uuid::Uuid, item_id: uuid::Uuid, revision: &str) {
+    /// Record a created routing (deterministic: item_sku + revision only)
+    pub fn record_routing(&mut self, _routing_id: uuid::Uuid, item_sku: &str, revision: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "routing",
-            correlation_id: format!("{}/{}", item_id, revision),
-            value: routing_id.to_string(),
+            correlation_id: format!("{}/{}", item_sku, revision),
+            value: revision.to_string(),
         });
     }
 
-    /// Record a created BOM header
-    pub fn record_bom(&mut self, bom_id: uuid::Uuid, part_id: uuid::Uuid) {
+    /// Record a created BOM header (deterministic: part_sku only)
+    pub fn record_bom(&mut self, _bom_id: uuid::Uuid, part_sku: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "bom",
-            correlation_id: part_id.to_string(),
-            value: bom_id.to_string(),
+            correlation_id: part_sku.to_string(),
+            value: part_sku.to_string(),
         });
     }
 
-    /// Record a created BOM line
+    /// Record a created BOM line (deterministic: component_sku + quantity)
     pub fn record_bom_line(
         &mut self,
-        line_id: uuid::Uuid,
-        component_item_id: uuid::Uuid,
+        _line_id: uuid::Uuid,
+        component_sku: &str,
         quantity: f64,
     ) {
         self.entries.push(ResourceEntry {
             resource_type: "bom_line",
-            correlation_id: component_item_id.to_string(),
-            value: format!("{}/{}", line_id, quantity),
+            correlation_id: component_sku.to_string(),
+            value: format!("{}", quantity),
         });
     }
 
-    /// Record a created party (customer or supplier)
-    pub fn record_party(&mut self, party_id: uuid::Uuid, name: &str, role: &str) {
+    /// Record a created party (deterministic: name + role only)
+    pub fn record_party(&mut self, _party_id: uuid::Uuid, name: &str, role: &str) {
         self.entries.push(ResourceEntry {
             resource_type: "party",
             correlation_id: format!("{}/{}", role, name),
-            value: party_id.to_string(),
+            value: name.to_string(),
         });
     }
 
@@ -335,19 +335,16 @@ mod tests {
 
     #[test]
     fn digest_tracker_fx_rate() {
-        let id1 = uuid::Uuid::new_v4();
-        let id2 = uuid::Uuid::new_v4();
-
         let mut t = DigestTracker::new();
-        t.record_fx_rate(id1, "USD/EUR");
-        t.record_fx_rate(id2, "USD/GBP");
+        t.record_fx_rate("USD/EUR", "t1-fx-USD-EUR-42");
+        t.record_fx_rate("USD/GBP", "t1-fx-USD-GBP-42");
         let digest = t.finalize();
         assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
 
         // Order-independent
         let mut t2 = DigestTracker::new();
-        t2.record_fx_rate(id2, "USD/GBP");
-        t2.record_fx_rate(id1, "USD/EUR");
+        t2.record_fx_rate("USD/GBP", "t1-fx-USD-GBP-42");
+        t2.record_fx_rate("USD/EUR", "t1-fx-USD-EUR-42");
         assert_eq!(digest, t2.finalize(), "FX rate digest should be order-independent");
     }
 

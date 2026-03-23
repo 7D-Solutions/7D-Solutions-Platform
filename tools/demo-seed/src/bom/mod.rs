@@ -133,7 +133,7 @@ pub async fn seed_boms(
 
         // Step 1: GET-before-create for BOM header
         let bom_id = get_or_create_bom(client, bom_url, part_id, bom_def.description).await?;
-        tracker.record_bom(bom_id, part_id);
+        tracker.record_bom(bom_id, bom_def.make_item_sku);
         result
             .boms
             .push((bom_id, part_id, bom_def.make_item_sku.to_string()));
@@ -163,7 +163,7 @@ pub async fn seed_boms(
                     .iter()
                     .find(|l| l.component_item_id == component_item_id)
                     .expect("component must exist in existing lines");
-                tracker.record_bom_line(existing.id, component_item_id, comp.quantity);
+                tracker.record_bom_line(existing.id, comp.component_sku, comp.quantity);
                 continue;
             }
 
@@ -178,7 +178,7 @@ pub async fn seed_boms(
                 comp.find_number,
             )
             .await?;
-            tracker.record_bom_line(line_id, component_item_id, comp.quantity);
+            tracker.record_bom_line(line_id, comp.component_sku, comp.quantity);
             info!(
                 component = comp.component_sku,
                 quantity = comp.quantity,
@@ -341,8 +341,7 @@ mod tests {
     fn digest_records_boms() {
         let mut tracker = DigestTracker::new();
         let bom_id = Uuid::new_v4();
-        let part_id = Uuid::new_v4();
-        tracker.record_bom(bom_id, part_id);
+        tracker.record_bom(bom_id, "TBB-ASSY-001");
         let digest = tracker.finalize();
         assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
     }
@@ -351,8 +350,7 @@ mod tests {
     fn digest_records_bom_lines() {
         let mut tracker = DigestTracker::new();
         let line_id = Uuid::new_v4();
-        let component_id = Uuid::new_v4();
-        tracker.record_bom_line(line_id, component_id, 2.5);
+        tracker.record_bom_line(line_id, "TI64-BAR-001", 2.5);
         let digest = tracker.finalize();
         assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
     }
@@ -361,16 +359,14 @@ mod tests {
     fn digest_bom_order_independent() {
         let id1 = Uuid::new_v4();
         let id2 = Uuid::new_v4();
-        let part1 = Uuid::new_v4();
-        let part2 = Uuid::new_v4();
 
         let mut t1 = DigestTracker::new();
-        t1.record_bom(id1, part1);
-        t1.record_bom(id2, part2);
+        t1.record_bom(id1, "TBB-ASSY-001");
+        t1.record_bom(id2, "EMB-ASSY-001");
 
         let mut t2 = DigestTracker::new();
-        t2.record_bom(id2, part2);
-        t2.record_bom(id1, part1);
+        t2.record_bom(id2, "EMB-ASSY-001");
+        t2.record_bom(id1, "TBB-ASSY-001");
 
         assert_eq!(
             t1.finalize(),

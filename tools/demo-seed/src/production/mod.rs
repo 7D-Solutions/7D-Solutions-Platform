@@ -74,7 +74,7 @@ pub async fn seed_production(
         })?;
 
         let routing_id = create_routing(client, production_url, tenant, routing, *item_id).await?;
-        tracker.record_routing(routing_id, *item_id, "1");
+        tracker.record_routing(routing_id, routing.item_sku, "1");
         routing_list.push((routing_id, *item_id));
 
         // Add steps in manufacturing sequence order

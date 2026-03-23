@@ -130,7 +130,7 @@ pub async fn seed_gl(
         let idempotency_key = format!("{}-fx-{}-{}-{}", tenant, fx.base, fx.quote, seed);
         let rate_id = create_fx_rate(client, gl_url, fx, &idempotency_key).await?;
         let pair = format!("{}/{}", fx.base, fx.quote);
-        tracker.record_fx_rate(rate_id, &pair);
+        tracker.record_fx_rate(&pair, &idempotency_key);
         fx_rates_out.push((rate_id, pair.clone()));
         info!(pair, rate = fx.rate, "FX rate seeded");
     }

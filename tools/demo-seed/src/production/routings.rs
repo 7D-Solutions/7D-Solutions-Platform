@@ -382,8 +382,7 @@ mod tests {
     fn digest_records_routings() {
         let mut tracker = crate::digest::DigestTracker::new();
         let routing_id = Uuid::new_v4();
-        let item_id = Uuid::new_v4();
-        tracker.record_routing(routing_id, item_id, "1");
+        tracker.record_routing(routing_id, "TBB-ASSY-001", "1");
         let digest = tracker.finalize();
         assert_eq!(digest.len(), 64, "SHA256 hex should be 64 chars");
     }
