@@ -47,6 +47,12 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     develop:
       watch:
         - action: rebuild
@@ -101,6 +107,12 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "2"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     develop:
       watch:
         - action: rebuild
@@ -187,7 +199,7 @@ services:
       - auth-1
       - auth-2
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/healthz || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
