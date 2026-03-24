@@ -175,15 +175,12 @@ async fn bom_lifecycle_e2e() {
         .unwrap();
 
     if !wait_for_service(&client).await {
-        eprintln!("BOM service not reachable at {} -- skipping", bom_url());
-        return;
+        panic!("BOM service not reachable at {} — start the dev stack before running E2E tests", bom_url());
     }
     println!("BOM service healthy at {}", bom_url());
 
-    let Some(key) = dev_private_key() else {
-        eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
-        return;
-    };
+    let key = dev_private_key()
+        .expect("JWT_PRIVATE_KEY_PEM must be set to run BOM E2E tests");
 
     let tenant_id = Uuid::new_v4().to_string();
     let jwt = make_jwt(&key, &tenant_id, &["bom.mutate", "bom.read"]);
@@ -196,10 +193,11 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .expect("JWT probe failed");
-    if probe.status().as_u16() == 401 {
-        eprintln!("BOM returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
-        return;
-    }
+    assert_ne!(
+        probe.status().as_u16(),
+        401,
+        "BOM returned 401 with valid JWT — set JWT_PUBLIC_KEY before running E2E tests"
+    );
 
     // Part IDs: 3 distinct UUIDs representing inventory items
     let assembly_part_id = Uuid::new_v4();       // top-level assembly
