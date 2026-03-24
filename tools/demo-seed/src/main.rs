@@ -272,8 +272,8 @@ async fn main() -> Result<()> {
                 bom_result = Some(ids);
             }
             "production" => {
-                if item_id_map.is_empty() && active_modules.contains("inventory") {
-                    warn!("Production requires inventory IDs but inventory map is empty");
+                if item_id_map.is_empty() && !active_modules.contains("inventory") {
+                    warn!("Production module running without inventory in active_modules — item_id_map is empty; run with --modules inventory,production or seed inventory first");
                 }
                 let ids = production::seed_production(
                     &client,

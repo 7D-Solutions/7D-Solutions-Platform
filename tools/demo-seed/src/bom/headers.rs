@@ -112,6 +112,21 @@ pub(super) async fn get_or_create_bom(
         return Ok(bom.id);
     }
 
+    if status == reqwest::StatusCode::CONFLICT {
+        // Concurrent runner created the BOM between our GET and POST — re-fetch
+        info!(part_id = %part_id, "BOM created concurrently — re-fetching by part");
+        let resp = client
+            .get(&get_url)
+            .send()
+            .await
+            .with_context(|| format!("GET /api/bom/by-part/{} (retry) network error", part_id))?;
+        let bom: BomHeaderResponse = resp
+            .json()
+            .await
+            .with_context(|| format!("Failed to parse BOM by-part retry response for {}", part_id))?;
+        return Ok(bom.id);
+    }
+
     let text = resp.text().await.unwrap_or_default();
     bail!(
         "POST /api/bom for part {} failed {}: {}",
@@ -177,6 +192,24 @@ pub(super) async fn get_or_create_revision(
             .await
             .with_context(|| "Failed to parse revision creation response")?;
         return Ok(rev.id);
+    }
+
+    if status == reqwest::StatusCode::CONFLICT {
+        // Concurrent runner created the revision — re-fetch the list
+        info!(bom_id = %bom_id, label, "Revision created concurrently — re-fetching revisions");
+        let resp = client
+            .get(&list_url)
+            .send()
+            .await
+            .with_context(|| format!("GET /api/bom/{}/revisions (retry) network error", bom_id))?;
+        let revisions: Vec<RevisionResponse> = resp
+            .json()
+            .await
+            .with_context(|| format!("Failed to parse revisions retry for BOM {}", bom_id))?;
+        if let Some(rev) = revisions.iter().find(|r| r.revision_label == label) {
+            return Ok(rev.id);
+        }
+        bail!("Revision '{}' not found in BOM {} after concurrent conflict", label, bom_id);
     }
 
     let text = resp.text().await.unwrap_or_default();

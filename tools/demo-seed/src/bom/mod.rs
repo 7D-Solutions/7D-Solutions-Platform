@@ -49,7 +49,7 @@ struct InventorySearchItem {
 
 #[derive(Debug, Deserialize)]
 struct InventorySearchResponse {
-    data: Vec<InventorySearchItem>,
+    items: Vec<InventorySearchItem>,
 }
 
 /// Fetch all BOM-referenced items from the inventory service by SKU search.
@@ -86,7 +86,7 @@ pub async fn fetch_items_from_inventory(
             .with_context(|| format!("Failed to parse item search for {}", sku))?;
 
         let item = search
-            .data
+            .items
             .iter()
             .find(|i| i.sku == sku)
             .with_context(|| {
