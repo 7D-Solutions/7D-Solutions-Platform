@@ -107,11 +107,13 @@ pub fn verify_service_token(token: &str) -> Result<ServiceAuthClaims, ServiceAut
     let claims_b64 = parts[0];
     let signature_b64 = parts[1];
 
-    // Verify signature
+    // Verify signature (constant-time comparison to prevent timing attacks)
     let expected_signature = sign_claims(claims_b64)?;
     let actual_signature = URL_SAFE_NO_PAD.decode(signature_b64)?;
 
-    if expected_signature != actual_signature {
+    if expected_signature.len() != actual_signature.len()
+        || !constant_time_eq(&expected_signature, &actual_signature)
+    {
         return Err(ServiceAuthError::InvalidSignature);
     }
 
@@ -131,6 +133,17 @@ pub fn verify_service_token(token: &str) -> Result<ServiceAuthClaims, ServiceAut
     }
 
     Ok(claims)
+}
+
+/// Constant-time byte slice comparison to prevent timing attacks.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 /// Sign claims using HMAC-SHA256
@@ -182,8 +195,8 @@ mod tests {
     fn test_generate_and_verify_token() {
         setup_test_env();
 
-        let token = generate_service_token("tenantctl", None).unwrap();
-        let claims = verify_service_token(&token).unwrap();
+        let token = generate_service_token("tenantctl", None).expect("generate");
+        let claims = verify_service_token(&token).expect("verify");
 
         assert_eq!(claims.service_name, "tenantctl");
         assert!(claims.expires_at > claims.issued_at);
@@ -201,7 +214,7 @@ mod tests {
     fn test_invalid_signature() {
         setup_test_env();
 
-        let token = generate_service_token("tenantctl", None).unwrap();
+        let token = generate_service_token("tenantctl", None).expect("generate");
         let mut parts: Vec<&str> = token.split('.').collect();
         parts[1] = "invalid-signature";
         let tampered_token = parts.join(".");
@@ -225,9 +238,9 @@ mod tests {
             expires_at: now.timestamp() - 1800, // Expired 30 minutes ago
         };
 
-        let claims_json = serde_json::to_string(&claims).unwrap();
+        let claims_json = serde_json::to_string(&claims).expect("serialize");
         let claims_b64 = URL_SAFE_NO_PAD.encode(claims_json.as_bytes());
-        let signature = sign_claims(&claims_b64).unwrap();
+        let signature = sign_claims(&claims_b64).expect("sign");
         let signature_b64 = URL_SAFE_NO_PAD.encode(&signature);
         let token = format!("{}.{}", claims_b64, signature_b64);
 
@@ -239,8 +252,8 @@ mod tests {
     fn test_custom_validity() {
         setup_test_env();
 
-        let token = generate_service_token("test-service", Some(30)).unwrap();
-        let claims = verify_service_token(&token).unwrap();
+        let token = generate_service_token("test-service", Some(30)).expect("generate");
+        let claims = verify_service_token(&token).expect("verify");
 
         let validity_seconds = claims.expires_at - claims.issued_at;
         assert_eq!(validity_seconds, 30 * 60); // 30 minutes in seconds

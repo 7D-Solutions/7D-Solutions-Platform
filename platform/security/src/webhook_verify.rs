@@ -110,7 +110,7 @@ impl WebhookVerifier for StripeVerifier {
 
         let (timestamp_str, v1_sig_hex) = parse_stripe_signature(sig_header)?;
 
-        // Verify timestamp is within tolerance
+        // Verify timestamp is within tolerance (reject both stale AND future timestamps)
         let timestamp: u64 = timestamp_str
             .parse()
             .map_err(|_| VerifyError::MalformedHeader)?;
@@ -118,7 +118,8 @@ impl WebhookVerifier for StripeVerifier {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        if now.saturating_sub(timestamp) > STRIPE_TIMESTAMP_TOLERANCE_SECS {
+        let age = now.abs_diff(timestamp);
+        if age > STRIPE_TIMESTAMP_TOLERANCE_SECS {
             return Err(VerifyError::TimestampExpired);
         }
 
@@ -284,7 +285,7 @@ mod tests {
     use sha2::Sha256;
 
     fn hmac_sha256_hex(secret: &str, message: &[u8]) -> String {
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC init");
         mac.update(message);
         let result = mac.finalize().into_bytes();
         result.iter().map(|b| format!("{:02x}", b)).collect()
@@ -298,7 +299,7 @@ mod tests {
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system clock")
             .as_secs();
         let timestamp = now.to_string();
         let signed_payload = format!("{}.{}", timestamp, String::from_utf8_lossy(body));
@@ -320,7 +321,7 @@ mod tests {
         let body = b"{}";
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("system clock")
             .as_secs();
         let mut headers = HashMap::new();
         headers.insert(
@@ -392,6 +393,30 @@ mod tests {
     #[test]
     fn test_noop_verifier_always_ok() {
         assert!(NoopVerifier.verify(&HashMap::new(), b"anything").is_ok());
+    }
+
+    #[test]
+    fn test_stripe_verifier_future_timestamp_rejected() {
+        let secret = "secret";
+        let verifier = StripeVerifier::new(secret);
+        // Set timestamp 10 minutes in the future — exceeds STRIPE_TIMESTAMP_TOLERANCE_SECS
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_secs();
+        let future_ts = (now + 600).to_string();
+        let signed_payload = format!("{}.{}", future_ts, "{}");
+        let sig = hmac_sha256_hex(secret, signed_payload.as_bytes());
+
+        let mut headers = HashMap::new();
+        headers.insert(
+            "stripe-signature".to_string(),
+            format!("t={},v1={}", future_ts, sig),
+        );
+        assert_eq!(
+            verifier.verify(&headers, b"{}"),
+            Err(VerifyError::TimestampExpired)
+        );
     }
 
     #[test]

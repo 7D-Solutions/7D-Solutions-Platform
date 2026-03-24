@@ -107,11 +107,37 @@ where
         let mut ready_svc = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            let claims = extract_bearer(&req).and_then(|token| verifier.verify(token).ok());
+            let claims = extract_bearer(&req).map(|token| verifier.verify(token));
 
-            if let Some(verified) = claims {
-                req.extensions_mut().insert(verified);
-            } else if strict {
+            match &claims {
+                Some(Ok(verified)) => {
+                    req.extensions_mut().insert(verified.clone());
+                }
+                Some(Err(e)) => {
+                    // Token was present but verification failed — always log this
+                    // even in permissive mode, because a signed token with bad claims
+                    // can indicate a compromised identity service or injection attempt.
+                    let path = req.uri().path().to_string();
+                    tracing::warn!(
+                        path = %path,
+                        error = %e,
+                        "JWT verification failed — token present but rejected"
+                    );
+                    if strict {
+                        security_event(
+                            None,
+                            None,
+                            &path,
+                            SecurityOutcome::Denied,
+                            &format!("strict mode rejected — {e}"),
+                        );
+                        return Ok(StatusCode::UNAUTHORIZED.into_response());
+                    }
+                }
+                None => {}
+            }
+
+            if claims.is_none() && strict {
                 let path = req.uri().path().to_string();
                 security_event(
                     None,

@@ -96,6 +96,10 @@ impl JwtVerifier {
 
         let mut validation = Validation::new(Algorithm::RS256);
         validation.validate_exp = true;
+        // Allow 30 seconds of clock skew between identity service and consumers.
+        // Without this, even minor clock drift causes valid tokens to be rejected
+        // at the boundary of their lifetime.
+        validation.leeway = 30;
         validation.set_issuer(&["auth-rs"]);
         validation.set_audience(&["7d-platform"]);
 
@@ -230,17 +234,17 @@ mod tests {
 
     fn make_keys() -> (EncodingKey, String) {
         let mut rng = rand::thread_rng();
-        let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key gen");
         let pub_key = priv_key.to_public_key();
-        let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).unwrap();
-        let enc = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).unwrap();
+        let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("PEM encode");
+        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("public PEM");
+        let enc = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key");
         (enc, pub_pem)
     }
 
     fn sign_test_token(enc: &EncodingKey, claims: &TestClaims) -> String {
         let header = Header::new(Algorithm::RS256);
-        jsonwebtoken::encode(&header, claims, enc).unwrap()
+        jsonwebtoken::encode(&header, claims, enc).expect("sign token")
     }
 
     fn default_claims() -> TestClaims {
@@ -267,8 +271,8 @@ mod tests {
         let claims = default_claims();
         let token = sign_test_token(&enc, &claims);
 
-        let verifier = JwtVerifier::from_public_pem(&pub_pem).unwrap();
-        let verified = verifier.verify(&token).unwrap();
+        let verifier = JwtVerifier::from_public_pem(&pub_pem).expect("verifier");
+        let verified = verifier.verify(&token).expect("verify");
 
         assert_eq!(verified.user_id.to_string(), claims.sub);
         assert_eq!(verified.tenant_id.to_string(), claims.tenant_id);
@@ -288,7 +292,7 @@ mod tests {
         claims.exp = (now - chrono::Duration::minutes(5)).timestamp();
         let token = sign_test_token(&enc, &claims);
 
-        let verifier = JwtVerifier::from_public_pem(&pub_pem).unwrap();
+        let verifier = JwtVerifier::from_public_pem(&pub_pem).expect("verifier");
         let result = verifier.verify(&token);
         assert!(matches!(result, Err(SecurityError::TokenExpired)));
     }
@@ -300,7 +304,7 @@ mod tests {
         let claims = default_claims();
         let token = sign_test_token(&enc, &claims);
 
-        let verifier = JwtVerifier::from_public_pem(&other_pub_pem).unwrap();
+        let verifier = JwtVerifier::from_public_pem(&other_pub_pem).expect("verifier");
         let result = verifier.verify(&token);
         assert!(matches!(result, Err(SecurityError::InvalidToken)));
     }
@@ -313,8 +317,8 @@ mod tests {
         claims.app_id = Some(app.to_string());
         let token = sign_test_token(&enc, &claims);
 
-        let verifier = JwtVerifier::from_public_pem(&pub_pem).unwrap();
-        let verified = verifier.verify(&token).unwrap();
+        let verifier = JwtVerifier::from_public_pem(&pub_pem).expect("verifier");
+        let verified = verifier.verify(&token).expect("verify");
         assert_eq!(verified.app_id, Some(app));
     }
 
@@ -341,11 +345,11 @@ mod tests {
         let token_signed_with_old_key = sign_test_token(&old_enc, &old_claims);
 
         // New verifier uses new primary key + old key as prev (overlap window)
-        let mut verifier = JwtVerifier::from_public_pem(&new_pub_pem).unwrap();
-        verifier.with_prev_key(&old_pub_pem).unwrap();
+        let mut verifier = JwtVerifier::from_public_pem(&new_pub_pem).expect("verifier");
+        verifier.with_prev_key(&old_pub_pem).expect("prev key");
 
         // Old token must still verify successfully during overlap
-        let verified = verifier.verify(&token_signed_with_old_key).unwrap();
+        let verified = verifier.verify(&token_signed_with_old_key).expect("verify");
         assert_eq!(verified.roles, vec!["admin"]);
         assert_eq!(verified.actor_type, ActorType::User);
     }
@@ -361,7 +365,7 @@ mod tests {
         let token_signed_with_old_key = sign_test_token(&old_enc, &old_claims);
 
         // Verifier with ONLY the new key (overlap has ended)
-        let verifier = JwtVerifier::from_public_pem(&new_pub_pem).unwrap();
+        let verifier = JwtVerifier::from_public_pem(&new_pub_pem).expect("verifier");
 
         // Old-key token must now be rejected
         assert!(matches!(
