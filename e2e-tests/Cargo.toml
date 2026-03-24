@@ -608,6 +608,10 @@ path = "tests/reporting_http_smoke.rs"
 name = "identity_auth_http_smoke"
 path = "tests/identity_auth_http_smoke.rs"
 
+[[test]]
+name = "api_conformance_e2e"
+path = "tests/api_conformance_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
