@@ -1,4 +1,5 @@
 use axum::{extract::DefaultBodyLimit, Extension};
+use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };
@@ -8,7 +9,9 @@ use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
-use integrations_rs::{config::Config, db, http, metrics, AppState};
+use integrations_rs::{
+    config::Config, db, domain::oauth::refresh, http, metrics, outbox, AppState,
+};
 
 #[tokio::main]
 async fn main() {
@@ -44,6 +47,54 @@ async fn main() {
 
     tracing::info!("Integrations: database migrations applied");
 
+    let event_bus: Arc<dyn EventBus> = match config.bus_type {
+        integrations_rs::config::BusType::Nats => {
+            let nats_url = config
+                .nats_url
+                .as_ref()
+                .expect("NATS_URL must be set when BUS_TYPE=nats");
+            tracing::info!("Integrations: connecting to NATS at {}", nats_url);
+            let client = event_bus::connect_nats(nats_url)
+                .await
+                .expect("Integrations: failed to connect to NATS");
+            Arc::new(NatsBus::new(client))
+        }
+        integrations_rs::config::BusType::InMemory => {
+            tracing::info!("Integrations: using in-memory event bus");
+            Arc::new(InMemoryBus::new())
+        }
+    };
+
+    let publisher_pool = pool.clone();
+    let publisher_bus = event_bus.clone();
+    tokio::spawn(async move {
+        outbox::run_publisher_task(publisher_pool, publisher_bus).await;
+    });
+    tracing::info!("Integrations: outbox publisher task started");
+
+    // OAuth token refresh worker (only if QBO_CLIENT_ID is set)
+    let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    if std::env::var("QBO_CLIENT_ID").is_ok() {
+        let refresher: Arc<dyn refresh::TokenRefresher> =
+            Arc::new(refresh::HttpTokenRefresher {
+                client: reqwest::Client::new(),
+                qbo_client_id: std::env::var("QBO_CLIENT_ID").unwrap_or_default(),
+                qbo_client_secret: std::env::var("QBO_CLIENT_SECRET").unwrap_or_default(),
+                qbo_token_url: std::env::var("QBO_TOKEN_URL").unwrap_or_else(|_| {
+                    "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer".to_string()
+                }),
+            });
+        refresh::spawn_refresh_worker(
+            pool.clone(),
+            refresher,
+            std::time::Duration::from_secs(30),
+            shutdown_rx,
+        );
+        tracing::info!("Integrations: OAuth refresh worker started (30s poll)");
+    } else {
+        tracing::info!("Integrations: OAuth refresh worker skipped (QBO_CLIENT_ID not set)");
+    }
+
     let integrations_metrics = Arc::new(
         metrics::IntegrationsMetrics::new().expect("Integrations: failed to create metrics"),
     );
@@ -52,6 +103,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
         metrics: integrations_metrics,
+        bus: event_bus,
     });
 
     // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).

@@ -127,7 +127,7 @@ pub async fn handle_po_approved(
     outbox::enqueue_event_tx(
         &mut tx,
         Uuid::new_v4(),
-        "shipping.shipment.created",
+        crate::events::EVENT_TYPE_SHIPMENT_CREATED,
         "shipment",
         &shipment.id.to_string(),
         &tenant_id.to_string(),
@@ -203,7 +203,7 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        let tid: Uuid = TEST_TENANT.parse().unwrap();
+        let tid: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
         sqlx::query("DELETE FROM shipment_lines WHERE tenant_id = $1")
             .bind(tid)
             .execute(pool)
@@ -260,7 +260,7 @@ mod tests {
 
         let payload = sample_payload();
         let event_id = Uuid::new_v4();
-        let tid: Uuid = TEST_TENANT.parse().unwrap();
+        let tid: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
 
         handle_po_approved(&pool, event_id, &payload)
             .await
@@ -292,7 +292,7 @@ mod tests {
 
         let payload = sample_payload();
         let event_id = Uuid::new_v4();
-        let tid: Uuid = TEST_TENANT.parse().unwrap();
+        let tid: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
 
         handle_po_approved(&pool, event_id, &payload)
             .await
