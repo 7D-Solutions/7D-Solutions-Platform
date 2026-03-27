@@ -16,7 +16,7 @@ help:
 # Start infrastructure for E2E tests
 e2e-infra-up:
 	@echo "🚀 Starting E2E infrastructure (NATS + Postgres)..."
-	@docker compose -f docker-compose.infrastructure.yml up -d
+	@docker compose -f docker-compose.data.yml up -d
 	@echo "⏳ Waiting for infrastructure to be ready..."
 	@sleep 5
 	@echo "✓ Infrastructure ready"
@@ -24,13 +24,13 @@ e2e-infra-up:
 # Stop infrastructure
 e2e-infra-down:
 	@echo "🛑 Stopping E2E infrastructure..."
-	@docker compose -f docker-compose.infrastructure.yml down
+	@docker compose -f docker-compose.data.yml down
 	@echo "✓ Infrastructure stopped"
 
 # Clean infrastructure (remove volumes)
 e2e-clean:
 	@echo "🧹 Cleaning E2E infrastructure and volumes..."
-	@docker compose -f docker-compose.infrastructure.yml down -v
+	@docker compose -f docker-compose.data.yml down -v
 	@echo "✓ Infrastructure and volumes removed"
 
 # Build all services

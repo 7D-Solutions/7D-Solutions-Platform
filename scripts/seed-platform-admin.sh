@@ -70,7 +70,7 @@ fi
 # ── Preflight: verify container is running ───────────────────
 if ! docker exec "$AUTH_DB_CONTAINER" pg_isready -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" >/dev/null 2>&1; then
   echo "ERROR: $AUTH_DB_CONTAINER is not running or not ready." >&2
-  echo "Start it with: docker compose -f docker-compose.infrastructure.yml up -d" >&2
+  echo "Start it with: docker compose -f docker-compose.data.yml up -d" >&2
   exit 1
 fi
 

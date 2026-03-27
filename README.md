@@ -69,8 +69,11 @@ Backend module system for building vertical business applications. Verticals (e.
 ### Development
 
 ```bash
-# Start infrastructure (Postgres, NATS, monitoring)
-docker compose -f docker-compose.infrastructure.yml up -d
+# Start the data stack (Postgres, NATS)
+docker compose -f docker-compose.data.yml up -d
+
+# Start backend services
+docker compose up -d
 
 # Build all modules
 cargo build --workspace

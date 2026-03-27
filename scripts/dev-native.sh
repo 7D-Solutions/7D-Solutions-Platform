@@ -11,7 +11,7 @@
 #   docker start 7d-inventory
 #
 # Prerequisites:
-#   - Infrastructure stack running (docker compose -f docker-compose.infrastructure.yml up -d)
+#   - Data stack running (docker compose -f docker-compose.data.yml up -d)
 #   - cargo-watch installed (cargo install cargo-watch)
 
 set -euo pipefail
@@ -24,7 +24,7 @@ cd "$PROJECT_ROOT"
 # Format: service|crate_name|container|service_port|pg_host_port|pg_user|pg_pass|pg_db|bin_name
 # crate_name = the -p argument to cargo.
 # bin_name   = the --bin argument (when binary name differs from crate name).
-# pg_host_port is the localhost port mapped in docker-compose.infrastructure.yml.
+# pg_host_port is the localhost port mapped in docker-compose.data.yml.
 SERVICES=(
   "ar|ar-rs|7d-ar|8086|5434|ar_user|ar_pass|ar_db|ar-rs"
   "subscriptions|subscriptions-rs|7d-subscriptions|8087|5435|subscriptions_user|subscriptions_pass|subscriptions_db|subscriptions-rs"
@@ -119,8 +119,8 @@ if [ "$MODE" != "--stop" ]; then
   if [ "$PG_PORT" != "0" ]; then
     if ! nc -z 127.0.0.1 "$PG_PORT" 2>/dev/null; then
       echo "Error: Postgres for $SVC not reachable on 127.0.0.1:$PG_PORT" >&2
-      echo "Is the infrastructure stack running?" >&2
-      echo "  docker compose -f docker-compose.infrastructure.yml up -d" >&2
+      echo "Is the data stack running?" >&2
+      echo "  docker compose -f docker-compose.data.yml up -d" >&2
       exit 1
     fi
   fi
