@@ -8,7 +8,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::Redirect,
     Extension, Json,
 };
@@ -16,7 +16,7 @@ use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::domain::oauth::{self, service, OAuthConnectionInfo, OAuthError, TokenResponse};
+use crate::domain::oauth::{service, OAuthConnectionInfo, OAuthError, TokenResponse};
 use crate::AppState;
 
 // ============================================================================
