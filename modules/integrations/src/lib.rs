@@ -13,4 +13,5 @@ pub use config::Config;
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub metrics: std::sync::Arc<metrics::IntegrationsMetrics>,
+    pub bus: std::sync::Arc<dyn event_bus::EventBus>,
 }

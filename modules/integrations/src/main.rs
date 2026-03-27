@@ -75,15 +75,14 @@ async fn main() {
     // OAuth token refresh worker (only if QBO_CLIENT_ID is set)
     let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     if std::env::var("QBO_CLIENT_ID").is_ok() {
-        let refresher: Arc<dyn refresh::TokenRefresher> =
-            Arc::new(refresh::HttpTokenRefresher {
-                client: reqwest::Client::new(),
-                qbo_client_id: std::env::var("QBO_CLIENT_ID").unwrap_or_default(),
-                qbo_client_secret: std::env::var("QBO_CLIENT_SECRET").unwrap_or_default(),
-                qbo_token_url: std::env::var("QBO_TOKEN_URL").unwrap_or_else(|_| {
-                    "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer".to_string()
-                }),
-            });
+        let refresher: Arc<dyn refresh::TokenRefresher> = Arc::new(refresh::HttpTokenRefresher {
+            client: reqwest::Client::new(),
+            qbo_client_id: std::env::var("QBO_CLIENT_ID").unwrap_or_default(),
+            qbo_client_secret: std::env::var("QBO_CLIENT_SECRET").unwrap_or_default(),
+            qbo_token_url: std::env::var("QBO_TOKEN_URL").unwrap_or_else(|_| {
+                "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer".to_string()
+            }),
+        });
         refresh::spawn_refresh_worker(
             pool.clone(),
             refresher,

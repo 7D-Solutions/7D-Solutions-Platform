@@ -2,8 +2,24 @@
 //!
 //! Enqueues events atomically within the caller's transaction into `integrations_outbox`.
 
+mod relay;
+
+pub use relay::{publish_batch, run_publisher_task, DEFAULT_MAX_RETRIES};
+
 use serde::Serialize;
+use sqlx::FromRow;
 use uuid::Uuid;
+
+#[derive(Debug, FromRow)]
+pub struct OutboxEvent {
+    pub event_id: Uuid,
+    pub event_type: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub app_id: String,
+    pub payload: serde_json::Value,
+    pub retry_count: i32,
+}
 
 /// Enqueue an event into the integrations outbox within a caller-supplied transaction.
 ///
@@ -42,5 +58,42 @@ pub async fn enqueue_event_tx<T: Serialize>(
     .execute(&mut **tx)
     .await?;
 
+    Ok(())
+}
+
+pub async fn fetch_unpublished(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    limit: i64,
+) -> Result<Vec<OutboxEvent>, sqlx::Error> {
+    sqlx::query_as::<_, OutboxEvent>(
+        r#"
+        SELECT event_id, event_type, aggregate_type, aggregate_id, app_id, payload, retry_count
+        FROM integrations_outbox
+        WHERE published_at IS NULL
+          AND failed_at IS NULL
+        ORDER BY created_at ASC
+        LIMIT $1
+        FOR UPDATE SKIP LOCKED
+        "#,
+    )
+    .bind(limit)
+    .fetch_all(&mut **tx)
+    .await
+}
+
+pub async fn mark_published(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE integrations_outbox
+        SET published_at = NOW(), error_message = NULL
+        WHERE event_id = $1
+        "#,
+    )
+    .bind(event_id)
+    .execute(&mut **tx)
+    .await?;
     Ok(())
 }
