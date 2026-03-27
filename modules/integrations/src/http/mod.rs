@@ -1,5 +1,6 @@
 pub mod connectors;
 pub mod external_refs;
+pub mod oauth;
 pub mod webhooks;
 
 use axum::{
@@ -26,6 +27,14 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .with_state(state.clone());
 
+    // OAuth callback — unauthenticated (redirect from provider)
+    let oauth_callback = Router::new()
+        .route(
+            "/api/integrations/oauth/callback/{provider}",
+            get(oauth::callback),
+        )
+        .with_state(state.clone());
+
     let mutations = Router::new()
         // External refs — write
         .route(
@@ -45,6 +54,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/integrations/connectors/{id}/test",
             post(connectors::run_connector_test),
+        )
+        // OAuth — write
+        .route(
+            "/api/integrations/oauth/connect/{provider}",
+            get(oauth::connect),
+        )
+        .route(
+            "/api/integrations/oauth/disconnect/{provider}",
+            post(oauth::disconnect),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_MUTATE,
@@ -86,6 +104,11 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/connectors/{id}",
             get(connectors::get_connector),
         )
+        // OAuth — read
+        .route(
+            "/api/integrations/oauth/status/{provider}",
+            get(oauth::status),
+        )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_READ,
         ]))
@@ -96,4 +119,5 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(reads)
         .merge(ops)
         .merge(webhook_inbound)
+        .merge(oauth_callback)
 }
