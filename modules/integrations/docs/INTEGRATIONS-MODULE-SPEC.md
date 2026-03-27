@@ -12,6 +12,7 @@
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — documented from source: external refs, webhooks, connectors, schema, events, API surface |
 | 1.1 | 2026-02-24 | PurpleCliff | Fresh-eyes review: fixed event count (5→6), noted connector.registered bypasses EventEnvelope, corrected internal webhook idempotency key source |
+| 1.2 | 2026-03-27 | MaroonHarbor | Added OAuth token management as integrations domain authority (bd-1lbzx). Tokens tightly coupled to connector lifecycle — proactive refresh, rotation, monitoring all integration concerns. |
 
 ---
 
@@ -114,7 +115,6 @@ All tables use `app_id` (the tenant/application identifier) as the leading scope
 - Batch import/export of external references
 - Rate limiting per external system
 - Transformation pipelines (mapping external payloads to internal schemas)
-- OAuth token management for external systems
 - Frontend UI
 
 ---
@@ -176,10 +176,10 @@ Integrations is the **source of truth** for:
 | **Webhook Endpoints** | Outbound webhook endpoint configurations: URL, signing secret hash, event type subscriptions, enabled status. |
 | **Connector Configs** | Per-tenant connector registrations: connector type, name, config blob, enabled status. |
 | **Event Routing Map** | Translation table from `(system, source_event_type)` to platform domain event types. |
+| **OAuth Connections** | Per-tenant OAuth token storage, proactive refresh, and connection status for external providers (e.g. QuickBooks). Tokens are encrypted at rest via pgcrypto. |
 
 Integrations is **NOT** authoritative for:
 - The business entities referenced by external refs (invoices, customers, orders — owned by their respective modules)
-- External system credentials or OAuth tokens (secrets manager concern)
 - Event bus infrastructure or NATS configuration (platform infrastructure concern)
 - Business logic triggered by routed events (downstream module concern)
 
@@ -201,12 +201,12 @@ All tables use `app_id` for multi-tenant isolation. Every query **MUST** filter 
 | **integrations_processed_events** | Consumer deduplication | `id` (BIGSERIAL), `event_id` (UUID, UNIQUE), `event_type`, `processor`, `processed_at` |
 | **integrations_idempotency_keys** | HTTP-level idempotency | `id` (BIGSERIAL), `app_id`, `idempotency_key`, `request_hash`, `response_body` (JSONB), `status_code`, `created_at`, `expires_at`. UNIQUE on `(app_id, idempotency_key)` |
 | **integrations_connector_configs** | Per-tenant connector registrations | `id` (UUID), `app_id`, `connector_type`, `name`, `config` (JSONB), `enabled`, `created_at`, `updated_at`. UNIQUE on `(app_id, connector_type, name)` |
+| **integrations_oauth_connections** | Per-tenant OAuth connections to external providers | `id` (UUID), `app_id`, `provider`, `realm_id`, `access_token` (BYTEA, encrypted), `refresh_token` (BYTEA, encrypted), `access_token_expires_at`, `refresh_token_expires_at`, `scopes_granted`, `connection_status`, `last_successful_refresh`, `cdc_watermark`, `full_resync_required`, `created_at`, `updated_at`. UNIQUE on `(provider, realm_id)`, UNIQUE on `(app_id, provider)` |
 
 ### Data NOT Owned by Integrations
 
 Integrations **MUST NOT** store:
 - Business entity data (invoice amounts, customer names, order details)
-- Raw credentials or OAuth tokens for external systems (only hashed secrets for webhook signing)
 - GL account codes or financial data
 - Event bus topic configuration or NATS subjects
 
@@ -353,7 +353,7 @@ Every connector implementation must satisfy:
 | **HTTP Idempotency Middleware** | Table and schema exist (`integrations_idempotency_keys`). Middleware to intercept requests and return cached responses not yet wired. |
 | **HTTP Push Connector** | Outbound HTTP connector for pushing events to arbitrary endpoints with retry. |
 | **Slack Connector** | Notify Slack channels on platform events. |
-| **OAuth Token Management** | Secure storage and refresh of OAuth tokens for external systems. |
+| ~~**OAuth Token Management**~~ | Implemented in v0.1.0 (bd-1lbzx). |
 | **Transformation Pipelines** | Map external payloads to internal schemas via configurable transformations. |
 | **Batch External Ref Import** | Bulk import of external reference mappings from CSV/JSON. |
 | **Webhook Endpoint CRUD API** | Management API for `integrations_webhook_endpoints` (table exists, endpoints not implemented). |
@@ -382,3 +382,6 @@ This document follows the revision and decision log standards defined at:
 | 2026-02-24 | No cross-module database writes | All integration through events and API calls; single `resolve_pool()` entry point prevents accidental cross-module coupling | Platform Orchestrator |
 | 2026-02-24 | Secret hashing for webhook endpoints | Signing secrets stored as SHA-256 hex, never plaintext; raw secret returned once at creation time only | Platform Orchestrator |
 | 2026-02-24 | BUS_TYPE configurable (NATS or InMemory) | InMemory mode enables local development and testing without NATS infrastructure; NATS for production | Platform Orchestrator |
+| 2026-03-27 | OAuth tokens owned by Integrations, not a separate secrets service | Tokens are tightly coupled to connector lifecycle — proactive refresh, rotation, monitoring, and connection status are all integration concerns. A separate secrets service would add a network hop for no benefit at this scale. CopperRiver and PurpleCliff independently agreed. | MaroonHarbor (bd-1lbzx) |
+| 2026-03-27 | pgcrypto for token encryption at rest | Phase 1 uses `pgp_sym_encrypt`/`pgp_sym_decrypt` with an `OAUTH_ENCRYPTION_KEY` env var. Simple, auditable, no external KMS dependency. Can migrate to Vault/KMS later without schema changes since the encryption is transparent to the application layer. | MaroonHarbor (bd-1lbzx) |
+| 2026-03-27 | FOR UPDATE SKIP LOCKED for concurrent token refresh | Prevents the fatal failure mode where two workers refresh the same token concurrently — the second would get a 401 from Intuit because the first already invalidated the old refresh token. SKIP LOCKED means the second worker simply moves on to the next connection. | MaroonHarbor (bd-1lbzx) |
