@@ -27,7 +27,9 @@ use security::VerifiedClaims;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::domain::webhooks::{IngestWebhookRequest, WebhookError, WebhookService};
+use crate::domain::webhooks::{
+    IngestWebhookRequest, QboNormalizer, WebhookError, WebhookService,
+};
 use crate::AppState;
 
 /// `POST /api/webhooks/inbound/{system}`
@@ -38,6 +40,11 @@ pub async fn inbound_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    // QBO webhooks are multi-tenant batched — dedicated handler
+    if system == "quickbooks" {
+        return handle_qbo_webhook(state, headers, body).await;
+    }
+
     // ── Determine app_id ──────────────────────────────────────────────────
     // Internal callers: extract from JWT claims.
     // External webhooks (Stripe/GitHub/Tilled): derive from system-specific
@@ -192,6 +199,81 @@ fn extract_event_type(payload: &Value, system: &str) -> Option<String> {
             .or_else(|| payload.get("type"))
             .and_then(|v| v.as_str())
             .map(str::to_string),
+    }
+}
+
+/// Handle QBO (QuickBooks Online) batched webhooks.
+///
+/// QBO sends a JSON array of CloudEvents objects, potentially spanning multiple
+/// tenants. Signature verification is done first, then the normalizer fans out
+/// to per-event ingest records with correct tenant scoping.
+async fn handle_qbo_webhook(
+    state: Arc<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    use crate::domain::webhooks::verify::verify_signature;
+
+    // Convert headers to HashMap<String, String>
+    let header_map: std::collections::HashMap<String, String> = headers
+        .iter()
+        .filter_map(|(k, v)| {
+            v.to_str()
+                .ok()
+                .map(|val| (k.as_str().to_lowercase(), val.to_string()))
+        })
+        .collect();
+
+    // Signature verification (stateless, before any DB I/O)
+    verify_signature("quickbooks", &header_map, &body).map_err(|e| match e {
+        WebhookError::SignatureVerification(msg) => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": format!("Signature verification failed: {}", msg) })),
+        ),
+        WebhookError::UnsupportedSystem { system } => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": format!("Unknown webhook system: {}", system) })),
+        ),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Internal error" })),
+        ),
+    })?;
+
+    // Parse raw body as JSON (array)
+    let raw_payload: Value = serde_json::from_slice(&body).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": format!("Invalid JSON body: {}", e) })),
+        )
+    })?;
+
+    // Normalize: resolve realms, fan out to per-event ingest + outbox
+    let normalizer = QboNormalizer::new(state.pool.clone());
+    match normalizer.normalize(&body, &raw_payload, &header_map).await {
+        Ok(result) => {
+            let status = if result.is_duplicate {
+                "duplicate"
+            } else {
+                "accepted"
+            };
+            Ok(Json(json!({
+                "status": status,
+                "batch_ingest_id": result.batch_ingest_id,
+                "events_processed": result.events_processed,
+                "events_skipped": result.events_skipped,
+            })))
+        }
+        Err(WebhookError::MalformedPayload(msg)) => {
+            Err((StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))))
+        }
+        Err(e) => {
+            tracing::error!(system = "quickbooks", error = %e, "QBO webhook ingest error");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Internal error" })),
+            ))
+        }
     }
 }
 

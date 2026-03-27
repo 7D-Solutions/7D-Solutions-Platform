@@ -12,6 +12,7 @@
 //! - `StripeVerifier`: HMAC-SHA256 using the `Stripe-Signature` header format.
 //! - `GenericHmacVerifier`: Simple HMAC-SHA256 with a custom header name.
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::collections::HashMap;
@@ -230,6 +231,58 @@ impl WebhookVerifier for GenericHmacVerifier {
 }
 
 // ============================================================================
+// Intuit HMAC-SHA256 Verifier (base64-encoded signature)
+// ============================================================================
+
+/// Verifies Intuit/QuickBooks webhook signatures.
+///
+/// Intuit sends an `intuit-signature` header containing a **base64-encoded**
+/// HMAC-SHA256 digest of the raw request body. The HMAC key is the Verifier
+/// Token assigned to the webhook subscription.
+///
+/// Unlike GitHub (`sha256=<hex>`), Intuit uses raw base64 with no prefix.
+pub struct IntuitVerifier {
+    secret: Vec<u8>,
+}
+
+impl IntuitVerifier {
+    pub fn new(secret: &str) -> Self {
+        Self {
+            secret: secret.as_bytes().to_vec(),
+        }
+    }
+}
+
+impl WebhookVerifier for IntuitVerifier {
+    fn verify(
+        &self,
+        headers: &HashMap<String, String>,
+        raw_body: &[u8],
+    ) -> Result<(), VerifyError> {
+        let sig_b64 = headers
+            .get("intuit-signature")
+            .ok_or(VerifyError::MissingHeader {
+                header: "intuit-signature".to_string(),
+            })?;
+
+        let provided = STANDARD
+            .decode(sig_b64)
+            .map_err(|_| VerifyError::MalformedHeader)?;
+
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).map_err(|_| VerifyError::InvalidSecret)?;
+        mac.update(raw_body);
+        let computed = mac.finalize().into_bytes();
+
+        if computed.len() != provided.len() || !constant_time_eq(&computed, &provided) {
+            return Err(VerifyError::SignatureMismatch);
+        }
+
+        Ok(())
+    }
+}
+
+// ============================================================================
 // No-Op Verifier (for systems without signature headers)
 // ============================================================================
 
@@ -316,78 +369,44 @@ mod tests {
 
     #[test]
     fn test_stripe_verifier_bad_signature() {
-        let secret = "whsec_test_secret";
-        let verifier = StripeVerifier::new(secret);
-        let body = b"{}";
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock")
-            .as_secs();
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("clock").as_secs();
         let mut headers = HashMap::new();
-        headers.insert(
-            "stripe-signature".to_string(),
-            format!(
-                "t={},v1={}",
-                now, "deadbeef00000000000000000000000000000000000000000000000000000000"
-            ),
-        );
-        assert_eq!(
-            verifier.verify(&headers, body),
-            Err(VerifyError::SignatureMismatch)
-        );
+        headers.insert("stripe-signature".to_string(),
+            format!("t={},v1=deadbeef00000000000000000000000000000000000000000000000000000000", now));
+        assert_eq!(StripeVerifier::new("whsec_test_secret").verify(&headers, b"{}"),
+            Err(VerifyError::SignatureMismatch));
     }
 
     #[test]
     fn test_stripe_verifier_missing_header() {
-        let verifier = StripeVerifier::new("secret");
-        let result = verifier.verify(&HashMap::new(), b"{}");
-        assert!(matches!(result, Err(VerifyError::MissingHeader { .. })));
+        assert!(matches!(StripeVerifier::new("s").verify(&HashMap::new(), b"{}"),
+            Err(VerifyError::MissingHeader { .. })));
     }
 
     #[test]
     fn test_stripe_verifier_expired_timestamp() {
-        let secret = "secret";
-        let verifier = StripeVerifier::new(secret);
-        let old_timestamp = "1000000"; // Unix epoch + ~11 days — definitely expired
-        let signed_payload = format!("{}.{}", old_timestamp, "{}");
-        let sig = hmac_sha256_hex(secret, signed_payload.as_bytes());
-
+        let sig = hmac_sha256_hex("secret", b"1000000.{}");
         let mut headers = HashMap::new();
-        headers.insert(
-            "stripe-signature".to_string(),
-            format!("t={},v1={}", old_timestamp, sig),
-        );
-        assert_eq!(
-            verifier.verify(&headers, b"{}"),
-            Err(VerifyError::TimestampExpired)
-        );
+        headers.insert("stripe-signature".to_string(), format!("t=1000000,v1={}", sig));
+        assert_eq!(StripeVerifier::new("secret").verify(&headers, b"{}"), Err(VerifyError::TimestampExpired));
     }
 
     #[test]
     fn test_generic_hmac_verifier_valid() {
-        let secret = "mysecret";
-        let body = b"hello world";
-        let sig = hmac_sha256_hex(secret, body);
-        let verifier = GenericHmacVerifier::new(secret, "x-hub-signature-256", Some("sha256="));
-
+        let sig = hmac_sha256_hex("mysecret", b"hello world");
         let mut headers = HashMap::new();
         headers.insert("x-hub-signature-256".to_string(), format!("sha256={}", sig));
-
-        assert!(verifier.verify(&headers, body).is_ok());
+        assert!(GenericHmacVerifier::new("mysecret", "x-hub-signature-256", Some("sha256="))
+            .verify(&headers, b"hello world").is_ok());
     }
 
     #[test]
     fn test_generic_hmac_verifier_bad_sig() {
-        let verifier = GenericHmacVerifier::new("secret", "x-signature", None);
         let mut headers = HashMap::new();
-        headers.insert(
-            "x-signature".to_string(),
-            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
-        );
-        assert_eq!(
-            verifier.verify(&headers, b"body"),
-            Err(VerifyError::SignatureMismatch)
-        );
+        headers.insert("x-signature".to_string(),
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string());
+        assert_eq!(GenericHmacVerifier::new("secret", "x-signature", None).verify(&headers, b"body"),
+            Err(VerifyError::SignatureMismatch));
     }
 
     #[test]
@@ -397,26 +416,11 @@ mod tests {
 
     #[test]
     fn test_stripe_verifier_future_timestamp_rejected() {
-        let secret = "secret";
-        let verifier = StripeVerifier::new(secret);
-        // Set timestamp 10 minutes in the future — exceeds STRIPE_TIMESTAMP_TOLERANCE_SECS
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock")
-            .as_secs();
-        let future_ts = (now + 600).to_string();
-        let signed_payload = format!("{}.{}", future_ts, "{}");
-        let sig = hmac_sha256_hex(secret, signed_payload.as_bytes());
-
+        let future = (SystemTime::now().duration_since(UNIX_EPOCH).expect("clock").as_secs() + 600).to_string();
+        let sig = hmac_sha256_hex("secret", format!("{}.{{}}", future).as_bytes());
         let mut headers = HashMap::new();
-        headers.insert(
-            "stripe-signature".to_string(),
-            format!("t={},v1={}", future_ts, sig),
-        );
-        assert_eq!(
-            verifier.verify(&headers, b"{}"),
-            Err(VerifyError::TimestampExpired)
-        );
+        headers.insert("stripe-signature".to_string(), format!("t={},v1={}", future, sig));
+        assert_eq!(StripeVerifier::new("secret").verify(&headers, b"{}"), Err(VerifyError::TimestampExpired));
     }
 
     #[test]
@@ -424,5 +428,50 @@ mod tests {
         assert!(constant_time_eq(b"hello", b"hello"));
         assert!(!constant_time_eq(b"hello", b"world"));
         assert!(!constant_time_eq(b"hi", b"hello"));
+    }
+
+    // ── Intuit Verifier ──────────────────────────────────────────────────
+
+    fn intuit_sig(secret: &str, body: &[u8]) -> String {
+        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC");
+        mac.update(body);
+        STANDARD.encode(mac.finalize().into_bytes())
+    }
+
+    fn intuit_headers(sig: &str) -> HashMap<String, String> {
+        HashMap::from([("intuit-signature".to_string(), sig.to_string())])
+    }
+
+    #[test]
+    fn test_intuit_verifier_valid() {
+        let body = b"{\"events\":[]}";
+        let sig = intuit_sig("tok_123", body);
+        assert!(IntuitVerifier::new("tok_123").verify(&intuit_headers(&sig), body).is_ok());
+    }
+
+    #[test]
+    fn test_intuit_verifier_tampered_body() {
+        let sig = intuit_sig("tok_123", b"original");
+        assert_eq!(
+            IntuitVerifier::new("tok_123").verify(&intuit_headers(&sig), b"tampered"),
+            Err(VerifyError::SignatureMismatch)
+        );
+    }
+
+    #[test]
+    fn test_intuit_verifier_missing_header() {
+        assert!(matches!(
+            IntuitVerifier::new("s").verify(&HashMap::new(), b"{}"),
+            Err(VerifyError::MissingHeader { .. })
+        ));
+    }
+
+    #[test]
+    fn test_intuit_verifier_invalid_base64() {
+        assert_eq!(
+            IntuitVerifier::new("s").verify(&intuit_headers("not-valid!!!"), b"{}"),
+            Err(VerifyError::MalformedHeader)
+        );
     }
 }

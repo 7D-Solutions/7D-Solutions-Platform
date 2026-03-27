@@ -30,8 +30,8 @@ pub use audit_log::{security_event, SecurityOutcome};
 
 // Re-export webhook verifier types
 pub use webhook_verify::{
-    GenericHmacVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier,
-    STRIPE_TIMESTAMP_TOLERANCE_SECS,
+    GenericHmacVerifier, IntuitVerifier, NoopVerifier, StripeVerifier, VerifyError,
+    WebhookVerifier, STRIPE_TIMESTAMP_TOLERANCE_SECS,
 };
 
 // Re-export service auth types

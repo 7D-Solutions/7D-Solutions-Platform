@@ -6,15 +6,18 @@
 //!
 //! ## Dispatch table
 //!
-//! | system     | verifier         | required env var           |
-//! |------------|------------------|----------------------------|
-//! | `stripe`   | `StripeVerifier` | `STRIPE_WEBHOOK_SECRET`    |
-//! | `github`   | `GenericHmac`    | `GITHUB_WEBHOOK_SECRET`    |
-//! | `internal` | `NoopVerifier`   | —                          |
+//! | system       | verifier           | required env var                 |
+//! |--------------|--------------------|------------------------------------|
+//! | `stripe`     | `StripeVerifier`   | `STRIPE_WEBHOOK_SECRET`            |
+//! | `github`     | `GenericHmac`      | `GITHUB_WEBHOOK_SECRET`            |
+//! | `quickbooks` | `IntuitVerifier`   | `INTUIT_WEBHOOK_VERIFIER_TOKEN`    |
+//! | `internal`   | `NoopVerifier`     | —                                  |
 //!
 //! Unknown system names return `WebhookError::UnsupportedSystem`.
 
-use security::{GenericHmacVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier};
+use security::{
+    GenericHmacVerifier, IntuitVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier,
+};
 use std::collections::HashMap;
 
 use super::models::WebhookError;
@@ -48,6 +51,10 @@ fn resolve_verifier(system: &str) -> Result<Box<dyn WebhookVerifier>, WebhookErr
                 "x-hub-signature-256",
                 Some("sha256="),
             )))
+        }
+        "quickbooks" => {
+            let secret = std::env::var("INTUIT_WEBHOOK_VERIFIER_TOKEN").unwrap_or_default();
+            Ok(Box::new(IntuitVerifier::new(&secret)))
         }
         "internal" => Ok(Box::new(NoopVerifier)),
         other => Err(WebhookError::UnsupportedSystem {

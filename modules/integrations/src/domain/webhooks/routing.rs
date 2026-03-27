@@ -32,6 +32,25 @@ pub fn map_to_domain_event(system: &str, source_event_type: Option<&str>) -> Opt
         // GitHub events
         ("github", Some("push")) => Some("repository.push".to_string()),
         ("github", Some("pull_request")) => Some("repository.pull_request".to_string()),
+        // QuickBooks Online (CloudEvents)
+        ("quickbooks", Some("qbo.customer.created.v1")) => {
+            Some("party.customer.synced".to_string())
+        }
+        ("quickbooks", Some("qbo.customer.updated.v1")) => {
+            Some("party.customer.synced".to_string())
+        }
+        ("quickbooks", Some("qbo.invoice.created.v1")) => {
+            Some("ar.invoice.synced".to_string())
+        }
+        ("quickbooks", Some("qbo.invoice.updated.v1")) => {
+            Some("ar.invoice.synced".to_string())
+        }
+        ("quickbooks", Some("qbo.payment.created.v1")) => {
+            Some("payments.payment.synced".to_string())
+        }
+        ("quickbooks", Some("qbo.item.updated.v1")) => {
+            Some("inventory.item.synced".to_string())
+        }
         // Internal pass-through
         ("internal", Some(et)) => Some(et.to_string()),
         // Unknown — do not route
@@ -112,6 +131,36 @@ mod tests {
     #[test]
     fn test_no_event_type() {
         let result = map_to_domain_event("stripe", None);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_qbo_customer_created() {
+        let result = map_to_domain_event("quickbooks", Some("qbo.customer.created.v1"));
+        assert_eq!(result, Some("party.customer.synced".to_string()));
+    }
+
+    #[test]
+    fn test_qbo_invoice_updated() {
+        let result = map_to_domain_event("quickbooks", Some("qbo.invoice.updated.v1"));
+        assert_eq!(result, Some("ar.invoice.synced".to_string()));
+    }
+
+    #[test]
+    fn test_qbo_payment_created() {
+        let result = map_to_domain_event("quickbooks", Some("qbo.payment.created.v1"));
+        assert_eq!(result, Some("payments.payment.synced".to_string()));
+    }
+
+    #[test]
+    fn test_qbo_item_updated() {
+        let result = map_to_domain_event("quickbooks", Some("qbo.item.updated.v1"));
+        assert_eq!(result, Some("inventory.item.synced".to_string()));
+    }
+
+    #[test]
+    fn test_qbo_unknown_event_not_routed() {
+        let result = map_to_domain_event("quickbooks", Some("qbo.unknown.v1"));
         assert_eq!(result, None);
     }
 }
