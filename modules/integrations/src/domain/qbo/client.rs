@@ -69,12 +69,14 @@ impl QboClient {
     }
 
     /// Build a CDC endpoint URL.
+    ///
+    /// Uses `Z` suffix (not `+00:00`) to avoid URL encoding issues with `+`.
     pub(crate) fn cdc_url(&self, entities: &[&str], changed_since: &DateTime<Utc>) -> String {
         format!(
             "{}/cdc?entities={}&changedSince={}&minorversion={}",
             self.company_url(),
             entities.join(","),
-            changed_since.to_rfc3339(),
+            changed_since.format("%Y-%m-%dT%H:%M:%SZ"),
             self.minor_version
         )
     }
