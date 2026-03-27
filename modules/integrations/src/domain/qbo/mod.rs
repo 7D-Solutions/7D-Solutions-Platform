@@ -4,7 +4,9 @@
 //! `?requestid=UUID` on writes, SyncToken optimistic locking with retry,
 //! SQL-like query pagination, and CDC polling.
 
+pub mod cdc;
 pub mod client;
+pub mod sync;
 
 use serde::Deserialize;
 use thiserror::Error;

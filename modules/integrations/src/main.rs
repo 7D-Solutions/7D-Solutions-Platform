@@ -90,6 +90,22 @@ async fn main() {
             shutdown_rx,
         );
         tracing::info!("Integrations: OAuth refresh worker started (30s poll)");
+
+        // CDC polling worker — polls QBO for changes every 15 minutes
+        let (_cdc_shutdown_tx, cdc_shutdown_rx) = tokio::sync::watch::channel(false);
+        let cdc_interval_secs: u64 = std::env::var("CDC_POLL_INTERVAL_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(integrations_rs::domain::qbo::cdc::DEFAULT_CDC_POLL_INTERVAL_SECS);
+        integrations_rs::domain::qbo::cdc::spawn_cdc_worker(
+            pool.clone(),
+            std::time::Duration::from_secs(cdc_interval_secs),
+            cdc_shutdown_rx,
+        );
+        tracing::info!(
+            interval_secs = cdc_interval_secs,
+            "Integrations: QBO CDC polling worker started"
+        );
     } else {
         tracing::info!("Integrations: OAuth refresh worker skipped (QBO_CLIENT_ID not set)");
     }
