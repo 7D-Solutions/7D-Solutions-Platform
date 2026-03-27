@@ -6,4 +6,5 @@ pub mod external_refs;
 pub mod file_jobs;
 pub mod oauth;
 pub mod outbound_webhooks;
+pub mod qbo;
 pub mod webhooks;
