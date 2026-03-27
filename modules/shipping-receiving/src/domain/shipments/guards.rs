@@ -201,6 +201,7 @@ mod tests {
     ) -> LineQty {
         LineQty {
             line_id: Uuid::new_v4(),
+            sku: String::new(),
             qty_expected: expected,
             qty_shipped: shipped,
             qty_received: received,
