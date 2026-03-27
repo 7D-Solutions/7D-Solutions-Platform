@@ -14,12 +14,19 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use super::guards::{
     run_inbound_guards, run_outbound_guards, GuardError, InboundGuardContext, OutboundGuardContext,
 };
 use super::state_machine::{validate_inbound, validate_outbound, TransitionError};
 use super::types::{Direction, InboundStatus, OutboundStatus};
 use crate::db::repository::ShipmentRepository;
+use crate::events::{
+    InboundClosedLine, InboundClosedPayload, OutboundDeliveredPayload, OutboundShippedLine,
+    OutboundShippedPayload, ShipmentStatusChangedPayload, EVENT_TYPE_INBOUND_CLOSED,
+    EVENT_TYPE_OUTBOUND_DELIVERED, EVENT_TYPE_OUTBOUND_SHIPPED, EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
+};
 use crate::integrations::inventory_client::InventoryIntegration;
 use crate::outbox;
 
@@ -80,15 +87,8 @@ pub enum ShipmentError {
     InventoryIntegration(String),
 }
 
-// ── Event subjects ────────────────────────────────────────────
-
-pub mod subjects {
-    pub const SHIPMENT_CREATED: &str = "shipping.shipment.created";
-    pub const SHIPMENT_STATUS_CHANGED: &str = "shipping.shipment.status_changed";
-    pub const INBOUND_CLOSED: &str = "shipping.inbound.closed";
-    pub const OUTBOUND_SHIPPED: &str = "shipping.outbound.shipped";
-    pub const OUTBOUND_DELIVERED: &str = "shipping.outbound.delivered";
-}
+// ── Event type constants (canonical, from contracts) ─────────
+// Re-exported here for backward compatibility with internal references.
 
 // ── Service ──────────────────────────────────────────────────
 
@@ -131,14 +131,14 @@ impl ShipmentService {
                 let ctx = InboundGuardContext {
                     arrived_at: req.arrived_at,
                     closed_at: req.closed_at,
-                    lines,
+                    lines: lines.clone(),
                     already_shipped_at: current.shipped_at,
                 };
                 run_inbound_guards(to, &ctx)?;
 
                 match to {
-                    InboundStatus::Closed => subjects::INBOUND_CLOSED,
-                    _ => subjects::SHIPMENT_STATUS_CHANGED,
+                    InboundStatus::Closed => EVENT_TYPE_INBOUND_CLOSED,
+                    _ => EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
                 }
             }
             Direction::Outbound => {
@@ -153,15 +153,15 @@ impl ShipmentService {
                     shipped_at: req.shipped_at,
                     delivered_at: req.delivered_at,
                     closed_at: req.closed_at,
-                    lines,
+                    lines: lines.clone(),
                     already_shipped_at: current.shipped_at,
                 };
                 run_outbound_guards(to, &ctx)?;
 
                 match to {
-                    OutboundStatus::Shipped => subjects::OUTBOUND_SHIPPED,
-                    OutboundStatus::Delivered => subjects::OUTBOUND_DELIVERED,
-                    _ => subjects::SHIPMENT_STATUS_CHANGED,
+                    OutboundStatus::Shipped => EVENT_TYPE_OUTBOUND_SHIPPED,
+                    OutboundStatus::Delivered => EVENT_TYPE_OUTBOUND_DELIVERED,
+                    _ => EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
                 }
             }
         };
@@ -180,57 +180,104 @@ impl ShipmentService {
         .await?;
 
         // ── Inventory integration ──
-        let inventory_refs =
-            if event_type == subjects::INBOUND_CLOSED || event_type == subjects::OUTBOUND_SHIPPED {
-                Self::process_inventory(
-                    &mut tx,
-                    inventory,
-                    &current.direction,
-                    shipment_id,
-                    tenant_id,
-                    current.currency.as_deref().unwrap_or("usd"),
-                )
-                .await?
-            } else {
-                Vec::new()
-            };
+        let needs_inventory =
+            event_type == EVENT_TYPE_INBOUND_CLOSED || event_type == EVENT_TYPE_OUTBOUND_SHIPPED;
+        let inventory_refs = if needs_inventory {
+            Self::process_inventory(
+                &mut tx,
+                inventory,
+                &current.direction,
+                shipment_id,
+                tenant_id,
+                current.currency.as_deref().unwrap_or("usd"),
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
 
-        // ── Outbox ──
-        let mut event_payload = serde_json::json!({
-            "shipment_id": shipment_id,
-            "tenant_id": tenant_id,
-            "direction": current.direction.as_str(),
-            "from_status": from_status,
-            "to_status": &req.status,
-        });
-
-        if !inventory_refs.is_empty() {
-            let refs: Vec<serde_json::Value> = inventory_refs
-                .iter()
-                .map(|(line_id, ref_id)| {
-                    serde_json::json!({
-                        "line_id": line_id,
-                        "inventory_ref_id": ref_id,
-                    })
-                })
-                .collect();
-            event_payload
-                .as_object_mut()
-                .unwrap()
-                .insert("inventory_refs".to_string(), serde_json::Value::Array(refs));
-        }
+        // ── Build typed event payload ──
+        let ref_map: HashMap<Uuid, Uuid> = inventory_refs.into_iter().collect();
+        let now = Utc::now();
+        let tenant_str = tenant_id.to_string();
 
         let event_id = Uuid::new_v4();
-        outbox::enqueue_event_tx(
-            &mut tx,
-            event_id,
-            event_type,
-            "shipment",
-            &shipment_id.to_string(),
-            &tenant_id.to_string(),
-            &event_payload,
-        )
-        .await?;
+        match event_type {
+            EVENT_TYPE_OUTBOUND_SHIPPED => {
+                let payload = OutboundShippedPayload {
+                    tenant_id: tenant_str.clone(),
+                    shipment_id,
+                    lines: lines
+                        .iter()
+                        .filter(|l| l.qty_shipped > 0)
+                        .map(|l| OutboundShippedLine {
+                            line_id: l.line_id,
+                            sku: l.sku.clone(),
+                            qty_shipped: l.qty_shipped,
+                            issue_id: ref_map.get(&l.line_id).copied(),
+                        })
+                        .collect(),
+                    shipped_at: req.shipped_at.unwrap_or(now),
+                };
+                outbox::enqueue_event_tx(
+                    &mut tx, event_id, event_type, "shipment",
+                    &shipment_id.to_string(), &tenant_str, &payload,
+                )
+                .await?;
+            }
+            EVENT_TYPE_INBOUND_CLOSED => {
+                let payload = InboundClosedPayload {
+                    tenant_id: tenant_str.clone(),
+                    shipment_id,
+                    lines: lines
+                        .iter()
+                        .filter(|l| l.qty_accepted > 0 || l.qty_rejected > 0)
+                        .map(|l| InboundClosedLine {
+                            line_id: l.line_id,
+                            sku: l.sku.clone(),
+                            qty_accepted: l.qty_accepted,
+                            qty_rejected: l.qty_rejected,
+                            receipt_id: ref_map.get(&l.line_id).copied(),
+                        })
+                        .collect(),
+                    closed_at: req.closed_at.unwrap_or(now),
+                };
+                outbox::enqueue_event_tx(
+                    &mut tx, event_id, event_type, "shipment",
+                    &shipment_id.to_string(), &tenant_str, &payload,
+                )
+                .await?;
+            }
+            EVENT_TYPE_OUTBOUND_DELIVERED => {
+                let payload = OutboundDeliveredPayload {
+                    tenant_id: tenant_str.clone(),
+                    shipment_id,
+                    delivered_at: req.delivered_at.unwrap_or(now),
+                };
+                outbox::enqueue_event_tx(
+                    &mut tx, event_id, event_type, "shipment",
+                    &shipment_id.to_string(), &tenant_str, &payload,
+                )
+                .await?;
+            }
+            _ => {
+                // STATUS_CHANGED (generic transition)
+                let payload = ShipmentStatusChangedPayload {
+                    tenant_id: tenant_str.clone(),
+                    shipment_id,
+                    direction: current.direction,
+                    old_status: from_status.to_string(),
+                    new_status: req.status.clone(),
+                    changed_by: "system".to_string(),
+                    changed_at: now,
+                };
+                outbox::enqueue_event_tx(
+                    &mut tx, event_id, event_type, "shipment",
+                    &shipment_id.to_string(), &tenant_str, &payload,
+                )
+                .await?;
+            }
+        }
 
         tx.commit().await?;
         Ok(shipment)

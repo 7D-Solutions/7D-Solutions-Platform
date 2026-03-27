@@ -123,31 +123,28 @@ async fn inbound_close_emits_event_with_inventory_refs() {
         .await
         .expect("close");
 
-    let events = get_outbox_events(&pool, &ship_id_str, "shipping.inbound.closed").await;
-    assert_eq!(events.len(), 1, "exactly one inbound.closed event");
+    let events = get_outbox_events(&pool, &ship_id_str, "shipping_receiving.inbound_closed").await;
+    assert_eq!(events.len(), 1, "exactly one inbound_closed event");
 
     let payload = &events[0];
     assert_eq!(payload["shipment_id"], ship_id.to_string());
     assert_eq!(payload["tenant_id"], tenant_id.to_string());
-    assert_eq!(payload["direction"], "inbound");
-    assert_eq!(payload["from_status"], "receiving");
-    assert_eq!(payload["to_status"], "closed");
+    assert!(payload["closed_at"].is_string(), "must have closed_at");
 
-    // Must have inventory_refs array
-    let refs = payload["inventory_refs"].as_array();
-    assert!(refs.is_some(), "payload must contain inventory_refs");
+    // Must have lines array with receipt_id (inventory ref)
+    let lines = payload["lines"].as_array();
+    assert!(lines.is_some(), "payload must contain lines");
     assert!(
-        !refs.unwrap().is_empty(),
-        "inventory_refs must not be empty"
+        !lines.unwrap().is_empty(),
+        "lines must not be empty"
     );
 
-    // Each ref has line_id and inventory_ref_id
-    for r in refs.unwrap() {
-        assert!(r["line_id"].is_string(), "ref must have line_id");
-        assert!(
-            r["inventory_ref_id"].is_string(),
-            "ref must have inventory_ref_id"
-        );
+    // Each line has line_id, sku, qty_accepted, qty_rejected, receipt_id
+    for line in lines.unwrap() {
+        assert!(line["line_id"].is_string(), "line must have line_id");
+        assert!(line["sku"].is_string(), "line must have sku");
+        assert!(line["qty_accepted"].is_number(), "line must have qty_accepted");
+        assert!(line["qty_rejected"].is_number(), "line must have qty_rejected");
     }
 }
 
@@ -188,18 +185,23 @@ async fn outbound_shipped_emits_event_with_inventory_refs() {
         .await
         .expect("ship");
 
-    let events = get_outbox_events(&pool, &ship_id_str, "shipping.outbound.shipped").await;
-    assert_eq!(events.len(), 1, "exactly one outbound.shipped event");
+    let events = get_outbox_events(&pool, &ship_id_str, "shipping_receiving.outbound_shipped").await;
+    assert_eq!(events.len(), 1, "exactly one outbound_shipped event");
 
     let payload = &events[0];
     assert_eq!(payload["shipment_id"], ship_id.to_string());
-    assert_eq!(payload["direction"], "outbound");
-    assert_eq!(payload["from_status"], "packed");
-    assert_eq!(payload["to_status"], "shipped");
+    assert!(payload["shipped_at"].is_string(), "must have shipped_at");
 
-    let refs = payload["inventory_refs"].as_array();
-    assert!(refs.is_some(), "payload must contain inventory_refs");
-    assert!(!refs.unwrap().is_empty());
+    // Lines with issue_id (inventory ref) and sku
+    let lines = payload["lines"].as_array();
+    assert!(lines.is_some(), "payload must contain lines");
+    assert!(!lines.unwrap().is_empty());
+
+    for line in lines.unwrap() {
+        assert!(line["line_id"].is_string(), "line must have line_id");
+        assert!(line["sku"].is_string(), "line must have sku");
+        assert!(line["qty_shipped"].is_number(), "line must have qty_shipped");
+    }
 }
 
 #[tokio::test]
@@ -224,12 +226,12 @@ async fn status_changed_events_contain_from_and_to() {
         .await
         .expect("confirmed");
 
-    let events = get_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await;
+    let events = get_outbox_events(&pool, &ship_id_str, "shipping_receiving.shipment_status_changed").await;
     assert!(!events.is_empty(), "must have status_changed event");
 
     let payload = &events[0];
-    assert_eq!(payload["from_status"], "draft");
-    assert_eq!(payload["to_status"], "confirmed");
+    assert_eq!(payload["old_status"], "draft");
+    assert_eq!(payload["new_status"], "confirmed");
     assert_eq!(payload["direction"], "outbound");
     assert_eq!(payload["shipment_id"], ship_id.to_string());
     assert_eq!(payload["tenant_id"], tenant_id.to_string());
@@ -362,16 +364,16 @@ async fn full_outbound_lifecycle_event_sequence() {
     // Expected: 3x status_changed (confirmed, picking, packed),
     // 1x outbound.shipped, 1x outbound.delivered, 1x status_changed (closed)
     assert!(
-        event_types.contains(&"shipping.shipment.status_changed"),
+        event_types.contains(&"shipping_receiving.shipment_status_changed"),
         "must have status_changed events"
     );
     assert!(
-        event_types.contains(&"shipping.outbound.shipped"),
-        "must have outbound.shipped"
+        event_types.contains(&"shipping_receiving.outbound_shipped"),
+        "must have outbound_shipped"
     );
     assert!(
-        event_types.contains(&"shipping.outbound.delivered"),
-        "must have outbound.delivered"
+        event_types.contains(&"shipping_receiving.outbound_delivered"),
+        "must have outbound_delivered"
     );
 
     // Total events: at least 6 (confirmed, picking, packed, shipped, delivered, closed)

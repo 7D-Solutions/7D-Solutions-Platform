@@ -265,7 +265,7 @@ async fn inbound_outbox_events_emitted_on_transitions() {
         .await
         .expect("confirmed");
     assert!(
-        count_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await >= 1
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.shipment_status_changed").await >= 1
     );
 
     // confirmed → in_transit → arrived → receiving
@@ -292,13 +292,13 @@ async fn inbound_outbox_events_emitted_on_transitions() {
 
     // Verify inbound.closed event specifically
     assert!(
-        count_outbox_events(&pool, &ship_id_str, "shipping.inbound.closed").await >= 1,
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.inbound_closed").await >= 1,
         "must have inbound.closed outbox event"
     );
 
     // Total status_changed events: confirmed, in_transit, arrived, receiving = 4
     let status_changes =
-        count_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await;
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.shipment_status_changed").await;
     assert!(
         status_changes >= 4,
         "expected at least 4 status_changed events, got {status_changes}"

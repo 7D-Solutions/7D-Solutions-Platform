@@ -246,8 +246,8 @@ async fn guard_mutation_outbox_atomicity_inbound_close() {
     .await
     .expect("get event type");
     assert_eq!(
-        event_type, "shipping.inbound.closed",
-        "close event must be shipping.inbound.closed"
+        event_type, "shipping_receiving.inbound_closed",
+        "close event must be shipping_receiving.inbound_closed"
     );
 }
 

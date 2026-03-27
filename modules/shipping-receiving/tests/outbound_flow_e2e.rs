@@ -271,7 +271,7 @@ async fn outbound_outbox_events_emitted_on_transitions() {
 
     // Verify outbound.shipped event
     assert!(
-        count_outbox_events(&pool, &ship_id_str, "shipping.outbound.shipped").await >= 1,
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.outbound_shipped").await >= 1,
         "must have outbound.shipped outbox event"
     );
 
@@ -282,13 +282,13 @@ async fn outbound_outbox_events_emitted_on_transitions() {
         .expect("delivered");
 
     assert!(
-        count_outbox_events(&pool, &ship_id_str, "shipping.outbound.delivered").await >= 1,
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.outbound_delivered").await >= 1,
         "must have outbound.delivered outbox event"
     );
 
     // Total status_changed events: confirmed, picking, packed = 3
     let status_changes =
-        count_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await;
+        count_outbox_events(&pool, &ship_id_str, "shipping_receiving.shipment_status_changed").await;
     assert!(
         status_changes >= 3,
         "expected at least 3 status_changed events, got {status_changes}"

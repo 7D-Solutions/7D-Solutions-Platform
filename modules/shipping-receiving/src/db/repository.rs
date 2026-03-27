@@ -282,7 +282,7 @@ impl ShipmentRepository {
     ) -> Result<Vec<LineQty>, sqlx::Error> {
         let rows: Vec<LineQtyRow> = sqlx::query_as(
             r#"
-            SELECT id, qty_expected, qty_shipped, qty_received, qty_accepted, qty_rejected
+            SELECT id, sku, qty_expected, qty_shipped, qty_received, qty_accepted, qty_rejected
             FROM shipment_lines
             WHERE shipment_id = $1 AND tenant_id = $2
             "#,
@@ -296,6 +296,7 @@ impl ShipmentRepository {
             .into_iter()
             .map(|r| LineQty {
                 line_id: r.id,
+                sku: r.sku.unwrap_or_default(),
                 qty_expected: r.qty_expected,
                 qty_shipped: r.qty_shipped,
                 qty_received: r.qty_received,
@@ -428,6 +429,7 @@ impl ShipmentRepository {
 #[derive(sqlx::FromRow)]
 struct LineQtyRow {
     id: Uuid,
+    sku: Option<String>,
     qty_expected: i64,
     qty_shipped: i64,
     qty_received: i64,

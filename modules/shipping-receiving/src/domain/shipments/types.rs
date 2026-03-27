@@ -211,11 +211,12 @@ impl TryFrom<String> for OutboundStatus {
     }
 }
 
-/// Shipment line quantity snapshot for invariant checking.
+/// Shipment line quantity snapshot for invariant checking and event payloads.
 /// Extracted from DB rows before guard evaluation.
 #[derive(Debug, Clone)]
 pub struct LineQty {
     pub line_id: uuid::Uuid,
+    pub sku: String,
     pub qty_expected: i64,
     pub qty_shipped: i64,
     pub qty_received: i64,

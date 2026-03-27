@@ -79,7 +79,7 @@ pub async fn create_shipment(
     if let Err(e) = outbox::enqueue_event_tx(
         &mut tx,
         Uuid::new_v4(),
-        "shipping.shipment.created",
+        crate::events::EVENT_TYPE_SHIPMENT_CREATED,
         "shipment",
         &shipment.id.to_string(),
         &tenant_id.to_string(),
