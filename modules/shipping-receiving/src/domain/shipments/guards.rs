@@ -207,6 +207,8 @@ mod tests {
             qty_received: received,
             qty_accepted: accepted,
             qty_rejected: rejected,
+            source_ref_type: None,
+            source_ref_id: None,
         }
     }
 

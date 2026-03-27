@@ -174,8 +174,12 @@ fn outbound_shipped_envelope_has_correct_metadata() {
             sku: "SKU-001".to_string(),
             qty_shipped: 25,
             issue_id: Some(Uuid::new_v4()),
+            source_ref_type: None,
+            source_ref_id: None,
         }],
         shipped_at: Utc::now(),
+        tracking_number: None,
+        carrier_party_id: None,
     };
     let envelope = build_outbound_shipped_envelope(
         Uuid::new_v4(),
@@ -199,8 +203,12 @@ fn outbound_shipped_payload_round_trip() {
             sku: "SKU-X".to_string(),
             qty_shipped: 10,
             issue_id: None,
+            source_ref_type: None,
+            source_ref_id: None,
         }],
         shipped_at: Utc::now(),
+        tracking_number: None,
+        carrier_party_id: None,
     };
     let json = serde_json::to_string(&payload).expect("serialize");
     let decoded: OutboundShippedPayload = serde_json::from_str(&json).expect("deserialize");

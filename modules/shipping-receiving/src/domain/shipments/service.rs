@@ -215,9 +215,13 @@ impl ShipmentService {
                             sku: l.sku.clone(),
                             qty_shipped: l.qty_shipped,
                             issue_id: ref_map.get(&l.line_id).copied(),
+                            source_ref_type: l.source_ref_type.clone(),
+                            source_ref_id: l.source_ref_id,
                         })
                         .collect(),
                     shipped_at: req.shipped_at.unwrap_or(now),
+                    tracking_number: current.tracking_number.clone(),
+                    carrier_party_id: current.carrier_party_id,
                 };
                 outbox::enqueue_event_tx(
                     &mut tx, event_id, event_type, "shipment",

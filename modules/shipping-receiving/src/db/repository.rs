@@ -282,7 +282,8 @@ impl ShipmentRepository {
     ) -> Result<Vec<LineQty>, sqlx::Error> {
         let rows: Vec<LineQtyRow> = sqlx::query_as(
             r#"
-            SELECT id, sku, qty_expected, qty_shipped, qty_received, qty_accepted, qty_rejected
+            SELECT id, sku, qty_expected, qty_shipped, qty_received, qty_accepted, qty_rejected,
+                   source_ref_type, source_ref_id
             FROM shipment_lines
             WHERE shipment_id = $1 AND tenant_id = $2
             "#,
@@ -302,6 +303,8 @@ impl ShipmentRepository {
                 qty_received: r.qty_received,
                 qty_accepted: r.qty_accepted,
                 qty_rejected: r.qty_rejected,
+                source_ref_type: r.source_ref_type,
+                source_ref_id: r.source_ref_id,
             })
             .collect())
     }
@@ -435,6 +438,8 @@ struct LineQtyRow {
     qty_received: i64,
     qty_accepted: i64,
     qty_rejected: i64,
+    source_ref_type: Option<String>,
+    source_ref_id: Option<Uuid>,
 }
 
 /// Row type for inventory-relevant line data within a transaction.

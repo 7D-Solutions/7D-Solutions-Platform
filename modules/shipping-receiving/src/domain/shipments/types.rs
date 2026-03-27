@@ -222,4 +222,6 @@ pub struct LineQty {
     pub qty_received: i64,
     pub qty_accepted: i64,
     pub qty_rejected: i64,
+    pub source_ref_type: Option<String>,
+    pub source_ref_id: Option<uuid::Uuid>,
 }

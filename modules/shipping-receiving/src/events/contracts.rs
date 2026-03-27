@@ -194,6 +194,12 @@ pub struct OutboundShippedLine {
     pub qty_shipped: i64,
     /// Issue ID linking to the inventory issue created for this line
     pub issue_id: Option<Uuid>,
+    /// Source document type (e.g. "sales_order", "purchase_order")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_ref_type: Option<String>,
+    /// Source document ID (e.g. the sales order UUID)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_ref_id: Option<Uuid>,
 }
 
 /// Payload for shipping_receiving.outbound_shipped
@@ -208,6 +214,12 @@ pub struct OutboundShippedPayload {
     pub shipment_id: Uuid,
     pub lines: Vec<OutboundShippedLine>,
     pub shipped_at: DateTime<Utc>,
+    /// Tracking number from the carrier
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tracking_number: Option<String>,
+    /// Party ID of the carrier (UUID ref to Party module)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carrier_party_id: Option<Uuid>,
 }
 
 /// Build an envelope for shipping_receiving.outbound_shipped
