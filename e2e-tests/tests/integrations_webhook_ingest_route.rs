@@ -43,7 +43,8 @@ async fn run_migrations(pool: &PgPool) {
 /// Build an in-process integrations router wired to the real pool.
 fn make_router(pool: PgPool) -> axum::Router {
     let m = Arc::new(IntegrationsMetrics::new().expect("metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics: m });
+    let bus: Arc<dyn event_bus::EventBus> = Arc::new(event_bus::InMemoryBus::new());
+    let state = Arc::new(AppState { pool, metrics: m, bus });
     http::router(state)
 }
 
