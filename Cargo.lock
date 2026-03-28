@@ -813,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "chrono",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -4437,7 +4437,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -4951,7 +4951,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tax-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "serde",
@@ -5465,7 +5465,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "async-nats",
  "axum",
