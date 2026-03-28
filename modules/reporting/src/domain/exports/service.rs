@@ -277,21 +277,21 @@ fn generate_pdf(rows: &[ExportRow]) -> Result<Vec<u8>, anyhow::Error> {
         layer.use_text(&row.account_name, 8.0, Mm(x_positions[1]), Mm(y), &font);
         layer.use_text(&row.currency, 8.0, Mm(x_positions[2]), Mm(y), &font);
         layer.use_text(
-            &row.debit_minor.to_string(),
+            row.debit_minor.to_string(),
             8.0,
             Mm(x_positions[3]),
             Mm(y),
             &font,
         );
         layer.use_text(
-            &row.credit_minor.to_string(),
+            row.credit_minor.to_string(),
             8.0,
             Mm(x_positions[4]),
             Mm(y),
             &font,
         );
         layer.use_text(
-            &row.net_minor.to_string(),
+            row.net_minor.to_string(),
             8.0,
             Mm(x_positions[5]),
             Mm(y),
