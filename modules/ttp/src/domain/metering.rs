@@ -137,16 +137,15 @@ pub async fn ingest_event(
     metering_db::insert_event(pool, input).await
 }
 
-/// Ingest a batch of metering events. Each is individually idempotent.
+/// Ingest a batch of metering events in a single INSERT using UNNEST arrays.
+///
+/// Each event is individually idempotent (ON CONFLICT DO NOTHING).
+/// Single round-trip regardless of batch size.
 pub async fn ingest_events(
     pool: &PgPool,
     inputs: &[MeteringEventInput],
 ) -> Result<Vec<IngestResult>, MeteringError> {
-    let mut results = Vec::with_capacity(inputs.len());
-    for input in inputs {
-        results.push(metering_db::insert_event(pool, input).await?);
-    }
-    Ok(results)
+    metering_db::batch_insert_events(pool, inputs).await
 }
 
 /// Compute the full price trace for a tenant + billing period.
@@ -215,16 +214,16 @@ mod tests {
 
     #[test]
     fn parse_period_valid() {
-        let (start, end) = parse_period("2026-02").unwrap();
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 3, 1).unwrap());
+        let (start, end) = parse_period("2026-02").expect("valid period");
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date"));
     }
 
     #[test]
     fn parse_period_december_wraps_year() {
-        let (start, end) = parse_period("2026-12").unwrap();
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2027, 1, 1).unwrap());
+        let (start, end) = parse_period("2026-12").expect("valid period");
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date"));
     }
 
     #[test]

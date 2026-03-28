@@ -21,7 +21,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| ttp | ttp-rs | 2.1.6 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ttp | ttp-rs | 2.1.8 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
 

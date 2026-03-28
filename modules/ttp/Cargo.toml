@@ -1,6 +1,6 @@
 [package]
 name = "ttp-rs"
-version = "2.1.6"
+version = "2.1.8"
 edition = "2021"
 description = "Tenant-to-platform billing, metering, and service agreement management"
 

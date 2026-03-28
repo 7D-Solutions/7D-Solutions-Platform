@@ -50,6 +50,82 @@ pub async fn insert_event(
     }
 }
 
+/// Batch-insert metering events in a single query using UNNEST arrays.
+///
+/// Returns one `IngestResult` per input, preserving input order.
+/// Duplicates (by tenant_id + idempotency_key) are silently ignored.
+pub async fn batch_insert_events(
+    pool: &PgPool,
+    inputs: &[MeteringEventInput],
+) -> Result<Vec<IngestResult>, MeteringError> {
+    if inputs.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let n = inputs.len();
+    let mut event_ids = Vec::with_capacity(n);
+    let mut tenant_ids = Vec::with_capacity(n);
+    let mut dimensions = Vec::with_capacity(n);
+    let mut quantities = Vec::with_capacity(n);
+    let mut occurred_ats = Vec::with_capacity(n);
+    let mut idempotency_keys = Vec::with_capacity(n);
+    let mut source_refs: Vec<Option<String>> = Vec::with_capacity(n);
+
+    for input in inputs {
+        let eid = Uuid::new_v4();
+        event_ids.push(eid);
+        tenant_ids.push(input.tenant_id);
+        dimensions.push(input.dimension.clone());
+        quantities.push(input.quantity);
+        occurred_ats.push(input.occurred_at);
+        idempotency_keys.push(input.idempotency_key.clone());
+        source_refs.push(input.source_ref.clone());
+    }
+
+    // INSERT ... ON CONFLICT DO NOTHING, RETURNING event_id for rows that were inserted.
+    let inserted: Vec<(Uuid,)> = sqlx::query_as(
+        r#"
+        INSERT INTO ttp_metering_events
+            (event_id, tenant_id, dimension, quantity, occurred_at, idempotency_key, source_ref)
+        SELECT * FROM UNNEST($1::uuid[], $2::uuid[], $3::text[], $4::bigint[], $5::timestamptz[], $6::text[], $7::text[])
+        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+        RETURNING event_id
+        "#,
+    )
+    .bind(&event_ids)
+    .bind(&tenant_ids)
+    .bind(&dimensions)
+    .bind(&quantities)
+    .bind(&occurred_ats)
+    .bind(&idempotency_keys)
+    .bind(&source_refs)
+    .fetch_all(pool)
+    .await?;
+
+    // Build a set of inserted event_ids for O(1) lookup
+    let inserted_set: std::collections::HashSet<Uuid> =
+        inserted.into_iter().map(|(id,)| id).collect();
+
+    let results = event_ids
+        .into_iter()
+        .map(|eid| {
+            if inserted_set.contains(&eid) {
+                IngestResult {
+                    event_id: Some(eid),
+                    was_duplicate: false,
+                }
+            } else {
+                IngestResult {
+                    event_id: None,
+                    was_duplicate: true,
+                }
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
 // ---------------------------------------------------------------------------
 // Aggregation
 // ---------------------------------------------------------------------------

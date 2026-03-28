@@ -7,6 +7,8 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.8 | 2026-03-28 | bd-312eg | Metering batch ingestion: N concurrent single-row INSERTs → single UNNEST batch INSERT. | Single DB round-trip for any batch size. Previous `try_join_all` still made N connection checkouts; now uses `INSERT ... SELECT * FROM UNNEST(arrays)` with `ON CONFLICT DO NOTHING` + `RETURNING event_id` to detect duplicates per-row. | No |
+| 2.1.7 | 2026-03-28 | bd-312eg | Metering batch ingestion: sequential single-insert loop → concurrent via `try_join_all`. | N sequential DB round trips for N events reduced to concurrent execution. Each insert is independent (ON CONFLICT DO NOTHING). | No |
 | 2.1.6 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |
 | 2.1.5 | 2026-02-25 | bd-2wel.1 | Wired TracingContext from HTTP request extensions into envelope builders in `create_billing_run` handler. Envelopes now carry the real trace_id from the HTTP request. | Cross-module request tracing requires envelopes to carry the HTTP-originated trace_id for end-to-end correlation. | No |
 | 2.1.4 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |

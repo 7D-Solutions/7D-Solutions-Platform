@@ -191,13 +191,22 @@ pub async fn refresh(
 ) -> Result<Json<AuthResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
     let old_hash = hash_refresh_token(&req.refresh_token);
 
-    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, chrono::DateTime<Utc>, Option<chrono::DateTime<Utc>>)>(
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            Uuid,
+            chrono::DateTime<Utc>,
+            Option<chrono::DateTime<Utc>>,
+        ),
+    >(
         "SELECT rt.user_id, rt.tenant_id, u.party_id, rt.expires_at, rt.revoked_at \
          FROM portal_refresh_tokens rt \
          JOIN portal_users u ON u.id = rt.user_id \
          WHERE rt.token_hash = $1",
     )
-    .bind(old_hash)
+    .bind(&old_hash)
     .fetch_optional(&state.pool)
     .await
     .map_err(internal_err)?
@@ -225,7 +234,7 @@ pub async fn refresh(
 
     let mut tx = state.pool.begin().await.map_err(internal_err)?;
     sqlx::query("UPDATE portal_refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1")
-        .bind(hash_refresh_token(&req.refresh_token))
+        .bind(&old_hash)
         .execute(&mut *tx)
         .await
         .map_err(internal_err)?;
