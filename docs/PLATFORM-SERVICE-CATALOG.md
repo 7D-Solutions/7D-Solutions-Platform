@@ -17,6 +17,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
+| ap | ap | 1.0.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ar | ar-rs | 1.0.64 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -29,7 +30,6 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ap | ap | 0.1.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | bom | bom-rs | 0.1.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -48,7 +48,7 @@ No version bump discipline required yet.
 | shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [Revisions](modules/treasury/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workflow | workflow | 0.1.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
@@ -66,7 +66,7 @@ Shared crates used by services. Not independently deployed.
 | platform-contracts | platform_contracts | 1.0.0 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | projections | projections | 1.0.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 1.0.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
-| tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules |  |
+| tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
 | tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
 
 ## Tools
