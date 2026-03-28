@@ -77,7 +77,7 @@ CLI tools and test harnesses.
 |------|-------|---------|-------------|------|
 | compliance-export | compliance-export | 0.1.0 | Compliance evidence pack generation for audit and regulatory export |  |
 | contract-tests | contract-tests | 0.1.0 | Event schema and OpenAPI contract validation tests |  |
-| demo-seed | demo-seed | 0.1.0 | Deterministic demo data seeding for development and testing |  |
+| demo-seed | demo-seed | 1.0.0 | Deterministic demo data seeding for development and testing | [Revisions](tools/demo-seed/REVISIONS.md) |
 | projection-rebuild | projection-rebuild | 0.1.0 | Projection rebuild and blue-green swap orchestration tool |  |
 | simulation | simulation | 0.1.0 | Failure injection and load simulation for platform resilience testing |  |
 | stabilization-gate | stabilization-gate | 0.1.0 | Stabilization Gate: benchmark harness for production readiness validation |  |

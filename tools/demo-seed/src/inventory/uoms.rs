@@ -103,7 +103,7 @@ async fn find_uom_by_code(
         .get(&url)
         .send()
         .await
-        .with_context(|| format!("GET /api/inventory/uoms network error"))?;
+        .with_context(|| "GET /api/inventory/uoms network error".to_string())?;
 
     if !resp.status().is_success() {
         let status = resp.status();

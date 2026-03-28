@@ -1,6 +1,6 @@
 [package]
 name = "demo-seed"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "Deterministic demo data seeding for development and testing"
 
