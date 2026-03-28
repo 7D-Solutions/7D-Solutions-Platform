@@ -15,8 +15,8 @@ use uuid::Uuid;
 
 use crate::events::{
     build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
-    build_tags_updated_envelope, PartyCreatedPayload, PartyDeactivatedPayload,
-    PartyUpdatedPayload, TagsUpdatedPayload, EVENT_TYPE_PARTY_CREATED, EVENT_TYPE_PARTY_DEACTIVATED,
+    build_tags_updated_envelope, PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload,
+    TagsUpdatedPayload, EVENT_TYPE_PARTY_CREATED, EVENT_TYPE_PARTY_DEACTIVATED,
     EVENT_TYPE_PARTY_UPDATED, EVENT_TYPE_TAGS_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
@@ -56,49 +56,66 @@ pub async fn get_party(
         None => return Ok(None),
     };
 
-    let company: Option<PartyCompany> = sqlx::query_as(
-        r#"
-        SELECT party_id, legal_name, trade_name, registration_number, tax_id,
-               country_of_incorporation, industry_code, founded_date, employee_count,
-               annual_revenue_cents, currency, metadata, created_at, updated_at
-        FROM party_companies WHERE party_id = $1
-        "#,
-    )
-    .bind(party_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let individual: Option<PartyIndividual> = sqlx::query_as(
-        r#"
-        SELECT party_id, first_name, last_name, middle_name, date_of_birth, tax_id,
-               nationality, job_title, department, metadata, created_at, updated_at
-        FROM party_individuals WHERE party_id = $1
-        "#,
-    )
-    .bind(party_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let external_refs: Vec<ExternalRef> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, system, external_id, label, metadata, created_at, updated_at
-        FROM party_external_refs
-        WHERE party_id = $1 AND app_id = $2
-        ORDER BY system, external_id
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    let contacts = crate::domain::contact_service::list_contacts(pool, app_id, party_id)
-        .await
-        .unwrap_or_default();
-
-    let addresses = crate::domain::address_service::list_addresses(pool, app_id, party_id)
-        .await
-        .unwrap_or_default();
+    // Fetch all extension data concurrently — party existence already confirmed.
+    // Inlines contact/address queries to skip their redundant guard_party_exists checks.
+    // Reduces 7 sequential queries to 5 concurrent ones.
+    let (company, individual, external_refs, contacts, addresses) = tokio::try_join!(
+        sqlx::query_as::<_, PartyCompany>(
+            r#"
+            SELECT party_id, legal_name, trade_name, registration_number, tax_id,
+                   country_of_incorporation, industry_code, founded_date, employee_count,
+                   annual_revenue_cents, currency, metadata, created_at, updated_at
+            FROM party_companies WHERE party_id = $1
+            "#,
+        )
+        .bind(party_id)
+        .fetch_optional(pool),
+        sqlx::query_as::<_, PartyIndividual>(
+            r#"
+            SELECT party_id, first_name, last_name, middle_name, date_of_birth, tax_id,
+                   nationality, job_title, department, metadata, created_at, updated_at
+            FROM party_individuals WHERE party_id = $1
+            "#,
+        )
+        .bind(party_id)
+        .fetch_optional(pool),
+        sqlx::query_as::<_, ExternalRef>(
+            r#"
+            SELECT id, party_id, app_id, system, external_id, label, metadata, created_at, updated_at
+            FROM party_external_refs
+            WHERE party_id = $1 AND app_id = $2
+            ORDER BY system, external_id
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+        sqlx::query_as::<_, crate::domain::contact::Contact>(
+            r#"
+            SELECT id, party_id, app_id, first_name, last_name, email, phone,
+                   role, is_primary, metadata, created_at, updated_at, deactivated_at
+            FROM party_contacts
+            WHERE party_id = $1 AND app_id = $2 AND deactivated_at IS NULL
+            ORDER BY is_primary DESC, last_name ASC, first_name ASC
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+        sqlx::query_as::<_, crate::domain::address::Address>(
+            r#"
+            SELECT id, party_id, app_id, address_type::TEXT AS address_type,
+                   label, line1, line2, city, state, postal_code, country,
+                   is_primary, metadata, created_at, updated_at
+            FROM party_addresses
+            WHERE party_id = $1 AND app_id = $2
+            ORDER BY is_primary DESC, address_type ASC
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+    )?;
 
     Ok(Some(PartyView {
         party,
@@ -519,7 +536,7 @@ pub async fn update_party(
         .unwrap_or_else(|| current.tags.clone());
 
     // Mutation
-    let _updated: Party = sqlx::query_as(
+    let updated: Party = sqlx::query_as(
         r#"
         UPDATE party_parties
         SET display_name = $1, email = $2, phone = $3, website = $4,
@@ -611,11 +628,74 @@ pub async fn update_party(
 
     tx.commit().await?;
 
-    // Fetch full view (extension + refs) after commit
-    let view = get_party(pool, app_id, party_id)
-        .await?
-        .ok_or(PartyError::NotFound(party_id))?;
-    Ok(view)
+    // Build view from committed data — party already in `updated`, fetch extension
+    // data concurrently instead of re-fetching everything via get_party (saves 8 queries).
+    let (company, individual, external_refs, contacts, addresses) = tokio::try_join!(
+        sqlx::query_as::<_, PartyCompany>(
+            r#"
+            SELECT party_id, legal_name, trade_name, registration_number, tax_id,
+                   country_of_incorporation, industry_code, founded_date, employee_count,
+                   annual_revenue_cents, currency, metadata, created_at, updated_at
+            FROM party_companies WHERE party_id = $1
+            "#,
+        )
+        .bind(party_id)
+        .fetch_optional(pool),
+        sqlx::query_as::<_, PartyIndividual>(
+            r#"
+            SELECT party_id, first_name, last_name, middle_name, date_of_birth, tax_id,
+                   nationality, job_title, department, metadata, created_at, updated_at
+            FROM party_individuals WHERE party_id = $1
+            "#,
+        )
+        .bind(party_id)
+        .fetch_optional(pool),
+        sqlx::query_as::<_, ExternalRef>(
+            r#"
+            SELECT id, party_id, app_id, system, external_id, label, metadata, created_at, updated_at
+            FROM party_external_refs
+            WHERE party_id = $1 AND app_id = $2
+            ORDER BY system, external_id
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+        sqlx::query_as::<_, crate::domain::contact::Contact>(
+            r#"
+            SELECT id, party_id, app_id, first_name, last_name, email, phone,
+                   role, is_primary, metadata, created_at, updated_at, deactivated_at
+            FROM party_contacts
+            WHERE party_id = $1 AND app_id = $2 AND deactivated_at IS NULL
+            ORDER BY is_primary DESC, last_name ASC, first_name ASC
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+        sqlx::query_as::<_, crate::domain::address::Address>(
+            r#"
+            SELECT id, party_id, app_id, address_type::TEXT AS address_type,
+                   label, line1, line2, city, state, postal_code, country,
+                   is_primary, metadata, created_at, updated_at
+            FROM party_addresses
+            WHERE party_id = $1 AND app_id = $2
+            ORDER BY is_primary DESC, address_type ASC
+            "#,
+        )
+        .bind(party_id)
+        .bind(app_id)
+        .fetch_all(pool),
+    )?;
+
+    Ok(PartyView {
+        party: updated,
+        company,
+        individual,
+        external_refs,
+        contacts,
+        addresses,
+    })
 }
 
 // ============================================================================
