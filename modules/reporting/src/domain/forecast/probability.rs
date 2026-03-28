@@ -11,15 +11,16 @@
 use super::types::PaymentProfile;
 
 /// Compute the empirical CDF value F(x): fraction of observations <= x.
+///
+/// Uses binary search (O(log n)) since observations are sorted ascending.
 pub fn empirical_cdf(profile: &PaymentProfile, x: f64) -> f64 {
     if profile.observations.is_empty() {
         return 0.0;
     }
-    let count = profile
-        .observations
-        .iter()
-        .filter(|&&d| (d as f64) <= x)
-        .count();
+    let x_floor = x.floor() as i32;
+    // partition_point returns the index of the first element > x_floor,
+    // which equals the count of elements <= x_floor (since obs are sorted).
+    let count = profile.observations.partition_point(|&d| d <= x_floor);
     count as f64 / profile.observations.len() as f64
 }
 
