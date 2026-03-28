@@ -263,25 +263,40 @@ pub async fn execute_valuation_run(
     .execute(&mut *tx)
     .await?;
 
-    // --- Mutation: insert per-item lines ---
-    for line in &lines {
+    // --- Mutation: batch insert per-item lines (single round-trip) ---
+    if !lines.is_empty() {
+        let item_ids: Vec<Uuid> = lines.iter().map(|l| l.item_id).collect();
+        let warehouse_ids: Vec<Uuid> = lines.iter().map(|l| l.warehouse_id).collect();
+        let qtys: Vec<i64> = lines.iter().map(|l| l.quantity_on_hand).collect();
+        let unit_costs: Vec<i64> = lines.iter().map(|l| l.unit_cost_minor).collect();
+        let total_values: Vec<i64> = lines.iter().map(|l| l.total_value_minor).collect();
+        let variances: Vec<i64> = lines.iter().map(|l| l.variance_minor).collect();
+        let currencies: Vec<&str> = vec![req.currency.as_str(); lines.len()];
+
         sqlx::query(
             r#"
             INSERT INTO valuation_run_lines
                 (run_id, item_id, warehouse_id,
                  quantity_on_hand, unit_cost_minor, total_value_minor,
                  variance_minor, currency)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            SELECT $1,
+                UNNEST($2::UUID[]),
+                UNNEST($3::UUID[]),
+                UNNEST($4::BIGINT[]),
+                UNNEST($5::BIGINT[]),
+                UNNEST($6::BIGINT[]),
+                UNNEST($7::BIGINT[]),
+                UNNEST($8::TEXT[])
             "#,
         )
         .bind(run_id)
-        .bind(line.item_id)
-        .bind(line.warehouse_id)
-        .bind(line.quantity_on_hand)
-        .bind(line.unit_cost_minor)
-        .bind(line.total_value_minor)
-        .bind(line.variance_minor)
-        .bind(&line.currency)
+        .bind(&item_ids)
+        .bind(&warehouse_ids)
+        .bind(&qtys)
+        .bind(&unit_costs)
+        .bind(&total_values)
+        .bind(&variances)
+        .bind(&currencies)
         .execute(&mut *tx)
         .await?;
     }
