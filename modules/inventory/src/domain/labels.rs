@@ -167,12 +167,10 @@ fn build_label_payload(
         payload["description"] = serde_json::Value::String(desc.clone());
     }
 
-    if let Some(extra_data) = extra {
-        if let serde_json::Value::Object(map) = extra_data {
-            if let serde_json::Value::Object(ref mut p) = payload {
-                for (k, v) in map {
-                    p.insert(k.clone(), v.clone());
-                }
+    if let Some(serde_json::Value::Object(map)) = extra {
+        if let serde_json::Value::Object(ref mut p) = payload {
+            for (k, v) in map {
+                p.insert(k.clone(), v.clone());
             }
         }
     }

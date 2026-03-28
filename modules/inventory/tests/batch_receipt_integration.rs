@@ -83,7 +83,7 @@ async fn process_batch(
     for req in &batch.receipts {
         match receipt_service::process_receipt(pool, req, None).await {
             Ok((result, _is_replay)) => {
-                results.push(BatchReceiptItemResult::Success(result));
+                results.push(BatchReceiptItemResult::Success(Box::new(result)));
             }
             Err(e) => {
                 results.push(BatchReceiptItemResult::Error {

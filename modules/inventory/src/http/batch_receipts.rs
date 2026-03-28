@@ -20,7 +20,7 @@ pub struct BatchReceiptResponse {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)] // Allows for different types in the same Vec
 pub enum BatchReceiptItemResult {
-    Success(ReceiptResult),
+    Success(Box<ReceiptResult>),
     Error {
         #[serde(rename = "itemId")]
         item_id: Uuid,
@@ -49,7 +49,7 @@ pub async fn post_batch_receipts(
         let item_id = receipt_req.item_id;
         match receipt_service::process_receipt(&app_state.pool, &receipt_req, None).await {
             Ok((result, _is_replay)) => {
-                results.push(BatchReceiptItemResult::Success(result));
+                results.push(BatchReceiptItemResult::Success(Box::new(result)));
             }
             Err(e) => {
                 tracing::error!(

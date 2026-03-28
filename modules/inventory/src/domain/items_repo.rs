@@ -174,7 +174,7 @@ impl ItemRepo {
         let offset = q.offset.max(0);
         let active_val = q.active.unwrap_or(true);
 
-        let has_search = q.search.as_ref().map_or(false, |s| !s.trim().is_empty());
+        let has_search = q.search.as_ref().is_some_and(|s| !s.trim().is_empty());
         let search_pattern = if has_search {
             format!("%{}%", q.search.as_ref().unwrap().trim())
         } else {
