@@ -60,10 +60,10 @@ Shared crates used by services. Not independently deployed.
 |---------|-------|---------|-------------|------|
 | audit | audit | 1.0.0 | Append-only audit trail with field-level diffs and policy enforcement | [Revisions](platform/audit/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | doc-mgmt | doc_mgmt | 0.1.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) |  |
-| event-bus | event-bus | 1.0.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
+| event-bus | event-bus | 1.0.1 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
 | event-consumer | event-consumer | 0.1.0 | Consumer-side event dispatch: handler registry, router, and context |  |
-| health | health | 0.1.0 | Shared health and readiness check endpoints for all services |  |
-| platform-contracts | platform_contracts | 0.1.0 | Platform-wide event and command contract conventions — canonical types and constants |  |
+| health | health | 1.0.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
+| platform-contracts | platform_contracts | 1.0.0 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 0.1.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth |  |
 | tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules |  |
