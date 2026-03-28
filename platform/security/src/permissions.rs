@@ -138,6 +138,11 @@ pub const QUALITY_INSPECTION_READ: &str = "quality_inspection.read";
 pub const PRODUCTION_MUTATE: &str = "production.mutate";
 pub const PRODUCTION_READ: &str = "production.read";
 
+// ── Customer Portal ─────────────────────────────────────────────
+
+/// Administer customer portal users/docs — distinct from party record management.
+pub const CUSTOMER_PORTAL_ADMIN: &str = "customer_portal.admin";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,6 +331,12 @@ mod tests {
     fn test_permissions_reporting_constants_are_non_empty() {
         assert!(!REPORTING_MUTATE.is_empty());
         assert!(!REPORTING_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_customer_portal_admin_is_non_empty() {
+        assert!(!CUSTOMER_PORTAL_ADMIN.is_empty());
+        assert!(CUSTOMER_PORTAL_ADMIN.contains('.'));
     }
 
     #[test]

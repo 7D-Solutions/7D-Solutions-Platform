@@ -51,7 +51,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/portal/admin/status-cards",
             axum::routing::post(http::status::create_status_card),
         )
-        .route_layer(RequirePermissionsLayer::new(&[permissions::PARTY_MUTATE]))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::CUSTOMER_PORTAL_ADMIN]))
         .with_state(state.clone());
 
     let auth_routes = Router::new()
