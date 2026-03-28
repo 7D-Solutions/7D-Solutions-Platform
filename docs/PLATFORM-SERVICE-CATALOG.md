@@ -24,6 +24,8 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | gl | gl-rs | 1.0.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| shipping-receiving | shipping-receiving-rs | 1.0.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [Revisions](modules/shipping-receiving/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| treasury | treasury | 1.0.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [Revisions](modules/treasury/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ttp | ttp-rs | 2.1.8 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
@@ -45,10 +47,8 @@ No version bump discipline required yet.
 | production | production-rs | 0.1.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | quality-inspection | quality-inspection-rs | 0.1.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | reporting | reporting | 0.1.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workflow | workflow | 0.1.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
