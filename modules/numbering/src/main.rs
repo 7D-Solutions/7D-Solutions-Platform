@@ -58,7 +58,7 @@ async fn main() {
                 .as_ref()
                 .expect("NATS_URL must be set when BUS_TYPE=nats");
             tracing::info!("Numbering: connecting to NATS at {}", nats_url);
-            let client = event_bus::connect_nats(&nats_url)
+            let client = event_bus::connect_nats(nats_url)
                 .await
                 .expect("Numbering: failed to connect to NATS");
             Arc::new(NatsBus::new(client))
