@@ -86,22 +86,80 @@ pub async fn resolve_profile(
 
 /// Batch-load all profiles for open invoices in a tenant.
 /// Returns map from (customer_id, currency) → PaymentProfile.
+///
+/// Loads all payment history for the tenant in a single query, then builds
+/// per-customer profiles in-memory. Falls back to tenant-wide aggregate
+/// for customers with fewer than MIN_CUSTOMER_RECORDS.
 pub async fn load_profiles_for_tenant<'a>(
     pool: &PgPool,
     tenant_id: &str,
     pairs: &[(&'a str, &'a str)],
 ) -> Result<HashMap<(&'a str, &'a str), PaymentProfile>, anyhow::Error> {
-    let mut result = HashMap::new();
-    // Deduplicate (customer_id, currency) pairs
+    if pairs.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    // Single query: load all payment history for this tenant, sorted for profile building
+    let all_rows: Vec<(String, String, i32)> = sqlx::query_as(
+        r#"
+        SELECT customer_id, currency, days_to_pay
+        FROM rpt_payment_history
+        WHERE tenant_id = $1
+        ORDER BY customer_id, currency, days_to_pay ASC
+        "#,
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!("batch profile query: {}", e))?;
+
+    // Collect tenant-wide observations per currency for fallback
+    let mut tenant_by_currency: HashMap<&str, Vec<i32>> = HashMap::new();
+
+    // We need owned strings from rows but borrow them for the duration of this function.
+    // Store rows so we can reference their strings.
+    for row in &all_rows {
+        tenant_by_currency
+            .entry(row.1.as_str())
+            .or_default()
+            .push(row.2);
+    }
+
+    // Build per-customer lookup — we need to match against the borrowed pair keys
+    let mut customer_obs: HashMap<(String, String), Vec<i32>> = HashMap::new();
+    for row in &all_rows {
+        customer_obs
+            .entry((row.0.clone(), row.1.clone()))
+            .or_default()
+            .push(row.2);
+    }
+
+    // Deduplicate requested pairs
     let mut seen = std::collections::HashSet::new();
+    let mut result = HashMap::new();
+
     for &(cid, cur) in pairs {
         if !seen.insert((cid, cur)) {
             continue;
         }
-        if let Some(profile) = resolve_profile(pool, tenant_id, cid, cur).await? {
-            result.insert((cid, cur), profile);
+
+        // Try per-customer profile (>= 3 records)
+        let key = (cid.to_string(), cur.to_string());
+        if let Some(obs) = customer_obs.get(&key) {
+            if obs.len() >= MIN_CUSTOMER_RECORDS {
+                result.insert((cid, cur), build_profile(obs.clone()));
+                continue;
+            }
+        }
+
+        // Fallback to tenant-wide profile for this currency
+        if let Some(obs) = tenant_by_currency.get(cur) {
+            if !obs.is_empty() {
+                result.insert((cid, cur), build_profile(obs.clone()));
+            }
         }
     }
+
     Ok(result)
 }
 
