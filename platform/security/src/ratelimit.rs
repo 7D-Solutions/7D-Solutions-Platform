@@ -193,12 +193,14 @@ impl RateLimiter {
 
     /// Build a rate limit key from tenant ID and path
     fn build_key(tenant_id: &str, path: &str, is_fallback: bool) -> String {
-        format!(
-            "{}:{}:{}",
-            tenant_id,
-            path,
-            if is_fallback { "fallback" } else { "normal" }
-        )
+        let suffix = if is_fallback { "fallback" } else { "normal" };
+        let mut key = String::with_capacity(tenant_id.len() + 1 + path.len() + 1 + suffix.len());
+        key.push_str(tenant_id);
+        key.push(':');
+        key.push_str(path);
+        key.push(':');
+        key.push_str(suffix);
+        key
     }
 
     /// Check if a request is allowed (normal read path)
@@ -231,10 +233,10 @@ impl RateLimiter {
             &self.normal_config
         };
 
-        // Get or create token bucket for this key
+        // Get or create token bucket for this key (key is consumed by entry(), no clone needed)
         let mut bucket_ref = self
             .buckets
-            .entry(key.clone())
+            .entry(key)
             .or_insert_with(|| TokenBucket::new(config.max_requests, config.window));
 
         // Try to consume a token
@@ -410,7 +412,7 @@ mod tests {
 
         // Consume 3 tokens
         for _ in 0..3 {
-            limiter.check_limit("tenant1", "/api/invoices").unwrap();
+            assert!(limiter.check_limit("tenant1", "/api/invoices").is_ok());
         }
 
         assert_eq!(limiter.remaining_quota("tenant1", "/api/invoices"), 7);
