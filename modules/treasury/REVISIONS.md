@@ -8,6 +8,7 @@
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-14lud | Initial proof baseline for treasury covering bank account management, transaction import, reconciliation, and cash position reporting. Added the module proof script used by the promotion gate. | Establish the first proven release after package tests and module proof passed end-to-end. | No |
+| 1.0.1 | 2026-03-28 | bd-170ei | Replaced f64 arithmetic with rust_decimal::Decimal in parse_amount functions across parser.rs, chase.rs, and amex.rs. Eliminates IEEE 754 rounding errors when converting monetary strings to minor units. | f64 multiplication can silently round certain decimal values incorrectly (e.g. 1.005 * 100 = 100.49… → 100 instead of 101). Financial code requires exact decimal arithmetic. | No |
 
 ## How to read this table
 

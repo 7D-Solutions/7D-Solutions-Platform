@@ -9,6 +9,8 @@
 //! preserve raw audit data without adding adapter-specific columns.
 
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 
 use super::super::parser::{ParseOutput, ParsedLine};
 use super::super::LineError;
@@ -65,10 +67,12 @@ fn parse_amount(raw: &str) -> Result<i64, String> {
     if cleaned.is_empty() {
         return Err("amount is empty after cleanup".to_string());
     }
-    let value: f64 = cleaned
+    let value: Decimal = cleaned
         .parse()
         .map_err(|_| format!("cannot parse amount: '{}'", s))?;
-    Ok((value * 100.0).round() as i64)
+    Ok((value * Decimal::from(100))
+        .to_i64()
+        .ok_or("amount out of range")?)
 }
 
 fn parse_date(raw: &str) -> Result<NaiveDate, String> {

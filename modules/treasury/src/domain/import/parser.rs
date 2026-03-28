@@ -8,6 +8,8 @@
 //! If no format is specified, the function auto-detects from CSV headers.
 
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 
 use super::LineError;
 
@@ -93,13 +95,13 @@ fn parse_amount(raw: &str) -> Result<i64, String> {
         return Err("amount is empty after cleanup".to_string());
     }
 
-    // Parse as f64 then convert to minor units
-    let value: f64 = cleaned
+    let value: Decimal = cleaned
         .parse()
         .map_err(|_| format!("cannot parse amount: '{}'", raw.trim()))?;
 
-    // Round to nearest cent to avoid float precision issues
-    Ok((value * 100.0).round() as i64)
+    Ok((value * Decimal::from(100))
+        .to_i64()
+        .ok_or("amount out of range")?)
 }
 
 // ============================================================================
