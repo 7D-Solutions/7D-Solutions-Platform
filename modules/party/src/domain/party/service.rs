@@ -186,7 +186,7 @@ pub async fn search_parties(
                    p.party_type::TEXT AS party_type, p.status::TEXT AS status,
                    p.display_name, p.email, p.phone, p.website,
                    p.address_line1, p.address_line2, p.city, p.state, p.postal_code, p.country,
-                   p.metadata, p.created_at, p.updated_at
+                   p.metadata, p.tags, p.created_at, p.updated_at
             FROM party_parties p
             JOIN party_external_refs r ON r.party_id = p.id AND r.app_id = p.app_id
             WHERE p.app_id = $1

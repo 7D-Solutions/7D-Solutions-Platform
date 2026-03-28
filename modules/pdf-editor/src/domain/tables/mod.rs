@@ -118,9 +118,7 @@ pub fn validate_render_request(req: &RenderTableRequest) -> Result<(), TableErro
         return Err(TableError::Validation("tenant_id is required".into()));
     }
     if req.idempotency_key.trim().is_empty() {
-        return Err(TableError::Validation(
-            "idempotency_key is required".into(),
-        ));
+        return Err(TableError::Validation("idempotency_key is required".into()));
     }
     if req.table_definition.columns.is_empty() {
         return Err(TableError::Validation(
@@ -146,14 +144,10 @@ pub fn validate_render_request(req: &RenderTableRequest) -> Result<(), TableErro
         return Err(TableError::Validation("font_size must be positive".into()));
     }
     if req.table_definition.row_height <= 0.0 {
-        return Err(TableError::Validation(
-            "row_height must be positive".into(),
-        ));
+        return Err(TableError::Validation("row_height must be positive".into()));
     }
     if req.table_definition.page < 1 {
-        return Err(TableError::Validation(
-            "page must be >= 1".into(),
-        ));
+        return Err(TableError::Validation("page must be >= 1".into()));
     }
     crate::domain::generate::validate_pdf(&req.pdf_template)
         .map_err(|e| TableError::Validation(format!("invalid PDF template: {}", e)))?;
@@ -172,10 +166,7 @@ const CELL_PADDING: f32 = 4.0;
 /// Render a table onto a PDF template. Deterministic: same input → same output.
 ///
 /// Handles pagination by creating new pages when rows exceed available space.
-pub fn render_table(
-    pdf_bytes: &[u8],
-    table: &TableDefinition,
-) -> Result<Vec<u8>, TableError> {
+pub fn render_table(pdf_bytes: &[u8], table: &TableDefinition) -> Result<Vec<u8>, TableError> {
     use crate::domain::generate::{create_pdfium, validate_pdf};
     use pdfium_render::prelude::*;
 
@@ -205,18 +196,19 @@ pub fn render_table(
         (page.width().value, page.height().value)
     };
 
-    // Build the list of rows to render: header first, then data rows
-    let header_cells: Vec<String> = table.columns.iter().map(|c| c.header.clone()).collect();
+    // Build the list of rows to render: header first, then data rows.
+    // Use references to avoid cloning cell strings per row/page.
+    let header_cells: Vec<&str> = table.columns.iter().map(|c| c.header.as_str()).collect();
 
     // Track which rows go on which page
-    struct PageSlice {
+    struct PageSlice<'a> {
         page_index: u16,
         page_height: f32,
         start_y: f32,
-        rows: Vec<(Vec<String>, bool)>, // (cells, is_header)
+        rows: Vec<(Vec<&'a str>, bool)>, // (cell refs, is_header)
     }
 
-    let mut slices: Vec<PageSlice> = Vec::new();
+    let mut slices: Vec<PageSlice<'_>> = Vec::new();
     let mut current_page_index = (table.page - 1) as u16;
     let mut cursor_y = table.y;
     let mut current_page_height = page_height;
@@ -269,9 +261,8 @@ pub fn render_table(
             cursor_y += table.row_height;
         }
 
-        current_slice
-            .rows
-            .push((row.cells.clone(), false));
+        let cell_refs: Vec<&str> = row.cells.iter().map(|c| c.as_str()).collect();
+        current_slice.rows.push((cell_refs, false));
         cursor_y += table.row_height;
     }
     slices.push(current_slice);
