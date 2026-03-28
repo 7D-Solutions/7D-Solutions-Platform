@@ -37,10 +37,21 @@ impl ModuleAuditResult {
 ///
 /// Handles the standard schema (event_id, event_type, aggregate_type, aggregate_id)
 /// used by most modules.
+///
+/// # Panics
+/// Panics if `table_name` contains characters other than `[a-z0-9_]`.
 pub async fn query_outbox_events(
     module_pool: &PgPool,
     table_name: &str,
 ) -> Result<Vec<OutboxEventMeta>, sqlx::Error> {
+    assert!(
+        !table_name.is_empty()
+            && table_name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+        "table_name must be non-empty and contain only [a-z0-9_], got: {table_name}"
+    );
+
     let query = format!(
         "SELECT event_id, event_type, aggregate_type, aggregate_id FROM {} ORDER BY created_at",
         table_name
