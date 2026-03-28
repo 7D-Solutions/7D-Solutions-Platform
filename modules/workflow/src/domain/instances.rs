@@ -330,7 +330,7 @@ impl InstanceRepo {
         // Check terminals first (cheap) before scanning the definition array.
         let valid_target = req.to_step_id == "__completed__"
             || req.to_step_id == "__cancelled__"
-            || def.steps.as_array().map_or(false, |arr| {
+            || def.steps.as_array().is_some_and(|arr| {
                 arr.iter()
                     .any(|s| s.get("step_id").and_then(|v| v.as_str()) == Some(&req.to_step_id))
             });

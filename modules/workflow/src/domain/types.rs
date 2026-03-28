@@ -46,10 +46,11 @@ pub struct StepDefinition {
 // ── Routing mode ─────────────────────────────────────────────
 
 /// How a step collects decisions and determines the next step.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "snake_case")]
 pub enum RoutingMode {
     /// Single decision advances to the specified target step (default).
+    #[default]
     Sequential,
     /// N-of-M actors must decide before advancing.
     Parallel {
@@ -59,12 +60,6 @@ pub enum RoutingMode {
     Conditional {
         conditions: Vec<BranchCondition>,
     },
-}
-
-impl Default for RoutingMode {
-    fn default() -> Self {
-        RoutingMode::Sequential
-    }
 }
 
 /// A single condition→target mapping for conditional routing.
