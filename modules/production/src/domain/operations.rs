@@ -149,29 +149,40 @@ impl OperationRepo {
         .fetch_all(&mut *tx)
         .await?;
 
-        let mut ops = Vec::with_capacity(steps.len());
+        let ops = if steps.is_empty() {
+            Vec::new()
+        } else {
+            let routing_step_ids: Vec<Uuid> = steps.iter().map(|s| s.0).collect();
+            let sequence_numbers: Vec<i32> = steps.iter().map(|s| s.1).collect();
+            let workcenter_ids: Vec<Uuid> = steps.iter().map(|s| s.2).collect();
+            let operation_names: Vec<&str> = steps.iter().map(|s| s.3.as_str()).collect();
 
-        for step in &steps {
-            let op = sqlx::query_as::<_, OperationInstance>(
+            let mut rows = sqlx::query_as::<_, OperationInstance>(
                 r#"
                 INSERT INTO operations
                     (work_order_id, tenant_id, routing_step_id, sequence_number,
                      workcenter_id, operation_name, status)
-                VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+                SELECT $1, $2,
+                    UNNEST($3::UUID[]),
+                    UNNEST($4::INT[]),
+                    UNNEST($5::UUID[]),
+                    UNNEST($6::TEXT[]),
+                    'pending'
                 RETURNING *
                 "#,
             )
             .bind(work_order_id)
             .bind(tenant_id)
-            .bind(step.0) // routing_step_id
-            .bind(step.1) // sequence_number
-            .bind(step.2) // workcenter_id
-            .bind(&step.3) // operation_name
-            .fetch_one(&mut *tx)
+            .bind(&routing_step_ids)
+            .bind(&sequence_numbers)
+            .bind(&workcenter_ids)
+            .bind(&operation_names)
+            .fetch_all(&mut *tx)
             .await?;
 
-            ops.push(op);
-        }
+            rows.sort_by_key(|o| o.sequence_number);
+            rows
+        };
 
         tx.commit().await?;
         Ok(ops)
