@@ -15,7 +15,7 @@ static TEST_POOL: OnceCell<sqlx::PgPool> = OnceCell::const_new();
 async fn init_pool() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://integrations_user:integrations_pass@localhost:5449/integrations_db?sslmode=disable"
+        "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db"
             .to_string()
     });
     let pool = PgPoolOptions::new()
