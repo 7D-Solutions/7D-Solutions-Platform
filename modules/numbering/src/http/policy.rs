@@ -224,7 +224,7 @@ fn validate_prefix(prefix: &str) -> Result<(), (StatusCode, Json<ErrorResponse>)
 }
 
 fn validate_padding(padding: i32) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    if padding < 0 || padding > 20 {
+    if !(0..=20).contains(&padding) {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
