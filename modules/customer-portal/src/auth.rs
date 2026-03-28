@@ -98,14 +98,14 @@ where
             .headers
             .get(AUTHORIZATION)
             .and_then(|h| h.to_str().ok())
-            .ok_or_else(|| unauthorized())?;
+            .ok_or_else(unauthorized)?;
 
-        let token = auth.strip_prefix("Bearer ").ok_or_else(|| unauthorized())?;
+        let token = auth.strip_prefix("Bearer ").ok_or_else(unauthorized)?;
         let portal_jwt = parts
             .extensions
             .get::<std::sync::Arc<PortalJwt>>()
             .cloned()
-            .ok_or_else(|| unauthorized())?;
+            .ok_or_else(unauthorized)?;
 
         let claims = portal_jwt.verify(token).map_err(|_| unauthorized())?;
         Ok(Self(claims))
