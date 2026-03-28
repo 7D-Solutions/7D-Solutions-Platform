@@ -101,7 +101,7 @@ pub enum DowntimeError {
     Validation(String),
 
     #[error("Idempotent duplicate — returning existing downtime event")]
-    IdempotentDuplicate(DowntimeEvent),
+    IdempotentDuplicate(Box<DowntimeEvent>),
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -152,7 +152,7 @@ impl DowntimeRepo {
             .await?;
 
             if let Some(event) = existing {
-                return Err(DowntimeError::IdempotentDuplicate(event));
+                return Err(DowntimeError::IdempotentDuplicate(Box::new(event)));
             }
         }
 

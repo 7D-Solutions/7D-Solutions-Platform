@@ -48,16 +48,13 @@ fn downtime_error_response(err: DowntimeError) -> (StatusCode, Json<ErrorBody>) 
             StatusCode::BAD_REQUEST,
             Json(ErrorBody::new("validation_error", &msg)),
         ),
-        DowntimeError::IdempotentDuplicate(event) => {
-            // Return existing resource on idempotent duplicate
-            return (
-                StatusCode::OK,
-                Json(ErrorBody::new(
-                    "idempotent_duplicate",
-                    &format!("Downtime event {} already exists", event.id),
-                )),
-            );
-        }
+        DowntimeError::IdempotentDuplicate(event) => (
+            StatusCode::OK,
+            Json(ErrorBody::new(
+                "idempotent_duplicate",
+                &format!("Downtime event {} already exists", event.id),
+            )),
+        ),
         DowntimeError::Database(e) => {
             tracing::error!(error = %e, "downtime database error");
             (

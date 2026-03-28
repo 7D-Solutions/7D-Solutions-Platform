@@ -117,7 +117,7 @@ pub enum AssetError {
     Validation(String),
 
     #[error("Idempotent duplicate — returning existing asset")]
-    IdempotentDuplicate(Asset),
+    IdempotentDuplicate(Box<Asset>),
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -156,7 +156,7 @@ impl AssetRepo {
             .await?;
 
             if let Some(asset) = existing {
-                return Err(AssetError::IdempotentDuplicate(asset));
+                return Err(AssetError::IdempotentDuplicate(Box::new(asset)));
             }
         }
 
