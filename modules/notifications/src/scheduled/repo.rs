@@ -29,7 +29,7 @@ impl Default for RetryPolicy {
 
 impl RetryPolicy {
     fn delay_for_attempt(self, attempt_no: i32) -> Duration {
-        let exp = (attempt_no.saturating_sub(1).max(0)) as i32;
+        let exp = attempt_no.saturating_sub(1).max(0);
         let scale = self.backoff_multiplier.powi(exp);
         let secs = ((self.backoff_base_secs as f64) * scale) as i64;
         Duration::seconds(secs.min(self.backoff_max_secs).max(1))

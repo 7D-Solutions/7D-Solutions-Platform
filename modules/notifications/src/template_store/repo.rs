@@ -137,7 +137,7 @@ pub fn render_template(
                 if !vars.contains_key(var_name) {
                     return Err(format!("missing required variable: {}", var_name));
                 }
-                if vars.get(var_name).map_or(true, |v| v.is_null()) {
+                if vars.get(var_name).is_none_or(|v| v.is_null()) {
                     return Err(format!("required variable is null: {}", var_name));
                 }
             }

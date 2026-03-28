@@ -226,7 +226,7 @@ impl HttpSmsSender {
         }
 
         // Fall back to recipient_ref if it looks like a phone number
-        let ref_part = notif.recipient_ref.split(':').last().unwrap_or("");
+        let ref_part = notif.recipient_ref.split(':').next_back().unwrap_or("");
         if ref_part.starts_with('+') && ref_part.len() >= 8 {
             return Ok(ref_part.to_string());
         }
