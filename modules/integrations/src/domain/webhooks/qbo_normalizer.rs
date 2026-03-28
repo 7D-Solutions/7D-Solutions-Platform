@@ -82,15 +82,13 @@ impl QboNormalizer {
         raw_payload: &serde_json::Value,
         headers: &std::collections::HashMap<String, String>,
     ) -> Result<QboNormalizeResult, WebhookError> {
-        // 1. Parse CloudEvents array
-        let events: Vec<QboCloudEvent> = serde_json::from_value(raw_payload.clone()).map_err(
-            |e| {
-                WebhookError::MalformedPayload(format!(
-                    "QBO webhook body is not a valid CloudEvents array: {}",
-                    e
-                ))
-            },
-        )?;
+        // 1. Parse CloudEvents array directly from bytes (avoids cloning the Value tree)
+        let events: Vec<QboCloudEvent> = serde_json::from_slice(raw_body).map_err(|e| {
+            WebhookError::MalformedPayload(format!(
+                "QBO webhook body is not a valid CloudEvents array: {}",
+                e
+            ))
+        })?;
 
         // 2. POST-level idempotency via body hash
         let body_hash = compute_body_hash(raw_body);
@@ -129,14 +127,26 @@ impl QboNormalizer {
             }
         };
 
-        // 3. Fan out per event
+        // 3. Batch-resolve all unique realm_ids → app_ids in one query
+        let realm_to_app = {
+            let unique_realms: Vec<String> = {
+                let mut set = std::collections::HashSet::new();
+                for event in &events {
+                    set.insert(event.intuit_account_id.clone());
+                }
+                set.into_iter().collect()
+            };
+            batch_resolve_realms(&mut tx, &unique_realms).await?
+        };
+
+        // 4. Fan out per event
         let mut processed = 0u32;
         let mut skipped = 0u32;
         let correlation_id = Uuid::new_v4().to_string();
 
         for event in &events {
             match self
-                .process_single_event(&mut tx, event, &correlation_id)
+                .process_single_event(&mut tx, event, &correlation_id, &realm_to_app)
                 .await
             {
                 Ok(true) => processed += 1,
@@ -169,17 +179,18 @@ impl QboNormalizer {
         })
     }
 
-    /// Process one CloudEvent: resolve realm → app_id, insert ingest, emit outbox events.
+    /// Process one CloudEvent: look up realm → app_id, insert ingest, emit outbox events.
     /// Returns `Ok(true)` if processed, `Ok(false)` if skipped (unknown realm or duplicate).
     async fn process_single_event(
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
         event: &QboCloudEvent,
         correlation_id: &str,
+        realm_to_app: &std::collections::HashMap<String, String>,
     ) -> Result<bool, WebhookError> {
-        // Resolve realm_id → app_id
-        let app_id = match resolve_realm_to_app_id(tx, &event.intuit_account_id).await? {
-            Some(id) => id,
+        // Look up realm_id → app_id from pre-fetched map
+        let app_id = match realm_to_app.get(&event.intuit_account_id) {
+            Some(id) => id.clone(),
             None => {
                 tracing::warn!(
                     realm_id = %event.intuit_account_id,
@@ -191,8 +202,8 @@ impl QboNormalizer {
         };
 
         // Per-event idempotency: insert with ON CONFLICT DO NOTHING
-        let event_payload = serde_json::to_value(event)
-            .map_err(|e| WebhookError::Serialization(e.to_string()))?;
+        let event_payload =
+            serde_json::to_value(event).map_err(|e| WebhookError::Serialization(e.to_string()))?;
 
         let event_ingest = sqlx::query_as::<_, (i64,)>(
             r#"
@@ -244,8 +255,7 @@ impl QboNormalizer {
         .await?;
 
         // Route to domain event
-        if let Some(domain_event_type) =
-            map_to_domain_event("quickbooks", Some(&event.event_type))
+        if let Some(domain_event_type) = map_to_domain_event("quickbooks", Some(&event.event_type))
         {
             let routed_event_id = Uuid::new_v4();
             let routed_envelope = build_webhook_routed_envelope(
@@ -295,21 +305,22 @@ fn compute_body_hash(raw_body: &[u8]) -> String {
     format!("sha256:{:x}", hash)
 }
 
-async fn resolve_realm_to_app_id(
+/// Batch-resolve realm_ids to app_ids in a single query.
+async fn batch_resolve_realms(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    realm_id: &str,
-) -> Result<Option<String>, WebhookError> {
-    let row = sqlx::query_as::<_, (String,)>(
+    realm_ids: &[String],
+) -> Result<std::collections::HashMap<String, String>, WebhookError> {
+    let rows = sqlx::query_as::<_, (String, String)>(
         r#"
-        SELECT app_id FROM integrations_oauth_connections
-        WHERE provider = 'quickbooks' AND realm_id = $1 AND connection_status = 'connected'
+        SELECT realm_id, app_id FROM integrations_oauth_connections
+        WHERE provider = 'quickbooks' AND realm_id = ANY($1) AND connection_status = 'connected'
         "#,
     )
-    .bind(realm_id)
-    .fetch_optional(&mut **tx)
+    .bind(realm_ids)
+    .fetch_all(&mut **tx)
     .await?;
 
-    Ok(row.map(|(app_id,)| app_id))
+    Ok(rows.into_iter().collect())
 }
 
 // ============================================================================
@@ -332,11 +343,22 @@ mod tests {
             "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db".into()
         });
         let pool = PgPool::connect(&url).await.expect("DB connect failed");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         // cleanup
         for app in [APP_A, APP_B, "_qbo_batch_"] {
-            sqlx::query("DELETE FROM integrations_outbox WHERE app_id=$1").bind(app).execute(&pool).await.ok();
-            sqlx::query("DELETE FROM integrations_webhook_ingest WHERE app_id=$1").bind(app).execute(&pool).await.ok();
+            sqlx::query("DELETE FROM integrations_outbox WHERE app_id=$1")
+                .bind(app)
+                .execute(&pool)
+                .await
+                .ok();
+            sqlx::query("DELETE FROM integrations_webhook_ingest WHERE app_id=$1")
+                .bind(app)
+                .execute(&pool)
+                .await
+                .ok();
         }
         for r in [REALM_A, REALM_B] {
             sqlx::query("DELETE FROM integrations_oauth_connections WHERE provider='quickbooks' AND realm_id=$1")
@@ -367,7 +389,12 @@ mod tests {
     }
 
     async fn count(pool: &PgPool, query: &str, bind: &str) -> i64 {
-        sqlx::query_as::<_, (i64,)>(query).bind(bind).fetch_one(pool).await.expect("count query").0
+        sqlx::query_as::<_, (i64,)>(query)
+            .bind(bind)
+            .fetch_one(pool)
+            .await
+            .expect("count query")
+            .0
     }
 
     #[tokio::test]
@@ -390,9 +417,25 @@ mod tests {
         assert!(n >= 2);
 
         // Tenant A: 2 events × (received + routed) = 4 outbox entries
-        assert_eq!(count(&pool, "SELECT COUNT(*) FROM integrations_outbox WHERE app_id=$1", APP_A).await, 4);
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM integrations_outbox WHERE app_id=$1",
+                APP_A
+            )
+            .await,
+            4
+        );
         // Tenant B: 1 event × 2 = 2
-        assert_eq!(count(&pool, "SELECT COUNT(*) FROM integrations_outbox WHERE app_id=$1", APP_B).await, 2);
+        assert_eq!(
+            count(
+                &pool,
+                "SELECT COUNT(*) FROM integrations_outbox WHERE app_id=$1",
+                APP_B
+            )
+            .await,
+            2
+        );
     }
 
     #[tokio::test]
@@ -426,13 +469,21 @@ mod tests {
     #[serial]
     async fn test_qbo_event_level_dedup() {
         let pool = setup().await;
-        let r1 = run(&pool, &json!([ev("o1", "qbo.customer.created.v1", REALM_A)])).await;
+        let r1 = run(
+            &pool,
+            &json!([ev("o1", "qbo.customer.created.v1", REALM_A)]),
+        )
+        .await;
         assert_eq!(r1.events_processed, 1);
         // Second POST: o1 overlaps, o2 is new
-        let r2 = run(&pool, &json!([
-            ev("o1", "qbo.customer.created.v1", REALM_A),
-            ev("o2", "qbo.invoice.created.v1", REALM_B)
-        ])).await;
+        let r2 = run(
+            &pool,
+            &json!([
+                ev("o1", "qbo.customer.created.v1", REALM_A),
+                ev("o2", "qbo.invoice.created.v1", REALM_B)
+            ]),
+        )
+        .await;
         assert_eq!(r2.events_processed, 1);
         assert_eq!(r2.events_skipped, 1);
     }

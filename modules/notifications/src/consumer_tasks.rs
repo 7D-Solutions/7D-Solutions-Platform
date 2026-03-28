@@ -38,9 +38,21 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Extract correlation fields from envelope for observability
+            // Parse envelope once — reused for correlation fields, idempotency, and handler
+            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(
+                        subject = %msg.subject,
+                        error = %e,
+                        "Failed to parse event envelope"
+                    );
+                    continue;
+                }
+            };
+
             let (event_id, tenant_id, correlation_id, source_module) =
-                match extract_correlation_fields(&msg) {
+                match extract_correlation_fields_from_value(&envelope) {
                     Ok(fields) => fields,
                     Err(e) => {
                         tracing::error!(
@@ -51,6 +63,12 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                         continue;
                     }
                 };
+
+            let metadata = EnvelopeMetadata {
+                event_id,
+                tenant_id: tenant_id.clone(),
+                correlation_id: correlation_id.clone(),
+            };
 
             // Create tracing span with correlation fields
             let span = tracing::info_span!(
@@ -67,14 +85,18 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                 let consumer_clone = consumer.clone();
                 let pool_clone = pool.clone();
                 let msg_clone = msg.clone();
+                let envelope_clone = envelope.clone();
+                let metadata_clone = metadata.clone();
 
                 let result = retry_with_backoff(
                     || {
                         let consumer = consumer_clone.clone();
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
+                        let envelope = envelope_clone.clone();
+                        let metadata = metadata_clone.clone();
                         async move {
-                            process_invoice_issued(&consumer, &pool, &msg)
+                            process_invoice_issued(&consumer, &pool, &msg, &envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -112,14 +134,11 @@ async fn process_invoice_issued(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
+    envelope: &serde_json::Value,
+    metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer
-        .process_idempotent(msg, |payload: InvoiceIssuedPayload| async {
-            // Extract envelope metadata
-            let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
-            let metadata = extract_metadata(&envelope)?;
-
-            // Handle the invoice issued event
+        .process_idempotent_with_envelope(envelope, msg, |payload: InvoiceIssuedPayload| async {
             handle_invoice_issued(pool, payload, metadata).await
         })
         .await
@@ -149,9 +168,21 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Extract correlation fields from envelope for observability
+            // Parse envelope once — reused for correlation fields, idempotency, and handler
+            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(
+                        subject = %msg.subject,
+                        error = %e,
+                        "Failed to parse event envelope"
+                    );
+                    continue;
+                }
+            };
+
             let (event_id, tenant_id, correlation_id, source_module) =
-                match extract_correlation_fields(&msg) {
+                match extract_correlation_fields_from_value(&envelope) {
                     Ok(fields) => fields,
                     Err(e) => {
                         tracing::error!(
@@ -162,6 +193,12 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
                         continue;
                     }
                 };
+
+            let metadata = EnvelopeMetadata {
+                event_id,
+                tenant_id: tenant_id.clone(),
+                correlation_id: correlation_id.clone(),
+            };
 
             // Create tracing span with correlation fields
             let span = tracing::info_span!(
@@ -178,14 +215,18 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
                 let consumer_clone = consumer.clone();
                 let pool_clone = pool.clone();
                 let msg_clone = msg.clone();
+                let envelope_clone = envelope.clone();
+                let metadata_clone = metadata.clone();
 
                 let result = retry_with_backoff(
                     || {
                         let consumer = consumer_clone.clone();
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
+                        let envelope = envelope_clone.clone();
+                        let metadata = metadata_clone.clone();
                         async move {
-                            process_payment_succeeded(&consumer, &pool, &msg)
+                            process_payment_succeeded(&consumer, &pool, &msg, &envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -223,14 +264,11 @@ async fn process_payment_succeeded(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
+    envelope: &serde_json::Value,
+    metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer
-        .process_idempotent(msg, |payload: PaymentSucceededPayload| async {
-            // Extract envelope metadata
-            let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
-            let metadata = extract_metadata(&envelope)?;
-
-            // Handle the payment succeeded event
+        .process_idempotent_with_envelope(envelope, msg, |payload: PaymentSucceededPayload| async {
             handle_payment_succeeded(pool, payload, metadata).await
         })
         .await
@@ -260,9 +298,21 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Extract correlation fields from envelope for observability
+            // Parse envelope once — reused for correlation fields, idempotency, and handler
+            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(
+                        subject = %msg.subject,
+                        error = %e,
+                        "Failed to parse event envelope"
+                    );
+                    continue;
+                }
+            };
+
             let (event_id, tenant_id, correlation_id, source_module) =
-                match extract_correlation_fields(&msg) {
+                match extract_correlation_fields_from_value(&envelope) {
                     Ok(fields) => fields,
                     Err(e) => {
                         tracing::error!(
@@ -273,6 +323,12 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                         continue;
                     }
                 };
+
+            let metadata = EnvelopeMetadata {
+                event_id,
+                tenant_id: tenant_id.clone(),
+                correlation_id: correlation_id.clone(),
+            };
 
             // Create tracing span with correlation fields
             let span = tracing::info_span!(
@@ -289,14 +345,18 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                 let consumer_clone = consumer.clone();
                 let pool_clone = pool.clone();
                 let msg_clone = msg.clone();
+                let envelope_clone = envelope.clone();
+                let metadata_clone = metadata.clone();
 
                 let result = retry_with_backoff(
                     || {
                         let consumer = consumer_clone.clone();
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
+                        let envelope = envelope_clone.clone();
+                        let metadata = metadata_clone.clone();
                         async move {
-                            process_payment_failed(&consumer, &pool, &msg)
+                            process_payment_failed(&consumer, &pool, &msg, &envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -334,63 +394,24 @@ async fn process_payment_failed(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
+    envelope: &serde_json::Value,
+    metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer
-        .process_idempotent(msg, |payload: PaymentFailedPayload| async {
-            // Extract envelope metadata
-            let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
-            let metadata = extract_metadata(&envelope)?;
-
-            // Handle the payment failed event
+        .process_idempotent_with_envelope(envelope, msg, |payload: PaymentFailedPayload| async {
             handle_payment_failed(pool, payload, metadata).await
         })
         .await
 }
 
-/// Extract envelope metadata from event payload
-///
-/// First validates the envelope fields according to platform event contract,
-/// then extracts metadata for event processing.
-fn extract_metadata(
-    envelope: &serde_json::Value,
-) -> Result<EnvelopeMetadata, Box<dyn std::error::Error>> {
-    // Validate envelope fields first
-    validate_envelope(envelope).map_err(|e| format!("Envelope validation failed: {}", e))?;
-
-    // Extract metadata (validation ensures these fields exist and are valid)
-    let event_id = envelope
-        .get("event_id")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing event_id")?;
-    let event_id = uuid::Uuid::parse_str(event_id)?;
-
-    let tenant_id = envelope
-        .get("tenant_id")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing tenant_id")?
-        .to_string();
-
-    // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
-    let correlation_id = envelope
-        .get("correlation_id")
-        .or_else(|| envelope.get("trace_id"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    Ok(EnvelopeMetadata {
-        event_id,
-        tenant_id,
-        correlation_id,
-    })
-}
-
-/// Extract correlation fields from event envelope for observability
+/// Extract correlation fields from a pre-parsed event envelope for observability.
 ///
 /// Returns: (event_id, tenant_id, correlation_id, source_module)
-fn extract_correlation_fields(
-    msg: &BusMessage,
+fn extract_correlation_fields_from_value(
+    envelope: &serde_json::Value,
 ) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
-    let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
+    // Validate envelope fields
+    validate_envelope(envelope).map_err(|e| format!("Envelope validation failed: {}", e))?;
 
     let event_id_str = envelope
         .get("event_id")
@@ -404,8 +425,10 @@ fn extract_correlation_fields(
         .ok_or("Missing tenant_id")?
         .to_string();
 
+    // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
     let correlation_id = envelope
         .get("correlation_id")
+        .or_else(|| envelope.get("trace_id"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 

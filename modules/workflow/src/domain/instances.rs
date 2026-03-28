@@ -170,8 +170,8 @@ impl InstanceRepo {
         // ── Idempotency check ──
         if let Some(ref key) = req.idempotency_key {
             if let Some(hit) = check_idempotency(pool, key).await? {
-                let instance: WorkflowInstance =
-                    serde_json::from_value(hit.response_body).map_err(|e| {
+                let instance: WorkflowInstance = serde_json::from_value(hit.response_body)
+                    .map_err(|e| {
                         InstanceError::Validation(format!("idempotency replay decode: {}", e))
                     })?;
                 return Ok(instance);
@@ -326,18 +326,14 @@ impl InstanceRepo {
         .fetch_one(&mut *tx)
         .await?;
 
-        let step_ids: Vec<String> = def
-            .steps
-            .as_array()
-            .unwrap_or(&vec![])
-            .iter()
-            .filter_map(|s| s.get("step_id").and_then(|v| v.as_str()).map(String::from))
-            .collect();
-
-        // Allow special "__completed__" and "__cancelled__" terminal pseudo-steps
-        let valid_target = step_ids.contains(&req.to_step_id)
-            || req.to_step_id == "__completed__"
-            || req.to_step_id == "__cancelled__";
+        // Allow special "__completed__" and "__cancelled__" terminal pseudo-steps.
+        // Check terminals first (cheap) before scanning the definition array.
+        let valid_target = req.to_step_id == "__completed__"
+            || req.to_step_id == "__cancelled__"
+            || def.steps.as_array().map_or(false, |arr| {
+                arr.iter()
+                    .any(|s| s.get("step_id").and_then(|v| v.as_str()) == Some(&req.to_step_id))
+            });
 
         if !valid_target {
             return Err(InstanceError::InvalidTransition(format!(
@@ -417,9 +413,8 @@ impl InstanceRepo {
                     event_type.to_string(),
                     payload,
                 );
-                envelope::validate_envelope(&env).map_err(|e| {
-                    InstanceError::Validation(format!("envelope validation: {}", e))
-                })?
+                envelope::validate_envelope(&env)
+                    .map_err(|e| InstanceError::Validation(format!("envelope validation: {}", e)))?
             }
             "cancelled" => {
                 let payload = InstanceCancelledPayload {
@@ -433,9 +428,8 @@ impl InstanceRepo {
                     event_type.to_string(),
                     payload,
                 );
-                envelope::validate_envelope(&env).map_err(|e| {
-                    InstanceError::Validation(format!("envelope validation: {}", e))
-                })?
+                envelope::validate_envelope(&env)
+                    .map_err(|e| InstanceError::Validation(format!("envelope validation: {}", e)))?
             }
             _ => {
                 let payload = InstanceAdvancedPayload {
@@ -452,9 +446,8 @@ impl InstanceRepo {
                     event_type.to_string(),
                     payload,
                 );
-                envelope::validate_envelope(&env).map_err(|e| {
-                    InstanceError::Validation(format!("envelope validation: {}", e))
-                })?
+                envelope::validate_envelope(&env)
+                    .map_err(|e| InstanceError::Validation(format!("envelope validation: {}", e)))?
             }
         };
 
@@ -470,8 +463,8 @@ impl InstanceRepo {
 
         // Store idempotency key
         if let Some(ref key) = req.idempotency_key {
-            let response = serde_json::to_value((&updated_instance, &transition))
-                .unwrap_or_default();
+            let response =
+                serde_json::to_value((&updated_instance, &transition)).unwrap_or_default();
             store_idempotency(&mut tx, key, &response, 200).await?;
         }
 

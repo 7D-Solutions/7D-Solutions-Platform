@@ -5,7 +5,7 @@ use event_bus::EventBus;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{fetch_unpublished, mark_published, OutboxEvent};
+use super::{fetch_unpublished, OutboxEvent};
 
 const DEFAULT_BATCH_SIZE: i64 = 100;
 pub const DEFAULT_MAX_RETRIES: i32 = 5;
@@ -33,15 +33,14 @@ pub async fn publish_batch(
     let mut tx = pool.begin().await?;
     let events = fetch_unpublished(&mut tx, DEFAULT_BATCH_SIZE).await?;
 
-    let mut published_count = 0;
+    let mut published_ids: Vec<Uuid> = Vec::new();
 
     for event in events {
         let payload = serde_json::to_vec(&event.payload)?;
 
         match bus.publish(&event.event_type, payload).await {
             Ok(()) => {
-                mark_published(&mut tx, event.event_id).await?;
-                published_count += 1;
+                published_ids.push(event.event_id);
             }
             Err(err) => {
                 let err_text = err.to_string();
@@ -57,6 +56,22 @@ pub async fn publish_batch(
                 );
             }
         }
+    }
+
+    let published_count = published_ids.len();
+
+    // Batch-update all successfully published events in a single query
+    if !published_ids.is_empty() {
+        sqlx::query(
+            r#"
+            UPDATE integrations_outbox
+            SET published_at = NOW(), error_message = NULL
+            WHERE event_id = ANY($1)
+            "#,
+        )
+        .bind(&published_ids)
+        .execute(&mut *tx)
+        .await?;
     }
 
     tx.commit().await?;

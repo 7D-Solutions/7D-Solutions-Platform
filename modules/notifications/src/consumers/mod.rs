@@ -85,9 +85,27 @@ impl EventConsumer {
         F: FnOnce(T) -> Fut,
         Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>,
     {
-        // Parse event envelope
         let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
+        self.process_idempotent_with_envelope(&envelope, msg, handler)
+            .await
+    }
 
+    /// Process an event with idempotency guarantee using a pre-parsed envelope.
+    ///
+    /// Use this variant when the caller has already parsed the envelope (e.g.,
+    /// to extract correlation fields for tracing spans), avoiding a redundant
+    /// JSON parse per message.
+    pub async fn process_idempotent_with_envelope<T, F, Fut>(
+        &self,
+        envelope: &serde_json::Value,
+        msg: &BusMessage,
+        handler: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        T: DeserializeOwned,
+        F: FnOnce(T) -> Fut,
+        Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>,
+    {
         let event_id = envelope
             .get("event_id")
             .and_then(|v| v.as_str())

@@ -12,10 +12,10 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
-use super::client::QboClient;
 use super::cdc::{
     DbTokenProvider, QboCdcEntityPayload, CDC_ENTITIES, EVENT_TYPE_QBO_ENTITY_SYNCED,
 };
+use super::client::QboClient;
 use super::TokenProvider;
 use crate::events::envelope::create_integrations_envelope;
 use crate::events::MUTATION_CLASS_DATA_MUTATION;
@@ -46,9 +46,7 @@ pub async fn full_resync(
     for entity_type in CDC_ENTITIES {
         // Acquire permit to respect rate limits
         let _permit = semaphore.acquire().await?;
-        let count =
-            resync_entity_type(pool, &client, app_id, realm_id, entity_type)
-                .await?;
+        let count = resync_entity_type(pool, &client, app_id, realm_id, entity_type).await?;
         total += count;
     }
 
@@ -83,6 +81,14 @@ async fn resync_entity_type(
     let correlation_id = Uuid::new_v4().to_string();
     let mut count = 0u32;
 
+    // Hoist invariant string allocations out of the per-entity loop
+    let entity_type_str = entity_type.to_string();
+    let realm_id_str = realm_id.to_string();
+    let app_id_str = app_id.to_string();
+    let event_type_str = EVENT_TYPE_QBO_ENTITY_SYNCED.to_string();
+    let mutation_class_str = MUTATION_CLASS_DATA_MUTATION.to_string();
+    let aggregate_type = format!("qbo_{}", entity_type.to_lowercase());
+
     for entity in &entities {
         let entity_id = entity
             .get("Id")
@@ -91,9 +97,9 @@ async fn resync_entity_type(
 
         let event_id = Uuid::new_v4();
         let payload = QboCdcEntityPayload {
-            entity_type: entity_type.to_string(),
+            entity_type: entity_type_str.clone(),
             entity_id: entity_id.to_string(),
-            realm_id: realm_id.to_string(),
+            realm_id: realm_id_str.clone(),
             source: "full_resync".to_string(),
             entity_data: entity.clone(),
             synced_at: now,
@@ -101,11 +107,11 @@ async fn resync_entity_type(
 
         let envelope = create_integrations_envelope(
             event_id,
-            app_id.to_string(),
-            EVENT_TYPE_QBO_ENTITY_SYNCED.to_string(),
+            app_id_str.clone(),
+            event_type_str.clone(),
             correlation_id.clone(),
             None,
-            MUTATION_CLASS_DATA_MUTATION.to_string(),
+            mutation_class_str.clone(),
             payload,
         );
 
@@ -113,7 +119,7 @@ async fn resync_entity_type(
             &mut tx,
             event_id,
             EVENT_TYPE_QBO_ENTITY_SYNCED,
-            &format!("qbo_{}", entity_type.to_lowercase()),
+            &aggregate_type,
             entity_id,
             app_id,
             &envelope,
@@ -125,11 +131,7 @@ async fn resync_entity_type(
 
     tx.commit().await?;
 
-    tracing::info!(
-        entity_type,
-        count,
-        "Full resync completed for entity type"
-    );
+    tracing::info!(entity_type, count, "Full resync completed for entity type");
 
     Ok(count)
 }

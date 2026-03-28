@@ -56,13 +56,9 @@ pub(crate) struct DbTokenProvider {
 #[async_trait::async_trait]
 impl TokenProvider for DbTokenProvider {
     async fn get_token(&self) -> Result<String, QboError> {
-        crate::domain::oauth::service::get_access_token(
-            &self.pool,
-            &self.app_id,
-            "quickbooks",
-        )
-        .await
-        .map_err(|e| QboError::TokenError(e.to_string()))
+        crate::domain::oauth::service::get_access_token(&self.pool, &self.app_id, "quickbooks")
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))
     }
 
     async fn refresh_token(&self) -> Result<String, QboError> {
@@ -130,14 +126,7 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
         let needs_resync = check_resync_needed(pool, conn).await?;
 
         if needs_resync {
-            match super::sync::full_resync(
-                pool,
-                &base_url,
-                &conn.app_id,
-                &conn.realm_id,
-            )
-            .await
-            {
+            match super::sync::full_resync(pool, &base_url, &conn.app_id, &conn.realm_id).await {
                 Ok(count) => {
                     tracing::info!(
                         app_id = %conn.app_id,
@@ -157,9 +146,7 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                 }
             }
         } else if let Some(watermark) = conn.cdc_watermark {
-            match poll_cdc(pool, &base_url, &conn.app_id, &conn.realm_id, &watermark)
-                .await
-            {
+            match poll_cdc(pool, &base_url, &conn.app_id, &conn.realm_id, &watermark).await {
                 Ok(count) => {
                     if count > 0 {
                         tracing::info!(
@@ -187,10 +174,7 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
 }
 
 /// Check if a connection needs full resync; if so, set the DB flag.
-async fn check_resync_needed(
-    pool: &PgPool,
-    conn: &CdcConnection,
-) -> Result<bool, sqlx::Error> {
+async fn check_resync_needed(pool: &PgPool, conn: &CdcConnection) -> Result<bool, sqlx::Error> {
     if conn.full_resync_required {
         return Ok(true);
     }
@@ -232,8 +216,7 @@ async fn poll_cdc(
     let response = client.cdc(&entity_refs, watermark).await?;
 
     let mut tx = pool.begin().await?;
-    let count =
-        process_cdc_entities(&mut tx, &response, app_id, realm_id, "cdc").await?;
+    let count = process_cdc_entities(&mut tx, &response, app_id, realm_id, "cdc").await?;
 
     // Advance watermark
     let now = Utc::now();
@@ -282,11 +265,20 @@ pub(crate) async fn process_cdc_entities(
 
     let mut count = 0u32;
 
+    let realm_id_str = realm_id.to_string();
+    let source_str = source.to_string();
+    let app_id_str = app_id.to_string();
+    let event_type_str = EVENT_TYPE_QBO_ENTITY_SYNCED.to_string();
+    let mutation_class_str = MUTATION_CLASS_DATA_MUTATION.to_string();
+
     for entity_type in CDC_ENTITIES {
         let entities = match qr.get(*entity_type).and_then(|v| v.as_array()) {
             Some(arr) => arr,
             None => continue,
         };
+
+        let entity_type_str = entity_type.to_string();
+        let aggregate_type = format!("qbo_{}", entity_type.to_lowercase());
 
         for entity in entities {
             let entity_id = entity
@@ -296,21 +288,21 @@ pub(crate) async fn process_cdc_entities(
 
             let event_id = Uuid::new_v4();
             let payload = QboCdcEntityPayload {
-                entity_type: entity_type.to_string(),
+                entity_type: entity_type_str.clone(),
                 entity_id: entity_id.to_string(),
-                realm_id: realm_id.to_string(),
-                source: source.to_string(),
+                realm_id: realm_id_str.clone(),
+                source: source_str.clone(),
                 entity_data: entity.clone(),
                 synced_at: now,
             };
 
             let envelope = create_integrations_envelope(
                 event_id,
-                app_id.to_string(),
-                EVENT_TYPE_QBO_ENTITY_SYNCED.to_string(),
+                app_id_str.clone(),
+                event_type_str.clone(),
                 correlation_id.clone(),
                 None,
-                MUTATION_CLASS_DATA_MUTATION.to_string(),
+                mutation_class_str.clone(),
                 payload,
             );
 
@@ -318,7 +310,7 @@ pub(crate) async fn process_cdc_entities(
                 tx,
                 event_id,
                 EVENT_TYPE_QBO_ENTITY_SYNCED,
-                &format!("qbo_{}", entity_type.to_lowercase()),
+                &aggregate_type,
                 entity_id,
                 app_id,
                 &envelope,
