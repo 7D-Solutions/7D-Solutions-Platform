@@ -1,6 +1,6 @@
 [package]
 name = "event-bus"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry"
 publish = ["7d-platform"]
@@ -21,6 +21,12 @@ uuid = { version = "1", features = ["serde", "v4"] }
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-test = "0.4"
+criterion = "0.5"
+rand = "0.8"
+
+[[bench]]
+name = "envelope_bench"
+harness = false
 
 [lints]
 workspace = true
