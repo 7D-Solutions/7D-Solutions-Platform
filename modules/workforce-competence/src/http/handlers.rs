@@ -237,7 +237,8 @@ pub async fn post_revoke_authority(
 
     match acceptance_authority::revoke_acceptance_authority(&state.pool, &req).await {
         Ok((result, is_replay)) => {
-            let status = if is_replay { StatusCode::OK } else { StatusCode::OK };
+            let _ = is_replay; // Both paths return OK (revoke is idempotent)
+            let status = StatusCode::OK;
             (status, Json(json!(result))).into_response()
         }
         Err(e) => service_error_response(e).into_response(),
