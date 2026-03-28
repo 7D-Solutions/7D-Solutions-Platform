@@ -6354,7 +6354,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "axum",
  "chrono",

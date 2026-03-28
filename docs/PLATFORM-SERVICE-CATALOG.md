@@ -23,6 +23,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | consolidation | consolidation | 1.0.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | customer-portal | customer-portal | 1.0.0 | 8111 | 5464 | External customer portal auth boundary service | [Revisions](modules/customer-portal/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| fixed-assets | fixed-assets | 1.0.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [Revisions](modules/fixed-assets/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | gl | gl-rs | 1.0.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | inventory | inventory-rs | 1.0.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [Revisions](modules/inventory/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -48,8 +49,7 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [Revisions](modules/integrations/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Platform Libraries
