@@ -86,61 +86,86 @@ pub async fn refresh_aging_tx(
     // Allocations (ar_payment_allocations) are explicit payment-to-invoice splits (bd-14f).
     // Credit notes and write-offs are negative adjustments that reduce outstanding balance.
     // An invoice with zero or negative open balance is excluded from aging.
-    let computed: Option<ComputedAging> = sqlx::query_as::<_, ComputedAging>(
+    let aging = sqlx::query_as::<_, ComputedAging>(
         r#"
-        WITH open_invoices AS (
-            -- All invoices that are still receivable (not paid, not void)
+        WITH invoice_base AS (
             SELECT
                 i.id,
                 i.amount_cents,
                 i.currency,
-                i.due_at,
-                COALESCE(
-                    (SELECT SUM(c.amount_cents)
-                     FROM ar_charges c
-                     WHERE c.invoice_id = i.id
-                       AND c.status = 'succeeded'),
-                    0
-                ) AS paid_cents,
-                COALESCE(
-                    (SELECT SUM(a.amount_cents)
-                     FROM ar_payment_allocations a
-                     WHERE a.invoice_id = i.id),
-                    0
-                ) AS allocated_cents,
-                COALESCE(
-                    (SELECT SUM(cn.amount_minor)
-                     FROM ar_credit_notes cn
-                     WHERE cn.invoice_id = i.id
-                       AND cn.status = 'issued'),
-                    0
-                ) AS credit_note_cents,
-                COALESCE(
-                    (SELECT SUM(wo.written_off_amount_minor)
-                     FROM ar_invoice_write_offs wo
-                     WHERE wo.invoice_id = i.id
-                       AND wo.status = 'written_off'),
-                    0
-                ) AS written_off_cents
+                i.due_at
             FROM ar_invoices i
             WHERE i.app_id = $1
               AND i.ar_customer_id = $2
               AND i.status NOT IN ('paid', 'void', 'draft')
         ),
+        charges AS (
+            SELECT
+                c.invoice_id,
+                SUM(c.amount_cents)::BIGINT AS paid_cents
+            FROM ar_charges c
+            JOIN invoice_base i ON i.id = c.invoice_id
+            WHERE c.status = 'succeeded'
+            GROUP BY c.invoice_id
+        ),
+        allocations AS (
+            SELECT
+                a.invoice_id,
+                SUM(a.amount_cents)::BIGINT AS allocated_cents
+            FROM ar_payment_allocations a
+            JOIN invoice_base i ON i.id = a.invoice_id
+            GROUP BY a.invoice_id
+        ),
+        credit_notes AS (
+            SELECT
+                cn.invoice_id,
+                SUM(cn.amount_minor)::BIGINT AS credit_note_cents
+            FROM ar_credit_notes cn
+            JOIN invoice_base i ON i.id = cn.invoice_id
+            WHERE cn.status = 'issued'
+            GROUP BY cn.invoice_id
+        ),
+        write_offs AS (
+            SELECT
+                wo.invoice_id,
+                SUM(wo.written_off_amount_minor)::BIGINT AS written_off_cents
+            FROM ar_invoice_write_offs wo
+            JOIN invoice_base i ON i.id = wo.invoice_id
+            WHERE wo.status = 'written_off'
+            GROUP BY wo.invoice_id
+        ),
         open_balances AS (
             SELECT
-                currency,
-                GREATEST(0, amount_cents - paid_cents - allocated_cents - credit_note_cents - written_off_cents) AS open_balance,
-                due_at,
+                i.currency,
+                GREATEST(
+                    0::BIGINT,
+                    i.amount_cents::BIGINT
+                        - COALESCE(ch.paid_cents, 0)
+                        - COALESCE(al.allocated_cents, 0)
+                        - COALESCE(cn.credit_note_cents, 0)
+                        - COALESCE(wo.written_off_cents, 0)
+                ) AS open_balance,
+                i.due_at,
                 CASE
-                    WHEN due_at IS NULL OR due_at >= NOW() THEN 'current'
-                    WHEN due_at >= NOW() - INTERVAL '30 days' THEN 'days_1_30'
-                    WHEN due_at >= NOW() - INTERVAL '60 days' THEN 'days_31_60'
-                    WHEN due_at >= NOW() - INTERVAL '90 days' THEN 'days_61_90'
+                    WHEN i.due_at IS NULL OR i.due_at >= NOW() THEN 'current'
+                    WHEN i.due_at >= NOW() - INTERVAL '30 days' THEN 'days_1_30'
+                    WHEN i.due_at >= NOW() - INTERVAL '60 days' THEN 'days_31_60'
+                    WHEN i.due_at >= NOW() - INTERVAL '90 days' THEN 'days_61_90'
                     ELSE 'days_over_90'
                 END AS bucket
-            FROM open_invoices
-            WHERE GREATEST(0, amount_cents - paid_cents - allocated_cents - credit_note_cents - written_off_cents) > 0
+            FROM invoice_base i
+            LEFT JOIN charges ch ON ch.invoice_id = i.id
+            LEFT JOIN allocations al ON al.invoice_id = i.id
+            LEFT JOIN credit_notes cn ON cn.invoice_id = i.id
+            LEFT JOIN write_offs wo ON wo.invoice_id = i.id
+            WHERE GREATEST(
+                0::BIGINT,
+                i.amount_cents::BIGINT
+                    - COALESCE(ch.paid_cents, 0)
+                    - COALESCE(al.allocated_cents, 0)
+                    - COALESCE(cn.credit_note_cents, 0)
+                    - COALESCE(wo.written_off_cents, 0)
+            ) > 0
         )
         SELECT
             COALESCE(MAX(currency), 'usd') AS currency,
@@ -156,10 +181,8 @@ pub async fn refresh_aging_tx(
     )
     .bind(app_id)
     .bind(customer_id)
-    .fetch_optional(&mut **tx)
+    .fetch_one(&mut **tx)
     .await?;
-
-    let aging = computed.unwrap_or_default();
 
     // Step 2: Upsert into projection table
     let snapshot = sqlx::query_as::<_, AgingSnapshot>(

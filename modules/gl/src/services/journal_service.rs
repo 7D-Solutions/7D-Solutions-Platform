@@ -129,34 +129,30 @@ pub async fn process_gl_posting_request(
         .await?;
 
         // Convert payload lines to repo insert format
-        let lines: Vec<journal_repo::JournalLineInsert> = payload
-            .lines
-            .iter()
-            .enumerate()
-            .map(|(idx, line)| journal_repo::JournalLineInsert {
+        let mut lines = Vec::with_capacity(payload.lines.len());
+        let mut balance_input = Vec::with_capacity(payload.lines.len());
+        for (idx, line) in payload.lines.iter().enumerate() {
+            let debit_minor = (line.debit * 100.0).round() as i64;
+            let credit_minor = (line.credit * 100.0).round() as i64;
+            lines.push(journal_repo::JournalLineInsert {
                 id: Uuid::new_v4(),
                 line_no: (idx + 1) as i32,
                 account_ref: line.account_ref.clone(),
-                debit_minor: (line.debit * 100.0).round() as i64, // Convert to minor units
-                credit_minor: (line.credit * 100.0).round() as i64,
+                debit_minor,
+                credit_minor,
                 memo: line.memo.clone(),
-            })
-            .collect();
+            });
+            balance_input.push(JournalLineInput {
+                account_ref: line.account_ref.clone(),
+                debit_minor,
+                credit_minor,
+            });
+        }
 
         // Insert journal lines
-        journal_repo::bulk_insert_lines(&mut tx, entry_id, lines.clone()).await?;
+        journal_repo::bulk_insert_lines(&mut tx, entry_id, &lines).await?;
 
         // Update account balances from journal lines (exactly-once, within same transaction)
-        // Convert journal lines to balance delta input format
-        let balance_input: Vec<JournalLineInput> = lines
-            .iter()
-            .map(|line| JournalLineInput {
-                account_ref: line.account_ref.clone(),
-                debit_minor: line.debit_minor,
-                credit_minor: line.credit_minor,
-            })
-            .collect();
-
         // Update balances atomically within the posting transaction
         balance_updater::update_balances_from_journal(
             &mut tx,

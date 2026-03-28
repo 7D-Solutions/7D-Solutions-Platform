@@ -167,7 +167,7 @@ pub async fn create_reversal_entry(
             .collect();
 
         // Insert reversal lines
-        journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, reversal_lines.clone()).await?;
+        journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, &reversal_lines).await?;
 
         // Update account balances from reversal lines (exactly-once, within same transaction)
         // Convert reversal lines to balance delta input format

@@ -227,7 +227,7 @@ async fn recognize_single_line(
         },
     ];
 
-    journal_repo::bulk_insert_lines(&mut tx, journal_entry_id, journal_lines).await?;
+    journal_repo::bulk_insert_lines(&mut tx, journal_entry_id, &journal_lines).await?;
 
     // Compute cumulative amounts for the event payload.
     // We need to count this line's amount since it's just now being recognized.

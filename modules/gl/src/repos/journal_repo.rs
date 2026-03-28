@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{PgPool, Postgres, QueryBuilder, Transaction};
 use uuid::Uuid;
 
 /// Journal entry with lines (for reading from DB)
@@ -192,29 +192,35 @@ pub async fn insert_entry(
 }
 
 /// Bulk insert journal lines for a journal entry
-pub async fn bulk_insert_lines(
+pub async fn bulk_insert_lines<T>(
     tx: &mut Transaction<'_, Postgres>,
     journal_entry_id: Uuid,
-    lines: Vec<JournalLineInsert>,
-) -> Result<(), sqlx::Error> {
-    for line in lines {
-        sqlx::query(
-            r#"
-            INSERT INTO journal_lines
-                (id, journal_entry_id, line_no, account_ref, debit_minor, credit_minor, memo)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#,
-        )
-        .bind(line.id)
-        .bind(journal_entry_id)
-        .bind(line.line_no)
-        .bind(&line.account_ref)
-        .bind(line.debit_minor)
-        .bind(line.credit_minor)
-        .bind(&line.memo)
-        .execute(&mut **tx)
-        .await?;
+    lines: T,
+) -> Result<(), sqlx::Error>
+where
+    T: AsRef<[JournalLineInsert]>,
+{
+    let lines = lines.as_ref();
+    if lines.is_empty() {
+        return Ok(());
     }
+
+    let mut query_builder = QueryBuilder::<Postgres>::new(
+        "INSERT INTO journal_lines \
+         (id, journal_entry_id, line_no, account_ref, debit_minor, credit_minor, memo) ",
+    );
+    query_builder.push_values(lines, |mut builder, line| {
+        builder
+            .push_bind(line.id)
+            .push_bind(journal_entry_id)
+            .push_bind(line.line_no)
+            .push_bind(&line.account_ref)
+            .push_bind(line.debit_minor)
+            .push_bind(line.credit_minor)
+            .push_bind(&line.memo);
+    });
+
+    query_builder.build().execute(&mut **tx).await?;
 
     Ok(())
 }

@@ -16,4 +16,10 @@ use super::models::UnmatchedTxn;
 /// Returns `Some(confidence)` in `[0.5000, 1.0000]` for valid candidates.
 pub trait MatchStrategy {
     fn score(&self, statement_line: &UnmatchedTxn, transaction: &UnmatchedTxn) -> Option<Decimal>;
+
+    /// When true, the engine can bucket candidates by exact amount+currency
+    /// before calling `score`, avoiding a full cross-product scan.
+    fn requires_exact_amount_currency(&self) -> bool {
+        true
+    }
 }

@@ -100,7 +100,7 @@ async fn test_journal_entry_with_lines() {
         },
     ];
 
-    journal_repo::bulk_insert_lines(&mut tx, entry_id, lines)
+    journal_repo::bulk_insert_lines(&mut tx, entry_id, &lines)
         .await
         .expect("Failed to insert journal lines");
 
