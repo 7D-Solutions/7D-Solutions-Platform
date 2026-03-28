@@ -74,7 +74,28 @@ impl DepreciationService {
             asset.useful_life_months,
         );
 
-        for p in &periods {
+        // Batch insert all periods in a single query using UNNEST arrays.
+        // Reduces N roundtrips (one per period) to 1 roundtrip.
+        if !periods.is_empty() {
+            let n = periods.len();
+            let ids: Vec<Uuid> = (0..n).map(|_| Uuid::new_v4()).collect();
+            let tenant_ids: Vec<&str> = vec![req.tenant_id.as_str(); n];
+            let asset_ids: Vec<Uuid> = vec![asset.id; n];
+            let period_numbers: Vec<i32> = periods.iter().map(|p| p.period_number).collect();
+            let period_starts: Vec<NaiveDate> = periods.iter().map(|p| p.period_start).collect();
+            let period_ends: Vec<NaiveDate> = periods.iter().map(|p| p.period_end).collect();
+            let amounts: Vec<i64> =
+                periods.iter().map(|p| p.depreciation_amount_minor).collect();
+            let currencies: Vec<&str> = vec![asset.currency.as_str(); n];
+            let cumulatives: Vec<i64> = periods
+                .iter()
+                .map(|p| p.cumulative_depreciation_minor)
+                .collect();
+            let remainings: Vec<i64> = periods
+                .iter()
+                .map(|p| p.remaining_book_value_minor)
+                .collect();
+
             sqlx::query(
                 r#"
                 INSERT INTO fa_depreciation_schedules
@@ -83,20 +104,29 @@ impl DepreciationService {
                      depreciation_amount_minor, currency,
                      cumulative_depreciation_minor, remaining_book_value_minor,
                      is_posted, created_at, updated_at)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,NOW(),NOW())
+                SELECT * FROM UNNEST(
+                    $1::UUID[], $2::TEXT[], $3::UUID[], $4::INT[],
+                    $5::DATE[], $6::DATE[],
+                    $7::BIGINT[], $8::TEXT[],
+                    $9::BIGINT[], $10::BIGINT[],
+                    ARRAY_FILL(FALSE, ARRAY[$11]),
+                    ARRAY_FILL(NOW()::TIMESTAMPTZ, ARRAY[$11]),
+                    ARRAY_FILL(NOW()::TIMESTAMPTZ, ARRAY[$11])
+                )
                 ON CONFLICT (asset_id, period_number) DO NOTHING
                 "#,
             )
-            .bind(Uuid::new_v4())
-            .bind(&req.tenant_id)
-            .bind(asset.id)
-            .bind(p.period_number)
-            .bind(p.period_start)
-            .bind(p.period_end)
-            .bind(p.depreciation_amount_minor)
-            .bind(&asset.currency)
-            .bind(p.cumulative_depreciation_minor)
-            .bind(p.remaining_book_value_minor)
+            .bind(&ids)
+            .bind(&tenant_ids)
+            .bind(&asset_ids)
+            .bind(&period_numbers)
+            .bind(&period_starts)
+            .bind(&period_ends)
+            .bind(&amounts)
+            .bind(&currencies)
+            .bind(&cumulatives)
+            .bind(&remainings)
+            .bind(n as i32)
             .execute(pool)
             .await?;
         }
@@ -443,14 +473,18 @@ mod tests {
             currency: None,
             created_by: None,
         };
-        let run1 = DepreciationService::run(&pool, &run_req).await.expect("run1 failed");
+        let run1 = DepreciationService::run(&pool, &run_req)
+            .await
+            .expect("run1 failed");
         assert_eq!(run1.status, "completed");
         assert_eq!(run1.periods_posted, 6);
         assert_eq!(run1.assets_processed, 1);
         assert_eq!(run1.total_depreciation_minor, 60_000);
 
         // Rerun same as_of_date → no new periods posted
-        let run2 = DepreciationService::run(&pool, &run_req).await.expect("run2 failed");
+        let run2 = DepreciationService::run(&pool, &run_req)
+            .await
+            .expect("run2 failed");
         assert_eq!(run2.status, "completed");
         assert_eq!(run2.periods_posted, 0, "already posted — idempotent");
         assert_eq!(run2.total_depreciation_minor, 0);

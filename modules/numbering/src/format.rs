@@ -26,21 +26,56 @@ pub struct FormatPolicy {
 ///
 /// This function is pure: same inputs always produce the same output.
 /// It never touches the database or any external state.
+///
+/// Uses a single-pass approach: iterates the pattern once, writing tokens
+/// directly into the output buffer. Avoids the 6 intermediate String
+/// allocations from chained `.replace()`.
 pub fn format_number(policy: &FormatPolicy, number: i64, reference_date: NaiveDate) -> String {
-    let padded = if policy.padding > 0 {
-        format!("{:0>width$}", number, width = policy.padding as usize)
-    } else {
-        number.to_string()
-    };
+    use std::fmt::Write;
 
-    policy
-        .pattern
-        .replace("{prefix}", &policy.prefix)
-        .replace("{YYYY}", &format!("{:04}", reference_date.year()))
-        .replace("{YY}", &format!("{:02}", reference_date.year() % 100))
-        .replace("{MM}", &format!("{:02}", reference_date.month()))
-        .replace("{DD}", &format!("{:02}", reference_date.day()))
-        .replace("{number}", &padded)
+    let pattern = policy.pattern.as_bytes();
+    let len = pattern.len();
+    let mut result = String::with_capacity(len + 16);
+    let mut i = 0;
+
+    while i < len {
+        if pattern[i] == b'{' {
+            // Find closing brace
+            if let Some(end) = pattern[i + 1..].iter().position(|&b| b == b'}') {
+                let token = &policy.pattern[i + 1..i + 1 + end];
+                match token {
+                    "prefix" => result.push_str(&policy.prefix),
+                    "YYYY" => { let _ = write!(result, "{:04}", reference_date.year()); }
+                    "YY" => { let _ = write!(result, "{:02}", reference_date.year() % 100); }
+                    "MM" => { let _ = write!(result, "{:02}", reference_date.month()); }
+                    "DD" => { let _ = write!(result, "{:02}", reference_date.day()); }
+                    "number" => {
+                        if policy.padding > 0 {
+                            let _ = write!(result, "{:0>width$}", number, width = policy.padding as usize);
+                        } else {
+                            let _ = write!(result, "{}", number);
+                        }
+                    }
+                    _ => {
+                        // Unknown token — pass through verbatim
+                        result.push('{');
+                        result.push_str(token);
+                        result.push('}');
+                    }
+                }
+                i += end + 2; // skip past '}'
+            } else {
+                // No closing brace — emit literal '{'
+                result.push('{');
+                i += 1;
+            }
+        } else {
+            result.push(pattern[i] as char);
+            i += 1;
+        }
+    }
+
+    result
 }
 
 // ── Trait import for .year() / .month() / .day() ──────────────────────
@@ -83,10 +118,7 @@ mod tests {
             prefix: "INV".to_string(),
             padding: 5,
         };
-        assert_eq!(
-            format_number(&policy, 1, date(2026, 3, 2)),
-            "INV-00001"
-        );
+        assert_eq!(format_number(&policy, 1, date(2026, 3, 2)), "INV-00001");
     }
 
     #[test]
@@ -166,10 +198,7 @@ mod tests {
             padding: 3,
         };
         // Number wider than padding — no truncation, just prints the number
-        assert_eq!(
-            format_number(&policy, 99999, date(2026, 3, 2)),
-            "INV-99999"
-        );
+        assert_eq!(format_number(&policy, 99999, date(2026, 3, 2)), "INV-99999");
     }
 
     #[test]
