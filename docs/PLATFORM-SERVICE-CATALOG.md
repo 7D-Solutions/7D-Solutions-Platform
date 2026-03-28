@@ -22,6 +22,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | bom | bom-rs | 1.0.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 1.0.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
+| customer-portal | customer-portal | 1.0.0 | 8111 | 5464 | External customer portal auth boundary service | [Revisions](modules/customer-portal/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | gl | gl-rs | 1.0.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | inventory | inventory-rs | 1.0.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [Revisions](modules/inventory/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -30,7 +31,6 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | numbering | numbering | 1.0.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [Revisions](modules/numbering/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | party | party-rs | 1.0.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [Revisions](modules/party/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| pdf-editor | pdf-editor-rs | 1.0.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | production | production-rs | 1.0.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | quality-inspection | quality-inspection-rs | 1.0.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [Revisions](modules/quality-inspection/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | shipping-receiving | shipping-receiving-rs | 1.0.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [Revisions](modules/shipping-receiving/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -45,10 +45,10 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| reporting | reporting | 0.1.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| reporting | reporting | 0.1.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [Revisions](modules/reporting/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
