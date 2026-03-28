@@ -28,15 +28,25 @@ async fn setup_test_db() -> sqlx::PgPool {
     pool
 }
 
-async fn cleanup_sessions(pool: &sqlx::PgPool) {
-    sqlx::query("DELETE FROM checkout_sessions WHERE invoice_id LIKE 'test_%'")
+fn unique_tenant_id() -> String {
+    format!("tenant_checkout_{}", Uuid::new_v4().simple())
+}
+
+async fn cleanup_sessions(pool: &sqlx::PgPool, tenant_id: &str) {
+    sqlx::query("DELETE FROM checkout_sessions WHERE tenant_id = $1")
+        .bind(tenant_id)
         .execute(pool)
         .await
         .expect("Failed to cleanup checkout_sessions");
 }
 
 /// Insert a session with the given status for testing purposes.
-async fn insert_session(pool: &sqlx::PgPool, invoice_id: &str, status: &str) -> (Uuid, String) {
+async fn insert_session(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    invoice_id: &str,
+    status: &str,
+) -> (Uuid, String) {
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
     let session_id: Uuid = sqlx::query_scalar(
         r#"
@@ -47,7 +57,7 @@ async fn insert_session(pool: &sqlx::PgPool, invoice_id: &str, status: &str) -> 
         "#,
     )
     .bind(invoice_id)
-    .bind("tenant_test")
+    .bind(tenant_id)
     .bind(2500_i32)
     .bind("usd")
     .bind(&pi_id)
@@ -66,10 +76,10 @@ async fn insert_session(pool: &sqlx::PgPool, invoice_id: &str, status: &str) -> 
 #[serial]
 async fn test_checkout_session_created_with_mock() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let tenant_id = "tenant_checkout_test";
 
     // Insert a checkout session directly (simulating what the handler does)
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
@@ -83,7 +93,7 @@ async fn test_checkout_session_created_with_mock() {
         "#,
     )
     .bind(&invoice_id)
-    .bind(tenant_id)
+    .bind(&tenant_id)
     .bind(5000_i32)
     .bind("usd")
     .bind(&pi_id)
@@ -100,7 +110,7 @@ async fn test_checkout_session_created_with_mock() {
 
     assert_eq!(status, "created");
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -111,10 +121,11 @@ async fn test_checkout_session_created_with_mock() {
 #[serial]
 async fn test_present_transition_created_to_presented() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let (session_id, _) = insert_session(&pool, &invoice_id, "created").await;
+    let (session_id, _) = insert_session(&pool, &tenant_id, &invoice_id, "created").await;
 
     // First present call: should update 1 row
     let rows = sqlx::query(
@@ -149,17 +160,18 @@ async fn test_present_transition_created_to_presented() {
         "presented_at must be set after present"
     );
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_present_transition_is_idempotent() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let (session_id, _) = insert_session(&pool, &invoice_id, "created").await;
+    let (session_id, _) = insert_session(&pool, &tenant_id, &invoice_id, "created").await;
 
     // First call: transitions to presented
     let rows1 = sqlx::query(
@@ -203,7 +215,7 @@ async fn test_present_transition_is_idempotent() {
         "Status must remain presented after idempotent call"
     );
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -214,10 +226,11 @@ async fn test_present_transition_is_idempotent() {
 #[serial]
 async fn test_webhook_updates_checkout_session_to_completed() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let (session_id, pi_id) = insert_session(&pool, &invoice_id, "presented").await;
+    let (session_id, pi_id) = insert_session(&pool, &tenant_id, &invoice_id, "presented").await;
 
     // Simulate webhook: presented → completed
     let rows = sqlx::query(
@@ -241,7 +254,7 @@ async fn test_webhook_updates_checkout_session_to_completed() {
 
     assert_eq!(status, "completed");
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -252,10 +265,11 @@ async fn test_webhook_updates_checkout_session_to_completed() {
 #[serial]
 async fn test_webhook_replay_is_idempotent() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let (session_id, pi_id) = insert_session(&pool, &invoice_id, "presented").await;
+    let (session_id, pi_id) = insert_session(&pool, &tenant_id, &invoice_id, "presented").await;
 
     // First webhook delivery: presented → completed (1 row affected)
     let rows1 = sqlx::query(
@@ -300,7 +314,7 @@ async fn test_webhook_replay_is_idempotent() {
         "Status must remain completed after webhook replay"
     );
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -311,10 +325,11 @@ async fn test_webhook_replay_is_idempotent() {
 #[serial]
 async fn test_webhook_does_not_update_terminal_session() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
-    let (_, pi_id) = insert_session(&pool, &invoice_id, "completed").await;
+    let (_, pi_id) = insert_session(&pool, &tenant_id, &invoice_id, "completed").await;
 
     // A failed-event webhook must NOT overwrite a completed session
     let rows = sqlx::query(
@@ -339,7 +354,7 @@ async fn test_webhook_does_not_update_terminal_session() {
 
     assert_eq!(status, "completed");
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -350,7 +365,8 @@ async fn test_webhook_does_not_update_terminal_session() {
 #[serial]
 async fn test_get_checkout_session_by_id() {
     let pool = setup_test_db().await;
-    cleanup_sessions(&pool).await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
@@ -366,7 +382,7 @@ async fn test_get_checkout_session_by_id() {
         "#,
     )
     .bind(&invoice_id)
-    .bind("tenant_get_test")
+    .bind(&tenant_id)
     .bind(amount)
     .bind(currency)
     .bind(&pi_id)
@@ -398,5 +414,5 @@ async fn test_get_checkout_session_by_id() {
     assert_eq!(row.amount_minor, amount);
     assert_eq!(row.currency, currency);
 
-    cleanup_sessions(&pool).await;
+    cleanup_sessions(&pool, &tenant_id).await;
 }
