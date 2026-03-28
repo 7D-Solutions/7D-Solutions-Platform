@@ -78,34 +78,18 @@ impl InMemoryBus {
     /// - `auth.*.created` matches `auth.user.created`
     /// - `auth.events.*` does NOT match `auth.events.user.created` (too many tokens)
     fn matches_pattern(subject: &str, pattern: &str) -> bool {
-        let subject_tokens: Vec<&str> = subject.split('.').collect();
-        let pattern_tokens: Vec<&str> = pattern.split('.').collect();
+        let mut subject_parts = subject.split('.');
+        let mut pattern_parts = pattern.split('.');
 
-        let mut s_idx = 0;
-        let mut p_idx = 0;
-
-        while s_idx < subject_tokens.len() && p_idx < pattern_tokens.len() {
-            let pattern_token = pattern_tokens[p_idx];
-
-            if pattern_token == ">" {
-                // `>` matches all remaining tokens
-                return true;
-            } else if pattern_token == "*" {
-                // `*` matches exactly one token
-                s_idx += 1;
-                p_idx += 1;
-            } else if subject_tokens[s_idx] == pattern_token {
-                // Exact match
-                s_idx += 1;
-                p_idx += 1;
-            } else {
-                // No match
-                return false;
+        loop {
+            match (pattern_parts.next(), subject_parts.next()) {
+                (Some(">"), Some(_)) => return true, // > matches one or more remaining
+                (Some("*"), Some(_)) => continue,    // * matches exactly one token
+                (Some(p), Some(s)) if p == s => continue, // exact match
+                (None, None) => return true,         // both exhausted — full match
+                _ => return false,                   // any mismatch
             }
         }
-
-        // Both must be exhausted for a full match (unless pattern ended with `>`)
-        s_idx == subject_tokens.len() && p_idx == pattern_tokens.len()
     }
 }
 
@@ -209,13 +193,13 @@ mod tests {
         let bus = InMemoryBus::new();
 
         // Subscribe first
-        let mut stream = bus.subscribe("test.events.>").await.unwrap();
+        let mut stream = bus.subscribe("test.events.>").await.expect("subscribe");
 
         // Publish a message
         let payload = b"test message".to_vec();
         bus.publish("test.events.user.created", payload.clone())
             .await
-            .unwrap();
+            .expect("publish");
 
         // Receive the message
         let msg = tokio::time::timeout(std::time::Duration::from_secs(1), stream.next())
@@ -230,14 +214,14 @@ mod tests {
     #[tokio::test]
     async fn test_multiple_messages_in_order() {
         let bus = InMemoryBus::new();
-        let mut stream = bus.subscribe("test.>").await.unwrap();
+        let mut stream = bus.subscribe("test.>").await.expect("subscribe");
 
         // Publish multiple messages
         for i in 0..5 {
             let payload = format!("message {}", i).into_bytes();
             bus.publish(&format!("test.msg.{}", i), payload)
                 .await
-                .unwrap();
+                .expect("publish");
         }
 
         // Verify order
@@ -257,21 +241,21 @@ mod tests {
         let bus = InMemoryBus::new();
 
         // Subscribe to specific pattern
-        let mut stream = bus.subscribe("auth.events.*").await.unwrap();
+        let mut stream = bus.subscribe("auth.events.*").await.expect("subscribe");
 
         // Publish matching and non-matching messages
         bus.publish("auth.events.created", b"match".to_vec())
             .await
-            .unwrap();
+            .expect("publish");
         bus.publish("auth.events.deleted", b"match".to_vec())
             .await
-            .unwrap();
+            .expect("publish");
         bus.publish("auth.events.user.created", b"no match".to_vec())
             .await
-            .unwrap(); // Too deep
+            .expect("publish"); // Too deep
         bus.publish("billing.events.created", b"no match".to_vec())
             .await
-            .unwrap(); // Wrong prefix
+            .expect("publish"); // Wrong prefix
 
         // Should receive only the two matching messages
         let msg1 = tokio::time::timeout(std::time::Duration::from_millis(100), stream.next())
@@ -297,12 +281,14 @@ mod tests {
         let bus = InMemoryBus::new();
 
         // Create two subscribers
-        let mut stream1 = bus.subscribe("test.>").await.unwrap();
-        let mut stream2 = bus.subscribe("test.>").await.unwrap();
+        let mut stream1 = bus.subscribe("test.>").await.expect("subscribe");
+        let mut stream2 = bus.subscribe("test.>").await.expect("subscribe");
 
         // Publish a message
         let payload = b"broadcast".to_vec();
-        bus.publish("test.msg", payload.clone()).await.unwrap();
+        bus.publish("test.msg", payload.clone())
+            .await
+            .expect("publish");
 
         // Both should receive it
         let msg1 = tokio::time::timeout(std::time::Duration::from_secs(1), stream1.next())

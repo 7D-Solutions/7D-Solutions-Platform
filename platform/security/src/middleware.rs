@@ -47,20 +47,21 @@ pub async fn rate_limit_middleware(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let limiter = request.extensions().get::<Arc<RateLimiter>>().cloned();
-
-    if let Some(limiter) = limiter {
+    // Borrow limiter from extensions (avoids Arc clone per request).
+    // All rate-limit work completes before request is moved into next.run().
+    let rejected = if let Some(limiter) = request.extensions().get::<Arc<RateLimiter>>() {
         let ip = request
             .extensions()
             .get::<ConnectInfo<SocketAddr>>()
             .map(|ci| ci.0.ip().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(|| "unknown".into());
+        limiter.check_limit(&ip, request.uri().path()).is_err()
+    } else {
+        false
+    };
 
-        let path = request.uri().path().to_string();
-
-        if limiter.check_limit(&ip, &path).is_err() {
-            return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
-        }
+    if rejected {
+        return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
     }
 
     next.run(request).await
@@ -108,7 +109,9 @@ mod tests {
         let limiter = default_rate_limiter();
         // Exhaust quota for IP 1
         for _ in 0..DEFAULT_RATE_LIMIT {
-            limiter.check_limit("10.0.0.1", "/api/test").unwrap();
+            limiter
+                .check_limit("10.0.0.1", "/api/test")
+                .expect("within quota");
         }
         assert!(limiter.check_limit("10.0.0.1", "/api/test").is_err());
 
@@ -126,9 +129,12 @@ mod tests {
             .route("/fast", get(|| async { "ok" }))
             .layer(axum::middleware::from_fn(timeout_middleware));
 
-        let req = Request::builder().uri("/fast").body(Body::empty()).unwrap();
+        let req = Request::builder()
+            .uri("/fast")
+            .body(Body::empty())
+            .expect("build request");
 
-        let resp = app.oneshot(req).await.unwrap();
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::OK);
     }
 
@@ -153,8 +159,8 @@ mod tests {
             let req = Request::builder()
                 .uri("/api/test")
                 .body(Body::empty())
-                .unwrap();
-            let resp = app.clone().oneshot(req).await.unwrap();
+                .expect("build request");
+            let resp = app.clone().oneshot(req).await.expect("oneshot");
             assert_eq!(resp.status(), StatusCode::OK);
         }
 
@@ -162,8 +168,8 @@ mod tests {
         let req = Request::builder()
             .uri("/api/test")
             .body(Body::empty())
-            .unwrap();
-        let resp = app.oneshot(req).await.unwrap();
+            .expect("build request");
+        let resp = app.oneshot(req).await.expect("oneshot");
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 }

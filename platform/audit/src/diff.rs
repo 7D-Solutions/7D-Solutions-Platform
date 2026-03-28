@@ -5,7 +5,6 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 /// Field-level change record
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,44 +121,41 @@ impl Diff {
             None => return vec![],
         };
 
-        // Use BTreeMap for deterministic ordering
-        let mut changes: BTreeMap<String, FieldChange> = BTreeMap::new();
+        let mut changes = Vec::new();
 
         // Find removed and modified fields
         for (key, before_value) in before_obj {
             if let Some(after_value) = after_obj.get(key) {
-                // Field exists in both: check if modified
                 if before_value != after_value {
-                    changes.insert(
+                    changes.push(FieldChange::new(
                         key.clone(),
-                        FieldChange::new(
-                            key.clone(),
-                            Some(before_value.clone()),
-                            Some(after_value.clone()),
-                        ),
-                    );
+                        Some(before_value.clone()),
+                        Some(after_value.clone()),
+                    ));
                 }
             } else {
-                // Field removed
-                changes.insert(
+                changes.push(FieldChange::new(
                     key.clone(),
-                    FieldChange::new(key.clone(), Some(before_value.clone()), None),
-                );
+                    Some(before_value.clone()),
+                    None,
+                ));
             }
         }
 
         // Find added fields
         for (key, after_value) in after_obj {
             if !before_obj.contains_key(key) {
-                changes.insert(
+                changes.push(FieldChange::new(
                     key.clone(),
-                    FieldChange::new(key.clone(), None, Some(after_value.clone())),
-                );
+                    None,
+                    Some(after_value.clone()),
+                ));
             }
         }
 
-        // Return as deterministically ordered Vec
-        changes.into_values().collect()
+        // Sort for deterministic ordering (replaces BTreeMap overhead)
+        changes.sort_by(|a, b| a.field.cmp(&b.field));
+        changes
     }
 
     /// Get count of changed fields
@@ -216,7 +212,7 @@ mod tests {
         assert!(diff.is_modification());
         assert_eq!(diff.changed_field_count(), 1);
 
-        let change = diff.get_field_change("status").unwrap();
+        let change = diff.get_field_change("status").expect("status changed");
         assert_eq!(change.field, "status");
         assert_eq!(change.old_value, Some(json!("draft")));
         assert_eq!(change.new_value, Some(json!("active")));
@@ -260,7 +256,7 @@ mod tests {
 
         assert_eq!(diff.changed_field_count(), 1);
 
-        let change = diff.get_field_change("new_field").unwrap();
+        let change = diff.get_field_change("new_field").expect("new_field added");
         assert!(change.is_addition());
         assert_eq!(change.old_value, None);
         assert_eq!(change.new_value, Some(json!("value")));
@@ -278,7 +274,7 @@ mod tests {
 
         assert_eq!(diff.changed_field_count(), 1);
 
-        let change = diff.get_field_change("removed_field").unwrap();
+        let change = diff.get_field_change("removed_field").expect("removed_field changed");
         assert!(change.is_removal());
         assert_eq!(change.old_value, Some(json!("old_value")));
         assert_eq!(change.new_value, None);
@@ -332,7 +328,7 @@ mod tests {
         let diff = Diff::new(before, after);
 
         assert_eq!(diff.changed_field_count(), 1);
-        let change = diff.get_field_change("metadata").unwrap();
+        let change = diff.get_field_change("metadata").expect("metadata changed");
         assert_eq!(change.old_value, Some(json!({ "nested": "old" })));
         assert_eq!(change.new_value, Some(json!({ "nested": "new" })));
     }
