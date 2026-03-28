@@ -57,7 +57,10 @@ pub fn error_response(err: BomError) -> impl IntoResponse {
                 if dbe.code().as_deref() == Some("23505") {
                     return (
                         StatusCode::CONFLICT,
-                        Json(json!({ "error": "duplicate", "message": dbe.message() })),
+                        Json(json!({
+                            "error": "duplicate",
+                            "message": "A record with this identifier already exists"
+                        })),
                     );
                 }
                 // Exclusion constraint violation (overlapping effectivity)

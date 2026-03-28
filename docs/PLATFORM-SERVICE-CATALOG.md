@@ -19,7 +19,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 1.0.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ar | ar-rs | 1.0.64 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| bom | bom-rs | 1.0.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| bom | bom-rs | 1.0.1 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 1.0.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | customer-portal | customer-portal | 1.0.0 | 8111 | 5464 | External customer portal auth boundary service | [Revisions](modules/customer-portal/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -33,7 +33,8 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | numbering | numbering | 1.0.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [Revisions](modules/numbering/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | party | party-rs | 1.0.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [Revisions](modules/party/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| production | production-rs | 1.0.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| pdf-editor | pdf-editor-rs | 1.0.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| production | production-rs | 1.0.1 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | quality-inspection | quality-inspection-rs | 1.0.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [Revisions](modules/quality-inspection/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | reporting | reporting | 1.0.0 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [Revisions](modules/reporting/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | shipping-receiving | shipping-receiving-rs | 1.0.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [Revisions](modules/shipping-receiving/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -50,7 +51,6 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Platform Libraries
 
@@ -65,7 +65,7 @@ Shared crates used by services. Not independently deployed.
 | health | health | 1.0.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
 | platform-contracts | platform_contracts | 1.0.0 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | projections | projections | 1.0.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| security | security | 1.0.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
+| security | security | 1.0.1 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
 | tax-core | tax-core | 1.0.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
 | tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
 
