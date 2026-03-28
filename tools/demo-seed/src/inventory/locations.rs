@@ -26,6 +26,12 @@ struct LocationResponse {
     id: Uuid,
 }
 
+#[derive(Debug, Deserialize)]
+struct LocationListEntry {
+    id: Uuid,
+    code: String,
+}
+
 // ---------------------------------------------------------------------------
 // Static seed data
 // ---------------------------------------------------------------------------
@@ -77,8 +83,10 @@ async fn create_location(
     let status = resp.status();
 
     if status == reqwest::StatusCode::CONFLICT {
-        info!(code = loc.code, "Location already exists");
-        return Ok(None);
+        info!(code = loc.code, "Location already exists — retrieving real UUID");
+        let real_id =
+            find_location_by_code(client, inventory_url, wh_id, loc.code).await?;
+        return Ok(Some(real_id));
     }
 
     if status == reqwest::StatusCode::CREATED || status.is_success() {
@@ -96,6 +104,52 @@ async fn create_location(
     );
 }
 
+/// Fetch all locations for a warehouse and find one by exact code match.
+async fn find_location_by_code(
+    client: &reqwest::Client,
+    inventory_url: &str,
+    warehouse_id: Uuid,
+    code: &str,
+) -> Result<Uuid> {
+    let url = format!(
+        "{}/api/inventory/warehouses/{}/locations",
+        inventory_url, warehouse_id
+    );
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .with_context(|| {
+            format!("GET /api/inventory/warehouses/{}/locations network error", warehouse_id)
+        })?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        bail!(
+            "GET /api/inventory/warehouses/{}/locations failed {status}: {text}",
+            warehouse_id
+        );
+    }
+
+    let locations: Vec<LocationListEntry> = resp
+        .json()
+        .await
+        .context("Failed to parse location list response")?;
+
+    for entry in &locations {
+        if entry.code == code {
+            return Ok(entry.id);
+        }
+    }
+
+    bail!(
+        "Location with code '{}' returned 409 but could not be found via list",
+        code
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Seeding logic
 // ---------------------------------------------------------------------------
@@ -109,17 +163,9 @@ pub(super) async fn seed_locations(
 ) -> Result<Vec<(Uuid, String)>> {
     let mut locations = Vec::with_capacity(LOCATIONS.len());
     for loc in LOCATIONS {
-        let maybe_id = create_location(client, inventory_url, tenant, wh_id, loc).await?;
-        let loc_id = match maybe_id {
-            Some(id) => id,
-            None => {
-                // 409 — use deterministic placeholder
-                Uuid::new_v5(
-                    &Uuid::NAMESPACE_DNS,
-                    format!("{}-location-{}", tenant, loc.code).as_bytes(),
-                )
-            }
-        };
+        let loc_id = create_location(client, inventory_url, tenant, wh_id, loc)
+            .await?
+            .expect("create_location always returns Some after 409 recovery");
         tracker.record_location(loc_id, loc.code);
         locations.push((loc_id, loc.code.to_string()));
         info!(code = loc.code, name = loc.name, location_id = %loc_id, "Location seeded");

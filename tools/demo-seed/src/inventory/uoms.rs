@@ -23,6 +23,12 @@ struct UomResponse {
     id: Uuid,
 }
 
+#[derive(Debug, Deserialize)]
+struct UomListEntry {
+    id: Uuid,
+    code: String,
+}
+
 // ---------------------------------------------------------------------------
 // Static seed data
 // ---------------------------------------------------------------------------
@@ -68,8 +74,9 @@ async fn create_uom(
     let status = resp.status();
 
     if status == reqwest::StatusCode::CONFLICT {
-        info!(code = uom.code, "UoM already exists");
-        return Ok(None);
+        info!(code = uom.code, "UoM already exists — retrieving real UUID");
+        let real_id = find_uom_by_code(client, inventory_url, uom.code).await?;
+        return Ok(Some(real_id));
     }
 
     if status == reqwest::StatusCode::CREATED || status.is_success() {
@@ -82,6 +89,40 @@ async fn create_uom(
 
     let text = resp.text().await.unwrap_or_default();
     bail!("POST /api/inventory/uoms ({}) failed {status}: {text}", uom.code);
+}
+
+/// Fetch all UoMs and find one by exact code match.
+async fn find_uom_by_code(
+    client: &reqwest::Client,
+    inventory_url: &str,
+    code: &str,
+) -> Result<Uuid> {
+    let url = format!("{}/api/inventory/uoms", inventory_url);
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .with_context(|| format!("GET /api/inventory/uoms network error"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        bail!("GET /api/inventory/uoms failed {status}: {text}");
+    }
+
+    let uoms: Vec<UomListEntry> = resp
+        .json()
+        .await
+        .context("Failed to parse UoM list response")?;
+
+    for entry in &uoms {
+        if entry.code == code {
+            return Ok(entry.id);
+        }
+    }
+
+    bail!("UoM with code '{}' returned 409 but could not be found via list", code);
 }
 
 // ---------------------------------------------------------------------------
@@ -97,16 +138,10 @@ pub(super) async fn seed_uoms(
     let mut uom_count = 0;
     let mut uoms = Vec::with_capacity(UOMS.len());
     for uom in UOMS {
-        let maybe_id = create_uom(client, inventory_url, tenant, uom).await?;
-        let uom_id = if let Some(id) = maybe_id {
-            tracker.record_uom(id, uom.code);
-            id
-        } else {
-            // 409 — still record for digest determinism using a deterministic placeholder
-            let placeholder = Uuid::new_v5(&Uuid::NAMESPACE_DNS, format!("uom-{}", uom.code).as_bytes());
-            tracker.record_uom(placeholder, uom.code);
-            placeholder
-        };
+        let uom_id = create_uom(client, inventory_url, tenant, uom)
+            .await?
+            .expect("create_uom always returns Some after 409 recovery");
+        tracker.record_uom(uom_id, uom.code);
         uoms.push((uom_id, uom.code.to_string()));
         uom_count += 1;
         info!(code = uom.code, name = uom.name, "UoM seeded");
