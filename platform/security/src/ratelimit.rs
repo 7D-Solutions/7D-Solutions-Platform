@@ -226,24 +226,28 @@ impl RateLimiter {
         path: &str,
         is_fallback: bool,
     ) -> Result<(), RateLimitError> {
-        let key = Self::build_key(tenant_id, path, is_fallback);
         let config = if is_fallback {
             &self.fallback_config
         } else {
             &self.normal_config
         };
 
-        // Get or create token bucket for this key (key is consumed by entry(), no clone needed)
-        let mut bucket_ref = self
-            .buckets
-            .entry(key)
-            .or_insert_with(|| TokenBucket::new(config.max_requests, config.window));
+        let key = Self::build_key(tenant_id, path, is_fallback);
 
-        // Try to consume a token
-        if bucket_ref.consume() {
+        // Fast path: bucket already exists — no key ownership transfer needed
+        let consumed = if let Some(mut bucket) = self.buckets.get_mut(&key) {
+            bucket.consume()
+        } else {
+            // Slow path: first request for this key — create bucket (consumes key)
+            self.buckets
+                .entry(key)
+                .or_insert_with(|| TokenBucket::new(config.max_requests, config.window))
+                .consume()
+        };
+
+        if consumed {
             Ok(())
         } else {
-            // Record rejection metric
             if let Some(metrics) = &self.metrics {
                 let limit_type = if is_fallback { "fallback" } else { "normal" };
                 metrics.record_rejection(tenant_id, path, limit_type);
@@ -321,12 +325,18 @@ impl WebhookRateLimiter {
     ///
     /// Returns `Ok(())` if allowed, `Err(SecurityError::RateLimitExceeded)` if not.
     pub fn check_webhook_limit(&self, ip: &str) -> Result<(), crate::SecurityError> {
-        let mut bucket = self
-            .buckets
-            .entry(ip.to_string())
-            .or_insert_with(|| TokenBucket::new(self.config.max_requests, self.config.window));
+        // Fast path: bucket already exists — no allocation needed
+        let consumed = if let Some(mut bucket) = self.buckets.get_mut(ip) {
+            bucket.consume()
+        } else {
+            // Slow path: first request from this IP — allocate key
+            self.buckets
+                .entry(ip.to_string())
+                .or_insert_with(|| TokenBucket::new(self.config.max_requests, self.config.window))
+                .consume()
+        };
 
-        if bucket.consume() {
+        if consumed {
             Ok(())
         } else {
             Err(crate::SecurityError::RateLimitExceeded)
