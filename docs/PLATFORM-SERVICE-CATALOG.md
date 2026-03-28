@@ -34,7 +34,7 @@ No version bump discipline required yet.
 | bom | bom-rs | 0.1.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | inventory | inventory-rs | 0.1.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | maintenance | maintenance-rs | 0.1.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -48,7 +48,7 @@ No version bump discipline required yet.
 | shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [Revisions](modules/treasury/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workflow | workflow | 0.1.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workforce-competence | workforce-competence-rs | 0.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
@@ -66,7 +66,7 @@ Shared crates used by services. Not independently deployed.
 | platform-contracts | platform_contracts | 1.0.0 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | projections | projections | 1.0.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 1.0.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
-| tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
+| tax-core | tax-core | 1.0.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
 | tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
 
 ## Tools
