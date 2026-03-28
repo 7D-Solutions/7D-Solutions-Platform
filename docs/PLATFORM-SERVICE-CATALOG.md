@@ -19,6 +19,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 1.0.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ar | ar-rs | 1.0.64 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| consolidation | consolidation | 1.0.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | identity-auth | auth-rs | 1.7.0 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -31,7 +32,6 @@ No version bump discipline required yet.
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | bom | bom-rs | 0.1.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | customer-portal | customer-portal | 0.1.0 | 8111 | 5464 | External customer portal auth boundary service | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
