@@ -20,7 +20,7 @@ pub async fn explode(
     query: &ExplosionQuery,
 ) -> Result<Vec<ExplosionRow>, BomError> {
     let max_depth = query.max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
-    if max_depth < 1 || max_depth > 100 {
+    if !(1..=100).contains(&max_depth) {
         return Err(GuardError::Validation(
             "max_depth must be between 1 and 100".to_string(),
         )

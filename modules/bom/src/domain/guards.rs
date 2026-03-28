@@ -36,7 +36,7 @@ pub fn guard_positive_quantity(quantity: f64) -> Result<(), GuardError> {
 
 pub fn guard_scrap_factor(scrap_factor: Option<f64>) -> Result<(), GuardError> {
     if let Some(sf) = scrap_factor {
-        if sf < 0.0 || sf >= 1.0 {
+        if !(0.0..1.0).contains(&sf) {
             return Err(GuardError::Validation(
                 "scrap_factor must be >= 0 and < 1".to_string(),
             ));
