@@ -64,7 +64,7 @@ Shared crates used by services. Not independently deployed.
 | event-consumer | event-consumer | 1.0.0 | Consumer-side event dispatch: handler registry, router, and context | [Revisions](platform/event-consumer/REVISIONS.md) |
 | health | health | 1.0.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
 | platform-contracts | platform_contracts | 1.0.0 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
-| projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| projections | projections | 1.0.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 1.0.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
 | tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules |  |
 | tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
