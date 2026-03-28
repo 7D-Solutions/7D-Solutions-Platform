@@ -1079,7 +1079,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "argon2",
  "axum",
@@ -3851,7 +3851,7 @@ dependencies = [
 
 [[package]]
 name = "reporting"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
