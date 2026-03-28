@@ -1,6 +1,6 @@
 [package]
 name = "compliance-export"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "Compliance evidence pack generation for audit and regulatory export"
 
@@ -39,6 +39,9 @@ hex = "0.4"
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

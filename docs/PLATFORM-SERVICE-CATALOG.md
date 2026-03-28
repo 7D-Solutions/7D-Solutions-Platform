@@ -75,7 +75,7 @@ CLI tools and test harnesses.
 
 | Tool | Crate | Version | Description | Docs |
 |------|-------|---------|-------------|------|
-| compliance-export | compliance-export | 0.1.0 | Compliance evidence pack generation for audit and regulatory export |  |
+| compliance-export | compliance-export | 1.0.0 | Compliance evidence pack generation for audit and regulatory export | [Revisions](tools/compliance-export/REVISIONS.md) |
 | contract-tests | contract-tests | 1.0.0 | Event schema and OpenAPI contract validation tests | [Revisions](tools/contract-tests/REVISIONS.md) |
 | demo-seed | demo-seed | 1.0.0 | Deterministic demo data seeding for development and testing | [Revisions](tools/demo-seed/REVISIONS.md) |
 | projection-rebuild | projection-rebuild | 1.0.0 | Projection rebuild and blue-green swap orchestration tool | [Revisions](tools/projection-rebuild/REVISIONS.md) |

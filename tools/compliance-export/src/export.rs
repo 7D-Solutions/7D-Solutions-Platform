@@ -541,3 +541,188 @@ pub async fn export_compliance_data(tenant_id: &str, output_dir: &str, format: &
 
     Ok(())
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_checksum_deterministic() {
+        // Same input always produces the same checksum
+        let data = vec!["hello", "world"];
+        let checksum1 = calculate_checksum(&data).unwrap();
+        let checksum2 = calculate_checksum(&data).unwrap();
+        assert_eq!(checksum1, checksum2);
+    }
+
+    #[test]
+    fn test_checksum_different_inputs() {
+        // Different inputs produce different checksums
+        let data1 = vec!["hello"];
+        let data2 = vec!["world"];
+        let checksum1 = calculate_checksum(&data1).unwrap();
+        let checksum2 = calculate_checksum(&data2).unwrap();
+        assert_ne!(checksum1, checksum2);
+    }
+
+    #[test]
+    fn test_checksum_is_sha256_hex() {
+        // SHA-256 output is 64 hex characters
+        let data = vec!["test"];
+        let checksum = calculate_checksum(&data).unwrap();
+        assert_eq!(checksum.len(), 64);
+        assert!(checksum.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_checksum_empty_array() {
+        // Empty array has a valid checksum
+        let data: Vec<String> = vec![];
+        let checksum = calculate_checksum(&data).unwrap();
+        assert_eq!(checksum.len(), 64);
+    }
+
+    #[test]
+    fn test_export_jsonl_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("test.jsonl");
+
+        let data = vec![
+            serde_json::json!({"id": 1, "name": "first"}),
+            serde_json::json!({"id": 2, "name": "second"}),
+        ];
+
+        export_jsonl(&data, &path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 2);
+
+        // Each line should be valid JSON
+        let parsed1: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let parsed2: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(parsed1["id"], 1);
+        assert_eq!(parsed2["id"], 2);
+    }
+
+    #[test]
+    fn test_export_csv_format() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("test.csv");
+
+        #[derive(Serialize)]
+        struct Row {
+            id: i32,
+            name: String,
+        }
+
+        let data = vec![
+            Row {
+                id: 1,
+                name: "first".to_string(),
+            },
+            Row {
+                id: 2,
+                name: "second".to_string(),
+            },
+        ];
+
+        export_csv(&data, &path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 3); // header + 2 rows
+        assert!(lines[0].contains("id"));
+        assert!(lines[0].contains("name"));
+        assert!(lines[1].contains("1"));
+        assert!(lines[1].contains("first"));
+    }
+
+    #[test]
+    fn test_export_manifest_structure() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("manifest.json");
+
+        let manifest = ExportManifest {
+            tenant_id: "tenant-1".to_string(),
+            export_timestamp: Utc::now(),
+            format: "json".to_string(),
+            audit_events_count: 10,
+            audit_events_checksum: "abc123".to_string(),
+            ar_invoices_count: 5,
+            ar_invoices_checksum: "def456".to_string(),
+            payment_attempts_count: 3,
+            payment_attempts_checksum: "ghi789".to_string(),
+            journal_entries_count: 8,
+            journal_entries_checksum: "jkl012".to_string(),
+        };
+
+        export_manifest(&manifest, &path).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(parsed["tenant_id"], "tenant-1");
+        assert_eq!(parsed["format"], "json");
+        assert_eq!(parsed["audit_events_count"], 10);
+        assert_eq!(parsed["ar_invoices_count"], 5);
+    }
+
+    #[test]
+    fn test_audit_event_serialization_roundtrip() {
+        let event = AuditEvent {
+            audit_id: Uuid::new_v4(),
+            occurred_at: Utc::now(),
+            actor_id: Uuid::new_v4(),
+            actor_type: "user".to_string(),
+            action: "create".to_string(),
+            mutation_class: "inventory".to_string(),
+            entity_type: "item".to_string(),
+            entity_id: "item-123".to_string(),
+            before_snapshot: None,
+            after_snapshot: Some(serde_json::json!({"qty": 100})),
+            before_hash: None,
+            after_hash: Some("abc123".to_string()),
+            causation_id: None,
+            correlation_id: Some(Uuid::new_v4()),
+            trace_id: Some("trace-001".to_string()),
+            metadata: None,
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: AuditEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(event.audit_id, parsed.audit_id);
+        assert_eq!(event.action, parsed.action);
+        assert_eq!(event.entity_id, parsed.entity_id);
+    }
+
+    #[test]
+    fn test_journal_entry_serialization_roundtrip() {
+        let entry = JournalEntry {
+            id: Uuid::new_v4(),
+            tenant_id: "t1".to_string(),
+            source_module: "payments".to_string(),
+            source_event_id: Uuid::new_v4(),
+            source_subject: "payment.completed".to_string(),
+            posted_at: Utc::now(),
+            currency: "USD".to_string(),
+            description: Some("Payment received".to_string()),
+            reference_type: Some("invoice".to_string()),
+            reference_id: Some("INV-001".to_string()),
+            created_at: Utc::now(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: JournalEntry = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(entry.id, parsed.id);
+        assert_eq!(entry.source_module, parsed.source_module);
+        assert_eq!(entry.currency, parsed.currency);
+    }
+}

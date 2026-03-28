@@ -253,3 +253,209 @@ pub fn write_evidence_pack(pack: &EvidencePack, output_path: &Path) -> Result<()
     serde_json::to_writer_pretty(writer, pack)?;
     Ok(())
 }
+
+/// Calculate SHA-256 hash of content (reusable for pack hash computation)
+pub fn compute_sha256(content: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    hex::encode(hasher.finalize())
+}
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_close_state_serialization_roundtrip() {
+        let state = CloseState {
+            is_closed: true,
+            closed_at: Some(Utc::now()),
+            closed_by: Some("controller@example.com".to_string()),
+            close_hash: Some("a1b2c3d4e5f6".to_string()),
+            reopen_count: 1,
+        };
+
+        let json = serde_json::to_string(&state).unwrap();
+        let parsed: CloseState = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(state.is_closed, parsed.is_closed);
+        assert_eq!(state.closed_by, parsed.closed_by);
+        assert_eq!(state.close_hash, parsed.close_hash);
+        assert_eq!(state.reopen_count, parsed.reopen_count);
+    }
+
+    #[test]
+    fn test_snapshot_summary_serialization_roundtrip() {
+        let snapshot = SnapshotSummary {
+            currencies: vec![
+                CurrencySnapshotEntry {
+                    currency: "USD".to_string(),
+                    journal_count: 100,
+                    line_count: 250,
+                    total_debits_minor: 1_000_000,
+                    total_credits_minor: 1_000_000,
+                },
+                CurrencySnapshotEntry {
+                    currency: "EUR".to_string(),
+                    journal_count: 50,
+                    line_count: 120,
+                    total_debits_minor: 500_000,
+                    total_credits_minor: 500_000,
+                },
+            ],
+            total_journal_count: 150,
+            total_debits_minor: 1_500_000,
+            total_credits_minor: 1_500_000,
+        };
+
+        let json = serde_json::to_string(&snapshot).unwrap();
+        let parsed: SnapshotSummary = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(snapshot.currencies.len(), parsed.currencies.len());
+        assert_eq!(snapshot.total_journal_count, parsed.total_journal_count);
+        assert_eq!(
+            snapshot.currencies[0].currency,
+            parsed.currencies[0].currency
+        );
+    }
+
+    #[test]
+    fn test_evidence_pack_serialization() {
+        // EvidencePack has &'static str field, so we test serialization to JSON
+        // and verify the structure rather than roundtrip deserialization
+        let period_id = Uuid::new_v4();
+        let pack = EvidencePack {
+            pack_version: "1.0",
+            generated_at: Utc::now(),
+            tenant_id: "tenant-123".to_string(),
+            period_id,
+            period_start: "2024-01-01".to_string(),
+            period_end: "2024-01-31".to_string(),
+            close_state: CloseState {
+                is_closed: true,
+                closed_at: Some(Utc::now()),
+                closed_by: Some("admin".to_string()),
+                close_hash: Some("hash123".to_string()),
+                reopen_count: 0,
+            },
+            snapshot: Some(SnapshotSummary {
+                currencies: vec![CurrencySnapshotEntry {
+                    currency: "USD".to_string(),
+                    journal_count: 50,
+                    line_count: 100,
+                    total_debits_minor: 250_000,
+                    total_credits_minor: 250_000,
+                }],
+                total_journal_count: 50,
+                total_debits_minor: 250_000,
+                total_credits_minor: 250_000,
+            }),
+            reopen_history: vec![],
+            export_manifest_ref: None,
+            pack_hash: "placeholder".to_string(),
+        };
+
+        let json = serde_json::to_string(&pack).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["tenant_id"], "tenant-123");
+        assert_eq!(parsed["period_id"], period_id.to_string());
+        assert_eq!(parsed["period_start"], "2024-01-01");
+        assert_eq!(parsed["pack_version"], "1.0");
+        assert_eq!(parsed["close_state"]["is_closed"], true);
+        assert_eq!(parsed["close_state"]["close_hash"], "hash123");
+        assert_eq!(parsed["snapshot"]["total_journal_count"], 50);
+    }
+
+    #[test]
+    fn test_write_evidence_pack_creates_valid_json() {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("evidence_pack.json");
+
+        let pack = EvidencePack {
+            pack_version: "1.0",
+            generated_at: Utc::now(),
+            tenant_id: "test-tenant".to_string(),
+            period_id: Uuid::new_v4(),
+            period_start: "2024-02-01".to_string(),
+            period_end: "2024-02-29".to_string(),
+            close_state: CloseState {
+                is_closed: false,
+                closed_at: None,
+                closed_by: None,
+                close_hash: None,
+                reopen_count: 0,
+            },
+            snapshot: None,
+            reopen_history: vec![],
+            export_manifest_ref: None,
+            pack_hash: "test-hash".to_string(),
+        };
+
+        write_evidence_pack(&pack, &path).unwrap();
+
+        // Verify file exists and is valid JSON
+        let content = std::fs::read_to_string(&path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(parsed["tenant_id"], "test-tenant");
+        assert_eq!(parsed["pack_version"], "1.0");
+        assert_eq!(parsed["close_state"]["is_closed"], false);
+    }
+
+    #[test]
+    fn test_compute_sha256() {
+        // Known SHA-256 hash of "hello"
+        let hash = compute_sha256(b"hello");
+        assert_eq!(hash.len(), 64);
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+
+        // Same input produces same output
+        let hash2 = compute_sha256(b"hello");
+        assert_eq!(hash, hash2);
+
+        // Different input produces different output
+        let hash3 = compute_sha256(b"world");
+        assert_ne!(hash, hash3);
+    }
+
+    #[test]
+    fn test_reopen_entry_serialization_roundtrip() {
+        let entry = ReopenEntry {
+            request_id: Uuid::new_v4(),
+            requested_by: "user@example.com".to_string(),
+            reason: "Discovered missing journal entry".to_string(),
+            prior_close_hash: "abc123def456".to_string(),
+            status: "approved".to_string(),
+            decided_by: Some("manager@example.com".to_string()),
+            decided_at: Some(Utc::now()),
+            created_at: Utc::now(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        let parsed: ReopenEntry = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(entry.request_id, parsed.request_id);
+        assert_eq!(entry.reason, parsed.reason);
+        assert_eq!(entry.status, parsed.status);
+    }
+
+    #[test]
+    fn test_manifest_reference_serialization_roundtrip() {
+        let reference = ManifestReference {
+            manifest_path: "/exports/2024/01/manifest.json".to_string(),
+            manifest_checksum: "sha256-hash-here".to_string(),
+        };
+
+        let json = serde_json::to_string(&reference).unwrap();
+        let parsed: ManifestReference = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(reference.manifest_path, parsed.manifest_path);
+        assert_eq!(reference.manifest_checksum, parsed.manifest_checksum);
+    }
+}
