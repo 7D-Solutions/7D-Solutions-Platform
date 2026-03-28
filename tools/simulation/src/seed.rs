@@ -121,8 +121,8 @@ mod tests {
         let mut seed1 = SimulationSeed::new(42);
         let mut seed2 = SimulationSeed::new(43);
 
-        let fail1 = seed1.should_fail(0.5);
-        let fail2 = seed2.should_fail(0.5);
+        let _fail1 = seed1.should_fail(0.5);
+        let _fail2 = seed2.should_fail(0.5);
 
         // Very unlikely to be the same across multiple calls
         let results_match = (0..10).all(|_| seed1.should_fail(0.5) == seed2.should_fail(0.5));
