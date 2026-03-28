@@ -58,7 +58,7 @@ Shared crates used by services. Not independently deployed.
 
 | Library | Crate | Version | Description | Docs |
 |---------|-------|---------|-------------|------|
-| audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| audit | audit | 1.0.0 | Append-only audit trail with field-level diffs and policy enforcement | [Revisions](platform/audit/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | doc-mgmt | doc_mgmt | 0.1.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) |  |
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
 | event-consumer | event-consumer | 0.1.0 | Consumer-side event dispatch: handler registry, router, and context |  |
