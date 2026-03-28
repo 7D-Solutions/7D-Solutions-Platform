@@ -210,11 +210,11 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Tenant { ref operation } => match operation {
             TenantOperation::Show { tenant } => {
-                let out = show::show_tenant(&tenant).await?;
+                let out = show::show_tenant(tenant).await?;
                 render_and_exit(out, json_output);
             }
             TenantOperation::Create { tenant } => {
-                let result = provision::create_tenant(&tenant).await?;
+                let result = provision::create_tenant(tenant).await?;
                 let out = if result.success {
                     CommandOutput::ok("created", &result.tenant_id.to_string())
                         .with_state("provisioned")
@@ -227,13 +227,13 @@ async fn main() -> Result<()> {
                 render_and_exit(out, json_output);
             }
             TenantOperation::Activate { tenant } => {
-                provision::activate_tenant(&tenant).await?;
-                let out = CommandOutput::ok("activated", &tenant).with_state("active");
+                provision::activate_tenant(tenant).await?;
+                let out = CommandOutput::ok("activated", tenant).with_state("active");
                 render(&out, json_output);
                 Ok(())
             }
             TenantOperation::Verify { tenant } => {
-                let result = verify::verify_tenant(&tenant).await?;
+                let result = verify::verify_tenant(tenant).await?;
                 let checks: Vec<serde_json::Value> = result
                     .module_results
                     .iter()
@@ -257,15 +257,15 @@ async fn main() -> Result<()> {
             }
             TenantOperation::Suspend { tenant } => {
                 let claims = require_claims(&cli)?;
-                lifecycle::suspend_tenant(&claims, &tenant).await?;
-                let out = CommandOutput::ok("suspended", &tenant).with_state("suspended");
+                lifecycle::suspend_tenant(&claims, tenant).await?;
+                let out = CommandOutput::ok("suspended", tenant).with_state("suspended");
                 render(&out, json_output);
                 Ok(())
             }
             TenantOperation::Deprovision { tenant } => {
                 let claims = require_claims(&cli)?;
-                lifecycle::deprovision_tenant(&claims, &tenant).await?;
-                let out = CommandOutput::ok("deprovisioned", &tenant).with_state("deleted");
+                lifecycle::deprovision_tenant(&claims, tenant).await?;
+                let out = CommandOutput::ok("deprovisioned", tenant).with_state("deleted");
                 render(&out, json_output);
                 Ok(())
             }
@@ -274,8 +274,8 @@ async fn main() -> Result<()> {
                 seed,
                 ar_url,
             } => {
-                let result = lifecycle::demo_reset_tenant(&tenant, *seed, &ar_url).await?;
-                let out = CommandOutput::ok("demo-reset", &tenant).with_data(serde_json::json!({
+                let result = lifecycle::demo_reset_tenant(tenant, *seed, ar_url).await?;
+                let out = CommandOutput::ok("demo-reset", tenant).with_data(serde_json::json!({
                     "tenant_uuid": result.tenant_id,
                     "dataset_digest": result.dataset_digest,
                     "seed": seed,
@@ -284,8 +284,8 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             TenantOperation::Export { tenant, output } => {
-                let result = retention::export_tenant(&tenant, output.as_deref()).await?;
-                let out = CommandOutput::ok("exported", &tenant).with_data(serde_json::json!({
+                let result = retention::export_tenant(tenant, output.as_deref()).await?;
+                let out = CommandOutput::ok("exported", tenant).with_data(serde_json::json!({
                     "artifact": result.artifact_path,
                     "sha256": result.sha256_digest,
                     "lines": result.line_count,
@@ -300,12 +300,12 @@ async fn main() -> Result<()> {
                 dry_run,
             } => {
                 let claims = require_claims(&cli)?;
-                let bulk_action = bulk::BulkAction::from_str(&action)?;
+                let bulk_action = bulk::BulkAction::from_str(action)?;
                 let effective_dry_run = if *confirm { false } else { *dry_run };
                 let out = bulk::run_bulk(
                     &claims,
                     bulk_action,
-                    &status,
+                    status,
                     effective_dry_run,
                     *confirm,
                 )

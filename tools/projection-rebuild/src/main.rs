@@ -89,7 +89,7 @@ fn require_claims(cli: &Cli) -> Result<VerifiedClaims> {
         .context("--token <JWT> or CLI_AUTH_TOKEN env var required for this operation")?;
 
     let verifier = JwtVerifier::from_env()
-        .or_else(|| JwtVerifier::from_env_with_overlap())
+        .or_else(JwtVerifier::from_env_with_overlap)
         .context("JWT_PUBLIC_KEY environment variable not set — cannot verify token")?;
 
     verifier
@@ -146,14 +146,14 @@ async fn main() -> Result<()> {
                     .await
                     .context(format!("Table '{}' not found or query failed", projection))?;
 
-            let digest = projections::compute_digest(&pool, &projection, "tenant_id")
+            let digest = projections::compute_digest(&pool, projection, "tenant_id")
                 .await
                 .context("Failed to compute digest")?;
 
             let cursor_count: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM projection_cursors WHERE projection_name = $1",
             )
-            .bind(&projection)
+            .bind(projection)
             .fetch_one(&pool)
             .await
             .unwrap_or(0);
@@ -192,7 +192,7 @@ async fn main() -> Result<()> {
                  ORDER BY updated_at DESC
                  LIMIT 1",
             )
-            .bind(&projection)
+            .bind(projection)
             .fetch_optional(&pool)
             .await
             .context("Failed to query projection_cursors")?;
@@ -245,7 +245,7 @@ async fn main() -> Result<()> {
             let table_exists: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)"
             )
-            .bind(&projection)
+            .bind(projection)
             .fetch_one(&pool).await
             .context("Failed to check table existence")?;
 
@@ -262,7 +262,7 @@ async fn main() -> Result<()> {
                     .await
                     .context("Failed to get row count")?;
 
-            let digest = projections::compute_digest(&pool, &projection, &order_by)
+            let digest = projections::compute_digest(&pool, projection, order_by)
                 .await
                 .context("Failed to compute digest")?;
 
