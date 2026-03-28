@@ -121,7 +121,7 @@ impl CreatePaymentTermsRequest {
             ));
         }
         if let Some(pct) = self.discount_pct {
-            if pct < 0.0 || pct > 100.0 {
+            if !(0.0..=100.0).contains(&pct) {
                 return Err(PaymentTermsError::Validation(
                     "discount_pct must be between 0 and 100".to_string(),
                 ));
@@ -153,7 +153,7 @@ impl UpdatePaymentTermsRequest {
             }
         }
         if let Some(pct) = self.discount_pct {
-            if pct < 0.0 || pct > 100.0 {
+            if !(0.0..=100.0).contains(&pct) {
                 return Err(PaymentTermsError::Validation(
                     "discount_pct must be between 0 and 100".to_string(),
                 ));
