@@ -3,7 +3,7 @@ use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
     },
-    optional_claims_mw, JwtVerifier,
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -61,39 +61,68 @@ async fn main() {
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
+    // Mutations — all state-changing routes (POST/PUT) require production.mutate
+    let prod_mutations = Router::new()
+        // Workcenters — write
+        .route("/api/production/workcenters", post(workcenters::create_workcenter))
+        .route("/api/production/workcenters/{id}", axum::routing::put(workcenters::update_workcenter))
+        .route("/api/production/workcenters/{id}/deactivate", post(workcenters::deactivate_workcenter))
+        // Work orders — write
+        .route("/api/production/work-orders", post(work_orders::create_work_order))
+        .route("/api/production/work-orders/{id}/release", post(work_orders::release_work_order))
+        .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
+        .route("/api/production/work-orders/{id}/component-issues", post(component_issue::post_component_issue))
+        .route("/api/production/work-orders/{id}/fg-receipt", post(fg_receipt::post_fg_receipt))
+        // Operations — write
+        .route("/api/production/work-orders/{id}/operations/initialize", post(operations::initialize_operations))
+        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/start", post(operations::start_operation))
+        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/complete", post(operations::complete_operation))
+        // Time entries — write
+        .route("/api/production/time-entries/start", post(time_entries::start_timer))
+        .route("/api/production/time-entries/manual", post(time_entries::manual_entry))
+        .route("/api/production/time-entries/{id}/stop", post(time_entries::stop_timer))
+        // Routings — write
+        .route("/api/production/routings", post(routings::create_routing))
+        .route("/api/production/routings/{id}", axum::routing::put(routings::update_routing))
+        .route("/api/production/routings/{id}/release", post(routings::release_routing))
+        .route("/api/production/routings/{id}/steps", post(routings::add_routing_step))
+        // Downtime — write
+        .route("/api/production/workcenters/{id}/downtime/start", post(downtime::start_downtime))
+        .route("/api/production/downtime/{id}/end", post(downtime::end_downtime))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::PRODUCTION_MUTATE,
+        ]))
+        .with_state(app_state.clone());
+
+    // Reads — all query routes (GET) require production.read
+    let prod_reads = Router::new()
+        // Workcenters — read
+        .route("/api/production/workcenters", get(workcenters::list_workcenters))
+        .route("/api/production/workcenters/{id}", get(workcenters::get_workcenter))
+        // Work orders — read
+        .route("/api/production/work-orders/{id}", get(work_orders::get_work_order))
+        .route("/api/production/work-orders/{id}/time-entries", get(time_entries::list_time_entries))
+        .route("/api/production/work-orders/{id}/operations", get(operations::list_operations))
+        // Routings — read
+        .route("/api/production/routings", get(routings::list_routings))
+        .route("/api/production/routings/by-item", get(routings::find_routings_by_item))
+        .route("/api/production/routings/{id}", get(routings::get_routing))
+        .route("/api/production/routings/{id}/steps", get(routings::list_routing_steps))
+        // Downtime — read
+        .route("/api/production/workcenters/{id}/downtime", get(downtime::list_workcenter_downtime))
+        .route("/api/production/downtime/active", get(downtime::list_active_downtime))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::PRODUCTION_READ]))
+        .with_state(app_state.clone());
+
     let app = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/health", get(health_fn))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
         .route("/metrics", get(metrics_handler))
-        .route("/api/production/workcenters", get(workcenters::list_workcenters).post(workcenters::create_workcenter))
-        .route("/api/production/workcenters/{id}", get(workcenters::get_workcenter).put(workcenters::update_workcenter))
-        .route("/api/production/workcenters/{id}/deactivate", post(workcenters::deactivate_workcenter))
-        .route("/api/production/work-orders", post(work_orders::create_work_order))
-        .route("/api/production/work-orders/{id}", get(work_orders::get_work_order))
-        .route("/api/production/work-orders/{id}/release", post(work_orders::release_work_order))
-        .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
-        .route("/api/production/work-orders/{id}/component-issues", post(component_issue::post_component_issue))
-        .route("/api/production/work-orders/{id}/fg-receipt", post(fg_receipt::post_fg_receipt))
-        .route("/api/production/work-orders/{id}/time-entries", get(time_entries::list_time_entries))
-        .route("/api/production/work-orders/{id}/operations", get(operations::list_operations))
-        .route("/api/production/work-orders/{id}/operations/initialize", post(operations::initialize_operations))
-        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/start", post(operations::start_operation))
-        .route("/api/production/work-orders/{wo_id}/operations/{op_id}/complete", post(operations::complete_operation))
-        .route("/api/production/time-entries/start", post(time_entries::start_timer))
-        .route("/api/production/time-entries/manual", post(time_entries::manual_entry))
-        .route("/api/production/time-entries/{id}/stop", post(time_entries::stop_timer))
-        .route("/api/production/routings", get(routings::list_routings).post(routings::create_routing))
-        .route("/api/production/routings/by-item", get(routings::find_routings_by_item))
-        .route("/api/production/routings/{id}", get(routings::get_routing).put(routings::update_routing))
-        .route("/api/production/routings/{id}/release", post(routings::release_routing))
-        .route("/api/production/routings/{id}/steps", get(routings::list_routing_steps).post(routings::add_routing_step))
-        .route("/api/production/workcenters/{id}/downtime/start", post(downtime::start_downtime))
-        .route("/api/production/workcenters/{id}/downtime", get(downtime::list_workcenter_downtime))
-        .route("/api/production/downtime/{id}/end", post(downtime::end_downtime))
-        .route("/api/production/downtime/active", get(downtime::list_active_downtime))
         .with_state(app_state)
+        .merge(prod_reads)
+        .merge(prod_mutations)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
             security::tracing::tracing_context_middleware,

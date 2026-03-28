@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-gbbus | Initial proof. Workcenter CRUD and deactivation, work order lifecycle, routing creation/revision/release, operation initialization/start/complete with predecessor enforcement, timer and manual time entries, downtime tracking, component issue and finished-goods receipt flows, tenant-scoped queries, and outbox event publishing. 56 integration tests pass, clippy clean. | Production execution module complete and proven for shop-floor workflows. All promotion gates pass. | No |
+| 1.0.1 | 2026-03-28 | bd-29c9i.1 | Add RequirePermissionsLayer to all /api/production/* routes: mutate routes (POST/PUT) require production.mutate, read routes (GET) require production.read. Operational endpoints (/healthz, /api/health, /api/ready, /api/version, /metrics) remain ungated. | Production was the only module without permission gating — security audit finding. | No |
 
 ## How to read this table
 

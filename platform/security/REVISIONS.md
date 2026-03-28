@@ -8,6 +8,7 @@
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-3ctma | Initial proof. All tests passing. | Module build complete and core logic validated via tests. | No |
+| 1.0.1 | 2026-03-28 | bd-29c9i.1 | Add PRODUCTION_MUTATE and PRODUCTION_READ permission constants. | Production module was the only module without permission constants — security audit finding. | No |
 
 ## How to read this table
 

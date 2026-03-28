@@ -133,6 +133,11 @@ pub const WORKFORCE_COMPETENCE_READ: &str = "workforce_competence.read";
 pub const QUALITY_INSPECTION_MUTATE: &str = "quality_inspection.mutate";
 pub const QUALITY_INSPECTION_READ: &str = "quality_inspection.read";
 
+// ── Production ──────────────────────────────────────────────────
+
+pub const PRODUCTION_MUTATE: &str = "production.mutate";
+pub const PRODUCTION_READ: &str = "production.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,6 +263,7 @@ mod tests {
             WORKFORCE_COMPETENCE_MUTATE,
             BOM_MUTATE,
             QUALITY_INSPECTION_MUTATE,
+            PRODUCTION_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(
@@ -307,6 +313,13 @@ mod tests {
         assert_ne!(REPORTING_MUTATE, REPORTING_READ);
         assert_ne!(BOM_MUTATE, BOM_READ);
         assert_ne!(QUALITY_INSPECTION_MUTATE, QUALITY_INSPECTION_READ);
+        assert_ne!(PRODUCTION_MUTATE, PRODUCTION_READ);
+    }
+
+    #[test]
+    fn test_permissions_production_constants_are_non_empty() {
+        assert!(!PRODUCTION_MUTATE.is_empty());
+        assert!(!PRODUCTION_READ.is_empty());
     }
 
     #[test]
