@@ -1,20 +1,13 @@
+mod common;
+
 use chrono::{NaiveDate, Utc};
+use common::get_test_pool;
 use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
-use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::journal_service::process_gl_posting_request;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-async fn setup_test_pool() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string());
-
-    init_pool(&database_url)
-        .await
-        .expect("Failed to create test pool")
-}
 
 /// Helper to insert a test account
 async fn insert_test_account(
@@ -119,7 +112,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 #[tokio::test]
 #[serial]
 async fn test_posting_succeeds_with_valid_accounts() {
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
 
     // Cleanup any leftover data
@@ -210,12 +203,13 @@ async fn test_posting_succeeds_with_valid_accounts() {
 
     // Cleanup
     cleanup_test_data(&pool, &tenant_id).await;
+    pool.close().await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_fails_account_not_found() {
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
 
     cleanup_test_data(&pool, &tenant_id).await;
@@ -304,12 +298,13 @@ async fn test_posting_fails_account_not_found() {
 
     // Cleanup
     cleanup_test_data(&pool, &tenant_id).await;
+    pool.close().await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_fails_account_inactive() {
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
 
     cleanup_test_data(&pool, &tenant_id).await;
@@ -406,12 +401,13 @@ async fn test_posting_fails_account_inactive() {
 
     // Cleanup
     cleanup_test_data(&pool, &tenant_id).await;
+    pool.close().await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_validates_all_lines() {
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
 
     cleanup_test_data(&pool, &tenant_id).await;
@@ -489,12 +485,13 @@ async fn test_posting_validates_all_lines() {
 
     // Cleanup
     cleanup_test_data(&pool, &tenant_id).await;
+    pool.close().await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_preserves_idempotency_with_coa_validation() {
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
 
     cleanup_test_data(&pool, &tenant_id).await;
@@ -610,4 +607,5 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
 
     // Cleanup
     cleanup_test_data(&pool, &tenant_id).await;
+    pool.close().await;
 }
