@@ -258,6 +258,14 @@ async fn test_refresh_tick_updates_expired_tokens() {
     let tenant = unique_tenant();
     let realm = unique_realm();
 
+    // Clean up stale expired connections from previous test runs to avoid pollution
+    sqlx::query(
+        "DELETE FROM integrations_oauth_connections WHERE access_token_expires_at < NOW()",
+    )
+    .execute(&pool)
+    .await
+    .expect("cleanup stale connections failed");
+
     // Create a connection with already-expired access token
     let tokens = test_tokens();
     service::create_connection(

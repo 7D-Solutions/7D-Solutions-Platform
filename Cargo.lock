@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.7.0"
+version = "1.7.1"
 dependencies = [
  "argon2",
  "async-nats",
@@ -2311,7 +2311,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-nats",
  "async-trait",

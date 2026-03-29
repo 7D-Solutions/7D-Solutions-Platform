@@ -1,6 +1,7 @@
 pub mod connectors;
 pub mod external_refs;
 pub mod oauth;
+pub mod qbo_invoice;
 pub mod webhooks;
 
 use axum::{
@@ -63,6 +64,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/integrations/oauth/disconnect/{provider}",
             post(oauth::disconnect),
+        )
+        // QBO invoice — write
+        .route(
+            "/api/integrations/qbo/invoice/{invoice_id}/update",
+            post(qbo_invoice::update_invoice),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_MUTATE,

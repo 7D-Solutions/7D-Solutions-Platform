@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-1rdqj | Initial proof. External refs CRUD with outbox events. Webhook ingest (Stripe, GitHub, QuickBooks, internal). QBO CDC/webhook normalization with realm→tenant resolution. OAuth connection management with encrypted tokens. Outbox relay with retry/DLQ. EDI transactions. File jobs. Outbound webhooks with delivery logging. 145 integrated tests against real Postgres. | Platform integrations layer ready for production. Handles external system connections, webhook routing, and event publishing. | No |
+| 1.0.1 | 2026-03-29 | bd-ym43b | Add `POST /api/integrations/qbo/invoice/{invoice_id}/update` endpoint for sparse-updating QBO invoice shipping fields (ShipDate, TrackingNum, ShipMethodRef). Uses platform OAuth connection, handles SyncToken concurrency via QboClient retry loop. Gated by `integrations.mutate` permission. | Huber Power Phase 1 write-back requires outbound QBO invoice updates with shipping data. | No |
 
 ## How to read this table
 
