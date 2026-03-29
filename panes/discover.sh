@@ -7,6 +7,23 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/scripts/lib/project-config.sh"
 
+resolve_auto_register_script() {
+  local candidate
+  for candidate in \
+    "$SCRIPTS_DIR/auto-register-agent.sh" \
+    "$PROJECT_ROOT/flywheel_tools/scripts/core/auto-register-agent.sh" \
+    "$PROJECT_ROOT/node_modules/@agentcore/flywheel-tools/scripts/core/auto-register-agent.sh"
+  do
+    if [ -f "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+AUTO_REGISTER_SCRIPT="$(resolve_auto_register_script 2>/dev/null || true)"
+
 FORCE=false
 QUIET=false
 SUMMARY=false
@@ -42,9 +59,9 @@ retry_auto_register() {
     # Call auto-register-agent.sh
     if [ -n "$target_pane" ]; then
       TARGET_TMUX_PANE=$(tmux display-message -t "$target_pane" -p "#{pane_id}" 2>/dev/null)
-      TMUX_PANE="$TARGET_TMUX_PANE" QUIET=true source "$SCRIPTS_DIR/auto-register-agent.sh"
+      TMUX_PANE="$TARGET_TMUX_PANE" QUIET=true source "$AUTO_REGISTER_SCRIPT"
     else
-      QUIET=true source "$SCRIPTS_DIR/auto-register-agent.sh"
+      QUIET=true source "$AUTO_REGISTER_SCRIPT"
     fi
 
     local status=$?
@@ -99,7 +116,7 @@ if [ -f "$IDENTITY_FILE" ] && [ "$FORCE" = false ]; then
   # If the pane exists but isn't registered, register it now
   EXISTING_MAIL=$(jq -r '.agent_mail_name // empty' "$IDENTITY_FILE" 2>/dev/null)
   if [ -z "$EXISTING_MAIL" ]; then
-    if [ -f "$SCRIPTS_DIR/auto-register-agent.sh" ]; then
+    if [ -n "$AUTO_REGISTER_SCRIPT" ]; then
       if ! retry_auto_register "$TARGET_PANE"; then
         echo "Warning: auto-register failed for pane $MY_PANE after 3 attempts" >&2
         exit 1
@@ -112,7 +129,7 @@ if [ -f "$IDENTITY_FILE" ] && [ "$FORCE" = false ]; then
       fi
     fi
   fi
-  [ "$QUIET" = false ] && echo "Identity exists: $(cat $IDENTITY_FILE)"
+  [ "$QUIET" = false ] && echo "Identity exists: $(cat "$IDENTITY_FILE")"
 
   # Always update tmux variables from identity file
   AGENT_MAIL=$(jq -r ".agent_mail_name // empty" "$IDENTITY_FILE" 2>/dev/null)
@@ -360,7 +377,7 @@ fi
 # Auto-register mail name for this pane if missing (all pane types, not just Claude)
 CURRENT_MAIL=$(jq -r '.agent_mail_name // empty' "$IDENTITY_FILE" 2>/dev/null)
 if [ -z "$CURRENT_MAIL" ]; then
-  if [ -f "$SCRIPTS_DIR/auto-register-agent.sh" ]; then
+  if [ -n "$AUTO_REGISTER_SCRIPT" ]; then
     if ! retry_auto_register "$TARGET_PANE"; then
       echo "Warning: auto-register failed for pane $MY_PANE after 3 attempts" >&2
       exit 1
@@ -386,6 +403,16 @@ if [ -n "$AGENT_MAIL" ]; then
     tmux set-option -p -t "$TARGET_PANE" @agent_name "$AGENT_MAIL" 2>/dev/null || true
   else
     tmux set-option -p -t "$MY_PANE" @agent_name "$AGENT_MAIL" 2>/dev/null || true
+  fi
+
+  _pane_target="${TARGET_PANE:-$MY_PANE}"
+  _current_title=$(tmux display-message -t "$_pane_target" -p "#{pane_title}" 2>/dev/null || true)
+  if [[ "$_current_title" =~ ^.+__[A-Za-z0-9_-]+_[0-9]+ ]]; then
+    # NTM format — preserve title, append agent name as [tag]
+    _base_title=$(echo "$_current_title" | sed 's/\[.*\]$//')
+    tmux select-pane -t "$_pane_target" -T "${_base_title}[${AGENT_MAIL}]" 2>/dev/null || true
+  elif [ -z "$_current_title" ]; then
+    tmux select-pane -t "$_pane_target" -T "$AGENT_MAIL" 2>/dev/null || true
   fi
 fi
 
