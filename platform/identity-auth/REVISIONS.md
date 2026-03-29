@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.7.1 | 2026-03-28 | huber-bd-3ma | Add GET /api/auth/roles?tenant_id={id} and GET /api/auth/permissions endpoints. Exposes existing DB RBAC functions via HTTP for seeding and inspection. Roles endpoint requires tenant_id query param for isolation. | Huber Power Phase 1 requires seeding and verifying roles/permissions via API as specified in build plan and beads. | No |
 | 1.7.0 | 2026-03-22 | bd-35lgu | Add GET /api/auth/users?email={email}&tenant_id={tenant_id} endpoint for user lookup by email. Returns user_id, email, tenant_id, created_at. 404 if not found. WHERE clause filters by both tenant_id AND email for tenant isolation. | demo-seed manifest needs admin user UUID for Fireproof integration; no user lookup endpoint existed. | No |
 | 1.6.2 | 2026-03-06 | bd-3uty0 | Add CorsLayer with CORS_ORIGINS env var, reject wildcard in production, add build_cors_layer matching platform pattern. | Security audit H6: identity-auth had no CORS middleware; wildcard allowed in production. | No |
 | 1.6.1 | 2026-03-06 | bd-ubp52 | Add DefaultBodyLimit (2MB) to router. | Security audit M4: no explicit request body size limit. | No |

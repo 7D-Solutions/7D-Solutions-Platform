@@ -41,5 +41,7 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
             "/api/auth/reset-password",
             post(handlers_password_reset::reset_password),
         )
+        .route("/api/auth/roles", get(handlers::list_roles))
+        .route("/api/auth/permissions", get(handlers::list_permissions))
         .with_state(state)
 }

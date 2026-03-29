@@ -1141,3 +1141,31 @@ pub async fn get_user_by_email(
         None => Err(err(StatusCode::NOT_FOUND, "user not found")),
     }
 }
+
+// ---------------------------------------------------------------------------
+
+// RBAC — Roles & Permissions
+
+#[derive(Debug, Deserialize)]
+pub struct ListRolesQuery {
+    pub tenant_id: Uuid,
+}
+
+pub async fn list_roles(
+    State(state): State<Arc<AuthState>>,
+    axum::extract::Query(q): axum::extract::Query<ListRolesQuery>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let roles = crate::db::rbac::list_roles(&state.db, q.tenant_id)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+    Ok((StatusCode::OK, Json(roles)))
+}
+
+pub async fn list_permissions(
+    State(state): State<Arc<AuthState>>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let perms = crate::db::rbac::list_permissions(&state.db)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+    Ok((StatusCode::OK, Json(perms)))
+}
