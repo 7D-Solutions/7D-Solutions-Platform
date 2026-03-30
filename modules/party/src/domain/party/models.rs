@@ -3,7 +3,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 // ============================================================================
@@ -56,7 +56,7 @@ pub struct Party {
 // Company Extension
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PartyCompany {
     pub party_id: Uuid,
     pub legal_name: String,
@@ -78,7 +78,7 @@ pub struct PartyCompany {
 // Individual Extension
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PartyIndividual {
     pub party_id: Uuid,
     pub first_name: String,
@@ -98,7 +98,7 @@ pub struct PartyIndividual {
 // External Ref
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ExternalRef {
     pub id: i64,
     pub party_id: Uuid,
@@ -116,7 +116,7 @@ pub struct ExternalRef {
 // ============================================================================
 
 /// Full party view with typed extension, external refs, contacts, and addresses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PartyView {
     #[serde(flatten)]
     pub party: Party,
@@ -133,7 +133,7 @@ pub struct PartyView {
 // Create Requests
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateCompanyRequest {
     pub display_name: String,
     pub legal_name: String,
@@ -174,7 +174,7 @@ impl CreateCompanyRequest {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateIndividualRequest {
     pub display_name: String,
     pub first_name: String,
@@ -221,7 +221,7 @@ impl CreateIndividualRequest {
 // Update Request (partial — applies to base party fields)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdatePartyRequest {
     pub display_name: Option<String>,
     pub email: Option<String>,
@@ -255,7 +255,8 @@ impl UpdatePartyRequest {
 // Search
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct SearchQuery {
     /// Partial match on display_name (case-insensitive)
     pub name: Option<String>,

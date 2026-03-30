@@ -21,10 +21,11 @@ use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::domain::party::{
-    service, CreateCompanyRequest, CreateIndividualRequest, PartyView, SearchQuery,
+    service, CreateCompanyRequest, CreateIndividualRequest, Party, PartyView, SearchQuery,
     UpdatePartyRequest,
 };
 use crate::AppState;
@@ -62,8 +63,8 @@ fn actor_from_headers(headers: &HeaderMap) -> String {
 
 /// Simple wrapper for sub-collection list endpoints that don't need
 /// full pagination (contacts per party, addresses per party, etc.).
-#[derive(Debug, Serialize)]
-pub struct DataResponse<T: Serialize> {
+#[derive(Debug, Serialize, ToSchema)]
+pub struct DataResponse<T: Serialize + ToSchema> {
     pub data: Vec<T>,
 }
 
@@ -71,7 +72,8 @@ pub struct DataResponse<T: Serialize> {
 // Query params
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListPartiesQuery {
     #[serde(default)]
     pub include_inactive: bool,
@@ -85,7 +87,17 @@ pub struct ListPartiesQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/party/companies — create a company party
+#[utoipa::path(
+    post,
+    path = "/api/party/companies",
+    tag = "Parties",
+    request_body = CreateCompanyRequest,
+    responses(
+        (status = 201, description = "Company party created", body = PartyView),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_company(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -102,7 +114,17 @@ pub async fn create_company(
     Ok((StatusCode::CREATED, Json(view)))
 }
 
-/// POST /api/party/individuals — create an individual party
+#[utoipa::path(
+    post,
+    path = "/api/party/individuals",
+    tag = "Parties",
+    request_body = CreateIndividualRequest,
+    responses(
+        (status = 201, description = "Individual party created", body = PartyView),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_individual(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -119,7 +141,16 @@ pub async fn create_individual(
     Ok((StatusCode::CREATED, Json(view)))
 }
 
-/// GET /api/party/parties — list parties (paginated)
+#[utoipa::path(
+    get,
+    path = "/api/party/parties",
+    tag = "Parties",
+    params(ListPartiesQuery),
+    responses(
+        (status = 200, description = "Paginated party list", body = PaginatedResponse<Party>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_parties(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -147,7 +178,17 @@ pub async fn list_parties(
     }
 }
 
-/// GET /api/party/parties/:id — get a single party with extension + refs
+#[utoipa::path(
+    get,
+    path = "/api/party/parties/{id}",
+    tag = "Parties",
+    params(("id" = Uuid, Path, description = "Party ID")),
+    responses(
+        (status = 200, description = "Party details with extensions", body = PartyView),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_party(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -165,7 +206,19 @@ pub async fn get_party(
     Ok(Json(view))
 }
 
-/// PUT /api/party/parties/:id — update base party fields
+#[utoipa::path(
+    put,
+    path = "/api/party/parties/{id}",
+    tag = "Parties",
+    params(("id" = Uuid, Path, description = "Party ID")),
+    request_body = UpdatePartyRequest,
+    responses(
+        (status = 200, description = "Party updated", body = PartyView),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_party(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -183,7 +236,17 @@ pub async fn update_party(
     Ok(Json(view))
 }
 
-/// POST /api/party/parties/:id/deactivate — soft-delete a party
+#[utoipa::path(
+    post,
+    path = "/api/party/parties/{id}/deactivate",
+    tag = "Parties",
+    params(("id" = Uuid, Path, description = "Party ID")),
+    responses(
+        (status = 204, description = "Party deactivated"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_party(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -201,7 +264,16 @@ pub async fn deactivate_party(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// GET /api/party/parties/search — search parties (paginated)
+#[utoipa::path(
+    get,
+    path = "/api/party/parties/search",
+    tag = "Parties",
+    params(SearchQuery),
+    responses(
+        (status = 200, description = "Paginated search results", body = PaginatedResponse<Party>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn search_parties(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

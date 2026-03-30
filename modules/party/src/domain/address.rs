@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::party::PartyError;
@@ -10,7 +11,7 @@ use super::party::PartyError;
 // Address Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Address {
     pub id: Uuid,
     pub party_id: Uuid,
@@ -51,7 +52,7 @@ fn validate_address_type(t: &str) -> Result<(), PartyError> {
 // Create Request
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateAddressRequest {
     pub address_type: Option<String>,
     pub label: Option<String>,
@@ -84,7 +85,7 @@ impl CreateAddressRequest {
 // Update Request
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdateAddressRequest {
     pub address_type: Option<String>,
     pub label: Option<String>,

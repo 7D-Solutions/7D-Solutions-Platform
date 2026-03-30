@@ -1,6 +1,6 @@
 [package]
 name = "party-rs"
-version = "2.0.0"
+version = "2.2.0"
 edition = "2021"
 description = "Party master: companies, individuals, contacts, and addresses"
 

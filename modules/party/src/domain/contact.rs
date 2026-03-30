@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::party::PartyError;
@@ -10,7 +11,7 @@ use super::party::PartyError;
 // Contact Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Contact {
     pub id: Uuid,
     pub party_id: Uuid,
@@ -31,7 +32,7 @@ pub struct Contact {
 // Create Request
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateContactRequest {
     pub first_name: String,
     pub last_name: String,
@@ -69,7 +70,7 @@ impl CreateContactRequest {
 // Set-Primary Request
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SetPrimaryRequest {
     pub role: String,
 }
@@ -89,7 +90,7 @@ impl SetPrimaryRequest {
 // Primary Contact Map Entry
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PrimaryContactEntry {
     pub role: String,
     pub contact: Contact,
@@ -99,7 +100,7 @@ pub struct PrimaryContactEntry {
 // Update Request
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdateContactRequest {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
