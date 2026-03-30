@@ -36,7 +36,7 @@ async fn setup_db() -> sqlx::PgPool {
     });
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
         .connect(&url)
         .await
         .expect("Failed to connect to inventory test DB");
@@ -82,6 +82,34 @@ fn make_reserve_req(
         correlation_id: Some("corr-test".to_string()),
         causation_id: None,
     }
+}
+
+/// Seed available stock so reservation tests can reserve against it.
+/// Uses the same pattern as the `available_equals_on_hand_minus_reserved` test.
+async fn seed_available_stock(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+    qty: i64,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO item_on_hand
+            (tenant_id, item_id, warehouse_id, quantity_on_hand, available_status_on_hand, projected_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (tenant_id, item_id, warehouse_id) WHERE location_id IS NULL DO UPDATE
+            SET quantity_on_hand = $4, available_status_on_hand = $5, projected_at = NOW()
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(item_id)
+    .bind(warehouse_id)
+    .bind(qty)
+    .bind(qty)
+    .execute(pool)
+    .await
+    .expect("seed available stock");
 }
 
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
@@ -141,6 +169,8 @@ async fn reserve_creates_reservation_projection_outbox_atomically() {
     let item = ItemRepo::create(&pool, &make_item_req(&tenant_id, "SKU-RSV-001"))
         .await
         .expect("create item");
+
+    seed_available_stock(&pool, &tenant_id, item.id, warehouse_id, 100).await;
 
     let req = make_reserve_req(&tenant_id, item.id, warehouse_id, 25);
     let (result, is_replay) = process_reserve(&pool, &req)
@@ -206,6 +236,8 @@ async fn release_creates_compensating_row_and_decrements_projection() {
     let item = ItemRepo::create(&pool, &make_item_req(&tenant_id, "SKU-REL-001"))
         .await
         .expect("create item");
+
+    seed_available_stock(&pool, &tenant_id, item.id, warehouse_id, 100).await;
 
     // Reserve first.
     let reserve_req = make_reserve_req(&tenant_id, item.id, warehouse_id, 30);
@@ -288,6 +320,8 @@ async fn reserve_idempotency_replay_returns_stored_result() {
         .await
         .expect("create item");
 
+    seed_available_stock(&pool, &tenant_id, item.id, warehouse_id, 100).await;
+
     let req = make_reserve_req(&tenant_id, item.id, warehouse_id, 10);
 
     let (r1, is_replay1) = process_reserve(&pool, &req).await.expect("first call");
@@ -340,6 +374,8 @@ async fn release_idempotency_replay_returns_stored_result() {
     let item = ItemRepo::create(&pool, &make_item_req(&tenant_id, "SKU-IDEM-REL-001"))
         .await
         .expect("create item");
+
+    seed_available_stock(&pool, &tenant_id, item.id, warehouse_id, 100).await;
 
     let reserve_req = make_reserve_req(&tenant_id, item.id, warehouse_id, 10);
     let (reserve_result, _) = process_reserve(&pool, &reserve_req).await.expect("reserve");
@@ -425,6 +461,8 @@ async fn release_guard_rejects_double_release() {
     let item = ItemRepo::create(&pool, &make_item_req(&tenant_id, "SKU-DBL-REL-001"))
         .await
         .expect("create item");
+
+    seed_available_stock(&pool, &tenant_id, item.id, warehouse_id, 100).await;
 
     let reserve_req = make_reserve_req(&tenant_id, item.id, warehouse_id, 15);
     let (reserve_result, _) = process_reserve(&pool, &reserve_req).await.expect("reserve");
