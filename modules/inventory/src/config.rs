@@ -1,7 +1,9 @@
 //! Inventory Module Configuration
 //!
-//! Validates required environment variables at startup with clear error messages.
-//! Invariant: Inventory service never starts with missing/invalid configuration.
+//! Validates required environment variables at startup, collecting ALL errors
+//! before failing. Invariant: a missing env var must never cause a cryptic panic
+//! deep in application code — it must fail immediately at startup with a clear
+//! message listing ALL problems.
 
 use std::env;
 
@@ -17,38 +19,46 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load configuration from environment variables with strict validation
+    /// Load from environment variables, collecting ALL errors before failing.
     ///
-    /// ## Required Environment Variables
-    /// - `DATABASE_URL`: PostgreSQL connection string
-    ///
-    /// ## Optional Environment Variables (with defaults)
-    /// - `HOST`: Bind host (default: '0.0.0.0')
-    /// - `PORT`: HTTP port (default: '8092')
+    /// Required: `DATABASE_URL`.
+    /// Optional: `HOST` (default: 0.0.0.0), `PORT` (default: 8092), `ENV`, `CORS_ORIGINS`.
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://inventory_user:inventory_pass@localhost:5442/inventory_db"
-                .to_string()
-        })?;
+        let mut errors: Vec<String> = Vec::new();
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = match env::var("DATABASE_URL") {
+            Ok(v) if v.trim().is_empty() => {
+                errors.push("DATABASE_URL is set but empty".to_string());
+                String::new()
+            }
+            Ok(v) => v,
+            Err(_) => {
+                errors.push(
+                    "DATABASE_URL is required. \
+                     Example: postgresql://inventory_user:inventory_pass@localhost:5442/inventory_db"
+                        .to_string(),
+                );
+                String::new()
+            }
+        };
 
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
 
-        let port: u16 = env::var("PORT")
+        let port: u16 = match env::var("PORT")
             .unwrap_or_else(|_| "8092".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
+            .parse::<u16>()
+        {
+            Ok(p) => p,
+            Err(_) => {
+                errors.push(format!(
                     "PORT must be a valid u16 (0-65535), got: '{}'",
                     env::var("PORT").unwrap_or_default()
-                )
-            })?;
+                ));
+                8092
+            }
+        };
 
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
 
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "*".to_string())
@@ -57,19 +67,24 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
-            return Err(
+        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
+            errors.push(
                 "CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
                     .to_string(),
             );
         }
+
+        if !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+
         Ok(Config {
             database_url,
             host,
             port,
-            env,
+            env: env_name,
             cors_origins,
         })
     }
@@ -81,7 +96,6 @@ mod tests {
 
     #[test]
     fn config_requires_database_url() {
-        // Remove DATABASE_URL if set, test that from_env fails
         let config = Config {
             database_url: "".to_string(),
             host: "0.0.0.0".to_string(),
@@ -89,7 +103,6 @@ mod tests {
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
-        // Direct struct construction is valid; from_env requires the env var
         assert!(config.database_url.is_empty());
     }
 

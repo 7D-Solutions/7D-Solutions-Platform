@@ -17,10 +17,10 @@ use inventory_rs::{
         health::{health, ready, version},
         issues::post_issue,
         items::{create_item, deactivate_item, get_item, list_items, update_item},
-        make_buy::put_make_buy,
         locations::{
             create_location, deactivate_location, get_location, list_locations, update_location,
         },
+        make_buy::put_make_buy,
         receipts::post_receipt,
         reservations::{post_fulfill, post_release, post_reserve},
         transfers::post_transfer,
@@ -75,6 +75,11 @@ async fn main() {
     let pool = resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
+
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("Inventory: failed to run database migrations");
 
     let shutdown_pool = pool.clone();
 
