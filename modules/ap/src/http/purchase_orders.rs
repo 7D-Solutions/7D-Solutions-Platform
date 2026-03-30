@@ -17,7 +17,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::po::{
-    approve, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
+    approve, queries, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
     PurchaseOrderWithLines, UpdatePoLinesRequest,
 };
 use crate::http::admin_types::ErrorBody;
@@ -128,7 +128,7 @@ pub async fn get_po(
 ) -> Result<Json<PurchaseOrderWithLines>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = extract_tenant(&claims)?;
 
-    let po = service::get_po(&state.pool, &tenant_id, po_id)
+    let po = queries::get_po(&state.pool, &tenant_id, po_id)
         .await
         .map_err(po_error_response)?
         .ok_or_else(|| {
@@ -152,7 +152,7 @@ pub async fn list_pos(
 ) -> Result<Json<Vec<PurchaseOrder>>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = extract_tenant(&claims)?;
 
-    let pos = service::list_pos(
+    let pos = queries::list_pos(
         &state.pool,
         &tenant_id,
         query.vendor_id,

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-3bwil | Initial proof. Vendor CRUD, bill lifecycle (open/matched/approved/partially_paid/paid/voided), PO management (draft/approved/cancelled/closed), 2-way and 3-way match engine, append-only payment allocations with row-locking, payment runs (build/execute with idempotent disbursement), payment terms (Net-N, discount schedules), receipt-link ingestion, AP aging reports (current/30/60/90+ buckets), tax quoting/commit/void via tax-core, outbox atomicity, tenant isolation, event envelope publishing, DLQ replay drill binary. 229 unit tests, 58 integration tests (real Postgres). | AP module complete and proven against real database. All gates pass. | No |
+| 1.0.1 | 2026-03-30 | bd-ctx1n | Split 11 oversize source files under 500 LOC. `po/service.rs` split into `po/queries.rs` (reads) + `po/service_tests.rs` (tests). Same pattern applied to all other oversize files. | Enforce 500 LOC file-size limit for CI compliance. Internal refactor only — no API or behavior changes. | No |
 
 ## How to read this table
 

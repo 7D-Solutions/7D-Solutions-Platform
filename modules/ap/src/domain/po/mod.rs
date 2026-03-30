@@ -17,6 +17,7 @@
 //! Item IDs in line requests are validated as UUIDs; stored as description.
 
 pub mod approve;
+pub mod queries;
 pub mod service;
 
 use chrono::{DateTime, Utc};
