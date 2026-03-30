@@ -15,3 +15,4 @@ name: 7d-solutions-platform
 
 include:
   - docker-compose.services.yml
+  - docker-compose.cross.yml
