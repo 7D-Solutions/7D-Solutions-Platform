@@ -1,0 +1,6445 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Inventory Service",
+    "description": "Inventory management: item master, stock receipts (FIFO), issues, transfers, adjustments, reservations, cycle counts, UoM, locations, labels, revisions, reorder policies, valuation snapshots, lot/serial traceability, lot genealogy, expiry monitoring, status transfers.\n\n**Authentication:** Bearer JWT. Tenant identity derived from JWT claims (not headers). Permissions: `INVENTORY_READ` for queries, `INVENTORY_MUTATE` for writes.\n\n**Idempotency:** POST endpoints accept `idempotency_key` in the request body. 201 = created, 200 = replay (same key + same body), 409 = conflict (same key + different body).",
+    "license": {
+      "name": ""
+    },
+    "version": "2.4.1"
+  },
+  "paths": {
+    "/api/inventory/adjustments": {
+      "post": {
+        "tags": [
+          "Adjustments"
+        ],
+        "operationId": "post_adjustment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Adjustment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdjustResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/cycle-count-tasks": {
+      "post": {
+        "tags": [
+          "Cycle Counts"
+        ],
+        "operationId": "post_cycle_count_task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Cycle count task created with snapshot lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateTaskResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/cycle-count-tasks/{task_id}/approve": {
+      "post": {
+        "tags": [
+          "Cycle Counts"
+        ],
+        "operationId": "post_cycle_count_approve",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "description": "Cycle count task ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Count approved and adjustments applied",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/cycle-count-tasks/{task_id}/submit": {
+      "post": {
+        "tags": [
+          "Cycle Counts"
+        ],
+        "operationId": "post_cycle_count_submit",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "description": "Cycle count task ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "201": {
+            "description": "Count submitted",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/expiry-alerts/scan": {
+      "post": {
+        "tags": [
+          "Expiry"
+        ],
+        "operationId": "post_expiry_alert_scan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunExpiryAlertScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Expiry alert scan completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunExpiryAlertScanResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/issues": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "operationId": "post_issue",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Issue created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found or wrong tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure or insufficient stock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "list_items",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tracking_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "make_buy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "description": "`None` or omitted → active-only (default). `true` → active. `false` → inactive.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated item list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Item"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "create_item",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Item created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "SKU already exists for tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{id}": {
+      "get": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "get_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "update_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Item updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{id}/deactivate": {
+      "post": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "deactivate_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item deactivated (idempotent)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{id}/make-buy": {
+      "put": {
+        "tags": [
+          "Items"
+        ],
+        "operationId": "put_make_buy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMakeBuyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Make/buy classification updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Item"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{id}/uom-conversions": {
+      "get": {
+        "tags": [
+          "UoM"
+        ],
+        "operationId": "list_conversions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of conversions for item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemUomConversion"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "UoM"
+        ],
+        "operationId": "create_conversion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Conversion created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemUomConversion"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate conversion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/history": {
+      "get": {
+        "tags": [
+          "History"
+        ],
+        "operationId": "get_movement_history",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "location_id",
+            "in": "query",
+            "description": "Filter by location",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Movement history",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/labels": {
+      "get": {
+        "tags": [
+          "Labels"
+        ],
+        "operationId": "get_list_labels",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated label list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Label"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Labels"
+        ],
+        "operationId": "post_generate_label",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateLabelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Label generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/lots": {
+      "get": {
+        "tags": [
+          "Lots & Serials"
+        ],
+        "operationId": "get_lots_for_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated lot list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_InventoryLot"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/lots/{lot_code}/trace": {
+      "get": {
+        "tags": [
+          "Traceability"
+        ],
+        "operationId": "trace_lot_handler",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "lot_code",
+            "in": "path",
+            "description": "Lot code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lot traceability movements",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/reorder-policies": {
+      "get": {
+        "tags": [
+          "Reorder Policies"
+        ],
+        "operationId": "list_reorder_policies",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated reorder policy list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ReorderPolicy"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/revisions": {
+      "get": {
+        "tags": [
+          "Revisions"
+        ],
+        "operationId": "get_list_revisions",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated revision list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ItemRevision"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Revisions"
+        ],
+        "operationId": "post_create_revision",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRevision"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Revision created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRevision"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/revisions/at": {
+      "get": {
+        "tags": [
+          "Revisions"
+        ],
+        "operationId": "get_revision_at",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "description": "ISO 8601 timestamp (defaults to now)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective revision at requested time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRevision"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No revision effective at requested time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/revisions/{revision_id}/activate": {
+      "post": {
+        "tags": [
+          "Revisions"
+        ],
+        "operationId": "post_activate_revision",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "description": "Revision ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Revision activated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRevision"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Already activated or window overlap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/revisions/{revision_id}/policy-flags": {
+      "put": {
+        "tags": [
+          "Revisions"
+        ],
+        "operationId": "put_revision_policy",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "description": "Revision ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRevisionPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Policy flags updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemRevision"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Only draft revisions can be updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/serials": {
+      "get": {
+        "tags": [
+          "Lots & Serials"
+        ],
+        "operationId": "get_serials_for_item",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Serial instances for item",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/items/{item_id}/serials/{serial_code}/trace": {
+      "get": {
+        "tags": [
+          "Traceability"
+        ],
+        "operationId": "trace_serial_handler",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "serial_code",
+            "in": "path",
+            "description": "Serial code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Serial traceability movements",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/labels/{label_id}": {
+      "get": {
+        "tags": [
+          "Labels"
+        ],
+        "operationId": "get_label_by_id",
+        "parameters": [
+          {
+            "name": "label_id",
+            "in": "path",
+            "description": "Label ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Label details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Label"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/locations": {
+      "post": {
+        "tags": [
+          "Locations"
+        ],
+        "operationId": "create_location",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Location created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate location code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/locations/{id}": {
+      "get": {
+        "tags": [
+          "Locations"
+        ],
+        "operationId": "get_location",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Location ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Location details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Locations"
+        ],
+        "operationId": "update_location",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Location ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Location updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/locations/{id}/deactivate": {
+      "post": {
+        "tags": [
+          "Locations"
+        ],
+        "operationId": "deactivate_location",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Location ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Location deactivated (idempotent)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Location"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/lots/merge": {
+      "post": {
+        "tags": [
+          "Lot Genealogy"
+        ],
+        "operationId": "post_lot_merge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LotMergeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenealogyResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Lot merge completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenealogyResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/lots/split": {
+      "post": {
+        "tags": [
+          "Lot Genealogy"
+        ],
+        "operationId": "post_lot_split",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LotSplitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenealogyResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Lot split completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenealogyResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/lots/{lot_id}/children": {
+      "get": {
+        "tags": [
+          "Lot Genealogy"
+        ],
+        "operationId": "get_lot_children",
+        "parameters": [
+          {
+            "name": "lot_id",
+            "in": "path",
+            "description": "Lot ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Child genealogy edges",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/lots/{lot_id}/expiry": {
+      "put": {
+        "tags": [
+          "Expiry"
+        ],
+        "operationId": "put_lot_expiry",
+        "parameters": [
+          {
+            "name": "lot_id",
+            "in": "path",
+            "description": "Lot ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLotExpiryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lot expiry set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LotExpiryRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lot not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/lots/{lot_id}/parents": {
+      "get": {
+        "tags": [
+          "Lot Genealogy"
+        ],
+        "operationId": "get_lot_parents",
+        "parameters": [
+          {
+            "name": "lot_id",
+            "in": "path",
+            "description": "Lot ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parent genealogy edges",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/receipts": {
+      "post": {
+        "tags": [
+          "Receipts"
+        ],
+        "operationId": "post_receipt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay (same key + same body)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Receipt created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found or wrong tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict (different body)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/reorder-policies": {
+      "post": {
+        "tags": [
+          "Reorder Policies"
+        ],
+        "operationId": "post_reorder_policy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReorderPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Reorder policy created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPolicy"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/reorder-policies/{id}": {
+      "get": {
+        "tags": [
+          "Reorder Policies"
+        ],
+        "operationId": "get_reorder_policy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder policy ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reorder policy details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPolicy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Reorder Policies"
+        ],
+        "operationId": "put_reorder_policy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reorder policy ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReorderPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reorder policy updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderPolicy"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/reservations/release": {
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "operationId": "post_release",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Reservation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/reservations/reserve": {
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "operationId": "post_reserve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Stock reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Insufficient available stock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/reservations/{id}/fulfill": {
+      "post": {
+        "tags": [
+          "Reservations"
+        ],
+        "operationId": "post_fulfill",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Reservation ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FulfillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation fulfilled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FulfillResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Reservation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/status-transfers": {
+      "post": {
+        "tags": [
+          "Status Transfers"
+        ],
+        "operationId": "post_status_transfer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusTransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusTransferResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Status transfer created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusTransferResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/transfers": {
+      "post": {
+        "tags": [
+          "Transfers"
+        ],
+        "operationId": "post_transfer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Transfer completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure or insufficient stock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/uoms": {
+      "get": {
+        "tags": [
+          "UoM"
+        ],
+        "operationId": "list_uoms",
+        "responses": {
+          "200": {
+            "description": "List of UoMs for tenant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Uom"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "UoM"
+        ],
+        "operationId": "create_uom",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUomRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "UoM created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Uom"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate UoM code",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/valuation-snapshots": {
+      "get": {
+        "tags": [
+          "Valuation"
+        ],
+        "operationId": "list_valuation_snapshots",
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "query",
+            "description": "Filter by warehouse",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size (default 50, max 200)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Offset (default 0)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated snapshot list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ValuationSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Valuation"
+        ],
+        "operationId": "post_valuation_snapshot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotency replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValuationSnapshot"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Valuation snapshot created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValuationSnapshot"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/valuation-snapshots/{id}": {
+      "get": {
+        "tags": [
+          "Valuation"
+        ],
+        "operationId": "get_valuation_snapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Snapshot ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot with lines",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Snapshot not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inventory/warehouses/{warehouse_id}/locations": {
+      "get": {
+        "tags": [
+          "Locations"
+        ],
+        "operationId": "list_locations",
+        "parameters": [
+          {
+            "name": "warehouse_id",
+            "in": "path",
+            "description": "Warehouse ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated location list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Location"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivateRevisionRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "effective_from",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identity of the actor performing this change (for audit trail)."
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AdjustRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/adjustments",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity_delta",
+          "reason",
+          "idempotency_key"
+        ],
+        "properties": {
+          "allow_negative": {
+            "type": "boolean",
+            "description": "When true, allows a negative delta even if it would drive on_hand below zero.\nDefault: false (no-negative policy enforced)."
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the adjustment is location-agnostic — existing behavior."
+          },
+          "quantity_delta": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signed quantity change (positive = gain, negative = shrinkage/write-off).\nMust not be zero."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable reason for the adjustment (required).\nExamples: \"shrinkage\", \"cycle_count_correction\", \"damaged_write_off\""
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AdjustResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed adjustment",
+        "required": [
+          "adjustment_id",
+          "ledger_entry_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity_delta",
+          "reason",
+          "adjusted_at"
+        ],
+        "properties": {
+          "adjusted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "adjustment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this adjustment (inv_adjustments.id)"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Outbox event id"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ledger_entry_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "BIGSERIAL ledger row id"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quantity_delta": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ApproveBody": {
+        "type": "object",
+        "required": [
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      },
+      "ConsumedLayer": {
+        "type": "object",
+        "description": "One FIFO layer consumed during an issue.\n\n`extended_cost_minor` is precomputed: `quantity * unit_cost_minor`.",
+        "required": [
+          "layer_id",
+          "quantity",
+          "unit_cost_minor",
+          "extended_cost_minor"
+        ],
+        "properties": {
+          "extended_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Precomputed: quantity × unit_cost_minor"
+          },
+          "layer_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Units drawn from this layer (always > 0)"
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cost per unit from this layer, minor currency units"
+          }
+        }
+      },
+      "CreateConversionRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/items/:id/uom-conversions",
+        "required": [
+          "tenant_id",
+          "from_uom_id",
+          "to_uom_id",
+          "factor"
+        ],
+        "properties": {
+          "factor": {
+            "type": "number",
+            "format": "double",
+            "description": "Multiply from_uom quantity by this factor to get to_uom quantity. Must be > 0."
+          },
+          "from_uom_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_uom_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateItemRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/items",
+        "required": [
+          "tenant_id",
+          "sku",
+          "name",
+          "inventory_account_ref",
+          "cogs_account_ref",
+          "variance_account_ref",
+          "tracking_mode"
+        ],
+        "properties": {
+          "cogs_account_ref": {
+            "type": "string",
+            "description": "GL account ref for COGS expense (e.g. \"5000\")"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inventory_account_ref": {
+            "type": "string",
+            "description": "GL account ref for inventory asset (e.g. \"1200\")"
+          },
+          "make_buy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Manufacturing classification: \"make\" | \"buy\" (optional)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "tracking_mode": {
+            "$ref": "#/components/schemas/TrackingMode",
+            "description": "Lot/serial tracking mode. Required; immutable after creation."
+          },
+          "uom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unit of measure, defaults to \"ea\""
+          },
+          "variance_account_ref": {
+            "type": "string",
+            "description": "GL account ref for purchase price variance (e.g. \"5010\")"
+          }
+        }
+      },
+      "CreateLocationRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "warehouse_id",
+          "code",
+          "name"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateReorderPolicyRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "reorder_point",
+          "safety_stock"
+        ],
+        "properties": {
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "max_qty": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "safety_stock": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateRevisionRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "name",
+          "uom",
+          "inventory_account_ref",
+          "cogs_account_ref",
+          "variance_account_ref",
+          "change_reason",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identity of the actor performing this change (for audit trail)."
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "change_reason": {
+            "type": "string"
+          },
+          "cogs_account_ref": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "inspection_required": {
+            "type": "boolean"
+          },
+          "inventory_account_ref": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "shelf_life_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "shelf_life_enforced": {
+            "type": "boolean"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "traceability_level": {
+            "type": "string"
+          },
+          "uom": {
+            "type": "string"
+          },
+          "variance_account_ref": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateSnapshotRequest": {
+        "type": "object",
+        "description": "Request to build a valuation snapshot.",
+        "required": [
+          "tenant_id",
+          "warehouse_id",
+          "as_of",
+          "idempotency_key",
+          "currency"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Point-in-time for FIFO layer evaluation"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "None = warehouse-level roll-up; Some = location-scoped header"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateTaskRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "warehouse_id",
+          "location_id",
+          "scope"
+        ],
+        "properties": {
+          "item_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Required when scope = partial; ignored (and safe to omit) for full."
+          },
+          "location_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/TaskScope"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateTaskResult": {
+        "type": "object",
+        "required": [
+          "task_id",
+          "tenant_id",
+          "warehouse_id",
+          "location_id",
+          "scope",
+          "status",
+          "line_count",
+          "lines"
+        ],
+        "properties": {
+          "line_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskLine"
+            }
+          },
+          "location_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/TaskScope"
+          },
+          "status": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateUomRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/uoms",
+        "required": [
+          "tenant_id",
+          "code",
+          "name"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FulfillRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/reservations/{reservation_id}/fulfill",
+        "required": [
+          "tenant_id",
+          "reservation_id",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "order_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Business reference (e.g. fulfillment_order_id, order_ref)"
+          },
+          "quantity": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional partial fulfillment quantity (defaults to the full reserved quantity)"
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the original reserve row to fulfill"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "FulfillResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed fulfillment",
+        "required": [
+          "fulfillment_id",
+          "reservation_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "fulfilled_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the outbox event"
+          },
+          "fulfilled_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fulfillment_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the compensating fulfillment row"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the original reservation that was fulfilled"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "GenealogyEdge": {
+        "type": "object",
+        "description": "A genealogy edge returned by query functions.",
+        "required": [
+          "id",
+          "tenant_id",
+          "operation_id",
+          "parent_lot_id",
+          "child_lot_id",
+          "transformation",
+          "quantity",
+          "unit",
+          "occurred_at",
+          "created_at"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "child_lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parent_lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "transformation": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        }
+      },
+      "GenealogyResult": {
+        "type": "object",
+        "description": "Result returned on successful split or merge.",
+        "required": [
+          "operation_id",
+          "edge_count",
+          "event_id"
+        ],
+        "properties": {
+          "edge_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "GenerateLabelRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "revision_id",
+          "label_type",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "barcode_format": {
+            "type": "string"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extra": {
+            "description": "Optional extra data merged into the label payload (e.g. lot_code)."
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label_type": {
+            "type": "string"
+          },
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "InvItemStatus": {
+        "type": "string",
+        "description": "The three mutually-exclusive status buckets for stock units.",
+        "enum": [
+          "available",
+          "quarantine",
+          "damaged"
+        ]
+      },
+      "InventoryLot": {
+        "type": "object",
+        "description": "A named lot grouping a batch of items received together.\n\nLots are unique per (tenant_id, item_id, lot_code).\nCreated on receipt; immutable thereafter (lot_code and item_id never change).",
+        "required": [
+          "id",
+          "tenant_id",
+          "item_id",
+          "lot_code",
+          "created_at"
+        ],
+        "properties": {
+          "attributes": {
+            "description": "Optional free-form metadata stored as JSON (e.g. expiry date, supplier info)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "First-class lot expiry date used for policy enforcement and alerting."
+          },
+          "expiry_set_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiry_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source of expiry assignment: manual or policy."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lot_code": {
+            "type": "string",
+            "description": "Human-readable lot identifier (e.g. \"LOT-2026-001\", supplier batch code)."
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "IssueRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/issues",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "currency",
+          "source_module",
+          "source_type",
+          "source_id",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional storage location to issue from. When set, availability is\nchecked against this location's on-hand projection. When absent,\navailability is derived from warehouse-level FIFO layers (existing behavior)."
+          },
+          "lot_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required for Lot-tracked items. FIFO consumption is restricted to this lot only."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Quantity to issue (must be > 0 for None/Lot-tracked items).\nFor Serial-tracked items, quantity is derived from serial_codes.len()."
+          },
+          "serial_codes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Required for Serial-tracked items. Each code must be on_hand for this item.\nQuantity is derived from this list; the `quantity` field is ignored."
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_line_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_module": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "uom_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "UoM id for the input `quantity`. When present, `quantity` is in this unit\nand will be converted to the item's base_uom before writing to the ledger.\nWhen absent, `quantity` is assumed to already be in base_uom units."
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "IssueResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed issue",
+        "required": [
+          "issue_line_id",
+          "ledger_entry_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "total_cost_minor",
+          "currency",
+          "consumed_layers",
+          "source_ref",
+          "issued_at"
+        ],
+        "properties": {
+          "consumed_layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsumedLayer"
+            }
+          },
+          "currency": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Event id used in outbox"
+          },
+          "issue_line_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this issue (= ledger entry_id)"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ledger_entry_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "BIGSERIAL ledger row id"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_ref": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "description": "A unique item (SKU) per tenant with GL account references.",
+        "required": [
+          "id",
+          "tenant_id",
+          "sku",
+          "name",
+          "inventory_account_ref",
+          "cogs_account_ref",
+          "variance_account_ref",
+          "uom",
+          "tracking_mode",
+          "active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "base_uom_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "FK into `uoms` catalog — the item's canonical stock unit.\nNone until assigned via the UoM catalog."
+          },
+          "cogs_account_ref": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inventory_account_ref": {
+            "type": "string"
+          },
+          "make_buy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Manufacturing classification: \"make\" | \"buy\" (NULL = unset)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "tracking_mode": {
+            "$ref": "#/components/schemas/TrackingMode",
+            "description": "How stock movements are tracked. Immutable after creation."
+          },
+          "uom": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "variance_account_ref": {
+            "type": "string"
+          }
+        }
+      },
+      "ItemRevision": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "item_id",
+          "revision_number",
+          "name",
+          "uom",
+          "inventory_account_ref",
+          "cogs_account_ref",
+          "variance_account_ref",
+          "traceability_level",
+          "inspection_required",
+          "shelf_life_enforced",
+          "change_reason",
+          "created_at"
+        ],
+        "properties": {
+          "activated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "change_reason": {
+            "type": "string"
+          },
+          "cogs_account_ref": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effective_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inspection_required": {
+            "type": "boolean"
+          },
+          "inventory_account_ref": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revision_number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "shelf_life_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "shelf_life_enforced": {
+            "type": "boolean"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "traceability_level": {
+            "type": "string"
+          },
+          "uom": {
+            "type": "string"
+          },
+          "variance_account_ref": {
+            "type": "string"
+          }
+        }
+      },
+      "ItemUomConversion": {
+        "type": "object",
+        "description": "A directional conversion factor between two UoMs for a specific item.\n\nSemantics: `quantity_in_from_uom * factor = quantity_in_to_uom`\nExample: 1 box = 12 ea → from=box, to=ea, factor=12.0",
+        "required": [
+          "id",
+          "tenant_id",
+          "item_id",
+          "from_uom_id",
+          "to_uom_id",
+          "factor",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "factor": {
+            "type": "number",
+            "format": "double"
+          },
+          "from_uom_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_uom_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Label": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "item_id",
+          "revision_id",
+          "label_type",
+          "barcode_format",
+          "payload",
+          "created_at"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "barcode_format": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label_type": {
+            "type": "string"
+          },
+          "payload": {},
+          "revision_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ListItemsQuery": {
+        "type": "object",
+        "description": "URL query parameters for `GET /api/inventory/items`.",
+        "properties": {
+          "active": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`None` or omitted → active-only (default). `true` → active. `false` → inactive."
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "make_buy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "search": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tracking_mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Location": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "warehouse_id",
+          "code",
+          "name",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LotExpiryRecord": {
+        "type": "object",
+        "required": [
+          "lot_id",
+          "tenant_id",
+          "item_id",
+          "lot_code",
+          "expires_on",
+          "expiry_source",
+          "expiry_set_at"
+        ],
+        "properties": {
+          "expires_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "expiry_set_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiry_source": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lot_code": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "LotMergeRequest": {
+        "type": "object",
+        "description": "Input for a lot merge operation.\n\nA merge takes multiple parent lots and combines their quantity into a\nsingle child lot. The child lot is created if it doesn't already exist.",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "parents",
+          "child_lot_code",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "child_lot_code": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MergeParent"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "LotSplitRequest": {
+        "type": "object",
+        "description": "Input for a lot split operation.\n\nA split takes one parent lot and distributes quantity to one or more\nchild lots. Child lots are created if they don't already exist.",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "parent_lot_code",
+          "children",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SplitChild"
+            }
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_lot_code": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "MergeParent": {
+        "type": "object",
+        "required": [
+          "lot_code",
+          "quantity"
+        ],
+        "properties": {
+          "lot_code": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "MovementEntry": {
+        "type": "object",
+        "description": "A single ledger movement returned by the history query.\n\nIncludes both the business reference (`reference_type` / `reference_id`)\nand the originating event reference (`source_event_id` / `source_event_type`).",
+        "required": [
+          "ledger_id",
+          "entry_id",
+          "warehouse_id",
+          "entry_type",
+          "quantity",
+          "unit_cost_minor",
+          "currency",
+          "source_event_id",
+          "source_event_type",
+          "posted_at"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (lower-case, e.g. \"usd\")."
+          },
+          "entry_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Immutable UUID for the ledger row (unique across all ledger entries)."
+          },
+          "entry_type": {
+            "type": "string",
+            "description": "Movement type: \"received\" | \"issued\" | \"adjusted\" | \"transfer_in\" | \"transfer_out\"."
+          },
+          "ledger_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Stable monotonic ordering key (BIGSERIAL primary key of inventory_ledger)."
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Location (bin/shelf) if the movement was location-aware; NULL otherwise."
+          },
+          "posted_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Wall-clock time at which the movement was posted."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signed quantity: positive = stock in, negative = stock out."
+          },
+          "reference_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional business reference ID (e.g. the PO or SO number)."
+          },
+          "reference_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional business reference type (e.g. \"purchase_order\", \"sales_order\")."
+          },
+          "source_event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the outbox event that caused this ledger entry."
+          },
+          "source_event_type": {
+            "type": "string",
+            "description": "Event type string (e.g. \"inventory.item_received\")."
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unit cost in minor currency units (e.g. cents)."
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Warehouse the movement occurred in."
+          }
+        }
+      },
+      "PaginatedResponse_InventoryLot": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A named lot grouping a batch of items received together.\n\nLots are unique per (tenant_id, item_id, lot_code).\nCreated on receipt; immutable thereafter (lot_code and item_id never change).",
+              "required": [
+                "id",
+                "tenant_id",
+                "item_id",
+                "lot_code",
+                "created_at"
+              ],
+              "properties": {
+                "attributes": {
+                  "description": "Optional free-form metadata stored as JSON (e.g. expiry date, supplier info)."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "expires_on": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date",
+                  "description": "First-class lot expiry date used for policy enforcement and alerting."
+                },
+                "expiry_set_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "expiry_source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Source of expiry assignment: manual or policy."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "lot_code": {
+                  "type": "string",
+                  "description": "Human-readable lot identifier (e.g. \"LOT-2026-001\", supplier batch code)."
+                },
+                "tenant_id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Item": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A unique item (SKU) per tenant with GL account references.",
+              "required": [
+                "id",
+                "tenant_id",
+                "sku",
+                "name",
+                "inventory_account_ref",
+                "cogs_account_ref",
+                "variance_account_ref",
+                "uom",
+                "tracking_mode",
+                "active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "active": {
+                  "type": "boolean"
+                },
+                "base_uom_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "FK into `uoms` catalog — the item's canonical stock unit.\nNone until assigned via the UoM catalog."
+                },
+                "cogs_account_ref": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "inventory_account_ref": {
+                  "type": "string"
+                },
+                "make_buy": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Manufacturing classification: \"make\" | \"buy\" (NULL = unset)."
+                },
+                "name": {
+                  "type": "string"
+                },
+                "sku": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "tracking_mode": {
+                  "$ref": "#/components/schemas/TrackingMode",
+                  "description": "How stock movements are tracked. Immutable after creation."
+                },
+                "uom": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "variance_account_ref": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_ItemRevision": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "item_id",
+                "revision_number",
+                "name",
+                "uom",
+                "inventory_account_ref",
+                "cogs_account_ref",
+                "variance_account_ref",
+                "traceability_level",
+                "inspection_required",
+                "shelf_life_enforced",
+                "change_reason",
+                "created_at"
+              ],
+              "properties": {
+                "activated_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "change_reason": {
+                  "type": "string"
+                },
+                "cogs_account_ref": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "effective_from": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "effective_to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "idempotency_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "inspection_required": {
+                  "type": "boolean"
+                },
+                "inventory_account_ref": {
+                  "type": "string"
+                },
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "revision_number": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "shelf_life_days": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "shelf_life_enforced": {
+                  "type": "boolean"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "traceability_level": {
+                  "type": "string"
+                },
+                "uom": {
+                  "type": "string"
+                },
+                "variance_account_ref": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Label": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "item_id",
+                "revision_id",
+                "label_type",
+                "barcode_format",
+                "payload",
+                "created_at"
+              ],
+              "properties": {
+                "actor_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "barcode_format": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "idempotency_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "label_type": {
+                  "type": "string"
+                },
+                "payload": {},
+                "revision_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "tenant_id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Location": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "warehouse_id",
+                "code",
+                "name",
+                "is_active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "warehouse_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_ReorderPolicy": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "item_id",
+                "reorder_point",
+                "safety_stock",
+                "created_by",
+                "updated_by",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "item_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "max_qty": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Optional upper bound for order-to-max workflows."
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reorder_point": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Quantity on hand at which a restock should be triggered."
+                },
+                "safety_stock": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Minimum buffer quantity to keep on hand at all times."
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updated_by": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_ValuationSnapshot": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A point-in-time valuation roll-up for a tenant's warehouse (or location).\n\n`total_value_minor` is the pre-computed sum of all associated\n`ValuationLine.total_value_minor` entries.",
+              "required": [
+                "id",
+                "tenant_id",
+                "warehouse_id",
+                "as_of",
+                "total_value_minor",
+                "currency",
+                "created_at"
+              ],
+              "properties": {
+                "as_of": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The instant at which FIFO layers were evaluated."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "location_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "`None` = warehouse-level roll-up (all locations combined)."
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "total_value_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Sum of all line `total_value_minor` values, in minor currency units."
+                },
+                "warehouse_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReceiptRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/receipts",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "unit_cost_minor",
+          "currency",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Distributed trace correlation ID (optional; generated if absent)"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the receipt is location-agnostic — existing behavior."
+          },
+          "lot_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required when item.tracking_mode == Lot.\nIdentifies the lot; creates the lot row if it does not exist yet."
+          },
+          "purchase_order_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Quantity received (must be > 0)"
+          },
+          "serial_codes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Required when item.tracking_mode == Serial.\nLength MUST equal `quantity`; each code must be unique per tenant+item."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "Origin of receipt: \"purchase\" (default) | \"production\" | \"return\".\nProduction receipts require caller-provided unit_cost."
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unit cost in minor currency units, e.g. cents (must be > 0)"
+          },
+          "uom_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "UoM id for the input `quantity`. When present, `quantity` is in this unit\nand will be converted to the item's base_uom before writing to the ledger.\nWhen absent, `quantity` is assumed to already be in base_uom units."
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ReceiptResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed receipt",
+        "required": [
+          "receipt_line_id",
+          "ledger_entry_id",
+          "layer_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "unit_cost_minor",
+          "currency",
+          "source_type",
+          "received_at"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Event id used in outbox (also = ledger.source_event_id)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "layer_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "FIFO layer id"
+          },
+          "ledger_entry_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "BIGSERIAL ledger row id (used for FIFO ordering)"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "lot_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Lot id, present when item.tracking_mode == Lot."
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "receipt_line_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this receipt (from ledger.entry_id)"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "serial_instance_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Serial instance ids created, in the same order as request.serial_codes.\nEmpty for non-serial items."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "Origin of receipt: \"purchase\" | \"production\" | \"return\""
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ReleaseRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/reservations/release",
+        "required": [
+          "tenant_id",
+          "reservation_id",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the original reserve row to compensate"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReleaseResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed release",
+        "required": [
+          "release_id",
+          "reservation_id",
+          "event_id",
+          "tenant_id",
+          "released_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the outbox event"
+          },
+          "release_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the compensating reservation row (release entry)"
+          },
+          "released_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the original reservation that was released"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ReorderPolicy": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "item_id",
+          "reorder_point",
+          "safety_stock",
+          "created_by",
+          "updated_by",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "max_qty": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional upper bound for order-to-max workflows."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Quantity on hand at which a restock should be triggered."
+          },
+          "safety_stock": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minimum buffer quantity to keep on hand at all times."
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ReserveRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/reservations/reserve",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Optional TTL for the hold"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Units to hold (must be > 0)"
+          },
+          "reference_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional business reference (e.g. \"sales_order\", \"fulfillment_order\")"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ReserveResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed reserve",
+        "required": [
+          "reservation_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "quantity",
+          "reserved_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the outbox event"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reservation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID of the created reservation row (primary entry)"
+          },
+          "reserved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RunExpiryAlertScanRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "expiring_within_days",
+          "idempotency_key"
+        ],
+        "properties": {
+          "as_of_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expiring_within_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RunExpiryAlertScanResult": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "as_of_date",
+          "expiring_within_days",
+          "expiring_soon_emitted",
+          "expired_emitted"
+        ],
+        "properties": {
+          "as_of_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "expired_emitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expiring_soon_emitted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expiring_within_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SetLotExpiryRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "lot_id",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "compute_from_policy": {
+            "type": "boolean"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "lot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SetMakeBuyRequest": {
+        "type": "object",
+        "description": "Input for PUT /api/inventory/items/:id/make-buy",
+        "required": [
+          "tenant_id",
+          "make_buy"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "make_buy": {
+            "type": "string",
+            "description": "\"make\" | \"buy\""
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceRef": {
+        "type": "object",
+        "description": "Source reference: who triggered this issue.",
+        "required": [
+          "source_module",
+          "source_type",
+          "source_id"
+        ],
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "source_line_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_module": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          }
+        }
+      },
+      "SplitChild": {
+        "type": "object",
+        "required": [
+          "lot_code",
+          "quantity"
+        ],
+        "properties": {
+          "lot_code": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "StatusTransferRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/status-transfers",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "from_status",
+          "to_status",
+          "quantity",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from_status": {
+            "$ref": "#/components/schemas/InvItemStatus",
+            "description": "Source bucket"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Quantity to transfer (must be > 0)"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_status": {
+            "$ref": "#/components/schemas/InvItemStatus",
+            "description": "Destination bucket (must differ from from_status)"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "StatusTransferResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed transfer",
+        "required": [
+          "transfer_id",
+          "event_id",
+          "tenant_id",
+          "item_id",
+          "warehouse_id",
+          "from_status",
+          "to_status",
+          "quantity",
+          "transferred_at"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Outbox event id"
+          },
+          "from_status": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_status": {
+            "type": "string"
+          },
+          "transfer_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this transfer (inv_status_transfers row id)"
+          },
+          "transferred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "SubmitBody": {
+        "type": "object",
+        "required": [
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmitLineInput"
+            }
+          }
+        }
+      },
+      "SubmitLineInput": {
+        "type": "object",
+        "description": "One line in the submit request (caller supplies counted_qty per line_id).",
+        "required": [
+          "line_id",
+          "counted_qty"
+        ],
+        "properties": {
+          "counted_qty": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Physical count; must be >= 0"
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TaskLine": {
+        "type": "object",
+        "required": [
+          "line_id",
+          "item_id",
+          "expected_qty"
+        ],
+        "properties": {
+          "expected_qty": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TaskScope": {
+        "type": "string",
+        "enum": [
+          "full",
+          "partial"
+        ]
+      },
+      "TrackingMode": {
+        "type": "string",
+        "description": "How stock movements are tracked for this SKU.\n\nSet at item creation; immutable thereafter (changing tracking_mode after\nstock exists would invalidate historical layer associations).",
+        "enum": [
+          "none",
+          "lot",
+          "serial"
+        ]
+      },
+      "TransferRequest": {
+        "type": "object",
+        "description": "Input for POST /api/inventory/transfers",
+        "required": [
+          "tenant_id",
+          "item_id",
+          "from_warehouse_id",
+          "to_warehouse_id",
+          "quantity",
+          "currency",
+          "idempotency_key"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "from_warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key (required; scoped per tenant)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Quantity to transfer (must be > 0; in base_uom units)"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "TransferResult": {
+        "type": "object",
+        "description": "Result returned on successful or replayed transfer",
+        "required": [
+          "transfer_id",
+          "event_id",
+          "issue_ledger_id",
+          "receipt_ledger_id",
+          "tenant_id",
+          "item_id",
+          "from_warehouse_id",
+          "to_warehouse_id",
+          "quantity",
+          "total_cost_minor",
+          "currency",
+          "consumed_layers",
+          "transferred_at"
+        ],
+        "properties": {
+          "consumed_layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsumedLayer"
+            },
+            "description": "FIFO breakdown consumed from source"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Outbox event id"
+          },
+          "from_warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issue_ledger_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Ledger entry id for the 'transfer_out' leg (source debit)"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "receipt_ledger_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Ledger entry id for the 'transfer_in' leg (destination credit)"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to_warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total FIFO cost consumed from source layers"
+          },
+          "transfer_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this transfer (= inv_transfers.id)"
+          },
+          "transferred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Uom": {
+        "type": "object",
+        "description": "A unit of measure in the tenant's catalog (e.g. \"ea\", \"kg\", \"box\").",
+        "required": [
+          "id",
+          "tenant_id",
+          "code",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateItemRequest": {
+        "type": "object",
+        "description": "Input for PUT /api/inventory/items/:id",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "cogs_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inventory_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "uom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variance_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateLocationRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateReorderPolicyRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "max_qty": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Pass Some(value) to set; None leaves the existing value unchanged."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reorder_point": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "safety_stock": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateRevisionPolicyRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "traceability_level",
+          "inspection_required",
+          "shelf_life_enforced",
+          "idempotency_key"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Identity of the actor performing this change (for audit trail)."
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "inspection_required": {
+            "type": "boolean"
+          },
+          "shelf_life_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "shelf_life_enforced": {
+            "type": "boolean"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "traceability_level": {
+            "type": "string"
+          }
+        }
+      },
+      "ValuationLine": {
+        "type": "object",
+        "description": "One line under a `ValuationSnapshot` — value for a single item/location.\n\n`total_value_minor = quantity_on_hand * unit_cost_minor` (pre-computed).\n`unit_cost_minor` is the weighted-average unit cost of remaining FIFO layers.",
+        "required": [
+          "id",
+          "snapshot_id",
+          "item_id",
+          "warehouse_id",
+          "quantity_on_hand",
+          "unit_cost_minor",
+          "total_value_minor",
+          "currency"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`None` when not tracking at location level for this snapshot."
+          },
+          "quantity_on_hand": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Remaining on-hand quantity at `as_of` (sum of layer `quantity_remaining`)."
+          },
+          "snapshot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total_value_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`quantity_on_hand * unit_cost_minor`, in minor currency units."
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Weighted-average unit cost across remaining FIFO layers at `as_of`."
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ValuationSnapshot": {
+        "type": "object",
+        "description": "A point-in-time valuation roll-up for a tenant's warehouse (or location).\n\n`total_value_minor` is the pre-computed sum of all associated\n`ValuationLine.total_value_minor` entries.",
+        "required": [
+          "id",
+          "tenant_id",
+          "warehouse_id",
+          "as_of",
+          "total_value_minor",
+          "currency",
+          "created_at"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The instant at which FIFO layers were evaluated."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "location_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`None` = warehouse-level roll-up (all locations combined)."
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_value_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all line `total_value_minor` values, in minor currency units."
+          },
+          "warehouse_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

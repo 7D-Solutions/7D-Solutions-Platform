@@ -1,0 +1,23 @@
+{
+  "name": "@7d/inventory-client",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Generated TypeScript client for the Inventory service",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript http://localhost:8092/api/openapi.json -o src/inventory.d.ts",
+    "generate:file": "openapi-typescript openapi.json -o src/inventory.d.ts",
+    "proof": "npx tsx tests/consumer-proof.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "jose": "^6.2.2",
+    "openapi-typescript": "^7.6.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
