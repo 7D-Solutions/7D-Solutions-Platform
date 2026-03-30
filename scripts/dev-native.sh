@@ -51,6 +51,8 @@ SERVICES=(
   "workforce-competence|workforce-competence-rs|7d-workforce-competence|8121|5458|wc_user|wc_pass|workforce_competence_db|workforce-competence-rs"
   "customer-portal|customer-portal|7d-customer-portal|8111|5464|customer_portal_user|customer_portal_pass|customer_portal_db|customer-portal"
   "reporting|reporting|7d-reporting|8096|5463|reporting_user|reporting_pass|reporting_db|reporting"
+  "control-plane|control-plane|7d-control-plane|8091|5441|tenant_registry_user|tenant_registry_pass|tenant_registry_db|control-plane"
+  "auth|auth-rs|7d-auth-1|8080|5433|auth_user|auth_pass|auth_db|identity-auth"
 )
 
 # NATS connection for native processes (localhost, not Docker network)

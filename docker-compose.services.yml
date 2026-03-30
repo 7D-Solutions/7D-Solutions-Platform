@@ -6,9 +6,7 @@ services:
   # =========================
   auth-1:
     container_name: 7d-auth-1
-    build:
-      context: .
-      dockerfile: platform/identity-auth/Dockerfile.workspace
+    image: 7d-runtime
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -52,22 +50,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    develop:
-      watch:
-        - action: rebuild
-          path: platform/identity-auth/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   auth-2:
     container_name: 7d-auth-2
-    build:
-      context: .
-      dockerfile: platform/identity-auth/Dockerfile.workspace
+    image: 7d-runtime
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -111,16 +97,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-    develop:
-      watch:
-        - action: rebuild
-          path: platform/identity-auth/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # AUTH LOAD BALANCER
@@ -207,6 +183,13 @@ services:
       - maintenance
       - shipping-receiving
       - bom
+      - quality-inspection
+      - production
+      - workflow
+      - numbering
+      - workforce-competence
+      - customer-portal
+      - reporting
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/api/gateway/health || exit 1"]
       interval: 10s
@@ -224,9 +207,7 @@ services:
   # =========================
   control-plane:
     container_name: 7d-control-plane
-    build:
-      context: .
-      dockerfile: platform/control-plane/Dockerfile.workspace
+    image: 7d-runtime
     restart: unless-stopped
     cap_drop:
       - ALL
@@ -256,25 +237,13 @@ services:
       com.7dsolutions.component: "control-plane"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: platform/control-plane/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # AR MODULE
   # =========================
   ar:
     container_name: 7d-ar
-    build:
-      context: .
-      dockerfile: modules/ar/deploy/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -306,25 +275,13 @@ services:
       com.7dsolutions.component: "ar"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/ar/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # SUBSCRIPTIONS MODULE
   # =========================
   subscriptions:
     container_name: 7d-subscriptions
-    build:
-      context: .
-      dockerfile: modules/subscriptions/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -356,25 +313,13 @@ services:
       com.7dsolutions.component: "subscriptions"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/subscriptions/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # PAYMENTS MODULE
   # =========================
   payments:
     container_name: 7d-payments
-    build:
-      context: .
-      dockerfile: modules/payments/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -405,25 +350,13 @@ services:
       com.7dsolutions.component: "payments"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/payments/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # NOTIFICATIONS MODULE
   # =========================
   notifications:
     container_name: 7d-notifications
-    build:
-      context: .
-      dockerfile: modules/notifications/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -454,25 +387,13 @@ services:
       com.7dsolutions.component: "notifications"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/notifications/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # GL MODULE
   # =========================
   gl:
     container_name: 7d-gl
-    build:
-      context: .
-      dockerfile: modules/gl/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -503,25 +424,13 @@ services:
       com.7dsolutions.component: "gl"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/gl/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # INVENTORY MODULE
   # =========================
   inventory:
     container_name: 7d-inventory
-    build:
-      context: .
-      dockerfile: modules/inventory/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -552,25 +461,13 @@ services:
       com.7dsolutions.component: "inventory"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/inventory/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # AP MODULE
   # =========================
   ap:
     container_name: 7d-ap
-    build:
-      context: .
-      dockerfile: modules/ap/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:-ap_pass}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -601,25 +498,13 @@ services:
       com.7dsolutions.component: "ap"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/ap/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # TREASURY MODULE
   # =========================
   treasury:
     container_name: 7d-treasury
-    build:
-      context: .
-      dockerfile: modules/treasury/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:-treasury_pass}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -650,25 +535,13 @@ services:
       com.7dsolutions.component: "treasury"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/treasury/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # FIXED ASSETS MODULE
   # =========================
   fixed-assets:
     container_name: 7d-fixed-assets
-    build:
-      context: .
-      dockerfile: modules/fixed-assets/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -699,25 +572,13 @@ services:
       com.7dsolutions.component: "fixed-assets"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/fixed-assets/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # CONSOLIDATION MODULE
   # =========================
   consolidation:
     container_name: 7d-consolidation
-    build:
-      context: .
-      dockerfile: modules/consolidation/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -748,25 +609,13 @@ services:
       com.7dsolutions.component: "consolidation"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/consolidation/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # TIMEKEEPING MODULE
   # =========================
   timekeeping:
     container_name: 7d-timekeeping
-    build:
-      context: .
-      dockerfile: modules/timekeeping/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -797,25 +646,13 @@ services:
       com.7dsolutions.component: "timekeeping"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/timekeeping/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # PARTY MODULE
   # =========================
   party:
     container_name: 7d-party
-    build:
-      context: .
-      dockerfile: modules/party/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -846,25 +683,13 @@ services:
       com.7dsolutions.component: "party"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/party/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # INTEGRATIONS MODULE
   # =========================
   integrations:
     container_name: 7d-integrations
-    build:
-      context: .
-      dockerfile: modules/integrations/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -895,25 +720,13 @@ services:
       com.7dsolutions.component: "integrations"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/integrations/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # TTP MODULE
   # =========================
   ttp:
     container_name: 7d-ttp
-    build:
-      context: .
-      dockerfile: modules/ttp/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -945,25 +758,13 @@ services:
       com.7dsolutions.component: "ttp"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/ttp/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # PDF EDITOR MODULE
   # =========================
   pdf-editor:
     container_name: 7d-pdf-editor
-    build:
-      context: .
-      dockerfile: modules/pdf-editor/deploy/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -995,25 +796,13 @@ services:
       com.7dsolutions.component: "pdf-editor"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/pdf-editor/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # MAINTENANCE MODULE
   # =========================
   maintenance:
     container_name: 7d-maintenance
-    build:
-      context: .
-      dockerfile: modules/maintenance/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${MAINTENANCE_POSTGRES_USER:-maintenance_user}:${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}@7d-maintenance-postgres:5432/${MAINTENANCE_POSTGRES_DB:-maintenance_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1044,25 +833,13 @@ services:
       com.7dsolutions.component: "maintenance"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/maintenance/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # SHIPPING-RECEIVING MODULE
   # =========================
   shipping-receiving:
     container_name: 7d-shipping-receiving
-    build:
-      context: .
-      dockerfile: modules/shipping-receiving/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}:${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}@7d-shipping-receiving-postgres:5432/${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1093,25 +870,13 @@ services:
       com.7dsolutions.component: "shipping-receiving"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/shipping-receiving/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # QUALITY INSPECTION MODULE
   # =========================
   quality-inspection:
     container_name: 7d-quality-inspection
-    build:
-      context: .
-      dockerfile: modules/quality-inspection/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}:${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}@7d-quality-inspection-postgres:5432/${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}?sslmode=require
       WORKFORCE_COMPETENCE_DATABASE_URL: postgresql://${WORKFORCE_COMPETENCE_POSTGRES_USER:-wc_user}:${WORKFORCE_COMPETENCE_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WORKFORCE_COMPETENCE_POSTGRES_DB:-workforce_competence_db}?sslmode=require
@@ -1143,25 +908,13 @@ services:
       com.7dsolutions.component: "quality-inspection"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/quality-inspection/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # BOM MODULE
   # =========================
   bom:
     container_name: 7d-bom
-    build:
-      context: .
-      dockerfile: modules/bom/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${BOM_POSTGRES_USER:-bom_user}:${BOM_POSTGRES_PASSWORD:-bom_pass}@7d-bom-postgres:5432/${BOM_POSTGRES_DB:-bom_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1192,25 +945,13 @@ services:
       com.7dsolutions.component: "bom"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/bom/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # PRODUCTION MODULE
   # =========================
   production:
     container_name: 7d-production
-    build:
-      context: .
-      dockerfile: modules/production/deploy/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1239,25 +980,13 @@ services:
       com.7dsolutions.component: "production"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/production/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # WORKFLOW MODULE
   # =========================
   workflow:
     container_name: 7d-workflow
-    build:
-      context: .
-      dockerfile: modules/workflow/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${WORKFLOW_POSTGRES_USER:-workflow_user}:${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}@7d-workflow-postgres:5432/${WORKFLOW_POSTGRES_DB:-workflow_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1288,25 +1017,13 @@ services:
       com.7dsolutions.component: "workflow"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/workflow/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # NUMBERING MODULE
   # =========================
   numbering:
     container_name: 7d-numbering
-    build:
-      context: .
-      dockerfile: modules/numbering/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${NUMBERING_POSTGRES_USER:-numbering_user}:${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}@7d-numbering-postgres:5432/${NUMBERING_POSTGRES_DB:-numbering_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1337,25 +1054,13 @@ services:
       com.7dsolutions.component: "numbering"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/numbering/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # WORKFORCE COMPETENCE MODULE
   # =========================
   workforce-competence:
     container_name: 7d-workforce-competence
-    build:
-      context: .
-      dockerfile: modules/workforce-competence/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${WC_POSTGRES_USER:-wc_user}:${WC_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WC_POSTGRES_DB:-workforce_competence_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1384,32 +1089,20 @@ services:
       com.7dsolutions.component: "workforce-competence"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/workforce-competence/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # CUSTOMER PORTAL MODULE
   # =========================
   customer-portal:
     container_name: 7d-customer-portal
-    build:
-      context: .
-      dockerfile: modules/customer-portal/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}:${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}@7d-customer-portal-postgres:5432/${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}?sslmode=require
       HOST: 0.0.0.0
       PORT: 8111
       PORTAL_JWT_PRIVATE_KEY: ${PORTAL_JWT_PRIVATE_KEY:-}
       PORTAL_JWT_PUBLIC_KEY: ${PORTAL_JWT_PUBLIC_KEY:-}
-      DOC_MGMT_BASE_URL: http://7d-doc-mgmt:8095
+      DOC_MGMT_BASE_URL: http://7d-doc-mgmt:8095  # TODO: 7d-doc-mgmt service does not exist yet
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "127.0.0.1:8111:8111"
@@ -1433,25 +1126,13 @@ services:
       com.7dsolutions.component: "customer-portal"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/customer-portal/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
   # =========================
   # REPORTING MODULE
   # =========================
   reporting:
     container_name: 7d-reporting
-    build:
-      context: .
-      dockerfile: modules/reporting/Dockerfile.workspace
+    image: 7d-runtime
     environment:
       DATABASE_URL: postgres://${REPORTING_POSTGRES_USER:-reporting_user}:${REPORTING_POSTGRES_PASSWORD:-reporting_pass}@7d-reporting-postgres:5432/${REPORTING_POSTGRES_DB:-reporting_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1480,16 +1161,6 @@ services:
       com.7dsolutions.component: "reporting"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
-    develop:
-      watch:
-        - action: rebuild
-          path: modules/reporting/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
 
 networks:
   7d-platform:
