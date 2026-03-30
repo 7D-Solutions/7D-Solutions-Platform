@@ -12,14 +12,16 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::party::{extract_tenant, DataResponse};
+use super::party::{extract_tenant, with_request_id, DataResponse};
 use crate::domain::contact::{
     Contact, CreateContactRequest, PrimaryContactEntry, SetPrimaryRequest, UpdateContactRequest,
 };
@@ -49,19 +51,23 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
 pub async fn create_contact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(party_id): Path<Uuid>,
     Json(req): Json<CreateContactRequest>,
-) -> Result<(StatusCode, Json<Contact>), ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let contact =
-        contact_service::create_contact(&state.pool, &app_id, party_id, &req, correlation_id)
-            .await
-            .map_err(ApiError::from)?;
-
-    Ok((StatusCode::CREATED, Json(contact)))
+    match contact_service::create_contact(&state.pool, &app_id, party_id, &req, correlation_id)
+        .await
+    {
+        Ok(contact) => (StatusCode::CREATED, Json(contact)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -77,15 +83,18 @@ pub async fn create_contact(
 pub async fn list_contacts(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(party_id): Path<Uuid>,
-) -> Result<Json<DataResponse<Contact>>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let contacts = contact_service::list_contacts(&state.pool, &app_id, party_id)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok(Json(DataResponse { data: contacts }))
+    match contact_service::list_contacts(&state.pool, &app_id, party_id).await {
+        Ok(contacts) => Json(DataResponse { data: contacts }).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -102,18 +111,23 @@ pub async fn list_contacts(
 pub async fn get_contact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(contact_id): Path<Uuid>,
-) -> Result<Json<Contact>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let contact = contact_service::get_contact(&state.pool, &app_id, contact_id)
-        .await
-        .map_err(ApiError::from)?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Contact {} not found", contact_id))
-        })?;
-
-    Ok(Json(contact))
+    match contact_service::get_contact(&state.pool, &app_id, contact_id).await {
+        Ok(Some(contact)) => Json(contact).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Contact {} not found", contact_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -132,19 +146,23 @@ pub async fn get_contact(
 pub async fn update_contact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(contact_id): Path<Uuid>,
     Json(req): Json<UpdateContactRequest>,
-) -> Result<Json<Contact>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let contact =
-        contact_service::update_contact(&state.pool, &app_id, contact_id, &req, correlation_id)
-            .await
-            .map_err(ApiError::from)?;
-
-    Ok(Json(contact))
+    match contact_service::update_contact(&state.pool, &app_id, contact_id, &req, correlation_id)
+        .await
+    {
+        Ok(contact) => Json(contact).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -161,17 +179,22 @@ pub async fn update_contact(
 pub async fn delete_contact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(contact_id): Path<Uuid>,
-) -> Result<StatusCode, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    contact_service::deactivate_contact(&state.pool, &app_id, contact_id, correlation_id)
+    match contact_service::deactivate_contact(&state.pool, &app_id, contact_id, correlation_id)
         .await
-        .map_err(ApiError::from)?;
-
-    Ok(StatusCode::NO_CONTENT)
+    {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -193,16 +216,22 @@ pub async fn delete_contact(
 pub async fn set_primary(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path((party_id, contact_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<SetPrimaryRequest>,
-) -> Result<Json<Contact>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    req.validate().map_err(ApiError::from)?;
+    if let Err(e) = req.validate() {
+        return with_request_id(ApiError::from(e), &tracing_ctx).into_response();
+    }
 
-    let contact = contact_service::set_primary_for_role(
+    match contact_service::set_primary_for_role(
         &state.pool,
         &app_id,
         party_id,
@@ -211,9 +240,10 @@ pub async fn set_primary(
         correlation_id,
     )
     .await
-    .map_err(ApiError::from)?;
-
-    Ok(Json(contact))
+    {
+        Ok(contact) => Json(contact).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -229,13 +259,16 @@ pub async fn set_primary(
 pub async fn primary_contacts(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(party_id): Path<Uuid>,
-) -> Result<Json<DataResponse<PrimaryContactEntry>>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let entries = contact_service::get_primary_contacts(&state.pool, &app_id, party_id)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok(Json(DataResponse { data: entries }))
+    match contact_service::get_primary_contacts(&state.pool, &app_id, party_id).await {
+        Ok(entries) => Json(DataResponse { data: entries }).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

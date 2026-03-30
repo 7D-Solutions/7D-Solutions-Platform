@@ -1,6 +1,6 @@
 [package]
 name = "party-rs"
-version = "2.2.0"
+version = "2.3.0"
 edition = "2021"
 description = "Party master: companies, individuals, contacts, and addresses"
 
@@ -15,6 +15,10 @@ path = "src/bin/bench.rs"
 [[bin]]
 name = "dlq_replay_drill"
 path = "src/bin/dlq_replay_drill.rs"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dependencies]
 axum = "0.8"

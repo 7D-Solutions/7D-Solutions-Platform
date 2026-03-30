@@ -10,14 +10,16 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::party::{extract_tenant, DataResponse};
+use super::party::{extract_tenant, with_request_id, DataResponse};
 use crate::domain::address::{Address, CreateAddressRequest, UpdateAddressRequest};
 use crate::domain::address_service;
 use crate::AppState;
@@ -37,16 +39,19 @@ use crate::AppState;
 pub async fn create_address(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(party_id): Path<Uuid>,
     Json(req): Json<CreateAddressRequest>,
-) -> Result<(StatusCode, Json<Address>), ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let address = address_service::create_address(&state.pool, &app_id, party_id, &req)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok((StatusCode::CREATED, Json(address)))
+    match address_service::create_address(&state.pool, &app_id, party_id, &req).await {
+        Ok(address) => (StatusCode::CREATED, Json(address)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -62,15 +67,18 @@ pub async fn create_address(
 pub async fn list_addresses(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(party_id): Path<Uuid>,
-) -> Result<Json<DataResponse<Address>>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let addresses = address_service::list_addresses(&state.pool, &app_id, party_id)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok(Json(DataResponse { data: addresses }))
+    match address_service::list_addresses(&state.pool, &app_id, party_id).await {
+        Ok(addresses) => Json(DataResponse { data: addresses }).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -87,18 +95,23 @@ pub async fn list_addresses(
 pub async fn get_address(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(address_id): Path<Uuid>,
-) -> Result<Json<Address>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let address = address_service::get_address(&state.pool, &app_id, address_id)
-        .await
-        .map_err(ApiError::from)?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Address {} not found", address_id))
-        })?;
-
-    Ok(Json(address))
+    match address_service::get_address(&state.pool, &app_id, address_id).await {
+        Ok(Some(address)) => Json(address).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Address {} not found", address_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -117,16 +130,19 @@ pub async fn get_address(
 pub async fn update_address(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(address_id): Path<Uuid>,
     Json(req): Json<UpdateAddressRequest>,
-) -> Result<Json<Address>, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let address = address_service::update_address(&state.pool, &app_id, address_id, &req)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok(Json(address))
+    match address_service::update_address(&state.pool, &app_id, address_id, &req).await {
+        Ok(address) => Json(address).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 #[utoipa::path(
@@ -143,13 +159,16 @@ pub async fn update_address(
 pub async fn delete_address(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(address_id): Path<Uuid>,
-) -> Result<StatusCode, ApiError> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    address_service::delete_address(&state.pool, &app_id, address_id)
-        .await
-        .map_err(ApiError::from)?;
-
-    Ok(StatusCode::NO_CONTENT)
+    match address_service::delete_address(&state.pool, &app_id, address_id).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
