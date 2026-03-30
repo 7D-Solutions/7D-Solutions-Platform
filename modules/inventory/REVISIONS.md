@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-03-29 | bd-7c0t1 | Split 3 oversize domain files: revisions.rs (1013 LOC) → revisions/{models,service,queries}.rs; issue_service.rs (877 LOC) → issue/{types,service,idempotency}.rs; adjust_service.rs (637 LOC) → adjust/{types,service}.rs. All files ≤500 LOC. Public API unchanged via re-exports in mod.rs. | Enforce 500 LOC CI limit; prepare for utoipa annotation work. | No |
 | 1.0.0 | 2026-03-28 | bd-1qw2e | Initial proof. Item CRUD with search/filter/pagination, stock receipts (FIFO layers, lot/serial tracking, idempotency), issues (FIFO cost drain), transfers, adjustments (positive/negative with guard), reservations, cycle counts (submit/approve), batch receipts endpoint, reorder policies, UOM management, location tracking, expiry monitoring, genealogy/trace, label generation, make/buy classification, revision management, valuation engine (FIFO/WAC/snapshot), low-stock alerts, status transitions, outbox atomicity, event contract publishing, admin endpoints, DLQ replay drill. 237 unit tests pass. Integration tests blocked by known pg_hba.conf infrastructure issue (not code). | Inventory module code complete and unit-tested. Clippy clean. | No |
 
 ## How to read this table

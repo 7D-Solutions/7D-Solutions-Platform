@@ -1,3 +1,4 @@
+#[path = "adjust/mod.rs"]
 pub mod adjust_service;
 pub mod classifications;
 pub mod cycle_count;
@@ -7,6 +8,7 @@ pub mod fulfill_service;
 pub mod genealogy;
 pub mod guards;
 pub mod history;
+#[path = "issue/mod.rs"]
 pub mod issue_service;
 pub mod items;
 pub mod items_repo;
