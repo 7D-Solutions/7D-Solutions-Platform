@@ -182,15 +182,11 @@ impl ItemRepo {
         } else {
             String::new()
         };
-        let tracking_mode = q
-            .tracking_mode
-            .as_deref()
-            .filter(|s| !s.trim().is_empty());
+        let tracking_mode = q.tracking_mode.as_deref().filter(|s| !s.trim().is_empty());
         let make_buy = q.make_buy.as_deref().filter(|s| !s.trim().is_empty());
 
         // -- items query --
-        let mut qb =
-            QueryBuilder::<Postgres>::new("SELECT * FROM items WHERE tenant_id = ");
+        let mut qb = QueryBuilder::<Postgres>::new("SELECT * FROM items WHERE tenant_id = ");
         qb.push_bind(tenant_id.to_string());
         qb.push(" AND active = ");
         qb.push_bind(active_val);

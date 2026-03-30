@@ -12,10 +12,10 @@ use inventory_rs::domain::{
         task_service::{CreateTaskRequest, CreateTaskResult, TaskLine, TaskScope},
     },
     expiry::{
-        LotExpiryRecord, RunExpiryAlertScanRequest, RunExpiryAlertScanResult,
-        SetLotExpiryRequest,
+        LotExpiryRecord, RunExpiryAlertScanRequest, RunExpiryAlertScanResult, SetLotExpiryRequest,
     },
     fulfill_service::{FulfillRequest, FulfillResult},
+    genealogy::GenealogyEdge,
     genealogy::{GenealogyResult, LotMergeRequest, LotSplitRequest, MergeParent, SplitChild},
     history::query::MovementEntry,
     issue_service::{IssueRequest, IssueResult},
@@ -28,17 +28,18 @@ use inventory_rs::domain::{
     reorder::models::{CreateReorderPolicyRequest, ReorderPolicy, UpdateReorderPolicyRequest},
     reservation_service::{ReleaseRequest, ReleaseResult, ReserveRequest, ReserveResult},
     revisions::{
-        ActivateRevisionRequest, CreateRevisionRequest, ItemRevision,
-        UpdateRevisionPolicyRequest,
+        ActivateRevisionRequest, CreateRevisionRequest, ItemRevision, UpdateRevisionPolicyRequest,
     },
-    status::{models::InvItemStatus, transfer_service::{StatusTransferRequest, StatusTransferResult}},
+    status::{
+        models::InvItemStatus,
+        transfer_service::{StatusTransferRequest, StatusTransferResult},
+    },
     transfer_service::{TransferRequest, TransferResult},
     uom::models::{CreateConversionRequest, CreateUomRequest, ItemUomConversion, Uom},
     valuation::{
         models::{ValuationLine, ValuationSnapshot},
         snapshot_service::CreateSnapshotRequest,
     },
-    genealogy::GenealogyEdge,
 };
 use inventory_rs::events::contracts::{ConsumedLayer, SourceRef};
 use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
@@ -170,5 +171,8 @@ impl utoipa::Modify for SecurityAddon {
 
 fn main() {
     let spec = ApiDoc::openapi();
-    println!("{}", serde_json::to_string_pretty(&spec).expect("serialize OpenAPI"));
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&spec).expect("serialize OpenAPI")
+    );
 }
