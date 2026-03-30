@@ -11,6 +11,7 @@ members = [
   "platform/tax-core",
   "platform/health",
   "platform/platform-contracts",
+  "platform/http-contracts",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",
