@@ -17,6 +17,7 @@ fn default_limit() -> i64 {
 
 /// URL query parameters for `GET /api/inventory/items`.
 #[derive(Debug, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListItemsQuery {
     pub search: Option<String>,
     pub tracking_mode: Option<String>,
