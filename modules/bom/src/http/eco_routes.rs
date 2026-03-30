@@ -20,6 +20,17 @@ fn correlation_id() -> String {
     Uuid::new_v4().to_string()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco",
+    tag = "ECO",
+    request_body = CreateEcoRequest,
+    responses(
+        (status = 201, description = "ECO created (eco_number auto-allocated from Numbering service if omitted)", body = Eco),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_eco(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -45,6 +56,17 @@ pub async fn post_eco(
     Ok((StatusCode::CREATED, Json(eco)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/eco/{eco_id}",
+    tag = "ECO",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    responses(
+        (status = 200, description = "ECO details", body = Eco),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_eco(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -57,6 +79,19 @@ pub async fn get_eco(
     Ok(Json(eco))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/submit",
+    tag = "ECO Lifecycle",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = EcoActionRequest,
+    responses(
+        (status = 200, description = "ECO submitted for review", body = Eco),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Invalid state transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_submit(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -77,6 +112,19 @@ pub async fn post_submit(
     Ok(Json(eco))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/approve",
+    tag = "ECO Lifecycle",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = EcoActionRequest,
+    responses(
+        (status = 200, description = "ECO approved", body = Eco),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Invalid state transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_approve(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -97,6 +145,19 @@ pub async fn post_approve(
     Ok(Json(eco))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/reject",
+    tag = "ECO Lifecycle",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = EcoActionRequest,
+    responses(
+        (status = 200, description = "ECO rejected", body = Eco),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Invalid state transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_reject(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -117,6 +178,19 @@ pub async fn post_reject(
     Ok(Json(eco))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/apply",
+    tag = "ECO Lifecycle",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = ApplyEcoRequest,
+    responses(
+        (status = 200, description = "ECO applied to BOM revisions", body = Eco),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Invalid state transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_apply(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -137,6 +211,18 @@ pub async fn post_apply(
     Ok(Json(eco))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/bom-revisions",
+    tag = "ECO Links",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = LinkBomRevisionRequest,
+    responses(
+        (status = 201, description = "BOM revision linked to ECO", body = EcoBomRevision),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_link_bom_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -150,6 +236,18 @@ pub async fn post_link_bom_revision(
     Ok((StatusCode::CREATED, Json(link)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/eco/{eco_id}/doc-revisions",
+    tag = "ECO Links",
+    params(("eco_id" = Uuid, Path, description = "ECO ID")),
+    request_body = LinkDocRevisionRequest,
+    responses(
+        (status = 201, description = "Doc revision linked to ECO", body = EcoDocRevision),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_link_doc_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -163,6 +261,17 @@ pub async fn post_link_doc_revision(
     Ok((StatusCode::CREATED, Json(link)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/eco/{eco_id}/bom-revisions",
+    tag = "ECO Links",
+    params(("eco_id" = Uuid, Path, description = "ECO ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated BOM revision links", body = PaginatedResponse<EcoBomRevision>),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_bom_revision_links(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -176,6 +285,17 @@ pub async fn get_bom_revision_links(
     Ok(Json(paginate(all, &pq)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/eco/{eco_id}/doc-revisions",
+    tag = "ECO Links",
+    params(("eco_id" = Uuid, Path, description = "ECO ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated doc revision links", body = PaginatedResponse<EcoDocRevision>),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_doc_revision_links(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -189,6 +309,16 @@ pub async fn get_doc_revision_links(
     Ok(Json(paginate(all, &pq)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/eco/history/{part_id}",
+    tag = "ECO",
+    params(("part_id" = Uuid, Path, description = "Part/item ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated ECO history for a part", body = PaginatedResponse<Eco>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_eco_history_for_part(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -202,6 +332,17 @@ pub async fn get_eco_history_for_part(
     Ok(Json(paginate(all, &pq)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/eco/{eco_id}/audit",
+    tag = "ECO",
+    params(("eco_id" = Uuid, Path, description = "ECO ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated audit trail for the ECO", body = PaginatedResponse<EcoAuditEntry>),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_eco_audit(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

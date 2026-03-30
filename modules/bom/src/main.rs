@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -9,9 +9,21 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use bom_rs::{
     db::resolver::resolve_pool,
+    domain::{
+        eco_models::{
+            ApplyEcoRequest, CreateEcoRequest, Eco, EcoActionRequest, EcoAuditEntry,
+            EcoBomRevision, EcoDocRevision, LinkBomRevisionRequest, LinkDocRevisionRequest,
+        },
+        models::{
+            AddLineRequest, BomHeader, BomLine, BomRevision, CreateBomRequest,
+            CreateRevisionRequest, ExplosionRow, SetEffectivityRequest, UpdateLineRequest,
+            WhereUsedRow,
+        },
+    },
     http::{
         bom_routes::{
             delete_line, get_bom, get_bom_by_part_id, get_explosion, get_lines, get_where_used,
@@ -28,6 +40,92 @@ use bom_rs::{
     metrics::{metrics_handler, BomMetrics},
     AppState, Config, NumberingClient,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "BOM Service",
+        version = "2.2.0",
+        description = "Bill of Materials: multi-level BOM structure with revisions, effectivity, \
+                        explosion, and where-used queries. Engineering Change Orders (ECO) with \
+                        full lifecycle (draft → submit → approve/reject → apply).\n\n\
+                        **Service dependency:** Requires `NUMBERING_URL` (the Numbering service) \
+                        for automatic ECO number allocation.",
+    ),
+    paths(
+        // BOM Header
+        bom_rs::http::bom_routes::list_boms,
+        bom_rs::http::bom_routes::post_bom,
+        bom_rs::http::bom_routes::get_bom,
+        bom_rs::http::bom_routes::get_bom_by_part_id,
+        // BOM Revisions
+        bom_rs::http::bom_routes::post_revision,
+        bom_rs::http::bom_routes::list_revisions,
+        bom_rs::http::bom_routes::post_effectivity,
+        // BOM Lines
+        bom_rs::http::bom_routes::post_line,
+        bom_rs::http::bom_routes::get_lines,
+        bom_rs::http::bom_routes::put_line,
+        bom_rs::http::bom_routes::delete_line,
+        // Explosion + Where-Used
+        bom_rs::http::bom_routes::get_explosion,
+        bom_rs::http::bom_routes::get_where_used,
+        // ECO
+        bom_rs::http::eco_routes::post_eco,
+        bom_rs::http::eco_routes::get_eco,
+        bom_rs::http::eco_routes::get_eco_history_for_part,
+        bom_rs::http::eco_routes::get_eco_audit,
+        // ECO Lifecycle
+        bom_rs::http::eco_routes::post_submit,
+        bom_rs::http::eco_routes::post_approve,
+        bom_rs::http::eco_routes::post_reject,
+        bom_rs::http::eco_routes::post_apply,
+        // ECO Links
+        bom_rs::http::eco_routes::post_link_bom_revision,
+        bom_rs::http::eco_routes::get_bom_revision_links,
+        bom_rs::http::eco_routes::post_link_doc_revision,
+        bom_rs::http::eco_routes::get_doc_revision_links,
+    ),
+    components(schemas(
+        BomHeader, BomRevision, BomLine, ExplosionRow, WhereUsedRow,
+        CreateBomRequest, CreateRevisionRequest, SetEffectivityRequest,
+        AddLineRequest, UpdateLineRequest,
+        Eco, EcoAuditEntry, EcoBomRevision, EcoDocRevision,
+        CreateEcoRequest, LinkBomRevisionRequest, LinkDocRevisionRequest,
+        EcoActionRequest, ApplyEcoRequest,
+        ApiError, PaginatedResponse<BomHeader>, PaginatedResponse<BomRevision>,
+        PaginatedResponse<BomLine>, PaginatedResponse<Eco>,
+        PaginatedResponse<EcoAuditEntry>, PaginatedResponse<EcoBomRevision>,
+        PaginatedResponse<EcoDocRevision>, PaginationMeta,
+    )),
+    security(
+        ("bearer" = [])
+    ),
+    modifiers(&SecurityAddon),
+)]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
+}
 
 #[tokio::main]
 async fn main() {
@@ -154,6 +252,7 @@ async fn main() {
         .route("/api/health", get(health_fn))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
         .merge(bom_reads)

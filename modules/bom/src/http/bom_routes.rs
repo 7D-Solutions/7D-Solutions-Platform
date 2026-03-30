@@ -83,6 +83,17 @@ pub fn paginate<T: utoipa::ToSchema>(items: Vec<T>, pq: &PaginationQuery) -> Pag
 // BOM Header
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/bom",
+    tag = "BOM",
+    params(PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated list of BOM headers", body = PaginatedResponse<BomHeader>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_boms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -95,6 +106,18 @@ pub async fn list_boms(
     Ok(Json(paginate(all, &pq)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/bom",
+    tag = "BOM",
+    request_body = CreateBomRequest,
+    responses(
+        (status = 201, description = "BOM created", body = BomHeader),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 409, description = "Duplicate BOM", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_bom(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -108,6 +131,17 @@ pub async fn post_bom(
     Ok((StatusCode::CREATED, Json(header)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/{bom_id}",
+    tag = "BOM",
+    params(("bom_id" = Uuid, Path, description = "BOM header ID")),
+    responses(
+        (status = 200, description = "BOM header", body = BomHeader),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_bom(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -120,6 +154,17 @@ pub async fn get_bom(
     Ok(Json(header))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/by-part/{part_id}",
+    tag = "BOM",
+    params(("part_id" = Uuid, Path, description = "Inventory part/item ID")),
+    responses(
+        (status = 200, description = "BOM header for the given part", body = BomHeader),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_bom_by_part_id(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -136,6 +181,18 @@ pub async fn get_bom_by_part_id(
 // Revisions
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/bom/{bom_id}/revisions",
+    tag = "BOM Revisions",
+    params(("bom_id" = Uuid, Path, description = "BOM header ID")),
+    request_body = CreateRevisionRequest,
+    responses(
+        (status = 201, description = "Revision created", body = BomRevision),
+        (status = 404, description = "BOM not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -156,6 +213,17 @@ pub async fn post_revision(
     Ok((StatusCode::CREATED, Json(rev)))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/{bom_id}/revisions",
+    tag = "BOM Revisions",
+    params(("bom_id" = Uuid, Path, description = "BOM header ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated list of revisions", body = PaginatedResponse<BomRevision>),
+        (status = 404, description = "BOM not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_revisions(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -169,6 +237,19 @@ pub async fn list_revisions(
     Ok(Json(paginate(all, &pq)))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/bom/revisions/{revision_id}/effectivity",
+    tag = "BOM Revisions",
+    params(("revision_id" = Uuid, Path, description = "Revision ID")),
+    request_body = SetEffectivityRequest,
+    responses(
+        (status = 200, description = "Effectivity set", body = BomRevision),
+        (status = 404, description = "Revision not found", body = ApiError),
+        (status = 409, description = "Overlapping effectivity range", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_effectivity(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -193,6 +274,19 @@ pub async fn post_effectivity(
 // Lines
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/bom/revisions/{revision_id}/lines",
+    tag = "BOM Lines",
+    params(("revision_id" = Uuid, Path, description = "Revision ID")),
+    request_body = AddLineRequest,
+    responses(
+        (status = 201, description = "Line added", body = BomLine),
+        (status = 404, description = "Revision not found", body = ApiError),
+        (status = 422, description = "Validation error (cycle, bad quantity)", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_line(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -213,6 +307,18 @@ pub async fn post_line(
     Ok((StatusCode::CREATED, Json(line)))
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/bom/lines/{line_id}",
+    tag = "BOM Lines",
+    params(("line_id" = Uuid, Path, description = "Line ID")),
+    request_body = UpdateLineRequest,
+    responses(
+        (status = 200, description = "Line updated", body = BomLine),
+        (status = 404, description = "Line not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn put_line(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -233,6 +339,17 @@ pub async fn put_line(
     Ok(Json(line))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/bom/lines/{line_id}",
+    tag = "BOM Lines",
+    params(("line_id" = Uuid, Path, description = "Line ID")),
+    responses(
+        (status = 204, description = "Line deleted"),
+        (status = 404, description = "Line not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn delete_line(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -245,6 +362,17 @@ pub async fn delete_line(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/revisions/{revision_id}/lines",
+    tag = "BOM Lines",
+    params(("revision_id" = Uuid, Path, description = "Revision ID"), PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated list of BOM lines", body = PaginatedResponse<BomLine>),
+        (status = 404, description = "Revision not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -262,6 +390,18 @@ pub async fn get_lines(
 // Explosion + Where-Used (tree responses — NOT paginated)
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/{bom_id}/explosion",
+    tag = "BOM Explosion",
+    params(("bom_id" = Uuid, Path, description = "BOM header ID"), ExplosionQuery),
+    responses(
+        (status = 200, description = "Flat list of explosion rows (multi-level BOM flattened by recursive CTE)", body = Vec<ExplosionRow>),
+        (status = 404, description = "BOM not found", body = ApiError),
+        (status = 422, description = "Invalid max_depth", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_explosion(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -278,6 +418,16 @@ pub async fn get_explosion(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/bom/where-used/{item_id}",
+    tag = "BOM Explosion",
+    params(("item_id" = Uuid, Path, description = "Component item ID"), WhereUsedQuery),
+    responses(
+        (status = 200, description = "List of BOMs that use this component", body = Vec<WhereUsedRow>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_where_used(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -55,7 +55,7 @@ pub struct EcoDocRevision {
 
 // Request types
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateEcoRequest {
     /// If omitted, auto-allocated from the Numbering service.
     #[serde(default)]
@@ -65,26 +65,26 @@ pub struct CreateEcoRequest {
     pub created_by: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LinkBomRevisionRequest {
     pub bom_id: Uuid,
     pub before_revision_id: Uuid,
     pub after_revision_id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LinkDocRevisionRequest {
     pub doc_id: Uuid,
     pub doc_revision_id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EcoActionRequest {
     pub actor: String,
     pub comment: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ApplyEcoRequest {
     pub actor: String,
     pub effective_from: DateTime<Utc>,
