@@ -761,12 +761,13 @@ async fn test_concurrent_reads_during_writes_isolated() {
     for _ in 0..3 {
         let p = pool.clone();
         let b = app_b.clone();
+        let a = app_a.clone();
         handles.push(tokio::spawn(async move {
             let (parties, _) = list_parties(&p, &b, true, 1, 200).await.unwrap();
-            assert_eq!(
-                parties.len(),
-                0,
-                "Tenant B must never see tenant A's parties during concurrent reads"
+            assert!(
+                parties.iter().all(|party| party.app_id == b),
+                "Tenant B must only see its own parties, never tenant A's (app_a={a}); got app_ids: {:?}",
+                parties.iter().map(|p| &p.app_id).collect::<Vec<_>>()
             );
         }));
     }

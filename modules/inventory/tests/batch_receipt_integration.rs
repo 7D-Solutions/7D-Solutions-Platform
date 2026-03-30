@@ -26,7 +26,7 @@ async fn setup_db() -> sqlx::PgPool {
     });
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
         .connect(&url)
         .await
         .expect("Failed to connect to inventory test DB");
@@ -244,13 +244,7 @@ async fn batch_receipt_idempotency_replay_returns_stored_results() {
     let results1: Vec<BatchReceiptItemResult> = process_batch(&pool, &batch).await;
 
     // Replay with same idempotency keys
-    let replay_batch = BatchReceiptRequest {
-        receipts: vec![
-            receipt_req(&tenant_id, item1.id, &idem1),
-            receipt_req(&tenant_id, item2.id, &idem2),
-        ],
-    };
-    let results2: Vec<BatchReceiptItemResult> = process_batch(&pool, &replay_batch).await;
+    let results2: Vec<BatchReceiptItemResult> = process_batch(&pool, &batch).await;
 
     assert_eq!(results1.len(), 2);
     assert_eq!(results2.len(), 2);
