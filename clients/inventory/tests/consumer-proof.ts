@@ -9,14 +9,16 @@
  */
 
 import { config } from "dotenv";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import createClient from "openapi-fetch";
 import { importPKCS8, SignJWT } from "jose";
 import { randomUUID } from "node:crypto";
 import type { paths, components } from "../src/inventory.d.ts";
 
 // Load .env from project root (three levels up from clients/inventory/tests/)
-config({ path: resolve(import.meta.dirname!, "../../../.env") });
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, "../../../.env") });
 
 // ---------- config ----------
 
@@ -133,6 +135,7 @@ async function main() {
         cogs_account_ref: "5000",
         inventory_account_ref: "1200",
         variance_account_ref: "5010",
+        tenant_id: "", // overwritten by JWT claims
       },
     },
   );
@@ -141,17 +144,18 @@ async function main() {
 
   // 4. Receive stock (FIFO layer created)
   console.log("\n4. Receive stock");
-  const locationId = randomUUID();
+  const warehouseId = randomUUID();
   const { data: receipt, response: receiptResp } = await client.POST(
     "/api/inventory/receipts",
     {
       body: {
         item_id: itemId,
-        location_id: locationId,
-        quantity: 100.0,
-        unit_cost: 12.5,
+        warehouse_id: warehouseId,
+        quantity: 100,
+        unit_cost_minor: 1250, // $12.50 in cents
+        currency: "USD",
         lot_code: `LOT-${Date.now()}`,
-        reference: "PO-PROOF-001",
+        tenant_id: "", // overwritten by JWT claims
         idempotency_key: randomUUID(),
       },
     },
@@ -159,7 +163,7 @@ async function main() {
   assert(receiptResp.status === 201, `POST /api/inventory/receipts → 201 (got ${receiptResp.status})`);
   assert(receipt != null, "receipt response body present");
   assert(typeof receipt!.layer_id === "string", "receipt has layer_id");
-  assert(receipt!.quantity === 100.0, "receipt quantity matches");
+  assert(receipt!.quantity === 100, "receipt quantity matches");
 
   // 5. List items (paginated)
   console.log("\n5. List items (paginated)");
