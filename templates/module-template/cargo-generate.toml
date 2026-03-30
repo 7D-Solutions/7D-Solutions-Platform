@@ -1,0 +1,8 @@
+[template]
+cargo_generate_version = ">=0.23.0"
+
+[placeholders]
+description = { prompt = "Module description", default = "Plug-and-play 7D Solutions Platform module", type = "string" }
+default_port = { prompt = "Default HTTP port", default = "8090", type = "string", regex = "^[0-9]{2,5}$" }
+schema_version = { prompt = "Initial schema version", default = "20260330000001", type = "string", regex = "^[0-9]{14}$" }
+platform_path = { prompt = "Path from the generated module to the platform crates", default = "../../platform", type = "string" }

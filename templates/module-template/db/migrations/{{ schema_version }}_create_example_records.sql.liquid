@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS {{ project-name | snake_case }}_example_records (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ready',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

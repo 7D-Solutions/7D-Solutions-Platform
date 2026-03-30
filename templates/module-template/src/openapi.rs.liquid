@@ -1,0 +1,57 @@
+use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+use utoipa::OpenApi;
+
+use crate::http::example::ExampleRecord;
+use crate::ops::types::{
+    ApiHealthResponse, CheckStatusDoc, HealthCheckDoc, HealthzDocResponse, PoolMetricsDoc,
+    ReadyResponseDoc, ReadyStatusDoc, VersionResponse,
+};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "{{ project-name | title_case }} Service",
+        version = "0.1.0",
+        description = "{{ description }}",
+    ),
+    paths(
+        crate::ops::health::healthz,
+        crate::ops::health::health,
+        crate::ops::ready::ready,
+        crate::ops::version::version,
+        crate::http::example::list_examples,
+    ),
+    components(schemas(
+        ApiError,
+        PaginatedResponse<ExampleRecord>,
+        PaginationMeta,
+        ExampleRecord,
+        HealthzDocResponse,
+        ApiHealthResponse,
+        CheckStatusDoc,
+        PoolMetricsDoc,
+        HealthCheckDoc,
+        ReadyStatusDoc,
+        ReadyResponseDoc,
+        VersionResponse,
+    )),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+pub struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}

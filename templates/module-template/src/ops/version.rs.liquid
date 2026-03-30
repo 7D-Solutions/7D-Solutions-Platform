@@ -1,0 +1,24 @@
+use axum::Json;
+
+use super::types::VersionResponse;
+
+const SCHEMA_VERSION: &str = "{{ schema_version }}";
+
+#[utoipa::path(
+    get,
+    path = "/api/version",
+    responses(
+        (
+            status = 200,
+            description = "Module identity and schema version",
+            body = VersionResponse
+        )
+    )
+)]
+pub async fn version() -> Json<VersionResponse> {
+    Json(VersionResponse {
+        module_name: "{{ project-name }}".to_string(),
+        module_version: env!("CARGO_PKG_VERSION").to_string(),
+        schema_version: SCHEMA_VERSION.to_string(),
+    })
+}

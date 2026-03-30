@@ -1,0 +1,51 @@
+use config_validator::ConfigValidator;
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub database_url: String,
+    pub host: String,
+    pub port: u16,
+    pub env: String,
+    pub cors_origins: Vec<String>,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self, String> {
+        let mut validator = ConfigValidator::new("{{ project-name }}");
+
+        let database_url = validator.require("DATABASE_URL").unwrap_or_default();
+        let host = validator.optional("HOST").or_default("0.0.0.0");
+        let port = validator.optional_parse::<u16>("PORT").unwrap_or({{ default_port }});
+        let env = validator.optional("ENV").or_default("development");
+        let cors_origins: Vec<String> = validator
+            .optional("CORS_ORIGINS")
+            .or_default("*")
+            .split(',')
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect();
+
+        let mut errors = Vec::new();
+        if let Err(err) = validator.finish() {
+            errors.push(err.to_string());
+        }
+
+        if env == "production" && cors_origins.iter().any(|origin| origin == "*") {
+            errors.push(
+                "CORS_ORIGINS=* is not allowed in production. Set a comma-separated list of allowed origins.".to_string(),
+            );
+        }
+
+        if !errors.is_empty() {
+            return Err(errors.join("\n"));
+        }
+
+        Ok(Self {
+            database_url,
+            host,
+            port,
+            env,
+            cors_origins,
+        })
+    }
+}

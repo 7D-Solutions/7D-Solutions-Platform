@@ -1,0 +1,82 @@
+use axum::{extract::Query, Json};
+use platform_http_contracts::{ApiError, FieldError, PaginatedResponse};
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListExampleQuery {
+    #[param(default = 1, minimum = 1)]
+    pub page: Option<i64>,
+    #[param(default = 25, minimum = 1, maximum = 100)]
+    pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ExampleRecord {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/examples",
+    params(ListExampleQuery),
+    responses(
+        (
+            status = 200,
+            description = "Example list using the standard paginated response envelope",
+            body = PaginatedResponse<ExampleRecord>
+        ),
+        (
+            status = 422,
+            description = "Invalid pagination parameters",
+            body = ApiError
+        )
+    )
+)]
+pub async fn list_examples(
+    Query(query): Query<ListExampleQuery>,
+) -> Result<Json<PaginatedResponse<ExampleRecord>>, ApiError> {
+    let page = query.page.unwrap_or(1);
+    let page_size = query.page_size.unwrap_or(25);
+
+    let mut details = Vec::new();
+    if page < 1 {
+        details.push(FieldError {
+            field: "page".to_string(),
+            message: "must be greater than or equal to 1".to_string(),
+        });
+    }
+    if !(1..=100).contains(&page_size) {
+        details.push(FieldError {
+            field: "page_size".to_string(),
+            message: "must be between 1 and 100".to_string(),
+        });
+    }
+    if !details.is_empty() {
+        return Err(ApiError::validation_error(
+            "Invalid pagination parameters",
+            details,
+        ));
+    }
+
+    let total_items = 1;
+    let data = if page == 1 {
+        vec![ExampleRecord {
+            id: "example-1".to_string(),
+            name: "{{ project-name | title_case }} starter record".to_string(),
+            status: "ready".to_string(),
+        }]
+    } else {
+        Vec::new()
+    };
+
+    Ok(Json(PaginatedResponse::new(
+        data,
+        page,
+        page_size,
+        total_items,
+    )))
+}

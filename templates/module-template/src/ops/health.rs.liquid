@@ -1,0 +1,37 @@
+use axum::Json;
+
+use super::types::{ApiHealthResponse, HealthzDocResponse};
+
+#[utoipa::path(
+    get,
+    path = "/healthz",
+    responses(
+        (
+            status = 200,
+            description = "Liveness probe from the shared health crate",
+            body = HealthzDocResponse
+        )
+    )
+)]
+pub async fn healthz() -> Json<health::HealthzResponse> {
+    health::healthz().await
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/health",
+    responses(
+        (
+            status = 200,
+            description = "Legacy health endpoint for dashboards and smoke checks",
+            body = ApiHealthResponse
+        )
+    )
+)]
+pub async fn health() -> Json<ApiHealthResponse> {
+    Json(ApiHealthResponse {
+        status: "healthy".to_string(),
+        service: "{{ project-name }}".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+    })
+}

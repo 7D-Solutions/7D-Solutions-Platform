@@ -1,0 +1,25 @@
+[package]
+name = "{{ project-name }}"
+version = "0.1.0"
+edition = "2021"
+description = "{{ description }}"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
+[dependencies]
+axum = "0.8"
+config-validator = { path = "{{ platform_path }}/config-validator" }
+dotenvy = "0.15"
+health = { path = "{{ platform_path }}/health" }
+platform-http-contracts = { path = "{{ platform_path }}/http-contracts", features = ["axum"] }
+security = { path = "{{ platform_path }}/security" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "migrate"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+utoipa = "5"

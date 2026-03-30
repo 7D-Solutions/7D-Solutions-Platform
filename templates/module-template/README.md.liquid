@@ -1,0 +1,30 @@
+# {{ project-name | title_case }}
+
+{{ description }}
+
+## What This Template Gives You
+
+- `ConfigValidator`-based startup validation
+- `sqlx::migrate!` auto-migrations on boot
+- `/healthz`, `/api/health`, `/api/ready`, `/api/version`, `/api/openapi.json`
+- Standard security middleware stack from `platform/security`
+- Example list route using `platform-http-contracts::{ApiError, PaginatedResponse}`
+- Shared OpenAPI definition plus `openapi_dump` utility binary
+
+## First Run
+
+1. Generate into the repo's `modules/` directory:
+   `cargo generate --path templates/module-template --destination modules --name {{ project-name }}`
+2. Add the new crate to the workspace `members` list in the repo root `Cargo.toml`.
+3. Update the placeholder example route, migration, and version metadata for the real module.
+4. Build and run:
+   `./scripts/cargo-slot.sh build -p {{ project-name }}`
+   `cargo run -p {{ project-name }}`
+
+## Environment Variables
+
+- `DATABASE_URL` required
+- `HOST` optional, defaults to `0.0.0.0`
+- `PORT` optional, defaults to `{{ default_port }}`
+- `ENV` optional, defaults to `development`
+- `CORS_ORIGINS` optional, defaults to `*`

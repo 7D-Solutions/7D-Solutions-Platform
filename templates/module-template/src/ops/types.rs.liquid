@@ -1,0 +1,62 @@
+use serde::Serialize;
+use utoipa::ToSchema;
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct HealthzDocResponse {
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ApiHealthResponse {
+    pub status: String,
+    pub service: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CheckStatusDoc {
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PoolMetricsDoc {
+    pub size: u32,
+    pub idle: u32,
+    pub active: u32,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct HealthCheckDoc {
+    pub name: String,
+    pub status: CheckStatusDoc,
+    pub latency_ms: u64,
+    pub error: Option<String>,
+    pub pool: Option<PoolMetricsDoc>,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadyStatusDoc {
+    Ready,
+    Degraded,
+    Down,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ReadyResponseDoc {
+    pub service_name: String,
+    pub version: String,
+    pub status: ReadyStatusDoc,
+    pub degraded: bool,
+    pub checks: Vec<HealthCheckDoc>,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct VersionResponse {
+    pub module_name: String,
+    pub module_version: String,
+    pub schema_version: String,
+}

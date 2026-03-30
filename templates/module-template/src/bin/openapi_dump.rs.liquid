@@ -1,0 +1,9 @@
+use serde_json::to_string_pretty;
+use utoipa::OpenApi;
+
+use {{ crate_name }}::openapi::ApiDoc;
+
+fn main() {
+    let spec = ApiDoc::openapi();
+    println!("{}", to_string_pretty(&spec).expect("serialize OpenAPI"));
+}

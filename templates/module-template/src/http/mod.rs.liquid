@@ -1,0 +1,16 @@
+use axum::{routing::get, Router};
+use std::sync::Arc;
+
+use crate::{ops, AppState};
+
+pub mod example;
+
+pub fn router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/healthz", get(ops::health::healthz))
+        .route("/api/health", get(ops::health::health))
+        .route("/api/ready", get(ops::ready::ready))
+        .route("/api/version", get(ops::version::version))
+        .route("/api/examples", get(example::list_examples))
+        .with_state(state)
+}
