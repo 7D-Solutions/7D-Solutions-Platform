@@ -1,17 +1,21 @@
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use event_bus::{connect_nats, EventBus, InMemoryBus, NatsBus};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
     },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc, time::Instant};
+use tokio::time::{sleep, Duration};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use inventory_rs::{
+    AppState, BusHealth, Config,
+    consumers::{component_issue_consumer, fg_receipt_consumer},
     db::resolver::resolve_pool,
+    event_bus,
     http::{
         adjustments::post_adjustment,
         health::{health, ready, version},
@@ -45,8 +49,8 @@ use inventory_rs::{
         trace::{trace_lot_handler, trace_serial_handler},
         valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
     },
+    config::BusType,
     metrics::{metrics_handler, InventoryMetrics},
-    AppState, Config,
 };
 
 #[tokio::main]
@@ -86,7 +90,22 @@ async fn main() {
     let metrics = Arc::new(InventoryMetrics::new().expect("Failed to create metrics registry"));
 
     let admin_pool = pool.clone();
-    let app_state = Arc::new(AppState { pool, metrics });
+    let bus_health = BusHealth::new();
+    let event_bus = Arc::new(InMemoryBus::new());
+    let app_state = Arc::new(AppState {
+        pool,
+        metrics,
+        event_bus: event_bus.clone(),
+        bus_health: bus_health.clone(),
+    });
+
+    let supervisor_config = config.clone();
+    tokio::spawn(start_event_bus_supervisor(
+        supervisor_config,
+        app_state.pool.clone(),
+        bus_health,
+        event_bus,
+    ));
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
@@ -401,6 +420,71 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
         .allow_headers(tower_http::cors::Any)
 }
 
+async fn start_event_bus_supervisor(
+    config: Config,
+    pool: sqlx::PgPool,
+    bus_health: Arc<BusHealth>,
+    fallback_bus: Arc<dyn EventBus>,
+) {
+    match config.bus_type {
+        BusType::InMemory => {
+            bus_health.mark_connected(0);
+            component_issue_consumer::start_component_issue_consumer(fallback_bus.clone(), pool.clone())
+                .await;
+            fg_receipt_consumer::start_fg_receipt_consumer(fallback_bus.clone(), pool.clone()).await;
+            tokio::spawn(async move {
+                if let Err(err) = event_bus::start_outbox_publisher(pool, fallback_bus).await {
+                    tracing::error!(error = %err, "Outbox publisher stopped");
+                }
+            });
+        }
+        BusType::Nats => {
+            let nats_url = config
+                .nats_url
+                .clone()
+                .unwrap_or_else(|| "nats://localhost:4222".to_string());
+            let mut attempt = 0;
+            loop {
+                attempt += 1;
+                let start = Instant::now();
+                match connect_nats(&nats_url).await {
+                    Ok(client) => {
+                        let bus = Arc::new(NatsBus::new(client));
+                        let latency = start.elapsed().as_millis() as u64;
+                        bus_health.mark_connected(latency);
+                        component_issue_consumer::start_component_issue_consumer(
+                            bus.clone(),
+                            pool.clone(),
+                        )
+                        .await;
+                        fg_receipt_consumer::start_fg_receipt_consumer(bus.clone(), pool.clone())
+                            .await;
+                        tokio::spawn(async move {
+                            if let Err(err) =
+                                event_bus::start_outbox_publisher(pool.clone(), bus.clone()).await
+                            {
+                                tracing::error!(error = %err, "Outbox publisher stopped");
+                            }
+                        });
+                        break;
+                    }
+                    Err(err) => {
+                        let latency = start.elapsed().as_millis() as u64;
+                        bus_health.mark_disconnected(Some(err.to_string()), latency);
+                        tracing::warn!(
+                            error = %err,
+                            url = %nats_url,
+                            attempt,
+                            "Unable to connect to NATS, retrying in 5s"
+                        );
+                        sleep(Duration::from_secs(5)).await;
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,6 +497,8 @@ mod tests {
             port: 8092,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            bus_type: BusType::InMemory,
+            nats_url: None,
         };
         let _layer = build_cors_layer(&config);
     }
@@ -428,6 +514,8 @@ mod tests {
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),
             ],
+            bus_type: BusType::InMemory,
+            nats_url: None,
         };
         let _layer = build_cors_layer(&config);
     }

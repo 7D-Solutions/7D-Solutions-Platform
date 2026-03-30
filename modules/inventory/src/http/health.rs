@@ -1,6 +1,7 @@
 use axum::{extract::State, http::StatusCode, Json};
 use health::{
-    build_ready_response, db_check_with_pool, ready_response_to_axum, PoolMetrics, ReadyResponse,
+    build_ready_response, db_check_with_pool, nats_check, ready_response_to_axum, PoolMetrics,
+    ReadyResponse, ReadyStatus,
 };
 use std::sync::{Arc, LazyLock};
 use std::time::Instant;
@@ -39,11 +40,25 @@ pub async fn ready(
             .saturating_sub(app_state.pool.num_idle() as u32),
     };
 
-    let resp = build_ready_response(
-        "inventory",
-        env!("CARGO_PKG_VERSION"),
-        vec![db_check_with_pool(latency, db_err, pool_metrics)],
-    );
+    let db_ok = db_err.is_none();
+    let resp = {
+        let checks = vec![
+            db_check_with_pool(latency, db_err.clone(), pool_metrics),
+            nats_check(app_state.bus_health.is_connected(), app_state.bus_health.latency_ms()),
+        ];
+        build_ready_response("inventory", env!("CARGO_PKG_VERSION"), checks)
+    };
+
+    let resp = if resp.status == ReadyStatus::Down && db_ok {
+        ReadyResponse {
+            status: ReadyStatus::Degraded,
+            degraded: true,
+            ..resp
+        }
+    } else {
+        resp
+    };
+
     ready_response_to_axum(resp)
 }
 

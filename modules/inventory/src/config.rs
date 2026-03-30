@@ -16,6 +16,28 @@ pub struct Config {
     pub env: String,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
+    pub bus_type: BusType,
+    pub nats_url: Option<String>,
+}
+
+/// Supported event bus options
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BusType {
+    Nats,
+    InMemory,
+}
+
+impl BusType {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "nats" => Ok(BusType::Nats),
+            "inmemory" => Ok(BusType::InMemory),
+            other => Err(format!(
+                "Invalid BUS_TYPE '{}'. Must be 'nats' or 'inmemory'",
+                other
+            )),
+        }
+    }
 }
 
 impl Config {
@@ -76,6 +98,21 @@ impl Config {
             );
         }
 
+        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+        let bus_type = match BusType::from_str(&bus_type_str) {
+            Ok(bt) => bt,
+            Err(err) => {
+                errors.push(err);
+                BusType::InMemory
+            }
+        };
+
+        let nats_url = if bus_type == BusType::Nats {
+            Some(env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string()))
+        } else {
+            None
+        };
+
         if !errors.is_empty() {
             return Err(errors.join("\n"));
         }
@@ -86,6 +123,8 @@ impl Config {
             port,
             env: env_name,
             cors_origins,
+            bus_type,
+            nats_url,
         })
     }
 }
@@ -102,6 +141,8 @@ mod tests {
             port: 8092,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            bus_type: BusType::InMemory,
+            nats_url: None,
         };
         assert!(config.database_url.is_empty());
     }
@@ -114,6 +155,8 @@ mod tests {
             port: 8092,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            bus_type: BusType::InMemory,
+            nats_url: None,
         };
         assert_eq!(config.port, 8092);
     }
