@@ -1,12 +1,11 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Extension, Json,
 };
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::ErrorResponse;
+use crate::models::ApiError;
 
 // ============================================================================
 // AR AGING REPORT (bd-3cb)
@@ -26,7 +25,7 @@ pub async fn get_aging(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<AgingQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     match params.customer_id {
@@ -39,10 +38,7 @@ pub async fn get_aging(
                         customer_id,
                         e
                     );
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse::new("database_error", format!("{}", e))),
-                    )
+                    ApiError::internal("Internal database error")
                 })?;
 
             match snapshot {
@@ -55,10 +51,7 @@ pub async fn get_aging(
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to fetch aging for app: {:?}", e);
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse::new("database_error", format!("{}", e))),
-                    )
+                    ApiError::internal("Internal database error")
                 })?;
 
             Ok(Json(serde_json::json!({ "aging": snapshots })))
@@ -81,7 +74,7 @@ pub async fn refresh_aging_route(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<RefreshAgingRequest>,
-) -> Result<Json<crate::aging::AgingSnapshot>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<crate::aging::AgingSnapshot>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let snapshot = crate::aging::refresh_aging(&db, &app_id, req.customer_id)
@@ -92,13 +85,7 @@ pub async fn refresh_aging_route(
                 req.customer_id,
                 e
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to refresh aging: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?;
 
     Ok(Json(snapshot))

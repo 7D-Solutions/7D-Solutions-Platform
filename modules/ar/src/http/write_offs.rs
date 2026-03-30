@@ -1,11 +1,12 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use sqlx::PgPool;
 
-use crate::models::ErrorResponse;
+use crate::models::ApiError;
 use crate::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
 
 // ============================================================================
@@ -20,7 +21,7 @@ pub async fn write_off_invoice_route(
     State(db): State<PgPool>,
     Path(invoice_id): Path<i32>,
     Json(mut req): Json<WriteOffInvoiceRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<impl IntoResponse, ApiError> {
     use crate::write_offs::WriteOffInvoiceResult;
     req.invoice_id = invoice_id;
     match write_off_invoice(&db, req).await {
@@ -48,27 +49,23 @@ pub async fn write_off_invoice_route(
                 "write_off_id": write_off_id,
             })),
         )),
-        Ok(WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id }) => Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "already_written_off",
-                format!("Invoice {} already has a write-off applied", invoice_id),
+        Ok(WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id }) => Err(
+            ApiError::conflict(format!(
+                "Invoice {} already has a write-off applied",
+                invoice_id
             )),
-        )),
+        ),
         Err(e) => {
             tracing::error!("Write-off error: {:?}", e);
-            let (status, msg) = match &e {
-                crate::write_offs::WriteOffError::DatabaseError(_) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Internal database error".to_string(),
-                ),
-                crate::write_offs::WriteOffError::InvalidAmount(n) => (
-                    StatusCode::BAD_REQUEST,
-                    format!("Amount must be > 0, got {}", n),
-                ),
-                other => (StatusCode::BAD_REQUEST, format!("{}", other)),
-            };
-            Err((status, Json(ErrorResponse::new("write_off_error", msg))))
+            match &e {
+                crate::write_offs::WriteOffError::DatabaseError(_) => {
+                    Err(ApiError::internal("Internal database error"))
+                }
+                crate::write_offs::WriteOffError::InvalidAmount(n) => {
+                    Err(ApiError::bad_request(format!("Amount must be > 0, got {}", n)))
+                }
+                other => Err(ApiError::bad_request(format!("{}", other))),
+            }
         }
     }
 }

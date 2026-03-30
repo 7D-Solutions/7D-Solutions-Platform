@@ -1,12 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Extension, Json,
 };
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{Dispute, ErrorResponse, ListDisputesQuery, SubmitDisputeEvidenceRequest};
+use crate::models::{ApiError, Dispute, ListDisputesQuery, SubmitDisputeEvidenceRequest};
 use crate::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
 use crate::tilled::TilledClient;
 
@@ -15,13 +14,12 @@ pub async fn list_disputes(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListDisputesQuery>,
-) -> Result<Json<Vec<Dispute>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Dispute>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
 
-    // Build dynamic query based on filters
     let mut sql = String::from(
         r#"
         SELECT
@@ -65,13 +63,7 @@ pub async fn list_disputes(
         .await
         .map_err(|e| {
             tracing::error!("Database error listing disputes: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to list disputes",
-                )),
-            )
+            ApiError::internal("Failed to list disputes")
         })?;
 
     Ok(Json(disputes))
@@ -82,7 +74,7 @@ pub async fn get_dispute(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Dispute>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let dispute = sqlx::query_as::<_, Dispute>(
@@ -101,23 +93,9 @@ pub async fn get_dispute(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching dispute: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch dispute",
-            )),
-        )
+        ApiError::internal("Failed to fetch dispute")
     })?
-    .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Dispute {} not found", id),
-            )),
-        )
-    })?;
+    .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
 
     Ok(Json(dispute))
 }
@@ -128,10 +106,9 @@ pub async fn submit_dispute_evidence(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<SubmitDisputeEvidenceRequest>,
-) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Dispute>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    // Verify dispute exists and belongs to app
     let dispute = sqlx::query_as::<_, Dispute>(
         r#"
         SELECT
@@ -148,63 +125,33 @@ pub async fn submit_dispute_evidence(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching dispute: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch dispute",
-            )),
-        )
+        ApiError::internal("Failed to fetch dispute")
     })?
-    .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Dispute {} not found", id),
-            )),
-        )
-    })?;
+    .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
 
-    // Check if evidence is still acceptable (before due date)
     if let Some(evidence_due_by) = dispute.evidence_due_by {
         if chrono::Utc::now().naive_utc() > evidence_due_by {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::new(
-                    "validation_error",
-                    "Evidence submission deadline has passed",
-                )),
+            return Err(ApiError::bad_request(
+                "Evidence submission deadline has passed",
             ));
         }
     }
 
-    // Only open/pending disputes accept evidence
     if dispute.status != "needs_response" && dispute.status != "open" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!(
-                    "Cannot submit evidence for dispute with status '{}'",
-                    dispute.status
-                ),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!(
+            "Cannot submit evidence for dispute with status '{}'",
+            dispute.status
+        )));
     }
 
     let client = TilledClient::from_env(&app_id).map_err(|e| {
         tracing::error!("Failed to create Tilled client: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "provider_config_error",
-                format!("Failed to initialize payment provider: {}", e),
-            )),
-        )
+        ApiError::internal(format!(
+            "Failed to initialize payment provider: {}",
+            e
+        ))
     })?;
 
-    // Map evidence payload to current provider contract while supporting legacy keys.
     let description = req
         .evidence
         .get("description")
@@ -249,7 +196,6 @@ pub async fn submit_dispute_evidence(
         .await
     {
         Ok(_tilled_dispute) => {
-            // Record evidence submission timestamp in local dispute
             let updated = sqlx::query_as::<_, Dispute>(
                 r#"
                 UPDATE ar_disputes
@@ -269,13 +215,7 @@ pub async fn submit_dispute_evidence(
                     "Failed to update dispute after evidence submission: {:?}",
                     e
                 );
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "database_error",
-                        "Failed to update dispute",
-                    )),
-                )
+                ApiError::internal("Failed to update dispute")
             })?;
 
             tracing::info!(
@@ -292,12 +232,10 @@ pub async fn submit_dispute_evidence(
                 id,
                 e
             );
-            Err((
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse::new(
-                    "provider_error",
-                    format!("Payment provider evidence submission failed: {}", e),
-                )),
+            Err(ApiError::new(
+                502,
+                "provider_error",
+                format!("Payment provider evidence submission failed: {}", e),
             ))
         }
     }
