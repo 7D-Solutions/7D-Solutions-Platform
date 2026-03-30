@@ -131,7 +131,11 @@ where
                             SecurityOutcome::Denied,
                             &format!("strict mode rejected — {e}"),
                         );
-                        return Ok(StatusCode::UNAUTHORIZED.into_response());
+                        let body = serde_json::json!({
+                            "error": "unauthorized",
+                            "message": "Missing or invalid authentication"
+                        });
+                        return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
                     }
                 }
                 None => {}
@@ -146,7 +150,11 @@ where
                     SecurityOutcome::Denied,
                     "strict mode rejected — no valid claims",
                 );
-                return Ok(StatusCode::UNAUTHORIZED.into_response());
+                let body = serde_json::json!({
+                    "error": "unauthorized",
+                    "message": "Missing or invalid authentication"
+                });
+                return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
             }
 
             ready_svc.call(req).await
@@ -274,7 +282,16 @@ where
                             SecurityOutcome::Denied,
                             &format!("insufficient permissions, missing: {missing:?}"),
                         );
-                        return Ok(StatusCode::FORBIDDEN.into_response());
+                        let mut body = serde_json::json!({
+                            "error": "forbidden",
+                            "message": "Insufficient permissions"
+                        });
+                        if let Some(ctx) = req.extensions().get::<event_bus::TracingContext>() {
+                            if let Some(tid) = &ctx.trace_id {
+                                body["request_id"] = serde_json::Value::String(tid.clone());
+                            }
+                        }
+                        return Ok((StatusCode::FORBIDDEN, axum::Json(body)).into_response());
                     }
                 }
                 None => {
@@ -286,7 +303,16 @@ where
                         SecurityOutcome::Denied,
                         "no claims present — permission check failed",
                     );
-                    return Ok(StatusCode::UNAUTHORIZED.into_response());
+                    let mut body = serde_json::json!({
+                        "error": "unauthorized",
+                        "message": "Missing or invalid authentication"
+                    });
+                    if let Some(ctx) = req.extensions().get::<event_bus::TracingContext>() {
+                        if let Some(tid) = &ctx.trace_id {
+                            body["request_id"] = serde_json::Value::String(tid.clone());
+                        }
+                    }
+                    return Ok((StatusCode::UNAUTHORIZED, axum::Json(body)).into_response());
                 }
             }
 
@@ -336,7 +362,9 @@ mod tests {
         let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key generation");
         let pub_key = priv_key.to_public_key();
         let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("PEM encoding");
-        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("public PEM");
+        let pub_pem = pub_key
+            .to_public_key_pem(LineEnding::LF)
+            .expect("public PEM");
         let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key");
         let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier"));
         TestKeys { encoding, verifier }

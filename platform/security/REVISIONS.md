@@ -10,6 +10,7 @@
 | 1.0.0 | 2026-03-28 | bd-3ctma | Initial proof. All tests passing. | Module build complete and core logic validated via tests. | No |
 | 1.0.1 | 2026-03-28 | bd-29c9i.1 | Add PRODUCTION_MUTATE and PRODUCTION_READ permission constants. | Production module was the only module without permission constants — security audit finding. | No |
 | 1.0.2 | 2026-03-28 | bd-29c9i.3 | Add CUSTOMER_PORTAL_ADMIN permission constant. | Customer portal admin routes incorrectly used party.mutate — separate privilege scope needed. | No |
+| 1.0.3 | 2026-03-30 | bd-zbahz | `RequirePermissionsLayer` and `ClaimsMiddleware` (strict mode) now return JSON error bodies (`{error, message, request_id}`) on 401 Unauthorized and 403 Forbidden instead of empty responses. `request_id` populated from `TracingContext` when available. | Consumers parsing empty 401/403 bodies got deserialization errors instead of machine-readable error codes. All modules behind these layers are affected. | No |
 
 ## How to read this table
 
