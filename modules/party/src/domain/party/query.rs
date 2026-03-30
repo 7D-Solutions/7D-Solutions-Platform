@@ -103,9 +103,21 @@ pub async fn list_parties(
     pool: &PgPool,
     app_id: &str,
     include_inactive: bool,
-) -> Result<Vec<Party>, PartyError> {
-    let parties = if include_inactive {
-        sqlx::query_as(
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<Party>, i64), PartyError> {
+    let page_size = page_size.clamp(1, 200);
+    let offset = (page - 1).max(0) * page_size;
+
+    let (parties, total): (Vec<Party>, i64) = if include_inactive {
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM party_parties WHERE app_id = $1",
+        )
+        .bind(app_id)
+        .fetch_one(pool)
+        .await?;
+
+        let rows = sqlx::query_as(
             r#"
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
@@ -114,13 +126,25 @@ pub async fn list_parties(
             FROM party_parties
             WHERE app_id = $1
             ORDER BY display_name ASC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(app_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(pool)
-        .await?
+        .await?;
+
+        (rows, total)
     } else {
-        sqlx::query_as(
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM party_parties WHERE app_id = $1 AND status = 'active'",
+        )
+        .bind(app_id)
+        .fetch_one(pool)
+        .await?;
+
+        let rows = sqlx::query_as(
             r#"
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
@@ -129,26 +153,53 @@ pub async fn list_parties(
             FROM party_parties
             WHERE app_id = $1 AND status = 'active'
             ORDER BY display_name ASC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(app_id)
+        .bind(page_size)
+        .bind(offset)
         .fetch_all(pool)
-        .await?
+        .await?;
+
+        (rows, total)
     };
 
-    Ok(parties)
+    Ok((parties, total))
 }
 
 pub async fn search_parties(
     pool: &PgPool,
     app_id: &str,
     query: &SearchQuery,
-) -> Result<Vec<Party>, PartyError> {
+) -> Result<(Vec<Party>, i64), PartyError> {
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let offset = query.offset.unwrap_or(0);
     let status = query.status.as_deref().unwrap_or("active");
 
     if query.external_system.is_some() || query.external_id.is_some() {
+        let total: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(DISTINCT p.id)
+            FROM party_parties p
+            JOIN party_external_refs r ON r.party_id = p.id AND r.app_id = p.app_id
+            WHERE p.app_id = $1
+              AND ($2::TEXT IS NULL OR p.status::TEXT = $2)
+              AND ($3::TEXT IS NULL OR p.party_type::TEXT = $3)
+              AND ($4::TEXT IS NULL OR p.display_name ILIKE '%' || $4 || '%')
+              AND ($5::TEXT IS NULL OR r.system = $5)
+              AND ($6::TEXT IS NULL OR r.external_id = $6)
+            "#,
+        )
+        .bind(app_id)
+        .bind(status)
+        .bind(query.party_type.as_deref())
+        .bind(query.name.as_deref())
+        .bind(query.external_system.as_deref())
+        .bind(query.external_id.as_deref())
+        .fetch_one(pool)
+        .await?;
+
         let parties: Vec<Party> = sqlx::query_as(
             r#"
             SELECT DISTINCT p.id, p.app_id,
@@ -179,8 +230,25 @@ pub async fn search_parties(
         .fetch_all(pool)
         .await?;
 
-        return Ok(parties);
+        return Ok((parties, total));
     }
+
+    let total: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM party_parties
+        WHERE app_id = $1
+          AND ($2::TEXT IS NULL OR status::TEXT = $2)
+          AND ($3::TEXT IS NULL OR party_type::TEXT = $3)
+          AND ($4::TEXT IS NULL OR display_name ILIKE '%' || $4 || '%')
+        "#,
+    )
+    .bind(app_id)
+    .bind(status)
+    .bind(query.party_type.as_deref())
+    .bind(query.name.as_deref())
+    .fetch_one(pool)
+    .await?;
 
     let parties: Vec<Party> = sqlx::query_as(
         r#"
@@ -206,5 +274,5 @@ pub async fn search_parties(
     .fetch_all(pool)
     .await?;
 
-    Ok(parties)
+    Ok((parties, total))
 }

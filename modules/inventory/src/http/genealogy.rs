@@ -21,11 +21,25 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::genealogy::{children_of, parents_of, process_merge, process_split, LotMergeRequest, LotSplitRequest},
+    domain::genealogy::{
+        children_of, parents_of, process_merge, process_split, GenealogyResult, LotMergeRequest,
+        LotSplitRequest,
+    },
     AppState,
 };
 
-/// POST /api/inventory/lots/split
+#[utoipa::path(
+    post,
+    path = "/api/inventory/lots/split",
+    tag = "Lot Genealogy",
+    request_body = LotSplitRequest,
+    responses(
+        (status = 201, description = "Lot split completed", body = GenealogyResult),
+        (status = 200, description = "Idempotency replay", body = GenealogyResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_lot_split(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -48,7 +62,18 @@ pub async fn post_lot_split(
     }
 }
 
-/// POST /api/inventory/lots/merge
+#[utoipa::path(
+    post,
+    path = "/api/inventory/lots/merge",
+    tag = "Lot Genealogy",
+    request_body = LotMergeRequest,
+    responses(
+        (status = 201, description = "Lot merge completed", body = GenealogyResult),
+        (status = 200, description = "Idempotency replay", body = GenealogyResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_lot_merge(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -71,7 +96,16 @@ pub async fn post_lot_merge(
     }
 }
 
-/// GET /api/inventory/lots/{lot_id}/children
+#[utoipa::path(
+    get,
+    path = "/api/inventory/lots/{lot_id}/children",
+    tag = "Lot Genealogy",
+    params(("lot_id" = Uuid, Path, description = "Lot ID")),
+    responses(
+        (status = 200, description = "Child genealogy edges", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_lot_children(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -92,7 +126,16 @@ pub async fn get_lot_children(
     }
 }
 
-/// GET /api/inventory/lots/{lot_id}/parents
+#[utoipa::path(
+    get,
+    path = "/api/inventory/lots/{lot_id}/parents",
+    tag = "Lot Genealogy",
+    params(("lot_id" = Uuid, Path, description = "Lot ID")),
+    responses(
+        (status = 200, description = "Parent genealogy edges", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_lot_parents(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

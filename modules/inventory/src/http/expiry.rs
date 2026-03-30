@@ -15,11 +15,25 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::expiry::{run_expiry_alert_scan, set_lot_expiry, RunExpiryAlertScanRequest, SetLotExpiryRequest},
+    domain::expiry::{
+        run_expiry_alert_scan, set_lot_expiry, LotExpiryRecord, RunExpiryAlertScanRequest,
+        RunExpiryAlertScanResult, SetLotExpiryRequest,
+    },
     AppState,
 };
 
-/// PUT /api/inventory/lots/:lot_id/expiry
+#[utoipa::path(
+    put,
+    path = "/api/inventory/lots/{lot_id}/expiry",
+    tag = "Expiry",
+    params(("lot_id" = Uuid, Path, description = "Lot ID")),
+    request_body = SetLotExpiryRequest,
+    responses(
+        (status = 200, description = "Lot expiry set", body = LotExpiryRecord),
+        (status = 404, description = "Lot not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn put_lot_expiry(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -43,7 +57,16 @@ pub async fn put_lot_expiry(
     }
 }
 
-/// POST /api/inventory/expiry-alerts/scan
+#[utoipa::path(
+    post,
+    path = "/api/inventory/expiry-alerts/scan",
+    tag = "Expiry",
+    request_body = RunExpiryAlertScanRequest,
+    responses(
+        (status = 200, description = "Expiry alert scan completed", body = RunExpiryAlertScanResult),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_expiry_alert_scan(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

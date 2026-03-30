@@ -24,7 +24,7 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::locations::{CreateLocationRequest, LocationRepo, UpdateLocationRequest},
+    domain::locations::{CreateLocationRequest, Location, LocationRepo, UpdateLocationRequest},
     AppState,
 };
 
@@ -48,7 +48,18 @@ fn default_limit() -> i64 {
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/locations
+#[utoipa::path(
+    post,
+    path = "/api/inventory/locations",
+    tag = "Locations",
+    request_body = CreateLocationRequest,
+    responses(
+        (status = 201, description = "Location created", body = Location),
+        (status = 409, description = "Duplicate location code", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -69,7 +80,17 @@ pub async fn create_location(
     }
 }
 
-/// GET /api/inventory/locations/:id
+#[utoipa::path(
+    get,
+    path = "/api/inventory/locations/{id}",
+    tag = "Locations",
+    params(("id" = Uuid, Path, description = "Location ID")),
+    responses(
+        (status = 200, description = "Location details", body = Location),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_location(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
@@ -92,7 +113,18 @@ pub async fn get_location(
     }
 }
 
-/// PUT /api/inventory/locations/:id
+#[utoipa::path(
+    put,
+    path = "/api/inventory/locations/{id}",
+    tag = "Locations",
+    params(("id" = Uuid, Path, description = "Location ID")),
+    request_body = UpdateLocationRequest,
+    responses(
+        (status = 200, description = "Location updated", body = Location),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -114,7 +146,17 @@ pub async fn update_location(
     }
 }
 
-/// POST /api/inventory/locations/:id/deactivate
+#[utoipa::path(
+    post,
+    path = "/api/inventory/locations/{id}/deactivate",
+    tag = "Locations",
+    params(("id" = Uuid, Path, description = "Location ID")),
+    responses(
+        (status = 200, description = "Location deactivated (idempotent)", body = Location),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -134,9 +176,16 @@ pub async fn deactivate_location(
     }
 }
 
-/// GET /api/inventory/warehouses/:warehouse_id/locations
-///
-/// Lists locations for a warehouse. Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/warehouses/{warehouse_id}/locations",
+    tag = "Locations",
+    params(("warehouse_id" = Uuid, Path, description = "Warehouse ID")),
+    responses(
+        (status = 200, description = "Paginated location list", body = PaginatedResponse<Location>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_locations(
     State(state): State<Arc<AppState>>,
     Path(warehouse_id): Path<Uuid>,

@@ -25,7 +25,7 @@ use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::revisions::{
         activate_revision, create_revision, list_revisions, revision_at, update_revision_policy,
-        ActivateRevisionRequest, CreateRevisionRequest, UpdateRevisionPolicyRequest,
+        ActivateRevisionRequest, CreateRevisionRequest, ItemRevision, UpdateRevisionPolicyRequest,
     },
     AppState,
 };
@@ -55,7 +55,19 @@ fn default_limit() -> i64 {
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/items/:item_id/revisions
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items/{item_id}/revisions",
+    tag = "Revisions",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    request_body = CreateRevisionRequest,
+    responses(
+        (status = 201, description = "Revision created", body = ItemRevision),
+        (status = 200, description = "Idempotency replay", body = ItemRevision),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_create_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -80,7 +92,22 @@ pub async fn post_create_revision(
     }
 }
 
-/// POST /api/inventory/items/:item_id/revisions/:revision_id/activate
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items/{item_id}/revisions/{revision_id}/activate",
+    tag = "Revisions",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("revision_id" = Uuid, Path, description = "Revision ID"),
+    ),
+    request_body = ActivateRevisionRequest,
+    responses(
+        (status = 200, description = "Revision activated", body = ItemRevision),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Already activated or window overlap", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_activate_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -103,7 +130,22 @@ pub async fn post_activate_revision(
     }
 }
 
-/// PUT /api/inventory/items/:item_id/revisions/:revision_id/policy-flags
+#[utoipa::path(
+    put,
+    path = "/api/inventory/items/{item_id}/revisions/{revision_id}/policy-flags",
+    tag = "Revisions",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("revision_id" = Uuid, Path, description = "Revision ID"),
+    ),
+    request_body = UpdateRevisionPolicyRequest,
+    responses(
+        (status = 200, description = "Policy flags updated", body = ItemRevision),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Only draft revisions can be updated", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn put_revision_policy(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -126,7 +168,20 @@ pub async fn put_revision_policy(
     }
 }
 
-/// GET /api/inventory/items/:item_id/revisions/at?t=...
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/revisions/at",
+    tag = "Revisions",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("t" = Option<String>, Query, description = "ISO 8601 timestamp (defaults to now)"),
+    ),
+    responses(
+        (status = 200, description = "Effective revision at requested time", body = ItemRevision),
+        (status = 404, description = "No revision effective at requested time", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_revision_at(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -154,9 +209,16 @@ pub async fn get_revision_at(
     }
 }
 
-/// GET /api/inventory/items/:item_id/revisions
-///
-/// Lists all revisions for an item. Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/revisions",
+    tag = "Revisions",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Paginated revision list", body = PaginatedResponse<ItemRevision>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_list_revisions(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

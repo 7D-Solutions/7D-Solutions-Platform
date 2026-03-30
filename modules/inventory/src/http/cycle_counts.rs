@@ -23,7 +23,7 @@ use crate::{
     domain::cycle_count::{
         approve_service::{approve_cycle_count, ApproveRequest},
         submit_service::{submit_cycle_count, SubmitLineInput, SubmitRequest},
-        task_service::{create_cycle_count_task, CreateTaskRequest},
+        task_service::{create_cycle_count_task, CreateTaskRequest, CreateTaskResult},
     },
     AppState,
 };
@@ -32,7 +32,16 @@ use crate::{
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/cycle-count-tasks
+#[utoipa::path(
+    post,
+    path = "/api/inventory/cycle-count-tasks",
+    tag = "Cycle Counts",
+    request_body = CreateTaskRequest,
+    responses(
+        (status = 201, description = "Cycle count task created with snapshot lines", body = CreateTaskResult),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_cycle_count_task(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -57,7 +66,7 @@ pub async fn post_cycle_count_task(
 // Submit
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SubmitBody {
     pub idempotency_key: String,
     #[serde(default)]
@@ -66,7 +75,19 @@ pub struct SubmitBody {
     pub causation_id: Option<String>,
 }
 
-/// POST /api/inventory/cycle-count-tasks/{task_id}/submit
+#[utoipa::path(
+    post,
+    path = "/api/inventory/cycle-count-tasks/{task_id}/submit",
+    tag = "Cycle Counts",
+    params(("task_id" = Uuid, Path, description = "Cycle count task ID")),
+    request_body = SubmitBody,
+    responses(
+        (status = 201, description = "Count submitted", body = serde_json::Value),
+        (status = 200, description = "Idempotency replay", body = serde_json::Value),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_cycle_count_submit(
     Path(task_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
@@ -100,14 +121,26 @@ pub async fn post_cycle_count_submit(
 // Approve
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ApproveBody {
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
 }
 
-/// POST /api/inventory/cycle-count-tasks/{task_id}/approve
+#[utoipa::path(
+    post,
+    path = "/api/inventory/cycle-count-tasks/{task_id}/approve",
+    tag = "Cycle Counts",
+    params(("task_id" = Uuid, Path, description = "Cycle count task ID")),
+    request_body = ApproveBody,
+    responses(
+        (status = 201, description = "Count approved and adjustments applied", body = serde_json::Value),
+        (status = 200, description = "Idempotency replay", body = serde_json::Value),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_cycle_count_approve(
     Path(task_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,

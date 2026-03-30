@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::labels::{generate_label, get_label, list_labels, GenerateLabelRequest},
+    domain::labels::{generate_label, get_label, list_labels, GenerateLabelRequest, Label},
     AppState,
 };
 
@@ -44,7 +44,19 @@ fn default_limit() -> i64 {
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/items/:item_id/labels
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items/{item_id}/labels",
+    tag = "Labels",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    request_body = GenerateLabelRequest,
+    responses(
+        (status = 201, description = "Label generated", body = Label),
+        (status = 200, description = "Idempotency replay", body = Label),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_generate_label(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -75,9 +87,16 @@ pub async fn post_generate_label(
     }
 }
 
-/// GET /api/inventory/items/:item_id/labels
-///
-/// Lists labels for an item. Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/labels",
+    tag = "Labels",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Paginated label list", body = PaginatedResponse<Label>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_list_labels(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -111,7 +130,17 @@ pub async fn get_list_labels(
     }
 }
 
-/// GET /api/inventory/labels/:label_id
+#[utoipa::path(
+    get,
+    path = "/api/inventory/labels/{label_id}",
+    tag = "Labels",
+    params(("label_id" = Uuid, Path, description = "Label ID")),
+    responses(
+        (status = 200, description = "Label details", body = Label),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_label_by_id(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

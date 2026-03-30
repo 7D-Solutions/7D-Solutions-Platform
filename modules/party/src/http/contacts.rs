@@ -14,14 +14,14 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Extension, Json,
 };
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::party::{extract_tenant, ErrorBody};
+use super::party::{extract_tenant, DataResponse};
 use crate::domain::contact::{CreateContactRequest, SetPrimaryRequest, UpdateContactRequest};
 use crate::domain::contact_service;
-use crate::domain::party::PartyError;
 use crate::AppState;
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
@@ -32,30 +32,6 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
         .to_string()
 }
 
-fn contact_error_response(e: PartyError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        PartyError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "not_found",
-                &format!("Resource {} not found", id),
-            )),
-        ),
-        PartyError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        PartyError::Conflict(msg) => (StatusCode::CONFLICT, Json(ErrorBody::new("conflict", &msg))),
-        PartyError::Database(e) => {
-            tracing::error!("Contact DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
-}
-
 /// POST /api/party/parties/:party_id/contacts
 pub async fn create_contact(
     State(state): State<Arc<AppState>>,
@@ -63,14 +39,14 @@ pub async fn create_contact(
     headers: HeaderMap,
     Path(party_id): Path<Uuid>,
     Json(req): Json<CreateContactRequest>,
-) -> Result<(StatusCode, Json<crate::domain::contact::Contact>), (StatusCode, Json<ErrorBody>)> {
+) -> Result<(StatusCode, Json<crate::domain::contact::Contact>), ApiError> {
     let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let contact =
         contact_service::create_contact(&state.pool, &app_id, party_id, &req, correlation_id)
             .await
-            .map_err(contact_error_response)?;
+            .map_err(ApiError::from)?;
 
     Ok((StatusCode::CREATED, Json(contact)))
 }
@@ -80,14 +56,14 @@ pub async fn list_contacts(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(party_id): Path<Uuid>,
-) -> Result<Json<Vec<crate::domain::contact::Contact>>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<DataResponse<crate::domain::contact::Contact>>, ApiError> {
     let app_id = extract_tenant(&claims)?;
 
     let contacts = contact_service::list_contacts(&state.pool, &app_id, party_id)
         .await
-        .map_err(contact_error_response)?;
+        .map_err(ApiError::from)?;
 
-    Ok(Json(contacts))
+    Ok(Json(DataResponse { data: contacts }))
 }
 
 /// GET /api/party/contacts/:id
@@ -95,20 +71,14 @@ pub async fn get_contact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(contact_id): Path<Uuid>,
-) -> Result<Json<crate::domain::contact::Contact>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<crate::domain::contact::Contact>, ApiError> {
     let app_id = extract_tenant(&claims)?;
 
     let contact = contact_service::get_contact(&state.pool, &app_id, contact_id)
         .await
-        .map_err(contact_error_response)?
+        .map_err(ApiError::from)?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "not_found",
-                    &format!("Contact {} not found", contact_id),
-                )),
-            )
+            ApiError::not_found(format!("Contact {} not found", contact_id))
         })?;
 
     Ok(Json(contact))
@@ -121,14 +91,14 @@ pub async fn update_contact(
     headers: HeaderMap,
     Path(contact_id): Path<Uuid>,
     Json(req): Json<UpdateContactRequest>,
-) -> Result<Json<crate::domain::contact::Contact>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<crate::domain::contact::Contact>, ApiError> {
     let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let contact =
         contact_service::update_contact(&state.pool, &app_id, contact_id, &req, correlation_id)
             .await
-            .map_err(contact_error_response)?;
+            .map_err(ApiError::from)?;
 
     Ok(Json(contact))
 }
@@ -139,13 +109,13 @@ pub async fn delete_contact(
     claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(contact_id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
+) -> Result<StatusCode, ApiError> {
     let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     contact_service::deactivate_contact(&state.pool, &app_id, contact_id, correlation_id)
         .await
-        .map_err(contact_error_response)?;
+        .map_err(ApiError::from)?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -157,11 +127,11 @@ pub async fn set_primary(
     headers: HeaderMap,
     Path((party_id, contact_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<SetPrimaryRequest>,
-) -> Result<Json<crate::domain::contact::Contact>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<crate::domain::contact::Contact>, ApiError> {
     let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
-    req.validate().map_err(contact_error_response)?;
+    req.validate().map_err(ApiError::from)?;
 
     let contact = contact_service::set_primary_for_role(
         &state.pool,
@@ -172,7 +142,7 @@ pub async fn set_primary(
         correlation_id,
     )
     .await
-    .map_err(contact_error_response)?;
+    .map_err(ApiError::from)?;
 
     Ok(Json(contact))
 }
@@ -182,15 +152,12 @@ pub async fn primary_contacts(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(party_id): Path<Uuid>,
-) -> Result<
-    Json<Vec<crate::domain::contact::PrimaryContactEntry>>,
-    (StatusCode, Json<ErrorBody>),
-> {
+) -> Result<Json<DataResponse<crate::domain::contact::PrimaryContactEntry>>, ApiError> {
     let app_id = extract_tenant(&claims)?;
 
     let entries = contact_service::get_primary_contacts(&state.pool, &app_id, party_id)
         .await
-        .map_err(contact_error_response)?;
+        .map_err(ApiError::from)?;
 
-    Ok(Json(entries))
+    Ok(Json(DataResponse { data: entries }))
 }

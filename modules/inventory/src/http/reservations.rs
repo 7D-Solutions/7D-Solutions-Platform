@@ -26,13 +26,28 @@ use uuid::Uuid;
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::{
-        fulfill_service::{process_fulfill, FulfillRequest},
-        reservation_service::{process_release, process_reserve, ReleaseRequest, ReserveRequest},
+        fulfill_service::{process_fulfill, FulfillRequest, FulfillResult},
+        reservation_service::{
+            process_release, process_reserve, ReleaseRequest, ReleaseResult, ReserveRequest,
+            ReserveResult,
+        },
     },
     AppState,
 };
 
-/// POST /api/inventory/reservations/reserve
+#[utoipa::path(
+    post,
+    path = "/api/inventory/reservations/reserve",
+    tag = "Reservations",
+    request_body = ReserveRequest,
+    responses(
+        (status = 201, description = "Stock reserved", body = ReserveResult),
+        (status = 200, description = "Idempotency replay", body = ReserveResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Insufficient available stock", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_reserve(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -56,7 +71,18 @@ pub async fn post_reserve(
     }
 }
 
-/// POST /api/inventory/reservations/release
+#[utoipa::path(
+    post,
+    path = "/api/inventory/reservations/release",
+    tag = "Reservations",
+    request_body = ReleaseRequest,
+    responses(
+        (status = 200, description = "Reservation released", body = ReleaseResult),
+        (status = 404, description = "Reservation not found", body = ApiError),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_release(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -77,7 +103,19 @@ pub async fn post_release(
     }
 }
 
-/// POST /api/inventory/reservations/{reservation_id}/fulfill
+#[utoipa::path(
+    post,
+    path = "/api/inventory/reservations/{id}/fulfill",
+    tag = "Reservations",
+    params(("id" = Uuid, Path, description = "Reservation ID")),
+    request_body = FulfillRequest,
+    responses(
+        (status = 200, description = "Reservation fulfilled", body = FulfillResult),
+        (status = 404, description = "Reservation not found", body = ApiError),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_fulfill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

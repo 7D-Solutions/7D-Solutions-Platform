@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::receipt_service::{process_receipt, ReceiptRequest},
+    domain::receipt_service::{process_receipt, ReceiptRequest, ReceiptResult},
     AppState,
 };
 
@@ -26,18 +26,20 @@ use crate::{
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/receipts
-///
-/// Creates a stock receipt atomically: ledger row + FIFO layer + outbox event,
-/// all in a single database transaction.
-///
-/// Responses:
-///   201 Created  — receipt created, rows committed
-///   200 OK       — idempotency replay (same key + same body, stored result returned)
-///   409 Conflict — same idempotency key with a different request body
-///   404 Not Found — item not found or wrong tenant
-///   422 Unprocessable Entity — validation failure (inactive item, zero qty, zero cost)
-///   500 Internal Server Error — unexpected error
+#[utoipa::path(
+    post,
+    path = "/api/inventory/receipts",
+    tag = "Receipts",
+    request_body = ReceiptRequest,
+    responses(
+        (status = 201, description = "Receipt created", body = ReceiptResult),
+        (status = 200, description = "Idempotency replay (same key + same body)", body = ReceiptResult),
+        (status = 409, description = "Idempotency key conflict (different body)", body = ApiError),
+        (status = 404, description = "Item not found or wrong tenant", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_receipt(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

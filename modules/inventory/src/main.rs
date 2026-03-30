@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use event_bus::{connect_nats, EventBus, InMemoryBus, NatsBus};
 use security::{
     middleware::{
@@ -10,12 +10,12 @@ use std::{net::SocketAddr, sync::Arc, time::Instant};
 use tokio::time::{sleep, Duration};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use inventory_rs::{
     AppState, BusHealth, Config,
     consumers::{component_issue_consumer, fg_receipt_consumer},
     db::resolver::resolve_pool,
-    event_bus,
     http::{
         adjustments::post_adjustment,
         health::{health, ready, version},
@@ -50,8 +50,217 @@ use inventory_rs::{
         valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
     },
     config::BusType,
+    domain::{
+        adjust_service::{AdjustRequest, AdjustResult},
+        cycle_count::{
+            submit_service::SubmitLineInput,
+            task_service::{CreateTaskRequest, CreateTaskResult, TaskLine, TaskScope},
+        },
+        expiry::{
+            LotExpiryRecord, RunExpiryAlertScanRequest, RunExpiryAlertScanResult,
+            SetLotExpiryRequest,
+        },
+        fulfill_service::{FulfillRequest, FulfillResult},
+        genealogy::{
+            GenealogyResult, LotMergeRequest, LotSplitRequest, MergeParent, SplitChild,
+        },
+        history::query::MovementEntry,
+        issue_service::{IssueRequest, IssueResult},
+        items::{CreateItemRequest, Item, TrackingMode, UpdateItemRequest},
+        labels::{GenerateLabelRequest, Label},
+        locations::{CreateLocationRequest, Location, UpdateLocationRequest},
+        lots_serials::models::InventoryLot,
+        make_buy::SetMakeBuyRequest,
+        receipt_service::{ReceiptRequest, ReceiptResult},
+        reorder::models::{
+            CreateReorderPolicyRequest, ReorderPolicy, UpdateReorderPolicyRequest,
+        },
+        reservation_service::{
+            ReleaseRequest, ReleaseResult, ReserveRequest, ReserveResult,
+        },
+        revisions::{
+            ActivateRevisionRequest, CreateRevisionRequest, ItemRevision,
+            UpdateRevisionPolicyRequest,
+        },
+        status::transfer_service::{StatusTransferRequest, StatusTransferResult},
+        transfer_service::{TransferRequest, TransferResult},
+        uom::models::{CreateConversionRequest, CreateUomRequest, ItemUomConversion, Uom},
+        valuation::{
+            models::{ValuationLine, ValuationSnapshot},
+            snapshot_service::CreateSnapshotRequest,
+        },
+    },
+    events::contracts::{ConsumedLayer, SourceRef},
     metrics::{metrics_handler, InventoryMetrics},
 };
+use inventory_rs::domain::items::ListItemsQuery;
+use inventory_rs::domain::genealogy::GenealogyEdge;
+use inventory_rs::domain::status::models::InvItemStatus;
+use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
+use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Inventory Service",
+        version = "2.2.0",
+        description = "Inventory management: item master, stock receipts (FIFO), issues, \
+                        transfers, adjustments, reservations, cycle counts, UoM, locations, \
+                        labels, revisions, reorder policies, valuation snapshots, lot/serial \
+                        traceability, lot genealogy, expiry monitoring, status transfers.\n\n\
+                        **Authentication:** Bearer JWT. Tenant identity derived from JWT claims \
+                        (not headers). Permissions: `INVENTORY_READ` for queries, \
+                        `INVENTORY_MUTATE` for writes.\n\n\
+                        **Idempotency:** POST endpoints accept `idempotency_key` in the request \
+                        body. 201 = created, 200 = replay (same key + same body), 409 = conflict \
+                        (same key + different body).",
+    ),
+    paths(
+        // Items
+        inventory_rs::http::items::create_item,
+        inventory_rs::http::items::get_item,
+        inventory_rs::http::items::update_item,
+        inventory_rs::http::items::list_items,
+        inventory_rs::http::items::deactivate_item,
+        inventory_rs::http::make_buy::put_make_buy,
+        // Receipts
+        inventory_rs::http::receipts::post_receipt,
+        // Issues
+        inventory_rs::http::issues::post_issue,
+        // Adjustments
+        inventory_rs::http::adjustments::post_adjustment,
+        // Transfers
+        inventory_rs::http::transfers::post_transfer,
+        // Reservations
+        inventory_rs::http::reservations::post_reserve,
+        inventory_rs::http::reservations::post_release,
+        inventory_rs::http::reservations::post_fulfill,
+        // UoM
+        inventory_rs::http::uom::create_uom,
+        inventory_rs::http::uom::list_uoms,
+        inventory_rs::http::uom::create_conversion,
+        inventory_rs::http::uom::list_conversions,
+        // Locations
+        inventory_rs::http::locations::create_location,
+        inventory_rs::http::locations::get_location,
+        inventory_rs::http::locations::update_location,
+        inventory_rs::http::locations::deactivate_location,
+        inventory_rs::http::locations::list_locations,
+        // Cycle Counts
+        inventory_rs::http::cycle_counts::post_cycle_count_task,
+        inventory_rs::http::cycle_counts::post_cycle_count_submit,
+        inventory_rs::http::cycle_counts::post_cycle_count_approve,
+        // Reorder Policies
+        inventory_rs::http::reorder::post_reorder_policy,
+        inventory_rs::http::reorder::get_reorder_policy,
+        inventory_rs::http::reorder::put_reorder_policy,
+        inventory_rs::http::reorder::list_reorder_policies,
+        // Valuation
+        inventory_rs::http::valuation::post_valuation_snapshot,
+        inventory_rs::http::valuation::list_valuation_snapshots,
+        inventory_rs::http::valuation::get_valuation_snapshot,
+        // Revisions
+        inventory_rs::http::revisions::post_create_revision,
+        inventory_rs::http::revisions::post_activate_revision,
+        inventory_rs::http::revisions::put_revision_policy,
+        inventory_rs::http::revisions::get_revision_at,
+        inventory_rs::http::revisions::get_list_revisions,
+        // Labels
+        inventory_rs::http::labels::post_generate_label,
+        inventory_rs::http::labels::get_list_labels,
+        inventory_rs::http::labels::get_label_by_id,
+        // Expiry
+        inventory_rs::http::expiry::put_lot_expiry,
+        inventory_rs::http::expiry::post_expiry_alert_scan,
+        // Lot Genealogy
+        inventory_rs::http::genealogy::post_lot_split,
+        inventory_rs::http::genealogy::post_lot_merge,
+        inventory_rs::http::genealogy::get_lot_children,
+        inventory_rs::http::genealogy::get_lot_parents,
+        // Lots & Serials
+        inventory_rs::http::lots::get_lots_for_item,
+        inventory_rs::http::serials::get_serials_for_item,
+        // Traceability
+        inventory_rs::http::trace::trace_lot_handler,
+        inventory_rs::http::trace::trace_serial_handler,
+        // History
+        inventory_rs::http::history::get_movement_history,
+        // Status Transfers
+        inventory_rs::http::status::post_status_transfer,
+    ),
+    components(schemas(
+        // Item master
+        Item, TrackingMode, CreateItemRequest, UpdateItemRequest, ListItemsQuery,
+        SetMakeBuyRequest,
+        // Receipts / Issues / Adjustments / Transfers
+        ReceiptRequest, ReceiptResult,
+        IssueRequest, IssueResult, ConsumedLayer, SourceRef,
+        AdjustRequest, AdjustResult,
+        TransferRequest, TransferResult,
+        // Reservations
+        ReserveRequest, ReserveResult, ReleaseRequest, ReleaseResult,
+        FulfillRequest, FulfillResult,
+        // UoM
+        Uom, ItemUomConversion, CreateUomRequest, CreateConversionRequest,
+        // Locations
+        Location, CreateLocationRequest, UpdateLocationRequest,
+        // Cycle counts
+        CreateTaskRequest, CreateTaskResult, TaskScope, TaskLine,
+        SubmitBody, SubmitLineInput, ApproveBody,
+        // Reorder policies
+        ReorderPolicy, CreateReorderPolicyRequest, UpdateReorderPolicyRequest,
+        // Valuation
+        ValuationSnapshot, ValuationLine, CreateSnapshotRequest,
+        // Revisions
+        ItemRevision, CreateRevisionRequest, ActivateRevisionRequest,
+        UpdateRevisionPolicyRequest,
+        // Labels
+        Label, GenerateLabelRequest,
+        // Expiry
+        LotExpiryRecord, SetLotExpiryRequest, RunExpiryAlertScanRequest,
+        RunExpiryAlertScanResult,
+        // Lot genealogy
+        LotSplitRequest, LotMergeRequest, SplitChild, MergeParent,
+        GenealogyResult, GenealogyEdge,
+        // Lots & Serials
+        InventoryLot,
+        // History
+        MovementEntry,
+        // Status
+        InvItemStatus, StatusTransferRequest, StatusTransferResult,
+        // Shared envelopes
+        ApiError, PaginatedResponse<Item>, PaginatedResponse<Location>,
+        PaginatedResponse<Label>, PaginatedResponse<InventoryLot>,
+        PaginatedResponse<ReorderPolicy>, PaginatedResponse<ItemRevision>,
+        PaginatedResponse<ValuationSnapshot>, PaginationMeta,
+    )),
+    security(
+        ("bearer" = [])
+    ),
+    modifiers(&SecurityAddon),
+)]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
+}
 
 #[tokio::main]
 async fn main() {
@@ -333,6 +542,7 @@ async fn main() {
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
         .merge(inv_reads)
@@ -432,11 +642,8 @@ async fn start_event_bus_supervisor(
             component_issue_consumer::start_component_issue_consumer(fallback_bus.clone(), pool.clone())
                 .await;
             fg_receipt_consumer::start_fg_receipt_consumer(fallback_bus.clone(), pool.clone()).await;
-            tokio::spawn(async move {
-                if let Err(err) = event_bus::start_outbox_publisher(pool, fallback_bus).await {
-                    tracing::error!(error = %err, "Outbox publisher stopped");
-                }
-            });
+            // TODO(bd-rbhj1): outbox publisher not yet implemented in event_bus crate
+            let _ = (pool, fallback_bus);
         }
         BusType::Nats => {
             let nats_url = config
@@ -459,13 +666,8 @@ async fn start_event_bus_supervisor(
                         .await;
                         fg_receipt_consumer::start_fg_receipt_consumer(bus.clone(), pool.clone())
                             .await;
-                        tokio::spawn(async move {
-                            if let Err(err) =
-                                event_bus::start_outbox_publisher(pool.clone(), bus.clone()).await
-                            {
-                                tracing::error!(error = %err, "Outbox publisher stopped");
-                            }
-                        });
+                        // TODO(bd-rbhj1): outbox publisher not yet implemented in event_bus crate
+                        let _ = (pool, bus);
                         break;
                     }
                     Err(err) => {

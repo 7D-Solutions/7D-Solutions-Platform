@@ -23,10 +23,16 @@ use crate::{domain::lots_serials::queries::list_serials_for_item, AppState};
 // Handler
 // ============================================================================
 
-/// GET /api/inventory/items/{item_id}/serials
-///
-/// Returns all serial instances for the item scoped to the tenant (from JWT).
-/// Responds with 200 + `{ "serials": [...] }`. Empty array when none exist.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/serials",
+    tag = "Lots & Serials",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Serial instances for item", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_serials_for_item(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,

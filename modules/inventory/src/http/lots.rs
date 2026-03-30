@@ -17,7 +17,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
-use crate::{domain::lots_serials::queries::list_lots_for_item, AppState};
+use crate::{
+    domain::lots_serials::{models::InventoryLot, queries::list_lots_for_item},
+    AppState,
+};
 
 // ============================================================================
 // Query params
@@ -39,10 +42,16 @@ fn default_limit() -> i64 {
 // Handler
 // ============================================================================
 
-/// GET /api/inventory/items/{item_id}/lots
-///
-/// Returns lots for the item scoped to the tenant (from JWT).
-/// Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/lots",
+    tag = "Lots & Serials",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Paginated lot list", body = PaginatedResponse<InventoryLot>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_lots_for_item(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,

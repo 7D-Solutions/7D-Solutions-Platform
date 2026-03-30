@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::adjust_service::{process_adjustment, AdjustRequest},
+    domain::adjust_service::{process_adjustment, AdjustRequest, AdjustResult},
     AppState,
 };
 
@@ -26,10 +26,19 @@ use crate::{
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/adjustments
-///
-/// Creates a compensating ledger entry to correct physical reality.
-/// Returns 201 Created on new adjustment; 200 OK on idempotency replay.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/adjustments",
+    tag = "Adjustments",
+    request_body = AdjustRequest,
+    responses(
+        (status = 201, description = "Adjustment created", body = AdjustResult),
+        (status = 200, description = "Idempotency replay", body = AdjustResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_adjustment(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

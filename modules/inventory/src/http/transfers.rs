@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::transfer_service::{process_transfer, TransferRequest},
+    domain::transfer_service::{process_transfer, TransferRequest, TransferResult},
     AppState,
 };
 
@@ -26,13 +26,19 @@ use crate::{
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/transfers
-///
-/// Moves stock between warehouses as paired ledger entries (transfer_out + transfer_in)
-/// in a single atomic transaction. FIFO is consumed on the source side; a new cost
-/// layer is created at the destination at weighted average cost.
-///
-/// Returns 201 Created on new transfer; 200 OK on idempotency replay.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/transfers",
+    tag = "Transfers",
+    request_body = TransferRequest,
+    responses(
+        (status = 201, description = "Transfer completed", body = TransferResult),
+        (status = 200, description = "Idempotency replay", body = TransferResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Validation failure or insufficient stock", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_transfer(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -22,7 +22,19 @@ pub struct HistoryQuery {
     pub location_id: Option<Uuid>,
 }
 
-/// GET /api/inventory/items/{item_id}/history?location_id=...
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/history",
+    tag = "History",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("location_id" = Option<Uuid>, Query, description = "Filter by location"),
+    ),
+    responses(
+        (status = 200, description = "Movement history", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_movement_history(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,

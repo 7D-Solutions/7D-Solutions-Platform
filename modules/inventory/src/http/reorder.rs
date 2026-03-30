@@ -22,7 +22,7 @@ use uuid::Uuid;
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::reorder::models::{
-        CreateReorderPolicyRequest, ReorderPolicyRepo, UpdateReorderPolicyRequest,
+        CreateReorderPolicyRequest, ReorderPolicy, ReorderPolicyRepo, UpdateReorderPolicyRequest,
     },
     AppState,
 };
@@ -47,7 +47,17 @@ fn default_limit() -> i64 {
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/reorder-policies
+#[utoipa::path(
+    post,
+    path = "/api/inventory/reorder-policies",
+    tag = "Reorder Policies",
+    request_body = CreateReorderPolicyRequest,
+    responses(
+        (status = 201, description = "Reorder policy created", body = ReorderPolicy),
+        (status = 409, description = "Duplicate policy", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_reorder_policy(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -68,7 +78,17 @@ pub async fn post_reorder_policy(
     }
 }
 
-/// GET /api/inventory/reorder-policies/:id
+#[utoipa::path(
+    get,
+    path = "/api/inventory/reorder-policies/{id}",
+    tag = "Reorder Policies",
+    params(("id" = Uuid, Path, description = "Reorder policy ID")),
+    responses(
+        (status = 200, description = "Reorder policy details", body = ReorderPolicy),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
@@ -93,7 +113,18 @@ pub async fn get_reorder_policy(
     }
 }
 
-/// PUT /api/inventory/reorder-policies/:id
+#[utoipa::path(
+    put,
+    path = "/api/inventory/reorder-policies/{id}",
+    tag = "Reorder Policies",
+    params(("id" = Uuid, Path, description = "Reorder policy ID")),
+    request_body = UpdateReorderPolicyRequest,
+    responses(
+        (status = 200, description = "Reorder policy updated", body = ReorderPolicy),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn put_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
@@ -115,9 +146,16 @@ pub async fn put_reorder_policy(
     }
 }
 
-/// GET /api/inventory/items/:item_id/reorder-policies
-///
-/// Lists all reorder policies for an item. Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/reorder-policies",
+    tag = "Reorder Policies",
+    params(("item_id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Paginated reorder policy list", body = PaginatedResponse<ReorderPolicy>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_reorder_policies(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,

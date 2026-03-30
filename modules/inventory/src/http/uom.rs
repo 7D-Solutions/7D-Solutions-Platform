@@ -23,7 +23,9 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::uom::models::{ConversionRepo, CreateConversionRequest, CreateUomRequest, UomRepo},
+    domain::uom::models::{
+        ConversionRepo, CreateConversionRequest, CreateUomRequest, ItemUomConversion, Uom, UomRepo,
+    },
     AppState,
 };
 
@@ -31,7 +33,17 @@ use crate::{
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/uoms
+#[utoipa::path(
+    post,
+    path = "/api/inventory/uoms",
+    tag = "UoM",
+    request_body = CreateUomRequest,
+    responses(
+        (status = 201, description = "UoM created", body = Uom),
+        (status = 409, description = "Duplicate UoM code", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_uom(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -52,7 +64,15 @@ pub async fn create_uom(
     }
 }
 
-/// GET /api/inventory/uoms
+#[utoipa::path(
+    get,
+    path = "/api/inventory/uoms",
+    tag = "UoM",
+    responses(
+        (status = 200, description = "List of UoMs for tenant", body = Vec<Uom>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_uoms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -71,7 +91,18 @@ pub async fn list_uoms(
     }
 }
 
-/// POST /api/inventory/items/:id/uom-conversions
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items/{id}/uom-conversions",
+    tag = "UoM",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    request_body = CreateConversionRequest,
+    responses(
+        (status = 201, description = "Conversion created", body = ItemUomConversion),
+        (status = 409, description = "Duplicate conversion", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_conversion(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -93,7 +124,16 @@ pub async fn create_conversion(
     }
 }
 
-/// GET /api/inventory/items/:id/uom-conversions
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{id}/uom-conversions",
+    tag = "UoM",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "List of conversions for item", body = Vec<ItemUomConversion>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_conversions(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,

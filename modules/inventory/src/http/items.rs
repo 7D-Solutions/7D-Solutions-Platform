@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::items::{CreateItemRequest, ItemRepo, ListItemsQuery, UpdateItemRequest},
+    domain::items::{CreateItemRequest, Item, ItemRepo, ListItemsQuery, UpdateItemRequest},
     AppState,
 };
 
@@ -31,12 +31,18 @@ use crate::{
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/items
-///
-/// Create a new item. Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
-/// Returns 201 Created with the item on success,
-/// 409 Conflict if the SKU already exists for the tenant,
-/// 422 Unprocessable Entity on validation failure.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items",
+    tag = "Items",
+    request_body = CreateItemRequest,
+    responses(
+        (status = 201, description = "Item created", body = Item),
+        (status = 409, description = "SKU already exists for tenant", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -57,11 +63,17 @@ pub async fn create_item(
     }
 }
 
-/// GET /api/inventory/items/:id
-///
-/// Fetch an item by id scoped to tenant (from JWT).
-/// Returns 200 OK with full item (including tracking_mode) on success,
-/// 404 Not Found if not found.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{id}",
+    tag = "Items",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Item details", body = Item),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_item(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
@@ -85,12 +97,19 @@ pub async fn get_item(
     }
 }
 
-/// PUT /api/inventory/items/:id
-///
-/// Update mutable fields. Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
-/// Returns 200 OK with updated item on success,
-/// 404 Not Found if item doesn't exist for tenant,
-/// 422 on validation failure.
+#[utoipa::path(
+    put,
+    path = "/api/inventory/items/{id}",
+    tag = "Items",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    request_body = UpdateItemRequest,
+    responses(
+        (status = 200, description = "Item updated", body = Item),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -112,12 +131,16 @@ pub async fn update_item(
     }
 }
 
-/// GET /api/inventory/items
-///
-/// List items with optional search, filtering, and pagination.
-/// Tenant derived from JWT VerifiedClaims.
-///
-/// Returns `PaginatedResponse` envelope: `{ "data": [...], "pagination": { ... } }`.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items",
+    tag = "Items",
+    params(ListItemsQuery),
+    responses(
+        (status = 200, description = "Paginated item list", body = PaginatedResponse<Item>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_items(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -143,10 +166,17 @@ pub async fn list_items(
     }
 }
 
-/// POST /api/inventory/items/:id/deactivate
-///
-/// Soft-delete an item. Tenant derived from JWT VerifiedClaims.
-/// Idempotent — already-inactive items return 200.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/items/{id}/deactivate",
+    tag = "Items",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    responses(
+        (status = 200, description = "Item deactivated (idempotent)", body = Item),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

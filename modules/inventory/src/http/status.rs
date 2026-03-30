@@ -18,11 +18,25 @@ use std::sync::Arc;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::status::transfer_service::{process_status_transfer, StatusTransferRequest},
+    domain::status::transfer_service::{
+        process_status_transfer, StatusTransferRequest, StatusTransferResult,
+    },
     AppState,
 };
 
-/// POST /api/inventory/status-transfers
+#[utoipa::path(
+    post,
+    path = "/api/inventory/status-transfers",
+    tag = "Status Transfers",
+    request_body = StatusTransferRequest,
+    responses(
+        (status = 201, description = "Status transfer created", body = StatusTransferResult),
+        (status = 200, description = "Idempotency replay", body = StatusTransferResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_status_transfer(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

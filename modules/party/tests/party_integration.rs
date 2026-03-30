@@ -241,8 +241,9 @@ async fn test_list_parties_active_only() {
         .await
         .unwrap();
 
-    let active = list_parties(&pool, &app, false).await.unwrap();
+    let (active, total) = list_parties(&pool, &app, false, 1, 200).await.unwrap();
     assert_eq!(active.len(), 1);
+    assert_eq!(total, 1);
     assert_eq!(active[0].display_name, "Active Two");
 }
 
@@ -266,8 +267,9 @@ async fn test_list_parties_include_inactive() {
         .await
         .unwrap();
 
-    let all = list_parties(&pool, &app, true).await.unwrap();
+    let (all, total) = list_parties(&pool, &app, true, 1, 200).await.unwrap();
     assert_eq!(all.len(), 2);
+    assert_eq!(total, 2);
 
     let inactive = all.iter().find(|p| p.id == a.party.id).unwrap();
     assert_eq!(inactive.status, "inactive");
@@ -421,7 +423,7 @@ async fn test_search_parties_by_name() {
         .await
         .unwrap();
 
-    let results = search_parties(
+    let (results, total) = search_parties(
         &pool,
         &app,
         &SearchQuery {
@@ -443,6 +445,7 @@ async fn test_search_parties_by_name() {
         "expected 2 Delta parties, got {}",
         results.len()
     );
+    assert_eq!(total, 2);
     assert!(results.iter().all(|p| p.display_name.contains("Delta")));
 }
 
@@ -463,7 +466,7 @@ async fn test_search_parties_by_type() {
         .await
         .unwrap();
 
-    let companies = search_parties(
+    let (companies, _) = search_parties(
         &pool,
         &app,
         &SearchQuery {
@@ -482,7 +485,7 @@ async fn test_search_parties_by_type() {
     assert_eq!(companies.len(), 1);
     assert_eq!(companies[0].party_type, "company");
 
-    let individuals = search_parties(
+    let (individuals, _) = search_parties(
         &pool,
         &app,
         &SearchQuery {
@@ -522,11 +525,12 @@ async fn test_tenant_isolation() {
     assert!(result.is_none(), "app_b must not see app_a's party");
 
     // App B list is empty
-    let list = list_parties(&pool, &app_b, false).await.unwrap();
+    let (list, list_total) = list_parties(&pool, &app_b, false, 1, 200).await.unwrap();
     assert!(list.is_empty(), "app_b list must be empty");
+    assert_eq!(list_total, 0);
 
     // App B search returns nothing
-    let search = search_parties(
+    let (search, search_total) = search_parties(
         &pool,
         &app_b,
         &SearchQuery {
@@ -542,6 +546,7 @@ async fn test_tenant_isolation() {
     .await
     .unwrap();
     assert!(search.is_empty(), "app_b search must be empty");
+    assert_eq!(search_total, 0);
 
     // App B cannot deactivate App A's party
     let err = deactivate_party(&pool, &app_b, party.party.id, "attacker", corr())

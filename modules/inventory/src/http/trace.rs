@@ -23,7 +23,19 @@ use crate::{
     AppState,
 };
 
-/// GET /api/inventory/items/{item_id}/lots/{lot_code}/trace
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/lots/{lot_code}/trace",
+    tag = "Traceability",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("lot_code" = String, Path, description = "Lot code"),
+    ),
+    responses(
+        (status = 200, description = "Lot traceability movements", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn trace_lot_handler(
     State(state): State<Arc<AppState>>,
     Path((item_id, lot_code)): Path<(Uuid, String)>,
@@ -51,7 +63,19 @@ pub async fn trace_lot_handler(
     }
 }
 
-/// GET /api/inventory/items/{item_id}/serials/{serial_code}/trace
+#[utoipa::path(
+    get,
+    path = "/api/inventory/items/{item_id}/serials/{serial_code}/trace",
+    tag = "Traceability",
+    params(
+        ("item_id" = Uuid, Path, description = "Item ID"),
+        ("serial_code" = String, Path, description = "Serial code"),
+    ),
+    responses(
+        (status = 200, description = "Serial traceability movements", body = serde_json::Value),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn trace_serial_handler(
     State(state): State<Arc<AppState>>,
     Path((item_id, serial_code)): Path<(Uuid, String)>,

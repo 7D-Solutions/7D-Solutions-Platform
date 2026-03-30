@@ -15,11 +15,24 @@ use uuid::Uuid;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
+    domain::items::Item,
     domain::make_buy::{set_make_buy, SetMakeBuyRequest},
     AppState,
 };
 
-/// PUT /api/inventory/items/:id/make-buy
+#[utoipa::path(
+    put,
+    path = "/api/inventory/items/{id}/make-buy",
+    tag = "Items",
+    params(("id" = Uuid, Path, description = "Item ID")),
+    request_body = SetMakeBuyRequest,
+    responses(
+        (status = 200, description = "Make/buy classification updated", body = Item),
+        (status = 404, description = "Item not found", body = ApiError),
+        (status = 422, description = "Validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn put_make_buy(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

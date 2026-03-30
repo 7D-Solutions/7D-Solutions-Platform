@@ -29,6 +29,7 @@ use uuid::Uuid;
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::valuation::{
+        models::ValuationSnapshot,
         queries::{get_snapshot, get_snapshot_lines, list_snapshots},
         snapshot_service::CreateSnapshotRequest,
     },
@@ -56,11 +57,18 @@ fn default_limit() -> i64 {
 // Handlers
 // ============================================================================
 
-/// POST /api/inventory/valuation-snapshots
-///
-/// Creates a valuation snapshot from remaining FIFO layers as-of `req.as_of`.
-/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
-/// Returns 201 on creation; 200 on idempotent replay.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/valuation-snapshots",
+    tag = "Valuation",
+    request_body = CreateSnapshotRequest,
+    responses(
+        (status = 201, description = "Valuation snapshot created", body = ValuationSnapshot),
+        (status = 200, description = "Idempotency replay", body = ValuationSnapshot),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_valuation_snapshot(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -84,13 +92,20 @@ pub async fn post_valuation_snapshot(
     }
 }
 
-/// GET /api/inventory/valuation-snapshots?warehouse_id=...&limit=...&offset=...
-///
-/// Lists snapshots for the tenant (from JWT), newest first. Optional
-/// `warehouse_id` narrows to one warehouse. `limit` defaults to 50
-/// (max 200); `offset` defaults to 0.
-///
-/// Returns `PaginatedResponse` envelope.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/valuation-snapshots",
+    tag = "Valuation",
+    params(
+        ("warehouse_id" = Option<Uuid>, Query, description = "Filter by warehouse"),
+        ("limit" = Option<i64>, Query, description = "Page size (default 50, max 200)"),
+        ("offset" = Option<i64>, Query, description = "Offset (default 0)"),
+    ),
+    responses(
+        (status = 200, description = "Paginated snapshot list", body = PaginatedResponse<ValuationSnapshot>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_valuation_snapshots(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -124,10 +139,17 @@ pub async fn list_valuation_snapshots(
     }
 }
 
-/// GET /api/inventory/valuation-snapshots/{id}
-///
-/// Returns the snapshot header and all per-item lines, tenant-scoped (from JWT).
-/// Returns 404 when the snapshot does not exist or belongs to another tenant.
+#[utoipa::path(
+    get,
+    path = "/api/inventory/valuation-snapshots/{id}",
+    tag = "Valuation",
+    params(("id" = Uuid, Path, description = "Snapshot ID")),
+    responses(
+        (status = 200, description = "Snapshot with lines", body = serde_json::Value),
+        (status = 404, description = "Snapshot not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_valuation_snapshot(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,

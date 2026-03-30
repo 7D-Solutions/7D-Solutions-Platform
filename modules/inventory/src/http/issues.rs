@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::issue_service::{process_issue, IssueRequest},
+    domain::issue_service::{process_issue, IssueRequest, IssueResult},
     AppState,
 };
 
@@ -27,18 +27,20 @@ use crate::{
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/issues
-///
-/// Issues stock atomically: ledger row (negative qty) + layer_consumptions +
-/// updated FIFO layers + on-hand projection + outbox event, all in one transaction.
-///
-/// Responses:
-///   201 Created  — issue created, rows committed
-///   200 OK       — idempotency replay (same key + same body)
-///   409 Conflict — same idempotency key with a different request body
-///   404 Not Found — item not found or wrong tenant
-///   422 Unprocessable Entity — validation failure or insufficient stock
-///   500 Internal Server Error — unexpected error
+#[utoipa::path(
+    post,
+    path = "/api/inventory/issues",
+    tag = "Issues",
+    request_body = IssueRequest,
+    responses(
+        (status = 201, description = "Issue created", body = IssueResult),
+        (status = 200, description = "Idempotency replay", body = IssueResult),
+        (status = 409, description = "Idempotency key conflict", body = ApiError),
+        (status = 404, description = "Item not found or wrong tenant", body = ApiError),
+        (status = 422, description = "Validation failure or insufficient stock", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_issue(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

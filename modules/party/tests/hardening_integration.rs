@@ -131,8 +131,7 @@ fn base_contact_req(first: &str, last: &str) -> CreateContactRequest {
 /// Without a JwtVerifier, the `optional_claims_mw` inserts no claims,
 /// so RequirePermissionsLayer will reject mutation requests with 401.
 fn build_test_router(pool: sqlx::PgPool) -> axum::Router {
-    let party_metrics =
-        Arc::new(metrics::PartyMetrics::new().expect("metrics"));
+    let party_metrics = Arc::new(metrics::PartyMetrics::new().expect("metrics"));
     let app_state = Arc::new(AppState {
         pool,
         metrics: party_metrics,
@@ -181,7 +180,11 @@ async fn test_migration_safety_all_tables_present() {
         .await
         .unwrap();
 
-        assert!(exists, "Expected table '{}' missing after migrations", table);
+        assert!(
+            exists,
+            "Expected table '{}' missing after migrations",
+            table
+        );
     }
 
     // Verify custom enum types exist
@@ -273,7 +276,7 @@ async fn test_tenant_boundary_companies() {
     );
 
     // Tenant B list is empty
-    let list = list_parties(&pool, &app_b, true).await.unwrap();
+    let (list, _) = list_parties(&pool, &app_b, true, 1, 200).await.unwrap();
     assert!(
         list.is_empty(),
         "Tenant B list must be empty (no cross-tenant leakage)"
@@ -312,10 +315,7 @@ async fn test_tenant_boundary_contacts() {
     let result = contact_service::get_contact(&pool, &app_b, contact.id)
         .await
         .unwrap();
-    assert!(
-        result.is_none(),
-        "Tenant B must not see tenant A's contact"
-    );
+    assert!(result.is_none(), "Tenant B must not see tenant A's contact");
 
     // Tenant B cannot deactivate tenant A's contact
     let err = contact_service::deactivate_contact(&pool, &app_b, contact.id, corr())
@@ -506,13 +506,12 @@ async fn test_guard_mutation_outbox_company_create() {
         .unwrap();
 
     // The outbox row must exist (written in the same transaction as the party)
-    let outbox_event: Option<(String, String)> = sqlx::query_as(
-        "SELECT event_type, aggregate_id FROM party_outbox WHERE aggregate_id = $1",
-    )
-    .bind(view.party.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let outbox_event: Option<(String, String)> =
+        sqlx::query_as("SELECT event_type, aggregate_id FROM party_outbox WHERE aggregate_id = $1")
+            .bind(view.party.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
 
     let (event_type, agg_id) =
         outbox_event.expect("Outbox event must exist after company creation");
@@ -520,13 +519,12 @@ async fn test_guard_mutation_outbox_company_create() {
     assert_eq!(agg_id, view.party.id.to_string());
 
     // Verify outbox payload contains the expected EventEnvelope fields
-    let payload: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM party_outbox WHERE aggregate_id = $1",
-    )
-    .bind(view.party.id.to_string())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let payload: serde_json::Value =
+        sqlx::query_scalar("SELECT payload FROM party_outbox WHERE aggregate_id = $1")
+            .bind(view.party.id.to_string())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     // EventEnvelope has: event_type, source_module, schema_version, payload (inner)
     assert_eq!(payload["event_type"], "party.created");
@@ -546,9 +544,14 @@ async fn test_guard_mutation_outbox_party_update() {
     let app_id = unique_app();
 
     // Create then update — both should produce outbox events
-    let created = create_company(&pool, &app_id, &base_company_req("Update Outbox Corp"), corr())
-        .await
-        .unwrap();
+    let created = create_company(
+        &pool,
+        &app_id,
+        &base_company_req("Update Outbox Corp"),
+        corr(),
+    )
+    .await
+    .unwrap();
 
     update_party(
         &pool,
@@ -575,13 +578,12 @@ async fn test_guard_mutation_outbox_party_update() {
     .unwrap();
 
     // Should have at least 2 outbox events: party.created + party.updated
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM party_outbox WHERE aggregate_id = $1",
-    )
-    .bind(created.party.id.to_string())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM party_outbox WHERE aggregate_id = $1")
+            .bind(created.party.id.to_string())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert!(
         count >= 2,
@@ -620,13 +622,12 @@ async fn test_guard_mutation_outbox_individual_create() {
     .unwrap();
 
     // Outbox event must exist for individual creation too
-    let outbox_event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM party_outbox WHERE aggregate_id = $1",
-    )
-    .bind(view.party.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let outbox_event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM party_outbox WHERE aggregate_id = $1")
+            .bind(view.party.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(
         outbox_event.unwrap().0,
@@ -683,7 +684,7 @@ async fn test_concurrent_tenant_isolation_parties() {
     }
 
     // Verify tenant A sees only their 5 companies
-    let a_parties = list_parties(&pool, &app_a, false).await.unwrap();
+    let (a_parties, _) = list_parties(&pool, &app_a, false, 1, 200).await.unwrap();
     assert_eq!(
         a_parties.len(),
         5,
@@ -695,7 +696,7 @@ async fn test_concurrent_tenant_isolation_parties() {
     );
 
     // Verify tenant B sees only their 5 companies
-    let b_parties = list_parties(&pool, &app_b, false).await.unwrap();
+    let (b_parties, _) = list_parties(&pool, &app_b, false, 1, 200).await.unwrap();
     assert_eq!(
         b_parties.len(),
         5,
@@ -716,20 +717,18 @@ async fn test_concurrent_tenant_isolation_parties() {
     }
 
     // Verify outbox events are per-tenant (no cross-contamination)
-    let a_outbox: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM party_outbox WHERE app_id = $1")
-            .bind(&app_a)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let a_outbox: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM party_outbox WHERE app_id = $1")
+        .bind(&app_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(a_outbox, 5, "Tenant A should have 5 outbox events");
 
-    let b_outbox: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM party_outbox WHERE app_id = $1")
-            .bind(&app_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_outbox: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM party_outbox WHERE app_id = $1")
+        .bind(&app_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_outbox, 5, "Tenant B should have 5 outbox events");
 }
 
@@ -763,7 +762,7 @@ async fn test_concurrent_reads_during_writes_isolated() {
         let p = pool.clone();
         let b = app_b.clone();
         handles.push(tokio::spawn(async move {
-            let parties = list_parties(&p, &b, true).await.unwrap();
+            let (parties, _) = list_parties(&p, &b, true, 1, 200).await.unwrap();
             assert_eq!(
                 parties.len(),
                 0,
@@ -793,21 +792,17 @@ async fn test_concurrent_reads_during_writes_isolated() {
     }
 
     // Final counts
-    let a_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM party_parties WHERE app_id = $1",
-    )
-    .bind(&app_a)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let a_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM party_parties WHERE app_id = $1")
+        .bind(&app_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(a_count, 3, "Tenant A should have 3 parties");
 
-    let b_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM party_parties WHERE app_id = $1",
-    )
-    .bind(&app_b)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let b_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM party_parties WHERE app_id = $1")
+        .bind(&app_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_count, 2, "Tenant B should have 2 parties");
 }
