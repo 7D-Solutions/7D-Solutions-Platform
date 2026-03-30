@@ -54,7 +54,7 @@ SERVICES=(
   "customer-portal|customer-portal|7d-customer-portal|8111|customer-portal"
   "reporting|reporting|7d-reporting|8096|reporting"
   "control-plane|control-plane|7d-control-plane|8091|control-plane"
-  "auth|auth-rs|7d-auth-1|8080|identity-auth"
+  "auth|auth-rs|7d-auth-1,7d-auth-2|8080|identity-auth|/healthz"
 )
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -105,7 +105,8 @@ ENTRY=$(find_service "$SERVICE_NAME") || {
   exit 1
 }
 
-IFS='|' read -r SVC CRATE CONTAINER PORT BIN_NAME <<< "$ENTRY"
+IFS='|' read -r SVC CRATE CONTAINER PORT BIN_NAME HEALTH_PATH <<< "$ENTRY"
+HEALTH_PATH="${HEALTH_PATH:-/api/health}"
 
 # ── Verify prerequisites ─────────────────────────────────────────
 
@@ -130,18 +131,21 @@ cross_build_and_restart() {
   echo "Cross-compiling $SVC (crate: $CRATE, target: $TARGET)..."
   cargo build --target "$TARGET" -p "$CRATE" --bin "$BIN_NAME"
 
-  echo "Restarting container $CONTAINER..."
-  docker restart "$CONTAINER" 2>/dev/null || {
-    echo "Warning: container $CONTAINER not running. Start it first." >&2
-    return 1
-  }
+  # Handle comma-separated container lists (e.g. auth-1,auth-2)
+  IFS=',' read -ra _CONTAINERS <<< "$CONTAINER"
+  for _c in "${_CONTAINERS[@]}"; do
+    echo "Restarting container $_c..."
+    docker restart "$_c" 2>/dev/null || {
+      echo "Warning: container $_c not running." >&2
+    }
+  done
 
   # Wait for health check
   echo -n "Waiting for health..."
   for i in $(seq 1 15); do
-    if curl -sf "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
+    if curl -sf "http://127.0.0.1:${PORT}${HEALTH_PATH}" >/dev/null 2>&1; then
       echo " healthy!"
-      curl -sf "http://127.0.0.1:${PORT}/api/health"
+      curl -sf "http://127.0.0.1:${PORT}${HEALTH_PATH}"
       echo ""
       return 0
     fi
@@ -159,7 +163,7 @@ echo ""
 if [ "$MODE" = "--watch" ]; then
   echo "Watching for changes (Ctrl+C to stop)..."
   echo ""
-  cargo watch -s "cargo build --target $TARGET -p $CRATE --bin $BIN_NAME && docker restart $CONTAINER"
+  cargo watch -s "cargo build --target $TARGET -p $CRATE --bin $BIN_NAME && for c in ${CONTAINER//,/ }; do docker restart \$c; done"
 else
   cross_build_and_restart
 fi
