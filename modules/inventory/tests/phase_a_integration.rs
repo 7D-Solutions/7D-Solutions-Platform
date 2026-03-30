@@ -29,7 +29,8 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string()
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
     });
 
     let pool = PgPoolOptions::new()
@@ -95,11 +96,19 @@ fn receipt_req(
 async fn purchase_receipt_regression() {
     let pool = setup_db().await;
     let tenant = format!("pa-purchase-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("PUR-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("PUR-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
-    let req = receipt_req(&tenant, item.id, "purchase", &format!("pa-pur-{}", Uuid::new_v4()));
+    let req = receipt_req(
+        &tenant,
+        item.id,
+        "purchase",
+        &format!("pa-pur-{}", Uuid::new_v4()),
+    );
     let wh = req.warehouse_id;
     let (result, _idempotent) = process_receipt(&pool, &req, None).await.expect("receipt");
 
@@ -142,12 +151,22 @@ async fn purchase_receipt_regression() {
 async fn production_receipt_accepted() {
     let pool = setup_db().await;
     let tenant = format!("pa-prod-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("PROD-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("PROD-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
-    let req = receipt_req(&tenant, item.id, "production", &format!("pa-prod-{}", Uuid::new_v4()));
-    let (result, _) = process_receipt(&pool, &req, None).await.expect("production receipt");
+    let req = receipt_req(
+        &tenant,
+        item.id,
+        "production",
+        &format!("pa-prod-{}", Uuid::new_v4()),
+    );
+    let (result, _) = process_receipt(&pool, &req, None)
+        .await
+        .expect("production receipt");
 
     assert_eq!(result.source_type, "production");
 
@@ -172,12 +191,22 @@ async fn production_receipt_accepted() {
 async fn return_receipt_accepted() {
     let pool = setup_db().await;
     let tenant = format!("pa-ret-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("RET-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("RET-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
-    let req = receipt_req(&tenant, item.id, "return", &format!("pa-ret-{}", Uuid::new_v4()));
-    let (result, _) = process_receipt(&pool, &req, None).await.expect("return receipt");
+    let req = receipt_req(
+        &tenant,
+        item.id,
+        "return",
+        &format!("pa-ret-{}", Uuid::new_v4()),
+    );
+    let (result, _) = process_receipt(&pool, &req, None)
+        .await
+        .expect("return receipt");
 
     assert_eq!(result.source_type, "return");
 }
@@ -191,11 +220,19 @@ async fn return_receipt_accepted() {
 async fn invalid_source_type_rejected() {
     let pool = setup_db().await;
     let tenant = format!("pa-inv-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("INV-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("INV-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
-    let req = receipt_req(&tenant, item.id, "invalid_type", &format!("pa-inv-{}", Uuid::new_v4()));
+    let req = receipt_req(
+        &tenant,
+        item.id,
+        "invalid_type",
+        &format!("pa-inv-{}", Uuid::new_v4()),
+    );
     let result = process_receipt(&pool, &req, None).await;
 
     assert!(result.is_err(), "invalid source_type should be rejected");
@@ -216,9 +253,12 @@ async fn invalid_source_type_rejected() {
 async fn set_make_buy_classification() {
     let pool = setup_db().await;
     let tenant = format!("pa-mb-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("MB-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("MB-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
     // Initially null
     assert!(item.make_buy.is_none());
@@ -230,7 +270,9 @@ async fn set_make_buy_classification() {
         correlation_id: Some("pa-test".to_string()),
         causation_id: None,
     };
-    let result = set_make_buy(&pool, item.id, &req).await.expect("set make_buy");
+    let result = set_make_buy(&pool, item.id, &req)
+        .await
+        .expect("set make_buy");
     assert_eq!(result.item.make_buy.as_deref(), Some("make"));
     assert!(result.previous_value.is_none());
 
@@ -241,7 +283,9 @@ async fn set_make_buy_classification() {
         correlation_id: Some("pa-test".to_string()),
         causation_id: None,
     };
-    let result2 = set_make_buy(&pool, item.id, &req2).await.expect("change make_buy");
+    let result2 = set_make_buy(&pool, item.id, &req2)
+        .await
+        .expect("change make_buy");
     assert_eq!(result2.item.make_buy.as_deref(), Some("buy"));
     assert_eq!(result2.previous_value.as_deref(), Some("make"));
 }
@@ -255,9 +299,12 @@ async fn set_make_buy_classification() {
 async fn make_buy_emits_outbox_event() {
     let pool = setup_db().await;
     let tenant = format!("pa-mb-evt-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("MBE-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("MBE-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
     let req = SetMakeBuyRequest {
         tenant_id: tenant.clone(),
@@ -265,7 +312,9 @@ async fn make_buy_emits_outbox_event() {
         correlation_id: Some("pa-evt-test".to_string()),
         causation_id: None,
     };
-    set_make_buy(&pool, item.id, &req).await.expect("set make_buy");
+    set_make_buy(&pool, item.id, &req)
+        .await
+        .expect("set make_buy");
 
     let outbox_payload: serde_json::Value = sqlx::query_scalar(
         "SELECT payload FROM inv_outbox WHERE tenant_id = $1 AND event_type = 'inventory.make_buy_changed' ORDER BY created_at DESC LIMIT 1",
@@ -278,7 +327,10 @@ async fn make_buy_emits_outbox_event() {
     let payload = &outbox_payload["payload"];
     assert_eq!(payload["new_value"].as_str(), Some("buy"));
     assert!(payload["previous_value"].is_null());
-    assert_eq!(payload["item_id"].as_str(), Some(item.id.to_string().as_str()));
+    assert_eq!(
+        payload["item_id"].as_str(),
+        Some(item.id.to_string().as_str())
+    );
 }
 
 // ============================================================================
@@ -290,9 +342,12 @@ async fn make_buy_emits_outbox_event() {
 async fn make_buy_invalid_rejected() {
     let pool = setup_db().await;
     let tenant = format!("pa-mb-inv-{}", Uuid::new_v4());
-    let item = ItemRepo::create(&pool, &create_item_req(&tenant, &format!("MBI-{}", Uuid::new_v4())))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant, &format!("MBI-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item");
 
     let req = SetMakeBuyRequest {
         tenant_id: tenant.clone(),
@@ -316,9 +371,12 @@ async fn make_buy_tenant_isolation() {
     let tenant_a = format!("pa-iso-a-{}", Uuid::new_v4());
     let tenant_b = format!("pa-iso-b-{}", Uuid::new_v4());
 
-    let item_a = ItemRepo::create(&pool, &create_item_req(&tenant_a, &format!("ISO-A-{}", Uuid::new_v4())))
-        .await
-        .expect("create item a");
+    let item_a = ItemRepo::create(
+        &pool,
+        &create_item_req(&tenant_a, &format!("ISO-A-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create item a");
 
     // Set make/buy on tenant_a's item
     let req = SetMakeBuyRequest {
@@ -327,7 +385,9 @@ async fn make_buy_tenant_isolation() {
         correlation_id: None,
         causation_id: None,
     };
-    set_make_buy(&pool, item_a.id, &req).await.expect("set make_buy on item_a");
+    set_make_buy(&pool, item_a.id, &req)
+        .await
+        .expect("set make_buy on item_a");
 
     // Tenant B should not be able to set make_buy on tenant_a's item
     let cross_req = SetMakeBuyRequest {
@@ -353,6 +413,8 @@ async fn create_item_with_make_buy() {
     let mut req = create_item_req(&tenant, &format!("CMB-{}", Uuid::new_v4()));
     req.make_buy = Some("buy".to_string());
 
-    let item = ItemRepo::create(&pool, &req).await.expect("create item with make_buy");
+    let item = ItemRepo::create(&pool, &req)
+        .await
+        .expect("create item with make_buy");
     assert_eq!(item.make_buy.as_deref(), Some("buy"));
 }

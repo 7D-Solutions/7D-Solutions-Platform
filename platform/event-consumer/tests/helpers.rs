@@ -12,7 +12,7 @@ pub async fn get_pool() -> PgPool {
         .or_else(|_| std::env::var("AUDIT_DATABASE_URL"))
         .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
         .unwrap_or_else(|_| {
-            "postgresql://audit_user:audit_pass@localhost:5440/audit_db?sslmode=disable".to_string()
+            "postgresql://audit_user:audit_pass@localhost:5440/audit_db?sslmode=require".to_string()
         });
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);

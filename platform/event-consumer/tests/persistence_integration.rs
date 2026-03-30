@@ -4,8 +4,8 @@
 mod helpers;
 
 use event_consumer::{
-    DedupeError, DedupeOutcome, FailureKind, HandlerError,
-    classify_handler_error, with_dedupe, write_dlq_entry,
+    classify_handler_error, with_dedupe, write_dlq_entry, DedupeError, DedupeOutcome, FailureKind,
+    HandlerError,
 };
 use uuid::Uuid;
 
@@ -167,10 +167,7 @@ async fn dlq_upsert_overwrites_on_conflict() {
     let entries = event_consumer::dlq::list_dlq_entries(&pool, None, 100)
         .await
         .unwrap();
-    let entry = entries
-        .iter()
-        .find(|e| e.event_id == event_id)
-        .unwrap();
+    let entry = entries.iter().find(|e| e.event_id == event_id).unwrap();
 
     assert_eq!(entry.failure_kind, FailureKind::Fatal);
     assert_eq!(entry.error_message, "permanently bad");

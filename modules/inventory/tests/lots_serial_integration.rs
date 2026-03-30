@@ -27,8 +27,10 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
+    });
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -54,7 +56,7 @@ async fn create_lot_item(pool: &sqlx::PgPool, tenant_id: &str) -> Uuid {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::Lot,
-        make_buy: None,
+            make_buy: None,
         },
     )
     .await
@@ -75,7 +77,7 @@ async fn create_serial_item(pool: &sqlx::PgPool, tenant_id: &str) -> Uuid {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::Serial,
-        make_buy: None,
+            make_buy: None,
         },
     )
     .await

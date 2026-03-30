@@ -161,15 +161,10 @@ async fn fg_receipt_single_component_cost_rollup() {
         currency: "usd".to_string(),
     };
 
-    let result = process_fg_receipt_request(
-        &pool,
-        fg_event_id,
-        &fg_payload,
-        Some("fg-test-corr"),
-        None,
-    )
-    .await
-    .expect("process FG receipt");
+    let result =
+        process_fg_receipt_request(&pool, fg_event_id, &fg_payload, Some("fg-test-corr"), None)
+            .await
+            .expect("process FG receipt");
 
     // Arithmetic spot-check:
     // Expected unit cost = 5000 / 5 = 1000 (= $10.00 per FG unit)
@@ -281,15 +276,10 @@ async fn fg_receipt_multiple_components_fifo_cost_rollup() {
         currency: "usd".to_string(),
     };
 
-    let result = process_fg_receipt_request(
-        &pool,
-        fg_event_id,
-        &fg_payload,
-        Some("fg-multi-corr"),
-        None,
-    )
-    .await
-    .expect("process FG receipt");
+    let result =
+        process_fg_receipt_request(&pool, fg_event_id, &fg_payload, Some("fg-multi-corr"), None)
+            .await
+            .expect("process FG receipt");
 
     // Arithmetic spot-check:
     // Expected unit cost = 21500 / 10 = 2150 (= $21.50 per FG unit)
@@ -416,25 +406,15 @@ async fn fg_receipt_idempotent() {
         currency: "usd".to_string(),
     };
 
-    let r1 = process_fg_receipt_request(
-        &pool,
-        fg_event_id,
-        &fg_payload,
-        Some("fg-idem-corr"),
-        None,
-    )
-    .await
-    .expect("first FG receipt");
+    let r1 =
+        process_fg_receipt_request(&pool, fg_event_id, &fg_payload, Some("fg-idem-corr"), None)
+            .await
+            .expect("first FG receipt");
 
-    let r2 = process_fg_receipt_request(
-        &pool,
-        fg_event_id,
-        &fg_payload,
-        Some("fg-idem-corr"),
-        None,
-    )
-    .await
-    .expect("second FG receipt (replay)");
+    let r2 =
+        process_fg_receipt_request(&pool, fg_event_id, &fg_payload, Some("fg-idem-corr"), None)
+            .await
+            .expect("second FG receipt (replay)");
 
     assert_eq!(r1.receipt_line_id, r2.receipt_line_id);
     assert_eq!(r1.unit_cost_minor, r2.unit_cost_minor);
@@ -548,15 +528,9 @@ async fn fg_receipt_emits_item_received_event() {
         currency: "usd".to_string(),
     };
 
-    process_fg_receipt_request(
-        &pool,
-        fg_event_id,
-        &fg_payload,
-        Some("fg-evt-corr"),
-        None,
-    )
-    .await
-    .expect("process FG receipt");
+    process_fg_receipt_request(&pool, fg_event_id, &fg_payload, Some("fg-evt-corr"), None)
+        .await
+        .expect("process FG receipt");
 
     // Verify outbox has inventory.item_received with source_type=production
     let outbox_payload: serde_json::Value = sqlx::query_scalar(
@@ -571,8 +545,5 @@ async fn fg_receipt_emits_item_received_event() {
     assert_eq!(p["source_type"].as_str(), Some("production"));
     assert_eq!(p["unit_cost_minor"].as_i64(), Some(4000));
     assert_eq!(p["quantity"].as_i64(), Some(4));
-    assert_eq!(
-        p["item_id"].as_str(),
-        Some(fg_item.id.to_string().as_str())
-    );
+    assert_eq!(p["item_id"].as_str(), Some(fg_item.id.to_string().as_str()));
 }

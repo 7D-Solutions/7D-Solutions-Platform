@@ -122,15 +122,10 @@ async fn component_issue_single_item_happy_path() {
         }],
     };
 
-    let results = process_component_issue_request(
-        &pool,
-        event_id,
-        &payload,
-        Some("ci-test-corr"),
-        None,
-    )
-    .await
-    .expect("process component issue");
+    let results =
+        process_component_issue_request(&pool, event_id, &payload, Some("ci-test-corr"), None)
+            .await
+            .expect("process component issue");
 
     assert_eq!(results.len(), 1);
     let result = &results[0];
@@ -323,16 +318,14 @@ async fn component_issue_idempotent() {
     };
 
     // First call
-    let r1 =
-        process_component_issue_request(&pool, event_id, &payload, Some("ci-idem-corr"), None)
-            .await
-            .expect("first call");
+    let r1 = process_component_issue_request(&pool, event_id, &payload, Some("ci-idem-corr"), None)
+        .await
+        .expect("first call");
 
     // Second call with same event_id — should replay
-    let r2 =
-        process_component_issue_request(&pool, event_id, &payload, Some("ci-idem-corr"), None)
-            .await
-            .expect("second call (replay)");
+    let r2 = process_component_issue_request(&pool, event_id, &payload, Some("ci-idem-corr"), None)
+        .await
+        .expect("second call (replay)");
 
     assert_eq!(r1[0].issue_line_id, r2[0].issue_line_id);
     assert_eq!(r1[0].total_cost_minor, r2[0].total_cost_minor);

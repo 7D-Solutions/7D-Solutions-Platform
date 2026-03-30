@@ -27,8 +27,10 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
+    });
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -141,7 +143,10 @@ async fn classification_happy_path_e2e() {
     assert_eq!(cls.item_id, item.id);
     assert_eq!(cls.classification_system, "product_line");
     assert_eq!(cls.classification_code, "aerospace");
-    assert_eq!(cls.classification_label.as_deref(), Some("Label for aerospace"));
+    assert_eq!(
+        cls.classification_label.as_deref(),
+        Some("Label for aerospace")
+    );
     assert_eq!(cls.commodity_system.as_deref(), Some("UNSPSC"));
     assert_eq!(cls.commodity_code.as_deref(), Some("31162800"));
     assert_eq!(cls.assigned_by, "test-user");
@@ -198,10 +203,7 @@ async fn classification_tenant_isolation() {
     let b_sees_own = list_classifications(&pool, &tenant_b, item_b.id)
         .await
         .expect("query own");
-    assert!(
-        b_sees_own.is_empty(),
-        "tenant B has no classifications yet"
-    );
+    assert!(b_sees_own.is_empty(), "tenant B has no classifications yet");
 
     // Filter by classification: tenant B should find zero results
     let b_filter = list_items_by_classification(&pool, &tenant_b, "department", "engineering")

@@ -21,7 +21,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable"
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
             .to_string()
     });
 
@@ -106,14 +106,11 @@ async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
         "item_on_hand",
         "items",
     ] {
-        sqlx::query(&format!(
-            "DELETE FROM {} WHERE tenant_id = $1",
-            table
-        ))
-        .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query(&format!("DELETE FROM {} WHERE tenant_id = $1", table))
+            .bind(tenant_id)
+            .execute(pool)
+            .await
+            .ok();
     }
 }
 

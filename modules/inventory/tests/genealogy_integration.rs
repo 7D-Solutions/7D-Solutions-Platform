@@ -31,8 +31,10 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
+    });
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -58,7 +60,7 @@ async fn create_lot_item(pool: &sqlx::PgPool, tenant_id: &str) -> Uuid {
             variance_account_ref: "5010".to_string(),
             uom: None,
             tracking_mode: TrackingMode::Lot,
-        make_buy: None,
+            make_buy: None,
         },
     )
     .await
@@ -66,13 +68,7 @@ async fn create_lot_item(pool: &sqlx::PgPool, tenant_id: &str) -> Uuid {
     .id
 }
 
-async fn receive_lot(
-    pool: &sqlx::PgPool,
-    tenant: &str,
-    item_id: Uuid,
-    lot_code: &str,
-    qty: i64,
-) {
+async fn receive_lot(pool: &sqlx::PgPool, tenant: &str, item_id: Uuid, lot_code: &str, qty: i64) {
     process_receipt(
         pool,
         &ReceiptRequest {
@@ -203,10 +199,7 @@ async fn test_split_creates_edges_and_outbox_event() {
         .expect("query children");
     assert_eq!(children.len(), 2);
     assert!(children.iter().all(|e| e.transformation == "split"));
-    assert_eq!(
-        children.iter().map(|e| e.quantity).sum::<i64>(),
-        100
-    );
+    assert_eq!(children.iter().map(|e| e.quantity).sum::<i64>(), 100);
 
     // Verify outbox event
     let outbox_count: i64 = sqlx::query_scalar(
@@ -626,13 +619,12 @@ async fn test_graph_integrity_split_then_merge() {
     );
 
     // Total edge count should be 4
-    let total_edges: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_lot_genealogy WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let total_edges: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_lot_genealogy WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(total_edges, 4);
 
     cleanup(&pool, &tenant).await;
@@ -807,11 +799,7 @@ async fn test_multilevel_genealogy_trace() {
     .unwrap();
 
     let level1a_children = children_of(&pool, &tenant, level1a_id).await.unwrap();
-    assert_eq!(
-        level1a_children.len(),
-        2,
-        "LEVEL1-A should have 2 children"
-    );
+    assert_eq!(level1a_children.len(), 2, "LEVEL1-A should have 2 children");
 
     // Trace backward from LEAF-1: should have 1 parent (LEVEL1-A)
     let leaf1_id: Uuid = sqlx::query_scalar(
@@ -836,13 +824,12 @@ async fn test_multilevel_genealogy_trace() {
     assert_eq!(level1a_parents[0].parent_lot_id, root_id);
 
     // Total edge count: 2 (ROOT split) + 2 (LEVEL1-A split) = 4
-    let total_edges: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_lot_genealogy WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let total_edges: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_lot_genealogy WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(total_edges, 4, "should have 4 genealogy edges total");
 
     cleanup(&pool, &tenant).await;

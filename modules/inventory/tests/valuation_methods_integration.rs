@@ -14,9 +14,9 @@
 
 use chrono::Utc;
 use inventory_rs::domain::{
+    issue_service::{process_issue, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptRequest},
-    issue_service::{process_issue, IssueRequest},
     valuation::{
         methods::ValuationMethod,
         run_service::{
@@ -34,8 +34,10 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
+    });
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -160,7 +162,14 @@ async fn seed_multi_layer(pool: &sqlx::PgPool, tenant: &str) -> (Uuid, Uuid) {
     // Receipt 1: 10 @ $5.00
     process_receipt(
         pool,
-        &receipt_req(tenant, item.id, warehouse_id, 10, 500, &format!("r1-{suffix}")),
+        &receipt_req(
+            tenant,
+            item.id,
+            warehouse_id,
+            10,
+            500,
+            &format!("r1-{suffix}"),
+        ),
         None,
     )
     .await
@@ -169,7 +178,14 @@ async fn seed_multi_layer(pool: &sqlx::PgPool, tenant: &str) -> (Uuid, Uuid) {
     // Receipt 2: 20 @ $8.00
     process_receipt(
         pool,
-        &receipt_req(tenant, item.id, warehouse_id, 20, 800, &format!("r2-{suffix}")),
+        &receipt_req(
+            tenant,
+            item.id,
+            warehouse_id,
+            20,
+            800,
+            &format!("r2-{suffix}"),
+        ),
         None,
     )
     .await
@@ -178,7 +194,14 @@ async fn seed_multi_layer(pool: &sqlx::PgPool, tenant: &str) -> (Uuid, Uuid) {
     // Receipt 3: 15 @ $10.00
     process_receipt(
         pool,
-        &receipt_req(tenant, item.id, warehouse_id, 15, 1000, &format!("r3-{suffix}")),
+        &receipt_req(
+            tenant,
+            item.id,
+            warehouse_id,
+            15,
+            1000,
+            &format!("r3-{suffix}"),
+        ),
         None,
     )
     .await
@@ -216,9 +239,7 @@ async fn test_lifo_valuation_e2e() {
     let (item_id, warehouse_id) = seed_multi_layer(&pool, &tenant).await;
 
     let req = run_req(&tenant, warehouse_id, ValuationMethod::Lifo, "lifo-e2e-001");
-    let (result, is_replay) = execute_valuation_run(&pool, &req)
-        .await
-        .expect("lifo run");
+    let (result, is_replay) = execute_valuation_run(&pool, &req).await.expect("lifo run");
 
     assert!(!is_replay);
     assert_eq!(result.method, "lifo");
@@ -250,9 +271,7 @@ async fn test_wac_valuation_e2e() {
     let (_item_id, warehouse_id) = seed_multi_layer(&pool, &tenant).await;
 
     let req = run_req(&tenant, warehouse_id, ValuationMethod::Wac, "wac-e2e-001");
-    let (result, is_replay) = execute_valuation_run(&pool, &req)
-        .await
-        .expect("wac run");
+    let (result, is_replay) = execute_valuation_run(&pool, &req).await.expect("wac run");
 
     assert!(!is_replay);
     assert_eq!(result.method, "wac");
@@ -433,10 +452,13 @@ async fn test_tenant_isolation() {
     .expect("receipt a");
 
     // Tenant B: run valuation — should see zero stock from tenant A
-    let req_b = run_req(&tenant_b, warehouse_id, ValuationMethod::Fifo, &format!("iso-b-{suffix}"));
-    let (result_b, _) = execute_valuation_run(&pool, &req_b)
-        .await
-        .expect("run b");
+    let req_b = run_req(
+        &tenant_b,
+        warehouse_id,
+        ValuationMethod::Fifo,
+        &format!("iso-b-{suffix}"),
+    );
+    let (result_b, _) = execute_valuation_run(&pool, &req_b).await.expect("run b");
 
     assert_eq!(result_b.line_count, 0);
     assert_eq!(result_b.total_value_minor, 0);
@@ -449,9 +471,7 @@ async fn test_tenant_isolation() {
         ValuationMethod::Fifo,
         &format!("iso-a-{suffix}"),
     );
-    let (result_a, _) = execute_valuation_run(&pool, &req_a)
-        .await
-        .expect("run a");
+    let (result_a, _) = execute_valuation_run(&pool, &req_a).await.expect("run a");
 
     assert_eq!(result_a.line_count, 1);
     assert_eq!(result_a.total_value_minor, 50000); // 100 * 500
@@ -473,9 +493,7 @@ async fn test_idempotency() {
     let req = run_req(&tenant, warehouse_id, ValuationMethod::Lifo, "idem-001");
 
     // First call
-    let (first, is_replay_1) = execute_valuation_run(&pool, &req)
-        .await
-        .expect("first run");
+    let (first, is_replay_1) = execute_valuation_run(&pool, &req).await.expect("first run");
     assert!(!is_replay_1);
 
     // Second call with same key + same body → replay
@@ -487,14 +505,13 @@ async fn test_idempotency() {
     assert_eq!(first.total_value_minor, second.total_value_minor);
 
     // Check no duplicate run records in DB
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM valuation_runs WHERE tenant_id = $1 AND id = $2",
-    )
-    .bind(&tenant)
-    .bind(first.run_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM valuation_runs WHERE tenant_id = $1 AND id = $2")
+            .bind(&tenant)
+            .bind(first.run_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count query");
     assert_eq!(count.0, 1, "no duplicate run records");
 
     // Different body with same key → conflict

@@ -30,8 +30,10 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=disable".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?sslmode=require"
+            .to_string()
+    });
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -369,9 +371,7 @@ async fn change_history_outbox_event_emitted() {
     let idem = format!("idem-{}", Uuid::new_v4());
     let mut req = make_create_rev(&tenant, item.id, &idem);
     req.actor_id = Some("user-alice".to_string());
-    create_revision(&pool, &req)
-        .await
-        .expect("create revision");
+    create_revision(&pool, &req).await.expect("create revision");
 
     // Query outbox for the change_recorded event
     let outbox_rows: Vec<(String, serde_json::Value)> = sqlx::query_as(

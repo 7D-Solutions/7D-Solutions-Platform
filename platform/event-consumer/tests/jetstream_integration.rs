@@ -10,7 +10,7 @@ use async_nats::jetstream::{self, stream};
 use event_bus::consumer_retry::RetryConfig;
 use event_bus::EventEnvelope;
 use event_consumer::{
-    ConsumerConfig, HandlerError, JetStreamConsumer, RegistryBuilder, EventRouter,
+    ConsumerConfig, EventRouter, HandlerError, JetStreamConsumer, RegistryBuilder,
 };
 use uuid::Uuid;
 
@@ -24,10 +24,7 @@ async fn nats_client() -> async_nats::Client {
 }
 
 /// Create a uniquely-named stream for test isolation.
-async fn create_test_stream(
-    js: &jetstream::Context,
-    suffix: &str,
-) -> String {
+async fn create_test_stream(js: &jetstream::Context, suffix: &str) -> String {
     let stream_name = format!("TEST_EC_{}", suffix);
     let subject_prefix = format!("test.ec.{}", suffix);
 
@@ -126,7 +123,11 @@ async fn consume_and_ack_after_successful_handler() {
 
     // Verify health.
     let snap = health.snapshot();
-    assert!(snap.messages_processed >= 1, "processed={}", snap.messages_processed);
+    assert!(
+        snap.messages_processed >= 1,
+        "processed={}",
+        snap.messages_processed
+    );
     assert!(snap.is_running, "consumer should be running");
 
     // Shutdown.
@@ -201,14 +202,16 @@ async fn retry_then_dlq_on_transient_failure() {
     assert!(snap.messages_dlq >= 1, "dlq={}", snap.messages_dlq);
 
     // Verify DLQ entry in Postgres.
-    let row = sqlx::query_as::<_, (String,)>(
-        "SELECT error_message FROM event_dlq WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_optional(&pool)
-    .await
-    .expect("DLQ query");
-    assert!(row.is_some(), "DLQ entry must exist for event_id={event_id}");
+    let row =
+        sqlx::query_as::<_, (String,)>("SELECT error_message FROM event_dlq WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_optional(&pool)
+            .await
+            .expect("DLQ query");
+    assert!(
+        row.is_some(),
+        "DLQ entry must exist for event_id={event_id}"
+    );
 
     let _ = shutdown_tx.send(true);
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
