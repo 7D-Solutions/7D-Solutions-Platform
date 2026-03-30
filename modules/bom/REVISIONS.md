@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.2 | 2026-03-29 | bd-t21av | Split oversize domain files: eco_service.rs → eco_service/{lifecycle,service}.rs, bom_service.rs → bom_service/{headers,lines}.rs. All files under 500 LOC. Pure move/rename, no logic changes. | CopperRiver review flagged two domain files over 500 LOC limit. | No |
 | 1.0.1 | 2026-03-28 | bd-29c9i.2 | Sanitized BOM HTTP 409 duplicate responses so unique-constraint violations return a static business-safe message instead of raw PostgreSQL error text. | Security audit found that duplicate-create conflicts leaked internal constraint names and schema details to API consumers. | No |
 | 1.0.0 | 2026-03-28 | bd-32crl | Initial proof. BOM header/line CRUD, revision management, multi-level explosion (recursive CTE with cycle detection and max-depth guard), scrap factor validation, quantity guards, admin endpoints. 5 unit tests pass, clippy clean. Integration tests advisory (DB connectivity). | Bill of materials module code complete and unit-tested. All gates pass. | No |
 
