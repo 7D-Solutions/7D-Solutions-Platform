@@ -15,6 +15,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::create_inventory_envelope;
@@ -95,7 +96,7 @@ pub fn build_item_received_envelope(
 /// One FIFO layer consumed during an issue.
 ///
 /// `extended_cost_minor` is precomputed: `quantity * unit_cost_minor`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConsumedLayer {
     pub layer_id: Uuid,
     /// Units drawn from this layer (always > 0)
@@ -107,7 +108,7 @@ pub struct ConsumedLayer {
 }
 
 /// Source reference: who triggered this issue.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SourceRef {
     pub source_module: String,
     pub source_type: String,

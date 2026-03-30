@@ -19,6 +19,7 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::cycle_count_submitted::{
@@ -31,7 +32,7 @@ use crate::events::cycle_count_submitted::{
 // ============================================================================
 
 /// One line in the submit request (caller supplies counted_qty per line_id).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SubmitLineInput {
     pub line_id: Uuid,
     /// Physical count; must be >= 0

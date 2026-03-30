@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::valuation_snapshot_created::{
@@ -33,7 +34,7 @@ use crate::events::valuation_snapshot_created::{
 // ============================================================================
 
 /// Request to build a valuation snapshot.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateSnapshotRequest {
     pub tenant_id: String,
     pub warehouse_id: Uuid,

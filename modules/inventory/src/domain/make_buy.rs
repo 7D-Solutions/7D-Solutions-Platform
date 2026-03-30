@@ -7,6 +7,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::items::{Item, ItemError};
@@ -19,7 +20,7 @@ use crate::events::{
 // ============================================================================
 
 /// Manufacturing classification: MAKE (manufactured in-house) or BUY (purchased).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MakeBuy {
     Make,
@@ -96,7 +97,7 @@ pub enum MakeBuyError {
 // ============================================================================
 
 /// Input for PUT /api/inventory/items/:id/make-buy
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SetMakeBuyRequest {
     pub tenant_id: String,
     /// "make" | "buy"

@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// A genealogy edge returned by query functions.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct GenealogyEdge {
     pub id: Uuid,
     pub tenant_id: String,

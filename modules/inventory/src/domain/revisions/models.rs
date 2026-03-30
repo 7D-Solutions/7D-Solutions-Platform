@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -37,7 +38,7 @@ pub struct ItemRevision {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateRevisionRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -64,7 +65,7 @@ pub struct CreateRevisionRequest {
     pub actor_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ActivateRevisionRequest {
     pub tenant_id: String,
     pub effective_from: DateTime<Utc>,
@@ -77,7 +78,7 @@ pub struct ActivateRevisionRequest {
     pub actor_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UpdateRevisionPolicyRequest {
     pub tenant_id: String,
     pub traceability_level: String,

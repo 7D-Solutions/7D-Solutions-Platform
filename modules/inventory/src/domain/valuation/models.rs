@@ -44,7 +44,7 @@ pub struct ValuationSnapshot {
 ///
 /// `total_value_minor = quantity_on_hand * unit_cost_minor` (pre-computed).
 /// `unit_cost_minor` is the weighted-average unit cost of remaining FIFO layers.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ValuationLine {
     pub id: Uuid,
     pub snapshot_id: Uuid,

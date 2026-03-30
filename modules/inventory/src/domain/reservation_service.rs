@@ -17,6 +17,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::guards::{guard_item_active, guard_quantity_positive, GuardError};
@@ -30,7 +31,7 @@ const EVENT_TYPE_RESERVATION_RELEASED: &str = "inventory.reservation_released";
 // ============================================================================
 
 /// Input for POST /api/inventory/reservations/reserve
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReserveRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -49,7 +50,7 @@ pub struct ReserveRequest {
 }
 
 /// Result returned on successful or replayed reserve
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReserveResult {
     /// UUID of the created reservation row (primary entry)
     pub reservation_id: Uuid,
@@ -67,7 +68,7 @@ pub struct ReserveResult {
 // ============================================================================
 
 /// Input for POST /api/inventory/reservations/release
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReleaseRequest {
     pub tenant_id: String,
     /// UUID of the original reserve row to compensate
@@ -79,7 +80,7 @@ pub struct ReleaseRequest {
 }
 
 /// Result returned on successful or replayed release
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReleaseResult {
     /// UUID of the compensating reservation row (release entry)
     pub release_id: Uuid,

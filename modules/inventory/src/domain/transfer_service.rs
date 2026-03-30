@@ -13,6 +13,7 @@ use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -32,7 +33,7 @@ use crate::{
 // ============================================================================
 
 /// Input for POST /api/inventory/transfers
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TransferRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -48,7 +49,7 @@ pub struct TransferRequest {
 }
 
 /// Result returned on successful or replayed transfer
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TransferResult {
     /// Stable business key for this transfer (= inv_transfers.id)
     pub transfer_id: Uuid,

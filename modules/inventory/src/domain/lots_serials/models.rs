@@ -58,7 +58,7 @@ pub struct CreateLotRequest {
 /// Transitions are terminal — once a unit leaves `OnHand` it cannot be
 /// re-received. The ledger is append-only; compensating movements create new
 /// entries rather than reversing this status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SerialStatus {
     OnHand,

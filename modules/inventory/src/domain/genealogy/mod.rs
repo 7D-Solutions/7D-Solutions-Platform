@@ -18,6 +18,7 @@ pub mod split;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -36,7 +37,7 @@ pub use split::process_split;
 ///
 /// A split takes one parent lot and distributes quantity to one or more
 /// child lots. Child lots are created if they don't already exist.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LotSplitRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -49,7 +50,7 @@ pub struct LotSplitRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SplitChild {
     pub lot_code: String,
     pub quantity: i64,
@@ -59,7 +60,7 @@ pub struct SplitChild {
 ///
 /// A merge takes multiple parent lots and combines their quantity into a
 /// single child lot. The child lot is created if it doesn't already exist.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct LotMergeRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -72,14 +73,14 @@ pub struct LotMergeRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MergeParent {
     pub lot_code: String,
     pub quantity: i64,
 }
 
 /// Result returned on successful split or merge.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GenealogyResult {
     pub operation_id: Uuid,
     pub edge_count: usize,

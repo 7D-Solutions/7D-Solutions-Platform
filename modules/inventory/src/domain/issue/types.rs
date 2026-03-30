@@ -3,6 +3,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
 // ============================================================================
 
 /// Input for POST /api/inventory/issues
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct IssueRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -57,7 +58,7 @@ pub struct IssueRequest {
 }
 
 /// Result returned on successful or replayed issue
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IssueResult {
     /// Stable business key for this issue (= ledger entry_id)
     pub issue_line_id: Uuid,

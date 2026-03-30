@@ -4,6 +4,7 @@ use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::{
@@ -11,7 +12,7 @@ use crate::events::{
     EVENT_TYPE_EXPIRY_ALERT, EVENT_TYPE_EXPIRY_SET,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct LotExpiryRecord {
     pub lot_id: Uuid,
     pub tenant_id: String,
@@ -22,7 +23,7 @@ pub struct LotExpiryRecord {
     pub expiry_set_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SetLotExpiryRequest {
     pub tenant_id: String,
     pub lot_id: Uuid,
@@ -37,7 +38,7 @@ pub struct SetLotExpiryRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RunExpiryAlertScanRequest {
     pub tenant_id: String,
     #[serde(default)]
@@ -48,7 +49,7 @@ pub struct RunExpiryAlertScanRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RunExpiryAlertScanResult {
     pub tenant_id: String,
     pub as_of_date: NaiveDate,

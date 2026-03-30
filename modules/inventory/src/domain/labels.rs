@@ -43,7 +43,7 @@ pub struct Label {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct GenerateLabelRequest {
     pub tenant_id: String,
     pub item_id: Uuid,

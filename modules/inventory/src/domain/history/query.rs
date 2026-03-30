@@ -15,6 +15,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -25,7 +26,7 @@ use uuid::Uuid;
 ///
 /// Includes both the business reference (`reference_type` / `reference_id`)
 /// and the originating event reference (`source_event_id` / `source_event_type`).
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct MovementEntry {
     /// Stable monotonic ordering key (BIGSERIAL primary key of inventory_ledger).
     pub ledger_id: i64,

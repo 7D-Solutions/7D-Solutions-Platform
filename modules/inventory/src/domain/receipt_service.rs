@@ -12,6 +12,7 @@ use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -43,7 +44,7 @@ pub const SOURCE_TYPE_PRODUCTION: &str = "production";
 pub const SOURCE_TYPE_RETURN: &str = "return";
 
 /// Input for POST /api/inventory/receipts
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ReceiptRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -85,7 +86,7 @@ fn default_source_type() -> String {
 }
 
 /// Result returned on successful or replayed receipt
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReceiptResult {
     /// Stable business key for this receipt (from ledger.entry_id)
     pub receipt_line_id: Uuid,

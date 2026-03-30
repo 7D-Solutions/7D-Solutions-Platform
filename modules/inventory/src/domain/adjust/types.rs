@@ -3,6 +3,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::guards::GuardError;
@@ -12,7 +13,7 @@ use crate::domain::guards::GuardError;
 // ============================================================================
 
 /// Input for POST /api/inventory/adjustments
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AdjustRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -38,7 +39,7 @@ pub struct AdjustRequest {
 }
 
 /// Result returned on successful or replayed adjustment
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AdjustResult {
     /// Stable business key for this adjustment (inv_adjustments.id)
     pub adjustment_id: Uuid,

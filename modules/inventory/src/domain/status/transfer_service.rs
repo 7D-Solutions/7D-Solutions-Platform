@@ -8,6 +8,7 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -20,7 +21,7 @@ use crate::{
 };
 
 /// Input for POST /api/inventory/status-transfers
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct StatusTransferRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -38,7 +39,7 @@ pub struct StatusTransferRequest {
 }
 
 /// Result returned on successful or replayed transfer
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct StatusTransferResult {
     /// Stable business key for this transfer (inv_status_transfers row id)
     pub transfer_id: Uuid,

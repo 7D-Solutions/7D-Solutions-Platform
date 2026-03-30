@@ -17,6 +17,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -24,7 +25,7 @@ use uuid::Uuid;
 // ============================================================================
 
 /// A unit of measure in the tenant's catalog (e.g. "ea", "kg", "box").
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Uom {
     pub id: Uuid,
     pub tenant_id: String,
@@ -37,7 +38,7 @@ pub struct Uom {
 ///
 /// Semantics: `quantity_in_from_uom * factor = quantity_in_to_uom`
 /// Example: 1 box = 12 ea → from=box, to=ea, factor=12.0
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ItemUomConversion {
     pub id: Uuid,
     pub tenant_id: String,
@@ -54,7 +55,7 @@ pub struct ItemUomConversion {
 // ============================================================================
 
 /// Input for POST /api/inventory/uoms
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateUomRequest {
     pub tenant_id: String,
     pub code: String,
@@ -62,7 +63,7 @@ pub struct CreateUomRequest {
 }
 
 /// Input for POST /api/inventory/items/:id/uom-conversions
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateConversionRequest {
     pub tenant_id: String,
     pub from_uom_id: Uuid,

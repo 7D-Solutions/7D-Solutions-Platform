@@ -36,7 +36,7 @@ pub struct Location {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateLocationRequest {
     pub tenant_id: String,
     pub warehouse_id: Uuid,
@@ -45,7 +45,7 @@ pub struct CreateLocationRequest {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateLocationRequest {
     pub tenant_id: String,
     pub name: Option<String>,

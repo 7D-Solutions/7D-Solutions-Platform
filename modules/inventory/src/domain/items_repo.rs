@@ -2,6 +2,7 @@
 
 use serde::Deserialize;
 use sqlx::{PgPool, Postgres, QueryBuilder};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use super::items::{CreateItemRequest, Item, ItemError, UpdateItemRequest};
@@ -15,7 +16,7 @@ fn default_limit() -> i64 {
 }
 
 /// URL query parameters for `GET /api/inventory/items`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
 pub struct ListItemsQuery {
     pub search: Option<String>,
     pub tracking_mode: Option<String>,

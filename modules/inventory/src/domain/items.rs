@@ -103,7 +103,7 @@ pub struct Item {
 // ============================================================================
 
 /// Input for POST /api/inventory/items
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateItemRequest {
     pub tenant_id: String,
     pub sku: String,
@@ -125,7 +125,7 @@ pub struct CreateItemRequest {
 }
 
 /// Input for PUT /api/inventory/items/:id
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateItemRequest {
     pub tenant_id: String,
     pub name: Option<String>,

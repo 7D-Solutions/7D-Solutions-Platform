@@ -14,20 +14,21 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskScope {
     Full,
     Partial,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateTaskRequest {
     pub tenant_id: String,
     pub warehouse_id: Uuid,
@@ -38,14 +39,14 @@ pub struct CreateTaskRequest {
     pub item_ids: Vec<Uuid>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TaskLine {
     pub line_id: Uuid,
     pub item_id: Uuid,
     pub expected_qty: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateTaskResult {
     pub task_id: Uuid,
     pub tenant_id: String,

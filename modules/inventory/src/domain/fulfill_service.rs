@@ -21,6 +21,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::guards::{guard_quantity_positive, GuardError};
@@ -32,7 +33,7 @@ const EVENT_TYPE_RESERVATION_FULFILLED: &str = "inventory.reservation_fulfilled"
 // ============================================================================
 
 /// Input for POST /api/inventory/reservations/{reservation_id}/fulfill
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct FulfillRequest {
     pub tenant_id: String,
     /// UUID of the original reserve row to fulfill
@@ -48,7 +49,7 @@ pub struct FulfillRequest {
 }
 
 /// Result returned on successful or replayed fulfillment
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct FulfillResult {
     /// UUID of the compensating fulfillment row
     pub fulfillment_id: Uuid,

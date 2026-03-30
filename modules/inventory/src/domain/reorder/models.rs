@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -42,7 +43,7 @@ pub struct ReorderPolicy {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateReorderPolicyRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -54,7 +55,7 @@ pub struct CreateReorderPolicyRequest {
     pub created_by: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateReorderPolicyRequest {
     pub tenant_id: String,
     pub reorder_point: Option<i64>,
