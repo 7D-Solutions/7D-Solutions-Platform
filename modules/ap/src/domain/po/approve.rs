@@ -144,7 +144,8 @@ pub async fn approve_po(
 mod tests {
     use super::*;
     use crate::domain::po::{
-        service::{create_po, get_po},
+        queries::get_po,
+        service::create_po,
         ApprovePoRequest, CreatePoLineRequest, CreatePoRequest,
     };
     use serial_test::serial;

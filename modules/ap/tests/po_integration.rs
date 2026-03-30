@@ -8,7 +8,8 @@
 //! 5. Tenant isolation
 
 use ap::domain::po::approve::approve_po;
-use ap::domain::po::service::{create_po, get_po};
+use ap::domain::po::queries::get_po;
+use ap::domain::po::service::create_po;
 use ap::domain::po::{ApprovePoRequest, CreatePoLineRequest, CreatePoRequest, PoError};
 use ap::domain::vendors::service::create_vendor;
 use ap::domain::vendors::CreateVendorRequest;
