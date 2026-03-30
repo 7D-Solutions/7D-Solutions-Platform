@@ -9,13 +9,18 @@
 
 modules/gl/src/repos/revrec_repo.rs       # 951 LOC — revrec repository
 modules/gl/src/accruals.rs                # 778 LOC — accrual engine
-modules/ar/src/routes/webhooks.rs         # 1233 LOC — webhook handlers (hardened processors)
-modules/ar/src/routes/payment_methods.rs  # 743 LOC — payment method routes
 modules/gl/src/routes/revrec.rs           # 740 LOC — revrec HTTP routes
-modules/ar/src/finalization.rs            # 734 LOC — invoice finalization
-modules/ar/src/routes/invoices.rs         # 771 LOC — invoice routes (bd-18wm: tx wrapping for invoice_opened emit)
-modules/ar/src/routes/subscriptions.rs    # 562 LOC — subscription routes
-modules/ar/src/routes/charges.rs          # 511 LOC — charge routes
+
+# AR module — cohesive concerns per directive (bd-wwgiq)
+modules/ar/src/credit_notes.rs            # 822 LOC — credit note issuance domain (append-only, compensating entry)
+modules/ar/src/http/invoices.rs           # 793 LOC — invoice HTTP handlers (single resource)
+modules/ar/src/http/payment_methods.rs    # 780 LOC — payment method HTTP handlers (single resource)
+modules/ar/src/finalization.rs            # 737 LOC — exactly-once invoice finalization gating
+modules/ar/src/tilled/types.rs            # 595 LOC — Tilled API types (single provider concern)
+modules/ar/src/http/credit_notes.rs       # 582 LOC — credit note HTTP handlers (single resource)
+modules/ar/src/http/subscriptions.rs      # 576 LOC — subscription HTTP handlers (single resource)
+modules/ar/src/progress_billing.rs        # 557 LOC — milestone invoicing domain (guard→mutation→outbox)
+modules/ar/src/http/charges.rs            # 531 LOC — charge HTTP handlers (single resource)
 modules/inventory/src/domain/issue_service.rs       # 530 LOC — issue service (refactor in future bead)
 modules/inventory/src/domain/receipt_service.rs     # 724 LOC — receipt service + production path (refactor in future bead)
 modules/inventory/src/domain/adjust_service.rs      # 580 LOC — adjustment service (refactor in future bead)
@@ -36,3 +41,15 @@ modules/numbering/tests/real_e2e.rs                    # ~1040 LOC — numbering
 modules/workflow/tests/real_e2e.rs                     # ~2600 LOC — workflow E2E tests (growing with each WF bead)
 modules/notifications/tests/real_e2e.rs                # ~647 LOC — notifications E2E tests (growing with DLQ tests)
 modules/inventory/tests/genealogy_integration.rs       # ~637 LOC — lot genealogy split/merge E2E tests
+
+# AP module — cohesive concerns per directive (bd-ctx1n)
+modules/ap/src/domain/match/engine.rs                  # 711 LOC — 3-way match algorithm (single concern)
+modules/ap/src/domain/bills/service.rs                 # 691 LOC — bill CRUD service (reads+writes+tests)
+modules/ap/src/domain/vendors/service.rs               # 632 LOC — vendor CRUD service (reads+writes+tests)
+modules/ap/src/domain/tax/service.rs                   # 618 LOC — tax lifecycle (quote/commit/void)
+modules/ap/src/domain/reports/aging.rs                 # 609 LOC — AP aging report (single read concern)
+modules/ap/src/domain/payment_runs/builder.rs          # 572 LOC — payment run creation (single mutation)
+modules/ap/src/domain/payment_runs/execute.rs          # 566 LOC — payment run execution (single mutation)
+modules/ap/src/domain/po/approve.rs                    # 558 LOC — PO approval (single operation)
+modules/ap/src/domain/bills/mod.rs                     # 541 LOC — bill domain model (types+validation+status machine)
+modules/ap/src/domain/bills/approve.rs                 # 526 LOC — bill approval (single operation)
