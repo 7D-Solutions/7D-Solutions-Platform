@@ -20,7 +20,7 @@ async fn setup_db() -> sqlx::PgPool {
     });
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
         .connect(&url)
         .await
         .expect("Failed to connect to inventory test DB");
@@ -54,8 +54,8 @@ fn default_query() -> ListItemsQuery {
         tracking_mode: None,
         make_buy: None,
         active: None,
-        limit: 50,
-        offset: 0,
+        page: 1,
+        page_size: 50,
     }
 }
 
@@ -238,21 +238,21 @@ async fn pagination_limit_offset() {
     }
 
     let mut q = default_query();
-    q.limit = 2;
-    q.offset = 0;
+    q.page_size = 2;
+    q.page = 1;
     let (page1, total) = ItemRepo::list(&pool, &tenant, &q).await.unwrap();
     assert_eq!(total, 5);
     assert_eq!(page1.len(), 2);
     assert_eq!(page1[0].name, "A");
     assert_eq!(page1[1].name, "B");
 
-    q.offset = 2;
+    q.page = 2;
     let (page2, _) = ItemRepo::list(&pool, &tenant, &q).await.unwrap();
     assert_eq!(page2.len(), 2);
     assert_eq!(page2[0].name, "C");
     assert_eq!(page2[1].name, "D");
 
-    q.offset = 4;
+    q.page = 3;
     let (page3, _) = ItemRepo::list(&pool, &tenant, &q).await.unwrap();
     assert_eq!(page3.len(), 1);
     assert_eq!(page3[0].name, "E");

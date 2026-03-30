@@ -154,8 +154,8 @@ pub async fn list_items(
 
     match ItemRepo::list(&state.pool, &tenant_id, &query).await {
         Ok((items, total)) => {
-            let page_size = query.limit.clamp(1, 200) as i64;
-            let page = (query.offset.max(0) as i64 / page_size) + 1;
+            let page_size = query.page_size.clamp(1, 200) as i64;
+            let page = query.page.max(1) as i64;
             let resp = PaginatedResponse::new(items, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }

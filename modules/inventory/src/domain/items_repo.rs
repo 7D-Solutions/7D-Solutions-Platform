@@ -11,7 +11,10 @@ use super::items::{CreateItemRequest, Item, ItemError, UpdateItemRequest};
 // List / search query
 // ============================================================================
 
-fn default_limit() -> i64 {
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
     50
 }
 
@@ -24,10 +27,10 @@ pub struct ListItemsQuery {
     pub make_buy: Option<String>,
     /// `None` or omitted → active-only (default). `true` → active. `false` → inactive.
     pub active: Option<bool>,
-    #[serde(default = "default_limit")]
-    pub limit: i64,
-    #[serde(default)]
-    pub offset: i64,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
 }
 
 // ============================================================================
@@ -172,8 +175,8 @@ impl ItemRepo {
         tenant_id: &str,
         q: &ListItemsQuery,
     ) -> Result<(Vec<Item>, i64), ItemError> {
-        let limit = q.limit.clamp(1, 200);
-        let offset = q.offset.max(0);
+        let limit = q.page_size.clamp(1, 200);
+        let offset = (q.page.max(1) - 1) * limit;
         let active_val = q.active.unwrap_or(true);
 
         let has_search = q.search.as_ref().is_some_and(|s| !s.trim().is_empty());

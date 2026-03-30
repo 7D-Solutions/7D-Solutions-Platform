@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.4 | 2026-03-30 | bd-2scog | Fix items list pagination: `ListItemsQuery` now accepts `page`/`page_size` instead of `limit`/`offset`. Consumers sending `?page_size=5` now get 5 results (was ignored, always 50). Default page_size remains 50. | Consumers could not control page size — `page_size` param was silently dropped. | YES: `ListItemsQuery` fields renamed from `limit`/`offset` to `page`/`page_size`. Internal callers constructing this struct directly must update. |
 | 2.4.3 | 2026-03-30 | bd-of3dw | `cargo fmt` reformat of openapi_dump.rs and items_repo.rs — import ordering and line wrapping only. | Linter auto-format after prior commits. | No |
 | 2.4.2 | 2026-03-30 | bd-of3dw.1 | Fix `ListItemsQuery` IntoParams: added `#[into_params(parameter_in = Query)]` so search/tracking_mode/make_buy/active/limit/offset appear as query params in the OpenAPI spec, not path params. | Generated TS client would send list filters as URL path segments instead of query string, breaking pagination and search. | No |
 | 2.4.1 | 2026-03-30 | bd-of3dw | Add `openapi_dump` utility binary: generates OpenAPI JSON spec to stdout without needing database or NATS. Used by TS client codegen pipeline (`cargo run --bin openapi_dump > openapi.json`). | Running service binary requires DB/NATS to start; codegen needs the spec offline. | No |
