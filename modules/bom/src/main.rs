@@ -54,6 +54,11 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("BOM: failed to run database migrations");
+
     let shutdown_pool = pool.clone();
     let metrics = Arc::new(BomMetrics::new().expect("Failed to create metrics registry"));
     let numbering = NumberingClient::http(config.numbering_url.clone());
