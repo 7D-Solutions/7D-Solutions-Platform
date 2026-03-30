@@ -159,13 +159,16 @@ export HOST="127.0.0.1"
 export PORT="$PORT"
 export RUST_LOG="${RUST_LOG:-info}"
 
-# Pass through JWT key if set in .env
+# Source .env for supplemental config (JWT keys, etc.), then re-apply
+# our overrides so .env cannot accidentally clobber the rewritten URLs.
+# (.env has container-internal hostnames; we need localhost.)
 if [ -f "$PROJECT_ROOT/.env" ]; then
-  # Source .env but only export JWT_PUBLIC_KEY if present
+  _saved_db_url="$DATABASE_URL"
+  _saved_nats_url="$NATS_URL"
   # shellcheck disable=SC1091
-  set -a
-  source "$PROJECT_ROOT/.env" 2>/dev/null || true
-  set +a
+  set -a; source "$PROJECT_ROOT/.env" 2>/dev/null || true; set +a
+  export DATABASE_URL="$_saved_db_url"
+  export NATS_URL="$_saved_nats_url"
   if [ -n "${JWT_PUBLIC_KEY_PEM:-}" ]; then
     export JWT_PUBLIC_KEY="$JWT_PUBLIC_KEY_PEM"
   fi
