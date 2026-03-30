@@ -1,0 +1,20 @@
+{
+  "name": "@7d/bom-client",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Generated TypeScript client for the BOM service",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate": "openapi-typescript http://localhost:8107/api/openapi.json -o src/bom.d.ts",
+    "generate:file": "openapi-typescript openapi.json -o src/bom.d.ts",
+    "proof": "npx tsx tests/consumer-proof.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.6.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
