@@ -87,6 +87,97 @@ Manages item master data, stock movements (receipts, issues, transfers, adjustme
 - `inventory.low_stock_triggered` — item fell below reorder point
 - `inventory.valuation_snapshot_created` — valuation snapshot taken
 
+## v2.0.0 Consumer Migration Guide
+
+### Response Envelope Changes
+
+All list endpoints now return a standard `PaginatedResponse` envelope. All error responses use the standard `ApiError` envelope with `request_id`.
+
+### List Endpoints (7 migrated)
+
+**GET /api/inventory/items**
+
+Before:
+```json
+{"items": [...], "total": 42, "limit": 50, "offset": 0}
+```
+
+After:
+```json
+{"data": [...], "pagination": {"page": 1, "page_size": 50, "total_items": 42, "total_pages": 1}}
+```
+
+**GET /api/inventory/valuation-snapshots**
+
+Before:
+```json
+{"tenant_id": "...", "warehouse_id": "...", "limit": 50, "offset": 0, "count": 5, "snapshots": [...]}
+```
+
+After:
+```json
+{"data": [...], "pagination": {"page": 1, "page_size": 50, "total_items": 5, "total_pages": 1}}
+```
+
+**GET /api/inventory/items/{id}/reorder-policies**
+
+Before: bare JSON array `[...]`
+
+After:
+```json
+{"data": [...], "pagination": {"page": 1, "page_size": 50, "total_items": 3, "total_pages": 1}}
+```
+
+**GET /api/inventory/warehouses/{id}/locations** — same pattern (bare array to PaginatedResponse)
+
+**GET /api/inventory/items/{id}/labels** — same pattern
+
+**GET /api/inventory/items/{id}/lots**
+
+Before:
+```json
+{"lots": [...]}
+```
+
+After:
+```json
+{"data": [...], "pagination": {"page": 1, "page_size": 50, "total_items": 10, "total_pages": 1}}
+```
+
+**GET /api/inventory/items/{id}/revisions** — same pattern (bare array to PaginatedResponse)
+
+All paginated endpoints now accept `limit` (default 50, max 200) and `offset` (default 0) query parameters.
+
+### Error Responses
+
+Before:
+```json
+{"error": "not_found", "message": "Item not found"}
+```
+
+After:
+```json
+{"error": "not_found", "message": "Item not found", "request_id": "trace-abc-123"}
+```
+
+The `request_id` field is populated from the `X-Trace-Id` / `X-Request-Id` header. It is omitted when no tracing context is present (backward compatible for clients not sending trace headers).
+
+Validation errors (422) may include a `details` array with per-field errors:
+```json
+{"error": "validation_error", "message": "Validation failed", "request_id": "...", "details": [{"field": "quantity", "message": "must be positive"}]}
+```
+
+### Idempotency (unchanged behavior, now documented)
+
+POST endpoints that accept `idempotency_key`:
+- **201 Created** — first request, resource created
+- **200 OK** — replay of the same key with the same body
+- **409 Conflict** — same key used with a different body
+
+### Authentication
+
+Tenant and permissions come from JWT claims. Do NOT send `X-Tenant-Id` or `X-Permissions` headers; they are ignored.
+
 ## Configuration
 
 | Variable | Default | Description |

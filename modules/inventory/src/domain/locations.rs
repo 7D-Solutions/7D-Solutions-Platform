@@ -12,13 +12,14 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Location {
     pub id: Uuid,
     pub tenant_id: String,
@@ -247,7 +248,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        let json = serde_json::to_string(&loc).unwrap();
+        let json = serde_json::to_string(&loc).expect("serialize Location");
         assert!(json.contains("BIN-A1"));
         assert!(json.contains("Bin A1"));
     }

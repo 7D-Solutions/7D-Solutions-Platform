@@ -12,119 +12,15 @@
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::{
-        guards::GuardError,
-        receipt_service::{process_receipt, ReceiptError, ReceiptRequest},
-    },
+    domain::receipt_service::{process_receipt, ReceiptRequest},
     AppState,
 };
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
-    match err {
-        ReceiptError::Guard(GuardError::ItemNotFound) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "item_not_found",
-                "message": "Item not found or does not belong to this tenant"
-            })),
-        ),
-        ReceiptError::Guard(GuardError::ItemInactive) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "item_inactive",
-                "message": "Item is inactive and cannot receive stock"
-            })),
-        ),
-        ReceiptError::Guard(GuardError::Validation(msg)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        ReceiptError::Guard(GuardError::NoBaseUom) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "no_base_uom",
-                "message": "Item has no base_uom configured; cannot convert input UoM"
-            })),
-        ),
-        ReceiptError::Guard(GuardError::UomConversion(e)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "uom_conversion_error", "message": e.to_string() })),
-        ),
-        ReceiptError::Guard(GuardError::Database(e)) => {
-            tracing::error!(error = %e, "guard database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-        ReceiptError::LotCodeRequired => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "lot_code_required",
-                "message": "lot_code is required for lot-tracked items"
-            })),
-        ),
-        ReceiptError::SerialCodesRequired => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "serial_codes_required",
-                "message": "serial_codes is required for serial-tracked items"
-            })),
-        ),
-        ReceiptError::SerialCountMismatch { expected, got } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "serial_count_mismatch",
-                "message": format!("serial_codes length {} must equal quantity {}", got, expected)
-            })),
-        ),
-        ReceiptError::DuplicateSerialCode => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_serial_code",
-                "message": "One or more serial codes already exist for this tenant/item"
-            })),
-        ),
-        ReceiptError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "idempotency_conflict",
-                "message": "Idempotency key already used with a different request body"
-            })),
-        ),
-        ReceiptError::ExpiryPolicy(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "expiry_policy_error",
-                "message": msg
-            })),
-        ),
-        ReceiptError::Serialization(e) => {
-            tracing::error!(error = %e, "receipt serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        ReceiptError::Database(e) => {
-            tracing::error!(error = %e, "receipt database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
-}
 
 // ============================================================================
 // Handler
@@ -148,22 +44,25 @@ pub async fn post_receipt(
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<ReceiptRequest>,
 ) -> impl IntoResponse {
-    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
+    let tracing_ctx_val = tracing_ctx.as_ref().map(|Extension(c)| c.clone());
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
-    match process_receipt(&state.pool, &req, Some(&tracing_ctx)).await {
+    match process_receipt(&state.pool, &req, tracing_ctx_val.as_ref()).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK
             } else {
                 StatusCode::CREATED
             };
-            (status, Json(json!(result))).into_response()
+            (status, Json(result)).into_response()
         }
-        Err(e) => receipt_error_response(e).into_response(),
+        Err(err) => {
+            let api_err: ApiError = err.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -173,11 +72,6 @@ pub async fn post_receipt(
 
 #[cfg(test)]
 mod tests {
-    /// DB integration tests live in the integration test suite (cargo test -p inventory).
-    /// Unit tests for request/response parsing belong here.
-
     #[test]
-    fn placeholder_receipts_module_compiles() {
-        // Ensures this module compiles cleanly.
-    }
+    fn placeholder_receipts_module_compiles() {}
 }

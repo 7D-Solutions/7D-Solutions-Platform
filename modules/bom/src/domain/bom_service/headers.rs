@@ -57,6 +57,16 @@ pub async fn create_bom(
     Ok(header)
 }
 
+pub async fn list_boms(pool: &PgPool, tenant_id: &str) -> Result<Vec<BomHeader>, BomError> {
+    let rows = sqlx::query_as::<_, BomHeader>(
+        "SELECT * FROM bom_headers WHERE tenant_id = $1 ORDER BY created_at",
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 pub async fn get_bom(pool: &PgPool, tenant_id: &str, bom_id: Uuid) -> Result<BomHeader, BomError> {
     sqlx::query_as::<_, BomHeader>("SELECT * FROM bom_headers WHERE id = $1 AND tenant_id = $2")
         .bind(bom_id)

@@ -9,7 +9,7 @@ use uuid::Uuid;
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ItemRevision {
     pub id: Uuid,
     pub tenant_id: String,

@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct Eco {
     pub id: Uuid,
     pub tenant_id: String,
@@ -19,18 +20,19 @@ pub struct Eco {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct EcoAuditEntry {
     pub id: i64,
     pub eco_id: Uuid,
     pub tenant_id: String,
     pub action: String,
     pub actor: String,
+    #[schema(value_type = Option<Object>)]
     pub detail: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct EcoBomRevision {
     pub id: Uuid,
     pub eco_id: Uuid,
@@ -41,7 +43,7 @@ pub struct EcoBomRevision {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct EcoDocRevision {
     pub id: Uuid,
     pub eco_id: Uuid,

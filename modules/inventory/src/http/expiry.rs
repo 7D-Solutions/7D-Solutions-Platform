@@ -6,71 +6,40 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::expiry::{
-        run_expiry_alert_scan, set_lot_expiry, ExpiryError, RunExpiryAlertScanRequest,
-        SetLotExpiryRequest,
-    },
+    domain::expiry::{run_expiry_alert_scan, set_lot_expiry, RunExpiryAlertScanRequest, SetLotExpiryRequest},
     AppState,
 };
-
-fn expiry_error_response(err: ExpiryError) -> impl IntoResponse {
-    match err {
-        ExpiryError::LotNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": err.to_string() })),
-        ),
-        ExpiryError::ExpiryDateRequired
-        | ExpiryError::MissingShelfLifePolicy
-        | ExpiryError::Validation(_) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": err.to_string() })),
-        ),
-        ExpiryError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),
-        ),
-        ExpiryError::Serialization(e) => {
-            tracing::error!(error = %e, "expiry serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        ExpiryError::Database(e) => {
-            tracing::error!(error = %e, "expiry database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
-}
 
 /// PUT /api/inventory/lots/:lot_id/expiry
 pub async fn put_lot_expiry(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(lot_id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<SetLotExpiryRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     req.lot_id = lot_id;
 
     match set_lot_expiry(&state.pool, &req).await {
-        Ok((result, false)) => (StatusCode::OK, Json(json!(result))).into_response(),
-        Ok((result, true)) => (StatusCode::OK, Json(json!(result))).into_response(),
-        Err(e) => expiry_error_response(e).into_response(),
+        Ok((result, _)) => (StatusCode::OK, Json(json!(result))).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -78,17 +47,20 @@ pub async fn put_lot_expiry(
 pub async fn post_expiry_alert_scan(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<RunExpiryAlertScanRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
 
     match run_expiry_alert_scan(&state.pool, &req).await {
-        Ok((result, false)) => (StatusCode::OK, Json(json!(result))).into_response(),
-        Ok((result, true)) => (StatusCode::OK, Json(json!(result))).into_response(),
-        Err(e) => expiry_error_response(e).into_response(),
+        Ok((result, _)) => (StatusCode::OK, Json(json!(result))).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }

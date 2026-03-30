@@ -12,99 +12,15 @@
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::{
-        adjust_service::{process_adjustment, AdjustError, AdjustRequest},
-        guards::GuardError,
-    },
+    domain::adjust_service::{process_adjustment, AdjustRequest},
     AppState,
 };
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn adjust_error_response(err: AdjustError) -> impl IntoResponse {
-    match err {
-        AdjustError::Guard(GuardError::ItemNotFound) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "item_not_found",
-                "message": "Item not found or does not belong to this tenant"
-            })),
-        )
-            .into_response(),
-        AdjustError::Guard(GuardError::ItemInactive) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "item_inactive",
-                "message": "Item is inactive and cannot be adjusted"
-            })),
-        )
-            .into_response(),
-        AdjustError::Guard(GuardError::Validation(msg)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        )
-            .into_response(),
-        AdjustError::Guard(GuardError::Database(e)) => {
-            tracing::error!(error = %e, "guard database error in adjustment");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-        AdjustError::Guard(e) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "guard_error", "message": e.to_string() })),
-        )
-            .into_response(),
-        AdjustError::NegativeOnHand {
-            available,
-            would_be,
-        } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "negative_on_hand",
-                "message": format!(
-                    "Adjustment would drive on-hand negative: have {}, would become {}",
-                    available, would_be
-                )
-            })),
-        )
-            .into_response(),
-        AdjustError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "idempotency_conflict",
-                "message": "The idempotency key was previously used with a different request body"
-            })),
-        )
-            .into_response(),
-        AdjustError::Serialization(e) => {
-            tracing::error!(error = %e, "serialization error in adjustment");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-                .into_response()
-        }
-        AdjustError::Database(e) => {
-            tracing::error!(error = %e, "database error in adjustment");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-    }
-}
 
 // ============================================================================
 // Handler
@@ -120,13 +36,13 @@ pub async fn post_adjustment(
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<AdjustRequest>,
 ) -> impl IntoResponse {
-    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
+    let tracing_ctx_val = tracing_ctx.as_ref().map(|Extension(c)| c.clone());
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
-    match process_adjustment(&state.pool, &req, Some(&tracing_ctx)).await {
+    match process_adjustment(&state.pool, &req, tracing_ctx_val.as_ref()).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK
@@ -135,6 +51,9 @@ pub async fn post_adjustment(
             };
             (status, Json(result)).into_response()
         }
-        Err(err) => adjust_error_response(err).into_response(),
+        Err(err) => {
+            let api_err: ApiError = err.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }

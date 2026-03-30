@@ -19,7 +19,7 @@ use uuid::Uuid;
 // Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ReorderPolicy {
     pub id: Uuid,
     pub tenant_id: String,
@@ -317,7 +317,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        let json = serde_json::to_string(&policy).unwrap();
+        let json = serde_json::to_string(&policy).expect("serialize ReorderPolicy");
         assert!(json.contains("reorder_point"));
         assert!(json.contains("safety_stock"));
         assert!(json.contains("50"));

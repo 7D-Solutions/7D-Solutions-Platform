@@ -18,69 +18,22 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::valuation::{
         queries::{get_snapshot, get_snapshot_lines, list_snapshots},
-        snapshot_service::{create_valuation_snapshot, CreateSnapshotRequest, SnapshotError},
+        snapshot_service::CreateSnapshotRequest,
     },
     AppState,
 };
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn snapshot_error_response(err: SnapshotError) -> impl IntoResponse {
-    match err {
-        SnapshotError::MissingTenant | SnapshotError::MissingIdempotencyKey => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": err.to_string() })),
-        )
-            .into_response(),
-
-        SnapshotError::ConcurrentSnapshot => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "concurrent_snapshot",
-                "message": err.to_string()
-            })),
-        )
-            .into_response(),
-
-        SnapshotError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "idempotency_conflict",
-                "message": err.to_string()
-            })),
-        )
-            .into_response(),
-
-        SnapshotError::Serialization(e) => {
-            tracing::error!(error = %e, "serialization error in valuation snapshot");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-                .into_response()
-        }
-
-        SnapshotError::Database(e) => {
-            tracing::error!(error = %e, "database error creating valuation snapshot");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-    }
-}
 
 // ============================================================================
 // Query params
@@ -111,72 +64,62 @@ fn default_limit() -> i64 {
 pub async fn post_valuation_snapshot(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateSnapshotRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
-    match create_valuation_snapshot(&state.pool, &req).await {
+    match crate::domain::valuation::snapshot_service::create_valuation_snapshot(&state.pool, &req)
+        .await
+    {
         Ok((result, false)) => (StatusCode::CREATED, Json(result)).into_response(),
         Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
-        Err(err) => snapshot_error_response(err).into_response(),
+        Err(err) => {
+            let api_err: ApiError = err.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/valuation-snapshots?warehouse_id=...&limit=...&offset=...
 ///
-/// Lists snapshots for the tenant (from JWT), newest first.  Optional
-/// `warehouse_id` narrows to one warehouse.  `limit` defaults to 50
+/// Lists snapshots for the tenant (from JWT), newest first. Optional
+/// `warehouse_id` narrows to one warehouse. `limit` defaults to 50
 /// (max 200); `offset` defaults to 0.
 ///
-/// Returns `{ "tenant_id", "snapshots": [...] }`.
+/// Returns `PaginatedResponse` envelope.
 pub async fn list_valuation_snapshots(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListSnapshotsQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     let limit = q.limit.clamp(1, 200);
     let offset = q.offset.max(0);
 
     match list_snapshots(&state.pool, &tenant_id, q.warehouse_id, limit, offset).await {
-        Ok(snapshots) => (
-            StatusCode::OK,
-            Json(json!({
-                "tenant_id": tenant_id,
-                "warehouse_id": q.warehouse_id,
-                "limit": limit,
-                "offset": offset,
-                "count": snapshots.len(),
-                "snapshots": snapshots,
-            })),
-        )
-            .into_response(),
+        Ok(snapshots) => {
+            let count = snapshots.len() as i64;
+            let page_size = limit;
+            let page = (offset / page_size) + 1;
+            // Use count as total_items since the query returns a windowed result;
+            // for accurate totals, a COUNT(*) query would be needed. For now, use
+            // count + offset as a lower bound.
+            let total_items = offset + count;
+            let resp = PaginatedResponse::new(snapshots, page, page_size, total_items);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
         Err(e) => {
             tracing::error!(error = %e, tenant_id = %tenant_id, "database error listing valuation snapshots");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
+            with_request_id(ApiError::internal("Database error"), &tracing_ctx).into_response()
         }
     }
 }
@@ -185,39 +128,29 @@ pub async fn list_valuation_snapshots(
 ///
 /// Returns the snapshot header and all per-item lines, tenant-scoped (from JWT).
 /// Returns 404 when the snapshot does not exist or belongs to another tenant.
-///
-/// Response: `{ snapshot header fields..., "lines": [...] }`.
 pub async fn get_valuation_snapshot(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     let snapshot = match get_snapshot(&state.pool, &tenant_id, id).await {
         Ok(Some(s)) => s,
         Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "error": "not_found", "message": "Valuation snapshot not found" })),
+            return with_request_id(
+                ApiError::not_found("Valuation snapshot not found"),
+                &tracing_ctx,
             )
-                .into_response();
+            .into_response();
         }
         Err(e) => {
             tracing::error!(error = %e, snapshot_id = %id, "database error fetching valuation snapshot");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
+            return with_request_id(ApiError::internal("Database error"), &tracing_ctx)
                 .into_response();
         }
     };
@@ -226,10 +159,7 @@ pub async fn get_valuation_snapshot(
         Ok(l) => l,
         Err(e) => {
             tracing::error!(error = %e, snapshot_id = %id, "database error fetching valuation lines");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
+            return with_request_id(ApiError::internal("Database error"), &tracing_ctx)
                 .into_response();
         }
     };

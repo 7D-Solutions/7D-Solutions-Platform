@@ -14,70 +14,41 @@ use axum::{
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::revisions::{
         activate_revision, create_revision, list_revisions, revision_at, update_revision_policy,
-        ActivateRevisionRequest, CreateRevisionRequest, RevisionError, UpdateRevisionPolicyRequest,
+        ActivateRevisionRequest, CreateRevisionRequest, UpdateRevisionPolicyRequest,
     },
     AppState,
 };
 
 // ============================================================================
-// Error mapping
+// Query params
 // ============================================================================
 
-fn revision_error_response(err: RevisionError) -> impl IntoResponse {
-    match err {
-        RevisionError::ItemNotFound | RevisionError::RevisionNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": err.to_string() })),
-        ),
-        RevisionError::ItemInactive => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "item_inactive", "message": err.to_string() })),
-        ),
-        RevisionError::AlreadyActivated => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "already_activated", "message": err.to_string() })),
-        ),
-        RevisionError::PolicyLockedOnActivatedRevision => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "policy_locked", "message": err.to_string() })),
-        ),
-        RevisionError::OverlappingWindow => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "overlapping_window", "message": err.to_string() })),
-        ),
-        RevisionError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),
-        ),
-        RevisionError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        RevisionError::Serialization(e) => {
-            tracing::error!(error = %e, "revision serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        RevisionError::Database(e) => {
-            tracing::error!(error = %e, "revision database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
+#[derive(Debug, Deserialize)]
+pub struct RevisionAtQuery {
+    pub t: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListRevisionsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+fn default_limit() -> i64 {
+    50
 }
 
 // ============================================================================
@@ -89,19 +60,23 @@ pub async fn post_create_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateRevisionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     req.item_id = item_id;
 
     match create_revision(&state.pool, &req).await {
-        Ok((rev, false)) => (StatusCode::CREATED, Json(json!(rev))).into_response(),
-        Ok((rev, true)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Err(e) => revision_error_response(e).into_response(),
+        Ok((rev, false)) => (StatusCode::CREATED, Json(rev)).into_response(),
+        Ok((rev, true)) => (StatusCode::OK, Json(rev)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -110,18 +85,21 @@ pub async fn post_activate_revision(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path((item_id, revision_id)): Path<(Uuid, Uuid)>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<ActivateRevisionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
 
     match activate_revision(&state.pool, item_id, revision_id, &req).await {
-        Ok((rev, false)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Ok((rev, true)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Err(e) => revision_error_response(e).into_response(),
+        Ok((rev, _)) => (StatusCode::OK, Json(rev)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -130,24 +108,22 @@ pub async fn put_revision_policy(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path((item_id, revision_id)): Path<(Uuid, Uuid)>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<UpdateRevisionPolicyRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
 
     match update_revision_policy(&state.pool, item_id, revision_id, &req).await {
-        Ok((rev, false)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Ok((rev, true)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Err(e) => revision_error_response(e).into_response(),
+        Ok((rev, _)) => (StatusCode::OK, Json(rev)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RevisionAtQuery {
-    pub t: Option<DateTime<Utc>>,
 }
 
 /// GET /api/inventory/items/:item_id/revisions/at?t=...
@@ -156,37 +132,60 @@ pub async fn get_revision_at(
     claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
     Query(query): Query<RevisionAtQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let at = query.t.unwrap_or_else(Utc::now);
 
     match revision_at(&state.pool, &tenant_id, item_id, at).await {
-        Ok(Some(rev)) => (StatusCode::OK, Json(json!(rev))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "No revision effective at requested time" })),
+        Ok(Some(rev)) => (StatusCode::OK, Json(rev)).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found("No revision effective at requested time"),
+            &tracing_ctx,
         )
-            .into_response(),
-        Err(e) => revision_error_response(e).into_response(),
+        .into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/items/:item_id/revisions
+///
+/// Lists all revisions for an item. Returns `PaginatedResponse` envelope.
 pub async fn get_list_revisions(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
+    Query(q): Query<ListRevisionsQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match list_revisions(&state.pool, &tenant_id, item_id).await {
-        Ok(revs) => (StatusCode::OK, Json(json!(revs))).into_response(),
-        Err(e) => revision_error_response(e).into_response(),
+        Ok(all_revs) => {
+            let total = all_revs.len() as i64;
+            let page_size = q.limit.clamp(1, 200);
+            let offset = q.offset.max(0);
+            let page = (offset / page_size) + 1;
+            let revs: Vec<_> = all_revs
+                .into_iter()
+                .skip(offset as usize)
+                .take(page_size as usize)
+                .collect();
+            let resp = PaginatedResponse::new(revs, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }

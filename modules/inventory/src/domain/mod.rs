@@ -1,3 +1,4 @@
+mod error_conversions;
 #[path = "adjust/mod.rs"]
 pub mod adjust_service;
 pub mod classifications;

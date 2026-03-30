@@ -1,18 +1,12 @@
-use axum::{http::StatusCode, Extension, Json};
+use axum::Extension;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde_json::{json, Value};
 
-pub fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<Value>)> {
+pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(json!({
-                "error": "unauthorized",
-                "message": "Missing or invalid authentication"
-            })),
+        None => Err(ApiError::unauthorized(
+            "Missing or invalid authentication",
         )),
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "inventory-rs"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts"
 
@@ -24,6 +24,8 @@ prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
 futures = "0.3"
 projections = { path = "../../platform/projections" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [[bin]]
 name = "bench"

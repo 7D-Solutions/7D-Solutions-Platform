@@ -23,7 +23,7 @@ use uuid::Uuid;
 ///
 /// Lots are unique per (tenant_id, item_id, lot_code).
 /// Created on receipt; immutable thereafter (lot_code and item_id never change).
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct InventoryLot {
     pub id: Uuid,
     pub tenant_id: String,

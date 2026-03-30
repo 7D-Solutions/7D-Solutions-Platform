@@ -12,6 +12,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 pub use super::items_repo::{ItemRepo, ListItemsQuery};
@@ -24,7 +25,7 @@ pub use super::items_repo::{ItemRepo, ListItemsQuery};
 ///
 /// Set at item creation; immutable thereafter (changing tracking_mode after
 /// stock exists would invalidate historical layer associations).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackingMode {
     /// No lot/serial tracking. Quantities move freely.
@@ -73,7 +74,7 @@ impl TryFrom<String> for TrackingMode {
 // ============================================================================
 
 /// A unique item (SKU) per tenant with GL account references.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Item {
     pub id: Uuid,
     pub tenant_id: String,

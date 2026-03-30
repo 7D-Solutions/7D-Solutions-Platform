@@ -7,78 +7,40 @@
 //!   GET  /api/inventory/items/:item_id/reorder-policies — list for item
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::reorder::models::{
-        CreateReorderPolicyRequest, ReorderPolicyError, ReorderPolicyRepo,
-        UpdateReorderPolicyRequest,
+        CreateReorderPolicyRequest, ReorderPolicyRepo, UpdateReorderPolicyRequest,
     },
     AppState,
 };
 
 // ============================================================================
-// Error mapping
+// Query params
 // ============================================================================
 
-fn policy_error_response(err: ReorderPolicyError) -> impl IntoResponse {
-    match err {
-        ReorderPolicyError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Reorder policy not found" })),
-        )
-            .into_response(),
+#[derive(Debug, Deserialize)]
+pub struct ListPoliciesQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
 
-        ReorderPolicyError::DuplicatePolicy => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_policy",
-                "message": "A reorder policy already exists for this item/location combination"
-            })),
-        )
-            .into_response(),
-
-        ReorderPolicyError::ItemNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "item_not_found",
-                "message": "Item not found or does not belong to this tenant"
-            })),
-        )
-            .into_response(),
-
-        ReorderPolicyError::LocationNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "location_not_found",
-                "message": "Location not found, inactive, or does not belong to this tenant"
-            })),
-        )
-            .into_response(),
-
-        ReorderPolicyError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        )
-            .into_response(),
-
-        ReorderPolicyError::Database(e) => {
-            tracing::error!(error = %e, "database error in reorder policy handler");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-    }
+fn default_limit() -> i64 {
+    50
 }
 
 // ============================================================================
@@ -86,29 +48,23 @@ fn policy_error_response(err: ReorderPolicyError) -> impl IntoResponse {
 // ============================================================================
 
 /// POST /api/inventory/reorder-policies
-///
-/// Creates a reorder policy for an item (optionally location-scoped).
-/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
-/// Returns 201 Created with the new policy.
 pub async fn post_reorder_policy(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateReorderPolicyRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match ReorderPolicyRepo::create(&state.pool, &req).await {
-        Ok(policy) => (StatusCode::CREATED, Json(json!(policy))).into_response(),
-        Err(e) => policy_error_response(e).into_response(),
+        Ok(policy) => (StatusCode::CREATED, Json(policy)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -117,77 +73,80 @@ pub async fn get_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match ReorderPolicyRepo::find_by_id(&state.pool, id, &tenant_id).await {
-        Ok(Some(policy)) => (StatusCode::OK, Json(json!(policy))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Reorder policy not found" })),
+        Ok(Some(policy)) => (StatusCode::OK, Json(policy)).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found("Reorder policy not found"),
+            &tracing_ctx,
         )
-            .into_response(),
-        Err(e) => policy_error_response(e).into_response(),
+        .into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// PUT /api/inventory/reorder-policies/:id
-///
-/// Updates threshold fields on an existing policy.
-/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn put_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<UpdateReorderPolicyRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match ReorderPolicyRepo::update(&state.pool, id, &req).await {
-        Ok(policy) => (StatusCode::OK, Json(json!(policy))).into_response(),
-        Err(e) => policy_error_response(e).into_response(),
+        Ok(policy) => (StatusCode::OK, Json(policy)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/items/:item_id/reorder-policies
 ///
-/// Lists all reorder policies for an item across all locations.
-/// Tenant derived from JWT VerifiedClaims.
+/// Lists all reorder policies for an item. Returns `PaginatedResponse` envelope.
 pub async fn list_reorder_policies(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<ListPoliciesQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match ReorderPolicyRepo::list_for_item(&state.pool, &tenant_id, item_id).await {
-        Ok(policies) => (StatusCode::OK, Json(json!(policies))).into_response(),
-        Err(e) => policy_error_response(e).into_response(),
+        Ok(all_policies) => {
+            let total = all_policies.len() as i64;
+            let page_size = q.limit.clamp(1, 200);
+            let offset = q.offset.max(0);
+            let page = (offset / page_size) + 1;
+            let policies: Vec<_> = all_policies
+                .into_iter()
+                .skip(offset as usize)
+                .take(page_size as usize)
+                .collect();
+            let resp = PaginatedResponse::new(policies, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 

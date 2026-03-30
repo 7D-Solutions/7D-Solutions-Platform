@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct BomHeader {
     pub id: Uuid,
     pub tenant_id: String,
@@ -13,7 +14,7 @@ pub struct BomHeader {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct BomRevision {
     pub id: Uuid,
     pub bom_id: Uuid,
@@ -26,7 +27,7 @@ pub struct BomRevision {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct BomLine {
     pub id: Uuid,
     pub revision_id: Uuid,
@@ -107,4 +108,19 @@ pub struct ExplosionQuery {
 #[derive(Debug, Deserialize)]
 pub struct WhereUsedQuery {
     pub date: Option<DateTime<Utc>>,
+}
+
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
+    50
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PaginationQuery {
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
 }

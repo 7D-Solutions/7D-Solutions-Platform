@@ -4,8 +4,8 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -16,124 +16,120 @@ use crate::domain::models::*;
 use crate::AppState;
 
 // ============================================================================
-// Error mapping
+// Error mapping → ApiError
 // ============================================================================
 
-pub fn error_response(err: BomError) -> impl IntoResponse {
+pub fn into_api_error(err: BomError) -> ApiError {
     match err {
-        BomError::Guard(GuardError::NotFound(msg)) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": msg })),
-        ),
-        BomError::Guard(GuardError::Validation(msg)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        BomError::Guard(GuardError::Conflict(msg)) => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "conflict", "message": msg })),
-        ),
-        BomError::Guard(GuardError::CycleDetected) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "cycle_detected", "message": "Cycle detected in BOM structure" })),
-        ),
+        BomError::Guard(GuardError::NotFound(msg)) => {
+            ApiError::not_found(msg).with_request_id(request_id())
+        }
+        BomError::Guard(GuardError::Validation(msg)) => {
+            ApiError::new(422, "validation_error", msg).with_request_id(request_id())
+        }
+        BomError::Guard(GuardError::Conflict(msg)) => {
+            ApiError::conflict(msg).with_request_id(request_id())
+        }
+        BomError::Guard(GuardError::CycleDetected) => {
+            ApiError::new(422, "cycle_detected", "Cycle detected in BOM structure")
+                .with_request_id(request_id())
+        }
         BomError::Guard(GuardError::Database(e)) => {
             tracing::error!(error = %e, "guard database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
+            ApiError::internal("Database error").with_request_id(request_id())
         }
         BomError::Serialization(e) => {
             tracing::error!(error = %e, "serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
+            ApiError::internal("Serialization error").with_request_id(request_id())
         }
         BomError::Database(ref e) => {
-            // Check for unique constraint violations
             if let sqlx::Error::Database(dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return (
-                        StatusCode::CONFLICT,
-                        Json(json!({
-                            "error": "duplicate",
-                            "message": "A record with this identifier already exists"
-                        })),
-                    );
+                    return ApiError::conflict(
+                        "A record with this identifier already exists",
+                    )
+                    .with_request_id(request_id());
                 }
-                // Exclusion constraint violation (overlapping effectivity)
                 if dbe.code().as_deref() == Some("23P01") {
-                    return (
-                        StatusCode::CONFLICT,
-                        Json(json!({
-                            "error": "effectivity_overlap",
-                            "message": "Effective date range overlaps with an existing revision"
-                        })),
-                    );
+                    return ApiError::conflict(
+                        "Effective date range overlaps with an existing revision",
+                    )
+                    .with_request_id(request_id());
                 }
             }
             tracing::error!(error = %e, "database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
+            ApiError::internal("Database error").with_request_id(request_id())
         }
     }
+}
+
+fn request_id() -> String {
+    Uuid::new_v4().to_string()
 }
 
 fn correlation_id() -> String {
     Uuid::new_v4().to_string()
 }
 
+/// Paginate a pre-fetched collection.
+pub fn paginate<T: utoipa::ToSchema>(items: Vec<T>, pq: &PaginationQuery) -> PaginatedResponse<T> {
+    let total = items.len() as i64;
+    let start = ((pq.page - 1) * pq.page_size) as usize;
+    let data: Vec<T> = items.into_iter().skip(start).take(pq.page_size as usize).collect();
+    PaginatedResponse::new(data, pq.page, pq.page_size, total)
+}
+
 // ============================================================================
 // BOM Header
 // ============================================================================
+
+pub async fn list_boms(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(pq): Query<PaginationQuery>,
+) -> Result<Json<PaginatedResponse<BomHeader>>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let all = bom_service::list_boms(&state.pool, &tenant_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(paginate(all, &pq)))
+}
 
 pub async fn post_bom(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateBomRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::create_bom(&state.pool, &tenant_id, &req, &correlation_id(), None).await {
-        Ok(header) => (StatusCode::CREATED, Json(json!(header))).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+) -> Result<(StatusCode, Json<BomHeader>), ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let header =
+        bom_service::create_bom(&state.pool, &tenant_id, &req, &correlation_id(), None)
+            .await
+            .map_err(into_api_error)?;
+    Ok((StatusCode::CREATED, Json(header)))
 }
 
 pub async fn get_bom(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(bom_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::get_bom(&state.pool, &tenant_id, bom_id).await {
-        Ok(header) => Json(json!(header)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+) -> Result<Json<BomHeader>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let header = bom_service::get_bom(&state.pool, &tenant_id, bom_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(header))
 }
 
 pub async fn get_bom_by_part_id(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(part_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::get_bom_by_part_id(&state.pool, &tenant_id, part_id).await {
-        Ok(header) => Json(json!(header)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+) -> Result<Json<BomHeader>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let header = bom_service::get_bom_by_part_id(&state.pool, &tenant_id, part_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(header))
 }
 
 // ============================================================================
@@ -145,12 +141,9 @@ pub async fn post_revision(
     claims: Option<Extension<VerifiedClaims>>,
     Path(bom_id): Path<Uuid>,
     Json(req): Json<CreateRevisionRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::create_revision(
+) -> Result<(StatusCode, Json<BomRevision>), ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let rev = bom_service::create_revision(
         &state.pool,
         &tenant_id,
         bom_id,
@@ -159,25 +152,21 @@ pub async fn post_revision(
         None,
     )
     .await
-    {
-        Ok(rev) => (StatusCode::CREATED, Json(json!(rev))).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    .map_err(into_api_error)?;
+    Ok((StatusCode::CREATED, Json(rev)))
 }
 
 pub async fn list_revisions(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(bom_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::list_revisions(&state.pool, &tenant_id, bom_id).await {
-        Ok(revs) => Json(json!(revs)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    Query(pq): Query<PaginationQuery>,
+) -> Result<Json<PaginatedResponse<BomRevision>>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let all = bom_service::list_revisions(&state.pool, &tenant_id, bom_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(paginate(all, &pq)))
 }
 
 pub async fn post_effectivity(
@@ -185,12 +174,9 @@ pub async fn post_effectivity(
     claims: Option<Extension<VerifiedClaims>>,
     Path(revision_id): Path<Uuid>,
     Json(req): Json<SetEffectivityRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::set_effectivity(
+) -> Result<Json<BomRevision>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let rev = bom_service::set_effectivity(
         &state.pool,
         &tenant_id,
         revision_id,
@@ -199,10 +185,8 @@ pub async fn post_effectivity(
         None,
     )
     .await
-    {
-        Ok(rev) => Json(json!(rev)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    .map_err(into_api_error)?;
+    Ok(Json(rev))
 }
 
 // ============================================================================
@@ -214,12 +198,9 @@ pub async fn post_line(
     claims: Option<Extension<VerifiedClaims>>,
     Path(revision_id): Path<Uuid>,
     Json(req): Json<AddLineRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::add_line(
+) -> Result<(StatusCode, Json<BomLine>), ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let line = bom_service::add_line(
         &state.pool,
         &tenant_id,
         revision_id,
@@ -228,10 +209,8 @@ pub async fn post_line(
         None,
     )
     .await
-    {
-        Ok(line) => (StatusCode::CREATED, Json(json!(line))).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    .map_err(into_api_error)?;
+    Ok((StatusCode::CREATED, Json(line)))
 }
 
 pub async fn put_line(
@@ -239,12 +218,9 @@ pub async fn put_line(
     claims: Option<Extension<VerifiedClaims>>,
     Path(line_id): Path<Uuid>,
     Json(req): Json<UpdateLineRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::update_line(
+) -> Result<Json<BomLine>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let line = bom_service::update_line(
         &state.pool,
         &tenant_id,
         line_id,
@@ -253,45 +229,37 @@ pub async fn put_line(
         None,
     )
     .await
-    {
-        Ok(line) => Json(json!(line)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    .map_err(into_api_error)?;
+    Ok(Json(line))
 }
 
 pub async fn delete_line(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(line_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::remove_line(&state.pool, &tenant_id, line_id, &correlation_id(), None).await
-    {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+) -> Result<StatusCode, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    bom_service::remove_line(&state.pool, &tenant_id, line_id, &correlation_id(), None)
+        .await
+        .map_err(into_api_error)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn get_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(revision_id): Path<Uuid>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match bom_service::list_lines(&state.pool, &tenant_id, revision_id).await {
-        Ok(lines) => Json(json!(lines)).into_response(),
-        Err(e) => error_response(e).into_response(),
-    }
+    Query(pq): Query<PaginationQuery>,
+) -> Result<Json<PaginatedResponse<BomLine>>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let all = bom_service::list_lines(&state.pool, &tenant_id, revision_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(paginate(all, &pq)))
 }
 
 // ============================================================================
-// Explosion + Where-Used
+// Explosion + Where-Used (tree responses — NOT paginated)
 // ============================================================================
 
 pub async fn get_explosion(
@@ -305,8 +273,8 @@ pub async fn get_explosion(
         Err(e) => return e.into_response(),
     };
     match bom_service::explode(&state.pool, &tenant_id, bom_id, &query).await {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(rows) => Json(rows).into_response(),
+        Err(e) => into_api_error(e).into_response(),
     }
 }
 
@@ -321,7 +289,7 @@ pub async fn get_where_used(
         Err(e) => return e.into_response(),
     };
     match bom_service::where_used(&state.pool, &tenant_id, item_id, &query).await {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(rows) => Json(rows).into_response(),
+        Err(e) => into_api_error(e).into_response(),
     }
 }

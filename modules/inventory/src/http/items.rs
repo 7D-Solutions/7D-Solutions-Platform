@@ -4,6 +4,7 @@
 //!   POST  /api/inventory/items            — create item
 //!   GET   /api/inventory/items/:id        — get item
 //!   PUT   /api/inventory/items/:id        — update item
+//!   GET   /api/inventory/items            — list items (paginated)
 //!   POST  /api/inventory/items/:id/deactivate — soft-delete item
 //!
 //! Tenant identity derived from JWT `VerifiedClaims`.
@@ -14,47 +15,17 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::items::{CreateItemRequest, ItemError, ItemRepo, ListItemsQuery, UpdateItemRequest},
+    domain::items::{CreateItemRequest, ItemRepo, ListItemsQuery, UpdateItemRequest},
     AppState,
 };
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn item_error_response(err: ItemError) -> impl IntoResponse {
-    match err {
-        ItemError::DuplicateSku(sku, tenant) => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_sku",
-                "message": format!("SKU '{}' already exists for tenant '{}'", sku, tenant)
-            })),
-        ),
-        ItemError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Item not found" })),
-        ),
-        ItemError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        ItemError::Database(e) => {
-            tracing::error!(error = %e, "item database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
-}
 
 // ============================================================================
 // Handlers
@@ -69,16 +40,20 @@ fn item_error_response(err: ItemError) -> impl IntoResponse {
 pub async fn create_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateItemRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match ItemRepo::create(&state.pool, &req).await {
-        Ok(item) => (StatusCode::CREATED, Json(json!(item))).into_response(),
-        Err(e) => item_error_response(e).into_response(),
+        Ok(item) => (StatusCode::CREATED, Json(item)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -91,20 +66,22 @@ pub async fn get_item(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ItemRepo::find_by_id(&state.pool, id, &tenant_id).await {
-        Ok(Some(item)) => (StatusCode::OK, Json(json!(item))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Item not found" })),
-        )
-            .into_response(),
-        Err(e) => item_error_response(e).into_response(),
+        Ok(Some(item)) => (StatusCode::OK, Json(item)).into_response(),
+        Ok(None) => {
+            with_request_id(ApiError::not_found("Item not found"), &tracing_ctx).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -118,16 +95,20 @@ pub async fn update_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<UpdateItemRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match ItemRepo::update(&state.pool, id, &req).await {
-        Ok(item) => (StatusCode::OK, Json(json!(item))).into_response(),
-        Err(e) => item_error_response(e).into_response(),
+        Ok(item) => (StatusCode::OK, Json(item)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -135,28 +116,30 @@ pub async fn update_item(
 ///
 /// List items with optional search, filtering, and pagination.
 /// Tenant derived from JWT VerifiedClaims.
+///
+/// Returns `PaginatedResponse` envelope: `{ "data": [...], "pagination": { ... } }`.
 pub async fn list_items(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListItemsQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ItemRepo::list(&state.pool, &tenant_id, &query).await {
-        Ok((items, total)) => (
-            StatusCode::OK,
-            Json(json!({
-                "items": items,
-                "total": total,
-                "limit": query.limit.clamp(1, 200),
-                "offset": query.offset.max(0),
-            })),
-        )
-            .into_response(),
-        Err(e) => item_error_response(e).into_response(),
+        Ok((items, total)) => {
+            let page_size = query.limit.clamp(1, 200) as i64;
+            let page = (query.offset.max(0) as i64 / page_size) + 1;
+            let resp = PaginatedResponse::new(items, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -168,15 +151,19 @@ pub async fn deactivate_item(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ItemRepo::deactivate(&state.pool, id, &tenant_id).await {
-        Ok(item) => (StatusCode::OK, Json(json!(item))).into_response(),
-        Err(e) => item_error_response(e).into_response(),
+        Ok(item) => (StatusCode::OK, Json(item)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 

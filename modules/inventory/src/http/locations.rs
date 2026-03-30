@@ -10,60 +10,38 @@
 //! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::locations::{
-        CreateLocationRequest, LocationError, LocationRepo, UpdateLocationRequest,
-    },
+    domain::locations::{CreateLocationRequest, LocationRepo, UpdateLocationRequest},
     AppState,
 };
 
 // ============================================================================
-// Error mapping
+// Query params
 // ============================================================================
 
-fn location_error_response(err: LocationError) -> impl IntoResponse {
-    match err {
-        LocationError::DuplicateCode(code, wid, tenant) => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_code",
-                "message": format!(
-                    "Location code '{}' already exists for warehouse '{}' in tenant '{}'",
-                    code, wid, tenant
-                )
-            })),
-        )
-            .into_response(),
-        LocationError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Location not found" })),
-        )
-            .into_response(),
-        LocationError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        )
-            .into_response(),
-        LocationError::Database(e) => {
-            tracing::error!(error = %e, "location database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-    }
+#[derive(Debug, Deserialize)]
+pub struct ListLocationsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+fn default_limit() -> i64 {
+    50
 }
 
 // ============================================================================
@@ -71,100 +49,123 @@ fn location_error_response(err: LocationError) -> impl IntoResponse {
 // ============================================================================
 
 /// POST /api/inventory/locations
-///
-/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn create_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateLocationRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match LocationRepo::create(&state.pool, &req).await {
-        Ok(loc) => (StatusCode::CREATED, Json(json!(loc))).into_response(),
-        Err(e) => location_error_response(e).into_response(),
+        Ok(loc) => (StatusCode::CREATED, Json(loc)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/locations/:id
-///
-/// Tenant derived from JWT VerifiedClaims.
 pub async fn get_location(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match LocationRepo::find_by_id(&state.pool, id, &tenant_id).await {
-        Ok(Some(loc)) => (StatusCode::OK, Json(json!(loc))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Location not found" })),
-        )
-            .into_response(),
-        Err(e) => location_error_response(e).into_response(),
+        Ok(Some(loc)) => (StatusCode::OK, Json(loc)).into_response(),
+        Ok(None) => {
+            with_request_id(ApiError::not_found("Location not found"), &tracing_ctx).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// PUT /api/inventory/locations/:id
-///
-/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn update_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<UpdateLocationRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     match LocationRepo::update(&state.pool, id, &req).await {
-        Ok(loc) => (StatusCode::OK, Json(json!(loc))).into_response(),
-        Err(e) => location_error_response(e).into_response(),
+        Ok(loc) => (StatusCode::OK, Json(loc)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// POST /api/inventory/locations/:id/deactivate
-///
-/// Tenant derived from JWT VerifiedClaims.
 pub async fn deactivate_location(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match LocationRepo::deactivate(&state.pool, id, &tenant_id).await {
-        Ok(loc) => (StatusCode::OK, Json(json!(loc))).into_response(),
-        Err(e) => location_error_response(e).into_response(),
+        Ok(loc) => (StatusCode::OK, Json(loc)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/warehouses/:warehouse_id/locations
 ///
-/// Tenant derived from JWT VerifiedClaims.
+/// Lists locations for a warehouse. Returns `PaginatedResponse` envelope.
 pub async fn list_locations(
     State(state): State<Arc<AppState>>,
     Path(warehouse_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<ListLocationsQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match LocationRepo::list_for_warehouse(&state.pool, &tenant_id, warehouse_id).await {
-        Ok(locs) => (StatusCode::OK, Json(json!(locs))).into_response(),
-        Err(e) => location_error_response(e).into_response(),
+        Ok(all_locs) => {
+            let total = all_locs.len() as i64;
+            let page_size = q.limit.clamp(1, 200);
+            let offset = q.offset.max(0);
+            let page = (offset / page_size) + 1;
+            let locs: Vec<_> = all_locs
+                .into_iter()
+                .skip(offset as usize)
+                .take(page_size as usize)
+                .collect();
+            let resp = PaginatedResponse::new(locs, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 

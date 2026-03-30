@@ -12,112 +12,15 @@
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::{
-        guards::GuardError,
-        transfer_service::{process_transfer, TransferError, TransferRequest},
-    },
+    domain::transfer_service::{process_transfer, TransferRequest},
     AppState,
 };
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn transfer_error_response(err: TransferError) -> impl IntoResponse {
-    match err {
-        TransferError::Guard(GuardError::ItemNotFound) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({
-                "error": "item_not_found",
-                "message": "Item not found or does not belong to this tenant"
-            })),
-        )
-            .into_response(),
-        TransferError::Guard(GuardError::ItemInactive) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "item_inactive",
-                "message": "Item is inactive and cannot be transferred"
-            })),
-        )
-            .into_response(),
-        TransferError::Guard(GuardError::Validation(msg)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        )
-            .into_response(),
-        TransferError::Guard(GuardError::Database(e)) => {
-            tracing::error!(error = %e, "guard database error in transfer");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-        TransferError::Guard(e) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "guard_error", "message": e.to_string() })),
-        )
-            .into_response(),
-        TransferError::SameWarehouse => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "same_warehouse",
-                "message": "Source and destination warehouse must be different"
-            })),
-        )
-            .into_response(),
-        TransferError::InsufficientQuantity {
-            requested,
-            available,
-        } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "insufficient_quantity",
-                "message": format!(
-                    "Insufficient stock: requested {}, available {}",
-                    requested, available
-                )
-            })),
-        )
-            .into_response(),
-        TransferError::Fifo(e) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "fifo_error", "message": e.to_string() })),
-        )
-            .into_response(),
-        TransferError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "idempotency_conflict",
-                "message": "The idempotency key was previously used with a different request body"
-            })),
-        )
-            .into_response(),
-        TransferError::Serialization(e) => {
-            tracing::error!(error = %e, "serialization error in transfer");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-                .into_response()
-        }
-        TransferError::Database(e) => {
-            tracing::error!(error = %e, "database error in transfer");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
-        }
-    }
-}
 
 // ============================================================================
 // Handler
@@ -136,13 +39,13 @@ pub async fn post_transfer(
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<TransferRequest>,
 ) -> impl IntoResponse {
-    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
+    let tracing_ctx_val = tracing_ctx.as_ref().map(|Extension(c)| c.clone());
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
-    match process_transfer(&state.pool, &req, Some(&tracing_ctx)).await {
+    match process_transfer(&state.pool, &req, tracing_ctx_val.as_ref()).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK
@@ -151,6 +54,9 @@ pub async fn post_transfer(
             };
             (status, Json(result)).into_response()
         }
-        Err(err) => transfer_error_response(err).into_response(),
+        Err(err) => {
+            let api_err: ApiError = err.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }

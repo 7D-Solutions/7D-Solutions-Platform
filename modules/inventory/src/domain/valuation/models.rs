@@ -10,6 +10,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -20,7 +21,7 @@ use uuid::Uuid;
 ///
 /// `total_value_minor` is the pre-computed sum of all associated
 /// `ValuationLine.total_value_minor` entries.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ValuationSnapshot {
     pub id: Uuid,
     pub tenant_id: String,

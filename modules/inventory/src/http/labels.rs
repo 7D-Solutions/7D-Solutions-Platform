@@ -6,63 +6,38 @@
 //!   GET   /api/inventory/labels/:label_id                — get single label
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::labels::{generate_label, get_label, list_labels, GenerateLabelRequest, LabelError},
+    domain::labels::{generate_label, get_label, list_labels, GenerateLabelRequest},
     AppState,
 };
 
 // ============================================================================
-// Error mapping
+// Query params
 // ============================================================================
 
-fn label_error_response(err: LabelError) -> impl IntoResponse {
-    match err {
-        LabelError::ItemNotFound | LabelError::RevisionNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": err.to_string() })),
-        ),
-        LabelError::ItemInactive => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "item_inactive", "message": err.to_string() })),
-        ),
-        LabelError::RevisionMismatch => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "revision_mismatch", "message": err.to_string() })),
-        ),
-        LabelError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),
-        ),
-        LabelError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        LabelError::Serialization(e) => {
-            tracing::error!(error = %e, "label serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        LabelError::Database(e) => {
-            tracing::error!(error = %e, "label database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
+#[derive(Debug, Deserialize)]
+pub struct ListLabelsQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+fn default_limit() -> i64 {
+    50
 }
 
 // ============================================================================
@@ -74,16 +49,16 @@ pub async fn post_generate_label(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<GenerateLabelRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
     req.item_id = item_id;
 
-    // Propagate actor from claims if not explicitly set
     if req.actor_id.is_none() {
         if let Some(Extension(c)) = &claims {
             req.actor_id = Some(c.user_id);
@@ -91,26 +66,48 @@ pub async fn post_generate_label(
     }
 
     match generate_label(&state.pool, &req).await {
-        Ok((label, false)) => (StatusCode::CREATED, Json(json!(label))).into_response(),
-        Ok((label, true)) => (StatusCode::OK, Json(json!(label))).into_response(),
-        Err(e) => label_error_response(e).into_response(),
+        Ok((label, false)) => (StatusCode::CREATED, Json(label)).into_response(),
+        Ok((label, true)) => (StatusCode::OK, Json(label)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
 /// GET /api/inventory/items/:item_id/labels
+///
+/// Lists labels for an item. Returns `PaginatedResponse` envelope.
 pub async fn get_list_labels(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
+    Query(q): Query<ListLabelsQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match list_labels(&state.pool, &tenant_id, item_id).await {
-        Ok(labels) => (StatusCode::OK, Json(json!(labels))).into_response(),
-        Err(e) => label_error_response(e).into_response(),
+        Ok(all_labels) => {
+            let total = all_labels.len() as i64;
+            let page_size = q.limit.clamp(1, 200);
+            let offset = q.offset.max(0);
+            let page = (offset / page_size) + 1;
+            let labels: Vec<_> = all_labels
+                .into_iter()
+                .skip(offset as usize)
+                .take(page_size as usize)
+                .collect();
+            let resp = PaginatedResponse::new(labels, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
 
@@ -119,19 +116,21 @@ pub async fn get_label_by_id(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(label_id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match get_label(&state.pool, &tenant_id, label_id).await {
-        Ok(Some(label)) => (StatusCode::OK, Json(json!(label))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Label not found" })),
-        )
-            .into_response(),
-        Err(e) => label_error_response(e).into_response(),
+        Ok(Some(label)) => (StatusCode::OK, Json(label)).into_response(),
+        Ok(None) => {
+            with_request_id(ApiError::not_found("Label not found"), &tracing_ctx).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
     }
 }
