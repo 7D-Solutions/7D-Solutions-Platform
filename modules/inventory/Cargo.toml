@@ -1,6 +1,6 @@
 [package]
 name = "inventory-rs"
-version = "2.4.0"
+version = "2.4.1"
 edition = "2021"
 description = "Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts"
 
@@ -34,6 +34,10 @@ path = "src/bin/bench.rs"
 [[bin]]
 name = "dlq_replay_drill"
 path = "src/bin/dlq_replay_drill.rs"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dev-dependencies]
 serial_test = "3.3.1"
