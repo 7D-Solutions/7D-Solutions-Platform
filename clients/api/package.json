@@ -1,0 +1,24 @@
+{
+  "name": "@7d/api",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Unified TypeScript client for all 7D platform services",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "proof": "npx tsx tests/consumer-proof.ts"
+  },
+  "dependencies": {
+    "@7d/bom-client": "file:../bom",
+    "@7d/inventory-client": "file:../inventory",
+    "@7d/party-client": "file:../party",
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "dotenv": "^17.3.1",
+    "jose": "^6.2.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
