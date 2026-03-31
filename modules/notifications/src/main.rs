@@ -1,351 +1,316 @@
-use ::event_bus::{EventBus, InMemoryBus, NatsBus};
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::Router;
+use std::sync::Arc;
+use std::time::Duration;
+
 use notifications_rs::{
-    config,
-    config::{Config, EmailSenderType, SmsSenderType},
-    consumer_tasks, db, event_bus, http, metrics,
+    config::Config,
+    consumers::EventConsumer,
+    handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded},
+    http, metrics,
+    models::{
+        EnvelopeMetadata, InvoiceIssuedPayload, PaymentFailedPayload, PaymentSucceededPayload,
+    },
     scheduled::{
         dispatch_once, reset_orphaned_claims, ChannelRouter, HttpEmailSender, HttpSmsSender,
         LoggingSender, NotificationSender, RetryPolicy,
     },
 };
-use security::{
-    middleware::{
-        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
-    },
-    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
-};
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing_subscriber::EnvFilter;
+use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use security::{permissions, RequirePermissionsLayer};
+
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
+    ModuleBuilder::from_manifest("module.toml")
+        .migrator(&MIGRATOR)
+        .consumer("ar.events.invoice.issued", on_invoice_issued)
+        .consumer(
+            "payments.events.payment.succeeded",
+            on_payment_succeeded,
+        )
+        .consumer("payments.events.payment.failed", on_payment_failed)
+        .routes(|ctx| {
+            let pool = ctx.pool().clone();
+            let config = Config::from_env().unwrap_or_else(|err| {
+                tracing::error!("Notifications config error: {}", err);
+                panic!("Notifications config error: {}", err);
+            });
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
-
-    // Load and validate configuration (fail-fast on missing/invalid config)
-    let config = Config::from_env().unwrap_or_else(|err| {
-        eprintln!("Configuration error: {}", err);
-        eprintln!("Notifications service cannot start without valid configuration.");
-        std::process::exit(1);
-    });
-
-    tracing::info!(
-        "Configuration loaded: bus_type={:?}, host={}, port={}",
-        config.bus_type,
-        config.host,
-        config.port
-    );
-
-    // Database configuration
-    let db = db::resolver::resolve_pool(&config.database_url)
-        .await
-        .expect("Failed to connect to Postgres");
-
-    let shutdown_pool = db.clone();
-
-    // Run migrations
-    sqlx::migrate!("./db/migrations")
-        .run(&db)
-        .await
-        .expect("Failed to run database migrations");
-
-    tracing::info!("Database migrations applied successfully");
-
-    // Event bus configuration
-    let bus: Arc<dyn EventBus> = match config.bus_type {
-        config::BusType::Nats => {
-            let nats_url = config
-                .nats_url
-                .as_ref()
-                .expect("NATS_URL must be set when BUS_TYPE=nats");
-            tracing::info!("Connecting to NATS at {}", nats_url);
-            let nats_client = ::event_bus::connect_nats(nats_url)
-                .await
-                .expect("Failed to connect to NATS");
-            Arc::new(NatsBus::new(nats_client))
-        }
-        config::BusType::InMemory => {
-            tracing::info!("Using InMemoryBus for event messaging");
-            Arc::new(InMemoryBus::new())
-        }
-    };
-
-    // Startup: recover any notifications that were claimed but never completed
-    // (e.g., process crashed mid-dispatch).
-    {
-        use chrono::Utc;
-        let cutoff = Utc::now() - chrono::Duration::minutes(5);
-        match reset_orphaned_claims(&db, cutoff).await {
-            Ok(n) if n > 0 => {
-                tracing::warn!(count = n, "reset orphaned claimed notifications on startup")
+            // Startup: recover orphaned claimed notifications
+            {
+                let startup_pool = pool.clone();
+                tokio::spawn(async move {
+                    use chrono::Utc;
+                    let cutoff = Utc::now() - chrono::Duration::minutes(5);
+                    match reset_orphaned_claims(&startup_pool, cutoff).await {
+                        Ok(n) if n > 0 => {
+                            tracing::warn!(count = n, "reset orphaned claimed notifications")
+                        }
+                        Ok(_) => tracing::debug!("no orphaned claimed notifications found"),
+                        Err(e) => tracing::error!(error = %e, "failed to reset orphaned claims"),
+                    }
+                });
             }
-            Ok(_) => tracing::debug!("no orphaned claimed notifications found on startup"),
-            Err(e) => tracing::error!(error = %e, "failed to reset orphaned claims on startup"),
-        }
-    }
 
-    // Spawn background notification dispatcher loop.
-    {
-        let interval_secs: u64 = std::env::var("NOTIFICATIONS_DISPATCH_INTERVAL_SECS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(60);
-        let dispatch_pool = db.clone();
-        let retry_policy = RetryPolicy {
-            max_attempts: config.retry_max_attempts,
-            backoff_base_secs: config.retry_backoff_base_secs,
-            backoff_multiplier: config.retry_backoff_multiplier,
-            backoff_max_secs: config.retry_backoff_max_secs,
-        };
-        let email_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
-            EmailSenderType::Logging => Arc::new(LoggingSender),
-            EmailSenderType::Http => Arc::new(HttpEmailSender::new(
-                config
-                    .email_http_endpoint
-                    .clone()
-                    .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
-                config.email_from.clone(),
-                config.email_api_key.clone(),
-            )),
-        };
-        let sms_sender: Arc<dyn NotificationSender> = match config.sms_sender_type {
-            SmsSenderType::Logging => Arc::new(LoggingSender),
-            SmsSenderType::Http => Arc::new(HttpSmsSender::new(
-                config
-                    .sms_http_endpoint
-                    .clone()
-                    .expect("SMS_HTTP_ENDPOINT required for HTTP SMS sender"),
-                config.sms_from_number.clone(),
-                config.sms_api_key.clone(),
-            )),
-        };
-        let dispatch_sender: Arc<dyn NotificationSender> = Arc::new(ChannelRouter {
-            email: email_sender,
-            sms: sms_sender,
-        });
-        tokio::spawn(async move {
-            loop {
-                if let Err(e) =
-                    dispatch_once(&dispatch_pool, dispatch_sender.clone(), retry_policy).await
-                {
-                    tracing::error!(error = %e, "dispatch_once error");
-                }
-                tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+            // Spawn background notification dispatcher loop
+            {
+                let interval_secs: u64 = std::env::var("NOTIFICATIONS_DISPATCH_INTERVAL_SECS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(60);
+                let dispatch_pool = pool.clone();
+                let retry_policy = RetryPolicy {
+                    max_attempts: config.retry_max_attempts,
+                    backoff_base_secs: config.retry_backoff_base_secs,
+                    backoff_multiplier: config.retry_backoff_multiplier,
+                    backoff_max_secs: config.retry_backoff_max_secs,
+                };
+                let email_sender: Arc<dyn NotificationSender> =
+                    match config.email_sender_type {
+                        notifications_rs::config::EmailSenderType::Logging => {
+                            Arc::new(LoggingSender)
+                        }
+                        notifications_rs::config::EmailSenderType::Http => {
+                            Arc::new(HttpEmailSender::new(
+                                config
+                                    .email_http_endpoint
+                                    .clone()
+                                    .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
+                                config.email_from.clone(),
+                                config.email_api_key.clone(),
+                            ))
+                        }
+                    };
+                let sms_sender: Arc<dyn NotificationSender> =
+                    match config.sms_sender_type {
+                        notifications_rs::config::SmsSenderType::Logging => {
+                            Arc::new(LoggingSender)
+                        }
+                        notifications_rs::config::SmsSenderType::Http => {
+                            Arc::new(HttpSmsSender::new(
+                                config
+                                    .sms_http_endpoint
+                                    .clone()
+                                    .expect("SMS_HTTP_ENDPOINT required for HTTP SMS sender"),
+                                config.sms_from_number.clone(),
+                                config.sms_api_key.clone(),
+                            ))
+                        }
+                    };
+                let dispatch_sender: Arc<dyn NotificationSender> =
+                    Arc::new(ChannelRouter {
+                        email: email_sender,
+                        sms: sms_sender,
+                    });
+                tokio::spawn(async move {
+                    loop {
+                        if let Err(e) =
+                            dispatch_once(&dispatch_pool, dispatch_sender.clone(), retry_policy)
+                                .await
+                        {
+                            tracing::error!(error = %e, "dispatch_once error");
+                        }
+                        tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+                    }
+                });
             }
-        });
-    }
 
-    // Spawn outbox publisher task
-    tokio::spawn(event_bus::start_outbox_publisher(db.clone(), bus.clone()));
+            // Register SLO metrics with global prometheus registry so
+            // SDK's /metrics endpoint picks them up via prometheus::gather().
+            let _ = prometheus::register(Box::new(
+                metrics::HTTP_REQUEST_DURATION_SECONDS.clone(),
+            ));
+            let _ = prometheus::register(Box::new(
+                metrics::HTTP_REQUESTS_TOTAL.clone(),
+            ));
+            let _ = prometheus::register(Box::new(
+                metrics::EVENT_CONSUMER_LAG_MESSAGES.clone(),
+            ));
 
-    // Spawn event consumer tasks
-    consumer_tasks::start_invoice_issued_consumer(bus.clone(), db.clone()).await;
-    consumer_tasks::start_payment_succeeded_consumer(bus.clone(), db.clone()).await;
-    consumer_tasks::start_payment_failed_consumer(bus.clone(), db.clone()).await;
-
-    // HTTP server configuration
-    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
-
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/ready", get(http::health::ready))
-        .route("/api/health", get(http::health::health))
-        .route("/api/ready", get(http::health::ready))
-        .route("/api/version", get(http::health::version))
-        .route("/metrics", get(metrics::metrics_handler))
-        .with_state(db.clone())
-        .merge(
-            http::admin::admin_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
-                permissions::NOTIFICATIONS_MUTATE,
-            ])),
-        )
-        .merge(
-            http::dlq::dlq_read_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
-                permissions::NOTIFICATIONS_READ,
-            ])),
-        )
-        .merge(
-            http::dlq::dlq_mutate_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
-                permissions::NOTIFICATIONS_MUTATE,
-            ])),
-        )
-        .merge(
-            http::inbox::inbox_read_router(db.clone()).route_layer(
-                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-            ),
-        )
-        .merge(
-            http::inbox::inbox_mutate_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
-                permissions::NOTIFICATIONS_MUTATE,
-            ])),
-        )
-        .merge(
-            http::templates::templates_read_router(db.clone()).route_layer(
-                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-            ),
-        )
-        .merge(
-            http::templates::templates_mutate_router(db.clone()).route_layer(
-                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
-            ),
-        )
-        .merge(
-            http::sends::sends_read_router(db.clone()).route_layer(
-                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-            ),
-        )
-        .merge(
-            http::sends::sends_mutate_router(db).route_layer(RequirePermissionsLayer::new(&[
-                permissions::NOTIFICATIONS_MUTATE,
-            ])),
-        )
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ))
-        .layer(build_cors_layer(&config))
-        .into_make_service_with_connect_info::<SocketAddr>();
-
-    let addr: SocketAddr = format!("{}:{}", config.host, config.port)
-        .parse()
-        .expect("Invalid HOST:PORT");
-    tracing::info!("Notifications module listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
+            Router::new()
+                .merge(
+                    http::admin::admin_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                    ),
+                )
+                .merge(
+                    http::dlq::dlq_read_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                    ),
+                )
+                .merge(
+                    http::dlq::dlq_mutate_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                    ),
+                )
+                .merge(
+                    http::inbox::inbox_read_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                    ),
+                )
+                .merge(
+                    http::inbox::inbox_mutate_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                    ),
+                )
+                .merge(
+                    http::templates::templates_read_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                    ),
+                )
+                .merge(
+                    http::templates::templates_mutate_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                    ),
+                )
+                .merge(
+                    http::sends::sends_read_router(pool.clone()).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                    ),
+                )
+                .merge(
+                    http::sends::sends_mutate_router(pool).route_layer(
+                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                    ),
+                )
+        })
+        .run()
         .await
-        .expect("Failed to bind");
+        .expect("notifications module failed");
+}
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+/// SDK consumer adapter for ar.events.invoice.issued.
+async fn on_invoice_issued(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
+
+    let consumer = EventConsumer::new(pool.clone());
+    if consumer
+        .is_processed(event_id)
         .await
-        .expect("Server failed to start");
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?
+    {
+        tracing::info!(event_id = %event_id, "Duplicate invoice.issued event ignored");
+        return Ok(());
+    }
 
-    tracing::info!("Server stopped — closing resources");
-    shutdown_pool.close().await;
-    tracing::info!("Shutdown complete");
-}
+    let payload: InvoiceIssuedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
+    let metadata = EnvelopeMetadata {
+        event_id,
+        tenant_id: envelope.tenant_id.clone(),
+        correlation_id: envelope.correlation_id.clone(),
     };
 
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
+    handle_invoice_issued(pool, payload, metadata)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
 
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+    consumer
+        .mark_processed(
+            event_id,
+            "ar.events.invoice.issued",
+            &envelope.tenant_id,
+            &envelope.source_module,
+        )
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
 
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    tracing::info!("Shutdown signal received — draining in-flight requests");
+    Ok(())
 }
 
-fn build_cors_layer(config: &Config) -> CorsLayer {
-    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+/// SDK consumer adapter for payments.events.payment.succeeded.
+async fn on_payment_succeeded(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
 
-    if is_wildcard && config.env != "development" {
-        tracing::warn!(
-            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
-        );
+    let consumer = EventConsumer::new(pool.clone());
+    if consumer
+        .is_processed(event_id)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?
+    {
+        tracing::info!(event_id = %event_id, "Duplicate payment.succeeded event ignored");
+        return Ok(());
     }
 
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let origins: Vec<_> = config
-            .cors_origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
-        CorsLayer::new().allow_origin(origins)
+    let payload: PaymentSucceededPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    let metadata = EnvelopeMetadata {
+        event_id,
+        tenant_id: envelope.tenant_id.clone(),
+        correlation_id: envelope.correlation_id.clone(),
     };
 
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
+    handle_payment_succeeded(pool, payload, metadata)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    consumer
+        .mark_processed(
+            event_id,
+            "payments.events.payment.succeeded",
+            &envelope.tenant_id,
+            &envelope.source_module,
+        )
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// SDK consumer adapter for payments.events.payment.failed.
+async fn on_payment_failed(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
 
-    #[test]
-    fn cors_wildcard_parses() {
-        let config = Config {
-            database_url: "postgresql://localhost/test".to_string(),
-            bus_type: config::BusType::InMemory,
-            nats_url: None,
-            host: "0.0.0.0".to_string(),
-            port: 8089,
-            env: "development".to_string(),
-            cors_origins: vec!["*".to_string()],
-            email_sender_type: config::EmailSenderType::Logging,
-            email_http_endpoint: None,
-            email_from: "no-reply@notifications.local".to_string(),
-            email_api_key: None,
-            sms_sender_type: config::SmsSenderType::Logging,
-            sms_http_endpoint: None,
-            sms_from_number: "+10000000000".to_string(),
-            sms_api_key: None,
-            retry_max_attempts: 5,
-            retry_backoff_base_secs: 300,
-            retry_backoff_multiplier: 1.0,
-            retry_backoff_max_secs: 3600,
-        };
-        let _layer = build_cors_layer(&config);
+    let consumer = EventConsumer::new(pool.clone());
+    if consumer
+        .is_processed(event_id)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?
+    {
+        tracing::info!(event_id = %event_id, "Duplicate payment.failed event ignored");
+        return Ok(());
     }
 
-    #[test]
-    fn cors_specific_origins_parse() {
-        let config = Config {
-            database_url: "postgresql://localhost/test".to_string(),
-            bus_type: config::BusType::InMemory,
-            nats_url: None,
-            host: "0.0.0.0".to_string(),
-            port: 8089,
-            env: "development".to_string(),
-            cors_origins: vec![
-                "http://localhost:3000".to_string(),
-                "https://app.example.com".to_string(),
-            ],
-            email_sender_type: config::EmailSenderType::Logging,
-            email_http_endpoint: None,
-            email_from: "no-reply@notifications.local".to_string(),
-            email_api_key: None,
-            sms_sender_type: config::SmsSenderType::Logging,
-            sms_http_endpoint: None,
-            sms_from_number: "+10000000000".to_string(),
-            sms_api_key: None,
-            retry_max_attempts: 5,
-            retry_backoff_base_secs: 300,
-            retry_backoff_multiplier: 1.0,
-            retry_backoff_max_secs: 3600,
-        };
-        let _layer = build_cors_layer(&config);
-    }
+    let payload: PaymentFailedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    let metadata = EnvelopeMetadata {
+        event_id,
+        tenant_id: envelope.tenant_id.clone(),
+        correlation_id: envelope.correlation_id.clone(),
+    };
+
+    handle_payment_failed(pool, payload, metadata)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    consumer
+        .mark_processed(
+            event_id,
+            "payments.events.payment.failed",
+            &envelope.tenant_id,
+            &envelope.source_module,
+        )
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    Ok(())
 }
