@@ -3046,7 +3046,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -3324,6 +3324,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
