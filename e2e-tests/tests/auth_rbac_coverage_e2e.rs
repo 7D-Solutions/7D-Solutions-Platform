@@ -166,7 +166,7 @@ fn modules() -> Vec<ModuleInfo> {
             port: 8100,
             read_endpoints: &[
                 "/api/ttp/service-agreements",
-                "/api/metering/trace",
+                "/api/metering/trace?period=2026-01",
             ],
             mutation_endpoints: &[("POST", "/api/ttp/billing-runs")],
             exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
