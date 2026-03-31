@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "1.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 
@@ -41,6 +41,10 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.38"
 futures = "0.3"
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
+utoipa-axum = "0.2"
+config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 serial_test = "3.3.1"

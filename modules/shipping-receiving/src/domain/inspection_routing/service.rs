@@ -46,7 +46,7 @@ pub enum RoutingError {
 }
 
 /// Request to route a shipment line.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
 pub struct RouteLineRequest {
     pub route_decision: String,
     pub reason: Option<String>,

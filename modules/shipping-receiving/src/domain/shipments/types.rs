@@ -17,7 +17,7 @@ impl fmt::Display for ParseEnumError {
 impl std::error::Error for ParseEnumError {}
 
 /// Shipment direction — determines which state machine applies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
     Inbound,

@@ -8,6 +8,8 @@
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-eexq4 | Initial proof. All tests passing. | Module build complete and core logic validated via tests. | No |
+| 2.0.0 | 2026-03-30 | bd-y3hq2 | Replace ErrorBody with ApiError. Add PaginatedResponse to list_shipments. All error responses include request_id via TracingContext. Query params changed from limit/offset to page/page_size. | Plug-and-play Wave 2: standard response envelopes. | YES — list_shipments returns `{"data":[],"pagination":{}}` instead of bare array. Error responses now include `request_id` field. Query params changed from `limit`/`offset` to `page`/`page_size`. |
+| 2.1.0 | 2026-03-30 | bd-y3hq2 | Add OpenAPI spec via utoipa. All handlers annotated with `#[utoipa::path]`. All types derive ToSchema/IntoParams. `/api/openapi.json` route serves OpenAPI 3.0 spec. SecurityAddon for Bearer JWT. | Plug-and-play Wave 2: OpenAPI documentation. | No |
 
 ## How to read this table
 

@@ -1,41 +1,22 @@
-use axum::{http::StatusCode, Extension, Json};
+use axum::Extension;
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::domain::shipments::ShipmentError;
 use axum::http::HeaderMap;
-
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    pub fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
 
 // ── Tenant extraction ────────────────────────────────────────
 
 pub fn extract_tenant(
     claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<Uuid, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Uuid, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new(
-                "unauthorized",
-                "Missing or invalid authentication",
-            )),
-        )),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 
@@ -46,49 +27,23 @@ pub fn idempotency_key(headers: &HeaderMap) -> Option<String> {
         .map(String::from)
 }
 
-// ── Error mapping ────────────────────────────────────────────
-
-pub fn error_response(err: ShipmentError) -> (StatusCode, Json<ErrorBody>) {
-    match err {
-        ShipmentError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", "Shipment not found")),
-        ),
-        ShipmentError::Validation(msg) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        ShipmentError::Transition(t) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("invalid_transition", &t.to_string())),
-        ),
-        ShipmentError::Guard(g) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("guard_failed", &g.to_string())),
-        ),
-        ShipmentError::Database(e) => {
-            tracing::error!("database error: {e}");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", "Internal server error")),
-            )
+/// Enrich an `ApiError` with the `request_id` from `TracingContext`.
+pub fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
+    match ctx {
+        Some(Extension(c)) => {
+            if let Some(tid) = &c.trace_id {
+                err.with_request_id(tid.clone())
+            } else {
+                err
+            }
         }
-        ShipmentError::InventoryIntegration(msg) => {
-            tracing::error!("inventory integration error: {msg}");
-            (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorBody::new(
-                    "inventory_error",
-                    "Inventory integration failed",
-                )),
-            )
-        }
+        None => err,
     }
 }
 
 // ── Request / response types ─────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateShipmentRequest {
     pub direction: crate::domain::shipments::Direction,
     pub carrier_party_id: Option<Uuid>,
@@ -98,7 +53,7 @@ pub struct CreateShipmentRequest {
     pub expected_arrival_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AddLineRequest {
     pub sku: Option<String>,
     pub uom: Option<String>,
@@ -110,7 +65,7 @@ pub struct AddLineRequest {
     pub po_line_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct TransitionStatusRequest {
     pub status: String,
     pub arrived_at: Option<DateTime<Utc>>,
@@ -119,27 +74,28 @@ pub struct TransitionStatusRequest {
     pub closed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReceiveLineRequest {
     pub qty_received: i64,
     pub qty_accepted: i64,
     pub qty_rejected: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ShipLineQtyRequest {
     pub qty_shipped: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListShipmentsQuery {
     pub direction: Option<String>,
     pub status: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow, ToSchema)]
 pub struct ShipmentLineRow {
     pub id: Uuid,
     pub tenant_id: Uuid,

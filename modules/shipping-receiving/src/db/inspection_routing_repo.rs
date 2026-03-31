@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Row returned from inspection_routings table.
-#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize, utoipa::ToSchema)]
 pub struct InspectionRoutingRow {
     pub id: Uuid,
     pub tenant_id: Uuid,
