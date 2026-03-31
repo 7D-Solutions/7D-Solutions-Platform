@@ -9,9 +9,10 @@ pub use service::DisposalService;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DisposalType {
     Sale,
@@ -62,7 +63,7 @@ impl std::fmt::Display for DisposalType {
 }
 
 /// Row from fa_disposals (disposal_type cast to TEXT in queries).
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct Disposal {
     pub id: Uuid,
     pub tenant_id: String,
@@ -86,7 +87,7 @@ pub struct Disposal {
 }
 
 /// Request to dispose of or impair an asset.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct DisposeAssetRequest {
     pub tenant_id: String,
     pub asset_id: Uuid,
@@ -159,6 +160,25 @@ pub enum DisposalError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<DisposalError> for platform_http_contracts::ApiError {
+    fn from(err: DisposalError) -> Self {
+        match &err {
+            DisposalError::AssetNotFound(id) => {
+                Self::not_found(format!("Asset {} not found", id))
+            }
+            DisposalError::CategoryNotFound(id) => {
+                Self::not_found(format!("Category not found for asset {}", id))
+            }
+            DisposalError::InvalidState(msg) => Self::conflict(msg.clone()),
+            DisposalError::Validation(msg) => Self::new(422, "validation_error", msg.clone()),
+            DisposalError::Database(e) => {
+                tracing::error!("Fixed-assets disposal DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,7 +223,7 @@ mod tests {
             tenant_id: " ".into(),
             asset_id: Uuid::new_v4(),
             disposal_type: DisposalType::Sale,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             proceeds_minor: None,
             reason: None,
             buyer: None,
@@ -219,7 +239,7 @@ mod tests {
             tenant_id: "t1".into(),
             asset_id: Uuid::new_v4(),
             disposal_type: DisposalType::Sale,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             proceeds_minor: Some(-100),
             reason: None,
             buyer: None,
@@ -235,7 +255,7 @@ mod tests {
             tenant_id: "t1".into(),
             asset_id: Uuid::new_v4(),
             disposal_type: DisposalType::Sale,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             proceeds_minor: Some(5000),
             reason: Some("Obsolete".into()),
             buyer: Some("Acme".into()),

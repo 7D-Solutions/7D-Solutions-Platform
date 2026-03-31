@@ -5,10 +5,11 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// One period's planned depreciation for an asset (row in fa_depreciation_schedules).
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct DepreciationSchedule {
     pub id: Uuid,
     pub tenant_id: String,
@@ -28,7 +29,7 @@ pub struct DepreciationSchedule {
 }
 
 /// A depreciation run: posts all unposted schedule periods up to as_of_date.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct DepreciationRun {
     pub id: Uuid,
     pub tenant_id: String,
@@ -48,7 +49,7 @@ pub struct DepreciationRun {
 }
 
 /// Request to generate/refresh the depreciation schedule for a single asset.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GenerateScheduleRequest {
     pub tenant_id: String,
     pub asset_id: Uuid,
@@ -64,7 +65,7 @@ impl GenerateScheduleRequest {
 }
 
 /// Request to execute a depreciation run for a tenant up to as_of_date.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateRunRequest {
     pub tenant_id: String,
     pub as_of_date: NaiveDate,
@@ -133,6 +134,31 @@ pub enum DepreciationError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<DepreciationError> for platform_http_contracts::ApiError {
+    fn from(err: DepreciationError) -> Self {
+        match &err {
+            DepreciationError::AssetNotFound(id) => {
+                Self::not_found(format!("Asset {} not found", id))
+            }
+            DepreciationError::AssetNotInService(id) => Self::new(
+                422,
+                "asset_not_in_service",
+                format!("Asset {} has no in-service date", id),
+            ),
+            DepreciationError::UnsupportedMethod(_) => {
+                Self::new(422, "unsupported_method", err.to_string())
+            }
+            DepreciationError::Validation(msg) => {
+                Self::new(422, "validation_error", msg.clone())
+            }
+            DepreciationError::Database(e) => {
+                tracing::error!("Fixed-assets depreciation DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,7 +189,7 @@ mod tests {
     fn create_run_validation_rejects_empty_tenant() {
         let req = CreateRunRequest {
             tenant_id: "".into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             currency: None,
             created_by: None,
         };
@@ -177,7 +203,7 @@ mod tests {
     fn create_run_validation_rejects_numeric_currency() {
         let req = CreateRunRequest {
             tenant_id: "t1".into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             currency: Some("123".into()),
             created_by: None,
         };
@@ -191,7 +217,7 @@ mod tests {
     fn create_run_validation_rejects_short_currency() {
         let req = CreateRunRequest {
             tenant_id: "t1".into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             currency: Some("US".into()),
             created_by: None,
         };
@@ -205,7 +231,7 @@ mod tests {
     fn create_run_validation_accepts_valid() {
         let req = CreateRunRequest {
             tenant_id: "t1".into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             currency: Some("usd".into()),
             created_by: Some("admin".into()),
         };
@@ -216,7 +242,7 @@ mod tests {
     fn create_run_validation_accepts_no_currency() {
         let req = CreateRunRequest {
             tenant_id: "t1".into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date"),
             currency: None,
             created_by: None,
         };

@@ -1,22 +1,30 @@
-use axum::http::StatusCode;
-use axum::Json;
+//! Shared tenant extraction and error enrichment for Fixed Assets handlers.
+
+use axum::Extension;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 
 /// Extract the tenant ID string from verified JWT claims in request extensions.
 ///
-/// Returns `Err(401)` if no claims are present (unauthenticated request).
-/// All Fixed Assets route handlers should use this instead of hardcoded tenant strings.
-pub fn extract_tenant(
-    claims: &Option<axum::Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+/// Returns `Err(ApiError::unauthorized)` if no claims are present.
+pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
-        Some(axum::Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({
-                "error": "unauthorized",
-                "message": "Missing or invalid authentication"
-            })),
-        )),
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
+    }
+}
+
+/// Enrich an `ApiError` with the `request_id` from `TracingContext`.
+pub fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
+    match ctx {
+        Some(Extension(c)) => {
+            if let Some(tid) = &c.trace_id {
+                err.with_request_id(tid.clone())
+            } else {
+                err
+            }
+        }
+        None => err,
     }
 }

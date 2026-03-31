@@ -1,6 +1,6 @@
 [package]
 name = "numbering"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "Numbering service: tenant-scoped, idempotent, atomic sequence allocation"
 

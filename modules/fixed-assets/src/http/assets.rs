@@ -3,58 +3,23 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::assets::{
-    AssetError, AssetRepo, CategoryRepo, CreateAssetRequest, CreateCategoryRequest,
-    UpdateAssetRequest, UpdateCategoryRequest,
+    AssetRepo, CategoryRepo, CreateAssetRequest, CreateCategoryRequest, UpdateAssetRequest,
+    UpdateCategoryRequest,
 };
 use crate::AppState;
 
-use super::helpers::tenant::extract_tenant;
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn map_error(e: AssetError) -> (StatusCode, Json<serde_json::Value>) {
-    let (status, code, msg) = match &e {
-        AssetError::NotFound => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
-        AssetError::CategoryNotFound(_) => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
-        AssetError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error", e.to_string()),
-        AssetError::DuplicateTag(_, _) => (StatusCode::CONFLICT, "duplicate_tag", e.to_string()),
-        AssetError::DuplicateCategoryCode(_, _) => (
-            StatusCode::CONFLICT,
-            "duplicate_category_code",
-            e.to_string(),
-        ),
-        AssetError::InvalidTransition(_) => {
-            (StatusCode::CONFLICT, "invalid_transition", e.to_string())
-        }
-        AssetError::Database(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "Internal error".to_string(),
-        ),
-    };
-    (
-        status,
-        Json(serde_json::json!({ "error": code, "message": msg })),
-    )
-}
-
-fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
-    tracing::error!(error = %e, "Internal error during serialization");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({ "error": "internal_error", "message": "Internal error" })),
-    )
-}
+use super::helpers::tenant::{extract_tenant, with_request_id};
 
 // ============================================================================
 // Category endpoints
@@ -63,74 +28,97 @@ fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_jso
 pub async fn create_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateCategoryRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let cat = CategoryRepo::create(&state.pool, &req)
-        .await
-        .map_err(map_error)?;
-    Ok((
-        StatusCode::CREATED,
-        Json(serde_json::to_value(cat).map_err(map_internal_error)?),
-    ))
+    match CategoryRepo::create(&state.pool, &req).await {
+        Ok(cat) => (StatusCode::CREATED, Json(cat)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn update_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
     Json(mut req): Json<UpdateCategoryRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let cat = CategoryRepo::update(&state.pool, id, &req)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(cat).map_err(map_internal_error)?))
+    match CategoryRepo::update(&state.pool, id, &req).await {
+        Ok(cat) => Json(cat).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn deactivate_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let cat = CategoryRepo::deactivate(&state.pool, id, &tenant_id)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(cat).map_err(map_internal_error)?))
+    match CategoryRepo::deactivate(&state.pool, id, &tenant_id).await {
+        Ok(cat) => Json(cat).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn get_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let cat = CategoryRepo::find_by_id(&state.pool, id, &tenant_id)
-        .await
-        .map_err(map_error)?
-        .ok_or_else(|| map_error(AssetError::NotFound))?;
-    Ok(Json(serde_json::to_value(cat).map_err(map_internal_error)?))
+    match CategoryRepo::find_by_id(&state.pool, id, &tenant_id).await {
+        Ok(Some(cat)) => Json(cat).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Category {} not found", id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn list_categories(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+    tracing_ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let cats = CategoryRepo::list(&state.pool, &tenant_id)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(
-        serde_json::to_value(cats).map_err(map_internal_error)?,
-    ))
+    match CategoryRepo::list(&state.pool, &tenant_id).await {
+        Ok(cats) => {
+            let total = cats.len() as i64;
+            let resp = PaginatedResponse::new(cats, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 // ============================================================================
@@ -145,79 +133,96 @@ pub struct ListAssetsQuery {
 pub async fn create_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateAssetRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let asset = AssetRepo::create(&state.pool, &req)
-        .await
-        .map_err(map_error)?;
-    Ok((
-        StatusCode::CREATED,
-        Json(serde_json::to_value(asset).map_err(map_internal_error)?),
-    ))
+    match AssetRepo::create(&state.pool, &req).await {
+        Ok(asset) => (StatusCode::CREATED, Json(asset)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn update_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
     Json(mut req): Json<UpdateAssetRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let asset = AssetRepo::update(&state.pool, id, &req)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(
-        serde_json::to_value(asset).map_err(map_internal_error)?,
-    ))
+    match AssetRepo::update(&state.pool, id, &req).await {
+        Ok(asset) => Json(asset).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn deactivate_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let asset = AssetRepo::deactivate(&state.pool, id, &tenant_id)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(
-        serde_json::to_value(asset).map_err(map_internal_error)?,
-    ))
+    match AssetRepo::deactivate(&state.pool, id, &tenant_id).await {
+        Ok(asset) => Json(asset).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn get_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let asset = AssetRepo::find_by_id(&state.pool, id, &tenant_id)
-        .await
-        .map_err(map_error)?
-        .ok_or_else(|| map_error(AssetError::NotFound))?;
-    Ok(Json(
-        serde_json::to_value(asset).map_err(map_internal_error)?,
-    ))
+    match AssetRepo::find_by_id(&state.pool, id, &tenant_id).await {
+        Ok(Some(asset)) => Json(asset).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Asset {} not found", id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 pub async fn list_assets(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListAssetsQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let assets = AssetRepo::list(&state.pool, &tenant_id, query.status.as_deref())
-        .await
-        .map_err(map_error)?;
-    Ok(Json(
-        serde_json::to_value(assets).map_err(map_internal_error)?,
-    ))
+    match AssetRepo::list(&state.pool, &tenant_id, query.status.as_deref()).await {
+        Ok(assets) => {
+            let total = assets.len() as i64;
+            let resp = PaginatedResponse::new(assets, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

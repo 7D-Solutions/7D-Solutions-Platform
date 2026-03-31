@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.1.0 | 2026-03-31 | bd-gvhi3 | OpenAPI spec served at /api/openapi.json with utoipa 5.x annotations on all 15 endpoints. Bearer JWT SecurityScheme documented. ConfigValidator-style startup validation preserved. | Plug-and-play: OpenAPI + startup standardization. | No |
 | 2.0.0 | 2026-03-31 | bd-gvhi3 | All error responses migrated to ApiError from platform-http-contracts. list_templates and list_submissions return PaginatedResponse with page/page_size/total_items/total_pages. 50 MB body limit on /api/pdf/render-annotations preserved. Added tenant.rs helper and domain error_conversions.rs. | Plug-and-play: standard response envelopes across platform. | YES: List endpoints now use page/page_size params instead of limit/offset. Error responses now have error, message, request_id fields (was error+message only). |
 | 1.0.0 | 2026-03-28 | bd-6hw2k | Initial proof. PDF template management, annotation rendering (text/checkbox/signature overlays), form field extraction, PDF generation from templates with data binding, size validation guard, admin endpoints. 18 unit tests pass, clippy clean. | PDF editor module complete and proven. All gates pass. | No |

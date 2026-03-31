@@ -1,0 +1,26 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Maintenance Service",
+    "description": "Maintenance management: work orders, preventive plans, meters, calibration, downtime tracking, and labor management.\n\n**Authentication:** Bearer JWT. Tenant derived from JWT claims.\nPermissions: MAINTENANCE_READ for queries, MAINTENANCE_MUTATE for writes.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {},
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

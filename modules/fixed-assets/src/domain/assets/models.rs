@@ -5,9 +5,10 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DepreciationMethod {
     StraightLine,
@@ -46,7 +47,7 @@ impl std::fmt::Display for DepreciationMethod {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetStatus {
     Draft,
@@ -88,7 +89,7 @@ impl std::fmt::Display for AssetStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Category {
     pub id: Uuid,
     pub tenant_id: String,
@@ -107,7 +108,7 @@ pub struct Category {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Asset {
     pub id: Uuid,
     pub tenant_id: String,
@@ -139,7 +140,7 @@ pub struct Asset {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateCategoryRequest {
     pub tenant_id: String,
     pub code: String,
@@ -154,7 +155,7 @@ pub struct CreateCategoryRequest {
     pub gain_loss_account_ref: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UpdateCategoryRequest {
     pub tenant_id: String,
     pub name: Option<String>,
@@ -168,7 +169,7 @@ pub struct UpdateCategoryRequest {
     pub gain_loss_account_ref: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateAssetRequest {
     pub tenant_id: String,
     pub category_id: Uuid,
@@ -191,7 +192,7 @@ pub struct CreateAssetRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UpdateAssetRequest {
     pub tenant_id: String,
     pub name: Option<String>,
@@ -248,6 +249,29 @@ pub enum AssetError {
     InvalidTransition(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+impl From<AssetError> for platform_http_contracts::ApiError {
+    fn from(err: AssetError) -> Self {
+        match err {
+            AssetError::NotFound => Self::not_found("Asset not found"),
+            AssetError::CategoryNotFound(id) => {
+                Self::not_found(format!("Category {} not found", id))
+            }
+            AssetError::Validation(msg) => Self::new(422, "validation_error", msg),
+            AssetError::DuplicateTag(tag, _) => {
+                Self::conflict(format!("Asset tag '{}' already exists", tag))
+            }
+            AssetError::DuplicateCategoryCode(code, _) => {
+                Self::conflict(format!("Category code '{}' already exists", code))
+            }
+            AssetError::InvalidTransition(msg) => Self::conflict(msg),
+            AssetError::Database(e) => {
+                tracing::error!("Fixed-assets DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
 }
 
 fn require_non_empty(value: &str, field: &str) -> Result<(), AssetError> {
@@ -386,7 +410,7 @@ mod tests {
             asset_tag: "FA-001".into(),
             name: "Office Desk".into(),
             description: None,
-            acquisition_date: NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+            acquisition_date: NaiveDate::from_ymd_opt(2026, 1, 15).expect("valid date"),
             in_service_date: None,
             acquisition_cost_minor: 50000,
             currency: None,

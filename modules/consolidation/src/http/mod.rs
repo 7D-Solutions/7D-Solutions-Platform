@@ -192,7 +192,7 @@ use utoipa::OpenApi;
     security(("bearer" = [])),
     modifiers(&SecurityAddon),
 )]
-struct ApiDoc;
+pub struct ApiDoc;
 
 struct SecurityAddon;
 

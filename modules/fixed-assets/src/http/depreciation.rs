@@ -3,58 +3,21 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::depreciation::{
-    CreateRunRequest, DepreciationError, DepreciationService, GenerateScheduleRequest,
+    CreateRunRequest, DepreciationService, GenerateScheduleRequest,
 };
 use crate::AppState;
 
-use super::helpers::tenant::extract_tenant;
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn map_error(e: DepreciationError) -> (StatusCode, Json<serde_json::Value>) {
-    let (status, code, msg) = match &e {
-        DepreciationError::AssetNotFound(_) => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
-        DepreciationError::AssetNotInService(_) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "asset_not_in_service",
-            e.to_string(),
-        ),
-        DepreciationError::UnsupportedMethod(_) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "unsupported_method",
-            e.to_string(),
-        ),
-        DepreciationError::Validation(_) => {
-            (StatusCode::BAD_REQUEST, "validation_error", e.to_string())
-        }
-        DepreciationError::Database(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "Internal error".to_string(),
-        ),
-    };
-    (
-        status,
-        Json(serde_json::json!({ "error": code, "message": msg })),
-    )
-}
-
-fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
-    tracing::error!(error = %e, "Internal error during serialization");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({ "error": "internal_error", "message": "Internal error" })),
-    )
-}
+use super::helpers::tenant::{extract_tenant, with_request_id};
 
 // ============================================================================
 // Schedule endpoints
@@ -67,18 +30,19 @@ fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_jso
 pub async fn generate_schedule(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<GenerateScheduleRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let schedules = DepreciationService::generate_schedule(&state.pool, &req)
-        .await
-        .map_err(map_error)?;
-    Ok((
-        StatusCode::CREATED,
-        Json(serde_json::to_value(schedules).map_err(map_internal_error)?),
-    ))
+    match DepreciationService::generate_schedule(&state.pool, &req).await {
+        Ok(schedules) => (StatusCode::CREATED, Json(schedules)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 // ============================================================================
@@ -92,18 +56,19 @@ pub async fn generate_schedule(
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateRunRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     req.tenant_id = tenant_id;
 
-    let run = DepreciationService::run(&state.pool, &req)
-        .await
-        .map_err(map_error)?;
-    Ok((
-        StatusCode::CREATED,
-        Json(serde_json::to_value(run).map_err(map_internal_error)?),
-    ))
+    match DepreciationService::run(&state.pool, &req).await {
+        Ok(run) => (StatusCode::CREATED, Json(run)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/fixed-assets/depreciation/runs
@@ -112,15 +77,21 @@ pub async fn create_run(
 pub async fn list_runs(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+    tracing_ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let runs = DepreciationService::list_runs(&state.pool, &tenant_id)
-        .await
-        .map_err(map_error)?;
-    Ok(Json(
-        serde_json::to_value(runs).map_err(map_internal_error)?,
-    ))
+    match DepreciationService::list_runs(&state.pool, &tenant_id).await {
+        Ok(runs) => {
+            let total = runs.len() as i64;
+            let resp = PaginatedResponse::new(runs, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/fixed-assets/depreciation/runs/:id
@@ -129,13 +100,21 @@ pub async fn list_runs(
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let run = DepreciationService::get_run(&state.pool, id, &tenant_id)
-        .await
-        .map_err(map_error)?
-        .ok_or_else(|| map_error(DepreciationError::AssetNotFound(id)))?;
-    Ok(Json(serde_json::to_value(run).map_err(map_internal_error)?))
+    match DepreciationService::get_run(&state.pool, id, &tenant_id).await {
+        Ok(Some(run)) => Json(run).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Depreciation run {} not found", id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

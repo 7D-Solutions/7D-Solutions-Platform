@@ -41,13 +41,16 @@ pub struct RevisionAtQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct ListRevisionsQuery {
-    #[serde(default = "default_limit")]
-    pub limit: i64,
-    #[serde(default)]
-    pub offset: i64,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
 }
 
-fn default_limit() -> i64 {
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
     50
 }
 
@@ -234,12 +237,12 @@ pub async fn get_list_revisions(
     match list_revisions(&state.pool, &tenant_id, item_id).await {
         Ok(all_revs) => {
             let total = all_revs.len() as i64;
-            let page_size = q.limit.clamp(1, 200);
-            let offset = q.offset.max(0);
-            let page = (offset / page_size) + 1;
+            let page_size = q.page_size.clamp(1, 200);
+            let page = q.page.max(1);
+            let offset = ((page - 1) * page_size) as usize;
             let revs: Vec<_> = all_revs
                 .into_iter()
-                .skip(offset as usize)
+                .skip(offset)
                 .take(page_size as usize)
                 .collect();
             let resp = PaginatedResponse::new(revs, page, page_size, total);

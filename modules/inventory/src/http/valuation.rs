@@ -43,13 +43,16 @@ use crate::{
 #[derive(Debug, Deserialize)]
 pub struct ListSnapshotsQuery {
     pub warehouse_id: Option<Uuid>,
-    #[serde(default = "default_limit")]
-    pub limit: i64,
-    #[serde(default)]
-    pub offset: i64,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
 }
 
-fn default_limit() -> i64 {
+fn default_page() -> i64 {
+    1
+}
+fn default_page_size() -> i64 {
     50
 }
 
@@ -117,14 +120,13 @@ pub async fn list_valuation_snapshots(
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
-    let limit = q.limit.clamp(1, 200);
-    let offset = q.offset.max(0);
+    let page_size = q.page_size.clamp(1, 200);
+    let page = q.page.max(1);
+    let offset = (page - 1) * page_size;
 
-    match list_snapshots(&state.pool, &tenant_id, q.warehouse_id, limit, offset).await {
+    match list_snapshots(&state.pool, &tenant_id, q.warehouse_id, page_size, offset).await {
         Ok(snapshots) => {
             let count = snapshots.len() as i64;
-            let page_size = limit;
-            let page = (offset / page_size) + 1;
             // Use count as total_items since the query returns a windowed result;
             // for accurate totals, a COUNT(*) query would be needed. For now, use
             // count + offset as a lower bound.

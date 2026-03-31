@@ -105,7 +105,7 @@ impl TryFrom<String> for SerialStatus {
 ///
 /// Created one-per-serial-code when a serial-tracked receipt is processed.
 /// Each instance is tied to the receipt ledger entry and FIFO layer.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct InventorySerialInstance {
     pub id: Uuid,
     pub tenant_id: String,

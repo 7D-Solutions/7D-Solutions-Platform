@@ -1,6 +1,6 @@
 [package]
 name = "fixed-assets"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 description = "Fixed asset lifecycle: capitalization, depreciation schedules, and disposals"
 
@@ -21,7 +21,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 projections = { path = "../../platform/projections" }
+utoipa = { version = "5", features = ["uuid", "chrono"] }
 async-nats = "0.38"
 futures = "0.3"
 prometheus = "0.13"

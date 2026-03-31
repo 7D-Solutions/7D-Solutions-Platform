@@ -1,0 +1,181 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Subscriptions Service",
+    "description": "Subscription lifecycle management, billing cycles, and usage gating.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/bill-runs/execute": {
+      "post": {
+        "tags": [
+          "Bill Runs"
+        ],
+        "summary": "POST /api/bill-runs/execute - Execute billing cycle",
+        "operationId": "execute_bill_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteBillRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bill run completed (or idempotent replay)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillRunResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BillRunResult": {
+        "type": "object",
+        "required": [
+          "bill_run_id",
+          "subscriptions_processed",
+          "invoices_created",
+          "failures",
+          "execution_time"
+        ],
+        "properties": {
+          "bill_run_id": {
+            "type": "string"
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "failures": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invoices_created": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "subscriptions_processed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ExecuteBillRunRequest": {
+        "type": "object",
+        "properties": {
+          "bill_run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "execution_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}
