@@ -1,0 +1,41 @@
+//! Platform SDK — module startup and HTTP runtime.
+//!
+//! Eliminates per-module boilerplate by providing a single startup sequence
+//! that orchestrates existing platform crates (security, event-bus, health).
+//!
+//! # Usage
+//!
+//! ```rust,ignore
+//! use platform_sdk::ModuleBuilder;
+//!
+//! #[tokio::main]
+//! async fn main() {
+//!     ModuleBuilder::from_manifest("module.toml")
+//!         .migrator(sqlx::migrate!("./db/migrations"))
+//!         .routes(|ctx| {
+//!             axum::Router::new()
+//!                 // ... register handlers ...
+//!         })
+//!         .run()
+//!         .await
+//!         .expect("module failed");
+//! }
+//! ```
+//!
+//! This version provides the HTTP-only core. Event bus, outbox, and consumer
+//! support arrive in later SDK slices.
+
+pub mod builder;
+pub mod context;
+pub mod manifest;
+pub mod startup;
+
+pub use builder::ModuleBuilder;
+pub use context::ModuleContext;
+pub use manifest::Manifest;
+pub use startup::StartupError;
+
+// Re-export commonly needed types so modules don't have to depend on
+// platform sub-crates directly for basic operations.
+pub use security::claims::VerifiedClaims;
+pub use sqlx::PgPool;

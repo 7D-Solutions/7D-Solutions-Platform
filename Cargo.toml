@@ -12,6 +12,7 @@ members = [
   "platform/health",
   "platform/platform-contracts",
   "platform/http-contracts",
+  "platform/platform-sdk",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",
