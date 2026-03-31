@@ -1,6 +1,6 @@
 [package]
 name = "gl-rs"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 description = "Double-entry general ledger with journal engine, accruals, and revenue recognition"
 
@@ -21,6 +21,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 projections = { path = "../../platform/projections" }
 async-nats = "0.38"
 futures = "0.3"

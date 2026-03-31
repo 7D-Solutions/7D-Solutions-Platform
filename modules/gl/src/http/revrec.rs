@@ -8,19 +8,16 @@
 //! Atomically persists entities + outbox events.
 //! Idempotent on contract_id / schedule_id / (schedule, period).
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::State, http::StatusCode, Extension, Json};
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};
@@ -55,85 +52,44 @@ pub struct CreateContractResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
 // ============================================================================
 // Error mapping
 // ============================================================================
 
-fn map_revrec_error(err: RevrecRepoError) -> Response {
+fn map_revrec_error(err: RevrecRepoError) -> ApiError {
     match &err {
         RevrecRepoError::DuplicateContract(id) => {
-            let body = Json(ErrorResponse {
-                error: format!("Contract {} already exists (idempotent)", id),
-            });
-            (StatusCode::CONFLICT, body).into_response()
+            ApiError::conflict(format!("Contract {} already exists (idempotent)", id))
         }
         RevrecRepoError::DuplicateSchedule(id) => {
-            let body = Json(ErrorResponse {
-                error: format!("Schedule {} already exists (idempotent)", id),
-            });
-            (StatusCode::CONFLICT, body).into_response()
+            ApiError::conflict(format!("Schedule {} already exists (idempotent)", id))
         }
         RevrecRepoError::ObligationNotFound(id) => {
-            let body = Json(ErrorResponse {
-                error: format!("Obligation {} not found", id),
-            });
-            (StatusCode::NOT_FOUND, body).into_response()
+            ApiError::not_found(format!("Obligation {} not found", id))
         }
-        RevrecRepoError::AllocationMismatch { sum, expected } => {
-            let body = Json(ErrorResponse {
-                error: format!(
-                    "Allocation sum mismatch: obligations sum to {}, expected {}",
-                    sum, expected
-                ),
-            });
-            (StatusCode::BAD_REQUEST, body).into_response()
-        }
-        RevrecRepoError::ScheduleSumMismatch { sum, expected } => {
-            let body = Json(ErrorResponse {
-                error: format!(
-                    "Schedule lines sum {} does not match total {}",
-                    sum, expected
-                ),
-            });
-            (StatusCode::BAD_REQUEST, body).into_response()
-        }
+        RevrecRepoError::AllocationMismatch { sum, expected } => ApiError::bad_request(format!(
+            "Allocation sum mismatch: obligations sum to {}, expected {}",
+            sum, expected
+        )),
+        RevrecRepoError::ScheduleSumMismatch { sum, expected } => ApiError::bad_request(format!(
+            "Schedule lines sum {} does not match total {}",
+            sum, expected
+        )),
         RevrecRepoError::Serialization(msg) => {
-            let body = Json(ErrorResponse {
-                error: format!("Invalid input: {}", msg),
-            });
-            (StatusCode::BAD_REQUEST, body).into_response()
+            ApiError::bad_request(format!("Invalid input: {}", msg))
         }
         RevrecRepoError::DuplicateModification(id) => {
-            let body = Json(ErrorResponse {
-                error: format!("Modification {} already exists (idempotent)", id),
-            });
-            (StatusCode::CONFLICT, body).into_response()
+            ApiError::conflict(format!("Modification {} already exists (idempotent)", id))
         }
         RevrecRepoError::ContractNotFound(id) => {
-            let body = Json(ErrorResponse {
-                error: format!("Contract {} not found", id),
-            });
-            (StatusCode::NOT_FOUND, body).into_response()
+            ApiError::not_found(format!("Contract {} not found", id))
         }
-        RevrecRepoError::Database(_) => {
-            let body = Json(ErrorResponse {
-                error: "Internal database error".to_string(),
-            });
-            (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
-        }
+        RevrecRepoError::Database(_) => ApiError::internal("Internal database error"),
     }
 }
 
-fn map_schedule_build_error(err: ScheduleBuildError) -> Response {
-    let body = Json(ErrorResponse {
-        error: err.to_string(),
-    });
-    (StatusCode::BAD_REQUEST, body).into_response()
+fn map_schedule_build_error(err: ScheduleBuildError) -> ApiError {
+    ApiError::bad_request(err.to_string())
 }
 
 // ============================================================================
@@ -148,12 +104,10 @@ fn map_schedule_build_error(err: ScheduleBuildError) -> Response {
 pub async fn create_contract(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(request): Json<CreateContractRequest>,
-) -> Result<(StatusCode, Json<CreateContractResponse>), Response> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        let body = Json(ErrorResponse { error: msg });
-        (status, body).into_response()
-    })?;
+) -> Result<(StatusCode, Json<CreateContractResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let event_id = Uuid::new_v4();
     let now = Utc::now();
@@ -176,7 +130,7 @@ pub async fn create_contract(
 
     revrec_repo::create_contract(&app_state.pool, event_id, &payload)
         .await
-        .map_err(map_revrec_error)?;
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?;
 
     Ok((
         StatusCode::CREATED,
@@ -224,31 +178,35 @@ pub struct GenerateScheduleResponse {
 pub async fn generate_schedule_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(request): Json<GenerateScheduleRequest>,
-) -> Result<(StatusCode, Json<GenerateScheduleResponse>), Response> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        let body = Json(ErrorResponse { error: msg });
-        (status, body).into_response()
-    })?;
+) -> Result<(StatusCode, Json<GenerateScheduleResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     // Fetch obligation from DB
     let obligations = revrec_repo::get_obligations(&app_state.pool, request.contract_id)
         .await
-        .map_err(map_revrec_error)?;
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?;
 
     let obligation_row = obligations
         .iter()
         .find(|o| o.obligation_id == request.obligation_id)
         .ok_or_else(|| {
-            map_revrec_error(RevrecRepoError::ObligationNotFound(request.obligation_id))
+            with_request_id(
+                map_revrec_error(RevrecRepoError::ObligationNotFound(request.obligation_id)),
+                &ctx,
+            )
         })?;
 
     // Reconstruct the PerformanceObligation from the DB row
     let recognition_pattern: RecognitionPattern =
         serde_json::from_value(obligation_row.recognition_pattern.clone()).map_err(|e| {
-            map_revrec_error(RevrecRepoError::Serialization(format!(
-                "Invalid recognition_pattern in DB: {}",
-                e
-            )))
+            with_request_id(
+                map_revrec_error(RevrecRepoError::Serialization(format!(
+                    "Invalid recognition_pattern in DB: {}",
+                    e
+                ))),
+                &ctx,
+            )
         })?;
 
     let obligation = PerformanceObligation {
@@ -269,12 +227,12 @@ pub async fn generate_schedule_handler(
     // Fetch contract for currency
     let contract = revrec_repo::get_contract(&app_state.pool, request.contract_id)
         .await
-        .map_err(map_revrec_error)?
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?
         .ok_or_else(|| {
-            let body = Json(ErrorResponse {
-                error: format!("Contract {} not found", request.contract_id),
-            });
-            (StatusCode::NOT_FOUND, body).into_response()
+            with_request_id(
+                ApiError::not_found(format!("Contract {} not found", request.contract_id)),
+                &ctx,
+            )
         })?;
 
     let schedule_id = Uuid::new_v4();
@@ -290,7 +248,7 @@ pub async fn generate_schedule_handler(
         &contract.currency,
         now,
     )
-    .map_err(map_schedule_build_error)?;
+    .map_err(|e| with_request_id(map_schedule_build_error(e), &ctx))?;
 
     let lines_count = payload.lines.len();
     let first_period = payload.first_period.clone();
@@ -300,12 +258,12 @@ pub async fn generate_schedule_handler(
     // Persist atomically
     revrec_repo::create_schedule(&app_state.pool, event_id, &payload)
         .await
-        .map_err(map_revrec_error)?;
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?;
 
     // Get the version that was assigned
     let schedule_row = revrec_repo::get_schedule(&app_state.pool, schedule_id)
         .await
-        .map_err(map_revrec_error)?
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?
         .expect("Schedule just created must exist");
 
     Ok((
@@ -357,19 +315,13 @@ pub struct RecognitionPostingResponse {
     pub currency: String,
 }
 
-fn map_recognition_run_error(err: RecognitionRunError) -> Response {
+fn map_recognition_run_error(err: RecognitionRunError) -> ApiError {
     match &err {
         RecognitionRunError::InvalidPostingDate(msg) => {
-            let body = Json(ErrorResponse {
-                error: format!("Invalid posting_date: {}", msg),
-            });
-            (StatusCode::BAD_REQUEST, body).into_response()
+            ApiError::bad_request(format!("Invalid posting_date: {}", msg))
         }
         RecognitionRunError::Database(_) | RecognitionRunError::Repo(_) => {
-            let body = Json(ErrorResponse {
-                error: "Internal database error".to_string(),
-            });
-            (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+            ApiError::internal("Internal database error")
         }
     }
 }
@@ -384,12 +336,10 @@ fn map_recognition_run_error(err: RecognitionRunError) -> Response {
 pub async fn run_recognition_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(request): Json<RecognitionRunRequest>,
-) -> Result<(StatusCode, Json<RecognitionRunResponse>), Response> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        let body = Json(ErrorResponse { error: msg });
-        (status, body).into_response()
-    })?;
+) -> Result<(StatusCode, Json<RecognitionRunResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let result = recognition_run::run_recognition(
         &app_state.pool,
@@ -398,7 +348,7 @@ pub async fn run_recognition_handler(
         &request.posting_date,
     )
     .await
-    .map_err(map_recognition_run_error)?;
+    .map_err(|e| with_request_id(map_recognition_run_error(e), &ctx))?;
 
     let postings = result
         .postings
@@ -451,12 +401,10 @@ pub struct AmendContractResponse {
 pub async fn amend_contract(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(mut payload): Json<ContractModifiedPayload>,
-) -> Result<(StatusCode, Json<AmendContractResponse>), Response> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        let body = Json(ErrorResponse { error: msg });
-        (status, body).into_response()
-    })?;
+) -> Result<(StatusCode, Json<AmendContractResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     // Override client-supplied tenant_id with JWT claims
     payload.tenant_id = tenant_id;
 
@@ -466,7 +414,7 @@ pub async fn amend_contract(
 
     revrec_repo::create_amendment(&app_state.pool, event_id, &payload)
         .await
-        .map_err(map_revrec_error)?;
+        .map_err(|e| with_request_id(map_revrec_error(e), &ctx))?;
 
     Ok((
         StatusCode::CREATED,

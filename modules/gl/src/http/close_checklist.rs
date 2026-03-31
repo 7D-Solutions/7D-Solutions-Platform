@@ -12,13 +12,14 @@ use axum::{
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
-use super::period_close::PeriodCloseHttpError;
+use super::auth::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================
@@ -73,13 +74,11 @@ pub struct WaiveChecklistItemRequest {
 pub async fn create_checklist_item(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<CreateChecklistItemRequest>,
-) -> Result<(StatusCode, Json<ChecklistItemResponse>), PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<(StatusCode, Json<ChecklistItemResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
@@ -93,10 +92,7 @@ pub async fn create_checklist_item(
     .bind(&request.label)
     .fetch_one(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Failed to create checklist item: {}", e),
-    })?;
+    .map_err(|e| with_request_id(ApiError::internal(format!("Failed to create checklist item: {}", e)), &ctx))?;
 
     Ok((StatusCode::CREATED, Json(to_checklist_response(row))))
 }
@@ -105,13 +101,11 @@ pub async fn create_checklist_item(
 pub async fn complete_checklist_item(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path((period_id, item_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<CompleteChecklistItemRequest>,
-) -> Result<Json<ChecklistItemResponse>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<ChecklistItemResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
@@ -129,14 +123,10 @@ pub async fn complete_checklist_item(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?
-    .ok_or_else(|| PeriodCloseHttpError {
-        status: StatusCode::NOT_FOUND,
-        message: format!("Checklist item {} not found", item_id),
+    .ok_or_else(|| {
+        with_request_id(ApiError::not_found(format!("Checklist item {} not found", item_id)), &ctx)
     })?;
 
     Ok(Json(to_checklist_response(row)))
@@ -146,13 +136,11 @@ pub async fn complete_checklist_item(
 pub async fn waive_checklist_item(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path((period_id, item_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<WaiveChecklistItemRequest>,
-) -> Result<Json<ChecklistItemResponse>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<ChecklistItemResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
@@ -172,14 +160,10 @@ pub async fn waive_checklist_item(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?
-    .ok_or_else(|| PeriodCloseHttpError {
-        status: StatusCode::NOT_FOUND,
-        message: format!("Checklist item {} not found", item_id),
+    .ok_or_else(|| {
+        with_request_id(ApiError::not_found(format!("Checklist item {} not found", item_id)), &ctx)
     })?;
 
     Ok(Json(to_checklist_response(row)))
@@ -189,12 +173,10 @@ pub async fn waive_checklist_item(
 pub async fn get_checklist_status(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<Vec<ChecklistItemResponse>>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<Vec<ChecklistItemResponse>>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
@@ -210,10 +192,7 @@ pub async fn get_checklist_status(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?;
 
     Ok(Json(rows.into_iter().map(to_checklist_response).collect()))
@@ -273,13 +252,11 @@ struct ApprovalRow {
 pub async fn create_approval(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<CreateApprovalRequest>,
-) -> Result<(StatusCode, Json<ApprovalResponse>), PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<(StatusCode, Json<ApprovalResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = sqlx::query_as::<_, ApprovalRow>(
         r#"
@@ -297,10 +274,7 @@ pub async fn create_approval(
     .bind(&request.notes)
     .fetch_one(&app_state.pool)
     .await
-    .map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Failed to record approval: {}", e),
-    })?;
+    .map_err(|e| with_request_id(ApiError::internal(format!("Failed to record approval: {}", e)), &ctx))?;
 
     Ok((
         StatusCode::CREATED,
@@ -320,12 +294,10 @@ pub async fn create_approval(
 pub async fn get_approvals(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<Vec<ApprovalResponse>>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<Vec<ApprovalResponse>>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = sqlx::query_as::<_, ApprovalRow>(
         r#"
@@ -341,10 +313,7 @@ pub async fn get_approvals(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?;
 
     Ok(Json(

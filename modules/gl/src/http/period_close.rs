@@ -8,14 +8,15 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::config::DEFAULT_REPORTING_CURRENCY;
 use crate::contracts::period_close_v1::{
     ClosePeriodRequest, ClosePeriodResponse, CloseStatus, CloseStatusResponse,
@@ -27,55 +28,17 @@ use crate::services::period_close_service::{
 use crate::services::period_reopen_service;
 use crate::AppState;
 
-/// Error response wrapper
-#[derive(Debug, serde::Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-/// Period close error HTTP response
-#[derive(Debug)]
-pub struct PeriodCloseHttpError {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for PeriodCloseHttpError {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
-}
-
-/// Map service errors to HTTP status codes
-fn map_error(error: PeriodCloseError) -> PeriodCloseHttpError {
+/// Map service errors to ApiError
+fn map_error(error: PeriodCloseError) -> ApiError {
     match error {
-        PeriodCloseError::PeriodNotFound(_) => PeriodCloseHttpError {
-            status: StatusCode::NOT_FOUND,
-            message: error.to_string(),
-        },
-        PeriodCloseError::PeriodAlreadyClosed(_) => PeriodCloseHttpError {
-            status: StatusCode::CONFLICT,
-            message: error.to_string(),
-        },
-        PeriodCloseError::ValidationFailed(_) => PeriodCloseHttpError {
-            status: StatusCode::BAD_REQUEST,
-            message: error.to_string(),
-        },
-        PeriodCloseError::HashMismatch { .. } => PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: error.to_string(),
-        },
-        PeriodCloseError::Database(_) => PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Database error".to_string(), // Don't leak internal details
-        },
-        PeriodCloseError::FxRevaluation(_) => PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "FX revaluation failed during period close".to_string(),
-        },
+        PeriodCloseError::PeriodNotFound(_) => ApiError::not_found(error.to_string()),
+        PeriodCloseError::PeriodAlreadyClosed(_) => ApiError::conflict(error.to_string()),
+        PeriodCloseError::ValidationFailed(_) => ApiError::bad_request(error.to_string()),
+        PeriodCloseError::HashMismatch { .. } => ApiError::internal(error.to_string()),
+        PeriodCloseError::Database(_) => ApiError::internal("Database error"),
+        PeriodCloseError::FxRevaluation(_) => {
+            ApiError::internal("FX revaluation failed during period close")
+        }
     }
 }
 
@@ -92,23 +55,18 @@ fn map_error(error: PeriodCloseError) -> PeriodCloseHttpError {
 pub async fn validate_close(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Json(_request): Json<ValidateCloseRequest>,
-) -> Result<Json<ValidateCloseResponse>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<ValidateCloseResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     // Run validation in a transaction (read-only, but ensures consistency)
     let mut tx = app_state
         .pool
         .begin()
         .await
-        .map_err(|e| PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: format!("Failed to begin transaction: {}", e),
-        })?;
+        .map_err(|e| with_request_id(ApiError::internal(format!("Failed to begin transaction: {}", e)), &ctx))?;
 
     let validation_report = validate_period_can_close(
         &mut tx,
@@ -117,12 +75,9 @@ pub async fn validate_close(
         app_state.dlq_validation_enabled,
     )
     .await
-    .map_err(map_error)?;
+    .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    tx.commit().await.map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Failed to commit transaction: {}", e),
-    })?;
+    tx.commit().await.map_err(|e| with_request_id(ApiError::internal(format!("Failed to commit transaction: {}", e)), &ctx))?;
 
     let can_close = !has_blocking_errors(&validation_report);
 
@@ -155,13 +110,11 @@ pub async fn validate_close(
 pub async fn close_period_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<ClosePeriodRequest>,
-) -> Result<Json<ClosePeriodResponse>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<ClosePeriodResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let result = close_period(
         &app_state.pool,
@@ -173,7 +126,7 @@ pub async fn close_period_handler(
         DEFAULT_REPORTING_CURRENCY,
     )
     .await
-    .map_err(map_error)?;
+    .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
     Ok(Json(ClosePeriodResponse {
         period_id: result.period_id,
@@ -213,12 +166,10 @@ struct PeriodCloseStatusData {
 pub async fn get_close_status(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<CloseStatusResponse>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<CloseStatusResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     // Single-row query (O(1) per period)
     let period = sqlx::query_as::<_, PeriodCloseStatusData>(
@@ -235,14 +186,13 @@ pub async fn get_close_status(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        PeriodCloseHttpError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?
-    .ok_or_else(|| PeriodCloseHttpError {
-        status: StatusCode::NOT_FOUND,
-        message: format!("Period {} not found for tenant {}", period_id, tenant_id),
+    .ok_or_else(|| {
+        with_request_id(
+            ApiError::not_found(format!("Period {} not found for tenant {}", period_id, tenant_id)),
+            &ctx,
+        )
     })?;
 
     // Determine close status from period fields
@@ -298,13 +248,11 @@ pub struct ReopenRejectPayload {
 pub async fn request_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<ReopenRequestPayload>,
-) -> Result<(StatusCode, Json<serde_json::Value>), PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let result = period_reopen_service::request_reopen(
         &app_state.pool,
@@ -314,12 +262,10 @@ pub async fn request_reopen(
         &request.reason,
     )
     .await
-    .map_err(map_error)?;
+    .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("serialization error: {e}"),
-    })?;
+    let json_val = serde_json::to_value(result)
+        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
     Ok((StatusCode::CREATED, Json(json_val)))
 }
 
@@ -327,13 +273,11 @@ pub async fn request_reopen(
 pub async fn approve_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path((period_id, request_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<ReopenApprovePayload>,
-) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let result = period_reopen_service::approve_reopen(
         &app_state.pool,
@@ -343,12 +287,10 @@ pub async fn approve_reopen(
         &request.approved_by,
     )
     .await
-    .map_err(map_error)?;
+    .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("serialization error: {e}"),
-    })?;
+    let json_val = serde_json::to_value(result)
+        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
     Ok(Json(json_val))
 }
 
@@ -356,13 +298,11 @@ pub async fn approve_reopen(
 pub async fn reject_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path((period_id, request_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<ReopenRejectPayload>,
-) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let result = period_reopen_service::reject_reopen(
         &app_state.pool,
@@ -373,12 +313,10 @@ pub async fn reject_reopen(
         &request.reject_reason,
     )
     .await
-    .map_err(map_error)?;
+    .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("serialization error: {e}"),
-    })?;
+    let json_val = serde_json::to_value(result)
+        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
     Ok(Json(json_val))
 }
 
@@ -386,20 +324,16 @@ pub async fn reject_reopen(
 pub async fn list_reopen_requests(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = period_reopen_service::list_reopen_requests(&app_state.pool, &tenant_id, period_id)
         .await
-        .map_err(map_error)?;
+        .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(rows).map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("serialization error: {e}"),
-    })?;
+    let json_val = serde_json::to_value(rows)
+        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
     Ok(Json(json_val))
 }

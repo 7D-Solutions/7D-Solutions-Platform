@@ -2,7 +2,6 @@ pub mod account_activity;
 pub mod accounts;
 pub mod accruals;
 pub mod admin;
-pub mod admin_types;
 pub mod auth;
 pub mod balance_sheet;
 pub mod cashflow;
