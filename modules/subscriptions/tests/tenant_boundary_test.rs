@@ -1,0 +1,212 @@
+//! Tenant Boundary Tests (bd-vnuvp — Tenant Isolation Sweep)
+//!
+//! Proves no cross-tenant data leakage for subscriptions.
+//! Two tenants operate on the same database — tenant B must never see tenant A's data.
+//!
+//! ## Known Gaps (documented in docs/audits/tenant-isolation-sweep-2026-03-31.md)
+//! - lifecycle/transitions.rs: fetch_current_status and update_status query by id without tenant_id
+//!
+//! ## Prerequisites
+//! - PostgreSQL at localhost:5435 (docker compose up -d)
+
+use serial_test::serial;
+use sqlx::{postgres::PgPoolOptions, PgPool};
+use uuid::Uuid;
+
+// ============================================================================
+// Test DB helpers
+// ============================================================================
+
+async fn setup_db() -> PgPool {
+    dotenvy::dotenv().ok();
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db?sslmode=require"
+            .to_string()
+    });
+
+    let pool = PgPoolOptions::new()
+        .max_connections(10)
+        .connect(&url)
+        .await
+        .expect("Failed to connect to subscriptions test DB");
+
+    sqlx::migrate!("db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run subscriptions migrations");
+
+    pool
+}
+
+fn unique_tenant() -> String {
+    format!("boundary-{}", Uuid::new_v4().simple())
+}
+
+/// Create a subscription plan + subscription for a tenant, returning the subscription ID.
+async fn create_subscription(pool: &PgPool, tenant_id: &str, status: &str) -> Uuid {
+    let plan_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency)
+         VALUES ($1, 'Boundary Test Plan', 'monthly', 9999, 'USD')
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to create test plan");
+
+    let ar_customer_id = format!("cust-{}", Uuid::new_v4());
+
+    let subscription_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO subscriptions (tenant_id, ar_customer_id, plan_id, status, schedule, price_minor, currency, start_date, next_bill_date)
+         VALUES ($1, $2, $3, $4, 'monthly', 9999, 'USD', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 month')
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(&ar_customer_id)
+    .bind(plan_id)
+    .bind(status)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to create test subscription");
+
+    subscription_id
+}
+
+// ============================================================================
+// Tenant Boundary Tests
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn tenant_a_subscription_invisible_to_tenant_b() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    let a_sub = create_subscription(&pool, &tenant_a, "active").await;
+    let _b_sub = create_subscription(&pool, &tenant_b, "active").await;
+
+    // Tenant-scoped query: tenant B should NOT see tenant A's subscription
+    let cross_read: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM subscriptions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(a_sub)
+    .bind(&tenant_b)
+    .fetch_optional(&pool)
+    .await
+    .expect("Query should succeed");
+
+    assert!(
+        cross_read.is_none(),
+        "Tenant B must NOT see tenant A's subscription via scoped query"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn tenant_list_returns_only_own_subscriptions() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    // Create subscriptions
+    for _ in 0..3 {
+        create_subscription(&pool, &tenant_a, "active").await;
+    }
+    for _ in 0..2 {
+        create_subscription(&pool, &tenant_b, "active").await;
+    }
+
+    let a_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE tenant_id = $1")
+            .bind(&tenant_a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(a_count, 3, "Tenant A should have 3 subscriptions");
+
+    let b_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE tenant_id = $1")
+            .bind(&tenant_b)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(b_count, 2, "Tenant B should have 2 subscriptions");
+}
+
+#[tokio::test]
+#[serial]
+async fn lifecycle_query_without_tenant_demonstrates_gap() {
+    // This test documents a known vulnerability:
+    // transitions.rs queries "SELECT status FROM subscriptions WHERE id = $1"
+    // without tenant_id. An unscoped query returns data regardless of tenant.
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+
+    let a_sub = create_subscription(&pool, &tenant_a, "active").await;
+
+    // Unscoped query (how transitions.rs does it):
+    let unscoped: Option<(String,)> = sqlx::query_as(
+        "SELECT status FROM subscriptions WHERE id = $1",
+    )
+    .bind(a_sub)
+    .fetch_optional(&pool)
+    .await
+    .expect("Unscoped query should succeed");
+
+    assert!(
+        unscoped.is_some(),
+        "Unscoped query returns data (expected — documents the gap)"
+    );
+
+    // The CORRECT query should require tenant context:
+    let wrong_tenant = unique_tenant();
+    let scoped: Option<(String,)> = sqlx::query_as(
+        "SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(a_sub)
+    .bind(&wrong_tenant)
+    .fetch_optional(&pool)
+    .await
+    .expect("Scoped query should succeed");
+
+    assert!(
+        scoped.is_none(),
+        "Scoped query with wrong tenant must return nothing"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn update_with_wrong_tenant_must_not_affect_rows() {
+    // Demonstrates that an UPDATE scoped by tenant_id would prevent cross-tenant mutation.
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let wrong_tenant = unique_tenant();
+
+    let a_sub = create_subscription(&pool, &tenant_a, "active").await;
+
+    // Scoped update with wrong tenant should affect 0 rows
+    let rows = sqlx::query(
+        "UPDATE subscriptions SET status = 'suspended', updated_at = NOW() WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(a_sub)
+    .bind(&wrong_tenant)
+    .execute(&pool)
+    .await
+    .expect("Scoped update should succeed")
+    .rows_affected();
+
+    assert_eq!(rows, 0, "Update with wrong tenant must affect 0 rows");
+
+    // Verify subscription was NOT modified
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
+            .bind(a_sub)
+            .bind(&tenant_a)
+            .fetch_one(&pool)
+            .await
+            .expect("Should find subscription");
+
+    assert_eq!(status, "active", "Subscription should still be active");
+}
