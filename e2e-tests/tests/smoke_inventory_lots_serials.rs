@@ -122,9 +122,9 @@ async fn smoke_inventory_lots_serials_reservations() {
 
     // ========== Seed: UoM ==========
     let uom_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "code": "EA",
-        "name": "Each",
-        "symbol": "ea"
+        "name": "Each"
     });
     let r = client.post(format!("{base}/api/inventory/uoms"))
         .bearer_auth(&jwt).json(&uom_body).send().await.unwrap();
@@ -133,11 +133,14 @@ async fn smoke_inventory_lots_serials_reservations() {
 
     // ========== Seed: lot-tracked item ==========
     let item_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "sku": format!("LOT-SMOKE-{}", &tid.to_string()[..8]),
         "name": "Smoke lot item",
-        "unit_of_measure": "EA",
-        "tracking_type": "lot",
-        "category": "raw_material"
+        "inventory_account_ref": "1200",
+        "cogs_account_ref": "5000",
+        "variance_account_ref": "5100",
+        "uom": "EA",
+        "tracking_mode": "lot"
     });
     let r = client.post(format!("{base}/api/inventory/items"))
         .bearer_auth(&jwt).json(&item_body).send().await.unwrap();
@@ -265,11 +268,14 @@ async fn smoke_inventory_lots_serials_reservations() {
 
     // ========== Seed: serial-tracked item + receipt ==========
     let ser_item_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "sku": format!("SER-SMOKE-{}", &tid.to_string()[..8]),
         "name": "Smoke serial item",
-        "unit_of_measure": "EA",
-        "tracking_type": "serial",
-        "category": "raw_material"
+        "inventory_account_ref": "1200",
+        "cogs_account_ref": "5000",
+        "variance_account_ref": "5100",
+        "uom": "EA",
+        "tracking_mode": "serial"
     });
     let r = client.post(format!("{base}/api/inventory/items"))
         .bearer_auth(&jwt).json(&ser_item_body).send().await.unwrap();

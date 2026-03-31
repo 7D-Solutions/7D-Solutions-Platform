@@ -138,7 +138,7 @@ async fn smoke_inventory_transactions() {
         .json(&json!({
             "tenant_id": tenant_id,
             "name": "Each",
-            "abbreviation": "EA",
+            "code": "EA",
             "idempotency_key": Uuid::new_v4()
         }))
         .send()

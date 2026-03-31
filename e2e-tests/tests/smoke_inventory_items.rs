@@ -141,7 +141,7 @@ async fn smoke_inventory_items_crud() {
         .json(&json!({
             "tenant_id": tenant_id,
             "name": "Each",
-            "abbreviation": "EA",
+            "code": "EA",
             "idempotency_key": Uuid::new_v4()
         }))
         .send()
@@ -156,7 +156,7 @@ async fn smoke_inventory_items_crud() {
         &client,
         "POST",
         &format!("{base}/api/inventory/uoms"),
-        Some(json!({"name": "X", "abbreviation": "X"})),
+        Some(json!({"name": "X", "code": "X"})),
     )
     .await;
 
@@ -390,7 +390,7 @@ async fn smoke_inventory_items_crud() {
         .json(&json!({
             "tenant_id": tenant_id,
             "name": "Dozen",
-            "abbreviation": "DZ",
+            "code": "DZ",
             "idempotency_key": Uuid::new_v4()
         }))
         .send()

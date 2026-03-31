@@ -108,7 +108,9 @@ async fn test_create_tenant_returns_pending_status() {
         &router,
         json!({
             "idempotency_key": idempotency_key,
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -155,7 +157,9 @@ async fn test_outbox_event_written_atomically() {
         &router,
         json!({
             "idempotency_key": idempotency_key,
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -266,7 +270,9 @@ async fn test_explicit_tenant_id_is_honoured() {
         json!({
             "tenant_id": explicit_tenant_id,
             "idempotency_key": idempotency_key,
-            "environment": "staging"
+            "environment": "staging",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -297,7 +303,9 @@ async fn test_duplicate_tenant_id_returns_409() {
         json!({
             "tenant_id": tenant_id,
             "idempotency_key": Uuid::new_v4().to_string(),
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -309,7 +317,9 @@ async fn test_duplicate_tenant_id_returns_409() {
         json!({
             "tenant_id": tenant_id,
             "idempotency_key": Uuid::new_v4().to_string(),
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -337,7 +347,9 @@ async fn test_empty_idempotency_key_returns_422() {
         &router,
         json!({
             "idempotency_key": "",
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
@@ -365,7 +377,9 @@ async fn test_idempotency_key_stored_in_provisioning_requests() {
         &router,
         json!({
             "idempotency_key": idempotency_key,
-            "environment": "development"
+            "environment": "development",
+            "product_code": "starter",
+            "plan_code": "monthly"
         }),
     )
     .await;
