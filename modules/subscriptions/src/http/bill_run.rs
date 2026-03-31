@@ -11,10 +11,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::envelope::create_subscriptions_envelope;
-use crate::models::{
-    BillRunCompletedPayload, BillRunResult, CreateInvoiceRequest, ExecuteBillRunRequest,
-    FinalizeInvoiceRequest, Invoice,
-};
+use crate::gated_invoice_creation::{create_gated_invoice, InvoiceCreationError};
+use crate::models::{BillRunCompletedPayload, BillRunResult, ExecuteBillRunRequest};
 use crate::outbox::enqueue_event;
 
 fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
@@ -157,8 +155,6 @@ pub async fn execute_bill_run(
     let ar_base_url =
         std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
-    let client = reqwest::Client::new();
-
     for subscription in subscriptions {
         tracing::info!(
             "Processing subscription {} for customer {}",
@@ -179,95 +175,61 @@ pub async fn execute_bill_run(
             }
         };
 
-        let create_invoice_req = CreateInvoiceRequest {
+        match create_gated_invoice(
+            &db,
+            &tenant_id,
+            subscription.id,
             ar_customer_id,
-            amount_cents: subscription.price_minor as i32,
-        };
+            subscription.price_minor,
+            subscription.next_bill_date,
+            &ar_base_url,
+        )
+        .await
+        {
+            Ok(result) => {
+                tracing::info!(
+                    "Created gated invoice {} for subscription {} (cycle {})",
+                    result.invoice_id,
+                    subscription.id,
+                    result.cycle_key
+                );
+                invoices_created += 1;
 
-        let create_result = client
-            .post(format!("{}/api/ar/invoices", ar_base_url))
-            .json(&create_invoice_req)
-            .send()
-            .await;
+                let new_next_bill_date = calculate_next_bill_date(
+                    &subscription.next_bill_date,
+                    &subscription.schedule,
+                );
 
-        let invoice = match create_result {
-            Ok(response) => {
-                if response.status().is_success() {
-                    match response.json::<Invoice>().await {
-                        Ok(inv) => inv,
-                        Err(e) => {
-                            tracing::error!("Failed to parse invoice response: {}", e);
-                            failures += 1;
-                            continue;
-                        }
-                    }
-                } else {
-                    tracing::error!("AR API returned error status: {}", response.status());
-                    failures += 1;
-                    continue;
+                let update_result = sqlx::query(
+                    "UPDATE subscriptions
+                     SET next_bill_date = $1, updated_at = NOW()
+                     WHERE id = $2",
+                )
+                .bind(new_next_bill_date)
+                .bind(subscription.id)
+                .execute(&db)
+                .await;
+
+                if let Err(e) = update_result {
+                    tracing::error!("Failed to update subscription next_bill_date: {}", e);
                 }
             }
-            Err(e) => {
-                tracing::error!("Failed to call AR API to create invoice: {}", e);
-                failures += 1;
-                continue;
-            }
-        };
-
-        tracing::info!(
-            "Created invoice {} for subscription {}",
-            invoice.id,
-            subscription.id
-        );
-
-        let finalize_req = FinalizeInvoiceRequest {
-            auto_advance: Some(true),
-        };
-
-        let finalize_result = client
-            .post(format!(
-                "{}/api/ar/invoices/{}/finalize",
-                ar_base_url, invoice.id
-            ))
-            .json(&finalize_req)
-            .send()
-            .await;
-
-        match finalize_result {
-            Ok(response) => {
-                if response.status().is_success() {
-                    tracing::info!("Finalized invoice {}", invoice.id);
-                    invoices_created += 1;
-
-                    let new_next_bill_date = calculate_next_bill_date(
-                        &subscription.next_bill_date,
-                        &subscription.schedule,
-                    );
-
-                    let update_result = sqlx::query(
-                        "UPDATE subscriptions
-                         SET next_bill_date = $1, updated_at = NOW()
-                         WHERE id = $2",
-                    )
-                    .bind(new_next_bill_date)
-                    .bind(subscription.id)
-                    .execute(&db)
-                    .await;
-
-                    if let Err(e) = update_result {
-                        tracing::error!("Failed to update subscription next_bill_date: {}", e);
-                    }
-                } else {
-                    tracing::error!(
-                        "Failed to finalize invoice {}: {}",
-                        invoice.id,
-                        response.status()
-                    );
-                    failures += 1;
-                }
+            Err(InvoiceCreationError::DuplicateCycle {
+                subscription_id,
+                cycle_key,
+            }) => {
+                tracing::info!(
+                    "Subscription {} already billed for cycle {} (idempotent skip)",
+                    subscription_id,
+                    cycle_key
+                );
             }
             Err(e) => {
-                tracing::error!("Failed to call AR API to finalize invoice: {}", e);
+                tracing::error!(
+                    "Failed to create invoice for subscription {}: {}",
+                    subscription.id,
+                    e
+                );
                 failures += 1;
             }
         }
