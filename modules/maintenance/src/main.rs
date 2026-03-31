@@ -1,301 +1,20 @@
 use axum::{
-    extract::DefaultBodyLimit,
     routing::{get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
 use utoipa::OpenApi;
-use event_bus::{EventBus, InMemoryBus, NatsBus};
-use maintenance_rs::{config::Config, http, metrics, outbox, AppState};
-use security::{
-    middleware::{
-        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
-    },
-    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
-};
-use std::net::SocketAddr;
+use maintenance_rs::{config::Config, http, metrics, AppState};
+use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
-
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
-
-    let config = Config::from_env().unwrap_or_else(|err| {
-        eprintln!("Configuration error: {}", err);
-        eprintln!("Maintenance service cannot start without valid configuration.");
-        std::process::exit(1);
-    });
-
-    tracing::info!(
-        "Maintenance: config loaded: bus_type={:?}, host={}, port={}",
-        config.bus_type,
-        config.host,
-        config.port
-    );
-
-    // Connect to database
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&config.database_url)
-        .await
-        .expect("Maintenance: failed to connect to Postgres");
-
-    let shutdown_pool = pool.clone();
-
-    // Run migrations
-    sqlx::migrate!("./db/migrations")
-        .run(&pool)
-        .await
-        .expect("Maintenance: failed to run database migrations");
-
-    tracing::info!("Maintenance: database migrations applied");
-
-    // Initialize event bus
-    let event_bus: Arc<dyn EventBus> = match config.bus_type {
-        maintenance_rs::config::BusType::Nats => {
-            let nats_url = config
-                .nats_url
-                .as_ref()
-                .expect("NATS_URL must be set when BUS_TYPE=nats");
-            tracing::info!("Maintenance: connecting to NATS at {}", nats_url);
-            let client = event_bus::connect_nats(nats_url)
-                .await
-                .expect("Maintenance: failed to connect to NATS");
-            Arc::new(NatsBus::new(client))
-        }
-        maintenance_rs::config::BusType::InMemory => {
-            tracing::info!("Maintenance: using in-memory event bus");
-            Arc::new(InMemoryBus::new())
-        }
-    };
-
-    // Spawn outbox publisher loop
-    let publisher_pool = pool.clone();
-    let publisher_bus = event_bus.clone();
-    tokio::spawn(async move {
-        outbox::run_publisher_task(publisher_pool, publisher_bus).await;
-    });
-    tracing::info!("Maintenance: outbox publisher task started");
-
-    // Start production event consumers
-    maintenance_rs::consumers::production_workcenter_bridge::start_workcenter_bridge(
-        event_bus.clone(),
-        pool.clone(),
-    )
-    .await;
-    maintenance_rs::consumers::production_downtime_bridge::start_downtime_bridge(
-        event_bus,
-        pool.clone(),
-    )
-    .await;
-    tracing::info!("Maintenance: production event consumers started");
-
-    // Spawn scheduler tick loop
-    let scheduler_pool = pool.clone();
-    let scheduler_interval = config.scheduler_interval_secs;
-    tokio::spawn(async move {
-        maintenance_rs::domain::scheduler::run_scheduler_task(scheduler_pool, scheduler_interval)
-            .await;
-    });
-    tracing::info!(
-        interval_secs = config.scheduler_interval_secs,
-        "Maintenance: scheduler task started"
-    );
-
-    // Initialize metrics
-    let app_metrics = Arc::new(
-        metrics::MaintenanceMetrics::new().expect("Maintenance: failed to create metrics"),
-    );
-    tracing::info!("Maintenance: metrics initialized");
-
-    let app_state = Arc::new(AppState {
-        pool: pool.clone(),
-        metrics: app_metrics,
-    });
-
-    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
-
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health::health))
-        .route("/api/ready", get(http::health::ready))
-        .route("/api/version", get(http::health::version))
-        .route("/api/openapi.json", get(|| async { Json(ApiDoc::openapi()) }))
-        .route("/metrics", get(metrics::metrics_handler))
-        // ── Read-only endpoints (MAINTENANCE_READ) ──
-        .merge(
-            Router::new()
-                .route(
-                    "/api/maintenance/assets",
-                    get(http::assets::list_assets),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}",
-                    get(http::assets::get_asset),
-                )
-                .route(
-                    "/api/maintenance/meter-types",
-                    get(http::meters::list_meter_types),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}/readings",
-                    get(http::meters::list_readings),
-                )
-                .route(
-                    "/api/maintenance/plans",
-                    get(http::plans::list_plans),
-                )
-                .route(
-                    "/api/maintenance/plans/{plan_id}",
-                    get(http::plans::get_plan),
-                )
-                .route(
-                    "/api/maintenance/assignments",
-                    get(http::plans::list_assignments),
-                )
-                .route(
-                    "/api/maintenance/work-orders",
-                    get(http::work_orders::list_work_orders),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}",
-                    get(http::work_orders::get_work_order),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/parts",
-                    get(http::work_order_parts::list_parts),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/labor",
-                    get(http::work_order_labor::list_labor),
-                )
-                .route(
-                    "/api/maintenance/downtime-events",
-                    get(http::downtime::list_downtime),
-                )
-                .route(
-                    "/api/maintenance/downtime-events/{id}",
-                    get(http::downtime::get_downtime),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}/downtime",
-                    get(http::downtime::list_asset_downtime),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}/calibration-status",
-                    get(http::calibration_events::get_calibration_status),
-                )
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::MAINTENANCE_READ,
-                ])),
-        )
-        // ── Mutation endpoints (MAINTENANCE_MUTATE) ──
-        .merge(
-            Router::new()
-                .route(
-                    "/api/maintenance/assets",
-                    post(http::assets::create_asset),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}",
-                    axum::routing::patch(http::assets::update_asset),
-                )
-                .route(
-                    "/api/maintenance/meter-types",
-                    post(http::meters::create_meter_type),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}/readings",
-                    post(http::meters::record_reading),
-                )
-                .route(
-                    "/api/maintenance/plans",
-                    post(http::plans::create_plan),
-                )
-                .route(
-                    "/api/maintenance/plans/{plan_id}",
-                    axum::routing::patch(http::plans::update_plan),
-                )
-                .route(
-                    "/api/maintenance/plans/{plan_id}/assign",
-                    post(http::plans::assign_plan),
-                )
-                .route(
-                    "/api/maintenance/work-orders",
-                    post(http::work_orders::create_work_order),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/transition",
-                    axum::routing::patch(http::work_orders::transition_work_order),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/parts",
-                    post(http::work_order_parts::add_part),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/parts/{part_id}",
-                    axum::routing::delete(http::work_order_parts::remove_part),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/labor",
-                    post(http::work_order_labor::add_labor),
-                )
-                .route(
-                    "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",
-                    axum::routing::delete(http::work_order_labor::remove_labor),
-                )
-                .route(
-                    "/api/maintenance/downtime-events",
-                    post(http::downtime::create_downtime),
-                )
-                .route(
-                    "/api/maintenance/assets/{asset_id}/calibration-events",
-                    post(http::calibration_events::record_calibration_event),
-                )
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::MAINTENANCE_MUTATE,
-                ])),
-        )
-        .with_state(app_state)
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ))
-        .layer(build_cors_layer(&config))
-        .into_make_service_with_connect_info::<SocketAddr>();
-
-    let addr: SocketAddr = format!("{}:{}", config.host, config.port)
-        .parse()
-        .expect("Invalid HOST:PORT");
-
-    tracing::info!("Maintenance module listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Maintenance: failed to bind address");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("Maintenance: failed to start server");
-
-    tracing::info!("Server stopped — closing resources");
-    shutdown_pool.close().await;
-    tracing::info!("Shutdown complete");
-}
-
+use maintenance_rs::consumers::production_downtime_bridge::{
+    process_downtime_ended, process_downtime_started, DowntimeEndedPayload, DowntimeStartedPayload,
+};
+use maintenance_rs::consumers::production_workcenter_bridge::{
+    upsert_workcenter_projection, WorkcenterCreatedPayload, WorkcenterDeactivatedPayload,
+    WorkcenterUpdatedPayload,
+};
+use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -329,92 +48,345 @@ impl utoipa::Modify for SecurityAddon {
     }
 }
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
+#[tokio::main]
+async fn main() {
+    ModuleBuilder::from_manifest("module.toml")
+        .migrator(&MIGRATOR)
+        .consumer(
+            "production.workcenter_created",
+            on_workcenter_created,
+        )
+        .consumer(
+            "production.workcenter_updated",
+            on_workcenter_updated,
+        )
+        .consumer(
+            "production.workcenter_deactivated",
+            on_workcenter_deactivated,
+        )
+        .consumer("production.downtime.started", on_downtime_started)
+        .consumer("production.downtime.ended", on_downtime_ended)
+        .routes(|ctx| {
+            let pool = ctx.pool().clone();
+            let config = Config::from_env().unwrap_or_else(|err| {
+                tracing::error!("Maintenance config error: {}", err);
+                panic!("Maintenance config error: {}", err);
+            });
 
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+            // Initialize metrics and register with global prometheus registry
+            let app_metrics = Arc::new(
+                metrics::MaintenanceMetrics::new()
+                    .expect("Maintenance: failed to create metrics"),
+            );
+            let _ = prometheus::register(Box::new(
+                app_metrics.http_request_duration_seconds.clone(),
+            ));
+            let _ = prometheus::register(Box::new(
+                app_metrics.http_requests_total.clone(),
+            ));
+            let _ = prometheus::register(Box::new(
+                app_metrics.outbox_queue_depth.clone(),
+            ));
+            let _ = prometheus::register(Box::new(
+                app_metrics.events_enqueued_total.clone(),
+            ));
 
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
+            // Spawn scheduler tick loop
+            let scheduler_pool = pool.clone();
+            let scheduler_interval = config.scheduler_interval_secs;
+            tokio::spawn(async move {
+                maintenance_rs::domain::scheduler::run_scheduler_task(
+                    scheduler_pool,
+                    scheduler_interval,
+                )
+                .await;
+            });
 
-    tracing::info!("Shutdown signal received — draining in-flight requests");
+            let app_state = Arc::new(AppState {
+                pool: pool.clone(),
+                metrics: app_metrics,
+            });
+
+            Router::new()
+                .route(
+                    "/api/openapi.json",
+                    get(|| async { Json(ApiDoc::openapi()) }),
+                )
+                // Read-only endpoints (MAINTENANCE_READ)
+                .merge(
+                    Router::new()
+                        .route(
+                            "/api/maintenance/assets",
+                            get(http::assets::list_assets),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}",
+                            get(http::assets::get_asset),
+                        )
+                        .route(
+                            "/api/maintenance/meter-types",
+                            get(http::meters::list_meter_types),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}/readings",
+                            get(http::meters::list_readings),
+                        )
+                        .route(
+                            "/api/maintenance/plans",
+                            get(http::plans::list_plans),
+                        )
+                        .route(
+                            "/api/maintenance/plans/{plan_id}",
+                            get(http::plans::get_plan),
+                        )
+                        .route(
+                            "/api/maintenance/assignments",
+                            get(http::plans::list_assignments),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders",
+                            get(http::work_orders::list_work_orders),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}",
+                            get(http::work_orders::get_work_order),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/parts",
+                            get(http::work_order_parts::list_parts),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/labor",
+                            get(http::work_order_labor::list_labor),
+                        )
+                        .route(
+                            "/api/maintenance/downtime-events",
+                            get(http::downtime::list_downtime),
+                        )
+                        .route(
+                            "/api/maintenance/downtime-events/{id}",
+                            get(http::downtime::get_downtime),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}/downtime",
+                            get(http::downtime::list_asset_downtime),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}/calibration-status",
+                            get(http::calibration_events::get_calibration_status),
+                        )
+                        .route_layer(RequirePermissionsLayer::new(&[
+                            permissions::MAINTENANCE_READ,
+                        ])),
+                )
+                // Mutation endpoints (MAINTENANCE_MUTATE)
+                .merge(
+                    Router::new()
+                        .route(
+                            "/api/maintenance/assets",
+                            post(http::assets::create_asset),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}",
+                            axum::routing::patch(http::assets::update_asset),
+                        )
+                        .route(
+                            "/api/maintenance/meter-types",
+                            post(http::meters::create_meter_type),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}/readings",
+                            post(http::meters::record_reading),
+                        )
+                        .route(
+                            "/api/maintenance/plans",
+                            post(http::plans::create_plan),
+                        )
+                        .route(
+                            "/api/maintenance/plans/{plan_id}",
+                            axum::routing::patch(http::plans::update_plan),
+                        )
+                        .route(
+                            "/api/maintenance/plans/{plan_id}/assign",
+                            post(http::plans::assign_plan),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders",
+                            post(http::work_orders::create_work_order),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/transition",
+                            axum::routing::patch(http::work_orders::transition_work_order),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/parts",
+                            post(http::work_order_parts::add_part),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/parts/{part_id}",
+                            axum::routing::delete(http::work_order_parts::remove_part),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/labor",
+                            post(http::work_order_labor::add_labor),
+                        )
+                        .route(
+                            "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",
+                            axum::routing::delete(http::work_order_labor::remove_labor),
+                        )
+                        .route(
+                            "/api/maintenance/downtime-events",
+                            post(http::downtime::create_downtime),
+                        )
+                        .route(
+                            "/api/maintenance/assets/{asset_id}/calibration-events",
+                            post(http::calibration_events::record_calibration_event),
+                        )
+                        .route_layer(RequirePermissionsLayer::new(&[
+                            permissions::MAINTENANCE_MUTATE,
+                        ])),
+                )
+                .with_state(app_state)
+        })
+        .run()
+        .await
+        .expect("maintenance module failed");
 }
 
-fn build_cors_layer(config: &Config) -> CorsLayer {
-    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+/// SDK consumer adapter for production.workcenter_created.
+async fn on_workcenter_created(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
 
-    if is_wildcard && config.env != "development" {
-        tracing::warn!(
-            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
-        );
-    }
+    let payload: WorkcenterCreatedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let origins: Vec<_> = config
-            .cors_origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
-        CorsLayer::new().allow_origin(origins)
-    };
+    upsert_workcenter_projection(
+        pool,
+        envelope.event_id,
+        payload.workcenter_id,
+        &payload.tenant_id,
+        &payload.code,
+        &payload.name,
+        true,
+    )
+    .await
+    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
 
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
+    Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use maintenance_rs::config::BusType;
+/// SDK consumer adapter for production.workcenter_updated.
+async fn on_workcenter_updated(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
 
-    #[test]
-    fn cors_wildcard_parses() {
-        let config = Config {
-            database_url: "postgresql://localhost/test".to_string(),
-            bus_type: BusType::InMemory,
-            nats_url: None,
-            host: "0.0.0.0".to_string(),
-            port: 8101,
-            env: "development".to_string(),
-            cors_origins: vec!["*".to_string()],
-            scheduler_interval_secs: 60,
-        };
-        let _layer = build_cors_layer(&config);
-    }
+    let payload: WorkcenterUpdatedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    #[test]
-    fn cors_specific_origins_parse() {
-        let config = Config {
-            database_url: "postgresql://localhost/test".to_string(),
-            bus_type: BusType::InMemory,
-            nats_url: None,
-            host: "0.0.0.0".to_string(),
-            port: 8101,
-            env: "development".to_string(),
-            cors_origins: vec![
-                "http://localhost:3000".to_string(),
-                "https://app.example.com".to_string(),
-            ],
-            scheduler_interval_secs: 60,
-        };
-        let _layer = build_cors_layer(&config);
-    }
+    let existing_name: Option<(String,)> = sqlx::query_as(
+        "SELECT name FROM workcenter_projections WHERE workcenter_id = $1",
+    )
+    .bind(payload.workcenter_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+
+    let name = existing_name
+        .map(|r| r.0)
+        .unwrap_or_else(|| payload.code.clone());
+
+    upsert_workcenter_projection(
+        pool,
+        envelope.event_id,
+        payload.workcenter_id,
+        &payload.tenant_id,
+        &payload.code,
+        &name,
+        true,
+    )
+    .await
+    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+
+    Ok(())
+}
+
+/// SDK consumer adapter for production.workcenter_deactivated.
+async fn on_workcenter_deactivated(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+
+    let payload: WorkcenterDeactivatedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    let existing: Option<(String, String)> = sqlx::query_as(
+        "SELECT code, name FROM workcenter_projections WHERE workcenter_id = $1",
+    )
+    .bind(payload.workcenter_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+
+    let (code, name) = existing.unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
+
+    upsert_workcenter_projection(
+        pool,
+        envelope.event_id,
+        payload.workcenter_id,
+        &payload.tenant_id,
+        &code,
+        &name,
+        false,
+    )
+    .await
+    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+
+    Ok(())
+}
+
+/// SDK consumer adapter for production.downtime.started.
+async fn on_downtime_started(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+
+    let payload: DowntimeStartedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    process_downtime_started(pool, envelope.event_id, &payload)
+        .await
+        .map_err(|e| ConsumerError::Processing(e))?;
+
+    Ok(())
+}
+
+/// SDK consumer adapter for production.downtime.ended.
+async fn on_downtime_ended(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+
+    let payload: DowntimeEndedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    process_downtime_ended(pool, envelope.event_id, &payload)
+        .await
+        .map_err(|e| ConsumerError::Processing(e))?;
+
+    Ok(())
 }

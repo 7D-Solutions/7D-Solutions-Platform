@@ -21,6 +21,8 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.3 | 2026-03-31 | bd-5vmu6.6 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 5 consumer adapters (workcenter created/updated/deactivated, downtime started/ended). Scheduler spawns in routes closure. Metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
+| 2.1.2 | 2026-03-31 | — | Bump for module.toml + Cargo.toml SDK prep. | SDK conversion prep. | No |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 1.0.0 | 2026-03-28 | bd-19t7c | Initial proof. Preventive maintenance scheduling, asset management CRUD, calibration events, downtime tracking with impact classification, work order lifecycle, admin endpoints, outbox event publishing, idempotent operations. 63 unit tests pass, clippy clean. | Maintenance module code complete and proven. All gates pass. | No |
 | 2.1.0 | 2026-03-30 | bd-ox08o | OpenAPI via utoipa: /api/openapi.json route, SecurityAddon (Bearer JWT), openapi_dump binary. | Machine-readable API spec for consumers and code generation. | No |
