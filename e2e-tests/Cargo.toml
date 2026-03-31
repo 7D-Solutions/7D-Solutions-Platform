@@ -735,3 +735,7 @@ path = "tests/subscriptions_http_smoke.rs"
 [[test]]
 name = "pdf_editor_http_smoke"
 path = "tests/pdf_editor_http_smoke.rs"
+
+[[test]]
+name = "auth_rbac_coverage_e2e"
+path = "tests/auth_rbac_coverage_e2e.rs"
