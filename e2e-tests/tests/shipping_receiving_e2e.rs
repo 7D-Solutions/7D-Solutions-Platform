@@ -172,7 +172,7 @@ async fn transition(
 
 async fn cleanup_sr(pool: &sqlx::PgPool, tenant_id: &str) {
     let tid = uuid::Uuid::parse_str(tenant_id).unwrap();
-    sqlx::query("DELETE FROM sr_events_outbox WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM sr_events_outbox WHERE tenant_id = $1::text")
         .bind(tid)
         .execute(pool)
         .await
@@ -479,7 +479,7 @@ async fn inbound_receipt_and_inventory_integration() {
     // Step 17: Verify outbox event published
     println!("\n-- Step 17: Verify outbox event --");
     let event_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1 AND event_type LIKE '%closed%'",
+        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1::text AND event_type LIKE '%closed%'",
     )
     .bind(shipment_id)
     .fetch_one(&sr_pool)
@@ -666,7 +666,7 @@ async fn outbound_shipment_lifecycle() {
     // Step 9: Verify outbox event
     println!("\n-- Step 9: Verify outbox event --");
     let event_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1 AND event_type LIKE '%shipped%'",
+        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1::text AND event_type LIKE '%shipped%'",
     )
     .bind(shipment_id)
     .fetch_one(&sr_pool)
