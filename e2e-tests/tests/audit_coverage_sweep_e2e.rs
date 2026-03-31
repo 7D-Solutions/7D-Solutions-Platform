@@ -656,10 +656,10 @@ async fn test_mutation_class_consistency() {
 /// the count matches expectations. This catches silent additions.
 #[tokio::test]
 async fn test_mutation_path_enumeration_complete() {
-    // AR: 18 auditable event types
+    // AR: 20 auditable event types
     assert_eq!(
         AR_AUDITABLE_EVENT_TYPES.len(),
-        18,
+        20,
         "AR auditable event type count changed — update registry"
     );
 
@@ -677,11 +677,11 @@ async fn test_mutation_path_enumeration_complete() {
         "Subscriptions auditable event type count changed — update registry"
     );
 
-    // Total: 30 auditable mutation paths
+    // Total: 32 auditable mutation paths
     let total = AR_AUDITABLE_EVENT_TYPES.len()
         + GL_AUDITABLE_EVENT_TYPES.len()
         + SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES.len();
-    assert_eq!(total, 30, "Total auditable mutation paths changed");
+    assert_eq!(total, 32, "Total auditable mutation paths changed");
 
     eprintln!(
         "Mutation path enumeration: {} AR + {} GL + {} Subs = {} total",
