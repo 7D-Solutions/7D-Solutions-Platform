@@ -160,9 +160,10 @@ pub async fn process_fulfill(
 
     // Guard: no compensating entry may already exist.
     let already_settled: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM inventory_reservations WHERE reverses_reservation_id = $1)",
+        "SELECT EXISTS(SELECT 1 FROM inventory_reservations WHERE reverses_reservation_id = $1 AND tenant_id = $2)",
     )
     .bind(original.id)
+    .bind(&req.tenant_id)
     .fetch_one(pool)
     .await?;
 

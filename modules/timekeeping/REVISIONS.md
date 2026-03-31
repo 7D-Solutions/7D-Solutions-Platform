@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.4 | 2026-03-31 | bd-vnuvp.9 | Add app_id filter to tk_billing_run_entries query via tk_billing_runs subquery. load_run_entries now takes app_id parameter. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
 | 2.1.2 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 1.0.0 | 2026-03-28 | bd-28v5u | Initial proof. Time entry CRUD, timesheet lifecycle, approval workflow, labor costing, overtime calculations, project/work-order allocation, admin endpoints, event publishing, multi-tenant isolation. 64 unit tests pass, clippy clean. | Timekeeping module complete and proven. All gates pass. | No |

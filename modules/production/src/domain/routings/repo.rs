@@ -419,9 +419,13 @@ impl RoutingRepo {
         }
 
         sqlx::query_as::<_, RoutingStep>(
-            "SELECT * FROM routing_steps WHERE routing_template_id = $1 ORDER BY sequence_number",
+            "SELECT * FROM routing_steps \
+             WHERE routing_template_id = $1 \
+               AND routing_template_id IN (SELECT routing_template_id FROM routing_templates WHERE tenant_id = $2) \
+             ORDER BY sequence_number",
         )
         .bind(routing_template_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await
         .map_err(RoutingError::Database)

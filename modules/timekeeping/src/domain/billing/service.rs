@@ -107,7 +107,7 @@ pub async fn create_billing_run(
 
     // Idempotency check — return existing run if found
     if let Some(existing) = find_existing_run(pool, &idempotency_key).await? {
-        let line_items = load_run_entries(pool, existing.id).await?;
+        let line_items = load_run_entries(pool, existing.id, &req.app_id).await?;
         return Ok(BillingRunResult {
             run: existing,
             line_items,
@@ -266,11 +266,15 @@ async fn fetch_billable_entries(
 async fn load_run_entries(
     pool: &PgPool,
     run_id: Uuid,
+    app_id: &str,
 ) -> Result<Vec<BillingLineItem>, BillingError> {
     let rows: Vec<(Uuid, i64)> = sqlx::query_as(
-        "SELECT entry_id, amount_cents FROM tk_billing_run_entries WHERE billing_run_id = $1",
+        "SELECT entry_id, amount_cents FROM tk_billing_run_entries \
+         WHERE billing_run_id = $1 \
+           AND billing_run_id IN (SELECT id FROM tk_billing_runs WHERE app_id = $2)",
     )
     .bind(run_id)
+    .bind(app_id)
     .fetch_all(pool)
     .await?;
 

@@ -126,9 +126,10 @@ impl OperationRepo {
 
         // Check no operations already exist
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM operations WHERE work_order_id = $1",
+            "SELECT COUNT(*) FROM operations WHERE work_order_id = $1 AND tenant_id = $2",
         )
         .bind(work_order_id)
+        .bind(tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 

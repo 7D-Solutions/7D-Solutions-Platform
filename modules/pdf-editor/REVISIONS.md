@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.3 | 2026-03-31 | bd-vnuvp.9 | Add tenant_id filter to 3 form_fields queries (MAX display_order, SELECT list, SELECT reorder) via form_templates subquery. Defense-in-depth tenant isolation. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
 | 2.1.2 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.1.0 | 2026-03-31 | bd-gvhi3 | OpenAPI spec served at /api/openapi.json with utoipa 5.x annotations on all 15 endpoints. Bearer JWT SecurityScheme documented. ConfigValidator-style startup validation preserved. | Plug-and-play: OpenAPI + startup standardization. | No |

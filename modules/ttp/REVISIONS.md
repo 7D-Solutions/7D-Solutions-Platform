@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.11 | 2026-03-31 | bd-vnuvp.9 | Add tenant_id filter to ttp_billing_run_items invoiced-parties query via ttp_billing_runs subquery. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
 | 2.1.10 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.1.9 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.8 | 2026-03-28 | bd-312eg | Metering batch ingestion: N concurrent single-row INSERTs → single UNNEST batch INSERT. | Single DB round-trip for any batch size. Previous `try_join_all` still made N connection checkouts; now uses `INSERT ... SELECT * FROM UNNEST(arrays)` with `ON CONFLICT DO NOTHING` + `RETURNING event_id` to detect duplicates per-row. | No |

@@ -45,9 +45,12 @@ pub async fn collect_parties_to_bill(
 
     // Already-invoiced parties in this run — skip them
     let invoiced_parties: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM ttp_billing_run_items WHERE run_id = $1 AND status = 'invoiced'",
+        "SELECT party_id FROM ttp_billing_run_items \
+         WHERE run_id = $1 AND status = 'invoiced' \
+           AND run_id IN (SELECT run_id FROM ttp_billing_runs WHERE tenant_id = $2)",
     )
     .bind(run_id)
+    .bind(tenant_id)
     .fetch_all(pool)
     .await?;
 

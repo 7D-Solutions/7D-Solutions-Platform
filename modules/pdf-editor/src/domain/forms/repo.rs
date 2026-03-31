@@ -155,9 +155,14 @@ impl FieldRepo {
 
         // Compute next display_order (max + 1, or 0 if none)
         let max_order: Option<i32> =
-            sqlx::query_scalar("SELECT MAX(display_order) FROM form_fields WHERE template_id = $1")
-                .bind(template_id)
-                .fetch_one(pool)
+            sqlx::query_scalar(
+                "SELECT MAX(display_order) FROM form_fields \
+                 WHERE template_id = $1 \
+                   AND template_id IN (SELECT id FROM form_templates WHERE tenant_id = $2)",
+            )
+            .bind(template_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
                 .await?;
         let next_order = max_order.map(|m| m + 1).unwrap_or(0);
 
@@ -214,10 +219,12 @@ impl FieldRepo {
             r#"
             SELECT * FROM form_fields
             WHERE template_id = $1
+              AND template_id IN (SELECT id FROM form_templates WHERE tenant_id = $2)
             ORDER BY display_order ASC
             "#,
         )
         .bind(template_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await
         .map_err(FormError::Database)
@@ -317,9 +324,13 @@ impl FieldRepo {
 
         // Get existing field IDs
         let existing: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_fields WHERE template_id = $1 ORDER BY display_order",
+            "SELECT id FROM form_fields \
+             WHERE template_id = $1 \
+               AND template_id IN (SELECT id FROM form_templates WHERE tenant_id = $2) \
+             ORDER BY display_order",
         )
         .bind(template_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await?;
         let existing_ids: Vec<Uuid> = existing.into_iter().map(|(id,)| id).collect();
