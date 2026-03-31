@@ -5,7 +5,7 @@ pub mod metrics;
 pub mod outbox;
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use config::Config;
 use security::{
     middleware::{
@@ -15,6 +15,7 @@ use security::{
 };
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use utoipa::OpenApi;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -34,7 +35,11 @@ pub fn hash_password(password: &str) -> Result<String, password_hash::Error> {
 pub fn verify_password(hash: &str, password: &str) -> bool {
     PasswordHash::new(hash)
         .ok()
-        .and_then(|parsed| Argon2::default().verify_password(password.as_bytes(), &parsed).ok())
+        .and_then(|parsed| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed)
+                .ok()
+        })
         .is_some()
 }
 
@@ -42,7 +47,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let admin_routes = Router::new()
-        .route("/portal/admin/users", axum::routing::post(http::admin::invite_user))
+        .route(
+            "/portal/admin/users",
+            axum::routing::post(http::admin::invite_user),
+        )
         .route(
             "/portal/admin/docs/link",
             axum::routing::post(http::status::link_document),
@@ -51,13 +59,21 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/portal/admin/status-cards",
             axum::routing::post(http::status::create_status_card),
         )
-        .route_layer(RequirePermissionsLayer::new(&[permissions::CUSTOMER_PORTAL_ADMIN]))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::CUSTOMER_PORTAL_ADMIN,
+        ]))
         .with_state(state.clone());
 
     let auth_routes = Router::new()
         .route("/portal/auth/login", axum::routing::post(http::auth::login))
-        .route("/portal/auth/refresh", axum::routing::post(http::auth::refresh))
-        .route("/portal/auth/logout", axum::routing::post(http::auth::logout))
+        .route(
+            "/portal/auth/refresh",
+            axum::routing::post(http::auth::refresh),
+        )
+        .route(
+            "/portal/auth/logout",
+            axum::routing::post(http::auth::logout),
+        )
         .route("/portal/me", get(http::protected::me))
         .route("/portal/docs", get(http::docs::list_documents))
         .route("/portal/status/feed", get(http::status::list_status_cards))
@@ -72,9 +88,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .with_state(state.clone());
 
     Router::new()
+        .route("/healthz", get(healthz))
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .merge(admin_routes)
         .merge(auth_routes)
@@ -111,4 +129,12 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     layer
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any)
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(http::ApiDoc::openapi())
+}
+
+async fn healthz() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"status": "ok"}))
 }

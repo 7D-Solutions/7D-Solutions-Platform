@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::tenant::{extract_actor, with_request_id};
 use crate::{auth::PortalClaims, outbox::enqueue_portal_event};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateStatusCardRequest {
     pub tenant_id: Uuid,
     pub party_id: Uuid,
@@ -24,7 +24,7 @@ pub struct CreateStatusCardRequest {
     pub source: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AcknowledgeRequest {
     pub document_id: Option<Uuid>,
     pub status_card_id: Option<Uuid>,
@@ -45,12 +45,22 @@ pub struct StatusCard {
     pub occurred_at: chrono::DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct StatusFeedQuery {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
 }
 
+#[utoipa::path(
+    post, path = "/portal/admin/status-cards", tag = "Admin",
+    request_body = CreateStatusCardRequest,
+    responses(
+        (status = 200, description = "Status card created"),
+        (status = 401, body = ApiError), (status = 403, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_status_card(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -87,6 +97,15 @@ pub async fn create_status_card(
     Ok(Json(serde_json::json!({"status_card_id": id})))
 }
 
+#[utoipa::path(
+    get, path = "/portal/status/feed", tag = "Status",
+    params(StatusFeedQuery),
+    responses(
+        (status = 200, description = "Paginated status cards", body = PaginatedResponse<StatusCard>),
+        (status = 401, body = ApiError), (status = 403, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_status_cards(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
@@ -142,6 +161,17 @@ pub async fn list_status_cards(
     Ok(Json(PaginatedResponse::new(cards, page, page_size, total)))
 }
 
+#[utoipa::path(
+    post, path = "/portal/acknowledgments", tag = "Status",
+    request_body = AcknowledgeRequest,
+    responses(
+        (status = 200, description = "Acknowledgment recorded"),
+        (status = 400, body = ApiError), (status = 401, body = ApiError),
+        (status = 403, body = ApiError), (status = 404, body = ApiError),
+        (status = 409, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn acknowledge(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
@@ -290,7 +320,7 @@ pub async fn acknowledge(
     Ok(Json(response))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LinkDocumentRequest {
     pub tenant_id: Uuid,
     pub party_id: Uuid,
@@ -298,6 +328,15 @@ pub struct LinkDocumentRequest {
     pub display_title: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/portal/admin/docs/link", tag = "Admin",
+    request_body = LinkDocumentRequest,
+    responses(
+        (status = 200, description = "Document linked"),
+        (status = 401, body = ApiError), (status = 403, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn link_document(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

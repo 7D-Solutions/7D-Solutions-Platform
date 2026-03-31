@@ -1,9 +1,12 @@
 pub mod ap_vendor_bill_approved_consumer;
 pub mod ar_tax_liability;
+pub mod ar_tax_liability_posting;
 pub mod fixed_assets_depreciation;
+pub mod fixed_assets_depreciation_posting;
 pub mod gl_credit_note_consumer;
 pub mod gl_fx_realized_consumer;
 pub mod gl_inventory_consumer;
+pub mod gl_inventory_posting;
 pub mod gl_posting_consumer;
 pub mod gl_reversal_consumer;
 pub mod gl_writeoff_consumer;

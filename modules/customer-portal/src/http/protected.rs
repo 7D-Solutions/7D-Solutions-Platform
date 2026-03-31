@@ -3,12 +3,13 @@ use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use serde::Serialize;
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::with_request_id;
 use crate::auth::PortalClaims;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MeResponse {
     pub user_id: String,
     pub tenant_id: String,
@@ -16,6 +17,14 @@ pub struct MeResponse {
     pub scopes: Vec<String>,
 }
 
+#[utoipa::path(
+    get, path = "/portal/me", tag = "Portal",
+    responses(
+        (status = 200, description = "Current user info", body = MeResponse),
+        (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn me(
     State(_state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
@@ -28,6 +37,15 @@ pub async fn me(
     })
 }
 
+#[utoipa::path(
+    get, path = "/portal/party/{party_id}/probe", tag = "Portal",
+    params(("party_id" = Uuid, Path, description = "Party ID to probe")),
+    responses(
+        (status = 200, description = "Party guard check passed"),
+        (status = 401, body = ApiError), (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn party_guard_probe(
     State(_state): State<Arc<crate::AppState>>,
     axum::extract::Path(party_id): axum::extract::Path<Uuid>,

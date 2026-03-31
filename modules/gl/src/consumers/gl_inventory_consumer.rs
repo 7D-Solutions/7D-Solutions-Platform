@@ -1,26 +1,8 @@
-//! GL Inventory Consumer (bd-1121, bd-2vc9u)
+//! GL Inventory Consumer — NATS wiring for inventory GL postings
 //!
-//! Handles inventory events and posts balanced journal entries to GL.
-//!
-//! ## Source Type Branching (bd-2vc9u)
-//!
-//! `inventory.item_issued` branches on `source_ref.source_type`:
-//! - **purchase / sales_order** → COGS path: DR COGS / CR INVENTORY
-//! - **production** → WIP path: DR WIP / CR INVENTORY (raw material consumed)
-//! - **unknown** → hard error (non-retriable, sent to DLQ)
-//!
-//! `inventory.item_received` with `source_type=production`:
-//! - FG receipt: DR INVENTORY / CR WIP (finished goods at rolled-up cost)
-//!
-//! ## Idempotency
-//! Uses `processed_events` table via `process_gl_posting_request`. The event_id from
-//! the incoming envelope is the idempotency key — duplicate events are silently skipped.
-//!
-//! ## Period Validation
-//! `process_gl_posting_request` enforces period existence and open/closed state.
-//! Events targeting a closed period return `JournalError::Period` (non-retriable → DLQ).
+//! Subscribes to inventory events and delegates to posting functions
+//! in `gl_inventory_posting` for journal entry construction.
 
-use chrono::{DateTime, Utc};
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus, EventEnvelope};
 use futures::StreamExt;
@@ -29,256 +11,14 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
-use crate::services::journal_service::{process_gl_posting_request, JournalError};
+use crate::services::journal_service::JournalError;
 
-// ============================================================================
-// inventory.item_issued payload (mirrors inventory::events::contracts)
-// ============================================================================
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ConsumedLayer {
-    pub layer_id: Uuid,
-    pub quantity: i64,
-    pub unit_cost_minor: i64,
-    pub extended_cost_minor: i64,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct SourceRef {
-    pub source_module: String,
-    pub source_type: String,
-    pub source_id: String,
-    pub source_line_id: Option<String>,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ItemIssuedPayload {
-    pub issue_line_id: Uuid,
-    pub tenant_id: String,
-    pub item_id: Uuid,
-    pub sku: String,
-    pub warehouse_id: Uuid,
-    pub quantity: i64,
-    pub total_cost_minor: i64,
-    pub currency: String,
-    pub consumed_layers: Vec<ConsumedLayer>,
-    pub source_ref: SourceRef,
-    pub issued_at: DateTime<Utc>,
-}
-
-// ============================================================================
-// inventory.item_received payload (mirrors inventory::events::contracts)
-// ============================================================================
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ItemReceivedPayload {
-    pub receipt_line_id: Uuid,
-    pub tenant_id: String,
-    pub item_id: Uuid,
-    pub sku: String,
-    pub warehouse_id: Uuid,
-    pub quantity: i64,
-    pub unit_cost_minor: i64,
-    pub currency: String,
-    pub source_type: String,
-    pub purchase_order_id: Option<Uuid>,
-    pub received_at: DateTime<Utc>,
-}
-
-// ============================================================================
-// Known source_type values for item_issued
-// ============================================================================
-
-const SOURCE_TYPE_PURCHASE: &str = "purchase";
-const SOURCE_TYPE_SALES_ORDER: &str = "sales_order";
-const SOURCE_TYPE_PRODUCTION: &str = "production";
-
-// ============================================================================
-// Public processing functions (testable without NATS)
-// ============================================================================
-
-/// Process an item_issued event — COGS path (purchase/sales_order source_type).
-///
-/// Journal entry: DR COGS / CR INVENTORY
-pub async fn process_inventory_cogs_posting(
-    pool: &PgPool,
-    event_id: Uuid,
-    tenant_id: &str,
-    source_module: &str,
-    payload: &ItemIssuedPayload,
-) -> Result<Uuid, JournalError> {
-    let amount = payload.total_cost_minor as f64 / 100.0;
-
-    let posting = GlPostingRequestV1 {
-        posting_date: payload.issued_at.format("%Y-%m-%d").to_string(),
-        currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::InventoryIssue,
-        source_doc_id: payload.issue_line_id.to_string(),
-        description: format!(
-            "COGS — issued {} units of {} ({})",
-            payload.quantity, payload.sku, payload.source_ref.source_id
-        ),
-        lines: vec![
-            JournalLine {
-                account_ref: "COGS".to_string(),
-                debit: amount,
-                credit: 0.0,
-                memo: Some(format!(
-                    "Cost of goods sold — {} units SKU {}",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-            JournalLine {
-                account_ref: "INVENTORY".to_string(),
-                debit: 0.0,
-                credit: amount,
-                memo: Some(format!(
-                    "Inventory reduction — issued {} units SKU {}",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-        ],
-    };
-
-    let subject = format!("inventory.item_issued.{}", event_id);
-
-    process_gl_posting_request(
-        pool,
-        event_id,
-        tenant_id,
-        source_module,
-        &subject,
-        &posting,
-        None,
-    )
-    .await
-}
-
-/// Process an item_issued event — WIP path (production source_type).
-///
-/// Journal entry: DR WIP / CR INVENTORY (raw material consumed for production)
-pub async fn process_inventory_wip_posting(
-    pool: &PgPool,
-    event_id: Uuid,
-    tenant_id: &str,
-    source_module: &str,
-    payload: &ItemIssuedPayload,
-) -> Result<Uuid, JournalError> {
-    let amount = payload.total_cost_minor as f64 / 100.0;
-
-    let posting = GlPostingRequestV1 {
-        posting_date: payload.issued_at.format("%Y-%m-%d").to_string(),
-        currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::ProductionIssue,
-        source_doc_id: payload.issue_line_id.to_string(),
-        description: format!(
-            "WIP — issued {} units of {} to production ({})",
-            payload.quantity, payload.sku, payload.source_ref.source_id
-        ),
-        lines: vec![
-            JournalLine {
-                account_ref: "WIP".to_string(),
-                debit: amount,
-                credit: 0.0,
-                memo: Some(format!(
-                    "Work-in-process — {} units SKU {} consumed",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-            JournalLine {
-                account_ref: "INVENTORY".to_string(),
-                debit: 0.0,
-                credit: amount,
-                memo: Some(format!(
-                    "Inventory reduction — issued {} units SKU {} to production",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-        ],
-    };
-
-    let subject = format!("inventory.item_issued.{}", event_id);
-
-    process_gl_posting_request(
-        pool,
-        event_id,
-        tenant_id,
-        source_module,
-        &subject,
-        &posting,
-        None,
-    )
-    .await
-}
-
-/// Process an item_received event for production receipts (FG at rolled-up cost).
-///
-/// Journal entry: DR INVENTORY / CR WIP (finished goods received)
-pub async fn process_production_receipt_posting(
-    pool: &PgPool,
-    event_id: Uuid,
-    tenant_id: &str,
-    source_module: &str,
-    payload: &ItemReceivedPayload,
-) -> Result<Uuid, JournalError> {
-    let total_cost_minor = payload.quantity * payload.unit_cost_minor;
-    let amount = total_cost_minor as f64 / 100.0;
-
-    let posting = GlPostingRequestV1 {
-        posting_date: payload.received_at.format("%Y-%m-%d").to_string(),
-        currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::ProductionReceipt,
-        source_doc_id: payload.receipt_line_id.to_string(),
-        description: format!(
-            "FG receipt — {} units of {} at rolled-up cost",
-            payload.quantity, payload.sku
-        ),
-        lines: vec![
-            JournalLine {
-                account_ref: "INVENTORY".to_string(),
-                debit: amount,
-                credit: 0.0,
-                memo: Some(format!(
-                    "Finished goods received — {} units SKU {}",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-            JournalLine {
-                account_ref: "WIP".to_string(),
-                debit: 0.0,
-                credit: amount,
-                memo: Some(format!(
-                    "WIP relieved — {} units SKU {} completed",
-                    payload.quantity, payload.sku
-                )),
-                dimensions: None,
-            },
-        ],
-    };
-
-    let subject = format!("inventory.item_received.{}", event_id);
-
-    process_gl_posting_request(
-        pool,
-        event_id,
-        tenant_id,
-        source_module,
-        &subject,
-        &posting,
-        None,
-    )
-    .await
-}
-
-// ============================================================================
-// NATS consumers (production entry points)
-// ============================================================================
+// Re-export posting types and functions for backward compatibility
+pub use super::gl_inventory_posting::{
+    process_inventory_cogs_posting, process_inventory_wip_posting,
+    process_production_receipt_posting, ConsumedLayer, ItemIssuedPayload, ItemReceivedPayload,
+    SourceRef, SOURCE_TYPE_PRODUCTION, SOURCE_TYPE_PURCHASE, SOURCE_TYPE_SALES_ORDER,
+};
 
 /// Start the GL inventory consumer tasks.
 ///
@@ -542,12 +282,9 @@ async fn process_item_received_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<ItemReceivedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            ProcessingError::Validation(format!(
-                "Failed to parse item_received envelope: {}",
-                e
-            ))
+    let envelope: EventEnvelope<ItemReceivedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
+            ProcessingError::Validation(format!("Failed to parse item_received envelope: {}", e))
         })?;
 
     let source_type = &envelope.payload.source_type;
@@ -606,20 +343,16 @@ async fn process_item_received_message(
             }
         }
         SOURCE_TYPE_PURCHASE => {
-            // Purchase receipts do not generate GL postings from inventory events.
-            // The AP module handles purchase receipt GL via its own consumer.
             tracing::debug!(
                 event_id = %envelope.event_id,
                 "Skipping purchase receipt — GL handled by AP module"
             );
             Ok(())
         }
-        unknown => {
-            Err(ProcessingError::Validation(format!(
-                "Unknown source_type '{}' on item_received event {} — cannot determine GL path",
-                unknown, envelope.event_id
-            )))
-        }
+        unknown => Err(ProcessingError::Validation(format!(
+            "Unknown source_type '{}' on item_received event {} — cannot determine GL path",
+            unknown, envelope.event_id
+        ))),
     }
 }
 

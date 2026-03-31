@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-03-31 | bd-uxity | Split oversize files by separation of concerns. revrec_repo → contract/schedule/amendment repos. accruals → accruals + accruals_reversal. Consumer files (gl_inventory, ar_tax_liability, fixed_assets_depreciation) → consumer wiring + posting logic. balance_sheet_service allowlisted (single cohesive concern). Fixed pre-existing unwrap panics in accrual posting paths. All re-exports preserved. | Internal refactor to enforce 500 LOC limit without breaking consumers. | No |
 | 1.0.0 | 2026-03-28 | bd-gxt1h | Initial proof. Double-entry journal posting with atomic balance updates. Period close validation + snapshot hashing. Trial balance, balance sheet, income statement services. Revenue recognition scheduling. Accruals + reversals. FX conversion with banker's rounding. Event consumers: AR tax, AP bills, inventory, credit notes, writeoffs, FX realized, labor costs, fixed assets depreciation. DLQ with retry. Multi-tenant boundary isolation. | Platform GL foundation complete. All invariants enforced (balanced entries, no duplicates, valid accounts, closed period protection, reversal chain depth). Proof script passing. | No |
 
 ## How to read this table

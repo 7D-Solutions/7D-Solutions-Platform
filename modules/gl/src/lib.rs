@@ -1,4 +1,5 @@
 pub mod accruals;
+pub mod accruals_reversal;
 pub mod config;
 pub mod consumers;
 pub mod contracts;
@@ -8,11 +9,11 @@ pub mod domain;
 pub mod events;
 pub mod exports;
 pub mod health;
+pub mod http;
 pub mod invariants;
 pub mod metrics;
 pub mod repos;
 pub mod revrec;
-pub mod http;
 pub mod services;
 pub mod validation;
 

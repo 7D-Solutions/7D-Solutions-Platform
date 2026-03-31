@@ -1,4 +1,4 @@
-use std::env;
+use config_validator::ConfigValidator;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -16,43 +16,31 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL is required".to_string())?;
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let mut v = ConfigValidator::new("customer-portal");
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = env::var("PORT")
-            .ok()
-            .and_then(|v| v.parse::<u16>().ok())
-            .unwrap_or(8110);
-        let cors_origins = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8110);
+
+        let cors_raw = v.optional("CORS_ORIGINS").or_default("*");
+        let cors_origins: Vec<String> = cors_raw
             .split(',')
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty())
-            .collect::<Vec<_>>();
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
 
-        let portal_jwt_private_key = env::var("PORTAL_JWT_PRIVATE_KEY")
-            .map_err(|_| "PORTAL_JWT_PRIVATE_KEY is required".to_string())?;
-        let portal_jwt_public_key = env::var("PORTAL_JWT_PUBLIC_KEY")
-            .map_err(|_| "PORTAL_JWT_PUBLIC_KEY is required".to_string())?;
+        let portal_jwt_private_key = v.require("PORTAL_JWT_PRIVATE_KEY").unwrap_or_default();
+        let portal_jwt_public_key = v.require("PORTAL_JWT_PUBLIC_KEY").unwrap_or_default();
 
-        let access_token_ttl_minutes = env::var("ACCESS_TOKEN_TTL_MINUTES")
-            .ok()
-            .and_then(|v| v.parse::<i64>().ok())
-            .unwrap_or(15);
+        let access_token_ttl_minutes = v.optional_parse::<i64>("ACCESS_TOKEN_TTL_MINUTES").unwrap_or(15);
+        let refresh_token_ttl_days = v.optional_parse::<i64>("REFRESH_TOKEN_TTL_DAYS").unwrap_or(7);
 
-        let refresh_token_ttl_days = env::var("REFRESH_TOKEN_TTL_DAYS")
-            .ok()
-            .and_then(|v| v.parse::<i64>().ok())
-            .unwrap_or(7);
-        let doc_mgmt_base_url =
-            env::var("DOC_MGMT_BASE_URL").unwrap_or_else(|_| "http://localhost:8095".to_string());
-        let doc_mgmt_bearer_token = env::var("DOC_MGMT_BEARER_TOKEN").ok();
+        let doc_mgmt_base_url = v.optional("DOC_MGMT_BASE_URL").or_default("http://localhost:8095");
+        let doc_mgmt_bearer_token = v.optional("DOC_MGMT_BEARER_TOKEN").present().map(String::from);
 
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+        let env_name = v.optional("ENV").or_default("development");
+
+        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
                 "CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
@@ -60,6 +48,8 @@ impl Config {
                     .to_string(),
             );
         }
+
+        v.finish().map_err(|e| e.to_string())?;
 
         Ok(Self {
             database_url,

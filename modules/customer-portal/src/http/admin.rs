@@ -8,12 +8,13 @@ use rand::RngCore;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::{extract_actor, with_request_id};
 use crate::outbox::enqueue_portal_event;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InviteUserRequest {
     pub tenant_id: Uuid,
     pub party_id: Uuid,
@@ -23,7 +24,7 @@ pub struct InviteUserRequest {
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct InviteUserResponse {
     pub user_id: Uuid,
     pub tenant_id: Uuid,
@@ -31,6 +32,16 @@ pub struct InviteUserResponse {
     pub replay: bool,
 }
 
+#[utoipa::path(
+    post, path = "/portal/admin/users", tag = "Admin",
+    request_body = InviteUserRequest,
+    responses(
+        (status = 200, description = "User invited", body = InviteUserResponse),
+        (status = 400, body = ApiError), (status = 401, body = ApiError),
+        (status = 403, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn invite_user(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

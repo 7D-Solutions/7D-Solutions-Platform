@@ -1,5 +1,7 @@
 use axum::{body::Body, http::Request};
-use customer_portal::{auth::PortalJwt, build_router, hash_password, metrics::PortalMetrics, AppState};
+use customer_portal::{
+    auth::PortalJwt, build_router, hash_password, metrics::PortalMetrics, AppState,
+};
 use rand::thread_rng;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::RsaPrivateKey;
@@ -10,8 +12,9 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 fn test_db_url() -> String {
-    std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/customer_portal_db".to_string())
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5432/customer_portal_db".to_string()
+    })
 }
 
 fn make_test_keys() -> (String, String) {
@@ -213,9 +216,7 @@ async fn start_doc_mgmt_mock(
         .expect("bind mock");
     let addr = listener.local_addr().expect("local addr");
     let handle = tokio::spawn(async move {
-        axum::serve(listener, app)
-            .await
-            .expect("serve mock");
+        axum::serve(listener, app).await.expect("serve mock");
     });
 
     (format!("http://{}", addr), handle)

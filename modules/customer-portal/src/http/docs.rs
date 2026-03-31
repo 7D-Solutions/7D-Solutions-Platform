@@ -40,12 +40,22 @@ struct PortalUserEmailRow {
     email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct DocsQuery {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
 }
 
+#[utoipa::path(
+    get, path = "/portal/docs", tag = "Documents",
+    params(DocsQuery),
+    responses(
+        (status = 200, description = "Paginated documents", body = PaginatedResponse<PortalDocumentView>),
+        (status = 401, body = ApiError), (status = 403, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_documents(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,

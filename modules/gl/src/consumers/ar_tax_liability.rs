@@ -1,35 +1,8 @@
-//! AR Tax Liability GL Consumer (bd-3gsz)
+//! AR Tax Liability GL Consumer — NATS wiring for tax committed/voided events
 //!
-//! Handles `tax.committed` and `tax.voided` events from the AR module and posts
-//! balanced journal entries to GL for sales tax liability tracking.
-//!
-//! ## Accounting Entries
-//!
-//! ### tax.committed (tax liability recognized at invoice finalization)
-//! ```text
-//! DR  TAX_COLLECTED    total_tax_minor / 100.0   ← tax collected from customer (clearing)
-//! CR  TAX_PAYABLE      total_tax_minor / 100.0   ← liability to tax authority
-//! ```
-//!
-//! ### tax.voided (committed tax reversed on refund/write-off/cancellation)
-//! ```text
-//! DR  TAX_PAYABLE      total_tax_minor / 100.0   ← reduce liability
-//! CR  TAX_COLLECTED    total_tax_minor / 100.0   ← reverse clearing balance
-//! ```
-//!
-//! ## Design Rationale
-//! Tax is NOT recomputed in GL. The `total_tax_minor` from AR's tax snapshot is
-//! used directly. This ensures GL matches AR exactly and avoids rounding drift.
-//!
-//! ## Idempotency
-//! Uses `processed_events` table via `process_gl_posting_request`. The event_id
-//! from the incoming envelope is the idempotency key — duplicates silently skip.
-//!
-//! ## Period Validation
-//! `process_gl_posting_request` enforces period existence and open/closed state.
-//! Events targeting a closed period return `JournalError::Period` (non-retriable → DLQ).
+//! Subscribes to `tax.committed` and `tax.voided` events and delegates to
+//! posting functions in `ar_tax_liability_posting`.
 
-use chrono::{DateTime, Utc};
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus, EventEnvelope};
 use futures::StreamExt;
@@ -38,202 +11,19 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_posting_request_v1::{
-    Dimensions, GlPostingRequestV1, JournalLine, SourceDocType,
+use crate::services::journal_service::JournalError;
+
+// Re-export posting types and functions for backward compatibility
+pub use super::ar_tax_liability_posting::{
+    process_tax_committed_posting, process_tax_voided_posting, TaxCommittedPayload,
+    TaxVoidedPayload, TAX_COLLECTED_ACCOUNT, TAX_PAYABLE_ACCOUNT,
 };
-use crate::services::journal_service::{process_gl_posting_request, JournalError};
-
-/// Well-known GL account for tax collected from customers (clearing/offset)
-pub const TAX_COLLECTED_ACCOUNT: &str = "TAX_COLLECTED";
-
-/// Well-known GL account for sales tax payable to tax authorities (liability)
-pub const TAX_PAYABLE_ACCOUNT: &str = "TAX_PAYABLE";
-
-// ============================================================================
-// Payload: tax.committed (mirrors ar::events::contracts::TaxCommittedPayload)
-// ============================================================================
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct TaxCommittedPayload {
-    pub tenant_id: String,
-    pub invoice_id: String,
-    pub customer_id: String,
-    pub total_tax_minor: i64,
-    pub currency: String,
-    pub provider_quote_ref: String,
-    pub provider_commit_ref: String,
-    pub provider: String,
-    pub committed_at: DateTime<Utc>,
-}
-
-// ============================================================================
-// Payload: tax.voided (mirrors ar::events::contracts::TaxVoidedPayload)
-// ============================================================================
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct TaxVoidedPayload {
-    pub tenant_id: String,
-    pub invoice_id: String,
-    pub customer_id: String,
-    pub total_tax_minor: i64,
-    pub currency: String,
-    pub provider_commit_ref: String,
-    pub provider: String,
-    pub void_reason: String,
-    pub voided_at: DateTime<Utc>,
-}
-
-// ============================================================================
-// Public processing functions (testable without NATS)
-// ============================================================================
-
-/// Process a tax.committed event and post the tax liability GL journal entry.
-///
-/// Returns the created journal entry ID on success, or `JournalError` on failure.
-/// Duplicate event_ids return `JournalError::DuplicateEvent` (idempotent no-op).
-pub async fn process_tax_committed_posting(
-    pool: &PgPool,
-    event_id: Uuid,
-    tenant_id: &str,
-    source_module: &str,
-    payload: &TaxCommittedPayload,
-) -> Result<Uuid, JournalError> {
-    let amount = payload.total_tax_minor as f64 / 100.0;
-
-    let dims = Some(Dimensions {
-        customer_id: Some(payload.customer_id.clone()),
-        vendor_id: None,
-        location_id: None,
-        job_id: None,
-        department: None,
-        class: None,
-        project: None,
-    });
-
-    let posting = GlPostingRequestV1 {
-        posting_date: payload.committed_at.format("%Y-%m-%d").to_string(),
-        currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::ArInvoice,
-        source_doc_id: payload.invoice_id.clone(),
-        description: format!(
-            "Sales tax liability — invoice {} (provider: {})",
-            payload.invoice_id, payload.provider
-        ),
-        lines: vec![
-            JournalLine {
-                account_ref: TAX_COLLECTED_ACCOUNT.to_string(),
-                debit: amount,
-                credit: 0.0,
-                memo: Some(format!(
-                    "Tax collected — invoice {} commit {}",
-                    payload.invoice_id, payload.provider_commit_ref
-                )),
-                dimensions: dims.clone(),
-            },
-            JournalLine {
-                account_ref: TAX_PAYABLE_ACCOUNT.to_string(),
-                debit: 0.0,
-                credit: amount,
-                memo: Some(format!(
-                    "Sales tax payable — invoice {} ({})",
-                    payload.invoice_id, payload.provider
-                )),
-                dimensions: dims,
-            },
-        ],
-    };
-
-    let subject = format!("tax.committed.{}", event_id);
-
-    process_gl_posting_request(
-        pool,
-        event_id,
-        tenant_id,
-        source_module,
-        &subject,
-        &posting,
-        None,
-    )
-    .await
-}
-
-/// Process a tax.voided event and post the reversal GL journal entry.
-///
-/// Returns the created journal entry ID on success, or `JournalError` on failure.
-/// Duplicate event_ids return `JournalError::DuplicateEvent` (idempotent no-op).
-pub async fn process_tax_voided_posting(
-    pool: &PgPool,
-    event_id: Uuid,
-    tenant_id: &str,
-    source_module: &str,
-    payload: &TaxVoidedPayload,
-) -> Result<Uuid, JournalError> {
-    let amount = payload.total_tax_minor as f64 / 100.0;
-
-    let dims = Some(Dimensions {
-        customer_id: Some(payload.customer_id.clone()),
-        vendor_id: None,
-        location_id: None,
-        job_id: None,
-        department: None,
-        class: None,
-        project: None,
-    });
-
-    let posting = GlPostingRequestV1 {
-        posting_date: payload.voided_at.format("%Y-%m-%d").to_string(),
-        currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::ArAdjustment,
-        source_doc_id: payload.invoice_id.clone(),
-        description: format!(
-            "Tax liability reversal — invoice {} ({})",
-            payload.invoice_id, payload.void_reason
-        ),
-        lines: vec![
-            JournalLine {
-                account_ref: TAX_PAYABLE_ACCOUNT.to_string(),
-                debit: amount,
-                credit: 0.0,
-                memo: Some(format!(
-                    "Tax payable reversal — invoice {} ({})",
-                    payload.invoice_id, payload.void_reason
-                )),
-                dimensions: dims.clone(),
-            },
-            JournalLine {
-                account_ref: TAX_COLLECTED_ACCOUNT.to_string(),
-                debit: 0.0,
-                credit: amount,
-                memo: Some(format!(
-                    "Tax collected reversal — invoice {} void {}",
-                    payload.invoice_id, payload.provider_commit_ref
-                )),
-                dimensions: dims,
-            },
-        ],
-    };
-
-    let subject = format!("tax.voided.{}", event_id);
-
-    process_gl_posting_request(
-        pool,
-        event_id,
-        tenant_id,
-        source_module,
-        &subject,
-        &posting,
-        None,
-    )
-    .await
-}
 
 // ============================================================================
 // NATS consumers (production entry points)
 // ============================================================================
 
 /// Start the GL tax committed consumer task.
-///
-/// Subscribes to `tax.committed` NATS subject and posts tax liability GL entries.
 pub async fn start_ar_tax_committed_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
         tracing::info!("Starting AR tax committed consumer");
@@ -306,8 +96,6 @@ pub async fn start_ar_tax_committed_consumer(bus: Arc<dyn EventBus>, pool: PgPoo
 }
 
 /// Start the GL tax voided consumer task.
-///
-/// Subscribes to `tax.voided` NATS subject and posts reversal GL entries.
 pub async fn start_ar_tax_voided_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
         tracing::info!("Starting AR tax voided consumer");

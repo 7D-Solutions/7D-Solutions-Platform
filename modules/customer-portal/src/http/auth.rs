@@ -4,6 +4,7 @@ use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::with_request_id;
@@ -19,7 +20,7 @@ struct PortalUserRow {
     lock_until: Option<chrono::DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
     pub tenant_id: Uuid,
     pub email: String,
@@ -28,23 +29,32 @@ pub struct LoginRequest {
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LogoutRequest {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub token_type: String,
 }
 
+#[utoipa::path(
+    post, path = "/portal/auth/login", tag = "Auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = AuthResponse),
+        (status = 401, body = ApiError), (status = 403, body = ApiError),
+        (status = 423, description = "Account locked", body = ApiError),
+    ),
+)]
 pub async fn login(
     State(state): State<Arc<crate::AppState>>,
     ctx: Option<Extension<TracingContext>>,
@@ -222,6 +232,14 @@ pub async fn login(
     }))
 }
 
+#[utoipa::path(
+    post, path = "/portal/auth/refresh", tag = "Auth",
+    request_body = RefreshRequest,
+    responses(
+        (status = 200, description = "Token refreshed", body = AuthResponse),
+        (status = 401, body = ApiError),
+    ),
+)]
 pub async fn refresh(
     State(state): State<Arc<crate::AppState>>,
     ctx: Option<Extension<TracingContext>>,
@@ -332,6 +350,14 @@ pub async fn refresh(
     }))
 }
 
+#[utoipa::path(
+    post, path = "/portal/auth/logout", tag = "Auth",
+    request_body = LogoutRequest,
+    responses(
+        (status = 200, description = "Logged out"),
+        (status = 401, body = ApiError),
+    ),
+)]
 pub async fn logout(
     State(state): State<Arc<crate::AppState>>,
     ctx: Option<Extension<TracingContext>>,

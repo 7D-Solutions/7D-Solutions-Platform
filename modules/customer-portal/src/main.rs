@@ -1,4 +1,6 @@
-use customer_portal::{auth::PortalJwt, build_router, config::Config, metrics::PortalMetrics, AppState};
+use customer_portal::{
+    auth::PortalJwt, build_router, config::Config, metrics::PortalMetrics, AppState,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -29,8 +31,11 @@ async fn main() {
 
     let metrics = PortalMetrics::new().expect("customer-portal: metrics init failed");
     let portal_jwt = Arc::new(
-        PortalJwt::new(&config.portal_jwt_private_key, &config.portal_jwt_public_key)
-            .expect("customer-portal: invalid portal JWT keys"),
+        PortalJwt::new(
+            &config.portal_jwt_private_key,
+            &config.portal_jwt_public_key,
+        )
+        .expect("customer-portal: invalid portal JWT keys"),
     );
 
     let state = Arc::new(AppState {

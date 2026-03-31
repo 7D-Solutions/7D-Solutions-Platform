@@ -7,9 +7,8 @@
 #
 # Format: relative/path/to/file.rs  # optional tracking note
 
-modules/gl/src/repos/revrec_repo.rs       # 951 LOC — revrec repository
-modules/gl/src/accruals.rs                # 778 LOC — accrual engine
 modules/gl/src/routes/revrec.rs           # 740 LOC — revrec HTTP routes
+modules/gl/src/services/balance_sheet_service.rs  # 510 LOC — single cohesive concern (balance sheet reporting + unit tests)
 
 # AR module — cohesive concerns per directive (bd-wwgiq)
 modules/ar/src/credit_notes.rs            # 822 LOC — credit note issuance domain (append-only, compensating entry)
