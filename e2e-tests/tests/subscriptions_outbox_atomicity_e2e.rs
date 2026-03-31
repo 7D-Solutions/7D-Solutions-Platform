@@ -128,6 +128,7 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
     // Step 3: Call production lifecycle function — atomically transitions status + enqueues outbox event
     subscriptions_rs::lifecycle::transition_to_past_due(
         subscription_id,
+        &tenant_id,
         "test past_due",
         &subscriptions_pool,
     )

@@ -263,6 +263,7 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     let outbox_before = count_outbox_events(&subscriptions_pool, &tenant_id).await?;
     subscriptions_rs::transition_to_past_due(
         subscription_id,
+        &tenant_id,
         "payment_failed",
         &subscriptions_pool,
     )
@@ -282,7 +283,7 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     );
 
     // 4. Transition to SUSPENDED (cancellation) → outbox event emitted
-    subscriptions_rs::transition_to_suspended(subscription_id, "cancelled", &subscriptions_pool)
+    subscriptions_rs::transition_to_suspended(subscription_id, &tenant_id, "cancelled", &subscriptions_pool)
         .await
         .map_err(|e| anyhow::anyhow!("transition_to_suspended: {:?}", e))?;
 
@@ -448,6 +449,7 @@ async fn test_status_change_events_emitted() -> Result<()> {
     // active → past_due: one event
     subscriptions_rs::transition_to_past_due(
         subscription_id,
+        &tenant_id,
         "payment_failed",
         &subscriptions_pool,
     )
@@ -462,6 +464,7 @@ async fn test_status_change_events_emitted() -> Result<()> {
     // past_due → suspended: second event
     subscriptions_rs::transition_to_suspended(
         subscription_id,
+        &tenant_id,
         "grace_period_expired",
         &subscriptions_pool,
     )
