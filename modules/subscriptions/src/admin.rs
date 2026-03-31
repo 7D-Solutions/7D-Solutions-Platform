@@ -7,26 +7,19 @@
 
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
+use platform_http_contracts::ApiError;
 use projections::admin;
 use sqlx::PgPool;
 
-use crate::admin_types::ErrorBody;
-
-fn extract_token(headers: &HeaderMap) -> Option<&str> {
-    headers.get("x-admin-token").and_then(|v| v.to_str().ok())
-}
-
-fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
-    admin::verify_admin_token(extract_token(headers)).map_err(|msg| {
+fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
+    let token = headers.get("x-admin-token").and_then(|v| v.to_str().ok());
+    admin::verify_admin_token(token).map_err(|msg| {
         tracing::warn!(reason = msg, "Admin request rejected");
-        (
-            StatusCode::FORBIDDEN,
-            Json(ErrorBody::new("forbidden", msg)),
-        )
+        ApiError::forbidden(msg)
     })
 }
 
@@ -34,17 +27,12 @@ async fn projection_status(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
-) -> Result<Json<admin::ProjectionStatusResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ProjectionStatusResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: projection-status");
     let resp = admin::query_projection_status(&pool, &req)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
-        })?;
+        .map_err(|e| ApiError::internal(e))?;
     Ok(Json(resp))
 }
 
@@ -52,32 +40,24 @@ async fn consistency_check(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
-) -> Result<Json<admin::ConsistencyCheckResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ConsistencyCheckResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: consistency-check");
     let resp = admin::query_consistency_check(&pool, &req)
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
-        })?;
+        .map_err(|e| ApiError::internal(e))?;
     Ok(Json(resp))
 }
 
 async fn list_projections(
     State(pool): State<PgPool>,
     headers: HeaderMap,
-) -> Result<Json<admin::ProjectionListResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ProjectionListResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
-    let resp = admin::query_projection_list(&pool).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &e)),
-        )
-    })?;
+    let resp = admin::query_projection_list(&pool)
+        .await
+        .map_err(|e| ApiError::internal(e))?;
     Ok(Json(resp))
 }
 
@@ -105,7 +85,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+        let pool = PgPool::connect_lazy("postgres://localhost/fake")
+            .expect("connect_lazy should succeed for lazy pool");
         let _router = admin_router(pool);
     }
 }

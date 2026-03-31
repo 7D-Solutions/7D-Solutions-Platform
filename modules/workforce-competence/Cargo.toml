@@ -1,6 +1,6 @@
 [package]
 name = "workforce-competence-rs"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "Workforce competence registry: skills, certifications, training records, and authorization queries"
 
@@ -22,6 +22,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"

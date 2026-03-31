@@ -1,52 +1,66 @@
-use axum::{extract::State, http::StatusCode, routing::post, Extension, Json, Router};
+//! Bill run execution handler.
+//!
+//! POST /api/bill-runs/execute — Execute billing cycle
+
+use axum::{extract::State, http::StatusCode, Extension, Json};
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use sqlx::PgPool;
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::envelope::create_subscriptions_envelope;
 use crate::models::{
-    BillRunCompletedPayload, BillRunResult, CreateInvoiceRequest, ErrorResponse,
-    ExecuteBillRunRequest, FinalizeInvoiceRequest, Invoice,
+    BillRunCompletedPayload, BillRunResult, CreateInvoiceRequest, ExecuteBillRunRequest,
+    FinalizeInvoiceRequest, Invoice,
 };
 use crate::outbox::enqueue_event;
 
-pub fn subscriptions_router(db: PgPool) -> Router {
-    Router::new()
-        .route("/api/bill-runs/execute", post(execute_bill_run))
-        .with_state(db)
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
+    }
+}
+
+fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
+    match ctx {
+        Some(Extension(c)) => {
+            if let Some(tid) = &c.trace_id {
+                err.with_request_id(tid.clone())
+            } else {
+                err
+            }
+        }
+        None => err,
+    }
 }
 
 /// POST /api/bill-runs/execute - Execute billing cycle
-async fn execute_bill_run(
+#[utoipa::path(
+    post, path = "/api/bill-runs/execute", tag = "Bill Runs",
+    request_body = ExecuteBillRunRequest,
+    responses(
+        (status = 200, description = "Bill run completed (or idempotent replay)", body = BillRunResult),
+        (status = 401, body = ApiError), (status = 500, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn execute_bill_run(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<ExecuteBillRunRequest>,
-) -> Result<(StatusCode, Json<BillRunResult>), (StatusCode, Json<ErrorResponse>)> {
-    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
-    // Extract tenant_id from JWT claims — never trust client-supplied values
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(ErrorResponse {
-                    error: "unauthorized".to_string(),
-                    message: "Missing or invalid authentication".to_string(),
-                    details: None,
-                }),
-            ));
-        }
-    };
-    // Generate bill_run_id if not provided
+) -> Result<(StatusCode, Json<BillRunResult>), ApiError> {
+    let raw_ctx = tracing_ctx.as_ref().map(|Extension(c)| c.clone()).unwrap_or_default();
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &tracing_ctx))?;
+
     let bill_run_id = req
         .bill_run_id
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    // Use today's date if not specified
     let execution_date = req
         .execution_date
         .unwrap_or_else(|| Utc::now().date_naive());
@@ -54,6 +68,7 @@ async fn execute_bill_run(
     // Check if this bill run has already been executed (idempotency)
     #[derive(sqlx::FromRow)]
     struct ExistingBillRun {
+        #[allow(dead_code)]
         id: Uuid,
         subscriptions_processed: i32,
         invoices_created: i32,
@@ -71,14 +86,7 @@ async fn execute_bill_run(
     .await
     .map_err(|e| {
         tracing::error!("Database error checking existing bill run: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to check existing bill run".to_string(),
-                details: None,
-            }),
-        )
+        with_request_id(ApiError::internal("Failed to check existing bill run"), &tracing_ctx)
     })?;
 
     if let Some(existing) = existing {
@@ -109,14 +117,7 @@ async fn execute_bill_run(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create bill run record: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to create bill run record".to_string(),
-                details: None,
-            }),
-        )
+        with_request_id(ApiError::internal("Failed to create bill run record"), &tracing_ctx)
     })?;
 
     // Find subscriptions due for billing
@@ -126,7 +127,9 @@ async fn execute_bill_run(
         tenant_id: String,
         ar_customer_id: String,
         price_minor: i64,
+        #[allow(dead_code)]
         currency: String,
+        #[allow(dead_code)]
         next_bill_date: NaiveDate,
         schedule: String,
     }
@@ -144,27 +147,18 @@ async fn execute_bill_run(
     .await
     .map_err(|e| {
         tracing::error!("Failed to fetch subscriptions: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to fetch subscriptions".to_string(),
-                details: None,
-            }),
-        )
+        with_request_id(ApiError::internal("Failed to fetch subscriptions"), &tracing_ctx)
     })?;
 
     let subscriptions_processed = subscriptions.len() as i32;
     let mut invoices_created = 0;
     let mut failures = 0;
 
-    // Get AR service URL from environment
     let ar_base_url =
         std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
     let client = reqwest::Client::new();
 
-    // Process each subscription
     for subscription in subscriptions {
         tracing::info!(
             "Processing subscription {} for customer {}",
@@ -172,8 +166,6 @@ async fn execute_bill_run(
             subscription.ar_customer_id
         );
 
-        // Call AR OpenAPI to create invoice
-        // Parse ar_customer_id from String to i32
         let ar_customer_id: i32 = match subscription.ar_customer_id.parse() {
             Ok(id) => id,
             Err(e) => {
@@ -228,7 +220,6 @@ async fn execute_bill_run(
             subscription.id
         );
 
-        // Call AR OpenAPI to finalize invoice
         let finalize_req = FinalizeInvoiceRequest {
             auto_advance: Some(true),
         };
@@ -248,7 +239,6 @@ async fn execute_bill_run(
                     tracing::info!("Finalized invoice {}", invoice.id);
                     invoices_created += 1;
 
-                    // Update subscription next_bill_date
                     let new_next_bill_date = calculate_next_bill_date(
                         &subscription.next_bill_date,
                         &subscription.schedule,
@@ -303,14 +293,7 @@ async fn execute_bill_run(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update bill run record: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to update bill run record".to_string(),
-                details: None,
-            }),
-        )
+        with_request_id(ApiError::internal("Failed to update bill run record"), &tracing_ctx)
     })?;
 
     // Emit subscriptions.billrun.completed event
@@ -322,30 +305,22 @@ async fn execute_bill_run(
         execution_time,
     };
 
-    // Create envelope with platform-standard fields
     let envelope = create_subscriptions_envelope(
         uuid::Uuid::new_v4(),
         tenant_id,
         "billrun.completed".to_string(),
-        None,                    // No correlation_id for now
-        None,                    // No causation_id for now
-        "LIFECYCLE".to_string(), // Phase 16: Bill run completion is a lifecycle transition
+        None,
+        None,
+        "LIFECYCLE".to_string(),
         payload,
     )
-    .with_tracing_context(&tracing_ctx);
+    .with_tracing_context(&raw_ctx);
 
     enqueue_event(&db, "billrun.completed", &envelope)
         .await
         .map_err(|e| {
             tracing::error!("Failed to enqueue event: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "event_error".to_string(),
-                    message: "Failed to enqueue event".to_string(),
-                    details: None,
-                }),
-            )
+            with_request_id(ApiError::internal("Failed to enqueue event"), &tracing_ctx)
         })?;
 
     tracing::info!(
@@ -373,82 +348,20 @@ fn calculate_next_bill_date(current_date: &NaiveDate, schedule: &str) -> NaiveDa
     match schedule {
         "weekly" => *current_date + chrono::Duration::weeks(1),
         "monthly" => {
-            // Add one month
             let year = current_date.year();
             let month = current_date.month();
             let day = current_date.day();
 
             if month == 12 {
-                NaiveDate::from_ymd_opt(year + 1, 1, day)
-                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year + 1, 1, 1).expect("Jan 1 is valid"))
+                NaiveDate::from_ymd_opt(year + 1, 1, day).unwrap_or_else(|| {
+                    NaiveDate::from_ymd_opt(year + 1, 1, 1).expect("Jan 1 is valid")
+                })
             } else {
-                NaiveDate::from_ymd_opt(year, month + 1, day)
-                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year, month + 1, 1).expect("first of month is valid"))
+                NaiveDate::from_ymd_opt(year, month + 1, day).unwrap_or_else(|| {
+                    NaiveDate::from_ymd_opt(year, month + 1, 1).expect("first of month is valid")
+                })
             }
         }
-        _ => *current_date + chrono::Duration::weeks(4), // Default to 4 weeks for custom
+        _ => *current_date + chrono::Duration::weeks(4),
     }
-}
-
-/// Health check endpoint - returns basic service status
-///
-/// This endpoint is for liveness checks. It does not verify external dependencies.
-pub async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "service": "subscriptions-rs",
-        "version": env!("CARGO_PKG_VERSION")
-    }))
-}
-
-/// GET /api/ready — readiness probe (verifies DB connectivity)
-pub async fn ready(
-    State(app_state): State<Arc<crate::AppState>>,
-) -> Result<Json<health::ReadyResponse>, (axum::http::StatusCode, Json<health::ReadyResponse>)> {
-    let start = std::time::Instant::now();
-    let db_err = sqlx::query("SELECT 1")
-        .execute(&app_state.pool)
-        .await
-        .err()
-        .map(|e| e.to_string());
-    let latency = start.elapsed().as_millis() as u64;
-
-    let pool_metrics = health::PoolMetrics {
-        size: app_state.pool.size(),
-        idle: app_state.pool.num_idle() as u32,
-        active: app_state
-            .pool
-            .size()
-            .saturating_sub(app_state.pool.num_idle() as u32),
-    };
-
-    let resp = health::build_ready_response(
-        "subscriptions",
-        env!("CARGO_PKG_VERSION"),
-        vec![health::db_check_with_pool(latency, db_err, pool_metrics)],
-    );
-    health::ready_response_to_axum(resp)
-}
-
-/// Version endpoint - returns module identity and schema version
-///
-/// This endpoint provides build and deployment information:
-/// - module_name: The service identifier
-/// - module_version: Build version from Cargo.toml
-/// - schema_version: Database schema version (latest migration)
-///
-/// Used for:
-/// - Deployment verification
-/// - Troubleshooting version mismatches
-/// - Migration status checks
-pub async fn version() -> Json<serde_json::Value> {
-    // Schema version derived from latest migration timestamp
-    // Format: YYYYMMDDNNNNNN (e.g., 20260216000001)
-    const SCHEMA_VERSION: &str = "20260216000001";
-
-    Json(serde_json::json!({
-        "module_name": "subscriptions-rs",
-        "module_version": env!("CARGO_PKG_VERSION"),
-        "schema_version": SCHEMA_VERSION
-    }))
 }

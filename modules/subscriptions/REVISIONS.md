@@ -21,6 +21,8 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.0 | 2026-03-31 | bd-f97fk | OpenAPI spec at /api/openapi.json via utoipa 5.x on execute_bill_run. Bearer JWT SecurityScheme. Split http.rs (456 LOC) into http/bill_run.rs + http/health.rs + http/mod.rs. | Plug-and-play: OpenAPI + startup standardization. | No |
+| 2.0.0 | 2026-03-31 | bd-f97fk | All errors migrated from ErrorResponse/ErrorBody to ApiError (platform-http-contracts). Admin endpoints also migrated. Error responses now include request_id field. | Plug-and-play: standard response envelopes. | YES: Error format changed to ApiError (error, message, request_id). Admin errors changed from ErrorBody to ApiError. |
 | 1.0.0 | 2026-03-28 | bd-4zxqk | Initial proof. Recurring billing plan lifecycle (create/activate/pause/cancel/renew), invoice generation, usage-based metering, proration, trial management, plan versioning, admin endpoints, event publishing. 29 unit tests pass, clippy clean. | Subscriptions module complete and proven. All gates pass. | No |
 
 ## How to read this table

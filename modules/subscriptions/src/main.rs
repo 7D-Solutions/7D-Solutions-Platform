@@ -10,15 +10,15 @@ mod dlq;
 mod envelope;
 mod envelope_validation;
 mod gated_invoice_creation;
+mod http;
 mod invariants;
 mod lifecycle;
 mod metrics;
 mod models;
 mod outbox;
 mod publisher;
-mod http;
 
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
@@ -32,6 +32,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 /// Application state shared across HTTP handlers
 pub struct AppState {
@@ -47,7 +48,6 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    // Load and validate configuration (fail-fast on missing/invalid config)
     let config = Config::from_env().unwrap_or_else(|err| {
         eprintln!("Configuration error: {}", err);
         eprintln!("Subscriptions service cannot start without valid configuration.");
@@ -56,7 +56,6 @@ async fn main() {
 
     tracing::info!("Configuration loaded: {:?}", config.bus_type);
 
-    // Initialize database pool
     let pool = db::resolver::resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
@@ -65,7 +64,6 @@ async fn main() {
 
     tracing::info!("Database connection established");
 
-    // Run migrations
     sqlx::migrate!("./db/migrations")
         .run(&pool)
         .await
@@ -73,7 +71,6 @@ async fn main() {
 
     tracing::info!("Database migrations completed");
 
-    // Initialize event bus
     let bus: Arc<dyn EventBus> = match config.bus_type {
         config::BusType::Nats => {
             let nats_url = config
@@ -92,7 +89,6 @@ async fn main() {
         }
     };
 
-    // Spawn background publisher task
     let publisher_pool = pool.clone();
     let publisher_bus = bus.clone();
     tokio::spawn(async move {
@@ -101,11 +97,9 @@ async fn main() {
 
     tracing::info!("Background event publisher started");
 
-    // Initialize metrics
     let metrics = Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
     tracing::info!("Metrics initialized");
 
-    // Create application state
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
         metrics: metrics.clone(),
@@ -124,11 +118,15 @@ async fn main() {
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(http::subscriptions_router(pool.clone()).route_layer(
-            RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE]),
-        ))
+        .merge(
+            http::subscriptions_router(pool.clone())
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::SUBSCRIPTIONS_MUTATE,
+                ])),
+        )
         .merge(admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
@@ -159,6 +157,10 @@ async fn main() {
     tracing::info!("Server stopped — closing resources");
     shutdown_pool.close().await;
     tracing::info!("Shutdown complete");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(http::ApiDoc::openapi())
 }
 
 async fn shutdown_signal() {

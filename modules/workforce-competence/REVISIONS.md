@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-2ca0f | Initial proof. Competence registration, acceptance authority grant/revoke, qualification tracking, training record management, idempotent operations, admin endpoints, event publishing. 5 unit tests pass, clippy clean. | Workforce competence module complete and proven. All gates pass. | No |
 | 1.0.1 | 2026-03-30 | bd-d9iyz | Split service.rs into service/core.rs (commands) + service/queries.rs (reads). Split acceptance_authority.rs into acceptance_authority/grants.rs (grant+revoke) + acceptance_authority/checks.rs (authorization queries). Shared types in mod.rs with pub use re-exports. | Two files exceeded 500 LOC; split by separation of concerns (commands vs queries). | No |
+| 2.0.0 | 2026-03-31 | bd-qyo4m | All 7 handlers migrated from inline json!() errors to ApiError with request_id on every error path. extract_tenant returns ApiError. error_conversions.rs maps ServiceError and GuardError to ApiError. Added platform-http-contracts dependency. | Plug-and-play standard response envelopes for consistent error format across platform. | YES: Error responses now return `{"error":"...","message":"...","request_id":"..."}` instead of ad-hoc JSON. Consumers parsing error bodies must update. |
 
 ## How to read this table
 
