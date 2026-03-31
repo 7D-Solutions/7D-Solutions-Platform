@@ -153,6 +153,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Seed: warehouse + location ==========
     let wh_id = Uuid::new_v4();
     let loc_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "warehouse_id": wh_id,
         "code": format!("BIN-{}", &tid.to_string()[..6]),
         "name": "Smoke bin"
@@ -165,6 +166,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Seed: receipt with lot (qty=100) ==========
     let lot_code = format!("LOT-{}", &tid.to_string()[..8]);
     let rcpt_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": item_id,
         "warehouse_id": wh_id,
         "location_id": loc_id,
@@ -201,6 +203,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     let child_a = format!("CHLD-A-{}", &tid.to_string()[..6]);
     let child_b = format!("CHLD-B-{}", &tid.to_string()[..6]);
     let split_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": item_id,
         "parent_lot_code": lot_code,
         "children": [
@@ -219,6 +222,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     let merge_url = format!("{base}/api/inventory/lots/merge");
     let merged_code = format!("MRGD-{}", &tid.to_string()[..6]);
     let merge_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": item_id,
         "parents": [
             { "lot_code": child_a, "quantity": 40 },
@@ -284,6 +288,7 @@ async fn smoke_inventory_lots_serials_reservations() {
 
     let serial_code = format!("SN-{}", &tid.to_string()[..8]);
     let ser_rcpt = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": ser_item_id,
         "warehouse_id": wh_id,
         "location_id": loc_id,
@@ -315,9 +320,27 @@ async fn smoke_inventory_lots_serials_reservations() {
     assert!(j["movements"].is_array(), "serial movements");
     eprintln!("  [9] GET serial trace — OK");
 
+    // ========== Seed: warehouse-level receipt for reservation tests ==========
+    // The earlier receipt was location-scoped; reservations check warehouse-level
+    // on-hand (location_id IS NULL), so seed a separate warehouse-level receipt.
+    let wh_rcpt = serde_json::json!({
+        "tenant_id": tid.to_string(),
+        "item_id": item_id,
+        "warehouse_id": wh_id,
+        "quantity": 50,
+        "unit_cost_minor": 10000,
+        "currency": "USD",
+        "lot_code": format!("WH-LOT-{}", &tid.to_string()[..6]),
+        "idempotency_key": Uuid::new_v4().to_string()
+    });
+    let r = client.post(format!("{base}/api/inventory/receipts"))
+        .bearer_auth(&jwt).json(&wh_rcpt).send().await.unwrap();
+    assert!(r.status() == 201 || r.status() == 200, "seed wh receipt: {}", r.status());
+
     // ========== Route 10: POST reserve ==========
     let reserve_url = format!("{base}/api/inventory/reservations/reserve");
     let reserve_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": item_id,
         "warehouse_id": wh_id,
         "quantity": 10,
@@ -336,6 +359,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 11: POST release ==========
     // Create a second reservation to release
     let reserve_body2 = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "item_id": item_id,
         "warehouse_id": wh_id,
         "quantity": 5,
@@ -349,6 +373,7 @@ async fn smoke_inventory_lots_serials_reservations() {
 
     let release_url = format!("{base}/api/inventory/reservations/release");
     let release_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "reservation_id": res2_id,
         "idempotency_key": Uuid::new_v4().to_string()
     });
@@ -360,6 +385,8 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 12: POST fulfill ==========
     let fulfill_url = format!("{base}/api/inventory/reservations/{}/fulfill", reservation_id);
     let fulfill_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
+        "reservation_id": reservation_id,
         "quantity": 10,
         "order_ref": "SMOKE-ORDER-001",
         "idempotency_key": Uuid::new_v4().to_string()
@@ -372,6 +399,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 13: POST cycle-count task ==========
     let cc_url = format!("{base}/api/inventory/cycle-count-tasks");
     let cc_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "warehouse_id": wh_id,
         "location_id": loc_id,
         "scope": "partial",
@@ -412,6 +440,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 16: POST expiry-alerts scan ==========
     let scan_url = format!("{base}/api/inventory/expiry-alerts/scan");
     let scan_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "expiring_within_days": 365,
         "idempotency_key": Uuid::new_v4().to_string()
     });
@@ -424,6 +453,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 17: POST valuation snapshot ==========
     let val_url = format!("{base}/api/inventory/valuation-snapshots");
     let val_body = serde_json::json!({
+        "tenant_id": tid.to_string(),
         "warehouse_id": wh_id,
         "as_of": "2026-03-07T00:00:00Z",
         "currency": "USD",
@@ -434,7 +464,7 @@ async fn smoke_inventory_lots_serials_reservations() {
     let st = r.status();
     assert!(st == 201 || st == 200, "valuation snapshot create: {}", st);
     let snap_json: serde_json::Value = r.json().await.unwrap();
-    let snap_id = snap_json["id"].as_str().unwrap().to_string();
+    let snap_id = snap_json["snapshot_id"].as_str().unwrap().to_string();
     eprintln!("  [17] POST valuation snapshot — OK ({})", st);
 
     // ========== Route 18: GET valuation snapshot by id ==========
