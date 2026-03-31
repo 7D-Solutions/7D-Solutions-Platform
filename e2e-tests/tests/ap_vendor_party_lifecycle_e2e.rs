@@ -50,7 +50,7 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-const LIFECYCLE_TENANT_ID: &str = "ap-party-lifecycle-test-tenant";
+const LIFECYCLE_TENANT_ID: &str = "00000000-0000-4000-a000-000000000003";
 
 // ============================================================================
 // Helpers
@@ -100,7 +100,7 @@ fn make_ap_router(pool: PgPool) -> Router {
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(LIFECYCLE_TENANT_ID).unwrap(),
         app_id: None,
         roles: vec![],
         perms: vec![permissions::AP_MUTATE.to_string()],
@@ -347,7 +347,7 @@ async fn test_ap_vendor_party_lifecycle_full() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;
@@ -417,7 +417,7 @@ async fn test_ap_vendor_party_lifecycle_full() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;
@@ -460,7 +460,7 @@ async fn test_ap_vendor_party_lifecycle_full() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;
@@ -605,7 +605,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
         "GET",
         "/api/ap/vendors",
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;
@@ -641,7 +641,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
         "GET",
         "/api/ap/vendors",
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;
@@ -665,7 +665,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
         "GET",
         "/api/ap/vendors?include_inactive=true",
         None,
-        false,
+        true,
         LIFECYCLE_TENANT_ID,
     )
     .await;

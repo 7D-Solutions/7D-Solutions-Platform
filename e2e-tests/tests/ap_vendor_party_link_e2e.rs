@@ -49,7 +49,7 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-const AP_TENANT_ID: &str = "ap-party-link-test-tenant";
+const AP_TENANT_ID: &str = "00000000-0000-4000-a000-000000000004";
 
 // ============================================================================
 // Helpers
@@ -105,7 +105,7 @@ fn make_ap_router(pool: PgPool) -> axum::Router {
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(AP_TENANT_ID).unwrap(),
         app_id: None,
         roles: vec![],
         perms: vec![permissions::AP_MUTATE.to_string()],
@@ -340,7 +340,7 @@ async fn test_ap_vendor_party_link_valid_party_id() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         AP_TENANT_ID,
     )
     .await;
@@ -454,7 +454,7 @@ async fn test_ap_vendor_party_link_valid_party_id() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         AP_TENANT_ID,
     )
     .await;
@@ -645,7 +645,7 @@ async fn test_ap_vendor_without_party_id() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         AP_TENANT_ID,
     )
     .await;

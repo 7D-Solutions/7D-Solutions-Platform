@@ -59,7 +59,7 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-const TENANT_ID: &str = "ap-bill-approval-e2e-tenant";
+const TENANT_ID: &str = "00000000-0000-4000-a000-000000000001";
 
 // ============================================================================
 // Router helpers
@@ -87,7 +87,7 @@ fn make_ap_router(pool: PgPool) -> Router {
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(TENANT_ID).unwrap(),
         app_id: None,
         roles: vec![],
         perms: vec![permissions::AP_MUTATE.to_string()],
@@ -285,7 +285,7 @@ async fn test_approve_bill_happy_path() {
     println!("✓ Bill {} approved (HTTP 200, status=approved)", bill_id);
 
     // ── Step 3: Verify bill appears in default list (payment run candidates) ─
-    let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, false).await;
+    let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, true).await;
 
     assert_eq!(
         list_status,
@@ -393,7 +393,7 @@ async fn test_reject_bill_void_path() {
     println!("✓ Bill {} voided (HTTP 200, status=voided)", bill_id);
 
     // ── Step 3: Verify voided bill NOT in default list ───────────────────────
-    let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, false).await;
+    let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, true).await;
 
     assert_eq!(
         list_status,

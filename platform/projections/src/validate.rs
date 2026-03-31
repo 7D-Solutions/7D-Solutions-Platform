@@ -19,6 +19,11 @@ pub const ALLOWED_PROJECTION_TABLES: &[&str] = &[
     "period_summary_snapshots",
     // AR
     "ar_tax_quote_cache",
+    "ar_invoice_summary",
+    // Payments
+    "payments_attempt_summary",
+    // Scale / billing
+    "scale_tenant_billing_summary",
     // Reporting
     "rpt_trial_balance_cache",
     "rpt_statement_cache",
@@ -36,6 +41,7 @@ pub const ALLOWED_PROJECTION_TABLES: &[&str] = &[
 pub const ALLOWED_ORDER_COLUMNS: &[&str] = &[
     "tenant_id",
     "id",
+    "customer_id",
     "created_at",
     "updated_at",
     "period",
@@ -44,7 +50,7 @@ pub const ALLOWED_ORDER_COLUMNS: &[&str] = &[
 
 /// Regex: lowercase snake_case identifier (letters, digits, underscores).
 static IDENTIFIER_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"^[a-z_][a-z0-9_]*$").unwrap());
+    LazyLock::new(|| regex::Regex::new(r"^[a-z_][a-z0-9_]*$").expect("static identifier regex"));
 
 /// Error returned when validation fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +68,9 @@ impl std::error::Error for ValidationError {}
 
 /// Validate a projection table name against regex AND allowlist.
 ///
+/// Accepts exact matches from the allowlist, plus `_shadow` and `_old` suffixes
+/// of allowed base tables (used by the blue-green rebuild swap system).
+///
 /// Returns the validated name on success, or a `ValidationError` on failure.
 pub fn validate_projection_name(name: &str) -> Result<&str, ValidationError> {
     if !IDENTIFIER_RE.is_match(name) {
@@ -70,13 +79,25 @@ pub fn validate_projection_name(name: &str) -> Result<&str, ValidationError> {
         });
     }
 
-    if !ALLOWED_PROJECTION_TABLES.contains(&name) {
-        return Err(ValidationError {
-            message: format!("Unknown projection table: {name:?}"),
-        });
+    // Direct allowlist match
+    if ALLOWED_PROJECTION_TABLES.contains(&name) {
+        return Ok(name);
     }
 
-    Ok(name)
+    // Accept _shadow and _old suffixes of allowed base tables
+    // (rebuild module creates these programmatically)
+    let base = name
+        .strip_suffix("_shadow")
+        .or_else(|| name.strip_suffix("_old"));
+    if let Some(base) = base {
+        if ALLOWED_PROJECTION_TABLES.contains(&base) {
+            return Ok(name);
+        }
+    }
+
+    Err(ValidationError {
+        message: format!("Unknown projection table: {name:?}"),
+    })
 }
 
 /// Validate an ORDER BY column name against regex AND allowlist.
@@ -179,5 +200,37 @@ mod tests {
         let result = validate_order_column("secret_column");
         assert!(result.is_err());
         assert!(result.unwrap_err().message.contains("Unknown order column"));
+    }
+
+    // ── Shadow / old suffix validation ─────────────────────────────────
+
+    #[test]
+    fn accepts_shadow_suffix_of_allowed_table() {
+        assert_eq!(
+            validate_projection_name("account_balances_shadow").unwrap(),
+            "account_balances_shadow"
+        );
+    }
+
+    #[test]
+    fn accepts_old_suffix_of_allowed_table() {
+        assert_eq!(
+            validate_projection_name("account_balances_old").unwrap(),
+            "account_balances_old"
+        );
+    }
+
+    #[test]
+    fn rejects_shadow_suffix_of_unknown_table() {
+        let result = validate_projection_name("not_a_real_table_shadow");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn accepts_customer_id_order_column() {
+        assert_eq!(
+            validate_order_column("customer_id").unwrap(),
+            "customer_id"
+        );
     }
 }

@@ -265,10 +265,18 @@ async fn trigger_bill_run_for_subscription(
 async fn test_degradation_class_compliance() -> Result<()> {
     println!("\n🔍 Verifying degradation class compliance with DOMAIN-OWNERSHIP-REGISTRY.md\n");
 
-    // Read the registry file and verify documented behavior
-    let registry_path = "../docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md";
-    let registry_content =
-        std::fs::read_to_string(registry_path).expect("DOMAIN-OWNERSHIP-REGISTRY.md should exist");
+    // Read the registry file and verify documented behavior.
+    // Use CARGO_MANIFEST_DIR to build an absolute path regardless of CWD.
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let registry_path =
+        std::path::Path::new(manifest_dir).join("../docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md");
+    let registry_content = std::fs::read_to_string(&registry_path).unwrap_or_else(|e| {
+        panic!(
+            "DOMAIN-OWNERSHIP-REGISTRY.md not found at {}: {}",
+            registry_path.display(),
+            e
+        )
+    });
 
     // Verify degradation class is documented
     assert!(

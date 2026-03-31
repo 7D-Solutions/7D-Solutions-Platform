@@ -50,7 +50,7 @@ fn make_jwt(key: &EncodingKey, tenant_id: &str) -> String {
         tenant_id: tenant_id.to_string(),
         app_id: Some(tenant_id.to_string()),
         roles: vec!["operator".to_string()],
-        perms: vec!["*".to_string()],
+        perms: vec!["production.mutate".to_string(), "production.read".to_string()],
         actor_type: "user".to_string(),
         ver: "1".to_string(),
     };

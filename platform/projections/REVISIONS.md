@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-sy24f | Initial proof. Cursor tracking (save/load/resume), idempotent try_apply_event, shadow table create/swap (blue-green rebuild), versioned digest computation, fallback policy with circuit breaker, projection metrics (lag, backlog, age), admin queries (status, consistency check, projection list), SQL injection validation (allowlist + regex). 39 unit tests, 24 integration tests (real Postgres), 6 doc-tests. | Platform projection infrastructure complete and proven against real database. All gates pass. | No |
+| 1.1.0 | 2026-03-31 | bd-5guro | Added ar_invoice_summary, payments_attempt_summary, scale_tenant_billing_summary to projection allowlist. Added customer_id to order column allowlist. Validation now auto-accepts _shadow and _old suffixes of any allowed base table. | 5 E2E tests (replay certification, 100-tenant scale) failed because shadow table names were not in the validation allowlist. The rebuild module creates _shadow/_old tables programmatically; validation must accept them. | No |
 
 ## How to read this table
 

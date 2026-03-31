@@ -232,13 +232,14 @@ async fn smoke_reporting() {
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "AP aging failed: {status} - {body}");
+    // ApAgingReport has { as_of, vendors: [], summary_by_currency: [] }
     assert!(
-        body["aging"].is_array(),
-        "AP aging response should have 'aging' array"
+        body["vendors"].is_array(),
+        "AP aging response should have 'vendors' array; got: {body}"
     );
     println!(
-        "  AP aging ok: {} buckets",
-        body["aging"].as_array().map(|a| a.len()).unwrap_or(0)
+        "  AP aging ok: {} vendor rows",
+        body["vendors"].as_array().map(|a| a.len()).unwrap_or(0)
     );
 
     // ── 6. GET /api/reporting/kpis ───────────────────────────────────

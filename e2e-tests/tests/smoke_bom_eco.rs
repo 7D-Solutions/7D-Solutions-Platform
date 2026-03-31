@@ -249,8 +249,32 @@ async fn smoke_bom_eco() {
     )
     .await;
 
-    // --- 6. POST /api/bom/revisions/{revision_id}/effectivity ---
-    println!("\n--- 6. POST /api/bom/revisions/{{revision_id}}/effectivity ---");
+    // --- 6. Add second line (before effectivity, must be in draft status) ---
+    // Add a second line so we can delete it without emptying the BOM
+    let second_component = Uuid::new_v4();
+    let resp = client
+        .post(format!("{base}/api/bom/revisions/{revision_id}/lines"))
+        .bearer_auth(&jwt)
+        .json(&json!({
+            "component_item_id": second_component,
+            "quantity": 1.0,
+            "find_number": 20
+        }))
+        .send()
+        .await
+        .unwrap();
+    let add_status = resp.status();
+    let del_line_body: Value = resp.json().await.unwrap_or(json!({}));
+    assert!(
+        add_status == StatusCode::CREATED || add_status == StatusCode::OK,
+        "Add second line failed: {add_status} - {del_line_body}"
+    );
+    let del_line_id = del_line_body["id"]
+        .as_str()
+        .expect("No line id for delete target");
+
+    // --- 7. POST /api/bom/revisions/{revision_id}/effectivity ---
+    println!("\n--- 7. POST /api/bom/revisions/{{revision_id}}/effectivity ---");
     let now = Utc::now();
     let resp = client
         .post(format!(
@@ -272,26 +296,7 @@ async fn smoke_bom_eco() {
     );
     println!("  set effectivity from={}", now.to_rfc3339());
 
-    // --- 7. DELETE /api/bom/lines/{line_id} ---
-    // Add a second line so we can delete it without emptying the BOM
-    let second_component = Uuid::new_v4();
-    let resp = client
-        .post(format!("{base}/api/bom/revisions/{revision_id}/lines"))
-        .bearer_auth(&jwt)
-        .json(&json!({
-            "component_item_id": second_component,
-            "quantity": 1.0,
-            "find_number": 20
-        }))
-        .send()
-        .await
-        .unwrap();
-    let del_line_body: Value = resp.json().await.unwrap_or(json!({}));
-    let del_line_id = del_line_body["id"]
-        .as_str()
-        .expect("No line id for delete target");
-
-    println!("\n--- 7. DELETE /api/bom/lines/{{line_id}} ---");
+    println!("\n--- 8. DELETE /api/bom/lines/{{line_id}} ---");
     let resp = client
         .delete(format!("{base}/api/bom/lines/{del_line_id}"))
         .bearer_auth(&jwt)

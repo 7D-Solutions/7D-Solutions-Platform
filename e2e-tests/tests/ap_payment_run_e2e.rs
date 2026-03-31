@@ -64,7 +64,7 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-const TENANT_ID: &str = "ap-payment-run-e2e-tenant";
+const TENANT_ID: &str = "00000000-0000-4000-a000-000000000002";
 
 // ============================================================================
 // Helpers
@@ -111,7 +111,7 @@ fn make_ap_router(pool: PgPool) -> Router {
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(TENANT_ID).unwrap(),
         app_id: None,
         roles: vec![],
         perms: vec![permissions::AP_MUTATE.to_string()],
@@ -515,7 +515,7 @@ async fn test_ap_payment_run_full_lifecycle_with_party_id() {
         "GET",
         &format!("/api/ap/vendors/{}", vendor_id),
         None,
-        false,
+        true,
         TENANT_ID,
     )
     .await;

@@ -52,9 +52,8 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-/// AR handler hardcodes this app_id; all modules use the same value for
-/// cross-module consistency within the test.
-const APP_ID: &str = "test-app";
+/// All modules use the same tenant UUID for cross-module consistency within the test.
+const APP_ID: &str = "00000000-0000-4000-a000-000000000005";
 
 // ============================================================================
 // Helpers
@@ -77,7 +76,7 @@ async fn run_party_migrations(pool: &PgPool) {
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(APP_ID).unwrap(),
         app_id: None,
         roles: vec![],
         perms: vec!["ar.mutate".to_string()],
@@ -416,7 +415,7 @@ async fn test_business_day_one_full_chain() {
         "GET",
         &format!("/api/ar/invoices/{}", invoice_id),
         None,
-        false,
+        true,
     )
     .await;
 
@@ -463,7 +462,7 @@ async fn test_business_day_one_full_chain() {
         "GET",
         &format!("/api/ar/invoices/{}", invoice_id),
         None,
-        false,
+        true,
     )
     .await;
 

@@ -156,9 +156,9 @@ async fn smoke_payments() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create checkout session failed: {status} - {create_body}"
     );
-    let session_id = create_body["id"]
+    let session_id = create_body["session_id"]
         .as_str()
-        .expect("No id in checkout session response");
+        .expect("No session_id in checkout session response");
     println!("  created session id={session_id}");
 
     assert_unauth(
