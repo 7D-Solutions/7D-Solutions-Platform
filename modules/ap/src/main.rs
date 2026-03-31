@@ -1,7 +1,7 @@
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post, put},
-    Extension, Router,
+    Extension, Json, Router,
 };
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
@@ -12,6 +12,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use ap::{config::Config, db, http, metrics, outbox, AppState};
 
@@ -206,6 +207,8 @@ async fn main() {
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route("/api/schema-version", get(http::schema_version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
         .merge(ap_reads)
@@ -243,6 +246,10 @@ async fn main() {
     tracing::info!("Server stopped — closing resources");
     shutdown_pool.close().await;
     tracing::info!("Shutdown complete");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(http::ApiDoc::openapi())
 }
 
 async fn shutdown_signal() {

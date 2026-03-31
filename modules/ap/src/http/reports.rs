@@ -19,6 +19,7 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
+use utoipa::IntoParams;
 
 use crate::domain::reports::aging::compute_aging;
 use crate::http::tenant::{extract_tenant, with_request_id};
@@ -28,7 +29,8 @@ use crate::AppState;
 // Query params
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct AgingQuery {
     /// Aging reference date (YYYY-MM-DD). Defaults to today (UTC).
     pub as_of: Option<NaiveDate>,
@@ -41,6 +43,16 @@ pub struct AgingQuery {
 // Handler
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/ap/aging",
+    tag = "Reports",
+    params(AgingQuery),
+    responses(
+        (status = 200, description = "AP aging report"),
+    ),
+    security(("bearer" = [])),
+)]
 /// GET /api/ap/aging
 ///
 /// Returns AP aging bucket totals grouped by currency as of `as_of`.

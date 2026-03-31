@@ -14,6 +14,7 @@ use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::sync::Arc;
 
 use crate::domain::tax::reports;
@@ -24,13 +25,15 @@ use crate::AppState;
 // Query params
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct TaxReportQuery {
     pub from: NaiveDate,
     pub to: NaiveDate,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct TaxExportQuery {
     pub from: NaiveDate,
     pub to: NaiveDate,
@@ -46,7 +49,7 @@ fn default_format() -> String {
 // Response types
 // ============================================================================
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ApTaxReportResponse {
     pub tenant_id: String,
     pub from: String,
@@ -60,6 +63,17 @@ pub struct ApTaxReportResponse {
 // GET /api/ap/tax/reports/summary
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/ap/tax/reports/summary",
+    tag = "Tax Reports",
+    params(TaxReportQuery),
+    responses(
+        (status = 200, description = "Paid-tax summary by period/jurisdiction", body = ApTaxReportResponse),
+        (status = 400, description = "Invalid date range", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn tax_report_summary(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -112,6 +126,17 @@ pub async fn tax_report_summary(
 // GET /api/ap/tax/reports/export
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/ap/tax/reports/export",
+    tag = "Tax Reports",
+    params(TaxExportQuery),
+    responses(
+        (status = 200, description = "Tax report export (JSON or CSV)"),
+        (status = 400, description = "Invalid date range", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn tax_report_export(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

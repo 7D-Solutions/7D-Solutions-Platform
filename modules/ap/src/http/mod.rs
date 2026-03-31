@@ -16,6 +16,117 @@ use health::{
 };
 use std::sync::Arc;
 use std::time::Instant;
+use utoipa::OpenApi;
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "AP Service",
+        version = "2.1.0",
+        description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging.",
+    ),
+    paths(
+        // Vendors
+        vendors::create_vendor,
+        vendors::list_vendors,
+        vendors::get_vendor,
+        vendors::update_vendor,
+        vendors::deactivate_vendor,
+        // Purchase Orders
+        purchase_orders::create_po,
+        purchase_orders::get_po,
+        purchase_orders::list_pos,
+        purchase_orders::update_po_lines,
+        purchase_orders::approve_po,
+        // Bills
+        bills::create_bill,
+        bills::get_bill,
+        bills::list_bills,
+        bills::match_bill,
+        bills::approve_bill,
+        bills::void_bill,
+        bills::quote_bill_tax,
+        // Allocations
+        allocations::create_allocation,
+        allocations::list_allocations,
+        allocations::get_balance,
+        // Payment Terms
+        payment_terms::create_terms,
+        payment_terms::get_terms,
+        payment_terms::list_terms,
+        payment_terms::update_terms,
+        payment_terms::assign_terms,
+        // Payment Runs
+        payment_runs::create_run,
+        payment_runs::get_run,
+        payment_runs::execute_run,
+        // Reports
+        reports::aging_report,
+        tax_reports::tax_report_summary,
+        tax_reports::tax_report_export,
+    ),
+    components(schemas(
+        // Vendors
+        crate::domain::vendors::Vendor,
+        crate::domain::vendors::CreateVendorRequest,
+        crate::domain::vendors::UpdateVendorRequest,
+        // Purchase Orders
+        crate::domain::po::PurchaseOrder,
+        crate::domain::po::PurchaseOrderWithLines,
+        crate::domain::po::CreatePoRequest,
+        crate::domain::po::UpdatePoLinesRequest,
+        crate::domain::po::ApprovePoRequest,
+        // Bills
+        crate::domain::bills::VendorBill,
+        crate::domain::bills::VendorBillWithLines,
+        crate::domain::bills::CreateBillRequest,
+        crate::domain::bills::ApproveBillRequest,
+        crate::domain::bills::VoidBillRequest,
+        bills::BillTaxQuoteRequest,
+        // Match
+        crate::domain::r#match::RunMatchRequest,
+        crate::domain::r#match::MatchOutcome,
+        // Allocations
+        crate::domain::allocations::CreateAllocationRequest,
+        // Payment Terms
+        crate::domain::payment_terms::PaymentTerms,
+        crate::domain::payment_terms::CreatePaymentTermsRequest,
+        crate::domain::payment_terms::UpdatePaymentTermsRequest,
+        crate::domain::payment_terms::AssignTermsRequest,
+        // Payment Runs
+        payment_runs::CreatePaymentRunBody,
+        // Tax
+        crate::domain::tax::ApTaxSnapshot,
+        tax_reports::ApTaxReportResponse,
+        crate::domain::tax::reports::ApTaxSummaryRow,
+        // Platform
+        platform_http_contracts::ApiError,
+        platform_http_contracts::PaginatedResponse<crate::domain::vendors::Vendor>,
+        platform_http_contracts::PaginatedResponse<crate::domain::bills::VendorBill>,
+        platform_http_contracts::PaginatedResponse<crate::domain::po::PurchaseOrder>,
+        platform_http_contracts::PaginatedResponse<crate::domain::payment_terms::PaymentTerms>,
+    )),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// GET /api/health — liveness probe (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {
@@ -63,5 +174,12 @@ pub async fn version() -> Json<serde_json::Value> {
         "module_name": "ap",
         "module_version": env!("CARGO_PKG_VERSION"),
         "schema_version": SCHEMA_VERSION
+    }))
+}
+
+/// GET /api/schema-version — schema version only
+pub async fn schema_version() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "schema_version": "20260218000001"
     }))
 }
