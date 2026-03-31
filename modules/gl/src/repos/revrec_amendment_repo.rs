@@ -79,13 +79,25 @@ pub async fn create_amendment(
     let outbox_payload =
         serde_json::to_value(payload).map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
 
-    outbox_repo::insert_outbox_event(
+    // Look up the most recent outbox event for this contract to link supersession.
+    let prior_event_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT event_id FROM events_outbox
+         WHERE aggregate_type = 'revrec_contract' AND aggregate_id = $1
+         ORDER BY occurred_at DESC LIMIT 1",
+    )
+    .bind(payload.contract_id.to_string())
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    outbox_repo::insert_outbox_event_with_linkage(
         &mut tx,
         event_id,
         EVENT_TYPE_CONTRACT_MODIFIED,
         "revrec_contract",
         &payload.contract_id.to_string(),
         outbox_payload,
+        None,
+        prior_event_id,
         MUTATION_CLASS_DATA_MUTATION,
     )
     .await?;

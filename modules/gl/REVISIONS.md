@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.7 | 2026-03-31 | bd-68y44 | `create_amendment` now sets `supersedes_event_id` on the `revrec.contract_modified` outbox event, linking it to the most recent prior event for the same contract. | E2E test correctly expected supersession linkage but the repo never looked up the prior event. | No |
 | 2.1.6 | 2026-03-31 | bd-tbnqm.3.1 | Fix gl.period.reopened outbox event mutation_class from invalid 'period_reopen' to 'ADMINISTRATIVE'. | Mutation class registry compliance test caught invalid value — all outbox events must use one of the 7 standard mutation classes. | No |
 | 2.1.3 | 2026-03-31 | bd-decba.3 | Add GL_READ permission layer to all GL read routes. Extracted read routes into separate router with RequirePermissionsLayer so trial-balance, income-statement, balance-sheet, reporting, period, detail, activity, fx-rates, and cash-flow require JWT auth. Health/ops endpoints remain unauthenticated. | GL read routes were accessible without JWT authentication — security gap found in auth/RBAC coverage audit. | No |
 | 2.1.2 | 2026-03-31 | bd-zznx6.1 | Fix NUMERIC→BIGINT cast in invariants.rs aggregate queries. COALESCE(SUM()) returns Postgres NUMERIC which cannot decode to Rust i64. Added ::BIGINT casts to assert_all_entries_balanced query. | Financial accuracy tests exposed ColumnDecode error when unbalanced entries exist. | No |
