@@ -16,7 +16,7 @@ use sqlx::PgPool;
 
 // ── Response types ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PlAccountLine {
     pub account_code: String,
     pub account_name: String,
@@ -25,7 +25,7 @@ pub struct PlAccountLine {
     pub amount_minor: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PlSection {
     pub section: String,
     pub accounts: Vec<PlAccountLine>,
@@ -33,7 +33,7 @@ pub struct PlSection {
     pub total_by_currency: HashMap<String, i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PlStatement {
     pub from: NaiveDate,
     pub to: NaiveDate,
@@ -238,8 +238,8 @@ mod tests {
         // Expense: 5000 debit 500.00 → amount = 50000
         insert_row(&pool, "2026-01-20", "5000", "COGS", "USD", 50000, 0).await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
         let stmt = compute_pl(&pool, TENANT, from, to)
             .await
             .expect("compute_pl failed");
@@ -248,13 +248,13 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.section == "revenue")
-            .unwrap();
+            .expect("revenue section");
         assert_eq!(
             rev.total_by_currency.get("USD").copied().unwrap_or(0),
             259900
         );
 
-        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
+        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").expect("valid date");
         assert_eq!(
             cogs.total_by_currency.get("USD").copied().unwrap_or(0),
             50000
@@ -284,8 +284,8 @@ mod tests {
         // Out of range (after to)
         insert_row(&pool, "2026-03-01", "4000", "Revenue", "USD", 0, 888888).await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_pl(&pool, TENANT, from, to)
             .await
             .expect("compute_pl");
@@ -294,7 +294,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.section == "revenue")
-            .unwrap();
+            .expect("revenue section");
         assert_eq!(
             rev.total_by_currency.get("USD").copied().unwrap_or(0),
             100000,
@@ -317,8 +317,8 @@ mod tests {
         insert_row(&pool, "2026-02-15", "3000", "Equity", "USD", 0, 50000).await;
         insert_row(&pool, "2026-02-15", "4000", "Revenue", "USD", 0, 10000).await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_pl(&pool, TENANT, from, to)
             .await
             .expect("compute_pl");
@@ -327,14 +327,14 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.section == "revenue")
-            .unwrap();
+            .expect("revenue section");
         assert_eq!(rev.accounts.len(), 1, "only 4xxx in revenue section");
         assert_eq!(
             rev.total_by_currency.get("USD").copied().unwrap_or(0),
             10000
         );
 
-        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
+        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").expect("valid date");
         assert!(cogs.accounts.is_empty(), "no 5xxx accounts posted");
 
         cleanup(&pool).await;
@@ -351,8 +351,8 @@ mod tests {
         insert_row(&pool, "2026-02-01", "4000", "Revenue", "USD", 0, 100000).await;
         insert_row(&pool, "2026-02-01", "4000", "Revenue", "EUR", 0, 80000).await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_pl(&pool, TENANT, from, to)
             .await
             .expect("compute_pl");
@@ -361,7 +361,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.section == "revenue")
-            .unwrap();
+            .expect("revenue section");
         assert_eq!(
             rev.total_by_currency.get("USD").copied().unwrap_or(0),
             100000

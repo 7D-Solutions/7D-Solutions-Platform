@@ -1,7 +1,7 @@
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
-    Extension, Router,
+    Extension, Json, Router,
 };
 use security::{
     middleware::{
@@ -13,8 +13,85 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use reporting::{config::Config, db, http, metrics, AppState};
+
+// ── OpenAPI spec ─────────────────────────────────────────────────────────────
+
+use platform_http_contracts::ApiError;
+use reporting::domain::{
+    aging::{ap_aging, ar_aging},
+    forecast::types::{AtRiskItem, CashForecastResponse, CurrencyForecast, ForecastHorizon},
+    jobs::snapshot_runner::SnapshotRunResult,
+    kpis::KpiSnapshot,
+    statements::{
+        balance_sheet::{BalanceSheet, BsAccountLine, BsSection},
+        cashflow::{CashflowLine, CashflowSection, CashflowStatement},
+        pl::{PlAccountLine, PlSection, PlStatement},
+    },
+};
+use reporting::http::{
+    admin::RebuildRequest,
+    aging::ArAgingResponse,
+};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Reporting Service",
+        version = "2.1.0",
+        description = "Financial reporting: aging, KPIs, statements, cash flow forecasts, \
+                        and probabilistic collection forecasting.",
+    ),
+    paths(
+        reporting::http::statements::get_pl,
+        reporting::http::statements::get_balance_sheet,
+        reporting::http::cashflow::get_cashflow,
+        reporting::http::aging::get_ar_aging,
+        reporting::http::aging::get_ap_aging,
+        reporting::http::kpis::get_kpis,
+        reporting::http::forecast::get_forecast,
+        reporting::http::admin::rebuild,
+    ),
+    components(schemas(
+        PlStatement, PlSection, PlAccountLine,
+        BalanceSheet, BsSection, BsAccountLine,
+        CashflowStatement, CashflowSection, CashflowLine,
+        ar_aging::ArAgingSummary, ar_aging::ArAgingRow,
+        ArAgingResponse,
+        ap_aging::ApAgingReport, ap_aging::VendorAgingRow, ap_aging::CurrencySummary,
+        KpiSnapshot,
+        CashForecastResponse, CurrencyForecast, ForecastHorizon, AtRiskItem,
+        SnapshotRunResult,
+        RebuildRequest,
+        ApiError,
+    )),
+    security(
+        ("bearer" = [])
+    ),
+    modifiers(&SecurityAddon),
+)]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
+
+// ── main ─────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() {
@@ -93,6 +170,10 @@ async fn main() {
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route(
+            "/api/openapi.json",
+            get(|| async { Json(ApiDoc::openapi()) }),
+        )
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
         .merge(reporting_reads)

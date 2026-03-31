@@ -19,7 +19,7 @@ use sqlx::PgPool;
 
 // ── Response types ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BsAccountLine {
     pub account_code: String,
     pub account_name: String,
@@ -28,7 +28,7 @@ pub struct BsAccountLine {
     pub amount_minor: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BsSection {
     pub section: String,
     pub accounts: Vec<BsAccountLine>,
@@ -36,7 +36,7 @@ pub struct BsSection {
     pub total_by_currency: HashMap<String, i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BalanceSheet {
     pub as_of: NaiveDate,
     /// Ordered: ["assets", "liabilities", "equity"]
@@ -226,12 +226,12 @@ mod tests {
         )
         .await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
         let bs = compute_balance_sheet(&pool, TENANT, as_of)
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").unwrap();
+        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             259900
@@ -241,7 +241,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.section == "liabilities")
-            .unwrap();
+            .expect("liabilities section");
         assert_eq!(
             liabilities
                 .total_by_currency
@@ -251,7 +251,7 @@ mod tests {
             50000
         );
 
-        let equity = bs.sections.iter().find(|s| s.section == "equity").unwrap();
+        let equity = bs.sections.iter().find(|s| s.section == "equity").expect("equity section");
         assert_eq!(
             equity.total_by_currency.get("USD").copied().unwrap_or(0),
             200000
@@ -274,12 +274,12 @@ mod tests {
         // Posting after as_of — must be excluded
         insert_row(&pool, "2026-03-01", "1000", "Cash", "USD", 999999, 0).await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let bs = compute_balance_sheet(&pool, TENANT, as_of)
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").unwrap();
+        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             150000,
@@ -301,19 +301,19 @@ mod tests {
         insert_row(&pool, "2026-02-01", "5000", "COGS", "USD", 40000, 0).await;
         insert_row(&pool, "2026-02-01", "1000", "Cash", "USD", 60000, 0).await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let bs = compute_balance_sheet(&pool, TENANT, as_of)
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").unwrap();
+        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
         assert_eq!(assets.accounts.len(), 1, "only 1xxx account in assets");
 
         let liabilities = bs
             .sections
             .iter()
             .find(|s| s.section == "liabilities")
-            .unwrap();
+            .expect("liabilities section");
         assert!(liabilities.accounts.is_empty());
 
         cleanup(&pool).await;
@@ -330,12 +330,12 @@ mod tests {
         insert_row(&pool, "2026-02-01", "1000", "Cash", "USD", 100000, 0).await;
         insert_row(&pool, "2026-02-01", "1000", "Cash", "EUR", 80000, 0).await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let bs = compute_balance_sheet(&pool, TENANT, as_of)
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").unwrap();
+        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             100000

@@ -33,7 +33,7 @@ use sqlx::PgPool;
 
 // ── Response types ───────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CashflowLine {
     pub line_code: String,
     pub line_label: String,
@@ -42,7 +42,7 @@ pub struct CashflowLine {
     pub amount_minor: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CashflowSection {
     pub activity_type: String,
     pub lines: Vec<CashflowLine>,
@@ -50,7 +50,7 @@ pub struct CashflowSection {
     pub total_by_currency: HashMap<String, i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CashflowStatement {
     pub from: NaiveDate,
     pub to: NaiveDate,
@@ -391,8 +391,8 @@ mod tests {
         )
         .await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_cashflow(&pool, TENANT, from, to)
             .await
             .expect("compute");
@@ -401,7 +401,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
         let usd_total = operating.total_by_currency.get("USD").copied().unwrap_or(0);
 
         // 150000 + 100000 = 250000
@@ -433,8 +433,8 @@ mod tests {
         // Expense: 6000 debit 500.00
         insert_trial_balance(&pool, "2026-02-15", "6000", "USD", 50000, 0).await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_cashflow(&pool, TENANT, from, to)
             .await
             .expect("compute");
@@ -443,7 +443,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
 
         // Net income = 300000 - 100000 - 50000 = 150000
         let ni: Vec<&CashflowLine> = operating
@@ -462,7 +462,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
         let ni2: Vec<&CashflowLine> = op2
             .lines
             .iter()
@@ -499,8 +499,8 @@ mod tests {
         )
         .await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_cashflow(&pool, TENANT, from, to)
             .await
             .expect("compute");
@@ -509,7 +509,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
         // Operating total = net_income(150000) + cash_collections(180000) = 330000
         assert_eq!(
             operating.total_by_currency.get("USD").copied().unwrap_or(0),
@@ -559,8 +559,8 @@ mod tests {
         )
         .await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_cashflow(&pool, TENANT, from, to)
             .await
             .expect("compute");
@@ -569,7 +569,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
         assert_eq!(
             operating.total_by_currency.get("USD").copied().unwrap_or(0),
             100000
@@ -627,8 +627,8 @@ mod tests {
         )
         .await;
 
-        let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
         let stmt = compute_cashflow(&pool, TENANT, from, to)
             .await
             .expect("compute");
@@ -637,7 +637,7 @@ mod tests {
             .sections
             .iter()
             .find(|s| s.activity_type == "operating")
-            .unwrap();
+            .expect("operating section");
         assert_eq!(
             operating.total_by_currency.get("USD").copied().unwrap_or(0),
             100000,

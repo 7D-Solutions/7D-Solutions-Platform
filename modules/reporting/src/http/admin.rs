@@ -25,11 +25,11 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use crate::domain::jobs::snapshot_runner::run_snapshot;
+use crate::domain::jobs::snapshot_runner::{run_snapshot, SnapshotRunResult};
 
 // ── Request body ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RebuildRequest {
     pub tenant_id: String,
     /// Start of rebuild range (inclusive), YYYY-MM-DD.
@@ -41,16 +41,19 @@ pub struct RebuildRequest {
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 /// POST /api/reporting/rebuild — trigger a statement cache rebuild.
-///
-/// Body (JSON):
-/// ```json
-/// { "tenant_id": "acme", "from": "2026-01-01", "to": "2026-01-31" }
-/// ```
-///
-/// Returns the rebuild summary on success (200 OK).
-/// Returns 403 if the admin token is missing or wrong.
-/// Returns 400 if the date range is invalid.
-/// Returns 500 on internal errors.
+#[utoipa::path(
+    post,
+    path = "/api/reporting/rebuild",
+    tag = "Admin",
+    request_body = RebuildRequest,
+    responses(
+        (status = 200, description = "Rebuild completed", body = SnapshotRunResult),
+        (status = 400, description = "Bad request", body = ApiError),
+        (status = 403, description = "Forbidden", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_MUTATE"]))
+)]
 pub async fn rebuild(
     State(state): State<Arc<crate::AppState>>,
     headers: HeaderMap,
@@ -72,13 +75,15 @@ pub async fn rebuild(
 
     // Validate inputs
     if req.tenant_id.trim().is_empty() {
-        return ApiError::bad_request("tenant_id must not be empty").into_response();
+        return ApiError::new(400, "validation_error", "tenant_id must not be empty")
+            .into_response();
     }
     if req.from > req.to {
-        return ApiError::bad_request(format!(
-            "'from' ({}) must be <= 'to' ({})",
-            req.from, req.to
-        ))
+        return ApiError::new(
+            400,
+            "validation_error",
+            format!("'from' ({}) must be <= 'to' ({})", req.from, req.to),
+        )
         .into_response();
     }
 

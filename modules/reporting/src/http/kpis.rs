@@ -18,13 +18,14 @@ use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::kpis::compute_kpis;
+use crate::domain::kpis::{compute_kpis, KpiSnapshot};
 
 use super::tenant::{extract_tenant, with_request_id};
 
 // ── Query params ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct KpiParams {
     pub as_of: NaiveDate,
 }
@@ -32,6 +33,18 @@ pub struct KpiParams {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 /// GET /api/reporting/kpis — unified KPI snapshot from reporting caches.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/kpis",
+    tag = "KPIs",
+    params(KpiParams),
+    responses(
+        (status = 200, description = "KPI snapshot", body = KpiSnapshot),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_kpis(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

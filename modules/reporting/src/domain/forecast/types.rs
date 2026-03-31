@@ -17,7 +17,7 @@ pub struct PaymentProfile {
 }
 
 /// Expected collection for a single forecast horizon.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ForecastHorizon {
     pub days: u32,
     pub expected_cents: i64,
@@ -26,7 +26,7 @@ pub struct ForecastHorizon {
 }
 
 /// An open invoice flagged as at-risk (P(30) < 0.40).
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AtRiskItem {
     pub invoice_id: String,
     pub customer_id: String,
@@ -37,7 +37,7 @@ pub struct AtRiskItem {
 }
 
 /// Currency-grouped forecast result.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CurrencyForecast {
     pub currency: String,
     pub horizons: Vec<ForecastHorizon>,
@@ -45,7 +45,7 @@ pub struct CurrencyForecast {
 }
 
 /// Top-level forecast response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CashForecastResponse {
     pub as_of: chrono::DateTime<chrono::Utc>,
     pub results: Vec<CurrencyForecast>,

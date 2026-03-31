@@ -17,13 +17,14 @@ use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::forecast::compute_cash_forecast;
+use crate::domain::forecast::{compute_cash_forecast, CashForecastResponse};
 
 use super::tenant::{extract_tenant, with_request_id};
 
 // ── Query params ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ForecastParams {
     /// Comma-separated horizon days (e.g. "7,14,30,60,90").
     /// Defaults to "7,14,30,60,90" if omitted.
@@ -45,6 +46,19 @@ impl ForecastParams {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 /// GET /api/reporting/forecast — probabilistic cash collection forecast.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/forecast",
+    tag = "Forecast",
+    params(ForecastParams),
+    responses(
+        (status = 200, description = "Cash forecast", body = CashForecastResponse),
+        (status = 400, description = "Bad request", body = ApiError),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_forecast(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -27,7 +27,7 @@ use crate::domain::statements::{balance_sheet, pl};
 // ── Output ────────────────────────────────────────────────────────────────────
 
 /// Summary of a completed snapshot run.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SnapshotRunResult {
     pub tenant_id: String,
     pub from: NaiveDate,
@@ -253,7 +253,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let date = NaiveDate::from_ymd_opt(2026, 5, 1).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 5, 1).expect("valid date");
         seed_trial_balance(&pool, date).await;
 
         let result = run_snapshot(&pool, TENANT, date, date)
@@ -280,7 +280,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let date = NaiveDate::from_ymd_opt(2026, 5, 10).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 5, 10).expect("valid date");
         seed_trial_balance(&pool, date).await;
 
         // Run twice
@@ -305,8 +305,8 @@ mod tests {
     #[serial]
     async fn test_snapshot_from_gt_to_returns_error() {
         let pool = test_pool().await;
-        let from = NaiveDate::from_ymd_opt(2026, 6, 10).unwrap();
-        let to = NaiveDate::from_ymd_opt(2026, 6, 1).unwrap();
+        let from = NaiveDate::from_ymd_opt(2026, 6, 10).expect("valid date");
+        let to = NaiveDate::from_ymd_opt(2026, 6, 1).expect("valid date");
         let err = run_snapshot(&pool, TENANT, from, to).await;
         assert!(err.is_err(), "from > to must return an error");
     }

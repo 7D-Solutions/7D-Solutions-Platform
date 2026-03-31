@@ -24,7 +24,8 @@ use super::tenant::{extract_tenant, with_request_id};
 
 // ── Query parameters ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct CashflowParams {
     pub from: NaiveDate,
     pub to: NaiveDate,
@@ -33,6 +34,18 @@ pub struct CashflowParams {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 /// GET /api/reporting/cashflow — Cash flow statement for a date range.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/cashflow",
+    tag = "Statements",
+    params(CashflowParams),
+    responses(
+        (status = 200, description = "Cash flow statement", body = cashflow::CashflowStatement),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_cashflow(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

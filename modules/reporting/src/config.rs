@@ -1,4 +1,4 @@
-use std::env;
+use config_validator::ConfigValidator;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -11,36 +11,26 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load from environment variables.
+    /// Load from environment variables, collecting ALL errors before failing.
     ///
     /// Required: `DATABASE_URL` — must follow `reporting_{app_id}_db` naming convention.
     /// Optional: `HOST`, `PORT` (default: 8096).
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required. Example: postgres://user:pass@localhost/reporting_default_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("reporting");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8096);
+        let env_name = v.optional("ENV").or_default("development");
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8096".to_string())
-            .parse()
-            .map_err(|_| "PORT must be a valid u16".to_string())?;
-
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
-
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_raw = v.optional("CORS_ORIGINS").or_default("*");
+        let cors_origins: Vec<String> = cors_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
                 "CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
@@ -49,11 +39,13 @@ impl Config {
             );
         }
 
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Config {
             database_url,
             host,
             port,
-            env,
+            env: env_name,
             cors_origins,
         })
     }
@@ -72,7 +64,7 @@ mod tests {
         unsafe { std::env::remove_var("DATABASE_URL") };
         let result = Config::from_env();
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("DATABASE_URL is required"));
+        assert!(result.as_ref().unwrap_err().contains("DATABASE_URL"));
         unsafe { std::env::remove_var("DATABASE_URL") };
     }
 

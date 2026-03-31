@@ -24,13 +24,15 @@ use crate::domain::statements::{balance_sheet, pl};
 
 // ── Query parameter structs ───────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct PlParams {
     pub from: NaiveDate,
     pub to: NaiveDate,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct BsParams {
     pub as_of: NaiveDate,
 }
@@ -38,6 +40,18 @@ pub struct BsParams {
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 /// GET /api/reporting/pl — Profit & Loss statement for a date range.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/pl",
+    tag = "Statements",
+    params(PlParams),
+    responses(
+        (status = 200, description = "P&L statement", body = pl::PlStatement),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_pl(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -60,6 +74,18 @@ pub async fn get_pl(
 }
 
 /// GET /api/reporting/balance-sheet — Balance Sheet as of a given date.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/balance-sheet",
+    tag = "Statements",
+    params(BsParams),
+    responses(
+        (status = 200, description = "Balance sheet", body = balance_sheet::BalanceSheet),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_balance_sheet(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

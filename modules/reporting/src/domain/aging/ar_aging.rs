@@ -8,7 +8,7 @@ use serde::Serialize;
 use sqlx::PgPool;
 
 /// A single aging bucket row from the reporting cache.
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ArAgingRow {
     pub tenant_id: String,
     pub as_of: NaiveDate,
@@ -23,7 +23,7 @@ pub struct ArAgingRow {
 }
 
 /// Aggregated aging summary across all customers for a tenant.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ArAgingSummary {
     pub tenant_id: String,
     pub as_of: NaiveDate,
@@ -176,7 +176,7 @@ mod tests {
 
         seed_aging(&pool, "_total", "USD", 100000, 150000).await;
 
-        let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
         let rows = get_aging_for_tenant(&pool, TENANT, date)
             .await
             .expect("query");
@@ -197,15 +197,15 @@ mod tests {
         seed_aging(&pool, "_total", "USD", 100000, 150000).await;
         seed_aging(&pool, "_total", "EUR", 80000, 80000).await;
 
-        let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
         let summary = get_aging_summary(&pool, TENANT, date).await.expect("query");
 
         assert_eq!(summary.len(), 2);
 
-        let usd = summary.iter().find(|s| s.currency == "USD").unwrap();
+        let usd = summary.iter().find(|s| s.currency == "USD").expect("USD row");
         assert_eq!(usd.total_minor, 150000);
 
-        let eur = summary.iter().find(|s| s.currency == "EUR").unwrap();
+        let eur = summary.iter().find(|s| s.currency == "EUR").expect("EUR row");
         assert_eq!(eur.total_minor, 80000);
 
         cleanup(&pool).await;
@@ -217,7 +217,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
         let rows = get_aging_for_tenant(&pool, TENANT, date)
             .await
             .expect("query");

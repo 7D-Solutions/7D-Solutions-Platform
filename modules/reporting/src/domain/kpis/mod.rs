@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 pub type CurrencyMap = BTreeMap<String, i64>;
 
 /// Unified KPI snapshot for a tenant as-of a given date.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct KpiSnapshot {
     pub as_of: NaiveDate,
     /// Total outstanding AR by currency (all aging buckets summed).

@@ -10,7 +10,7 @@ use sqlx::PgPool;
 // ── Output types ────────────────────────────────────────────────────────────
 
 /// A single vendor's aging buckets for one currency.
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct VendorAgingRow {
     pub vendor_id: String,
     pub currency: String,
@@ -23,7 +23,7 @@ pub struct VendorAgingRow {
 }
 
 /// Summary totals across all vendors for one currency.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CurrencySummary {
     pub currency: String,
     pub current_minor: i64,
@@ -35,7 +35,7 @@ pub struct CurrencySummary {
 }
 
 /// Complete AP aging report from the reporting cache.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ApAgingReport {
     pub as_of: NaiveDate,
     pub vendors: Vec<VendorAgingRow>,

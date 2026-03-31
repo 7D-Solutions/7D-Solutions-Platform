@@ -25,12 +25,13 @@ use super::tenant::{extract_tenant, with_request_id};
 
 // ── AR aging ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ArAgingParams {
     pub as_of: NaiveDate,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ArAgingResponse {
     pub tenant_id: String,
     pub as_of: NaiveDate,
@@ -38,6 +39,18 @@ pub struct ArAgingResponse {
 }
 
 /// GET /api/reporting/ar-aging — AR aging buckets from the reporting cache.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/ar-aging",
+    tag = "Aging",
+    params(ArAgingParams),
+    responses(
+        (status = 200, description = "AR aging summary", body = ArAgingResponse),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_ar_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -71,7 +84,8 @@ pub async fn get_ar_aging(
 
 // ── AP aging ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ApAgingParams {
     pub as_of: NaiveDate,
 }
@@ -79,6 +93,18 @@ pub struct ApAgingParams {
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 /// GET /api/reporting/ap-aging — AP aging report from reporting cache.
+#[utoipa::path(
+    get,
+    path = "/api/reporting/ap-aging",
+    tag = "Aging",
+    params(ApAgingParams),
+    responses(
+        (status = 200, description = "AP aging report", body = ap_aging::ApAgingReport),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["REPORTING_READ"]))
+)]
 pub async fn get_ap_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
