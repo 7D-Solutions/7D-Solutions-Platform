@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.0 | 2026-03-31 | bd-w91p1 | Convert AR startup to platform SDK with consumer wiring. SDK handles dotenv, tracing, DB, migrations, event bus, outbox publisher, health, CORS, JWT, rate limiting, shutdown. Consumer for payment.succeeded wired via .consumer() API. | SDK standardization — eliminate per-module boilerplate, prove consumer wiring API works on AR (most complex module). | No |
 | 2.2.4 | 2026-03-31 | bd-nkdc1 | Fix UsageRecord.quantity type: String → f64 with ::float8 SQL cast. NUMERIC(10,2) column cannot decode to String in sqlx. | Usage capture endpoint returned 500 on every call. | No |
 | 2.2.3 | 2026-03-31 | bd-vnuvp.3 | Add tenant_id (app_id) filter to 8 AR queries missing isolation in lifecycle, finalization, and write-offs. Thread app_id param through validate_transition and all transition functions. | P0 security: multi-tenant isolation gap — queries used only invoice id without tenant filter, allowing cross-tenant data access. | No |
 | 2.2.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |

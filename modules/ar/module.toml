@@ -1,0 +1,21 @@
+[module]
+name = "ar"
+version = "2.3.0"
+description = "Invoicing, collections, payment application, dunning, and cash flow forecasting"
+
+[server]
+host = "0.0.0.0"
+port = 8086
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"
