@@ -25,12 +25,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state.clone());
 
     let reads = Router::new()
-        // Ops
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(ops::health::health))
-        .route("/api/ready", get(ops::ready::ready))
-        .route("/api/version", get(ops::version::version))
-        .route("/metrics", get(metrics::metrics_handler))
         // Metering — read
         .route("/api/metering/trace", get(metering::get_trace))
         // Service agreements — read
@@ -38,7 +32,16 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/ttp/service-agreements",
             get(service_agreements::list_service_agreements),
         )
+        .route_layer(RequirePermissionsLayer::new(&[permissions::TTP_READ]))
+        .with_state(state.clone());
+
+    let ops = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(ops::health::health))
+        .route("/api/ready", get(ops::ready::ready))
+        .route("/api/version", get(ops::version::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(state);
 
-    Router::new().merge(mutations).merge(reads)
+    Router::new().merge(mutations).merge(reads).merge(ops)
 }

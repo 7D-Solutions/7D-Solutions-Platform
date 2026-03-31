@@ -41,8 +41,8 @@ pub fn ar_router(db: PgPool) -> Router {
 
 /// Build the AR router without permission enforcement — integration tests only.
 ///
-/// Bypasses the `ar.mutate` permission gate so mutation routes can be exercised
-/// without JWT infrastructure. Do NOT use in production code.
+/// Bypasses the `ar.read` and `ar.mutate` permission gates so routes can be
+/// exercised without JWT infrastructure. Do NOT use in production code.
 pub fn ar_router_permissive(db: PgPool) -> Router {
     build_ar_router(db, false)
 }
@@ -199,8 +199,8 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         mutations_core.with_state(db.clone())
     };
 
-    // Read routes — no permission required at this stage.
-    let reads = Router::new()
+    // Read routes — in production require ar.read permission.
+    let reads_core = Router::new()
         // Customers — read
         .route("/api/ar/customers", get(customers::list_customers))
         .route("/api/ar/customers/{id}", get(customers::get_customer))
@@ -268,7 +268,15 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
             "/api/ar/tax/reports/export",
             get(tax_reports::tax_report_export),
         )
-        .with_state(db.clone());
+        ;
+
+    let reads = if enforce_permissions {
+        reads_core
+            .route_layer(RequirePermissionsLayer::new(&[permissions::AR_READ]))
+            .with_state(db.clone())
+    } else {
+        reads_core.with_state(db.clone())
+    };
 
     Router::new()
         .merge(mutations)

@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.3.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |

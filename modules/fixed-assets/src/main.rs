@@ -134,13 +134,7 @@ async fn main() {
         ]))
         .with_state(app_state.clone());
 
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health))
-        .route("/api/ready", get(http::ready))
-        .route("/api/version", get(http::version))
-        .route("/api/openapi.json", get(openapi_json))
-        .route("/metrics", get(metrics::metrics_handler))
+    let fa_reads = Router::new()
         // Category CRUD — read
         .route(
             "/api/fixed-assets/categories/{id}",
@@ -174,7 +168,20 @@ async fn main() {
             "/api/fixed-assets/disposals/{id}",
             get(http::disposals::get_disposal),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::FIXED_ASSETS_READ,
+        ]))
+        .with_state(app_state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(http::health))
+        .route("/api/ready", get(http::ready))
+        .route("/api/version", get(http::version))
+        .route("/api/openapi.json", get(openapi_json))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .merge(fa_reads)
         .merge(fa_mutations)
         .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

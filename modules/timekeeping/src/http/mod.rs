@@ -221,12 +221,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state.clone());
 
     let reads = Router::new()
-        // Ops
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(ops::health::health))
-        .route("/api/ready", get(ops::ready::ready))
-        .route("/api/version", get(ops::version::version))
-        .route("/metrics", get(metrics::metrics_handler))
         // Employees — read
         .route("/api/timekeeping/employees", get(employees::list_employees))
         .route(
@@ -287,9 +281,20 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/timekeeping/exports/{id}", get(export::get_export))
         // Billing rates — read
         .route("/api/timekeeping/rates", get(billing::list_rates))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::TIMEKEEPING_READ,
+        ]))
+        .with_state(state.clone());
+
+    let ops = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(ops::health::health))
+        .route("/api/ready", get(ops::ready::ready))
+        .route("/api/version", get(ops::version::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(state);
 
-    Router::new().merge(mutations).merge(reads)
+    Router::new().merge(mutations).merge(reads).merge(ops)
 }
 
 #[cfg(test)]

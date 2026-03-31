@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.3 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.2.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.2.2 | 2026-03-30 | bd-lgsgm.3 | Wire error_conversions module (From<ShipmentError> for ApiError, From<RoutingError> for ApiError). Migrate metrics_handler from ErrorBody to ApiError. Add ShipmentRepository::count_shipments for paginated list_shipments. | Plug-and-play left error_conversions.rs unlinked in mod.rs, metrics.rs referencing removed ErrorBody, and list_shipments calling nonexistent count method — all caused 29 compilation errors. | No |
 | 1.0.0 | 2026-03-28 | bd-eexq4 | Initial proof. All tests passing. | Module build complete and core logic validated via tests. | No |

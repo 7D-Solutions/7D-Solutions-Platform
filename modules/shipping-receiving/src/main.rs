@@ -185,6 +185,7 @@ async fn main() {
         .route("/healthz", get(health::healthz))
         .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
+        .merge(routes::build_ops_router())
         .merge(routes::build_router())
         .merge(
             routes::build_mutation_router().route_layer(RequirePermissionsLayer::new(&[

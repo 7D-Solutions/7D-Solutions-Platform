@@ -7,6 +7,8 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
+| 2.2.2 | 2026-03-31 | bd-decba.2 | Add RequirePermissionsLayer with AR_READ to all read routes. Conditional on enforce_permissions so permissive test router is unaffected. | Security: AR read endpoints were accessible without JWT auth. | No |
 | 2.1.0 | 2026-03-30 | bd-m7hi6 | Add utoipa OpenAPI annotations to all 62 handler functions. Serve /api/openapi.json. Bearer JWT security scheme for API routes; HMAC for Tilled webhook. | Plug-and-play: consumers discover endpoints and types from the spec. | No |
 | 2.0.1 | 2026-03-30 | bd-tfnv7 | Continue ApiError migration — events, dunning, admin, reconciliation, usage, tax, customers handlers migrated. | Same bead, incremental progress. | No |
 | 2.0.0 | 2026-03-30 | bd-tfnv7 | Replace `ErrorResponse` with `ApiError` from platform-http-contracts across all handlers. Add `PaginatedResponse` wrapping for list endpoints. Webhook responses to Tilled preserved (identical JSON format). | Plug-and-play envelope standardization — consistent error/pagination contract across all modules. | YES: Error responses now include optional `request_id` and `details` fields. List endpoints return `PaginatedResponse<T>` instead of `Vec<T>`. |

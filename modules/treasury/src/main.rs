@@ -135,13 +135,7 @@ async fn main() {
         ]))
         .with_state(app_state.clone());
 
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health))
-        .route("/api/ready", get(http::ready))
-        .route("/api/version", get(http::version))
-        .route("/api/openapi.json", get(http::openapi_json))
-        .route("/metrics", get(metrics::metrics_handler))
+    let treasury_reads = Router::new()
         // Accounts — read
         .route("/api/treasury/accounts", get(http::accounts::list_accounts))
         .route(
@@ -167,11 +161,24 @@ async fn main() {
             "/api/treasury/recon/gl-unmatched-txns",
             get(http::recon_gl::unmatched_bank_txns),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::TREASURY_READ,
+        ]))
         .layer(axum::middleware::from_fn_with_state(
             app_state.clone(),
             metrics::latency_layer,
         ))
+        .with_state(app_state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(http::health))
+        .route("/api/ready", get(http::ready))
+        .route("/api/version", get(http::version))
+        .route("/api/openapi.json", get(http::openapi_json))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .merge(treasury_reads)
         .merge(treasury_mutations)
         .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

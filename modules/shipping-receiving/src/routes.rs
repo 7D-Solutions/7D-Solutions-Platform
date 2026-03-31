@@ -2,17 +2,23 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
+use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
 use crate::http;
 use crate::AppState;
 
-/// Read routes — accessible with any valid JWT (no extra permissions).
-pub fn build_router() -> Router<Arc<AppState>> {
+/// Ops routes — unauthenticated health/ready/version.
+pub fn build_ops_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
+}
+
+/// Read routes — require shipping_receiving.read permission.
+pub fn build_router() -> Router<Arc<AppState>> {
+    Router::new()
         .route(
             "/api/shipping-receiving/shipments",
             get(http::shipments::list_shipments),
@@ -37,6 +43,9 @@ pub fn build_router() -> Router<Arc<AppState>> {
             "/api/shipping-receiving/source/{ref_type}/{ref_id}/shipments",
             get(http::refs::shipments_by_source_ref),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::SHIPPING_RECEIVING_READ,
+        ]))
 }
 
 /// Mutation routes — caller must apply RequirePermissionsLayer externally.

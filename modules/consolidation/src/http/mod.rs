@@ -89,13 +89,6 @@ pub fn router() -> Router<Arc<AppState>> {
         ]));
 
     let reads: Router<Arc<AppState>> = Router::new()
-        // Ops
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(ops::health::health))
-        .route("/api/ready", get(ops::ready::ready))
-        .route("/api/version", get(ops::version::version))
-        .route("/metrics", get(metrics::metrics_handler))
-        .route("/api/openapi.json", get(openapi_json))
         // Consolidation engine — read
         .route(
             "/api/consolidation/groups/{group_id}/trial-balance",
@@ -141,9 +134,20 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/consolidation/groups/{group_id}/balance-sheet",
             get(statements::get_consolidated_bs),
-        );
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::CONSOLIDATION_READ,
+        ]));
 
-    Router::new().merge(mutations).merge(reads)
+    let ops: Router<Arc<AppState>> = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(ops::health::health))
+        .route("/api/ready", get(ops::ready::ready))
+        .route("/api/version", get(ops::version::version))
+        .route("/metrics", get(metrics::metrics_handler))
+        .route("/api/openapi.json", get(openapi_json));
+
+    Router::new().merge(mutations).merge(reads).merge(ops)
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {

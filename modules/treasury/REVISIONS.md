@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 1.0.0 | 2026-03-28 | bd-14lud | Initial proof baseline for treasury covering bank account management, transaction import, reconciliation, and cash position reporting. Added the module proof script used by the promotion gate. | Establish the first proven release after package tests and module proof passed end-to-end. | No |
 | 1.0.1 | 2026-03-28 | bd-170ei | Replaced f64 arithmetic with rust_decimal::Decimal in parse_amount functions across parser.rs, chase.rs, and amex.rs. Eliminates IEEE 754 rounding errors when converting monetary strings to minor units. | f64 multiplication can silently round certain decimal values incorrectly (e.g. 1.005 * 100 = 100.49… → 100 instead of 101). Financial code requires exact decimal arithmetic. | No |

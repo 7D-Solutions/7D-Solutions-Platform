@@ -50,12 +50,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state.clone());
 
     let reads = Router::new()
-        // Ops
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(ops::health::health))
-        .route("/api/ready", get(ops::ready::ready))
-        .route("/api/version", get(ops::version::version))
-        .route("/metrics", get(metrics::metrics_handler))
         // Party — read
         .route("/api/party/parties", get(party::list_parties))
         .route("/api/party/parties/search", get(party::search_parties))
@@ -76,7 +70,16 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(addresses::list_addresses),
         )
         .route("/api/party/addresses/{id}", get(addresses::get_address))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::PARTY_READ]))
+        .with_state(state.clone());
+
+    let ops = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(ops::health::health))
+        .route("/api/ready", get(ops::ready::ready))
+        .route("/api/version", get(ops::version::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(state);
 
-    Router::new().merge(mutations).merge(reads)
+    Router::new().merge(mutations).merge(reads).merge(ops)
 }
