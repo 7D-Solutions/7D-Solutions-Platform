@@ -7,6 +7,8 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.5 | 2026-03-31 | bd-xs0ry.2 | Add idempotency to POST /api/payments/checkout-sessions. New optional `idempotency_key` field in request; falls back to `invoice_id` as natural key. Check-before-create with UNIQUE(tenant_id, idempotency_key) constraint. Re-adds `client_secret` column (needed for idempotent return). Migration backfills existing rows. 4 new integration tests. | Double-submit or network retry creates duplicate Tilled payment intents with real money impact. | No |
+| 2.1.4 | 2026-03-31 | bd-vnuvp.2 | Add app_id tenant filter to all 12 payment_attempts queries in lifecycle, webhook_handler, and reconciliation. Thread app_id through all function signatures. | Tenant isolation: queries by id alone allow cross-tenant data access. | No |
 | 2.1.3 | 2026-03-30 | bd-nhmgu.3 | Add info(title, version, description) and security(("bearer" = [])) to OpenAPI spec. Both main.rs and openapi_dump.rs updated. | Spec was missing title/version/description and global security requirement, inconsistent with other modules. | No |
 | 2.1.2 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.1.1 | 2026-03-30 | bd-v5m63 | Add OpenAPI spec validation test: verifies all 6 endpoints, security scheme, and component schemas are present in generated spec. | Acceptance criteria proof for plug-and-play. | No |

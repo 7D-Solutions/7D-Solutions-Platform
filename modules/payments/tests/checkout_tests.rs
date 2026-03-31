@@ -48,11 +48,13 @@ async fn insert_session(
     status: &str,
 ) -> (Uuid, String) {
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
+    let idem_key = format!("test_idem_{}", Uuid::new_v4().simple());
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, status)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
+             idempotency_key, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
         "#,
     )
@@ -61,6 +63,7 @@ async fn insert_session(
     .bind(2500_i32)
     .bind("usd")
     .bind(&pi_id)
+    .bind(&idem_key)
     .bind(status)
     .fetch_one(pool)
     .await
@@ -84,11 +87,12 @@ async fn test_checkout_session_created_with_mock() {
     // Insert a checkout session directly (simulating what the handler does)
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
 
+    let idem_key = format!("idem_{}", Uuid::new_v4().simple());
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id)
-        VALUES ($1, $2, $3, $4, $5)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         "#,
     )
@@ -97,6 +101,7 @@ async fn test_checkout_session_created_with_mock() {
     .bind(5000_i32)
     .bind("usd")
     .bind(&pi_id)
+    .bind(&idem_key)
     .fetch_one(&pool)
     .await
     .expect("Failed to insert checkout session");
@@ -373,11 +378,12 @@ async fn test_get_checkout_session_by_id() {
     let amount = 7500_i32;
     let currency = "usd";
 
+    let idem_key = format!("idem_{}", Uuid::new_v4().simple());
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id)
-        VALUES ($1, $2, $3, $4, $5)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         "#,
     )
@@ -386,6 +392,7 @@ async fn test_get_checkout_session_by_id() {
     .bind(amount)
     .bind(currency)
     .bind(&pi_id)
+    .bind(&idem_key)
     .fetch_one(&pool)
     .await
     .expect("Failed to insert session");
@@ -415,4 +422,262 @@ async fn test_get_checkout_session_by_id() {
     assert_eq!(row.currency, currency);
 
     cleanup_sessions(&pool, &tenant_id).await;
+}
+
+// ============================================================================
+// Idempotency: same (tenant, idempotency_key) returns existing session
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_idempotency_explicit_key_returns_existing() {
+    let pool = setup_test_db().await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
+
+    let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
+    let idem_key = format!("idem_{}", Uuid::new_v4().simple());
+    let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
+    let secret = format!("{}_secret_test", pi_id);
+
+    // Insert first session with explicit idempotency_key
+    let session_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
+             client_secret, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        "#,
+    )
+    .bind(&invoice_id)
+    .bind(&tenant_id)
+    .bind(5000_i32)
+    .bind("usd")
+    .bind(&pi_id)
+    .bind(&secret)
+    .bind(&idem_key)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert first session");
+
+    // Lookup by (tenant_id, idempotency_key) — simulates handler idempotency check
+    let existing: Option<(Uuid, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, processor_payment_id, client_secret \
+         FROM checkout_sessions \
+         WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(&tenant_id)
+    .bind(&idem_key)
+    .fetch_optional(&pool)
+    .await
+    .expect("Failed to query existing session");
+
+    assert!(existing.is_some(), "Must find existing session by idempotency_key");
+    let (found_id, found_pi, found_secret) = existing.unwrap();
+    assert_eq!(found_id, session_id, "Must return same session_id");
+    assert_eq!(found_pi, pi_id, "Must return same payment_intent_id");
+    assert_eq!(found_secret.as_deref(), Some(secret.as_str()), "Must return stored client_secret");
+
+    cleanup_sessions(&pool, &tenant_id).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_idempotency_invoice_id_as_natural_key() {
+    let pool = setup_test_db().await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
+
+    let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
+    let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
+
+    // Insert session using invoice_id as idempotency_key (handler default)
+    let session_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
+             client_secret, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        "#,
+    )
+    .bind(&invoice_id)
+    .bind(&tenant_id)
+    .bind(3000_i32)
+    .bind("usd")
+    .bind(&pi_id)
+    .bind("secret_abc")
+    .bind(&invoice_id) // invoice_id used as idempotency_key
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert session");
+
+    // Second insert with same (tenant_id, invoice_id) as key must fail (UNIQUE violation)
+    let dup_result: Result<Uuid, _> = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
+             client_secret, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id
+        "#,
+    )
+    .bind(&invoice_id)
+    .bind(&tenant_id)
+    .bind(3000_i32)
+    .bind("usd")
+    .bind("another_pi")
+    .bind("secret_xyz")
+    .bind(&invoice_id) // same key
+    .fetch_one(&pool)
+    .await;
+
+    assert!(
+        dup_result.is_err(),
+        "Duplicate (tenant_id, idempotency_key) must be rejected by UNIQUE constraint"
+    );
+    let err_msg = dup_result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("duplicate key") || err_msg.contains("uq_checkout_sessions_tenant_idem_key"),
+        "Error must reference the unique constraint, got: {err_msg}"
+    );
+
+    // Original session unchanged
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM checkout_sessions WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(&tenant_id)
+    .bind(&invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to count sessions");
+    assert_eq!(count, 1, "Exactly one session must exist for the key");
+
+    // Fetch by idempotency_key returns original
+    let found_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM checkout_sessions WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(&tenant_id)
+    .bind(&invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to fetch session");
+    assert_eq!(found_id, session_id);
+
+    cleanup_sessions(&pool, &tenant_id).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_idempotency_different_keys_create_separate_sessions() {
+    let pool = setup_test_db().await;
+    let tenant_id = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_id).await;
+
+    let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
+    let key_a = format!("key_a_{}", Uuid::new_v4().simple());
+    let key_b = format!("key_b_{}", Uuid::new_v4().simple());
+
+    let session_a: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+        "#,
+    )
+    .bind(&invoice_id)
+    .bind(&tenant_id)
+    .bind(1000_i32)
+    .bind("usd")
+    .bind("pi_a")
+    .bind(&key_a)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert session A");
+
+    let session_b: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+        "#,
+    )
+    .bind(&invoice_id)
+    .bind(&tenant_id)
+    .bind(1000_i32)
+    .bind("usd")
+    .bind("pi_b")
+    .bind(&key_b)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert session B");
+
+    assert_ne!(session_a, session_b, "Different keys must produce different sessions");
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM checkout_sessions WHERE tenant_id = $1",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to count");
+    assert_eq!(count, 2);
+
+    cleanup_sessions(&pool, &tenant_id).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_idempotency_same_key_different_tenants_allowed() {
+    let pool = setup_test_db().await;
+    let tenant_a = unique_tenant_id();
+    let tenant_b = unique_tenant_id();
+    cleanup_sessions(&pool, &tenant_a).await;
+    cleanup_sessions(&pool, &tenant_b).await;
+
+    let idem_key = format!("shared_key_{}", Uuid::new_v4().simple());
+
+    let session_a: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+        "#,
+    )
+    .bind("inv_a")
+    .bind(&tenant_a)
+    .bind(1000_i32)
+    .bind("usd")
+    .bind("pi_a")
+    .bind(&idem_key)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert session for tenant A");
+
+    let session_b: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO checkout_sessions
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, idempotency_key)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+        "#,
+    )
+    .bind("inv_b")
+    .bind(&tenant_b)
+    .bind(2000_i32)
+    .bind("usd")
+    .bind("pi_b")
+    .bind(&idem_key) // same key, different tenant
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to insert session for tenant B — UNIQUE should be scoped by tenant");
+
+    assert_ne!(session_a, session_b);
+
+    cleanup_sessions(&pool, &tenant_a).await;
+    cleanup_sessions(&pool, &tenant_b).await;
 }

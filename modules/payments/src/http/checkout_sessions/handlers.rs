@@ -112,6 +112,52 @@ pub async fn create_checkout_session(
         }
     }
 
+    // Effective idempotency key: explicit key if provided, else invoice_id
+    let idem_key = req
+        .idempotency_key
+        .as_deref()
+        .unwrap_or(&req.invoice_id)
+        .to_string();
+
+    // Check for existing session with same (tenant_id, idempotency_key)
+    #[derive(sqlx::FromRow)]
+    struct ExistingSession {
+        id: Uuid,
+        processor_payment_id: String,
+        client_secret: Option<String>,
+    }
+
+    let existing: Option<ExistingSession> = sqlx::query_as(
+        "SELECT id, processor_payment_id, client_secret \
+         FROM checkout_sessions \
+         WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(&req.tenant_id)
+    .bind(&idem_key)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check existing checkout session: {}", e);
+        with_request_id(
+            ApiError::internal("Internal database error"),
+            &tracing_ctx,
+        )
+    })?;
+
+    if let Some(session) = existing {
+        tracing::info!(
+            session_id = %session.id,
+            idempotency_key = %idem_key,
+            tenant_id = %req.tenant_id,
+            "Returning existing checkout session (idempotent)"
+        );
+        return Ok(Json(CreateCheckoutSessionResponse {
+            session_id: session.id.to_string(),
+            payment_intent_id: session.processor_payment_id,
+            client_secret: session.client_secret.unwrap_or_default(),
+        }));
+    }
+
     let (pi_id, client_secret) = if let (Some(api_key), Some(account_id)) = (
         state.tilled_api_key.as_deref(),
         state.tilled_account_id.as_deref(),
@@ -132,11 +178,12 @@ pub async fn create_checkout_session(
         (pi_id, secret)
     };
 
-    let session_id: Uuid = sqlx::query_scalar(
+    let insert_result: Result<Uuid, sqlx::Error> = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, return_url, cancel_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
+             client_secret, idempotency_key, return_url, cancel_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id
         "#,
     )
@@ -145,31 +192,70 @@ pub async fn create_checkout_session(
     .bind(req.amount)
     .bind(&req.currency)
     .bind(&pi_id)
+    .bind(&client_secret)
+    .bind(&idem_key)
     .bind(&req.return_url)
     .bind(&req.cancel_url)
     .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to insert checkout session: {}", e);
-        with_request_id(
-            ApiError::internal("Internal database error"),
-            &tracing_ctx,
-        )
-    })?;
+    .await;
 
-    tracing::info!(
-        session_id = %session_id,
-        invoice_id = %req.invoice_id,
-        tenant_id = %req.tenant_id,
-        pi_id = %pi_id,
-        "Checkout session created"
-    );
+    match insert_result {
+        Ok(session_id) => {
+            tracing::info!(
+                session_id = %session_id,
+                invoice_id = %req.invoice_id,
+                tenant_id = %req.tenant_id,
+                pi_id = %pi_id,
+                idempotency_key = %idem_key,
+                "Checkout session created"
+            );
 
-    Ok(Json(CreateCheckoutSessionResponse {
-        session_id: session_id.to_string(),
-        payment_intent_id: pi_id,
-        client_secret,
-    }))
+            Ok(Json(CreateCheckoutSessionResponse {
+                session_id: session_id.to_string(),
+                payment_intent_id: pi_id,
+                client_secret,
+            }))
+        }
+        Err(e) if e.to_string().contains("uq_checkout_sessions_tenant_idem_key")
+            || e.to_string().contains("duplicate key") =>
+        {
+            tracing::info!(
+                idempotency_key = %idem_key,
+                tenant_id = %req.tenant_id,
+                "Race condition on idempotent insert — fetching existing session"
+            );
+            // Race condition fallback: fetch the session that won the insert race
+            let winner: ExistingSession = sqlx::query_as(
+                "SELECT id, processor_payment_id, client_secret \
+                 FROM checkout_sessions \
+                 WHERE tenant_id = $1 AND idempotency_key = $2",
+            )
+            .bind(&req.tenant_id)
+            .bind(&idem_key)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e2| {
+                tracing::error!("Failed to fetch race-winner session: {}", e2);
+                with_request_id(
+                    ApiError::internal("Internal database error"),
+                    &tracing_ctx,
+                )
+            })?;
+
+            Ok(Json(CreateCheckoutSessionResponse {
+                session_id: winner.id.to_string(),
+                payment_intent_id: winner.processor_payment_id,
+                client_secret: winner.client_secret.unwrap_or_default(),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to insert checkout session: {}", e);
+            Err(with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            ))
+        }
+    }
 }
 
 // ============================================================================

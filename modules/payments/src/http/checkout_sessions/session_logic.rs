@@ -19,6 +19,10 @@ pub struct CreateCheckoutSessionRequest {
     pub return_url: Option<String>,
     /// URL to redirect after cancelled payment (optional)
     pub cancel_url: Option<String>,
+    /// Optional idempotency key. If omitted, invoice_id is used as the
+    /// natural key — one checkout session per invoice per tenant.
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
 }
 
 /// POST /api/payments/checkout-sessions response
