@@ -41,11 +41,15 @@ async fn post_oversized(client: &Client, url: &str, payload: Vec<u8>) -> (u16, b
             let status = r.status().as_u16();
             let body = r.text().await.unwrap_or_default();
 
-            // No stack traces in response body
-            let has_stack_trace = body.contains("at /")
-                || body.contains("panicked at")
+            // No stack traces in response body — detect Rust backtrace patterns
+            // specifically, not broad "at /" which matches URL paths in error messages
+            let has_stack_trace = body.contains("panicked at")
                 || body.contains("thread '")
-                || body.contains("RUST_BACKTRACE");
+                || body.contains("RUST_BACKTRACE")
+                || body.contains("stack backtrace:")
+                || body.contains("at /rustc/")
+                || body.contains("at /Users/")
+                || body.contains("at /home/");
 
             (status, !has_stack_trace)
         }
