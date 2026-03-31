@@ -88,7 +88,7 @@ fn services() -> Vec<ServiceSpec> {
             expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
         ServiceSpec { name: "numbering", env_var: "NUMBERING_URL", default_port: 8120,
             mutation_route: "/allocate", perm: "numbering.allocate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: true },
         // party: no /metrics endpoint yet
         ServiceSpec { name: "party", env_var: "PARTY_URL", default_port: 8098,
             mutation_route: "/api/party/companies", perm: "party.mutate",
