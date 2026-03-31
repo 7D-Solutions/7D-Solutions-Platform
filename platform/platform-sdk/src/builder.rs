@@ -54,10 +54,18 @@ type StartupFn = Box<
         > + Send,
 >;
 
+/// Type-erased async route factory.
+type RoutesFn = Box<
+    dyn FnOnce(
+            ModuleContext,
+        ) -> Pin<Box<dyn Future<Output = Router> + Send>>
+        + Send,
+>;
+
 /// Builder for a platform module HTTP runtime.
 pub struct ModuleBuilder {
     manifest: Result<Manifest, ManifestError>,
-    routes_fn: Option<Box<dyn FnOnce(ModuleContext) -> Router + Send>>,
+    routes_fn: Option<RoutesFn>,
     migrator: Option<&'static sqlx::migrate::Migrator>,
     consumers: Vec<ConsumerDef>,
     extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
@@ -89,15 +97,29 @@ impl ModuleBuilder {
         }
     }
 
-    /// Register module-specific Axum routes.
+    /// Register module-specific Axum routes (synchronous closure).
     ///
     /// The closure receives a [`ModuleContext`] that provides access
-    /// to the database pool and configuration.
+    /// to the database pool, configuration, and custom state.
     pub fn routes<F>(mut self, f: F) -> Self
     where
         F: FnOnce(ModuleContext) -> Router + Send + 'static,
     {
-        self.routes_fn = Some(Box::new(f));
+        self.routes_fn = Some(Box::new(move |ctx| Box::pin(async move { f(ctx) })));
+        self
+    }
+
+    /// Register module-specific Axum routes (async closure).
+    ///
+    /// Use this when the route factory needs to perform async work —
+    /// e.g. loading a JWT verifier or warming a cache before building
+    /// the router.
+    pub fn routes_async<F, Fut>(mut self, f: F) -> Self
+    where
+        F: FnOnce(ModuleContext) -> Fut + Send + 'static,
+        Fut: Future<Output = Router> + Send + 'static,
+    {
+        self.routes_fn = Some(Box::new(move |ctx| Box::pin(f(ctx))));
         self
     }
 
@@ -223,7 +245,7 @@ impl ModuleBuilder {
 
         // Build routes (or empty router if none provided)
         let module_routes = match self.routes_fn {
-            Some(f) => f(ctx),
+            Some(f) => f(ctx).await,
             None => {
                 tracing::warn!(
                     module = %manifest.module.name,
