@@ -1,14 +1,15 @@
 use axum::http::header::AUTHORIZATION;
 use axum::{extract::FromRequestParts, http::request::Parts};
+use base64::Engine as _;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use platform_contracts::portal_identity::{
     PortalAccessClaims, PORTAL_ACTOR_TYPE, PORTAL_AUDIENCE, PORTAL_CLAIMS_VERSION, PORTAL_ISSUER,
 };
+use platform_http_contracts::ApiError;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use base64::Engine as _;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -88,35 +89,31 @@ impl<S> FromRequestParts<S> for PortalClaims
 where
     S: Send + Sync,
 {
-    type Rejection = (axum::http::StatusCode, axum::Json<serde_json::Value>);
+    type Rejection = ApiError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let auth = parts
             .headers
             .get(AUTHORIZATION)
             .and_then(|h| h.to_str().ok())
-            .ok_or_else(unauthorized)?;
+            .ok_or_else(|| unauthorized())?;
 
-        let token = auth.strip_prefix("Bearer ").ok_or_else(unauthorized)?;
+        let token = auth
+            .strip_prefix("Bearer ")
+            .ok_or_else(|| unauthorized())?;
         let portal_jwt = parts
             .extensions
             .get::<std::sync::Arc<PortalJwt>>()
             .cloned()
-            .ok_or_else(unauthorized)?;
+            .ok_or_else(|| unauthorized())?;
 
         let claims = portal_jwt.verify(token).map_err(|_| unauthorized())?;
         Ok(Self(claims))
     }
 }
 
-pub fn unauthorized() -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
-    (
-        axum::http::StatusCode::UNAUTHORIZED,
-        axum::Json(serde_json::json!({"error": "unauthorized"})),
-    )
+pub fn unauthorized() -> ApiError {
+    ApiError::unauthorized("unauthorized")
 }
 
 #[cfg(test)]
@@ -132,6 +129,10 @@ mod tests {
             unique.len(),
             "refresh tokens must be unique — OsRng should never repeat"
         );
-        assert_eq!(tokens[0].len(), 43, "base64url(32 bytes) should be 43 chars");
+        assert_eq!(
+            tokens[0].len(),
+            43,
+            "base64url(32 bytes) should be 43 chars"
+        );
     }
 }

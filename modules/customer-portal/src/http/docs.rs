@@ -1,8 +1,12 @@
-use axum::{extract::State, Json};
+use axum::{extract::State, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::tenant::with_request_id;
 use crate::auth::PortalClaims;
 
 #[derive(Debug, Deserialize)]
@@ -17,7 +21,7 @@ struct DocMgmtDistribution {
     status: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PortalDocumentView {
     pub document_id: Uuid,
     pub distribution_id: Uuid,
@@ -36,24 +40,32 @@ struct PortalUserEmailRow {
     email: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DocsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn list_documents(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    ctx: Option<Extension<TracingContext>>,
+    axum::extract::Query(query): axum::extract::Query<DocsQuery>,
+) -> Result<Json<PaginatedResponse<PortalDocumentView>>, ApiError> {
     if !claims
         .scopes
         .iter()
         .any(|s| s == platform_contracts::portal_identity::scopes::DOCUMENTS_READ)
     {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let tenant_id = Uuid::parse_str(&claims.tenant_id).map_err(|_| unauthorized())?;
-    let party_id = Uuid::parse_str(&claims.party_id).map_err(|_| unauthorized())?;
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| unauthorized())?;
+    let tenant_id =
+        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id =
+        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
     let user_email = sqlx::query_as::<_, PortalUserEmailRow>(
         "SELECT email FROM portal_users WHERE id = $1 AND tenant_id = $2 AND party_id = $3",
@@ -63,8 +75,11 @@ pub async fn list_documents(
     .bind(party_id)
     .fetch_optional(&state.pool)
     .await
-    .map_err(internal_err)?
-    .ok_or_else(unauthorized)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal docs db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?
+    .ok_or_else(|| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
     let links = sqlx::query_as::<_, PortalDocLinkRow>(
         "SELECT document_id, display_title FROM portal_document_links WHERE tenant_id = $1 AND party_id = $2 ORDER BY created_at DESC",
@@ -73,12 +88,16 @@ pub async fn list_documents(
     .bind(party_id)
     .fetch_all(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal docs db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     let mut visible = Vec::new();
     for link in links {
-        if let Some(dist) = fetch_authorized_distribution(&state, link.document_id, &user_email.email)
-            .await?
+        if let Some(dist) =
+            fetch_authorized_distribution(&state, &ctx, link.document_id, &user_email.email)
+                .await?
         {
             visible.push(PortalDocumentView {
                 document_id: link.document_id,
@@ -89,14 +108,21 @@ pub async fn list_documents(
         }
     }
 
-    Ok(Json(serde_json::json!({"documents": visible})))
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
+    let total = visible.len() as i64;
+    let start = ((page - 1) * page_size) as usize;
+    let page_items: Vec<_> = visible.into_iter().skip(start).take(page_size as usize).collect();
+
+    Ok(Json(PaginatedResponse::new(page_items, page, page_size, total)))
 }
 
 async fn fetch_authorized_distribution(
     state: &crate::AppState,
+    ctx: &Option<Extension<TracingContext>>,
     document_id: Uuid,
     user_email: &str,
-) -> Result<Option<DocMgmtDistribution>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+) -> Result<Option<DocMgmtDistribution>, ApiError> {
     let url = format!(
         "{}/api/documents/{}/distributions",
         state.config.doc_mgmt_base_url.trim_end_matches('/'),
@@ -111,10 +137,10 @@ async fn fetch_authorized_distribution(
     }
 
     let response = req.send().await.map_err(|e| {
-        tracing::error!("portal docs fetch failed: {e}");
-        (
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({"error": "doc_mgmt_unavailable"})),
+        tracing::error!(error = %e, "portal docs fetch failed");
+        with_request_id(
+            ApiError::new(503, "service_unavailable", "doc_mgmt_unavailable"),
+            ctx,
         )
     })?;
 
@@ -123,10 +149,10 @@ async fn fetch_authorized_distribution(
     }
 
     let payload: DocMgmtDistributionList = response.json().await.map_err(|e| {
-        tracing::error!("portal docs decode failed: {e}");
-        (
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({"error": "doc_mgmt_unavailable"})),
+        tracing::error!(error = %e, "portal docs decode failed");
+        with_request_id(
+            ApiError::new(503, "service_unavailable", "doc_mgmt_unavailable"),
+            ctx,
         )
     })?;
 
@@ -136,19 +162,4 @@ async fn fetch_authorized_distribution(
         .find(|d| d.recipient_ref.eq_ignore_ascii_case(user_email));
 
     Ok(authorized)
-}
-
-fn unauthorized() -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    (
-        axum::http::StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({"error": "unauthorized"})),
-    )
-}
-
-fn internal_err(err: sqlx::Error) -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    tracing::error!("portal docs db error: {err}");
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({"error": "internal_error"})),
-    )
 }

@@ -1,8 +1,11 @@
-use axum::{extract::State, Json};
+use axum::{extract::State, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::with_request_id;
 use crate::auth::PortalClaims;
 
 #[derive(Debug, Serialize)]
@@ -29,12 +32,10 @@ pub async fn party_guard_probe(
     State(_state): State<Arc<crate::AppState>>,
     axum::extract::Path(party_id): axum::extract::Path<Uuid>,
     PortalClaims(claims): PortalClaims,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    ctx: Option<Extension<TracingContext>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
     if claims.party_id != party_id.to_string() {
-        return Err((
-            axum::http::StatusCode::NOT_FOUND,
-            Json(serde_json::json!({"error": "not_found"})),
-        ));
+        return Err(with_request_id(ApiError::not_found("not_found"), &ctx));
     }
 
     Ok(Json(serde_json::json!({

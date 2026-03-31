@@ -1,6 +1,8 @@
 use axum::{extract::State, Extension, Json};
 use base64::Engine as _;
 use chrono::Utc;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use security::VerifiedClaims;
@@ -8,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::{extract_actor, with_request_id};
 use crate::outbox::enqueue_portal_event;
 
 #[derive(Debug, Deserialize)]
@@ -31,22 +34,20 @@ pub struct InviteUserResponse {
 pub async fn invite_user(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<InviteUserRequest>,
-) -> Result<Json<InviteUserResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
-    let Extension(actor) = claims.ok_or_else(crate::auth::unauthorized)?;
+) -> Result<Json<InviteUserResponse>, ApiError> {
+    let actor = extract_actor(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     if req.idempotency_key.trim().is_empty() {
-        return Err((
-            axum::http::StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "idempotency_key_required"})),
+        return Err(with_request_id(
+            ApiError::bad_request("idempotency_key_required"),
+            &ctx,
         ));
     }
 
     if actor.tenant_id != req.tenant_id {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
     let existing = sqlx::query_scalar::<_, serde_json::Value>(
@@ -56,14 +57,19 @@ pub async fn invite_user(
     .bind(&req.idempotency_key)
     .fetch_optional(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     if let Some(response) = existing {
         let user_id = response
             .get("user_id")
             .and_then(|v| v.as_str())
             .and_then(|s| Uuid::parse_str(s).ok())
-            .ok_or_else(|| internal_err_text("invalid idempotency record"))?;
+            .ok_or_else(|| {
+                with_request_id(ApiError::internal("invalid idempotency record"), &ctx)
+            })?;
         return Ok(Json(InviteUserResponse {
             user_id,
             tenant_id: req.tenant_id,
@@ -75,10 +81,15 @@ pub async fn invite_user(
     let mut pw_bytes = [0u8; 24];
     OsRng.fill_bytes(&mut pw_bytes);
     let temp_password = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(pw_bytes);
-    let password_hash = crate::hash_password(&temp_password)
-        .map_err(|e| internal_err_text(&format!("password hash: {e}")))?;
+    let password_hash = crate::hash_password(&temp_password).map_err(|e| {
+        tracing::error!(error = %e, "password hash error");
+        with_request_id(ApiError::internal("Password processing failed"), &ctx)
+    })?;
 
-    let mut tx = state.pool.begin().await.map_err(internal_err)?;
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     let user_id = Uuid::new_v4();
     sqlx::query(
@@ -95,7 +106,10 @@ pub async fn invite_user(
     .bind(Utc::now())
     .execute(&mut *tx)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     sqlx::query(
         "INSERT INTO portal_idempotency (tenant_id, operation, idempotency_key, response) VALUES ($1,'invite_user',$2,$3)",
@@ -105,7 +119,10 @@ pub async fn invite_user(
     .bind(serde_json::json!({"user_id": user_id.to_string()}))
     .execute(&mut *tx)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     enqueue_portal_event(
         &mut tx,
@@ -120,9 +137,15 @@ pub async fn invite_user(
         }),
     )
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
-    tx.commit().await.map_err(internal_err)?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     Ok(Json(InviteUserResponse {
         user_id,
@@ -130,19 +153,4 @@ pub async fn invite_user(
         party_id: req.party_id,
         replay: false,
     }))
-}
-
-fn internal_err(err: sqlx::Error) -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    tracing::error!("portal admin db error: {err}");
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({"error": "internal_error"})),
-    )
-}
-
-fn internal_err_text(_msg: &str) -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({"error": "internal_error"})),
-    )
 }

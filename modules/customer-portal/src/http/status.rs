@@ -1,10 +1,14 @@
 use axum::{extract::State, Extension, Json};
 use chrono::Utc;
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::tenant::{extract_actor, with_request_id};
 use crate::{auth::PortalClaims, outbox::enqueue_portal_event};
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +33,7 @@ pub struct AcknowledgeRequest {
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow, ToSchema)]
 pub struct StatusCard {
     pub id: Uuid,
     pub entity_type: String,
@@ -41,17 +45,21 @@ pub struct StatusCard {
     pub occurred_at: chrono::DateTime<Utc>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct StatusFeedQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 pub async fn create_status_card(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateStatusCardRequest>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
-    let Extension(actor) = claims.ok_or_else(crate::auth::unauthorized)?;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor = extract_actor(&claims).map_err(|e| with_request_id(e, &ctx))?;
     if actor.tenant_id != req.tenant_id {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
     let id = Uuid::new_v4();
@@ -71,7 +79,10 @@ pub async fn create_status_card(
     .bind(Utc::now())
     .execute(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     Ok(Json(serde_json::json!({"status_card_id": id})))
 }
@@ -79,65 +90,84 @@ pub async fn create_status_card(
 pub async fn list_status_cards(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
-    if !claims
-        .scopes
-        .iter()
-        .any(|s| {
-            s == platform_contracts::portal_identity::scopes::DOCUMENTS_READ
-                || s == platform_contracts::portal_identity::scopes::ORDERS_READ
-                || s == platform_contracts::portal_identity::scopes::INVOICES_READ
-                || s == platform_contracts::portal_identity::scopes::SHIPMENTS_READ
-                || s == platform_contracts::portal_identity::scopes::QUALITY_READ
-        })
-    {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+    ctx: Option<Extension<TracingContext>>,
+    axum::extract::Query(query): axum::extract::Query<StatusFeedQuery>,
+) -> Result<Json<PaginatedResponse<StatusCard>>, ApiError> {
+    if !claims.scopes.iter().any(|s| {
+        s == platform_contracts::portal_identity::scopes::DOCUMENTS_READ
+            || s == platform_contracts::portal_identity::scopes::ORDERS_READ
+            || s == platform_contracts::portal_identity::scopes::INVOICES_READ
+            || s == platform_contracts::portal_identity::scopes::SHIPMENTS_READ
+            || s == platform_contracts::portal_identity::scopes::QUALITY_READ
+    }) {
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let tenant_id = Uuid::parse_str(&claims.tenant_id).map_err(|_| unauthorized())?;
-    let party_id = Uuid::parse_str(&claims.party_id).map_err(|_| unauthorized())?;
+    let tenant_id =
+        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id =
+        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
-    let cards = sqlx::query_as::<_, StatusCard>(
-        "SELECT id, entity_type, entity_id, title, status, details, source, occurred_at \
-         FROM portal_status_feed WHERE tenant_id = $1 AND party_id = $2 ORDER BY occurred_at DESC LIMIT 100",
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM portal_status_feed WHERE tenant_id = $1 AND party_id = $2",
     )
     .bind(tenant_id)
     .bind(party_id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
+
+    let cards = sqlx::query_as::<_, StatusCard>(
+        "SELECT id, entity_type, entity_id, title, status, details, source, occurred_at \
+         FROM portal_status_feed WHERE tenant_id = $1 AND party_id = $2 ORDER BY occurred_at DESC LIMIT $3 OFFSET $4",
+    )
+    .bind(tenant_id)
+    .bind(party_id)
+    .bind(page_size)
+    .bind(offset)
     .fetch_all(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
-    Ok(Json(serde_json::json!({"status_cards": cards})))
+    Ok(Json(PaginatedResponse::new(cards, page, page_size, total)))
 }
 
 pub async fn acknowledge(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<AcknowledgeRequest>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if !claims.scopes.iter().any(|s| {
         s == platform_contracts::portal_identity::scopes::ACKNOWLEDGMENTS_WRITE
             || s == platform_contracts::portal_identity::scopes::DOCUMENTS_ACKNOWLEDGE
     }) {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
     if req.idempotency_key.trim().is_empty() {
-        return Err((
-            axum::http::StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "idempotency_key_required"})),
+        return Err(with_request_id(
+            ApiError::bad_request("idempotency_key_required"),
+            &ctx,
         ));
     }
 
-    let tenant_id = Uuid::parse_str(&claims.tenant_id).map_err(|_| unauthorized())?;
-    let party_id = Uuid::parse_str(&claims.party_id).map_err(|_| unauthorized())?;
-    let portal_user_id = Uuid::parse_str(&claims.sub).map_err(|_| unauthorized())?;
+    let tenant_id =
+        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id =
+        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let portal_user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
     let existing = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT response FROM portal_idempotency WHERE tenant_id = $1 AND operation = 'acknowledge' AND idempotency_key = $2",
@@ -146,7 +176,10 @@ pub async fn acknowledge(
     .bind(&req.idempotency_key)
     .fetch_optional(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     if let Some(response) = existing {
         return Ok(Json(response));
@@ -161,18 +194,21 @@ pub async fn acknowledge(
         .bind(doc_id)
         .fetch_optional(&state.pool)
         .await
-        .map_err(internal_err)?;
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal status db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
         if linked.is_none() {
-            return Err((
-                axum::http::StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "not_found"})),
-            ));
+            return Err(with_request_id(ApiError::not_found("not_found"), &ctx));
         }
     }
 
     let ack_id = Uuid::new_v4();
-    let mut tx = state.pool.begin().await.map_err(internal_err)?;
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     sqlx::query(
         "INSERT INTO portal_acknowledgments \
@@ -192,15 +228,17 @@ pub async fn acknowledge(
     .await
     .map_err(|err| {
         if let sqlx::Error::Database(db) = &err {
-            if db.constraint() == Some("portal_acknowledgments_tenant_id_party_id_idempotency_key_key")
+            if db.constraint()
+                == Some("portal_acknowledgments_tenant_id_party_id_idempotency_key_key")
             {
-                return (
-                    axum::http::StatusCode::CONFLICT,
-                    Json(serde_json::json!({"error": "duplicate_acknowledgment"})),
+                return with_request_id(
+                    ApiError::conflict("duplicate_acknowledgment"),
+                    &ctx,
                 );
             }
         }
-        internal_err(err)
+        tracing::error!(error = %err, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
     enqueue_portal_event(
@@ -219,7 +257,10 @@ pub async fn acknowledge(
         }),
     )
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     let response = serde_json::json!({
         "acknowledgment_id": ack_id,
@@ -236,9 +277,15 @@ pub async fn acknowledge(
     .bind(&response)
     .execute(&mut *tx)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
-    tx.commit().await.map_err(internal_err)?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     Ok(Json(response))
 }
@@ -254,14 +301,12 @@ pub struct LinkDocumentRequest {
 pub async fn link_document(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<LinkDocumentRequest>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
-    let Extension(actor) = claims.ok_or_else(crate::auth::unauthorized)?;
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor = extract_actor(&claims).map_err(|e| with_request_id(e, &ctx))?;
     if actor.tenant_id != req.tenant_id {
-        return Err((
-            axum::http::StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "forbidden"})),
-        ));
+        return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
     let id = Uuid::new_v4();
@@ -278,22 +323,10 @@ pub async fn link_document(
     .bind(actor.user_id)
     .execute(&state.pool)
     .await
-    .map_err(internal_err)?;
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal status db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     Ok(Json(serde_json::json!({"linked": true})))
-}
-
-fn unauthorized() -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    (
-        axum::http::StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({"error": "unauthorized"})),
-    )
-}
-
-fn internal_err(err: sqlx::Error) -> (axum::http::StatusCode, Json<serde_json::Value>) {
-    tracing::error!("portal status db error: {err}");
-    (
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({"error": "internal_error"})),
-    )
 }

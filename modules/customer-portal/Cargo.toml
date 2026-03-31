@@ -1,6 +1,6 @@
 [package]
 name = "customer-portal"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "External customer portal auth boundary service"
 
@@ -18,6 +18,8 @@ security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 event-bus = { path = "../../platform/event-bus" }
 platform_contracts = { path = "../../platform/platform-contracts" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+config-validator = { path = "../../platform/config-validator" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid", "json"] }
 serde = { version = "1", features = ["derive"] }
@@ -39,6 +41,7 @@ sha2 = "0.10"
 base64 = "0.22"
 hex = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"
