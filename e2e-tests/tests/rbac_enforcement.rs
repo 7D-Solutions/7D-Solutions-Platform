@@ -43,7 +43,7 @@ use security::{
     permissions, JwtVerifier,
 };
 use serde::Serialize;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -56,6 +56,19 @@ struct TestKeys {
     encoding: EncodingKey,
     verifier: Arc<JwtVerifier>,
 }
+
+// Generate the RSA keypair once for all tests. RSA-2048 keygen is CPU-heavy;
+// running it per-test (×18 in parallel) caused timeouts under load.
+static SHARED_KEYS: LazyLock<TestKeys> = LazyLock::new(|| {
+    let mut rng = rand::thread_rng();
+    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+    let pub_key = priv_key.to_public_key();
+    let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).unwrap();
+    let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).unwrap();
+    let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).unwrap();
+    let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).unwrap());
+    TestKeys { encoding, verifier }
+});
 
 /// Raw JWT claims matching identity-auth's AccessClaims shape.
 #[derive(Serialize)]
@@ -74,19 +87,8 @@ struct TestClaims {
     ver: String,
 }
 
-fn make_test_keys() -> TestKeys {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = priv_key.to_public_key();
-    let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-    let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).unwrap();
-    let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).unwrap();
-    let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).unwrap());
-    TestKeys { encoding, verifier }
-}
-
 /// Build a signed JWT granting the given permission strings.
-fn make_jwt(keys: &TestKeys, perms: Vec<&str>) -> String {
+fn make_jwt(perms: Vec<&str>) -> String {
     let now = Utc::now();
     let claims = TestClaims {
         sub: Uuid::new_v4().to_string(),
@@ -102,18 +104,18 @@ fn make_jwt(keys: &TestKeys, perms: Vec<&str>) -> String {
         actor_type: "user".to_string(),
         ver: "1".to_string(),
     };
-    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, &keys.encoding).unwrap()
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, &SHARED_KEYS.encoding).unwrap()
 }
 
 /// Build a minimal guarded router: one POST /guarded route behind
 /// `RequirePermissionsLayer` for `required_perm`, wrapped in `ClaimsLayer`.
 ///
 /// Mirrors the production pattern in modules/ar/src/routes/mod.rs.
-fn make_guarded_router(required_perm: &'static str, verifier: Arc<JwtVerifier>) -> Router {
+fn make_guarded_router(required_perm: &'static str) -> Router {
     Router::new()
         .route("/guarded", post(|| async { "ok" }))
         .route_layer(RequirePermissionsLayer::new(&[required_perm]))
-        .layer(ClaimsLayer::permissive(verifier))
+        .layer(ClaimsLayer::permissive(SHARED_KEYS.verifier.clone()))
 }
 
 // ============================================================================
@@ -123,8 +125,7 @@ fn make_guarded_router(required_perm: &'static str, verifier: Arc<JwtVerifier>) 
 /// No Bearer token → 401 Unauthorized (production default across all modules).
 #[tokio::test]
 async fn rbac_no_token_returns_401_ar() {
-    let keys = make_test_keys();
-    let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
+    let app = make_guarded_router(permissions::AR_MUTATE);
 
     let resp = app
         .oneshot(
@@ -147,8 +148,7 @@ async fn rbac_no_token_returns_401_ar() {
 
 #[tokio::test]
 async fn rbac_no_token_returns_401_gl() {
-    let keys = make_test_keys();
-    let app = make_guarded_router(permissions::GL_POST, keys.verifier);
+    let app = make_guarded_router(permissions::GL_POST);
 
     let resp = app
         .oneshot(
@@ -171,8 +171,7 @@ async fn rbac_no_token_returns_401_gl() {
 
 #[tokio::test]
 async fn rbac_no_token_returns_401_inventory() {
-    let keys = make_test_keys();
-    let app = make_guarded_router(permissions::INVENTORY_MUTATE, keys.verifier);
+    let app = make_guarded_router(permissions::INVENTORY_MUTATE);
 
     let resp = app
         .oneshot(
@@ -195,8 +194,7 @@ async fn rbac_no_token_returns_401_inventory() {
 
 #[tokio::test]
 async fn rbac_no_token_returns_401_ap() {
-    let keys = make_test_keys();
-    let app = make_guarded_router(permissions::AP_MUTATE, keys.verifier);
+    let app = make_guarded_router(permissions::AP_MUTATE);
 
     let resp = app
         .oneshot(
@@ -219,8 +217,7 @@ async fn rbac_no_token_returns_401_ap() {
 
 #[tokio::test]
 async fn rbac_no_token_returns_401_payments() {
-    let keys = make_test_keys();
-    let app = make_guarded_router(permissions::PAYMENTS_MUTATE, keys.verifier);
+    let app = make_guarded_router(permissions::PAYMENTS_MUTATE);
 
     let resp = app
         .oneshot(
@@ -248,10 +245,9 @@ async fn rbac_no_token_returns_401_payments() {
 /// Token present but missing the required permission → 403 Forbidden.
 #[tokio::test]
 async fn rbac_wrong_permission_returns_403_ar() {
-    let keys = make_test_keys();
     // Token grants gl.post but route requires ar.mutate
-    let token = make_jwt(&keys, vec![permissions::GL_POST]);
-    let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
+    let token = make_jwt(vec![permissions::GL_POST]);
+    let app = make_guarded_router(permissions::AR_MUTATE);
 
     let resp = app
         .oneshot(
@@ -275,10 +271,9 @@ async fn rbac_wrong_permission_returns_403_ar() {
 
 #[tokio::test]
 async fn rbac_wrong_permission_returns_403_gl() {
-    let keys = make_test_keys();
     // Token grants ar.mutate but route requires gl.post
-    let token = make_jwt(&keys, vec![permissions::AR_MUTATE]);
-    let app = make_guarded_router(permissions::GL_POST, keys.verifier);
+    let token = make_jwt(vec![permissions::AR_MUTATE]);
+    let app = make_guarded_router(permissions::GL_POST);
 
     let resp = app
         .oneshot(
@@ -302,9 +297,8 @@ async fn rbac_wrong_permission_returns_403_gl() {
 
 #[tokio::test]
 async fn rbac_wrong_permission_returns_403_inventory() {
-    let keys = make_test_keys();
-    let token = make_jwt(&keys, vec![permissions::AR_MUTATE]);
-    let app = make_guarded_router(permissions::INVENTORY_MUTATE, keys.verifier);
+    let token = make_jwt(vec![permissions::AR_MUTATE]);
+    let app = make_guarded_router(permissions::INVENTORY_MUTATE);
 
     let resp = app
         .oneshot(
@@ -328,10 +322,9 @@ async fn rbac_wrong_permission_returns_403_inventory() {
 
 #[tokio::test]
 async fn rbac_empty_perms_returns_403() {
-    let keys = make_test_keys();
     // Token is valid but has NO permissions at all
-    let token = make_jwt(&keys, vec![]);
-    let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
+    let token = make_jwt(vec![]);
+    let app = make_guarded_router(permissions::AR_MUTATE);
 
     let resp = app
         .oneshot(
@@ -360,9 +353,8 @@ async fn rbac_empty_perms_returns_403() {
 /// Token with correct permission → route handler executes, returns 200.
 #[tokio::test]
 async fn rbac_correct_permission_succeeds_ar() {
-    let keys = make_test_keys();
-    let token = make_jwt(&keys, vec![permissions::AR_MUTATE]);
-    let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
+    let token = make_jwt(vec![permissions::AR_MUTATE]);
+    let app = make_guarded_router(permissions::AR_MUTATE);
 
     let resp = app
         .oneshot(
@@ -386,9 +378,8 @@ async fn rbac_correct_permission_succeeds_ar() {
 
 #[tokio::test]
 async fn rbac_correct_permission_succeeds_gl() {
-    let keys = make_test_keys();
-    let token = make_jwt(&keys, vec![permissions::GL_POST]);
-    let app = make_guarded_router(permissions::GL_POST, keys.verifier);
+    let token = make_jwt(vec![permissions::GL_POST]);
+    let app = make_guarded_router(permissions::GL_POST);
 
     let resp = app
         .oneshot(
@@ -412,9 +403,8 @@ async fn rbac_correct_permission_succeeds_gl() {
 
 #[tokio::test]
 async fn rbac_correct_permission_succeeds_inventory() {
-    let keys = make_test_keys();
-    let token = make_jwt(&keys, vec![permissions::INVENTORY_MUTATE]);
-    let app = make_guarded_router(permissions::INVENTORY_MUTATE, keys.verifier);
+    let token = make_jwt(vec![permissions::INVENTORY_MUTATE]);
+    let app = make_guarded_router(permissions::INVENTORY_MUTATE);
 
     let resp = app
         .oneshot(
@@ -439,19 +429,15 @@ async fn rbac_correct_permission_succeeds_inventory() {
 /// Token with multiple permissions satisfies a single-perm gate.
 #[tokio::test]
 async fn rbac_superset_perms_succeeds() {
-    let keys = make_test_keys();
     // Admin-like token: all permissions
-    let token = make_jwt(
-        &keys,
-        vec![
-            permissions::AR_MUTATE,
-            permissions::GL_POST,
-            permissions::INVENTORY_MUTATE,
-            permissions::AP_MUTATE,
-            permissions::PAYMENTS_MUTATE,
-        ],
-    );
-    let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
+    let token = make_jwt(vec![
+        permissions::AR_MUTATE,
+        permissions::GL_POST,
+        permissions::INVENTORY_MUTATE,
+        permissions::AP_MUTATE,
+        permissions::PAYMENTS_MUTATE,
+    ]);
+    let app = make_guarded_router(permissions::AR_MUTATE);
 
     let resp = app
         .oneshot(
@@ -495,8 +481,7 @@ async fn rbac_deny_by_default_all_modules() {
     ];
 
     for (label, perm) in &modules {
-        let keys = make_test_keys();
-        let app = make_guarded_router(perm, keys.verifier);
+        let app = make_guarded_router(perm);
 
         let resp = app
             .oneshot(
@@ -542,9 +527,8 @@ async fn rbac_authorised_succeeds_all_modules() {
     ];
 
     for (label, perm) in &modules {
-        let keys = make_test_keys();
-        let token = make_jwt(&keys, vec![perm]);
-        let app = make_guarded_router(perm, keys.verifier);
+        let token = make_jwt(vec![perm]);
+        let app = make_guarded_router(perm);
 
         let resp = app
             .oneshot(

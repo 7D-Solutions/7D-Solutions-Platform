@@ -269,7 +269,7 @@ pub async fn approve_reopen(
         "accounting_period",
         &period_id.to_string(),
         payload,
-        "period_reopen",
+        "ADMINISTRATIVE",
     )
     .await?;
 
