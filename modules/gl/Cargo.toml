@@ -1,6 +1,6 @@
 [package]
 name = "gl-rs"
-version = "2.1.2"
+version = "2.1.3"
 edition = "2021"
 description = "Double-entry general ledger with journal engine, accruals, and revenue recognition"
 

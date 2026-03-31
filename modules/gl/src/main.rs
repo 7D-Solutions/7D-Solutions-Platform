@@ -237,16 +237,7 @@ async fn main() {
         .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
         .with_state(app_state.clone());
 
-    // Build the application router
-    let app = Router::new()
-        // Ops
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(health))
-        .route("/api/ready", get(ready))
-        .route("/api/version", get(version))
-        .route("/api/openapi.json", get(openapi_json))
-        .route("/metrics", get(gl_rs::metrics::metrics_handler))
-        // GL read routes
+    let gl_reads = Router::new()
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/income-statement", get(get_income_statement))
         .route("/api/gl/balance-sheet", get(get_balance_sheet))
@@ -286,7 +277,20 @@ async fn main() {
         )
         .route("/api/gl/fx-rates/latest", get(get_latest_fx_rate))
         .route("/api/gl/cash-flow", get(get_cash_flow))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::GL_READ]))
+        .with_state(app_state.clone());
+
+    // Build the application router
+    let app = Router::new()
+        // Ops
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(health))
+        .route("/api/ready", get(ready))
+        .route("/api/version", get(version))
+        .route("/api/openapi.json", get(openapi_json))
+        .route("/metrics", get(gl_rs::metrics::metrics_handler))
         .with_state(app_state)
+        .merge(gl_reads)
         .merge(gl_mutations)
         .merge(gl_rs::http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
