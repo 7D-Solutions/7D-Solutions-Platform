@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-2ca0f | Initial proof. Competence registration, acceptance authority grant/revoke, qualification tracking, training record management, idempotent operations, admin endpoints, event publishing. 5 unit tests pass, clippy clean. | Workforce competence module complete and proven. All gates pass. | No |
+| 1.0.1 | 2026-03-30 | bd-d9iyz | Split service.rs into service/core.rs (commands) + service/queries.rs (reads). Split acceptance_authority.rs into acceptance_authority/grants.rs (grant+revoke) + acceptance_authority/checks.rs (authorization queries). Shared types in mod.rs with pub use re-exports. | Two files exceeded 500 LOC; split by separation of concerns (commands vs queries). | No |
 
 ## How to read this table
 
