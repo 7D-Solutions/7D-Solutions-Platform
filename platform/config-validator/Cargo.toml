@@ -1,0 +1,10 @@
+[package]
+name = "config-validator"
+version = "0.1.0"
+edition = "2021"
+description = "Shared builder for environment config validation."
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "config_validator"
+path = "src/lib.rs"
