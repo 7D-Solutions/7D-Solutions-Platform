@@ -28,6 +28,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | 2.3.0 | 2026-03-30 | bd-l5sg9 | Add OpenAPI spec via utoipa (`/api/openapi.json`) with all 17 endpoints documented. Add `#[utoipa::path]` and `ToSchema` annotations to all handlers and domain types. Convert `Config::from_env()` to use `ConfigValidator` for structured multi-error reporting at startup. Add `config-validator` dependency. QBO OAuth refresh worker (30s), CDC polling worker (15m), and HMAC-SHA256 webhook verification preserved unchanged. | Plug-and-play: integrations module needs discoverable API spec and consistent startup validation matching other platform modules. | No |
 | 2.2.1 | 2026-03-30 | bd-lgsgm | Add ExternalRef import to external_refs.rs for utoipa body attributes. Add utoipa::path annotations to external_refs, qbo_invoice, and webhooks handlers that were missed in 2.2.0. | E2E test suite compilation required all utoipa body type references to be in scope. | No |
 
+
 ## How to read this table
 
 - **Version:** The version in the package file (`Cargo.toml` or `package.json`) after this change.

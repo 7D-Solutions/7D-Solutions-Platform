@@ -21,7 +21,7 @@ pub struct ExternalRef {
 }
 
 /// Create a new external ref (or upsert if the same system+external_id exists).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateExternalRefRequest {
     /// Internal entity type (e.g. "invoice", "customer", "order").
     pub entity_type: String,
@@ -38,7 +38,7 @@ pub struct CreateExternalRefRequest {
 }
 
 /// Update mutable fields on an existing external ref.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdateExternalRefRequest {
     pub label: Option<String>,
     pub metadata: Option<serde_json::Value>,

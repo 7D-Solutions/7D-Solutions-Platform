@@ -12,6 +12,7 @@ pub mod service;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Error type
@@ -39,7 +40,7 @@ pub enum OAuthError {
 // Connection status
 // ============================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConnectionStatus {
     Connected,
@@ -82,7 +83,7 @@ pub struct OAuthConnectionRow {
 // API response (safe — never exposes tokens)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct OAuthConnectionInfo {
     pub id: uuid::Uuid,
     pub app_id: String,

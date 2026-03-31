@@ -74,7 +74,7 @@ pub struct ConnectorCapabilities {
 // ============================================================================
 
 /// Outcome of a connector test action.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TestActionResult {
     /// Connector type that executed the action.
     pub connector_type: String,
@@ -173,7 +173,7 @@ pub struct ConnectorConfig {
 }
 
 /// Request body for registering a connector.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RegisterConnectorRequest {
     /// Connector type (must be a registered type, e.g. `"echo"`).
     pub connector_type: String,
@@ -184,7 +184,7 @@ pub struct RegisterConnectorRequest {
 }
 
 /// Request body for invoking the test action.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RunTestActionRequest {
     /// Caller-supplied idempotency key.
     pub idempotency_key: String,

@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, Extension};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -8,10 +8,90 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use integrations_rs::{
     config::Config, db, domain::oauth::refresh, http, metrics, outbox, AppState,
 };
+use integrations_rs::config::BusType;
+use integrations_rs::domain::connectors::{
+    ConfigField, ConfigFieldType, ConnectorCapabilities, ConnectorConfig,
+    RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
+};
+use integrations_rs::domain::external_refs::{
+    CreateExternalRefRequest, ExternalRef, UpdateExternalRefRequest,
+};
+use integrations_rs::domain::oauth::{ConnectionStatus, OAuthConnectionInfo};
+use integrations_rs::http::qbo_invoice::{UpdateInvoiceRequest, UpdateInvoiceResponse};
+use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, PaginationMeta};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Integrations Service",
+        version = "2.3.0",
+        description = "External system connectors, webhook routing, OAuth connection management, \
+                        and reference linking.\n\n\
+                        **Authentication:** Bearer JWT. Tenant identity derived from JWT claims \
+                        (not headers). Permissions: `integrations.read` for queries, \
+                        `integrations.mutate` for writes.\n\n\
+                        **Webhooks:** Inbound webhooks (Stripe, GitHub, QuickBooks) are \
+                        unauthenticated and gated by HMAC-SHA256 signature verification.",
+    ),
+    paths(
+        integrations_rs::http::external_refs::create_external_ref,
+        integrations_rs::http::external_refs::list_by_entity,
+        integrations_rs::http::external_refs::get_by_external,
+        integrations_rs::http::external_refs::get_external_ref,
+        integrations_rs::http::external_refs::update_external_ref,
+        integrations_rs::http::external_refs::delete_external_ref,
+        integrations_rs::http::connectors::list_connector_types,
+        integrations_rs::http::connectors::register_connector,
+        integrations_rs::http::connectors::list_connectors,
+        integrations_rs::http::connectors::get_connector,
+        integrations_rs::http::connectors::run_connector_test,
+        integrations_rs::http::oauth::connect,
+        integrations_rs::http::oauth::callback,
+        integrations_rs::http::oauth::status,
+        integrations_rs::http::oauth::disconnect,
+        integrations_rs::http::webhooks::inbound_webhook,
+        integrations_rs::http::qbo_invoice::update_invoice,
+    ),
+    components(schemas(
+        ExternalRef, CreateExternalRefRequest, UpdateExternalRefRequest,
+        ConnectorConfig, ConnectorCapabilities, ConfigField, ConfigFieldType,
+        RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
+        OAuthConnectionInfo, ConnectionStatus,
+        UpdateInvoiceRequest, UpdateInvoiceResponse,
+        ApiError, FieldError, PaginatedResponse<ExternalRef>,
+        PaginatedResponse<ConnectorCapabilities>, PaginatedResponse<ConnectorConfig>,
+        PaginationMeta,
+    )),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
+}
 
 #[tokio::main]
 async fn main() {
@@ -48,7 +128,7 @@ async fn main() {
     tracing::info!("Integrations: database migrations applied");
 
     let event_bus: Arc<dyn EventBus> = match config.bus_type {
-        integrations_rs::config::BusType::Nats => {
+        BusType::Nats => {
             let nats_url = config
                 .nats_url
                 .as_ref()
@@ -59,7 +139,7 @@ async fn main() {
                 .expect("Integrations: failed to connect to NATS");
             Arc::new(NatsBus::new(client))
         }
-        integrations_rs::config::BusType::InMemory => {
+        BusType::InMemory => {
             tracing::info!("Integrations: using in-memory event bus");
             Arc::new(InMemoryBus::new())
         }
@@ -125,6 +205,7 @@ async fn main() {
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = http::router(app_state)
+        .merge(Router::new().route("/api/openapi.json", get(openapi_json)))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
             security::tracing::tracing_context_middleware,
