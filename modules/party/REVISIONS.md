@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.3 | 2026-03-31 | bd-t7vnc | Add `openapi_dump` binary for generating OpenAPI JSON specs from the command line. Add AP service OpenAPI spec to `.openapi-specs/`. | Enables automated spec generation for client SDK builds and API documentation. | No |
 | 2.3.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 1.0.0 | 2026-03-28 | bd-3l9cl | Initial proof. Party master data CRUD (customer/vendor/both), app-scoped isolation, deactivation, duplicate-name guard, address management, contact management, external ref linking, admin endpoints, outbox event publishing, bench binary. 17 unit tests pass, clippy clean. | Party module complete and proven. All gates pass. | No |
 | 1.0.1 | 2026-03-30 | bd-ziqa6 | Split `party/service.rs` into `party/{create,query,update}` plus validation helpers, and reworked `contact_service` into dedicated query/mutation/guards modules so each file stays below 500 LOC while re-exporting the same APIs. | Followed CopperRiver's review direction to shrink oversized domain files while keeping the surface stable for downstream consumers. | No |
