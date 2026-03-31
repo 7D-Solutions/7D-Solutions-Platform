@@ -26,9 +26,9 @@ fn make_payload(size: usize) -> Vec<u8> {
     vec![b'X'; size]
 }
 
-/// POST a large payload and return (status_code, clean_rejection).
+/// POST a large payload and return (status_code, clean_rejection, body_snippet).
 /// status_code 0 means connection was closed/reset by server (also acceptable).
-async fn post_oversized(client: &Client, url: &str, payload: Vec<u8>) -> (u16, bool) {
+async fn post_oversized(client: &Client, url: &str, payload: Vec<u8>) -> (u16, bool, String) {
     let resp = client
         .post(url)
         .header("Content-Type", "application/json")
@@ -51,7 +51,13 @@ async fn post_oversized(client: &Client, url: &str, payload: Vec<u8>) -> (u16, b
                 || body.contains("at /Users/")
                 || body.contains("at /home/");
 
-            (status, !has_stack_trace)
+            let snippet = if has_stack_trace {
+                body.chars().take(500).collect()
+            } else {
+                String::new()
+            };
+
+            (status, !has_stack_trace, snippet)
         }
         Err(e) => {
             let msg = format!("{}", e);
@@ -60,7 +66,7 @@ async fn post_oversized(client: &Client, url: &str, payload: Vec<u8>) -> (u16, b
                 || msg.contains("reset by peer")
                 || msg.contains("broken pipe")
                 || msg.contains("channel closed");
-            (0, acceptable)
+            (0, acceptable, msg)
         }
     }
 }
@@ -94,7 +100,7 @@ async fn large_payload_e2e() {
     // =================================================================
     println!("\n--- Phase 1: 10MB payload rejection ---");
     let payload = make_payload(SIZE_10MB);
-    let (status, clean) = post_oversized(&client, &endpoint, payload).await;
+    let (status, clean, _snippet) = post_oversized(&client, &endpoint, payload).await;
     println!("  status={}, clean={}", status, clean);
 
     // 4xx or connection closed (0) are acceptable. NOT 5xx.
@@ -124,15 +130,15 @@ async fn large_payload_e2e() {
         let url = endpoint.clone();
         handles.push(tokio::spawn(async move {
             let payload = make_payload(SIZE_1MB);
-            let (status, clean) = post_oversized(&c, &url, payload).await;
-            (i, status, clean)
+            let (status, clean, snippet) = post_oversized(&c, &url, payload).await;
+            (i, status, clean, snippet)
         }));
     }
 
     let mut all_clean = true;
     let mut all_acceptable = true;
     for handle in handles {
-        let (i, status, clean) = handle.await.expect("task panicked");
+        let (i, status, clean, snippet) = handle.await.expect("task panicked");
         // 4xx or connection closed (0) are acceptable. NOT 5xx.
         let acceptable = status == 0 || (400..500).contains(&status);
         if !acceptable {
@@ -140,7 +146,7 @@ async fn large_payload_e2e() {
             all_acceptable = false;
         }
         if !clean {
-            println!("  request {}: stack trace in response", i);
+            println!("  request {}: stack trace in response, body: {}", i, snippet);
             all_clean = false;
         }
     }
