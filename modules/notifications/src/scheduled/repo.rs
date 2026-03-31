@@ -140,9 +140,10 @@ pub async fn claim_due_batch(
 }
 
 /// Mark a notification as successfully sent.
-pub async fn mark_sent(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1")
+pub async fn mark_sent(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1 AND tenant_id = $2")
         .bind(id)
+        .bind(tenant_id)
         .execute(pool)
         .await?;
 
@@ -156,6 +157,7 @@ pub async fn mark_sent(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
 pub async fn reschedule_or_fail(
     pool: &PgPool,
     id: Uuid,
+    tenant_id: &str,
     retry_count: i32,
 ) -> Result<(), sqlx::Error> {
     if retry_count < 5 {
@@ -168,16 +170,18 @@ pub async fn reschedule_or_fail(
             SET status = 'pending',
                 deliver_at = $1,
                 retry_count = retry_count + 1
-            WHERE id = $2
+            WHERE id = $2 AND tenant_id = $3
             "#,
         )
         .bind(next_deliver_at)
         .bind(id)
+        .bind(tenant_id)
         .execute(pool)
         .await?;
     } else {
-        sqlx::query("UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1")
+        sqlx::query("UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1 AND tenant_id = $2")
             .bind(id)
+            .bind(tenant_id)
             .execute(pool)
             .await?;
     }

@@ -140,11 +140,12 @@ async fn filter_unsent(
         let exists: Option<(i32,)> = sqlx::query_as(
             r#"
             SELECT 1 FROM close_calendar_reminders_sent
-            WHERE calendar_entry_id = $1 AND reminder_key = $2
+            WHERE calendar_entry_id = $1 AND reminder_key = $2 AND tenant_id = $3
             "#,
         )
         .bind(action.calendar_entry_id)
         .bind(&action.reminder_key)
+        .bind(&action.tenant_id)
         .fetch_optional(gl_pool)
         .await?;
 

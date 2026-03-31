@@ -143,11 +143,12 @@ pub async fn poll_and_escalate(pool: &PgPool) -> Result<EscalationCycleResult, s
             let already_sent = sqlx::query_as::<_, (Uuid,)>(
                 r#"
                 SELECT id FROM escalation_sends
-                WHERE source_notification_id = $1 AND escalation_rule_id = $2
+                WHERE source_notification_id = $1 AND escalation_rule_id = $2 AND tenant_id = $3
                 "#,
             )
             .bind(candidate.notification_id)
             .bind(rule.id)
+            .bind(&candidate.tenant_id)
             .fetch_optional(pool)
             .await?;
 
@@ -163,12 +164,13 @@ pub async fn poll_and_escalate(pool: &PgPool) -> Result<EscalationCycleResult, s
             let dup_check = sqlx::query_as::<_, (Uuid,)>(
                 r#"
                 SELECT id FROM escalation_sends
-                WHERE source_notification_id = $1 AND escalation_rule_id = $2
+                WHERE source_notification_id = $1 AND escalation_rule_id = $2 AND tenant_id = $3
                 FOR UPDATE
                 "#,
             )
             .bind(candidate.notification_id)
             .bind(rule.id)
+            .bind(&candidate.tenant_id)
             .fetch_optional(&mut *tx)
             .await?;
 
