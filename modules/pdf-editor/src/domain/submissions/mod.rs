@@ -15,13 +15,14 @@ pub use repo::SubmissionRepo;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Domain models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct FormSubmission {
     pub id: Uuid,
     pub tenant_id: String,
@@ -37,7 +38,7 @@ pub struct FormSubmission {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateSubmissionRequest {
     pub tenant_id: String,
     pub template_id: Uuid,
@@ -45,7 +46,7 @@ pub struct CreateSubmissionRequest {
     pub field_data: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AutosaveRequest {
     pub field_data: serde_json::Value,
 }
@@ -55,8 +56,8 @@ pub struct ListSubmissionsQuery {
     pub tenant_id: String,
     pub template_id: Option<Uuid>,
     pub status: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
 }
 
 // ============================================================================

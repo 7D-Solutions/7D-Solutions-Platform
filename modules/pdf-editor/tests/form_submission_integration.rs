@@ -225,29 +225,30 @@ async fn test_list_submissions_with_filters() {
     SubmissionRepo::submit(&pool, sub2.id, &tid).await.unwrap();
 
     // List all
-    let all = SubmissionRepo::list(
+    let (all, total) = SubmissionRepo::list(
         &pool,
         &ListSubmissionsQuery {
             tenant_id: tid.clone(),
             template_id: None,
             status: None,
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await
     .unwrap();
     assert_eq!(all.len(), 2);
+    assert_eq!(total, 2);
 
     // Filter by status
-    let drafts = SubmissionRepo::list(
+    let (drafts, _) = SubmissionRepo::list(
         &pool,
         &ListSubmissionsQuery {
             tenant_id: tid.clone(),
             template_id: None,
             status: Some("draft".into()),
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await
@@ -255,14 +256,14 @@ async fn test_list_submissions_with_filters() {
     assert_eq!(drafts.len(), 1);
     assert_eq!(drafts[0].status, "draft");
 
-    let submitted = SubmissionRepo::list(
+    let (submitted, _) = SubmissionRepo::list(
         &pool,
         &ListSubmissionsQuery {
             tenant_id: tid.clone(),
             template_id: None,
             status: Some("submitted".into()),
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await

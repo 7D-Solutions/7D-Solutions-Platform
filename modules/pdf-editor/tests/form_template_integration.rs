@@ -96,17 +96,18 @@ async fn test_list_and_update_templates() {
     create_test_template(&pool, &tid, "Template A").await;
     let tmpl_b_id = create_test_template(&pool, &tid, "Template B").await;
 
-    let list = TemplateRepo::list(
+    let (list, total) = TemplateRepo::list(
         &pool,
         &ListTemplatesQuery {
             tenant_id: tid.clone(),
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await
     .unwrap();
     assert_eq!(list.len(), 2);
+    assert_eq!(total, 2);
 
     let updated = TemplateRepo::update(
         &pool,
@@ -300,12 +301,12 @@ async fn test_tenant_isolation() {
         .await
         .unwrap()
         .is_none());
-    let list = TemplateRepo::list(
+    let (list, _) = TemplateRepo::list(
         &pool,
         &ListTemplatesQuery {
             tenant_id: tid_b.clone(),
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await

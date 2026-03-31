@@ -13,13 +13,14 @@ pub use repo::{FieldRepo, TemplateRepo};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Domain models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct FormTemplate {
     pub id: Uuid,
     pub tenant_id: String,
@@ -30,7 +31,7 @@ pub struct FormTemplate {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct FormField {
     pub id: Uuid,
     pub template_id: Uuid,
@@ -46,7 +47,7 @@ pub struct FormField {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTemplateRequest {
     pub tenant_id: String,
     pub name: String,
@@ -54,7 +55,7 @@ pub struct CreateTemplateRequest {
     pub created_by: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateTemplateRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -63,11 +64,11 @@ pub struct UpdateTemplateRequest {
 #[derive(Debug, Deserialize)]
 pub struct ListTemplatesQuery {
     pub tenant_id: String,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateFieldRequest {
     pub field_key: String,
     pub field_label: String,
@@ -76,7 +77,7 @@ pub struct CreateFieldRequest {
     pub pdf_position: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateFieldRequest {
     pub field_label: Option<String>,
     pub field_type: Option<String>,
@@ -84,7 +85,7 @@ pub struct UpdateFieldRequest {
     pub pdf_position: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReorderFieldsRequest {
     pub field_ids: Vec<Uuid>,
 }

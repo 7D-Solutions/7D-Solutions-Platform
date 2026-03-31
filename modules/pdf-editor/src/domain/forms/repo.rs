@@ -60,14 +60,22 @@ impl TemplateRepo {
     pub async fn list(
         pool: &PgPool,
         q: &ListTemplatesQuery,
-    ) -> Result<Vec<FormTemplate>, FormError> {
+    ) -> Result<(Vec<FormTemplate>, i64), FormError> {
         if q.tenant_id.trim().is_empty() {
             return Err(FormError::Validation("tenant_id is required".into()));
         }
-        let limit = q.limit.unwrap_or(50).clamp(1, 100);
-        let offset = q.offset.unwrap_or(0);
+        let page_size = q.page_size.unwrap_or(50).clamp(1, 100);
+        let page = q.page.unwrap_or(1).max(1);
+        let offset = (page - 1) * page_size;
 
-        sqlx::query_as::<_, FormTemplate>(
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM form_templates WHERE tenant_id = $1",
+        )
+        .bind(q.tenant_id.trim())
+        .fetch_one(pool)
+        .await?;
+
+        let items = sqlx::query_as::<_, FormTemplate>(
             r#"
             SELECT * FROM form_templates
             WHERE tenant_id = $1
@@ -76,11 +84,12 @@ impl TemplateRepo {
             "#,
         )
         .bind(q.tenant_id.trim())
-        .bind(limit)
+        .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
-        .await
-        .map_err(FormError::Database)
+        .await?;
+
+        Ok((items, total.0))
     }
 
     pub async fn update(

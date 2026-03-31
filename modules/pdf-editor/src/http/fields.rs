@@ -12,114 +12,127 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::forms::{
-    CreateFieldRequest, FieldRepo, FormError, ReorderFieldsRequest, UpdateFieldRequest,
+    CreateFieldRequest, FieldRepo, FormField, ReorderFieldsRequest, UpdateFieldRequest,
 };
 
-use super::templates::extract_tenant;
-
-fn form_error_response(err: FormError) -> impl IntoResponse {
-    match err {
-        FormError::TemplateNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Template not found" })),
-        ),
-        FormError::FieldNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Field not found" })),
-        ),
-        FormError::DuplicateFieldKey => (
-            StatusCode::CONFLICT,
-            Json(
-                json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" }),
-            ),
-        ),
-        FormError::Validation(msg) => (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        FormError::Database(e) => {
-            tracing::error!(error = %e, "form field database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
-}
+use super::tenant::{extract_tenant, with_request_id};
 
 /// POST /api/pdf/forms/templates/:id/fields
+#[utoipa::path(
+    post, path = "/api/pdf/forms/templates/{id}/fields", tag = "Fields",
+    params(("id" = Uuid, Path, description = "Template ID")),
+    request_body = CreateFieldRequest,
+    responses(
+        (status = 201, description = "Field created", body = FormField),
+        (status = 400, body = ApiError), (status = 404, body = ApiError), (status = 409, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_field(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateFieldRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match FieldRepo::create(&pool, template_id, &tenant_id, &req).await {
-        Ok(field) => (StatusCode::CREATED, Json(json!(field))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let field = FieldRepo::create(&pool, template_id, &tenant_id, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok((StatusCode::CREATED, Json(field)))
 }
 
 /// GET /api/pdf/forms/templates/:id/fields
+#[utoipa::path(
+    get, path = "/api/pdf/forms/templates/{id}/fields", tag = "Fields",
+    params(("id" = Uuid, Path, description = "Template ID")),
+    responses(
+        (status = 200, description = "List of fields", body = Vec<FormField>),
+        (status = 404, body = ApiError), (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_fields(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+    ctx: Option<Extension<TracingContext>>,
+) -> Result<Json<Vec<FormField>>, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match FieldRepo::list(&pool, template_id, &tenant_id).await {
-        Ok(fields) => (StatusCode::OK, Json(json!(fields))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let fields = FieldRepo::list(&pool, template_id, &tenant_id)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok(Json(fields))
 }
 
 /// PUT /api/pdf/forms/templates/:tid/fields/:fid
+#[utoipa::path(
+    put, path = "/api/pdf/forms/templates/{tid}/fields/{fid}", tag = "Fields",
+    params(
+        ("tid" = Uuid, Path, description = "Template ID"),
+        ("fid" = Uuid, Path, description = "Field ID"),
+    ),
+    request_body = UpdateFieldRequest,
+    responses(
+        (status = 200, description = "Field updated", body = FormField),
+        (status = 404, body = ApiError), (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_field(
     State(pool): State<PgPool>,
     Path((template_id, field_id)): Path<(Uuid, Uuid)>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<UpdateFieldRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<Json<FormField>, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match FieldRepo::update(&pool, field_id, template_id, &tenant_id, &req).await {
-        Ok(field) => (StatusCode::OK, Json(json!(field))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let field = FieldRepo::update(&pool, field_id, template_id, &tenant_id, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok(Json(field))
 }
 
 /// POST /api/pdf/forms/templates/:id/fields/reorder
+#[utoipa::path(
+    post, path = "/api/pdf/forms/templates/{id}/fields/reorder", tag = "Fields",
+    params(("id" = Uuid, Path, description = "Template ID")),
+    request_body = ReorderFieldsRequest,
+    responses(
+        (status = 200, description = "Reordered fields", body = Vec<FormField>),
+        (status = 404, body = ApiError), (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn reorder_fields(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<ReorderFieldsRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<Json<Vec<FormField>>, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match FieldRepo::reorder(&pool, template_id, &tenant_id, &req).await {
-        Ok(fields) => (StatusCode::OK, Json(json!(fields))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let fields = FieldRepo::reorder(&pool, template_id, &tenant_id, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok(Json(fields))
 }

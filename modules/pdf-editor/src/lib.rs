@@ -8,5 +8,5 @@ pub mod cors;
 pub mod db;
 pub mod domain;
 pub mod event_bus;
-pub mod metrics;
 pub mod http;
+pub mod metrics;

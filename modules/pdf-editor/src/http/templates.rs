@@ -2,7 +2,7 @@
 //!
 //! Endpoints:
 //!   POST /api/pdf/forms/templates           — create template
-//!   GET  /api/pdf/forms/templates           — list templates
+//!   GET  /api/pdf/forms/templates           — list templates (paginated)
 //!   GET  /api/pdf/forms/templates/:id       — get template
 //!   PUT  /api/pdf/forms/templates/:id       — update template
 
@@ -12,140 +12,134 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
-use serde_json::json;
 use sqlx::PgPool;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::domain::forms::{
-    CreateTemplateRequest, FormError, ListTemplatesQuery, TemplateRepo, UpdateTemplateRequest,
+    CreateTemplateRequest, FormTemplate, ListTemplatesQuery, TemplateRepo, UpdateTemplateRequest,
 };
 
-#[derive(Debug, Deserialize)]
+use super::tenant::{extract_tenant, with_request_id};
+
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListTemplatesParams {
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
-
-pub fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(
-                json!({ "error": "unauthorized", "message": "Missing or invalid authentication" }),
-            ),
-        )),
-    }
-}
-
-fn form_error_response(err: FormError) -> impl IntoResponse {
-    match err {
-        FormError::TemplateNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Template not found" })),
-        ),
-        FormError::FieldNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Field not found" })),
-        ),
-        FormError::DuplicateFieldKey => (
-            StatusCode::CONFLICT,
-            Json(
-                json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" }),
-            ),
-        ),
-        FormError::Validation(msg) => (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        FormError::Database(e) => {
-            tracing::error!(error = %e, "form database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
 }
 
 /// POST /api/pdf/forms/templates
+#[utoipa::path(
+    post, path = "/api/pdf/forms/templates", tag = "Templates",
+    request_body = CreateTemplateRequest,
+    responses(
+        (status = 201, description = "Template created", body = FormTemplate),
+        (status = 400, body = ApiError), (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_template(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateTemplateRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
-    match TemplateRepo::create(&pool, &req).await {
-        Ok(tmpl) => (StatusCode::CREATED, Json(json!(tmpl))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let tmpl = TemplateRepo::create(&pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+    Ok((StatusCode::CREATED, Json(tmpl)))
 }
 
 /// GET /api/pdf/forms/templates
+#[utoipa::path(
+    get, path = "/api/pdf/forms/templates", tag = "Templates",
+    params(ListTemplatesParams),
+    responses(
+        (status = 200, description = "Paginated template list", body = PaginatedResponse<FormTemplate>),
+        (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_templates(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ListTemplatesParams>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
+    let page = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(50).clamp(1, 100);
     let q = ListTemplatesQuery {
         tenant_id,
-        limit: params.limit,
-        offset: params.offset,
+        page: Some(page),
+        page_size: Some(page_size),
     };
-    match TemplateRepo::list(&pool, &q).await {
-        Ok(list) => (StatusCode::OK, Json(json!(list))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let (items, total) = TemplateRepo::list(&pool, &q)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+    let resp = PaginatedResponse::new(items, page, page_size, total);
+    Ok((StatusCode::OK, Json(resp)))
 }
 
 /// GET /api/pdf/forms/templates/:id
+#[utoipa::path(
+    get, path = "/api/pdf/forms/templates/{id}", tag = "Templates",
+    params(("id" = Uuid, Path)),
+    responses(
+        (status = 200, description = "Template details", body = FormTemplate),
+        (status = 404, body = ApiError), (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_template(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+    ctx: Option<Extension<TracingContext>>,
+) -> Result<Json<FormTemplate>, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match TemplateRepo::find_by_id(&pool, id, &tenant_id).await {
-        Ok(Some(tmpl)) => (StatusCode::OK, Json(json!(tmpl))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Template not found" })),
-        )
-            .into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let tmpl = TemplateRepo::find_by_id(&pool, id, &tenant_id)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?
+        .ok_or_else(|| with_request_id(ApiError::not_found("Template not found"), &ctx))?;
+
+    Ok(Json(tmpl))
 }
 
 /// PUT /api/pdf/forms/templates/:id
+#[utoipa::path(
+    put, path = "/api/pdf/forms/templates/{id}", tag = "Templates",
+    params(("id" = Uuid, Path)),
+    request_body = UpdateTemplateRequest,
+    responses(
+        (status = 200, description = "Template updated", body = FormTemplate),
+        (status = 404, body = ApiError), (status = 400, body = ApiError), (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_template(
     State(pool): State<PgPool>,
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<UpdateTemplateRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+) -> Result<Json<FormTemplate>, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    match TemplateRepo::update(&pool, id, &tenant_id, &req).await {
-        Ok(tmpl) => (StatusCode::OK, Json(json!(tmpl))).into_response(),
-        Err(e) => form_error_response(e).into_response(),
-    }
+    let tmpl = TemplateRepo::update(&pool, id, &tenant_id, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok(Json(tmpl))
 }

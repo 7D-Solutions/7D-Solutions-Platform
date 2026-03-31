@@ -68,12 +68,12 @@ async fn tenant_b_cannot_list_tenant_a_templates() {
     .await
     .unwrap();
 
-    let list = TemplateRepo::list(
+    let (list, _) = TemplateRepo::list(
         &pool,
         &ListTemplatesQuery {
             tenant_id: tid_b,
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await
@@ -357,14 +357,14 @@ async fn tenant_b_cannot_list_tenant_a_submissions() {
     .await
     .unwrap();
 
-    let list = SubmissionRepo::list(
+    let (list, _) = SubmissionRepo::list(
         &pool,
         &ListSubmissionsQuery {
             tenant_id: tid_b,
             template_id: None,
             status: None,
-            limit: None,
-            offset: None,
+            page: None,
+            page_size: None,
         },
     )
     .await

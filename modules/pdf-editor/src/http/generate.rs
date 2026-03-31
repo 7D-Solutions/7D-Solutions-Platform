@@ -4,7 +4,6 @@
 //!
 //! Accepts multipart form data with:
 //! - `file`: PDF template bytes
-//! - `tenant_id`: query parameter for tenant isolation
 //!
 //! Looks up the submission + template fields from DB, overlays field
 //! values onto the PDF at pdf_position coordinates, emits
@@ -14,12 +13,13 @@ use axum::{
     body::Body,
     extract::{Multipart, Path, State},
     http::{header, StatusCode},
-    response::{IntoResponse, Response},
-    Extension, Json,
+    response::Response,
+    Extension,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Serialize;
-use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -28,7 +28,7 @@ use crate::domain::generate::generate_filled_pdf;
 use crate::domain::submissions::SubmissionRepo;
 use crate::event_bus::{create_pdf_editor_envelope, enqueue_event};
 
-use super::templates::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 
 /// Event payload for pdf.form.generated.
 #[derive(Debug, Clone, Serialize)]
@@ -39,30 +39,42 @@ struct FormGeneratedPayload {
 }
 
 /// POST /api/pdf/forms/submissions/:id/generate
+#[utoipa::path(
+    post, path = "/api/pdf/forms/submissions/{id}/generate", tag = "Generate",
+    params(("id" = Uuid, Path, description = "Submission ID")),
+    responses(
+        (status = 200, description = "Generated PDF", content_type = "application/pdf"),
+        (status = 400, body = ApiError), (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn generate_pdf(
     State(pool): State<PgPool>,
     Path(submission_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     multipart: Multipart,
-) -> Result<Response, Response> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|(status, body)| (status, body).into_response())?;
+) -> Result<Response, ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
-    let pdf_bytes = extract_pdf_bytes(multipart).await?;
+    let pdf_bytes = extract_pdf_bytes(multipart)
+        .await
+        .map_err(|e| with_request_id(e, &ctx))?;
 
     // Look up submission
     let submission = SubmissionRepo::find_by_id(&pool, submission_id, &tenant_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "DB error looking up submission");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+            with_request_id(ApiError::internal("Database error"), &ctx)
         })?
-        .ok_or_else(|| error_response(StatusCode::NOT_FOUND, "Submission not found"))?;
+        .ok_or_else(|| with_request_id(ApiError::not_found("Submission not found"), &ctx))?;
 
     if submission.status != "submitted" {
-        return Err(error_response(
-            StatusCode::BAD_REQUEST,
-            "Submission must be in 'submitted' status to generate PDF",
+        return Err(with_request_id(
+            ApiError::bad_request("Submission must be in 'submitted' status to generate PDF"),
+            &ctx,
         ));
     }
 
@@ -71,7 +83,7 @@ pub async fn generate_pdf(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "DB error loading fields");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+            with_request_id(ApiError::internal("Database error"), &ctx)
         })?;
 
     let field_data = submission.field_data.clone();
@@ -79,9 +91,9 @@ pub async fn generate_pdf(
         tokio::task::spawn_blocking(move || generate_filled_pdf(&pdf_bytes, &fields, &field_data))
             .await
             .map_err(|e| {
-                error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    &format!("Generation task failed: {e}"),
+                with_request_id(
+                    ApiError::internal(format!("Generation task failed: {e}")),
+                    &ctx,
                 )
             })?;
 
@@ -90,25 +102,30 @@ pub async fn generate_pdf(
     let output_bytes = match result {
         Ok(bytes) => bytes,
         Err(GenerateError::TooLarge) => {
-            return Err(error_response(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "PDF too large",
+            return Err(with_request_id(
+                ApiError::new(413, "payload_too_large", "PDF too large"),
+                &ctx,
             ));
         }
         Err(GenerateError::InvalidMagic) => {
-            return Err(error_response(StatusCode::BAD_REQUEST, "Invalid PDF file"));
+            return Err(with_request_id(
+                ApiError::bad_request("Invalid PDF file"),
+                &ctx,
+            ));
         }
         Err(GenerateError::InvalidPage(pg, total)) => {
-            return Err(error_response(
-                StatusCode::BAD_REQUEST,
-                &format!("Field references page {pg} but PDF has {total} pages"),
+            return Err(with_request_id(
+                ApiError::bad_request(format!(
+                    "Field references page {pg} but PDF has {total} pages"
+                )),
+                &ctx,
             ));
         }
         Err(e) => {
             tracing::error!(error = %e, "PDF generation error");
-            return Err(error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                &format!("Generation error: {e}"),
+            return Err(with_request_id(
+                ApiError::internal(format!("Generation error: {e}")),
+                &ctx,
             ));
         }
     };
@@ -131,46 +148,41 @@ pub async fn generate_pdf(
 
     let mut tx = pool.begin().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to start transaction");
-        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+        with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
     enqueue_event(&mut tx, "pdf.form.generated", &envelope)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to enqueue event");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+            with_request_id(ApiError::internal("Database error"), &ctx)
         })?;
 
     tx.commit().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to commit transaction");
-        error_response(StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+        with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
     Ok(pdf_response(output_bytes))
 }
 
 /// Extract PDF bytes from the multipart `file` field.
-async fn extract_pdf_bytes(mut multipart: Multipart) -> Result<Vec<u8>, Response> {
+async fn extract_pdf_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| error_response(StatusCode::BAD_REQUEST, &format!("Multipart error: {e}")))?
+        .map_err(|e| ApiError::bad_request(format!("Multipart error: {e}")))?
     {
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
-            let data = field.bytes().await.map_err(|e| {
-                error_response(
-                    StatusCode::BAD_REQUEST,
-                    &format!("Failed to read file: {e}"),
-                )
-            })?;
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::bad_request(format!("Failed to read file: {e}")))?;
             return Ok(data.to_vec());
         }
     }
-    Err(error_response(
-        StatusCode::BAD_REQUEST,
-        "Missing 'file' field",
-    ))
+    Err(ApiError::bad_request("Missing 'file' field"))
 }
 
 fn pdf_response(bytes: Vec<u8>) -> Response {
@@ -183,15 +195,4 @@ fn pdf_response(bytes: Vec<u8>) -> Response {
         )
         .body(Body::from(bytes))
         .expect("static PDF response headers are valid")
-}
-
-fn error_response(status: StatusCode, message: &str) -> Response {
-    let code = match status {
-        StatusCode::BAD_REQUEST => "bad_request",
-        StatusCode::NOT_FOUND => "not_found",
-        StatusCode::PAYLOAD_TOO_LARGE => "payload_too_large",
-        _ => "internal_error",
-    };
-    let body = json!({ "error": code, "message": message });
-    (status, Json(body)).into_response()
 }

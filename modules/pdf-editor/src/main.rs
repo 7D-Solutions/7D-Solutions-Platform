@@ -2,9 +2,11 @@ use ::event_bus::{EventBus, InMemoryBus, NatsBus};
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post, put},
-    Extension, Router,
+    Extension, Json, Router,
 };
-use pdf_editor_rs::{config, config::Config, cors::build_cors_layer, db, event_bus, http as handlers, metrics};
+use pdf_editor_rs::{
+    config, config::Config, cors::build_cors_layer, db, event_bus, http as handlers, metrics,
+};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -14,6 +16,7 @@ use security::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 #[tokio::main]
 async fn main() {
@@ -161,6 +164,7 @@ async fn main() {
         .route("/api/health", get(handlers::health::health))
         .route("/api/ready", get(handlers::health::ready))
         .route("/api/version", get(handlers::health::version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(db.clone());
 
@@ -212,6 +216,10 @@ async fn main() {
     tracing::info!("Server stopped — closing resources");
     shutdown_pool.close().await;
     tracing::info!("Shutdown complete");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(handlers::ApiDoc::openapi())
 }
 
 async fn shutdown_signal() {

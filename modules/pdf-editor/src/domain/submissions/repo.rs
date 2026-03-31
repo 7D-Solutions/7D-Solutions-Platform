@@ -190,14 +190,29 @@ impl SubmissionRepo {
     pub async fn list(
         pool: &PgPool,
         q: &ListSubmissionsQuery,
-    ) -> Result<Vec<FormSubmission>, SubmissionError> {
+    ) -> Result<(Vec<FormSubmission>, i64), SubmissionError> {
         if q.tenant_id.trim().is_empty() {
             return Err(SubmissionError::Validation("tenant_id is required".into()));
         }
-        let limit = q.limit.unwrap_or(50).clamp(1, 100);
-        let offset = q.offset.unwrap_or(0);
+        let page_size = q.page_size.unwrap_or(50).clamp(1, 100);
+        let page = q.page.unwrap_or(1).max(1);
+        let offset = (page - 1) * page_size;
 
-        sqlx::query_as::<_, FormSubmission>(
+        let total: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM form_submissions
+            WHERE tenant_id = $1
+              AND ($2::uuid IS NULL OR template_id = $2)
+              AND ($3::text IS NULL OR status = $3)
+            "#,
+        )
+        .bind(q.tenant_id.trim())
+        .bind(q.template_id)
+        .bind(q.status.as_deref())
+        .fetch_one(pool)
+        .await?;
+
+        let items = sqlx::query_as::<_, FormSubmission>(
             r#"
             SELECT * FROM form_submissions
             WHERE tenant_id = $1
@@ -210,10 +225,11 @@ impl SubmissionRepo {
         .bind(q.tenant_id.trim())
         .bind(q.template_id)
         .bind(q.status.as_deref())
-        .bind(limit)
+        .bind(page_size)
         .bind(offset)
         .fetch_all(pool)
-        .await
-        .map_err(SubmissionError::Database)
+        .await?;
+
+        Ok((items, total.0))
     }
 }

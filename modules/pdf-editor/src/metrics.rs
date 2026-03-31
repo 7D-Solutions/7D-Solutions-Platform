@@ -6,13 +6,11 @@
 //!
 //! No PII in labels — method, route, status are operational values only.
 
-use axum::{http::StatusCode, Json};
 use lazy_static::lazy_static;
+use platform_http_contracts::ApiError;
 use prometheus::{
     Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder,
 };
-
-use crate::http::ErrorBody;
 
 lazy_static! {
     pub static ref METRICS_REGISTRY: Registry = {
@@ -54,28 +52,15 @@ pub fn record_http_request(method: &str, route: &str, status: &str, duration_sec
 }
 
 /// Axum handler for GET /metrics — renders Prometheus text format.
-pub async fn metrics_handler() -> Result<String, (StatusCode, Json<ErrorBody>)> {
+pub async fn metrics_handler() -> Result<String, ApiError> {
     let encoder = TextEncoder::new();
     let families = METRICS_REGISTRY.gather();
     let mut buffer = Vec::new();
-    encoder.encode(&families, &mut buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to encode metrics: {}", e),
-            )),
-        )
-    })?;
-    String::from_utf8(buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to convert metrics to UTF-8: {}", e),
-            )),
-        )
-    })
+    encoder
+        .encode(&families, &mut buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to encode metrics: {}", e)))?;
+    String::from_utf8(buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to convert metrics to UTF-8: {}", e)))
 }
 
 #[cfg(test)]
