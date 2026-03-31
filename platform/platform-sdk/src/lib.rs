@@ -30,7 +30,7 @@ pub mod publisher;
 pub mod startup;
 
 pub use builder::ModuleBuilder;
-pub use consumer::{ConsumerDef, ConsumerError};
+pub use consumer::ConsumerError;
 pub use context::{BusNotAvailable, ModuleContext};
 pub use manifest::Manifest;
 pub use startup::StartupError;
