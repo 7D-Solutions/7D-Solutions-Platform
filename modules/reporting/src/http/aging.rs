@@ -9,18 +9,19 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::domain::aging::{ap_aging, ar_aging};
 
-use super::admin_types::ErrorBody;
-use super::statements::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 
 // ── AR aging ─────────────────────────────────────────────────────────────────
 
@@ -40,31 +41,32 @@ pub struct ArAgingResponse {
 pub async fn get_ar_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ArAgingParams>,
-) -> Result<Json<ArAgingResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let aging = ar_aging::get_aging_summary(&state.pool, &tenant_id, params.as_of)
-        .await
-        .map_err(|e| {
+    match ar_aging::get_aging_summary(&state.pool, &tenant_id, params.as_of).await {
+        Ok(aging) => Json(ArAgingResponse {
+            tenant_id,
+            as_of: params.as_of,
+            aging,
+        })
+        .into_response(),
+        Err(e) => {
             tracing::error!(
                 tenant_id = %tenant_id,
                 as_of = %params.as_of,
                 error = %e,
                 "AR aging query failed"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })?;
-
-    Ok(Json(ArAgingResponse {
-        tenant_id,
-        as_of: params.as_of,
-        aging,
-    }))
+            let api_err = ApiError::internal("AR aging query failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }
 
 // ── AP aging ─────────────────────────────────────────────────────────────────
@@ -80,24 +82,25 @@ pub struct ApAgingParams {
 pub async fn get_ap_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ApAgingParams>,
-) -> Result<Json<ap_aging::ApAgingReport>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    ap_aging::query_ap_aging(&state.pool, &tenant_id, params.as_of)
-        .await
-        .map(Json)
-        .map_err(|e| {
+    match ap_aging::query_ap_aging(&state.pool, &tenant_id, params.as_of).await {
+        Ok(report) => Json(report).into_response(),
+        Err(e) => {
             tracing::error!(
                 tenant_id = %tenant_id,
                 as_of = %params.as_of,
                 error = %e,
                 "AP aging query failed"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })
+            let api_err = ApiError::internal("AP aging query failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }

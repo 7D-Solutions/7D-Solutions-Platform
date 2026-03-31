@@ -1,6 +1,6 @@
 [package]
 name = "reporting"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 description = "Financial reporting: aging, KPIs, statements, and cash flow forecasts"
 
@@ -22,6 +22,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 projections = { path = "../../platform/projections" }
 async-trait = "0.1"
 futures = "0.3"

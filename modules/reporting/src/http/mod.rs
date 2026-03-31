@@ -1,10 +1,10 @@
 pub mod admin;
-pub mod admin_types;
 pub mod aging;
 pub mod cashflow;
 pub mod forecast;
 pub mod kpis;
 pub mod statements;
+pub mod tenant;
 
 use axum::{extract::State, http::StatusCode, Json};
 use health::{

@@ -14,17 +14,18 @@
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use chrono::NaiveDate;
+use platform_http_contracts::ApiError;
 use projections::admin as proj_admin;
 use serde::Deserialize;
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use super::admin_types::ErrorBody;
-use crate::domain::jobs::snapshot_runner::{run_snapshot, SnapshotRunResult};
+use crate::domain::jobs::snapshot_runner::run_snapshot;
 
 // ── Request body ──────────────────────────────────────────────────────────────
 
@@ -54,52 +55,45 @@ pub async fn rebuild(
     State(state): State<Arc<crate::AppState>>,
     headers: HeaderMap,
     Json(req): Json<RebuildRequest>,
-) -> Result<Json<SnapshotRunResult>, (StatusCode, Json<ErrorBody>)> {
+) -> impl IntoResponse {
     // Admin-gate: reject if ADMIN_TOKEN is not configured or header doesn't match
     let expected = std::env::var("ADMIN_TOKEN").unwrap_or_default();
     if expected.is_empty() {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ErrorBody::new(
-                "forbidden",
-                "ADMIN_TOKEN is not configured; rebuild is disabled",
-            )),
-        ));
+        return ApiError::new(403, "forbidden", "ADMIN_TOKEN is not configured; rebuild is disabled")
+            .into_response();
     }
     let provided = headers
         .get("x-admin-token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
     if provided != expected {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ErrorBody::new("forbidden", "Invalid admin token")),
-        ));
+        return ApiError::new(403, "forbidden", "Invalid admin token").into_response();
     }
 
     // Validate inputs
     if req.tenant_id.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "validation_error",
-                "tenant_id must not be empty",
-            )),
-        ));
+        return ApiError::bad_request("tenant_id must not be empty").into_response();
     }
     if req.from > req.to {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "validation_error",
-                format!("'from' ({}) must be <= 'to' ({})", req.from, req.to),
-            )),
-        ));
+        return ApiError::bad_request(format!(
+            "'from' ({}) must be <= 'to' ({})",
+            req.from, req.to
+        ))
+        .into_response();
     }
 
-    let result = run_snapshot(&state.pool, &req.tenant_id, req.from, req.to)
-        .await
-        .map_err(|e| {
+    match run_snapshot(&state.pool, &req.tenant_id, req.from, req.to).await {
+        Ok(result) => {
+            tracing::info!(
+                tenant_id = %req.tenant_id,
+                from = %req.from,
+                to = %req.to,
+                rows_upserted = result.rows_upserted,
+                "Rebuild completed"
+            );
+            Json(result).into_response()
+        }
+        Err(e) => {
             tracing::error!(
                 tenant_id = %req.tenant_id,
                 from = %req.from,
@@ -107,21 +101,9 @@ pub async fn rebuild(
                 error = %e,
                 "Rebuild failed"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })?;
-
-    tracing::info!(
-        tenant_id = %req.tenant_id,
-        from = %req.from,
-        to = %req.to,
-        rows_upserted = result.rows_upserted,
-        "Rebuild completed"
-    );
-
-    Ok(Json(result))
+            ApiError::internal("Rebuild failed").into_response()
+        }
+    }
 }
 
 // ── Standardized admin endpoints ─────────────────────────────────────────────
@@ -130,12 +112,12 @@ fn extract_token(headers: &HeaderMap) -> Option<&str> {
     headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
-fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
+fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ApiError>)> {
     proj_admin::verify_admin_token(extract_token(headers)).map_err(|msg| {
         tracing::warn!(reason = msg, "Admin request rejected");
         (
             StatusCode::FORBIDDEN,
-            Json(ErrorBody::new("forbidden", msg)),
+            Json(ApiError::new(403, "forbidden", msg)),
         )
     })
 }
@@ -144,7 +126,7 @@ async fn projection_status(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<proj_admin::ProjectionStatusRequest>,
-) -> Result<Json<proj_admin::ProjectionStatusResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<proj_admin::ProjectionStatusResponse>, (StatusCode, Json<ApiError>)> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: projection-status");
     let resp = proj_admin::query_projection_status(&pool, &req)
@@ -152,7 +134,7 @@ async fn projection_status(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e)),
+                Json(ApiError::internal(e)),
             )
         })?;
     Ok(Json(resp))
@@ -162,7 +144,7 @@ async fn consistency_check(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<proj_admin::ConsistencyCheckRequest>,
-) -> Result<Json<proj_admin::ConsistencyCheckResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<proj_admin::ConsistencyCheckResponse>, (StatusCode, Json<ApiError>)> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: consistency-check");
     let resp = proj_admin::query_consistency_check(&pool, &req)
@@ -170,7 +152,7 @@ async fn consistency_check(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e)),
+                Json(ApiError::internal(e)),
             )
         })?;
     Ok(Json(resp))
@@ -179,7 +161,7 @@ async fn consistency_check(
 async fn list_projections(
     State(pool): State<PgPool>,
     headers: HeaderMap,
-) -> Result<Json<proj_admin::ProjectionListResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<proj_admin::ProjectionListResponse>, (StatusCode, Json<ApiError>)> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
     let resp = proj_admin::query_projection_list(&pool)
@@ -187,7 +169,7 @@ async fn list_projections(
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e)),
+                Json(ApiError::internal(e)),
             )
         })?;
     Ok(Json(resp))
@@ -214,7 +196,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+        let pool = PgPool::connect_lazy("postgres://localhost/fake")
+            .expect("connect_lazy for test");
         let _router = admin_router(pool);
     }
 }

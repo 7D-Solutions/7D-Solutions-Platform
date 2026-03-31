@@ -8,18 +8,19 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::domain::statements::cashflow;
 
-use super::admin_types::ErrorBody;
-use super::statements::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 
 // ── Query parameters ─────────────────────────────────────────────────────────
 
@@ -35,23 +36,24 @@ pub struct CashflowParams {
 pub async fn get_cashflow(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<CashflowParams>,
-) -> Result<Json<cashflow::CashflowStatement>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    cashflow::compute_cashflow(&state.pool, &tenant_id, params.from, params.to)
-        .await
-        .map(Json)
-        .map_err(|e| {
+    match cashflow::compute_cashflow(&state.pool, &tenant_id, params.from, params.to).await {
+        Ok(stmt) => Json(stmt).into_response(),
+        Err(e) => {
             tracing::error!(
                 tenant_id = %tenant_id,
                 error = %e,
                 "Cash flow computation failed"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })
+            let api_err = ApiError::internal("Cash flow computation failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }

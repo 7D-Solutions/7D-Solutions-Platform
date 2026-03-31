@@ -8,17 +8,18 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::forecast::{compute_cash_forecast, CashForecastResponse};
+use crate::domain::forecast::compute_cash_forecast;
 
-use super::admin_types::ErrorBody;
-use super::statements::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 
 // ── Query params ─────────────────────────────────────────────────────────────
 
@@ -47,34 +48,30 @@ impl ForecastParams {
 pub async fn get_forecast(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ForecastParams>,
-) -> Result<Json<CashForecastResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
     let horizons = params.parse_horizons();
     if horizons.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "validation_error",
-                "No valid horizons provided",
-            )),
-        ));
+        let api_err = ApiError::bad_request("No valid horizons provided");
+        return with_request_id(api_err, &tracing_ctx).into_response();
     }
 
-    compute_cash_forecast(&state.pool, &tenant_id, &horizons)
-        .await
-        .map(Json)
-        .map_err(|e| {
+    match compute_cash_forecast(&state.pool, &tenant_id, &horizons).await {
+        Ok(resp) => Json(resp).into_response(),
+        Err(e) => {
             tracing::error!(
                 tenant_id = %tenant_id,
                 error = %e,
                 "Forecast computation failed"
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })
+            let api_err = ApiError::internal("Forecast computation failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }

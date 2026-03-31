@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.0.0 | 2026-03-31 | bd-xyz19 | Standard response envelopes: replaced ErrorBody with ApiError (platform-http-contracts) across all handlers (rebuild, projection-status, consistency-check, list-projections, ar-aging, ap-aging, cashflow, forecast, kpis, pl, balance-sheet). All error responses now include request_id from TracingContext. Removed admin_types.rs. Added tenant.rs (extract_tenant + with_request_id helpers). | Plug-and-play alignment: consistent error envelope with request_id on every error path. | YES: error responses change shape from `{"error","message"}` to `{"error","message","request_id"}`. Consumers parsing error bodies must update. |
 | 1.0.0 | 2026-03-28 | bd-2e24e | Initial proof. Trial balance, income statement, balance sheet, cash flow, AR/AP aging reports, KPI dashboard, PDF export, report caching (rpt_*_cache tables), event-driven cache invalidation, projection consistency checks, admin endpoints, multi-tenant isolation. 98 unit tests pass, clippy clean. | Reporting module complete and proven. All gates pass. | No |
 
 ## How to read this table

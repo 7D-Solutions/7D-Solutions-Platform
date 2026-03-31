@@ -9,30 +9,18 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use super::admin_types::ErrorBody;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::domain::statements::{balance_sheet, pl};
-
-// ── Auth helper ─────────────────────────────────────────────────────────────
-
-pub fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, String)> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            "Missing or invalid authentication".to_string(),
-        )),
-    }
-}
 
 // ── Query parameter structs ───────────────────────────────────────────────────
 
@@ -53,40 +41,42 @@ pub struct BsParams {
 pub async fn get_pl(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<PlParams>,
-) -> Result<Json<pl::PlStatement>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    pl::compute_pl(&state.pool, &tenant_id, params.from, params.to)
-        .await
-        .map(Json)
-        .map_err(|e| {
+    match pl::compute_pl(&state.pool, &tenant_id, params.from, params.to).await {
+        Ok(stmt) => Json(stmt).into_response(),
+        Err(e) => {
             tracing::error!(tenant_id = %tenant_id, error = %e, "P&L computation failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })
+            let api_err = ApiError::internal("P&L computation failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }
 
 /// GET /api/reporting/balance-sheet — Balance Sheet as of a given date.
 pub async fn get_balance_sheet(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<BsParams>,
-) -> Result<Json<balance_sheet::BalanceSheet>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    balance_sheet::compute_balance_sheet(&state.pool, &tenant_id, params.as_of)
-        .await
-        .map(Json)
-        .map_err(|e| {
+    match balance_sheet::compute_balance_sheet(&state.pool, &tenant_id, params.as_of).await {
+        Ok(stmt) => Json(stmt).into_response(),
+        Err(e) => {
             tracing::error!(tenant_id = %tenant_id, error = %e, "Balance sheet computation failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", e.to_string())),
-            )
-        })
+            let api_err = ApiError::internal("Balance sheet computation failed");
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
 }
