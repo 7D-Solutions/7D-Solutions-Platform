@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.3 | 2026-03-30 | bd-nhmgu.3 | Add info(title, version, description) and security(("bearer" = [])) to OpenAPI spec. Both main.rs and openapi_dump.rs updated. | Spec was missing title/version/description and global security requirement, inconsistent with other modules. | No |
 | 2.1.2 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.1.1 | 2026-03-30 | bd-v5m63 | Add OpenAPI spec validation test: verifies all 6 endpoints, security scheme, and component schemas are present in generated spec. | Acceptance criteria proof for plug-and-play. | No |
 | 2.1.0 | 2026-03-30 | bd-v5m63 | OpenAPI via utoipa: `#[utoipa::path]` annotations on all 6 handlers, `ToSchema` derives on all request/response types, `SecurityAddon` for Bearer JWT, `/api/openapi.json` route. Webhook endpoint documented as unauthenticated. ConfigValidator: config.rs rewritten to collect all env errors at once. Tilled credentials use `require_when` for conditional validation. | Plug-and-play: self-describing API spec and structured startup validation. | No |

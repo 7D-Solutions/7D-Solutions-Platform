@@ -1,12 +1,12 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "payments-rs",
-    "description": "Payment processing, reconciliation, and Tilled gateway integration",
+    "title": "Payments Service",
+    "description": "Payment processing: checkout sessions, payment retrieval, and Tilled webhooks.\n\n**Authentication:** Bearer JWT. Tenant identity derived from JWT claims.",
     "license": {
       "name": ""
     },
-    "version": "2.1.1"
+    "version": "2.1.3"
   },
   "paths": {
     "/api/payments/checkout-sessions": {
@@ -591,5 +591,10 @@
         "scheme": "bearer"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
 }

@@ -2,6 +2,12 @@ use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
+    info(
+        title = "Payments Service",
+        version = "2.1.3",
+        description = "Payment processing: checkout sessions, payment retrieval, and Tilled webhooks.\n\n\
+                        **Authentication:** Bearer JWT. Tenant identity derived from JWT claims.",
+    ),
     paths(
         payments_rs::http::checkout_sessions::create_checkout_session,
         payments_rs::http::checkout_sessions::get_checkout_session,
@@ -21,6 +27,7 @@ use utoipa::OpenApi;
         platform_http_contracts::FieldError,
         platform_http_contracts::PaginationMeta,
     )),
+    security(("bearer" = [])),
     modifiers(&SecurityAddon),
 )]
 struct ApiDoc;
