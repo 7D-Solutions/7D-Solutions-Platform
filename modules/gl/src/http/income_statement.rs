@@ -20,6 +20,9 @@ pub struct IncomeStatementQuery {
     pub currency: String,
 }
 
+#[utoipa::path(get, path = "/api/gl/income-statement", tag = "Financial Statements",
+    responses((status = 200, description = "Income statement report")),
+    security(("bearer" = [])))]
 pub async fn get_income_statement(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

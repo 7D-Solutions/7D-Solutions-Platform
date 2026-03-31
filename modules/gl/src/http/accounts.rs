@@ -29,6 +29,9 @@ pub struct AccountResponse {
     pub is_active: bool,
 }
 
+#[utoipa::path(post, path = "/api/gl/accounts", tag = "Accounts",
+    responses((status = 201, description = "Account created")),
+    security(("bearer" = [])))]
 pub async fn create_account(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

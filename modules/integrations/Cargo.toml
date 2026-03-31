@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "2.0.0"
+version = "2.2.0"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
@@ -15,6 +15,10 @@ path = "src/bin/bench.rs"
 [[bin]]
 name = "dlq_replay_drill"
 path = "src/bin/dlq_replay_drill.rs"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dependencies]
 axum = "0.8"
@@ -45,6 +49,7 @@ async-trait = "0.1"
 urlencoding = "2"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 async-trait = "0.1"

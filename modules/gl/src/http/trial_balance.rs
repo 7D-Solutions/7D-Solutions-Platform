@@ -30,6 +30,9 @@ pub struct TrialBalanceQuery {
 ///
 /// Returns trial balance for a tenant and period with optional currency filter.
 /// Tenant identity is derived from JWT claims (VerifiedClaims).
+#[utoipa::path(get, path = "/api/gl/trial-balance", tag = "Financial Statements",
+    responses((status = 200, description = "Trial balance report")),
+    security(("bearer" = [])))]
 pub async fn get_trial_balance(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

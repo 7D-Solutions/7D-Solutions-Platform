@@ -60,6 +60,9 @@ fn validate_reporting_currency(currency: &str, ctx: &Option<Extension<TracingCon
     Ok(())
 }
 
+#[utoipa::path(get, path = "/api/gl/reporting/trial-balance", tag = "Reporting Currency",
+    responses((status = 200, description = "Reporting-currency trial balance")),
+    security(("bearer" = [])))]
 pub async fn get_reporting_trial_balance(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -93,6 +96,9 @@ pub async fn get_reporting_trial_balance(
     }))
 }
 
+#[utoipa::path(get, path = "/api/gl/reporting/income-statement", tag = "Reporting Currency",
+    responses((status = 200, description = "Reporting-currency income statement")),
+    security(("bearer" = [])))]
 pub async fn get_reporting_income_statement(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -126,6 +132,9 @@ pub async fn get_reporting_income_statement(
     }))
 }
 
+#[utoipa::path(get, path = "/api/gl/reporting/balance-sheet", tag = "Reporting Currency",
+    responses((status = 200, description = "Reporting-currency balance sheet")),
+    security(("bearer" = [])))]
 pub async fn get_reporting_balance_sheet(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

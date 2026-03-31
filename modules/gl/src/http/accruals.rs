@@ -14,6 +14,9 @@ use super::auth::{extract_tenant, with_request_id};
 use crate::accruals;
 use crate::AppState;
 
+#[utoipa::path(post, path = "/api/gl/accruals/templates", tag = "Accruals",
+    responses((status = 201, description = "Accrual template created")),
+    security(("bearer" = [])))]
 pub async fn create_template_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -36,6 +39,9 @@ pub async fn create_template_handler(
     }
 }
 
+#[utoipa::path(post, path = "/api/gl/accruals/create", tag = "Accruals",
+    responses((status = 201, description = "Accrual instance created")),
+    security(("bearer" = [])))]
 pub async fn create_accrual_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -65,6 +71,9 @@ pub async fn create_accrual_handler(
     }
 }
 
+#[utoipa::path(post, path = "/api/gl/accruals/reversals/execute", tag = "Accruals",
+    responses((status = 200, description = "Auto-reversals executed")),
+    security(("bearer" = [])))]
 pub async fn execute_reversals_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

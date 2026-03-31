@@ -1,6 +1,6 @@
 [package]
 name = "gl-rs"
-version = "2.0.2"
+version = "2.1.0"
 edition = "2021"
 description = "Double-entry general ledger with journal engine, accruals, and revenue recognition"
 
@@ -22,6 +22,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 projections = { path = "../../platform/projections" }
 async-nats = "0.38"
 futures = "0.3"

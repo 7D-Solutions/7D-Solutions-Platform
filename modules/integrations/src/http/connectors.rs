@@ -20,7 +20,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::connectors::{
-    all_connectors, service, ConnectorError, RegisterConnectorRequest, RunTestActionRequest,
+    all_connectors, service, ConnectorCapabilities, ConnectorConfig, ConnectorError,
+    RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
 };
 use crate::AppState;
 
@@ -78,6 +79,15 @@ pub struct ListQuery {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/connectors/types",
+    responses(
+        (status = 200, description = "List of connector types", body = PaginatedResponse<ConnectorCapabilities>),
+    ),
+    security(("bearer" = [])),
+    tag = "Connectors"
+)]
 /// GET /api/integrations/connectors/types — list all registered connector types and their capabilities
 pub async fn list_connector_types() -> impl IntoResponse {
     let types = all_connectors();
@@ -86,6 +96,17 @@ pub async fn list_connector_types() -> impl IntoResponse {
     Json(resp).into_response()
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/integrations/connectors",
+    request_body = RegisterConnectorRequest,
+    responses(
+        (status = 201, description = "Connector registered", body = ConnectorConfig),
+        (status = 422, description = "Invalid config or unknown type"),
+    ),
+    security(("bearer" = [])),
+    tag = "Connectors"
+)]
 /// POST /api/integrations/connectors — register a connector config for this tenant
 pub async fn register_connector(
     State(state): State<Arc<AppState>>,
@@ -105,6 +126,16 @@ pub async fn register_connector(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/connectors",
+    params(("enabled_only" = bool, Query, description = "Filter to enabled connectors only")),
+    responses(
+        (status = 200, description = "List of connector configs", body = PaginatedResponse<ConnectorConfig>),
+    ),
+    security(("bearer" = [])),
+    tag = "Connectors"
+)]
 /// GET /api/integrations/connectors — list this tenant's connector configs
 pub async fn list_connectors(
     State(state): State<Arc<AppState>>,
@@ -126,6 +157,17 @@ pub async fn list_connectors(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/connectors/{id}",
+    params(("id" = Uuid, Path, description = "Connector config ID")),
+    responses(
+        (status = 200, description = "Connector config", body = ConnectorConfig),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer" = [])),
+    tag = "Connectors"
+)]
 /// GET /api/integrations/connectors/:id — fetch a single connector config
 pub async fn get_connector(
     State(state): State<Arc<AppState>>,
@@ -146,6 +188,19 @@ pub async fn get_connector(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/integrations/connectors/{id}/test",
+    params(("id" = Uuid, Path, description = "Connector config ID")),
+    request_body = RunTestActionRequest,
+    responses(
+        (status = 200, description = "Test result", body = TestActionResult),
+        (status = 404, description = "Not found"),
+        (status = 502, description = "Action failed"),
+    ),
+    security(("bearer" = [])),
+    tag = "Connectors"
+)]
 /// POST /api/integrations/connectors/:id/test — run the connector's test action
 pub async fn run_connector_test(
     State(state): State<Arc<AppState>>,

@@ -17,7 +17,7 @@ use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::oauth::{service, OAuthError, TokenResponse};
+use crate::domain::oauth::{service, OAuthConnectionInfo, OAuthError, TokenResponse};
 use crate::AppState;
 
 // ============================================================================
@@ -117,6 +117,17 @@ pub struct OAuthCallbackQuery {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/oauth/connect/{provider}",
+    params(("provider" = String, Path, description = "OAuth provider (e.g. quickbooks)")),
+    responses(
+        (status = 307, description = "Redirect to provider authorization page"),
+        (status = 422, description = "Unsupported provider"),
+    ),
+    security(("bearer" = [])),
+    tag = "OAuth"
+)]
 /// GET /api/integrations/oauth/connect/{provider}
 ///
 /// Redirects the user to the provider's authorization page.
@@ -150,6 +161,21 @@ pub async fn connect(
     Redirect::temporary(&auth_url).into_response()
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/oauth/callback/{provider}",
+    params(
+        ("provider" = String, Path, description = "OAuth provider"),
+        ("code" = String, Query, description = "Authorization code"),
+        ("realmId" = String, Query, description = "QBO realm ID"),
+        ("state" = Option<String>, Query, description = "State parameter (app_id)"),
+    ),
+    responses(
+        (status = 201, description = "Connection created", body = OAuthConnectionInfo),
+        (status = 502, description = "Token exchange failed"),
+    ),
+    tag = "OAuth"
+)]
 /// GET /api/integrations/oauth/callback/{provider}
 ///
 /// Handles the redirect from the provider after user authorization.
@@ -232,6 +258,17 @@ pub async fn callback(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/integrations/oauth/status/{provider}",
+    params(("provider" = String, Path, description = "OAuth provider")),
+    responses(
+        (status = 200, description = "Connection status", body = OAuthConnectionInfo),
+        (status = 404, description = "No connection found"),
+    ),
+    security(("bearer" = [])),
+    tag = "OAuth"
+)]
 /// GET /api/integrations/oauth/status/{provider}
 ///
 /// Returns the connection status for the current tenant + provider.
@@ -255,6 +292,18 @@ pub async fn status(
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/integrations/oauth/disconnect/{provider}",
+    params(("provider" = String, Path, description = "OAuth provider")),
+    responses(
+        (status = 200, description = "Disconnected", body = OAuthConnectionInfo),
+        (status = 404, description = "No connection found"),
+        (status = 409, description = "Already disconnected"),
+    ),
+    security(("bearer" = [])),
+    tag = "OAuth"
+)]
 /// POST /api/integrations/oauth/disconnect/{provider}
 ///
 /// Marks the connection as disconnected.

@@ -21,6 +21,9 @@ pub struct BalanceSheetQuery {
     pub currency: String,
 }
 
+#[utoipa::path(get, path = "/api/gl/balance-sheet", tag = "Financial Statements",
+    responses((status = 200, description = "Balance sheet report")),
+    security(("bearer" = [])))]
 pub async fn get_balance_sheet(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

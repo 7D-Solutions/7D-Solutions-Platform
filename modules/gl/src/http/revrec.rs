@@ -101,6 +101,9 @@ fn map_schedule_build_error(err: ScheduleBuildError) -> ApiError {
 /// Creates a revenue contract with performance obligations.
 /// Atomic: contract + obligations + outbox event in a single transaction.
 /// Idempotent: returns 409 CONFLICT if contract_id already exists.
+#[utoipa::path(post, path = "/api/gl/revrec/contracts", tag = "Revenue Recognition",
+    responses((status = 201, description = "Revenue contract created")),
+    security(("bearer" = [])))]
 pub async fn create_contract(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -175,6 +178,9 @@ pub struct GenerateScheduleResponse {
 ///
 /// Versioned: if an obligation already has a schedule, creates a new version
 /// linked to the previous schedule.
+#[utoipa::path(post, path = "/api/gl/revrec/schedules", tag = "Revenue Recognition",
+    responses((status = 201, description = "Recognition schedule generated")),
+    security(("bearer" = [])))]
 pub async fn generate_schedule_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -333,6 +339,9 @@ fn map_recognition_run_error(err: RecognitionRunError) -> ApiError {
 /// schedule versions), posts balanced journal entries, and emits outbox events.
 ///
 /// Idempotent: re-running for the same period skips already-recognized lines.
+#[utoipa::path(post, path = "/api/gl/revrec/recognition-runs", tag = "Revenue Recognition",
+    responses((status = 201, description = "Recognition run executed")),
+    security(("bearer" = [])))]
 pub async fn run_recognition_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -398,6 +407,9 @@ pub struct AmendContractResponse {
 ///
 /// Record a contract modification. The body is a `ContractModifiedPayload`.
 /// Returns 201 on success, 409 if modification_id already exists.
+#[utoipa::path(post, path = "/api/gl/revrec/amendments", tag = "Revenue Recognition",
+    responses((status = 201, description = "Contract amendment recorded")),
+    security(("bearer" = [])))]
 pub async fn amend_contract(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

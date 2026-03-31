@@ -52,6 +52,10 @@ fn map_error(error: PeriodCloseError) -> ApiError {
 /// Does NOT modify period state.
 ///
 /// Returns validation report with errors/warnings.
+#[utoipa::path(post, path = "/api/gl/periods/{period_id}/validate-close", tag = "Period Close",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 200, description = "Validation report")),
+    security(("bearer" = [])))]
 pub async fn validate_close(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -107,6 +111,10 @@ pub async fn validate_close(
 /// 5. Update period with close fields
 ///
 /// Returns close status on success, validation report on failure.
+#[utoipa::path(post, path = "/api/gl/periods/{period_id}/close", tag = "Period Close",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 200, description = "Period closed")),
+    security(("bearer" = [])))]
 pub async fn close_period_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -163,6 +171,10 @@ struct PeriodCloseStatusData {
 /// Returns period date range and close lifecycle state.
 ///
 /// O(1) query - single row lookup, no unbounded reads.
+#[utoipa::path(get, path = "/api/gl/periods/{period_id}/close-status", tag = "Period Close",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 200, description = "Close status")),
+    security(("bearer" = [])))]
 pub async fn get_close_status(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -245,6 +257,10 @@ pub struct ReopenRejectPayload {
 }
 
 /// POST /api/gl/periods/{period_id}/reopen — request a controlled reopen
+#[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 201, description = "Reopen request created")),
+    security(("bearer" = [])))]
 pub async fn request_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -270,6 +286,13 @@ pub async fn request_reopen(
 }
 
 /// POST /api/gl/periods/{period_id}/reopen/{request_id}/approve
+#[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen/{request_id}/approve", tag = "Period Close",
+    params(
+        ("period_id" = Uuid, Path, description = "Accounting period ID"),
+        ("request_id" = Uuid, Path, description = "Reopen request ID"),
+    ),
+    responses((status = 200, description = "Reopen approved")),
+    security(("bearer" = [])))]
 pub async fn approve_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -295,6 +318,13 @@ pub async fn approve_reopen(
 }
 
 /// POST /api/gl/periods/{period_id}/reopen/{request_id}/reject
+#[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen/{request_id}/reject", tag = "Period Close",
+    params(
+        ("period_id" = Uuid, Path, description = "Accounting period ID"),
+        ("request_id" = Uuid, Path, description = "Reopen request ID"),
+    ),
+    responses((status = 200, description = "Reopen rejected")),
+    security(("bearer" = [])))]
 pub async fn reject_reopen(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -321,6 +351,10 @@ pub async fn reject_reopen(
 }
 
 /// GET /api/gl/periods/{period_id}/reopen
+#[utoipa::path(get, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 200, description = "List of reopen requests")),
+    security(("bearer" = [])))]
 pub async fn list_reopen_requests(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -1,7 +1,7 @@
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
-    Extension, Router,
+    Extension, Json, Router,
 };
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
@@ -12,6 +12,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use gl_rs::{
     config::Config,
@@ -243,6 +244,7 @@ async fn main() {
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(gl_rs::metrics::metrics_handler))
         // GL read routes
         .route("/api/gl/trial-balance", get(get_trial_balance))
@@ -318,6 +320,10 @@ async fn main() {
     tracing::info!("Server stopped — closing resources");
     shutdown_pool.close().await;
     tracing::info!("Shutdown complete");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(gl_rs::http::ApiDoc::openapi())
 }
 
 async fn shutdown_signal() {

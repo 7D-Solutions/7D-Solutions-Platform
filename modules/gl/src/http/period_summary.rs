@@ -19,6 +19,10 @@ pub struct PeriodSummaryQuery {
     pub currency: Option<String>,
 }
 
+#[utoipa::path(get, path = "/api/gl/periods/{period_id}/summary", tag = "Period Summary",
+    params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    responses((status = 200, description = "Period summary report")),
+    security(("bearer" = [])))]
 pub async fn get_period_summary(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -48,6 +48,9 @@ pub struct FxRateResponse {
 }
 
 /// POST /api/gl/fx-rates
+#[utoipa::path(post, path = "/api/gl/fx-rates", tag = "FX Rates",
+    responses((status = 200, description = "FX rate created")),
+    security(("bearer" = [])))]
 pub async fn create_fx_rate(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -77,6 +80,9 @@ pub async fn create_fx_rate(
 }
 
 /// GET /api/gl/fx-rates/latest
+#[utoipa::path(get, path = "/api/gl/fx-rates/latest", tag = "FX Rates",
+    responses((status = 200, description = "Latest FX rate")),
+    security(("bearer" = [])))]
 pub async fn get_latest_rate(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

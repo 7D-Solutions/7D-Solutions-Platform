@@ -30,6 +30,9 @@ pub struct ExportResponse {
 }
 
 /// POST /api/gl/exports
+#[utoipa::path(post, path = "/api/gl/exports", tag = "Exports",
+    responses((status = 200, description = "Export created")),
+    security(("bearer" = [])))]
 pub async fn create_export(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

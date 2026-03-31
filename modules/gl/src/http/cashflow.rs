@@ -27,6 +27,9 @@ pub struct CashFlowQuery {
     pub cash_accounts: Option<String>,
 }
 
+#[utoipa::path(get, path = "/api/gl/cash-flow", tag = "Financial Statements",
+    responses((status = 200, description = "Cash flow statement")),
+    security(("bearer" = [])))]
 pub async fn get_cash_flow(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
