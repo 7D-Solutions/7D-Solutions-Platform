@@ -1,6 +1,6 @@
 [package]
 name = "consolidation"
-version = "2.2.2"
+version = "2.2.3"
 edition = "2021"
 description = "Multi-entity financial consolidation with intercompany eliminations"
 

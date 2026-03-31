@@ -15,12 +15,18 @@ use crate::revrec::{
 use super::revrec_repo::RevrecRepoError;
 
 /// Check if a contract already exists (idempotency check)
-pub async fn contract_exists(pool: &PgPool, contract_id: Uuid) -> Result<bool, RevrecRepoError> {
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1)")
-            .bind(contract_id)
-            .fetch_one(pool)
-            .await?;
+pub async fn contract_exists(
+    pool: &PgPool,
+    tenant_id: &str,
+    contract_id: Uuid,
+) -> Result<bool, RevrecRepoError> {
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1 AND tenant_id = $2)",
+    )
+    .bind(contract_id)
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
     Ok(exists)
 }
 

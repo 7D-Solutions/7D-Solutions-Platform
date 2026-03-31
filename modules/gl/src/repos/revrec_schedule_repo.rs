@@ -45,11 +45,13 @@ pub async fn create_schedule(
     let mut tx = pool.begin().await?;
 
     // Idempotency check
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1)")
-            .bind(payload.schedule_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1 AND tenant_id = $2)",
+    )
+    .bind(payload.schedule_id)
+    .bind(&payload.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     if exists {
         tx.rollback().await?;

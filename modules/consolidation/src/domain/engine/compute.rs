@@ -116,6 +116,7 @@ pub async fn consolidate(
     // Step 8: Cache
     cache_result(
         pool,
+        tenant_id,
         group_id,
         as_of,
         &group.reporting_currency,
@@ -281,6 +282,7 @@ fn apply_eliminations(
 /// This guarantees deterministic reruns produce identical cache state.
 async fn cache_result(
     pool: &PgPool,
+    tenant_id: &str,
     group_id: Uuid,
     as_of: NaiveDate,
     currency: &str,
@@ -290,11 +292,15 @@ async fn cache_result(
     let mut tx = pool.begin().await?;
 
     // Clear previous cache for this group+as_of
-    sqlx::query("DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2")
-        .bind(group_id)
-        .bind(as_of)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2 \
+         AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $3)",
+    )
+    .bind(group_id)
+    .bind(as_of)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await?;
 
     // Insert new rows
     for row in rows {

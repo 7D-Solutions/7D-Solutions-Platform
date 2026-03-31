@@ -59,16 +59,22 @@ pub async fn list_elimination_rules(
 
     let rows = if include_inactive {
         sqlx::query_as::<_, EliminationRule>(
-            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 ORDER BY rule_name",
+            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 \
+             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
+             ORDER BY rule_name",
         )
         .bind(group_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await?
     } else {
         sqlx::query_as::<_, EliminationRule>(
-            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 AND is_active = TRUE ORDER BY rule_name",
+            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 AND is_active = TRUE \
+             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
+             ORDER BY rule_name",
         )
         .bind(group_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await?
     };
@@ -214,9 +220,13 @@ pub async fn delete_fx_policy(pool: &PgPool, tenant_id: &str, id: Uuid) -> Resul
 
     get_group(pool, tenant_id, existing.group_id).await?;
 
-    sqlx::query("DELETE FROM csl_fx_policies WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "DELETE FROM csl_fx_policies WHERE id = $1 \
+         AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2)",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await?;
     Ok(())
 }

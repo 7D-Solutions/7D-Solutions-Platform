@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -153,7 +153,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "2.2.0"
+version = "2.2.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.2.1"
+version = "2.2.3"
 dependencies = [
  "axum",
  "chrono",
@@ -1547,7 +1547,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.1"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -1806,7 +1806,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "2.1.1"
+version = "2.1.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -3046,7 +3046,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -4421,7 +4421,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.2"
+version = "2.2.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -4835,7 +4835,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "2.2.1"
+version = "2.2.2"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -5067,7 +5067,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeping"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -5428,7 +5428,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -5482,7 +5482,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.9"
+version = "2.1.10"
 dependencies = [
  "async-nats",
  "axum",
@@ -6320,7 +6320,7 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "async-nats",
  "axum",

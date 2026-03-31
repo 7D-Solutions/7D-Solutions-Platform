@@ -183,16 +183,22 @@ pub async fn list_entities(
 
     let rows = if include_inactive {
         sqlx::query_as::<_, GroupEntity>(
-            "SELECT * FROM csl_group_entities WHERE group_id = $1 ORDER BY entity_name",
+            "SELECT * FROM csl_group_entities WHERE group_id = $1 \
+             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
+             ORDER BY entity_name",
         )
         .bind(group_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await?
     } else {
         sqlx::query_as::<_, GroupEntity>(
-            "SELECT * FROM csl_group_entities WHERE group_id = $1 AND is_active = TRUE ORDER BY entity_name",
+            "SELECT * FROM csl_group_entities WHERE group_id = $1 AND is_active = TRUE \
+             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
+             ORDER BY entity_name",
         )
         .bind(group_id)
+        .bind(tenant_id)
         .fetch_all(pool)
         .await?
     };

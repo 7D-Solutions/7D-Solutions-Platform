@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.2.3 | 2026-03-31 | bd-vnuvp.8 | Add tenant_id filter to 4 queries: csl_group_entities SELECT, csl_elimination_rules SELECT, csl_fx_policies DELETE, csl_trial_balance_cache DELETE. Uses subquery through csl_groups.tenant_id since child tables lack direct tenant_id column. Also threads tenant_id into cache_result function signature. | P0 tenant isolation: queries on child tables filtered only by group_id without verifying tenant ownership at the SQL level. Defence-in-depth against cross-tenant data access. | No |
 | 2.2.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |

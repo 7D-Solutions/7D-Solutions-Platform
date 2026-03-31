@@ -286,10 +286,11 @@ mod tests {
 
         let (link_count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM fa_ap_capitalizations \
-             WHERE bill_id = $1 AND line_id = $2",
+             WHERE bill_id = $1 AND line_id = $2 AND tenant_id = $3",
         )
         .bind(bill_id)
         .bind(line_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("linkage count");

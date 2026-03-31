@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.1.4 | 2026-03-31 | bd-vnuvp.8 | Add tenant_id filter to 3 revrec idempotency queries: revrec_schedules EXISTS (schedule_repo + amendment_repo), revrec_contracts EXISTS (contract_repo). Also adds tenant_id param to contract_exists function signature. | P0 tenant isolation: idempotency checks queried by primary key only, allowing a schedule/contract ID from tenant A to satisfy the check for tenant B. | No |
 | 2.1.3 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
