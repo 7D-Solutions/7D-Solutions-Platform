@@ -313,16 +313,23 @@ async fn is_up(port: u16) -> bool {
 }
 
 /// Send a GET request with no Authorization header and check for 401.
+/// Result: (got_401, json_body_ok, is_not_found). `is_not_found` means route
+/// returned 404 — the endpoint does not exist, not a security gap.
 async fn assert_get_requires_auth(
     c: &reqwest::Client,
     port: u16,
     path: &str,
     module: &str,
-) -> Result<(bool, bool), String> {
+) -> Result<(bool, bool, bool), String> {
     let url = format!("{}{}", base_url(port), path);
     let resp = c.get(&url).send().await.map_err(|e| e.to_string())?;
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or_default();
+
+    if status == StatusCode::NOT_FOUND {
+        eprintln!("  ⏭️  SKIP {module} GET {path}: route not found (404)");
+        return Ok((false, false, true));
+    }
 
     let got_401 = status == StatusCode::UNAUTHORIZED;
     let has_error_field = body.get("error").is_some();
@@ -341,7 +348,7 @@ async fn assert_get_requires_auth(
     } else {
         eprintln!("  ✅ {module} GET {path}: 401 with JSON body");
     }
-    Ok((got_401, json_body_ok))
+    Ok((got_401, json_body_ok, false))
 }
 
 /// Send a POST request with no Authorization header and check for 401.
@@ -350,7 +357,7 @@ async fn assert_post_requires_auth(
     port: u16,
     path: &str,
     module: &str,
-) -> Result<(bool, bool), String> {
+) -> Result<(bool, bool, bool), String> {
     let url = format!("{}{}", base_url(port), path);
     let resp = c
         .post(&url)
@@ -361,6 +368,11 @@ async fn assert_post_requires_auth(
         .map_err(|e| e.to_string())?;
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or_default();
+
+    if status == StatusCode::NOT_FOUND {
+        eprintln!("  ⏭️  SKIP {module} POST {path}: route not found (404)");
+        return Ok((false, false, true));
+    }
 
     let got_401 = status == StatusCode::UNAUTHORIZED;
     let has_error_field = body.get("error").is_some();
@@ -379,7 +391,7 @@ async fn assert_post_requires_auth(
     } else {
         eprintln!("  ✅ {module} POST {path}: 401 with JSON body");
     }
-    Ok((got_401, json_body_ok))
+    Ok((got_401, json_body_ok, false))
 }
 
 /// Send a GET request with an invalid Bearer token.
@@ -477,7 +489,12 @@ async fn auth_rbac_full_coverage_sweep() {
             mod_total += 1;
             total_tested += 1;
             match assert_get_requires_auth(&c, module.port, path, module.name).await {
-                Ok((got_401, json_ok)) => {
+                Ok((_, _, true)) => {
+                    // 404 — route doesn't exist, not a security gap
+                    mod_total -= 1;
+                    total_tested -= 1;
+                }
+                Ok((got_401, json_ok, _)) => {
                     if got_401 {
                         mod_enforced += 1;
                         total_enforced += 1;
@@ -505,7 +522,12 @@ async fn auth_rbac_full_coverage_sweep() {
                 _ => assert_get_requires_auth(&c, module.port, path, module.name).await,
             };
             match result {
-                Ok((got_401, json_ok)) => {
+                Ok((_, _, true)) => {
+                    // 404 — route doesn't exist, not a security gap
+                    mod_total -= 1;
+                    total_tested -= 1;
+                }
+                Ok((got_401, json_ok, _)) => {
                     if got_401 {
                         mod_enforced += 1;
                         total_enforced += 1;

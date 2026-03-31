@@ -122,10 +122,10 @@ fn services() -> Vec<ServiceSpec> {
         ServiceSpec { name: "customer-portal", env_var: "CUSTOMER_PORTAL_URL", default_port: 8111,
             mutation_route: "/portal/admin/users", perm: "",
             expect_healthz: false, expect_auth: false },
-        // production: no permission checks (audit finding bd-2ou15 §6)
+        // production: now has RequirePermissionsLayer (fixed in bd-29c9i.1)
         ServiceSpec { name: "production", env_var: "PRODUCTION_URL", default_port: 8108,
-            mutation_route: "/api/production/workcenters", perm: "",
-            expect_healthz: true, expect_auth: false },
+            mutation_route: "/api/production/workcenters", perm: "production.mutate",
+            expect_healthz: true, expect_auth: true },
         // workforce-competence: missing /healthz (has /api/schema-version instead)
         ServiceSpec { name: "workforce-competence", env_var: "WC_URL", default_port: 8121,
             mutation_route: "/api/workforce-competence/artifacts", perm: "workforce_competence.mutate",
@@ -162,6 +162,7 @@ fn all_permissions() -> Vec<String> {
         "maintenance.read", "notifications.mutate", "notifications.read",
         "numbering.allocate", "numbering.read", "party.mutate", "party.read",
         "payments.mutate", "payments.read", "pdf_editor.mutate", "pdf_editor.read",
+        "production.mutate", "production.read",
         "quality_inspection.mutate", "quality_inspection.read", "reporting.mutate",
         "reporting.read", "shipping_receiving.mutate", "shipping_receiving.read",
         "subscriptions.mutate", "timekeeping.mutate", "timekeeping.read",
@@ -363,7 +364,7 @@ async fn api_conformance() {
         eprintln!("WARNING: JWT_PRIVATE_KEY_PEM not set or invalid — auth tests will be skipped");
     }
 
-    let tenant_id = format!("conformance-{}", Uuid::new_v4());
+    let tenant_id = Uuid::new_v4().to_string();
     let jwt = key.as_ref().map(|k| make_jwt(k, &tenant_id));
 
     let svcs = services();

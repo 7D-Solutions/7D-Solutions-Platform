@@ -124,16 +124,19 @@ impl JwtVerifier {
     }
 
     /// Create a verifier from the `JWT_PUBLIC_KEY` environment variable.
+    /// Falls back to `JWT_PUBLIC_KEY_PEM` if `JWT_PUBLIC_KEY` is not set.
     ///
-    /// Returns `None` when the variable is absent (e.g. in local dev environments
-    /// that have not yet configured an identity service).  Services should still
-    /// mount [`RequirePermissionsLayer`](crate::authz_middleware::RequirePermissionsLayer)
+    /// Returns `None` when neither variable is present (e.g. in local dev
+    /// environments that have not yet configured an identity service).  Services
+    /// should still mount [`RequirePermissionsLayer`](crate::authz_middleware::RequirePermissionsLayer)
     /// on mutation routes — when no `JwtVerifier` is provided, no claims will be
     /// extracted and those routes will respond **401 Unauthorized**.
     pub fn from_env() -> Option<Self> {
-        let pem = std::env::var("JWT_PUBLIC_KEY").ok()?;
+        let pem = std::env::var("JWT_PUBLIC_KEY")
+            .or_else(|_| std::env::var("JWT_PUBLIC_KEY_PEM"))
+            .ok()?;
         Self::from_public_pem(&pem)
-            .map_err(|e| tracing::warn!("JWT_PUBLIC_KEY is set but invalid: {}", e))
+            .map_err(|e| tracing::warn!("JWT public key is set but invalid: {}", e))
             .ok()
     }
 
@@ -141,9 +144,11 @@ impl JwtVerifier {
     /// overlap window. Use this constructor in all service startup paths so that
     /// key rotation requires only an env-var update + rolling restart.
     pub fn from_env_with_overlap() -> Option<Self> {
-        let pem = std::env::var("JWT_PUBLIC_KEY").ok()?;
+        let pem = std::env::var("JWT_PUBLIC_KEY")
+            .or_else(|_| std::env::var("JWT_PUBLIC_KEY_PEM"))
+            .ok()?;
         let mut verifier = Self::from_public_pem(&pem)
-            .map_err(|e| tracing::warn!("JWT_PUBLIC_KEY is set but invalid: {}", e))
+            .map_err(|e| tracing::warn!("JWT public key is set but invalid: {}", e))
             .ok()?;
 
         if let Ok(prev_pem) = std::env::var("JWT_PUBLIC_KEY_PREV") {
