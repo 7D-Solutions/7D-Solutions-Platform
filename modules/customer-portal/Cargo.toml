@@ -1,6 +1,6 @@
 [package]
 name = "customer-portal"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2021"
 description = "External customer portal auth boundary service"
 
@@ -16,6 +16,7 @@ path = "src/lib.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 event-bus = { path = "../../platform/event-bus" }
 platform_contracts = { path = "../../platform/platform-contracts" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }

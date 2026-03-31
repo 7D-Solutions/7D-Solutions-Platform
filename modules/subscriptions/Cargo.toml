@@ -1,6 +1,6 @@
 [package]
 name = "subscriptions-rs"
-version = "2.2.5"
+version = "2.2.6"
 edition = "2021"
 description = "Subscription lifecycle management, billing cycles, and usage gating"
 
@@ -8,6 +8,7 @@ description = "Subscription lifecycle management, billing cycles, and usage gati
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate"] }
 serde = { version = "1", features = ["derive"] }

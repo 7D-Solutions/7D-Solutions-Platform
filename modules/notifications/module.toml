@@ -1,0 +1,21 @@
+[module]
+name = "notifications"
+version = "2.1.3"
+description = "Notification dispatch: email, SMS, in-app with retry and DLQ"
+
+[server]
+host = "0.0.0.0"
+port = 8089
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

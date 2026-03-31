@@ -1,23 +1,10 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
-use event_bus::{EventBus, InMemoryBus, NatsBus};
-use security::{
-    middleware::{
-        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
-    },
-    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
-};
-use std::net::SocketAddr;
+use axum::Router;
 use std::sync::Arc;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing_subscriber::EnvFilter;
 
 use quality_inspection_rs::{
-    config::BusType,
     consumers::production_event_bridge::start_production_event_bridge,
     consumers::receipt_event_bridge::start_receipt_event_bridge,
-    db::resolver::resolve_pool,
     http::{
-        health::{health as health_fn, ready, version},
         inspection_routes::{
             get_inspection, get_inspection_plan, get_inspections_by_lot,
             get_inspections_by_part_rev, get_inspections_by_receipt, get_inspections_by_wo,
@@ -27,237 +14,129 @@ use quality_inspection_rs::{
         },
         openapi_json,
     },
-    metrics::{metrics_handler, QualityInspectionMetrics},
-    AppState, Config,
+    metrics::QualityInspectionMetrics,
+    AppState,
 };
+use security::{permissions, RequirePermissionsLayer};
+use platform_sdk::ModuleBuilder;
+
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
+    ModuleBuilder::from_manifest("module.toml")
+        .migrator(&MIGRATOR)
+        .routes(|ctx| {
+            // Second DB pool for workforce-competence cross-queries
+            let wc_db_url = std::env::var("WORKFORCE_COMPETENCE_DATABASE_URL")
+                .unwrap_or_else(|_| std::env::var("DATABASE_URL").unwrap_or_default());
+            let wc_pool = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    sqlx::postgres::PgPoolOptions::new()
+                        .max_connections(5)
+                        .connect(&wc_db_url)
+                        .await
+                        .expect("QI: failed to connect to workforce-competence DB")
+                })
+            });
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
-
-    tracing::info!("Starting Quality Inspection service...");
-
-    let config = Config::from_env().unwrap_or_else(|err| {
-        eprintln!("Configuration error: {}", err);
-        std::process::exit(1);
-    });
-
-    tracing::info!(
-        "Configuration loaded: host={}, port={}",
-        config.host,
-        config.port
-    );
-
-    let pool = resolve_pool(&config.database_url)
-        .await
-        .expect("Failed to connect to database");
-
-    // Auto-migrations
-    sqlx::migrate!("./db/migrations")
-        .run(&pool)
-        .await
-        .expect("Quality Inspection: failed to run migrations");
-
-    tracing::info!("Connecting to Workforce-Competence database...");
-    let wc_pool = resolve_pool(&config.workforce_competence_database_url)
-        .await
-        .expect("Failed to connect to Workforce-Competence database");
-
-    // Create event bus with graceful degradation
-    let bus: Arc<dyn EventBus> = match config.bus_type {
-        BusType::InMemory => {
-            tracing::info!("Using InMemory event bus");
-            Arc::new(InMemoryBus::new())
-        }
-        BusType::Nats => {
-            let nats_url = config.nats_url.as_deref().unwrap_or("nats://localhost:4222");
-            tracing::info!("Connecting to NATS at {}", nats_url);
-            match event_bus::connect_nats(nats_url).await {
-                Ok(client) => Arc::new(NatsBus::new(client)),
-                Err(e) => {
-                    tracing::warn!(
-                        error = %e,
-                        "Failed to connect to NATS — falling back to InMemory bus (degraded mode)"
-                    );
-                    Arc::new(InMemoryBus::new())
-                }
+            // Spawn consumers using the SDK's bus
+            if let Ok(bus) = ctx.bus_arc() {
+                let consumer_pool = ctx.pool().clone();
+                let consumer_bus = bus.clone();
+                tokio::spawn(async move {
+                    start_receipt_event_bridge(consumer_bus.clone(), consumer_pool.clone()).await;
+                    start_production_event_bridge(consumer_bus, consumer_pool).await;
+                });
             }
-        }
-    };
 
-    start_receipt_event_bridge(bus.clone(), pool.clone()).await;
-    start_production_event_bridge(bus, pool.clone()).await;
+            let metrics = Arc::new(
+                QualityInspectionMetrics::new().expect("Failed to create metrics registry"),
+            );
+            let app_state = Arc::new(AppState {
+                pool: ctx.pool().clone(),
+                wc_pool,
+                metrics,
+            });
 
-    let shutdown_pool = pool.clone();
-    let metrics = Arc::new(
-        QualityInspectionMetrics::new().expect("Failed to create metrics registry"),
-    );
-    let app_state = Arc::new(AppState {
-        pool,
-        wc_pool,
-        metrics,
-    });
+            let qi_mutations = Router::new()
+                .route(
+                    "/api/quality-inspection/plans",
+                    axum::routing::post(post_inspection_plan),
+                )
+                .route(
+                    "/api/quality-inspection/plans/{plan_id}/activate",
+                    axum::routing::post(post_activate_plan),
+                )
+                .route(
+                    "/api/quality-inspection/inspections",
+                    axum::routing::post(post_receiving_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/in-process",
+                    axum::routing::post(post_in_process_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/final",
+                    axum::routing::post(post_final_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/{inspection_id}/hold",
+                    axum::routing::post(post_hold_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/{inspection_id}/release",
+                    axum::routing::post(post_release_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/{inspection_id}/accept",
+                    axum::routing::post(post_accept_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/{inspection_id}/reject",
+                    axum::routing::post(post_reject_inspection),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::QUALITY_INSPECTION_MUTATE,
+                ]))
+                .with_state(app_state.clone());
 
-    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
+            let qi_reads = Router::new()
+                .route(
+                    "/api/quality-inspection/plans/{plan_id}",
+                    axum::routing::get(get_inspection_plan),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/{inspection_id}",
+                    axum::routing::get(get_inspection),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/by-part-rev",
+                    axum::routing::get(get_inspections_by_part_rev),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/by-receipt",
+                    axum::routing::get(get_inspections_by_receipt),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/by-wo",
+                    axum::routing::get(get_inspections_by_wo),
+                )
+                .route(
+                    "/api/quality-inspection/inspections/by-lot",
+                    axum::routing::get(get_inspections_by_lot),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::QUALITY_INSPECTION_READ,
+                ]))
+                .with_state(app_state);
 
-    let qi_mutations = Router::new()
-        .route(
-            "/api/quality-inspection/plans",
-            axum::routing::post(post_inspection_plan),
-        )
-        .route(
-            "/api/quality-inspection/plans/{plan_id}/activate",
-            axum::routing::post(post_activate_plan),
-        )
-        .route(
-            "/api/quality-inspection/inspections",
-            axum::routing::post(post_receiving_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/in-process",
-            axum::routing::post(post_in_process_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/final",
-            axum::routing::post(post_final_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/{inspection_id}/hold",
-            axum::routing::post(post_hold_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/{inspection_id}/release",
-            axum::routing::post(post_release_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/{inspection_id}/accept",
-            axum::routing::post(post_accept_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/{inspection_id}/reject",
-            axum::routing::post(post_reject_inspection),
-        )
-        .route_layer(RequirePermissionsLayer::new(&[
-            permissions::QUALITY_INSPECTION_MUTATE,
-        ]))
-        .with_state(app_state.clone());
-
-    let qi_reads = Router::new()
-        .route(
-            "/api/quality-inspection/plans/{plan_id}",
-            axum::routing::get(get_inspection_plan),
-        )
-        .route(
-            "/api/quality-inspection/inspections/{inspection_id}",
-            axum::routing::get(get_inspection),
-        )
-        .route(
-            "/api/quality-inspection/inspections/by-part-rev",
-            axum::routing::get(get_inspections_by_part_rev),
-        )
-        .route(
-            "/api/quality-inspection/inspections/by-receipt",
-            axum::routing::get(get_inspections_by_receipt),
-        )
-        .route(
-            "/api/quality-inspection/inspections/by-wo",
-            axum::routing::get(get_inspections_by_wo),
-        )
-        .route(
-            "/api/quality-inspection/inspections/by-lot",
-            axum::routing::get(get_inspections_by_lot),
-        )
-        .route_layer(RequirePermissionsLayer::new(&[
-            permissions::QUALITY_INSPECTION_READ,
-        ]))
-        .with_state(app_state.clone());
-
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(health_fn))
-        .route("/api/ready", get(ready))
-        .route("/api/version", get(version))
-        .route("/api/openapi.json", get(openapi_json))
-        .route("/metrics", get(metrics_handler))
-        .with_state(app_state)
-        .merge(qi_reads)
-        .merge(qi_mutations)
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ))
-        .layer(build_cors_layer(&config))
-        .into_make_service_with_connect_info::<SocketAddr>();
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    tracing::info!("Quality Inspection service listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
+            Router::new()
+                .route("/api/openapi.json", axum::routing::get(openapi_json))
+                .merge(qi_reads)
+                .merge(qi_mutations)
+        })
+        .run()
         .await
-        .expect("Failed to bind address");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("Server failed to start");
-
-    tracing::info!("Server stopped — closing resources");
-    shutdown_pool.close().await;
-    tracing::info!("Shutdown complete");
-}
-
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
-
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
-
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
-
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    tracing::info!("Shutdown signal received — draining in-flight requests");
-}
-
-fn build_cors_layer(config: &Config) -> CorsLayer {
-    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
-
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let origins: Vec<_> = config
-            .cors_origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
-        CorsLayer::new().allow_origin(origins)
-    };
-
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
+        .expect("quality-inspection module failed");
 }

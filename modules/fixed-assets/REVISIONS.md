@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder with SDK consumer adapter for ap.vendor_bill_approved. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | bd-vnuvp.8 | Add tenant_id filter to 3 test queries: fa_ap_capitalizations SELECT (2x in ap_bill_approved and capitalize tests), fa_assets status SELECT (disposals tests). | P0 tenant isolation: test assertions queried without tenant_id, masking potential cross-tenant data leaks. | No |
 | 2.1.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | Version | Version | Exact SemVer matching the package file |

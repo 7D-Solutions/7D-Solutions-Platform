@@ -1,0 +1,18 @@
+[module]
+name = "quality-inspection"
+version = "2.0.3"
+description = "Quality inspection plans, receiving/in-process/final inspections"
+
+[server]
+host = "0.0.0.0"
+port = 8106
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[sdk]
+min_version = "0.1.0"

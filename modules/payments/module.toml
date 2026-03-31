@@ -1,0 +1,21 @@
+[module]
+name = "payments"
+version = "2.1.6"
+description = "Payment processing: checkout sessions, Tilled webhooks, payment collection"
+
+[server]
+host = "0.0.0.0"
+port = 8088
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

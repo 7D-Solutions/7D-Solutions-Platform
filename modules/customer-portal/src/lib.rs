@@ -88,28 +88,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .with_state(state.clone());
 
     Router::new()
-        .route("/healthz", get(healthz))
-        .route("/api/health", get(http::health::health))
-        .route("/api/ready", get(http::health::ready))
-        .route("/api/version", get(http::health::version))
         .route("/api/openapi.json", get(openapi_json))
-        .route("/metrics", get(metrics::metrics_handler))
         .merge(admin_routes)
         .merge(auth_routes)
         .with_state(state.clone())
         .layer(Extension(state.portal_jwt.clone()))
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ))
-        .layer(build_cors_layer(&state.config))
 }
 
 fn build_cors_layer(config: &Config) -> CorsLayer {

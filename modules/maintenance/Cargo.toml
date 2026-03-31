@@ -1,6 +1,6 @@
 [package]
 name = "maintenance-rs"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2021"
 description = "Maintenance management: work orders, preventive plans, meters, and labor tracking"
 
@@ -24,6 +24,7 @@ path = "src/lib.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid", "json", "rust_decimal"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }

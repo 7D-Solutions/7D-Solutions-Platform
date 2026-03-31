@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "2.3.0"
+version = "2.3.1"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
@@ -24,6 +24,7 @@ path = "src/bin/openapi_dump.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }

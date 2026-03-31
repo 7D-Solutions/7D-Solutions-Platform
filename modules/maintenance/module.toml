@@ -1,0 +1,21 @@
+[module]
+name = "maintenance"
+version = "2.1.2"
+description = "Maintenance management: work orders, preventive plans, meters, calibration, downtime"
+
+[server]
+host = "0.0.0.0"
+port = 8101
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

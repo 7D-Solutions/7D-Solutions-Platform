@@ -1,0 +1,21 @@
+[module]
+name = "integrations"
+version = "2.3.1"
+description = "External system connectors, OAuth, webhook routing, and reference linking"
+
+[server]
+host = "0.0.0.0"
+port = 8099
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

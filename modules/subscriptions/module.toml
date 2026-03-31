@@ -1,0 +1,21 @@
+[module]
+name = "subscriptions"
+version = "2.2.6"
+description = "Subscription lifecycle, billing gating, and invoice suspension handling"
+
+[server]
+host = "0.0.0.0"
+port = 8087
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

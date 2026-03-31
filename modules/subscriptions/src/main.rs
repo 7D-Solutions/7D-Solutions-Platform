@@ -1,337 +1,76 @@
-#![allow(dead_code)]
-
-mod admin;
-mod admin_types;
-mod config;
-mod consumer;
-mod cycle_gating;
-mod db;
-mod dlq;
-mod envelope;
-mod envelope_validation;
-mod gated_invoice_creation;
-mod http;
-mod invariants;
-mod lifecycle;
-mod metrics;
-mod models;
-mod outbox;
-mod publisher;
-
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
-use config::Config;
-use event_bus::{EventBus, InMemoryBus, NatsBus};
-use futures::StreamExt;
-use security::{
-    middleware::{
-        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
-    },
-    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
-};
-
-use std::net::SocketAddr;
+use axum::{routing::get, Json, Router};
 use std::sync::Arc;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tracing_subscriber::EnvFilter;
 use utoipa::OpenApi;
 
-/// Application state shared across HTTP handlers
+use subscriptions_rs::{admin, consumer, http, metrics};
+use security::{permissions, RequirePermissionsLayer};
+use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub metrics: Arc<metrics::SubscriptionsMetrics>,
 }
 
-#[tokio::main]
-async fn main() {
-    dotenvy::dotenv().ok();
+/// SDK consumer adapter for ar.events.ar.invoice_suspended.
+async fn on_invoice_suspended(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let payload: consumer::InvoiceSuspendedEvent =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    let config = Config::from_env().unwrap_or_else(|err| {
-        eprintln!("Configuration error: {}", err);
-        eprintln!("Subscriptions service cannot start without valid configuration.");
-        std::process::exit(1);
-    });
+    tracing::info!(
+        event_id = %event_id,
+        tenant_id = %payload.tenant_id,
+        customer_id = %payload.customer_id,
+        "Processing ar.invoice_suspended"
+    );
 
-    tracing::info!("Configuration loaded: {:?}", config.bus_type);
-
-    let pool = db::resolver::resolve_pool(&config.database_url)
-        .await
-        .expect("Failed to connect to database");
-
-    let shutdown_pool = pool.clone();
-
-    tracing::info!("Database connection established");
-
-    sqlx::migrate!("./db/migrations")
-        .run(&pool)
-        .await
-        .expect("Failed to run migrations");
-
-    tracing::info!("Database migrations completed");
-
-    let bus: Arc<dyn EventBus> = match config.bus_type {
-        config::BusType::Nats => {
-            let nats_url = config
-                .nats_url
-                .as_ref()
-                .expect("NATS_URL required for NATS bus");
-            tracing::info!("Connecting to NATS at {}", nats_url);
-            let nats_client = event_bus::connect_nats(nats_url)
-                .await
-                .expect("Failed to connect to NATS");
-            Arc::new(NatsBus::new(nats_client))
-        }
-        config::BusType::InMemory => {
-            tracing::info!("Using in-memory event bus");
-            Arc::new(InMemoryBus::new())
-        }
-    };
-
-    let publisher_pool = pool.clone();
-    let publisher_bus = bus.clone();
-    tokio::spawn(async move {
-        publisher::run_publisher(publisher_pool, publisher_bus).await;
-    });
-
-    tracing::info!("Background event publisher started");
-
-    // Spawn ar.invoice_suspended consumer
-    {
-        let consumer_bus = bus.clone();
-        let consumer_pool = pool.clone();
-        tokio::spawn(async move {
-            let subject = "ar.events.ar.invoice_suspended";
-            let mut stream = match consumer_bus.subscribe(subject).await {
-                Ok(s) => s,
-                Err(e) => {
-                    tracing::error!("Failed to subscribe to {}: {}", subject, e);
-                    return;
-                }
-            };
-
-            tracing::info!("Subscribed to {}", subject);
-
-            while let Some(msg) = stream.next().await {
-                let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        tracing::error!(subject = %msg.subject, error = %e, "Failed to parse envelope");
-                        continue;
-                    }
-                };
-
-                if let Err(e) = envelope_validation::validate_envelope(&envelope) {
-                    tracing::error!(subject = %msg.subject, error = %e, "Envelope validation failed");
-                    continue;
-                }
-
-                let event_id = match envelope.get("event_id").and_then(|v| v.as_str()) {
-                    Some(id) => id.to_string(),
-                    None => {
-                        tracing::error!(subject = %msg.subject, "Missing event_id in envelope");
-                        continue;
-                    }
-                };
-
-                let payload: consumer::InvoiceSuspendedEvent = match envelope
-                    .get("payload")
-                    .and_then(|p| serde_json::from_value(p.clone()).ok())
-                {
-                    Some(p) => p,
-                    None => {
-                        tracing::error!(event_id = %event_id, "Failed to parse InvoiceSuspendedEvent payload");
-                        continue;
-                    }
-                };
-
-                let span = tracing::info_span!(
-                    "consume_invoice_suspended",
-                    event_id = %event_id,
-                    tenant_id = %payload.tenant_id,
-                    customer_id = %payload.customer_id,
-                );
-
-                let _guard = span.enter();
-
-                let result = consumer::handle_invoice_suspended(&consumer_pool, &event_id, &payload)
-                    .await
-                    .map_err(|e| e.to_string());
-
-                match result {
-                    Ok(true) => tracing::info!(event_id = %event_id, "Processed ar.invoice_suspended"),
-                    Ok(false) => tracing::debug!(event_id = %event_id, "Duplicate ar.invoice_suspended, skipped"),
-                    Err(err_msg) => {
-                        tracing::error!(event_id = %event_id, error = %err_msg, "Failed to handle ar.invoice_suspended");
-                        if let Ok(uuid) = uuid::Uuid::parse_str(&event_id) {
-                            let _ = dlq::insert_failed_event(
-                                &consumer_pool,
-                                uuid,
-                                subject,
-                                &payload.tenant_id,
-                                &envelope,
-                                &err_msg,
-                                1,
-                            )
-                            .await;
-                        }
-                    }
-                }
-            }
-
-            tracing::warn!("ar.invoice_suspended consumer stopped");
-        });
+    let event_id_str = event_id.to_string();
+    match consumer::handle_invoice_suspended(pool, &event_id_str, &payload).await {
+        Ok(true) => tracing::info!(event_id = %event_id, "Processed ar.invoice_suspended"),
+        Ok(false) => tracing::debug!(event_id = %event_id, "Duplicate ar.invoice_suspended, skipped"),
+        Err(e) => return Err(ConsumerError::Processing(e.to_string())),
     }
 
-    tracing::info!("ar.invoice_suspended consumer started");
-
-    let metrics = Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
-    tracing::info!("Metrics initialized");
-
-    let app_state = Arc::new(AppState {
-        pool: pool.clone(),
-        metrics: metrics.clone(),
-    });
-
-    let _host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8087".to_string())
-        .parse()
-        .expect("PORT must be a valid u16");
-
-    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
-
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health))
-        .route("/api/ready", get(http::ready))
-        .route("/api/version", get(http::version))
-        .route("/api/openapi.json", get(openapi_json))
-        .route("/metrics", get(metrics::metrics_handler))
-        .with_state(app_state.clone())
-        .merge(
-            http::subscriptions_router(pool.clone())
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::SUBSCRIPTIONS_MUTATE,
-                ])),
-        )
-        .merge(admin::admin_router(pool))
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ))
-        .layer(build_cors_layer(&config))
-        .into_make_service_with_connect_info::<SocketAddr>();
-
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    tracing::info!("Subscriptions module listening on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind");
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("Server failed to start");
-
-    tracing::info!("Server stopped — closing resources");
-    shutdown_pool.close().await;
-    tracing::info!("Shutdown complete");
+    Ok(())
 }
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(http::ApiDoc::openapi())
 }
 
-async fn shutdown_signal() {
-    let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-    };
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
-    #[cfg(unix)]
-    let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
-    };
+#[tokio::main]
+async fn main() {
+    ModuleBuilder::from_manifest("module.toml")
+        .migrator(&MIGRATOR)
+        .consumer("ar.events.ar.invoice_suspended", on_invoice_suspended)
+        .routes(|ctx| {
+            let subs_metrics =
+                Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
 
-    #[cfg(not(unix))]
-    let terminate = std::future::pending::<()>();
+            let app_state = Arc::new(AppState {
+                pool: ctx.pool().clone(),
+                metrics: subs_metrics,
+            });
 
-    tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
-    }
-
-    tracing::info!("Shutdown signal received — draining in-flight requests");
-}
-
-fn build_cors_layer(config: &Config) -> CorsLayer {
-    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
-
-    if is_wildcard && config.env != "development" {
-        tracing::warn!(
-            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
-        );
-    }
-
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let origins: Vec<_> = config
-            .cors_origins
-            .iter()
-            .filter_map(|o| o.parse().ok())
-            .collect();
-        CorsLayer::new().allow_origin(origins)
-    };
-
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cors_wildcard_parses() {
-        let config = Config {
-            bus_type: config::BusType::InMemory,
-            database_url: "postgresql://localhost/test".to_string(),
-            nats_url: None,
-            env: "development".to_string(),
-            cors_origins: vec!["*".to_string()],
-        };
-        let _layer = build_cors_layer(&config);
-    }
-
-    #[test]
-    fn cors_specific_origins_parse() {
-        let config = Config {
-            bus_type: config::BusType::InMemory,
-            database_url: "postgresql://localhost/test".to_string(),
-            nats_url: None,
-            env: "development".to_string(),
-            cors_origins: vec![
-                "http://localhost:3000".to_string(),
-                "https://app.example.com".to_string(),
-            ],
-        };
-        let _layer = build_cors_layer(&config);
-    }
+            Router::new()
+                .route("/api/openapi.json", get(openapi_json))
+                .merge(
+                    http::subscriptions_router(ctx.pool().clone())
+                        .route_layer(RequirePermissionsLayer::new(&[
+                            permissions::SUBSCRIPTIONS_MUTATE,
+                        ])),
+                )
+                .merge(admin::admin_router(ctx.pool().clone()))
+        })
+        .run()
+        .await
+        .expect("subscriptions module failed");
 }

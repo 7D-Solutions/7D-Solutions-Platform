@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.2 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual startup boilerplate with SDK startup sequence. Health/middleware stripped from build_router(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 1.0.0 | 2026-03-28 | bd-1xe02 | Initial promotion. External customer auth boundary with RS256 JWT, Argon2 password hashing, refresh token rotation, tenant-isolated portal users, document visibility via doc-mgmt distribution check, status feed with acknowledgments, outbox event emission for all auth lifecycle events. Proof script, clippy clean, 5 tests pass (1 unit + 4 real-DB integration). Security audit: no blocking findings. | Production readiness gate for first paying customer (Fireproof ERP). | No |
 | 1.0.1 | 2026-03-28 | bd-29c9i.3 | Admin routes (/portal/admin/*) now require customer_portal.admin permission instead of party.mutate. | Security audit: party.mutate conflated party record management with portal user administration — two distinct privilege scopes. | No |

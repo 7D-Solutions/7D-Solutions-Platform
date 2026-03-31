@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "2.2.3"
+version = "2.2.4"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 
@@ -24,6 +24,7 @@ path = "src/lib.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }

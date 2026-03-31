@@ -82,6 +82,15 @@ impl ModuleContext {
         self.bus.as_deref().ok_or(BusNotAvailable)
     }
 
+    /// Get an owned `Arc<dyn EventBus>` for storing in module-specific state.
+    ///
+    /// Some modules need to store the bus in their `AppState` for handler
+    /// access. Returns the SDK's bus Arc so modules don't create a second
+    /// connection.
+    pub fn bus_arc(&self) -> Result<Arc<dyn EventBus>, BusNotAvailable> {
+        self.bus.clone().ok_or(BusNotAvailable)
+    }
+
     /// Retrieve module-specific state injected via [`ModuleBuilder::state`]
     /// or [`ModuleBuilder::on_startup`].
     ///

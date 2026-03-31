@@ -1,6 +1,6 @@
 [package]
 name = "notifications-rs"
-version = "2.1.2"
+version = "2.1.3"
 edition = "2021"
 description = "Event-driven notification delivery with scheduled dispatch and retry"
 
@@ -8,6 +8,7 @@ description = "Event-driven notification delivery with scheduled dispatch and re
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }

@@ -1,6 +1,6 @@
 [package]
 name = "payments-rs"
-version = "2.1.5"
+version = "2.1.6"
 edition = "2021"
 description = "Payment processing, reconciliation, and Tilled gateway integration"
 
@@ -9,6 +9,7 @@ anyhow = "1"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-axum = "0.2"
