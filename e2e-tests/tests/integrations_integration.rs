@@ -44,7 +44,7 @@ fn make_router(pool: PgPool) -> axum::Router {
     let m = Arc::new(IntegrationsMetrics::new().expect("metrics init failed"));
     let bus: Arc<dyn event_bus::EventBus> = Arc::new(event_bus::InMemoryBus::new());
     let state = Arc::new(AppState { pool, metrics: m, bus });
-    http::router(state)
+    common::with_test_jwt_layer(http::router(state))
 }
 
 async fn cleanup(pool: &PgPool, app_id: &str) {
@@ -73,6 +73,7 @@ async fn post_webhook(
     idempotency_key: &str,
     payload: Value,
 ) -> (StatusCode, Value) {
+    let jwt = common::sign_test_jwt(app_id, &["integrations.mutate", "integrations.read"]);
     let body_str = payload.to_string();
     let req = Request::builder()
         .method("POST")
@@ -80,6 +81,7 @@ async fn post_webhook(
         .header("content-type", "application/json")
         .header("x-app-id", app_id)
         .header("x-webhook-id", idempotency_key)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::from(body_str))
         .unwrap();
     let resp = router.clone().oneshot(req).await.unwrap();
@@ -309,11 +311,13 @@ async fn test_external_ref_create_and_query_by_entity() {
         "label": "Stripe Invoice"
     });
 
+    let jwt = common::sign_test_jwt(&app_id, &["integrations.mutate", "integrations.read"]);
     let create_request = Request::builder()
         .method("POST")
         .uri("/api/integrations/external-refs")
         .header("content-type", "application/json")
         .header("x-app-id", &app_id)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::from(create_req.to_string()))
         .unwrap();
 
@@ -363,6 +367,7 @@ async fn test_external_ref_create_and_query_by_entity() {
     assert_eq!(out_count.0, 1, "external_ref.created must be in outbox");
 
     // ── GET by entity ─────────────────────────────────────────────────────
+    let jwt = common::sign_test_jwt(&app_id, &["integrations.mutate", "integrations.read"]);
     let list_req = Request::builder()
         .method("GET")
         .uri(format!(
@@ -370,6 +375,7 @@ async fn test_external_ref_create_and_query_by_entity() {
             entity_id
         ))
         .header("x-app-id", &app_id)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::empty())
         .unwrap();
 
@@ -411,11 +417,13 @@ async fn test_external_ref_query_by_external_key() {
         "label": "SF Contact"
     });
 
+    let jwt = common::sign_test_jwt(&app_id, &["integrations.mutate", "integrations.read"]);
     let create_request = Request::builder()
         .method("POST")
         .uri("/api/integrations/external-refs")
         .header("content-type", "application/json")
         .header("x-app-id", &app_id)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::from(create_req.to_string()))
         .unwrap();
 
@@ -428,6 +436,7 @@ async fn test_external_ref_query_by_external_key() {
     let ref_id = created["id"].as_i64().expect("id");
 
     // GET by external system + external_id
+    let jwt = common::sign_test_jwt(&app_id, &["integrations.mutate", "integrations.read"]);
     let lookup_req = Request::builder()
         .method("GET")
         .uri(format!(
@@ -435,6 +444,7 @@ async fn test_external_ref_query_by_external_key() {
             external_id
         ))
         .header("x-app-id", &app_id)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::empty())
         .unwrap();
 

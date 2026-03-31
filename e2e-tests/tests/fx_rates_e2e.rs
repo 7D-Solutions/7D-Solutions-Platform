@@ -11,6 +11,7 @@
 mod common;
 
 use chrono::{Duration, Utc};
+use jsonwebtoken::EncodingKey;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::process::Command;
@@ -99,9 +100,18 @@ async fn test_create_fx_rate_and_query_latest() {
         .await
         .expect("GL service not healthy");
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+
     let client = reqwest::Client::new();
     let base_url = gl_base_url();
     let tenant_id = format!("test-fx-{}", Uuid::new_v4());
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
 
     // ── Step 1: Create an EUR/USD rate ──────────────────────────────────────
     let effective_t1 = Utc::now() - Duration::hours(2);
@@ -109,6 +119,7 @@ async fn test_create_fx_rate_and_query_latest() {
 
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "EUR",
@@ -131,6 +142,7 @@ async fn test_create_fx_rate_and_query_latest() {
     // ── Step 2: Duplicate idempotency_key → no-op ──────────────────────────
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "EUR",
@@ -155,6 +167,7 @@ async fn test_create_fx_rate_and_query_latest() {
 
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "EUR",
@@ -180,6 +193,7 @@ async fn test_create_fx_rate_and_query_latest() {
             "{}/api/gl/fx-rates/latest?tenant_id={}&base_currency=EUR&quote_currency=USD",
             base_url, tenant_id
         ))
+        .bearer_auth(&jwt)
         .send()
         .await
         .expect("Failed to GET latest rate");
@@ -200,6 +214,7 @@ async fn test_create_fx_rate_and_query_latest() {
     let as_of_between = effective_t1 + Duration::minutes(30);
     let resp = client
         .get(format!("{}/api/gl/fx-rates/latest", base_url))
+        .bearer_auth(&jwt)
         .query(&[
             ("tenant_id", tenant_id.as_str()),
             ("base_currency", "EUR"),
@@ -228,6 +243,7 @@ async fn test_create_fx_rate_and_query_latest() {
             "{}/api/gl/fx-rates/latest?tenant_id={}&base_currency=JPY&quote_currency=CHF",
             base_url, tenant_id
         ))
+        .bearer_auth(&jwt)
         .send()
         .await
         .expect("Failed to GET non-existent rate");
@@ -244,15 +260,25 @@ async fn test_fx_rate_outbox_event_emitted() {
         .await
         .expect("GL service not healthy");
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+
     let gl_pool = connect_gl_db().await;
     let client = reqwest::Client::new();
     let base_url = gl_base_url();
     let tenant_id = format!("test-fx-outbox-{}", Uuid::new_v4());
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
     let idem_key = format!("fx-outbox-{}", Uuid::new_v4());
 
     // Create a rate
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "GBP",
@@ -305,13 +331,23 @@ async fn test_fx_rate_validation_rejects_bad_input() {
         .await
         .expect("GL service not healthy");
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+
     let client = reqwest::Client::new();
     let base_url = gl_base_url();
     let tenant_id = format!("test-fx-val-{}", Uuid::new_v4());
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
 
     // Same base and quote currency should fail
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "USD",
@@ -330,6 +366,7 @@ async fn test_fx_rate_validation_rejects_bad_input() {
     // Negative rate should fail
     let resp = client
         .post(format!("{}/api/gl/fx-rates", base_url))
+        .bearer_auth(&jwt)
         .json(&serde_json::json!({
             "tenant_id": tenant_id,
             "base_currency": "EUR",
@@ -354,10 +391,19 @@ async fn test_fx_rate_db_append_only() {
         .await
         .expect("GL service not healthy");
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+
     let gl_pool = connect_gl_db().await;
     let client = reqwest::Client::new();
     let base_url = gl_base_url();
     let tenant_id = format!("test-fx-append-{}", Uuid::new_v4());
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
 
     // Insert 3 rates for the same pair at different times
     let mut rate_ids = Vec::new();
@@ -365,6 +411,7 @@ async fn test_fx_rate_db_append_only() {
         let effective = Utc::now() - Duration::hours(3 - i);
         let resp = client
             .post(format!("{}/api/gl/fx-rates", base_url))
+            .bearer_auth(&jwt)
             .json(&serde_json::json!({
                 "tenant_id": tenant_id,
                 "base_currency": "EUR",

@@ -293,9 +293,19 @@ async fn test_trial_balance_api() {
 
     println!("📡 Calling trial balance API: {}", url);
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
+
     let client = reqwest::Client::new();
     let response = client
         .get(&url)
+        .bearer_auth(&jwt)
         .send()
         .await
         .expect("Failed to call trial balance API");
@@ -390,8 +400,17 @@ async fn test_trial_balance_api_with_currency_filter() {
 
     println!("📡 Calling trial balance API with currency filter: {}", url);
 
+    let key = match common::dev_private_key() {
+        Some(k) => k,
+        None => {
+            eprintln!("JWT_PRIVATE_KEY_PEM not set -- skipping");
+            return;
+        }
+    };
+    let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
+
     let client = reqwest::Client::new();
-    let response = client.get(&url).send().await.expect("Failed to call API");
+    let response = client.get(&url).bearer_auth(&jwt).send().await.expect("Failed to call API");
 
     assert_eq!(response.status(), 200);
 

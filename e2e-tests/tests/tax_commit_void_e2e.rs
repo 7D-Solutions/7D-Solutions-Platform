@@ -111,7 +111,7 @@ struct ErrorBody {
 // ============================================================================
 
 fn build_tax_router(pool: PgPool) -> axum::Router {
-    ar_rs::http::tax::tax_router(pool)
+    common::with_test_jwt_layer(ar_rs::http::tax::tax_router(pool))
 }
 
 fn ca_address() -> TaxAddress {
@@ -207,12 +207,19 @@ async fn cleanup(pool: &PgPool, app_id: &str) {
         .ok();
 }
 
-async fn post_json<T: Serialize>(app: axum::Router, uri: &str, body: &T) -> (u16, String) {
+async fn post_json<T: Serialize>(
+    app: axum::Router,
+    uri: &str,
+    body: &T,
+    tenant_id: &str,
+) -> (u16, String) {
+    let jwt = common::sign_test_jwt(tenant_id, &["ar.mutate", "ar.read"]);
     let json = serde_json::to_string(body).unwrap();
     let request = Request::builder()
         .method("POST")
         .uri(uri)
         .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::from(json))
         .unwrap();
 
@@ -239,7 +246,7 @@ async fn quote_tax(pool: &PgPool, app_id: &str, invoice_id: &str) -> TaxQuoteHtt
     };
 
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/quote", &body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/quote", &body, app_id).await;
     assert_eq!(status, 200, "Quote failed: {}", resp_body);
     serde_json::from_str(&resp_body).unwrap()
 }
@@ -272,7 +279,7 @@ async fn test_tax_commit_after_quote() {
     };
 
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200, "Commit failed: {}", resp_body);
 
     let commit_resp: CommitTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
@@ -335,14 +342,14 @@ async fn test_tax_commit_idempotent() {
     };
 
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200);
     let resp1: CommitTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
     assert!(!resp1.already_committed);
 
     // Second commit — should be idempotent
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(
         status, 200,
         "Idempotent commit should return 200: {}",
@@ -391,7 +398,7 @@ async fn test_tax_commit_then_void() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200);
 
     // Void
@@ -402,7 +409,7 @@ async fn test_tax_commit_then_void() {
         correlation_id: Some(format!("corr-void-{}", Uuid::new_v4())),
     };
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(status, 200, "Void failed: {}", resp_body);
 
     let void_resp: VoidTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
@@ -460,7 +467,7 @@ async fn test_tax_void_idempotent() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200);
 
     // First void
@@ -471,14 +478,14 @@ async fn test_tax_void_idempotent() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(status, 200);
     let resp1: VoidTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
     assert!(!resp1.already_voided);
 
     // Second void — idempotent
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(
         status, 200,
         "Idempotent void should return 200: {}",
@@ -512,7 +519,7 @@ async fn test_tax_void_without_commit_rejected() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(
         status, 404,
         "Void without commit should return 404: {}",
@@ -548,7 +555,7 @@ async fn test_tax_commit_without_quote_rejected() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(
         status, 404,
         "Commit without quote should return 404: {}",
@@ -586,7 +593,7 @@ async fn test_tax_events_emitted_to_outbox() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200);
 
     // Check tax.committed event in outbox
@@ -623,7 +630,7 @@ async fn test_tax_events_emitted_to_outbox() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(status, 200);
 
     // Check tax.voided event in outbox
@@ -694,7 +701,7 @@ async fn test_tax_commit_void_db_state_transitions() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(status, 200);
 
     let row = sqlx::query(
@@ -724,7 +731,7 @@ async fn test_tax_commit_void_db_state_transitions() {
         correlation_id: None,
     };
     let app = build_tax_router(pool.clone());
-    let (status, _) = post_json(app, "/api/ar/tax/void", &void_body).await;
+    let (status, _) = post_json(app, "/api/ar/tax/void", &void_body, &tenant).await;
     assert_eq!(status, 200);
 
     let row = sqlx::query(
@@ -751,7 +758,7 @@ async fn test_tax_commit_void_db_state_transitions() {
 
     // Step 5: Cannot re-commit after void
     let app = build_tax_router(pool.clone());
-    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
+    let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body, &tenant).await;
     assert_eq!(
         status, 409,
         "Re-commit after void should return 409: {}",

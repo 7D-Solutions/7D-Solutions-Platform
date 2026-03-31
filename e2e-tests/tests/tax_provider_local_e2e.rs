@@ -91,7 +91,7 @@ struct ErrorBody {
 // ============================================================================
 
 fn build_tax_router(pool: PgPool) -> axum::Router {
-    ar_rs::http::tax::tax_router(pool)
+    common::with_test_jwt_layer(ar_rs::http::tax::tax_router(pool))
 }
 
 fn ca_address() -> TaxAddress {
@@ -164,11 +164,13 @@ async fn cleanup_tax_cache(pool: &PgPool, app_id: &str) {
 }
 
 async fn post_tax_quote(app: axum::Router, body: &TaxQuoteHttpRequest) -> (u16, String) {
+    let jwt = common::sign_test_jwt(&body.app_id, &["ar.mutate", "ar.read"]);
     let json = serde_json::to_string(body).unwrap();
     let request = Request::builder()
         .method("POST")
         .uri("/api/ar/tax/quote")
         .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::from(json))
         .unwrap();
 
@@ -181,6 +183,7 @@ async fn post_tax_quote(app: axum::Router, body: &TaxQuoteHttpRequest) -> (u16, 
 }
 
 async fn get_cached_quote(app: axum::Router, app_id: &str, invoice_id: &str) -> (u16, String) {
+    let jwt = common::sign_test_jwt(app_id, &["ar.mutate", "ar.read"]);
     let uri = format!(
         "/api/ar/tax/quote?app_id={}&invoice_id={}",
         app_id, invoice_id
@@ -188,6 +191,7 @@ async fn get_cached_quote(app: axum::Router, app_id: &str, invoice_id: &str) -> 
     let request = Request::builder()
         .method("GET")
         .uri(&uri)
+        .header("authorization", format!("Bearer {}", jwt))
         .body(Body::empty())
         .unwrap();
 

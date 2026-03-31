@@ -43,11 +43,11 @@ async fn run_migrations(pool: &PgPool) {
         .expect("party migrations failed");
 }
 
-/// Build an in-process party router wired to the real pool.
+/// Build an in-process party router wired to the real pool, with test JWT layer.
 fn make_router(pool: PgPool) -> axum::Router {
     let metrics = Arc::new(PartyMetrics::new().expect("metrics init failed"));
     let state = Arc::new(AppState { pool, metrics });
-    http::router(state)
+    common::with_test_jwt_layer(http::router(state))
 }
 
 /// Send a JSON request and return (status, parsed body).
@@ -62,12 +62,14 @@ async fn send_json(
         Some(v) => v.to_string().into_bytes(),
         None => vec![],
     };
+    let jwt = common::sign_test_jwt(app_id, &["party.mutate", "party.read"]);
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
         .header("x-app-id", app_id)
         .header("x-actor-id", "test-actor")
-        .header("x-correlation-id", Uuid::new_v4().to_string());
+        .header("x-correlation-id", Uuid::new_v4().to_string())
+        .header("authorization", format!("Bearer {}", jwt));
     if !body_bytes.is_empty() {
         builder = builder.header("content-type", "application/json");
     }
