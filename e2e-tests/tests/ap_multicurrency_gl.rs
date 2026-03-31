@@ -12,8 +12,8 @@
 mod common;
 
 use anyhow::Result;
-use chrono::{Datelike, NaiveDate, Utc};
-use common::{generate_test_tenant, get_ap_pool, get_gl_pool};
+use chrono::Utc;
+use common::{generate_test_tenant, get_ap_pool, get_gl_pool, setup_gl_open_period};
 use gl_rs::consumers::ap_vendor_bill_approved_consumer::{
     process_ap_bill_approved_posting, ApprovedGlLine, VendorBillApprovedPayload,
 };
@@ -45,48 +45,6 @@ async fn setup_gl_accounts(gl_pool: &PgPool, tenant_id: &str) -> Result<()> {
     .execute(gl_pool)
     .await?;
     Ok(())
-}
-
-/// Create an open accounting period covering the current month.
-///
-/// Uses dynamic dates so the test works regardless of when it runs.
-async fn setup_open_period(gl_pool: &PgPool, tenant_id: &str) -> Result<Uuid> {
-    let today = chrono::Utc::now().date_naive();
-    let first_of_month = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
-    let last_of_month = first_of_month
-        .checked_add_months(chrono::Months::new(1))
-        .unwrap()
-        .pred_opt()
-        .unwrap();
-
-    let period_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
-        VALUES ($1, $2, $3, false)
-        ON CONFLICT DO NOTHING
-        RETURNING id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(first_of_month)
-    .bind(last_of_month)
-    .fetch_optional(gl_pool)
-    .await?;
-
-    if let Some(id) = period_id {
-        return Ok(id);
-    }
-
-    // Conflict on period — fetch existing
-    let id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM accounting_periods WHERE tenant_id = $1 \
-         AND period_start = $2 LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(first_of_month)
-    .fetch_one(gl_pool)
-    .await?;
-    Ok(id)
 }
 
 /// Insert a EUR/USD FX rate in the GL fx_rates table.
@@ -280,9 +238,7 @@ async fn test_ap_multicurrency_bill_approval_posts_gl_in_reporting_currency() {
     setup_gl_accounts(&gl_pool, &tenant_id)
         .await
         .expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id)
-        .await
-        .expect("GL period");
+    setup_gl_open_period(&gl_pool, &tenant_id).await;
     let fx_rate_id = setup_fx_rate(&gl_pool, &tenant_id).await.expect("FX rate");
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
@@ -359,9 +315,7 @@ async fn test_ap_multicurrency_gl_posting_is_idempotent() {
     setup_gl_accounts(&gl_pool, &tenant_id)
         .await
         .expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id)
-        .await
-        .expect("GL period");
+    setup_gl_open_period(&gl_pool, &tenant_id).await;
     let fx_rate_id = setup_fx_rate(&gl_pool, &tenant_id).await.expect("FX rate");
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
@@ -432,9 +386,7 @@ async fn test_ap_same_currency_bill_posts_without_fx_conversion() {
     setup_gl_accounts(&gl_pool, &tenant_id)
         .await
         .expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id)
-        .await
-        .expect("GL period");
+    setup_gl_open_period(&gl_pool, &tenant_id).await;
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
     let bill_id = Uuid::new_v4();
@@ -528,7 +480,7 @@ async fn test_ap_multicurrency_no_cross_tenant_contamination() {
 
     for t in [&tenant_a, &tenant_b] {
         setup_gl_accounts(&gl_pool, t).await.expect("GL accounts");
-        setup_open_period(&gl_pool, t).await.expect("GL period");
+        setup_gl_open_period(&gl_pool, t).await;
     }
 
     let fx_rate_a = setup_fx_rate(&gl_pool, &tenant_a).await.expect("FX rate A");

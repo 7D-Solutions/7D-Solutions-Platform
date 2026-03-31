@@ -12,7 +12,7 @@
 //! **Pattern:** Follows Phase 11/12 boundary E2E test patterns
 
 use async_nats::Client as NatsClient;
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use futures::StreamExt;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
@@ -645,6 +645,53 @@ pub async fn create_ar_customer(pool: &PgPool, app_id: &str) -> i32 {
 /// Generate unique test tenant ID
 pub fn generate_test_tenant() -> String {
     format!("test-tenant-{}", Uuid::new_v4())
+}
+
+// ============================================================================
+// GL Period Seeding
+// ============================================================================
+
+/// Create an open accounting period covering the current month for a test tenant.
+///
+/// Uses dynamic dates so the test works regardless of when it runs.
+/// Idempotent: if a period already exists for the same month, returns its ID.
+pub async fn setup_gl_open_period(gl_pool: &PgPool, tenant_id: &str) -> Uuid {
+    let today = chrono::Utc::now().date_naive();
+    let first_of_month = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
+    let last_of_month = first_of_month
+        .checked_add_months(chrono::Months::new(1))
+        .unwrap()
+        .pred_opt()
+        .unwrap();
+
+    let period_id = sqlx::query_scalar::<_, Uuid>(
+        r#"
+        INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
+        VALUES ($1, $2, $3, false)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(first_of_month)
+    .bind(last_of_month)
+    .fetch_optional(gl_pool)
+    .await
+    .expect("Failed to insert accounting period");
+
+    if let Some(id) = period_id {
+        return id;
+    }
+
+    // Period already existed — fetch it
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM accounting_periods WHERE tenant_id = $1 AND period_start = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(first_of_month)
+    .fetch_one(gl_pool)
+    .await
+    .expect("Failed to fetch existing accounting period")
 }
 
 // ============================================================================

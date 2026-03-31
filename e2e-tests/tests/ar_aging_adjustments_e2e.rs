@@ -23,7 +23,7 @@ use ar_rs::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
 use chrono::{Datelike, TimeZone, Utc};
 use common::{
     cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
-    get_subscriptions_pool,
+    get_subscriptions_pool, setup_gl_open_period,
 };
 use gl_rs::consumers::gl_credit_note_consumer::{
     process_credit_note_posting, CreditNoteIssuedPayload,
@@ -560,34 +560,6 @@ async fn setup_gl_accounts(gl_pool: &sqlx::PgPool, tenant_id: &str) -> Result<()
     Ok(())
 }
 
-/// Open accounting period covering the current month.
-///
-/// Uses dynamic dates so the test works regardless of when it runs.
-async fn setup_open_period(gl_pool: &sqlx::PgPool, tenant_id: &str) -> Result<uuid::Uuid> {
-    let today = chrono::Utc::now().date_naive();
-    let first_of_month =
-        chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
-    let last_of_month = first_of_month
-        .checked_add_months(chrono::Months::new(1))
-        .unwrap()
-        .pred_opt()
-        .unwrap();
-
-    let period_id = sqlx::query_scalar::<_, uuid::Uuid>(
-        r#"
-        INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
-        VALUES ($1, $2, $3, false)
-        RETURNING id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(first_of_month)
-    .bind(last_of_month)
-    .fetch_one(gl_pool)
-    .await?;
-    Ok(period_id)
-}
-
 /// Insert unbilled usage record for billing
 async fn insert_usage_for_billing(
     pool: &sqlx::PgPool,
@@ -650,7 +622,7 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
-    let period_id = setup_open_period(&gl_pool, &tenant_id).await?;
+    let period_id = setup_gl_open_period(&gl_pool, &tenant_id).await;
 
     let now = Utc::now();
     let period_start = Utc
@@ -1003,7 +975,7 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
 
         let customer_id = make_customer(&ar_pool, &tenant_id).await?;
         setup_gl_accounts(&gl_pool, &tenant_id).await?;
-        let period_id = setup_open_period(&gl_pool, &tenant_id).await?;
+        let period_id = setup_gl_open_period(&gl_pool, &tenant_id).await;
 
         let now2 = Utc::now();
         let period_start = Utc
