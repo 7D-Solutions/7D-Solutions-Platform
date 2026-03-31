@@ -23,8 +23,11 @@
 //! }
 //! ```
 
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::Router;
@@ -35,12 +38,31 @@ use crate::context::ModuleContext;
 use crate::manifest::{Manifest, ManifestError};
 use crate::startup::{self, StartupError};
 
+/// Type-erased async startup callback.
+type StartupFn = Box<
+    dyn FnOnce(
+            sqlx::PgPool,
+        ) -> Pin<
+            Box<
+                dyn Future<
+                        Output = Result<
+                            (TypeId, Box<dyn Any + Send + Sync>),
+                            StartupError,
+                        >,
+                    > + Send,
+            >,
+        > + Send,
+>;
+
 /// Builder for a platform module HTTP runtime.
 pub struct ModuleBuilder {
     manifest: Result<Manifest, ManifestError>,
     routes_fn: Option<Box<dyn FnOnce(ModuleContext) -> Router + Send>>,
     migrator: Option<&'static sqlx::migrate::Migrator>,
     consumers: Vec<ConsumerDef>,
+    extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    startup_fns: Vec<StartupFn>,
+    skip_default_middleware: bool,
 }
 
 impl ModuleBuilder {
@@ -61,6 +83,9 @@ impl ModuleBuilder {
             routes_fn: None,
             migrator: None,
             consumers: Vec::new(),
+            extensions: HashMap::new(),
+            startup_fns: Vec::new(),
+            skip_default_middleware: false,
         }
     }
 
@@ -105,6 +130,57 @@ impl ModuleBuilder {
         self
     }
 
+    /// Inject module-specific state accessible via [`ModuleContext::state`].
+    ///
+    /// Any `Send + Sync + 'static` value can be stored. Retrieve it later
+    /// in route handlers or consumer closures with `ctx.state::<T>()`.
+    ///
+    /// Multiple types can be registered — each is keyed by its concrete
+    /// type. Registering the same type twice overwrites the earlier value.
+    pub fn state<T: Send + Sync + 'static>(mut self, val: T) -> Self {
+        self.extensions
+            .insert(TypeId::of::<T>(), Box::new(val));
+        self
+    }
+
+    /// Register an async startup callback that runs after infrastructure
+    /// (DB pool, event bus) is ready but before consumers and routes.
+    ///
+    /// The callback receives the database pool and returns a value that
+    /// is stored as module state (accessible via `ctx.state::<T>()`).
+    /// Use this for initialisation that depends on the pool — e.g.
+    /// loading a tenant resolver, warming caches, or running seed data.
+    ///
+    /// Multiple `on_startup` callbacks can be registered; each stores
+    /// its return value under its own type key.
+    pub fn on_startup<T, F, Fut>(mut self, f: F) -> Self
+    where
+        T: Send + Sync + 'static,
+        F: FnOnce(sqlx::PgPool) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<T, StartupError>> + Send + 'static,
+    {
+        let startup: StartupFn = Box::new(move |pool| {
+            Box::pin(async move {
+                let val = f(pool).await?;
+                Ok((TypeId::of::<T>(), Box::new(val) as Box<dyn Any + Send + Sync>))
+            })
+        });
+        self.startup_fns.push(startup);
+        self
+    }
+
+    /// Skip the SDK's built-in middleware stack (CORS, JWT, rate limiting,
+    /// timeout, health endpoints, metrics endpoint).
+    ///
+    /// Use this when the module provides its own middleware — for example
+    /// a vertical that already has custom CORS, auth, and health routes.
+    /// The SDK still handles infrastructure (DB pool, event bus, consumers,
+    /// graceful shutdown, consumer draining).
+    pub fn skip_default_middleware(mut self) -> Self {
+        self.skip_default_middleware = true;
+        self
+    }
+
     /// Run the module through the full startup sequence.
     ///
     /// This blocks until the server receives a shutdown signal (SIGTERM
@@ -115,8 +191,20 @@ impl ModuleBuilder {
         // Phase A: infrastructure
         let phase_a = startup::phase_a(&manifest).await?;
 
+        // Run startup callbacks — each returns a typed value to store.
+        let mut extensions = self.extensions;
+        for startup_fn in self.startup_fns {
+            let (type_id, val) = startup_fn(phase_a.pool.clone()).await?;
+            extensions.insert(type_id, val);
+        }
+
         // Build module context for the route factory and consumers
-        let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
+        let ctx = ModuleContext::with_extensions(
+            phase_a.pool.clone(),
+            manifest.clone(),
+            phase_a.bus.clone(),
+            extensions,
+        );
 
         // Phase A step 8: wire consumers (after EventBus in step 6)
         let consumer_handles = if !self.consumers.is_empty() {
@@ -146,7 +234,13 @@ impl ModuleBuilder {
         };
 
         // Phase B: HTTP stack + serve
-        startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles).await
+        if self.skip_default_middleware {
+            startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles)
+                .await
+        } else {
+            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles)
+                .await
+        }
     }
 }
 

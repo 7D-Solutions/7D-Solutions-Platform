@@ -353,6 +353,70 @@ pub(crate) async fn phase_b(
     Ok(())
 }
 
+/// Phase B variant: serve module routes as-is without SDK middleware.
+///
+/// Used when a module provides its own middleware stack (CORS, JWT, health,
+/// metrics). The SDK still handles migrations, graceful shutdown, and
+/// consumer draining.
+pub(crate) async fn phase_b_raw(
+    manifest: &Manifest,
+    phase_a: PhaseAOutput,
+    module_routes: Router,
+    migrator: Option<&sqlx::migrate::Migrator>,
+    consumer_handles: ConsumerHandles,
+) -> Result<(), StartupError> {
+    let module_name = &manifest.module.name;
+
+    // Run migrations if a migrator was provided and auto_migrate is enabled.
+    if let Some(migrator) = migrator {
+        if manifest
+            .database
+            .as_ref()
+            .map_or(false, |db| db.auto_migrate)
+        {
+            migrator
+                .run(&phase_a.pool)
+                .await
+                .map_err(|e| StartupError::Migration(e.to_string()))?;
+            tracing::info!(module = %module_name, "database migrations applied");
+        }
+    }
+
+    let shutdown_pool = phase_a.pool.clone();
+
+    // Env-based overrides for host/port
+    let host = std::env::var("HOST").unwrap_or_else(|_| manifest.server.host.clone());
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(manifest.server.port);
+
+    let app = module_routes.into_make_service_with_connect_info::<SocketAddr>();
+
+    let addr: SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .map_err(|_| StartupError::Config(format!("invalid address: {}:{}", host, port)))?;
+
+    tracing::info!(module = %module_name, %addr, "listening (raw mode)");
+
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| StartupError::Bind { addr, source: e })?;
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .map_err(|e| StartupError::Serve(e.to_string()))?;
+
+    tracing::info!(module = %module_name, "server stopped — draining consumers");
+    consumer_handles.shutdown().await;
+    tracing::info!(module = %module_name, "consumers drained — closing resources");
+    shutdown_pool.close().await;
+    tracing::info!(module = %module_name, "shutdown complete");
+
+    Ok(())
+}
+
 /// CORS layer copied from Party's working `build_cors_layer()` implementation.
 fn build_cors_layer(manifest: &Manifest) -> CorsLayer {
     let cors_env = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| "*".to_string());
