@@ -63,5 +63,9 @@ modules/ttp/src/domain/billing.rs  # 488 LOC — billing run execution (types+lo
 # Reporting module — cohesive concern (bd-ev4g4)
 modules/reporting/src/domain/statements/cashflow.rs  # 649 LOC — cashflow statement computation (types+query+cache+5 integrated tests; single concern)
 
+# Shipping-Receiving module — cohesive concerns (bd-y3hq2)
+modules/shipping-receiving/src/domain/shipments/guards.rs  # 501 LOC — guard logic + tests (single concern)
+modules/shipping-receiving/src/http/shipments/handlers.rs  # 671 LOC — 11 shipment HTTP handlers (single resource, grew with utoipa annotations)
+
 # Quality-Inspection module — cohesive concern (bd-dx75u)
 modules/quality-inspection/src/domain/inspection_service.rs  # 554 LOC — inspection CRUD + disposition state machine + queries (single entity)
