@@ -1,3 +1,14 @@
+# CASS runtime data
+.cass/
+
+# QuickBooks Online tokens and test artifacts
+.qbo-tokens.json
+.qbo-shipping-test-result.json
+.env.qbo-sandbox
+
+# Backup files
+*.bak
+
 # Rust build artifacts
 /target/
 /target-slot-1/
