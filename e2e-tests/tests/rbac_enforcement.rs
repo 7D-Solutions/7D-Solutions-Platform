@@ -11,8 +11,8 @@
 //! required — routers are assembled from library crate handlers plus the
 //! production `ClaimsLayer` + `RequirePermissionsLayer` middleware stack.
 //!
-//! RSA keypairs are generated per test-run; tokens are signed in-process and
-//! verified by the same [`JwtVerifier`] the production middleware uses.
+//! A hardcoded RSA-2048 test keypair is used for JWT signing/verification
+//! (runtime key generation in debug builds causes non-deterministic hangs).
 //!
 //! ## Covered modules
 //! AR (ar.mutate), GL (gl.post), Inventory (inventory.mutate), AP (ap.mutate),
@@ -36,8 +36,6 @@ use audit::{
 use axum::{body::Body, http::Request, routing::post, Router};
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
-use rsa::RsaPrivateKey;
 use security::{
     authz_middleware::{ClaimsLayer, RequirePermissionsLayer},
     permissions, JwtVerifier,
@@ -57,16 +55,53 @@ struct TestKeys {
     verifier: Arc<JwtVerifier>,
 }
 
-// Generate the RSA keypair once for all tests. RSA-2048 keygen is CPU-heavy;
-// running it per-test (×18 in parallel) caused timeouts under load.
+// Hardcoded RSA-2048 test keypair. Generating keys at runtime via
+// `RsaPrivateKey::new` in debug builds triggers non-deterministic hangs
+// (Miller-Rabin primality testing in unoptimized code can take 120s+).
 static SHARED_KEYS: LazyLock<TestKeys> = LazyLock::new(|| {
-    let mut rng = rand::thread_rng();
-    let priv_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-    let pub_key = priv_key.to_public_key();
-    let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-    let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).unwrap();
-    let encoding = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).unwrap();
-    let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).unwrap());
+    const TEST_PRIVATE_PEM: &str = "\
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC2XH1hgKveHfNi
+fZWiV08J+tJRCA7Ea5qQr9gbjhBk0Ueu8FAJq7gjyE1a3shUe5uhqjyZWGprV5qd
+tqpymPUOyhui/et+HCyOy/SBx7jzzxqiu83gajyxwsqtlZzxXYWsd8QQSWB6pqKH
+nlTwAcHPUY6lqCdGO9e9h3cfkj3JWn9RsX85pqSVC0JI0uO4q55MaMjwsKzBiVkD
+7IULCMoPxt81haCIRaetwlv3B2O89uhU2BgxB3MtNiMH+U9g/fnKVwWH8POSkfIR
++wtqaiKuz2eUkLffhU1F9zuAU3613V69kAb9atDue5/ljWU6raCik6Vw/i0f6CK+
+ejsUaXPxAgMBAAECggEAKbNzvniolKXfsp2KOrHhcqRHNN11VwhOM5jqf76YVB2h
+WUk93EBG3vPecJGyWNNdTvY5Xk2gJETHqBoN1x/QJh4kfLy4/cEelVbhZk4QJrys
+2Bq/JPrWP0YOh+xHE9CxkTNgA+NrqxBw6TdVL/8O3URGrO4LcR2dI4uXO4J7G5Bw
+wvqlhDTAoc3D3xEFYP7MCmZVMcJPt5/fhsBivSbuBAQokz/1mJc6X1SB7Zhq+JKd
+/kjDOL4gmzx/D0vilLYfgym8EbRy7bChlflYclfWvYGqEyI2qn9sy2XcoTx9cLxi
+YJ9wLVyqKpehfyJh/1WzTZ4ENWoP8s5H0+FibACy2wKBgQD717xPkhIpQt7yxn9q
+ckQ5nDRJjV+stBJXUIGzcrsCOLU3Tisw2avzNVo2fCkGDyTv4N6R0KgZenRBrCYh
+adBRNoLUZlp+jHTgza3XLIUOxd4ozSBuVmF/mCXUM9xoVm0T07MaRT8JoEjpyw3Z
+fKliOKzzQjPH+sv1TiLpwTWBPwKBgQC5XyHJlVlP8t/HsVIS7X0ljLpTQ3MjmfaO
+P++FTk9iKzHuSrXaemRkfcFr2QB4FoXnL0zvuKev1jfItn0hgKawgdZXHTkTbFtp
+hPVRfdYp6gu4k9Qvusu5M1zaLqncWYxfokiqHrVqpejHXEHyHqejw7i7MdoqBrnK
+jFON8UuOzwKBgE1CNJHQhOPFkPG3dVUpcsadpei+hxBLOakxmGh9lOMslGNABr34
+uOhmgKNgWZFzSeiQ+paPBVKzn0CaWCQ9+ts/NsmEENTrr9tbHa56COOsTegEbaOL
+umNTQJ+lvUMA6HuBoVs4zQrd8iBO25PRy4DHVD9YGtyJktJRQyKk1A4vAoGAfsVL
+YwOrH5zWY0el/GHDyzExn42qKTe6wM+Cq2TBrz4hGHipYy9+hqbl5y5xPq8Qhej4
+MZzTuNHENpRugMHtvRoeDldi2CCrZz9RUZjAJMv1lhYq7zVM62vv3Ro6egIXmLNw
+BD+aC8RIrEYwpzdFqB5KsGJIc6ND3fwXjCPva0sCgYEAzeLDdGyZ16ZvGvLeCdeU
+YtDCwfDvzgLEWfAy7B0Zd9+OHUQ/U1rR6xsX7me27YLTL7PArGhRTn+rkAOW+yAM
+vB4vFgg+l4TA5cOqTxZMCIJukklPhoRyq8UGdsS8/j6tf4xC+WIWBV0iNDBI1ZDW
+XxuEmFAUQwn9HDJd6oFjWlY=
+-----END PRIVATE KEY-----";
+
+    const TEST_PUBLIC_PEM: &str = "\
+-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtlx9YYCr3h3zYn2VoldP
+CfrSUQgOxGuakK/YG44QZNFHrvBQCau4I8hNWt7IVHuboao8mVhqa1eanbaqcpj1
+Dsobov3rfhwsjsv0gce4888aorvN4Go8scLKrZWc8V2FrHfEEElgeqaih55U8AHB
+z1GOpagnRjvXvYd3H5I9yVp/UbF/OaaklQtCSNLjuKueTGjI8LCswYlZA+yFCwjK
+D8bfNYWgiEWnrcJb9wdjvPboVNgYMQdzLTYjB/lPYP35ylcFh/DzkpHyEfsLamoi
+rs9nlJC334VNRfc7gFN+td1evZAG/WrQ7nuf5Y1lOq2gopOlcP4tH+givno7FGlz
+8QIDAQAB
+-----END PUBLIC KEY-----";
+
+    let encoding = EncodingKey::from_rsa_pem(TEST_PRIVATE_PEM.as_bytes()).unwrap();
+    let verifier = Arc::new(JwtVerifier::from_public_pem(TEST_PUBLIC_PEM).unwrap());
     TestKeys { encoding, verifier }
 });
 

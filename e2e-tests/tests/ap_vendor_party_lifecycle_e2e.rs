@@ -638,7 +638,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
     .await;
 
     assert_eq!(list_status, StatusCode::OK, "list must return 200");
-    let vendors = list_resp.as_array().expect("list must return array");
+    let vendors = list_resp["data"].as_array().expect("list must return data array");
     assert!(
         vendors
             .iter()
@@ -678,7 +678,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
         StatusCode::OK,
         "list after deactivation must return 200"
     );
-    let vendors2 = list2_resp.as_array().expect("list must return array");
+    let vendors2 = list2_resp["data"].as_array().expect("list must return data array");
     assert!(
         !vendors2
             .iter()
@@ -698,7 +698,7 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
     .await;
 
     assert_eq!(list3_status, StatusCode::OK);
-    let vendors3 = list3_resp.as_array().expect("list must return array");
+    let vendors3 = list3_resp["data"].as_array().expect("list must return data array");
     assert!(
         vendors3
             .iter()
