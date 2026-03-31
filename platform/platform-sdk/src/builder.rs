@@ -24,7 +24,7 @@
 //! ```
 
 use std::future::Future;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use axum::Router;
@@ -46,12 +46,18 @@ pub struct ModuleBuilder {
 impl ModuleBuilder {
     /// Load a module manifest from the given path.
     ///
+    /// The path is resolved at runtime: if `MODULE_MANIFEST_PATH` is
+    /// set, it overrides the argument entirely. Otherwise the path is
+    /// used as-is — relative paths resolve against the process working
+    /// directory.
+    ///
     /// If the file cannot be read or parsed, the error is deferred
     /// until [`run`](ModuleBuilder::run) is called — this lets the
     /// builder chain stay ergonomic.
     pub fn from_manifest(path: impl AsRef<Path>) -> Self {
+        let resolved = resolve_manifest_path(path.as_ref());
         Self {
-            manifest: Manifest::from_file(path.as_ref()),
+            manifest: Manifest::from_file(&resolved),
             routes_fn: None,
             migrator: None,
             consumers: Vec::new(),
@@ -142,4 +148,15 @@ impl ModuleBuilder {
         // Phase B: HTTP stack + serve
         startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles).await
     }
+}
+
+/// Resolve the manifest file path at runtime.
+///
+/// If `MODULE_MANIFEST_PATH` is set, it overrides the caller's path entirely.
+/// Otherwise the given path is returned as-is (relative to CWD).
+fn resolve_manifest_path(path: &Path) -> PathBuf {
+    if let Ok(override_path) = std::env::var("MODULE_MANIFEST_PATH") {
+        return PathBuf::from(override_path);
+    }
+    path.to_path_buf()
 }

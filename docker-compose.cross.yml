@@ -78,9 +78,12 @@ services:
 
   party:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/party"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/party:/usr/local/bin/party:ro
+      - ./modules/party/module.toml:/app/module.toml:ro
+      - ./modules/party/db/migrations:/app/db/migrations:ro
 
   integrations:
     image: 7d-runtime
@@ -126,9 +129,12 @@ services:
 
   production:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/production-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/production-rs:/usr/local/bin/production-rs:ro
+      - ./modules/production/module.toml:/app/module.toml:ro
+      - ./modules/production/db/migrations:/app/db/migrations:ro
 
   workflow:
     image: 7d-runtime

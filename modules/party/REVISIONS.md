@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.2 | 2026-03-31 | bd-7v7o4 | Replace compile-time `CARGO_MANIFEST_DIR` path with runtime `"module.toml"` in `from_manifest` call. SDK now resolves path via `MODULE_MANIFEST_PATH` env var or CWD. | Compile-time absolute host path baked into the binary does not exist inside Docker containers, causing startup crash. | No |
 | 2.4.1 | 2026-03-31 | bd-jhlc7 | Fix manifest path to use `CARGO_MANIFEST_DIR` so `module.toml` is found regardless of working directory. | `cargo run` from workspace root could not locate `module.toml` with a relative path. | No |
 | 2.4.0 | 2026-03-31 | bd-jhlc7 | Replace hand-written startup boilerplate in main.rs with `platform-sdk` `ModuleBuilder`. SDK now owns health routes (`/healthz`, `/api/health`, `/api/ready`, `/api/version`), `/metrics`, middleware stack (CORS, JWT, rate limiting, timeouts), and graceful shutdown. Added `module.toml` manifest. Removed manual health/ops routes from `http/mod.rs`. | First SDK conversion proof — eliminates ~200 lines of duplicated startup code. All endpoints, response formats, and OpenAPI spec unchanged. | No |
 | 2.3.3 | 2026-03-31 | bd-t7vnc | Add `openapi_dump` binary for generating OpenAPI JSON specs from the command line. Add AP service OpenAPI spec to `.openapi-specs/`. | Enables automated spec generation for client SDK builds and API documentation. | No |
