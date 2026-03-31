@@ -81,6 +81,7 @@ async fn component_issue_request_creates_outbox_event() {
         }],
         correlation_id: Some("ci-test-corr".to_string()),
         causation_id: None,
+        idempotency_key: None,
     };
 
     request_component_issue(&pool, wo_id, &req)
@@ -137,6 +138,7 @@ async fn component_issue_multiple_items() {
         ],
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     request_component_issue(&pool, wo_id, &req)
@@ -195,6 +197,7 @@ async fn component_issue_rejects_draft_wo() {
         }],
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_component_issue(&pool, wo.work_order_id, &req)
@@ -224,6 +227,7 @@ async fn component_issue_rejects_empty_items() {
         items: vec![],
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_component_issue(&pool, wo_id, &req)
@@ -258,6 +262,7 @@ async fn component_issue_rejects_zero_quantity() {
         }],
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_component_issue(&pool, wo_id, &req)

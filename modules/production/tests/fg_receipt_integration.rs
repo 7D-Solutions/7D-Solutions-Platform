@@ -80,6 +80,7 @@ async fn fg_receipt_request_creates_outbox_event() {
         currency: "usd".to_string(),
         correlation_id: Some("fgr-test-corr".to_string()),
         causation_id: None,
+        idempotency_key: None,
     };
 
     request_fg_receipt(&pool, wo_id, &req)
@@ -147,6 +148,7 @@ async fn fg_receipt_rejects_draft_wo() {
         currency: "usd".to_string(),
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_fg_receipt(&pool, wo.work_order_id, &req)
@@ -179,6 +181,7 @@ async fn fg_receipt_rejects_zero_quantity() {
         currency: "usd".to_string(),
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_fg_receipt(&pool, wo_id, &req)
@@ -209,6 +212,7 @@ async fn fg_receipt_rejects_missing_wo() {
         currency: "usd".to_string(),
         correlation_id: None,
         causation_id: None,
+        idempotency_key: None,
     };
 
     let err = request_fg_receipt(&pool, Uuid::new_v4(), &req)
