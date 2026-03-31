@@ -365,8 +365,9 @@ async fn smoke_ar_customer_invoice() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status().as_u16(), 200);
+    let status = resp.status().as_u16();
     let usage: Value = resp.json().await.unwrap();
+    assert_eq!(status, 200, "usage capture failed: {}", usage);
     assert_eq!(usage["metric_name"].as_str().unwrap(), "api_calls");
     println!("  captured usage: metric=api_calls, qty={}", usage["quantity"]);
 

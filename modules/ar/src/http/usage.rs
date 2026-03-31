@@ -32,7 +32,7 @@ pub async fn capture_usage(
     let existing: Option<UsageRecord> = sqlx::query_as::<_, UsageRecord>(
         r#"
         SELECT id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
-               quantity, unit, unit_price_cents, period_start, period_end, recorded_at
+               quantity::float8 AS quantity, unit, unit_price_cents, period_start, period_end, recorded_at
         FROM ar_metered_usage
         WHERE idempotency_key = $1
         "#,
@@ -79,7 +79,7 @@ pub async fn capture_usage(
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, gen_random_uuid(), $9)
         RETURNING id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
-                  quantity, unit, unit_price_cents, period_start, period_end, recorded_at
+                  quantity::float8 AS quantity, unit, unit_price_cents, period_start, period_end, recorded_at
         "#,
     )
     .bind(&app_id)

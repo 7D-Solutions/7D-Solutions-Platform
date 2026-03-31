@@ -72,7 +72,7 @@ pub struct UsageRecord {
     pub app_id: String,
     pub customer_id: i32,
     pub metric_name: String,
-    pub quantity: String,
+    pub quantity: f64,
     pub unit: String,
     pub unit_price_cents: i32,
     pub period_start: NaiveDateTime,

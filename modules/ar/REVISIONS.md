@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.4 | 2026-03-31 | bd-nkdc1 | Fix UsageRecord.quantity type: String → f64 with ::float8 SQL cast. NUMERIC(10,2) column cannot decode to String in sqlx. | Usage capture endpoint returned 500 on every call. | No |
 | 2.2.3 | 2026-03-31 | bd-vnuvp.3 | Add tenant_id (app_id) filter to 8 AR queries missing isolation in lifecycle, finalization, and write-offs. Thread app_id param through validate_transition and all transition functions. | P0 security: multi-tenant isolation gap — queries used only invoice id without tenant filter, allowing cross-tenant data access. | No |
 | 2.2.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.2.2 | 2026-03-31 | bd-decba.2 | Add RequirePermissionsLayer with AR_READ to all read routes. Conditional on enforce_permissions so permissive test router is unaffected. | Security: AR read endpoints were accessible without JWT auth. | No |
