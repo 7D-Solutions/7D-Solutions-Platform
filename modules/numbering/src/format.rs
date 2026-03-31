@@ -45,13 +45,26 @@ pub fn format_number(policy: &FormatPolicy, number: i64, reference_date: NaiveDa
                 let token = &policy.pattern[i + 1..i + 1 + end];
                 match token {
                     "prefix" => result.push_str(&policy.prefix),
-                    "YYYY" => { let _ = write!(result, "{:04}", reference_date.year()); }
-                    "YY" => { let _ = write!(result, "{:02}", reference_date.year() % 100); }
-                    "MM" => { let _ = write!(result, "{:02}", reference_date.month()); }
-                    "DD" => { let _ = write!(result, "{:02}", reference_date.day()); }
+                    "YYYY" => {
+                        let _ = write!(result, "{:04}", reference_date.year());
+                    }
+                    "YY" => {
+                        let _ = write!(result, "{:02}", reference_date.year() % 100);
+                    }
+                    "MM" => {
+                        let _ = write!(result, "{:02}", reference_date.month());
+                    }
+                    "DD" => {
+                        let _ = write!(result, "{:02}", reference_date.day());
+                    }
                     "number" => {
                         if policy.padding > 0 {
-                            let _ = write!(result, "{:0>width$}", number, width = policy.padding as usize);
+                            let _ = write!(
+                                result,
+                                "{:0>width$}",
+                                number,
+                                width = policy.padding as usize
+                            );
                         } else {
                             let _ = write!(result, "{}", number);
                         }

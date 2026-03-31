@@ -82,11 +82,18 @@ pub async fn run_publisher_task(db: PgPool, event_bus: Arc<dyn event_bus::EventB
 
         match publish_batch(&db, &event_bus).await {
             Ok(n) if n > 0 => {
-                tracing::info!("Numbering: outbox tick {}: published {} events", tick_count, n);
+                tracing::info!(
+                    "Numbering: outbox tick {}: published {} events",
+                    tick_count,
+                    n
+                );
             }
             Ok(_) => {
                 if tick_count <= 3 || tick_count.is_multiple_of(60) {
-                    tracing::debug!("Numbering: outbox tick {}: no unpublished events", tick_count);
+                    tracing::debug!(
+                        "Numbering: outbox tick {}: no unpublished events",
+                        tick_count
+                    );
                 }
             }
             Err(e) => {

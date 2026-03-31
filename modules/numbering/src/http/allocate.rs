@@ -9,14 +9,18 @@
 //!   Expired reservations are recycled before advancing the counter.
 
 use axum::{extract::State, http::StatusCode, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{format, outbox, policy};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AllocateRequest {
     pub entity: String,
     pub idempotency_key: String,
@@ -26,7 +30,7 @@ pub struct AllocateRequest {
     pub gap_free: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AllocateResponse {
     pub tenant_id: String,
     pub entity: String,
@@ -42,11 +46,7 @@ pub struct AllocateResponse {
     pub expires_at: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
+// ErrorResponse removed — using platform_http_contracts::ApiError instead
 
 #[derive(Debug, Serialize)]
 struct NumberAllocatedPayload {
@@ -57,46 +57,36 @@ struct NumberAllocatedPayload {
     pub status: String,
 }
 
-/// POST /allocate
-///
-/// Allocates the next number for a given tenant + entity.
-/// Idempotent: duplicate idempotency_key returns the previously allocated number.
-/// Atomic: sequence increment + issued record + outbox event in one transaction.
+#[utoipa::path(
+    post, path = "/allocate", tag = "Numbering",
+    request_body = AllocateRequest,
+    responses(
+        (status = 201, description = "Number allocated", body = AllocateResponse),
+        (status = 200, description = "Idempotent replay", body = AllocateResponse),
+        (status = 400, body = ApiError), (status = 401, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn allocate(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<AllocateRequest>,
-) -> Result<(StatusCode, Json<AllocateResponse>), (StatusCode, Json<ErrorResponse>)> {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id,
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(ErrorResponse {
-                    error: "unauthorized".to_string(),
-                    message: "Missing or invalid authentication".to_string(),
-                }),
-            ));
-        }
-    };
+) -> Result<(StatusCode, Json<AllocateResponse>), ApiError> {
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?;
 
     if req.entity.is_empty() || req.entity.len() > 100 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "invalid_entity".to_string(),
-                message: "entity must be 1-100 characters".to_string(),
-            }),
+        return Err(with_request_id(
+            ApiError::bad_request("entity must be 1-100 characters"),
+            &ctx,
         ));
     }
 
     if req.idempotency_key.is_empty() || req.idempotency_key.len() > 512 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "invalid_idempotency_key".to_string(),
-                message: "idempotency_key must be 1-512 characters".to_string(),
-            }),
+        return Err(with_request_id(
+            ApiError::bad_request("idempotency_key must be 1-512 characters"),
+            &ctx,
         ));
     }
 
@@ -111,7 +101,7 @@ pub async fn allocate(
     .await
     .map_err(|e| {
         tracing::error!("Numbering: idempotency check failed: {}", e);
-        db_error("Failed to check idempotency key")
+        with_request_id(ApiError::internal("Failed to check idempotency key"), &ctx)
     })?;
 
     if let Some(row) = existing {
@@ -140,7 +130,7 @@ pub async fn allocate(
     // ── Begin transaction: Guard → Mutation → Outbox ───────────────────
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!("Numbering: failed to begin transaction: {}", e);
-        db_error("Failed to begin transaction")
+        with_request_id(ApiError::internal("Failed to begin transaction"), &ctx)
     })?;
 
     let gap_free_requested = req.gap_free.unwrap_or(false);
@@ -148,13 +138,7 @@ pub async fn allocate(
         .await
         .map_err(|e| {
             tracing::error!("Numbering: allocation failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "allocation_error".to_string(),
-                    message: "Failed to allocate number".to_string(),
-                }),
-            )
+            with_request_id(ApiError::internal("Failed to allocate number"), &ctx)
         })?;
 
     let (issued_status, expires_at) = if alloc.gap_free {
@@ -184,7 +168,7 @@ pub async fn allocate(
         .await
         .map_err(|e| {
             tracing::error!("Numbering: failed to recycle issued number: {}", e);
-            db_error("Failed to recycle issued number")
+            with_request_id(ApiError::internal("Failed to recycle issued number"), &ctx)
         })?;
     } else {
         sqlx::query(
@@ -202,7 +186,7 @@ pub async fn allocate(
         .await
         .map_err(|e| {
             tracing::error!("Numbering: failed to insert issued number: {}", e);
-            db_error("Failed to record issued number")
+            with_request_id(ApiError::internal("Failed to record issued number"), &ctx)
         })?;
     }
 
@@ -227,13 +211,13 @@ pub async fn allocate(
     .await
     .map_err(|e| {
         tracing::error!("Numbering: failed to enqueue event: {}", e);
-        db_error("Failed to enqueue allocation event")
+        with_request_id(ApiError::internal("Failed to enqueue allocation event"), &ctx)
     })?;
 
     // ── Commit the atomic unit ─────────────────────────────────────────
     tx.commit().await.map_err(|e| {
         tracing::error!("Numbering: failed to commit transaction: {}", e);
-        db_error("Failed to commit allocation")
+        with_request_id(ApiError::internal("Failed to commit allocation"), &ctx)
     })?;
 
     state
@@ -242,8 +226,7 @@ pub async fn allocate(
         .with_label_values(&[&req.entity])
         .inc();
 
-    let formatted =
-        format_if_policy(&state.pool, tenant_id, &req.entity, alloc.value).await;
+    let formatted = format_if_policy(&state.pool, tenant_id, &req.entity, alloc.value).await;
 
     tracing::info!(
         tenant_id = %tenant_id,
@@ -298,15 +281,7 @@ struct Allocation {
     recycled: bool,
 }
 
-fn db_error(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: "database_error".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
+// db_error removed — using ApiError::internal() with with_request_id instead
 
 /// Look up a formatting policy and apply it. Returns None if no policy exists.
 ///

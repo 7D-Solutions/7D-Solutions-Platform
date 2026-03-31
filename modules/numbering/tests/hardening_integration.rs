@@ -268,11 +268,7 @@ async fn tenant_boundary_sequences_isolated() {
     .await
     .expect("query failed");
 
-    assert_eq!(
-        rows.len(),
-        0,
-        "Tenant B must not see Tenant A's sequences"
-    );
+    assert_eq!(rows.len(), 0, "Tenant B must not see Tenant A's sequences");
 }
 
 #[tokio::test]
@@ -347,10 +343,7 @@ async fn tenant_boundary_outbox_events_carry_correct_tenant() {
     .await
     .expect("outbox query failed");
 
-    assert_eq!(
-        rows.0, 0,
-        "No outbox events should reference tenant_b"
-    );
+    assert_eq!(rows.0, 0, "No outbox events should reference tenant_b");
 }
 
 // ============================================================================
@@ -362,12 +355,12 @@ async fn tenant_boundary_outbox_events_carry_correct_tenant() {
 
 mod authz {
     use super::*;
+    use axum::body::Body;
     use axum::{
         extract::DefaultBodyLimit,
         routing::{get, post, put},
         Extension, Router,
     };
-    use axum::body::Body;
     use numbering::{http, metrics, AppState};
     use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
     use rsa::RsaPrivateKey;
@@ -803,23 +796,21 @@ async fn atomicity_sequence_and_issued_consistent() {
     }
 
     // Verify sequence counter matches issued count
-    let (seq_val,): (i64,) = sqlx::query_as(
-        "SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tid)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("sequence query failed");
+    let (seq_val,): (i64,) =
+        sqlx::query_as("SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2")
+            .bind(tid)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("sequence query failed");
 
-    let (issued_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tid)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("issued count failed");
+    let (issued_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2")
+            .bind(tid)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("issued count failed");
 
     let (outbox_count,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM events_outbox \
@@ -844,16 +835,9 @@ async fn atomicity_policy_upsert_creates_outbox() {
 
     let mut tx = pool.begin().await.unwrap();
 
-    let row = numbering::policy::upsert_policy_tx(
-        &mut tx,
-        tid,
-        "atom_pol",
-        "AP-{number}",
-        "AP",
-        4,
-    )
-    .await
-    .expect("upsert failed");
+    let row = numbering::policy::upsert_policy_tx(&mut tx, tid, "atom_pol", "AP-{number}", "AP", 4)
+        .await
+        .expect("upsert failed");
 
     // Outbox event in same transaction
     let event_id = Uuid::new_v4();
@@ -999,23 +983,21 @@ async fn concurrent_multi_tenant_no_sequence_leaks() {
     }
 
     // Verify each tenant's sequence counter is exactly `count`
-    let (seq_x,): (i64,) = sqlx::query_as(
-        "SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tenant_x)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("seq_x query failed");
+    let (seq_x,): (i64,) =
+        sqlx::query_as("SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2")
+            .bind(tenant_x)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("seq_x query failed");
 
-    let (seq_y,): (i64,) = sqlx::query_as(
-        "SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tenant_y)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("seq_y query failed");
+    let (seq_y,): (i64,) =
+        sqlx::query_as("SELECT current_value FROM sequences WHERE tenant_id = $1 AND entity = $2")
+            .bind(tenant_y)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("seq_y query failed");
 
     assert_eq!(
         seq_x, count as i64,
@@ -1027,23 +1009,21 @@ async fn concurrent_multi_tenant_no_sequence_leaks() {
     );
 
     // Verify no cross-tenant numbers exist
-    let (x_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tenant_x)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("x_count failed");
+    let (x_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2")
+            .bind(tenant_x)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("x_count failed");
 
-    let (y_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2",
-    )
-    .bind(tenant_y)
-    .bind(entity)
-    .fetch_one(&pool)
-    .await
-    .expect("y_count failed");
+    let (y_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM issued_numbers WHERE tenant_id = $1 AND entity = $2")
+            .bind(tenant_y)
+            .bind(entity)
+            .fetch_one(&pool)
+            .await
+            .expect("y_count failed");
 
     assert_eq!(x_count, count as i64);
     assert_eq!(y_count, count as i64);
@@ -1053,7 +1033,12 @@ async fn concurrent_multi_tenant_no_sequence_leaks() {
 // Shared helper: allocate using direct SQL (same logic as the handler)
 // ============================================================================
 
-async fn allocate_number(pool: &sqlx::PgPool, tenant_id: Uuid, entity: &str, idem_key: &str) -> i64 {
+async fn allocate_number(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    entity: &str,
+    idem_key: &str,
+) -> i64 {
     let existing: Option<(i64,)> = sqlx::query_as(
         "SELECT number_value FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
     )

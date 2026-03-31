@@ -76,12 +76,10 @@ impl Config {
             .collect();
 
         if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
-            return Err(
-                "CORS_ORIGINS=* is not allowed in production. \
+            return Err("CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
-                    .to_string(),
-            );
+                .to_string());
         }
         Ok(Config {
             database_url,

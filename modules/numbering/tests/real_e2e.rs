@@ -130,20 +130,8 @@ async fn test_tenant_isolation() {
     let t2 = unique_tenant();
     let entity = "quote";
 
-    let n_t1 = allocate(
-        &pool,
-        t1,
-        entity,
-        &format!("numbering:allocate:{}:iso", t1),
-    )
-    .await;
-    let n_t2 = allocate(
-        &pool,
-        t2,
-        entity,
-        &format!("numbering:allocate:{}:iso", t2),
-    )
-    .await;
+    let n_t1 = allocate(&pool, t1, entity, &format!("numbering:allocate:{}:iso", t1)).await;
+    let n_t2 = allocate(&pool, t2, entity, &format!("numbering:allocate:{}:iso", t2)).await;
 
     assert_eq!(n_t1, 1, "Tenant 1 should start at 1");
     assert_eq!(n_t2, 1, "Tenant 2 should independently start at 1");
@@ -279,7 +267,8 @@ async fn test_policy_read() {
     let tid = unique_tenant();
 
     // No policy yet
-    let missing = numbering::policy::get_policy(&pool, tid, "invoice").await
+    let missing = numbering::policy::get_policy(&pool, tid, "invoice")
+        .await
         .expect("query should succeed");
     assert!(missing.is_none(), "No policy should exist yet");
 
@@ -287,7 +276,8 @@ async fn test_policy_read() {
     upsert_policy(&pool, tid, "invoice", "INV-{number}", "INV", 6).await;
 
     // Read it back
-    let found = numbering::policy::get_policy(&pool, tid, "invoice").await
+    let found = numbering::policy::get_policy(&pool, tid, "invoice")
+        .await
         .expect("query should succeed")
         .expect("policy should exist");
     assert_eq!(found.pattern, "INV-{number}");
@@ -309,10 +299,14 @@ async fn test_policy_tenant_isolation() {
     upsert_policy(&pool, t1, "quote", "A-{number}", "A", 3).await;
     upsert_policy(&pool, t2, "quote", "B-{number}", "B", 5).await;
 
-    let p1 = numbering::policy::get_policy(&pool, t1, "quote").await
-        .expect("query ok").expect("policy exists");
-    let p2 = numbering::policy::get_policy(&pool, t2, "quote").await
-        .expect("query ok").expect("policy exists");
+    let p1 = numbering::policy::get_policy(&pool, t1, "quote")
+        .await
+        .expect("query ok")
+        .expect("policy exists");
+    let p2 = numbering::policy::get_policy(&pool, t2, "quote")
+        .await
+        .expect("query ok")
+        .expect("policy exists");
 
     assert_eq!(p1.prefix, "A");
     assert_eq!(p2.prefix, "B");
@@ -357,12 +351,20 @@ async fn test_allocate_with_policy_returns_formatted() {
     upsert_policy(&pool, tid, "wo", "WO-{number}", "WO", 5).await;
 
     // Allocate a number
-    let num = allocate(&pool, tid, "wo", &format!("numbering:allocate:{}:fmt-1", tid)).await;
+    let num = allocate(
+        &pool,
+        tid,
+        "wo",
+        &format!("numbering:allocate:{}:fmt-1", tid),
+    )
+    .await;
     assert_eq!(num, 1);
 
     // Verify formatting via the library directly
-    let policy_row = numbering::policy::get_policy(&pool, tid, "wo").await
-        .expect("query ok").expect("policy exists");
+    let policy_row = numbering::policy::get_policy(&pool, tid, "wo")
+        .await
+        .expect("query ok")
+        .expect("policy exists");
 
     let fp = numbering::format::FormatPolicy {
         pattern: policy_row.pattern,
@@ -386,22 +388,46 @@ async fn test_policy_change_does_not_affect_allocation() {
     let tid = unique_tenant();
 
     // Allocate before any policy
-    let n1 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-1", tid)).await;
+    let n1 = allocate(
+        &pool,
+        tid,
+        "po",
+        &format!("numbering:allocate:{}:pol-1", tid),
+    )
+    .await;
     assert_eq!(n1, 1);
 
     // Set a policy
     upsert_policy(&pool, tid, "po", "PO-{YYYY}-{number}", "PO", 4).await;
 
     // Allocate again — raw number continues from where it left off
-    let n2 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-2", tid)).await;
-    assert_eq!(n2, 2, "Allocation sequence must not reset when policy changes");
+    let n2 = allocate(
+        &pool,
+        tid,
+        "po",
+        &format!("numbering:allocate:{}:pol-2", tid),
+    )
+    .await;
+    assert_eq!(
+        n2, 2,
+        "Allocation sequence must not reset when policy changes"
+    );
 
     // Change the policy
     upsert_policy(&pool, tid, "po", "X-{number}", "X", 6).await;
 
     // Allocate again — raw number still continues
-    let n3 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-3", tid)).await;
-    assert_eq!(n3, 3, "Allocation sequence must not reset when policy changes again");
+    let n3 = allocate(
+        &pool,
+        tid,
+        "po",
+        &format!("numbering:allocate:{}:pol-3", tid),
+    )
+    .await;
+    assert_eq!(
+        n3, 3,
+        "Allocation sequence must not reset when policy changes again"
+    );
 }
 
 // ============================================================================
@@ -418,8 +444,14 @@ async fn test_gap_free_reserve_and_confirm() {
 
     let alloc = allocate_gap_free(&pool, tid, entity, &idem_key).await;
     assert_eq!(alloc.number_value, 1);
-    assert_eq!(alloc.status, "reserved", "Gap-free allocation must be reserved");
-    assert!(alloc.expires_at.is_some(), "Reserved allocation must have expires_at");
+    assert_eq!(
+        alloc.status, "reserved",
+        "Gap-free allocation must be reserved"
+    );
+    assert!(
+        alloc.expires_at.is_some(),
+        "Reserved allocation must have expires_at"
+    );
 
     // Confirm it
     confirm_number(&pool, tid, entity, &idem_key).await;
@@ -450,7 +482,10 @@ async fn test_gap_free_idempotent_reserve() {
 
     let a1 = allocate_gap_free(&pool, tid, entity, &idem_key).await;
     let a2 = allocate_gap_free(&pool, tid, entity, &idem_key).await;
-    assert_eq!(a1.number_value, a2.number_value, "Same idem key must return same number");
+    assert_eq!(
+        a1.number_value, a2.number_value,
+        "Same idem key must return same number"
+    );
 
     // Different key advances
     let a3 = allocate_gap_free(&pool, tid, entity, &format!("gf:{}:idem-2", tid)).await;
@@ -546,19 +581,29 @@ async fn test_gap_free_crash_retry_no_gaps() {
 
     // Retry: allocate with a new key — should recycle #2
     let retry = allocate_gap_free(&pool, tid, entity, &format!("gf:{}:cr-retry", tid)).await;
-    assert_eq!(retry.number_value, 2, "Crash retry should recycle the expired #2");
+    assert_eq!(
+        retry.number_value, 2,
+        "Crash retry should recycle the expired #2"
+    );
 
     // Confirm the retried #2
     confirm_number(&pool, tid, entity, &format!("gf:{}:cr-retry", tid)).await;
 
     // Now allocate next — should be #4
     let next = allocate_gap_free(&pool, tid, entity, &format!("gf:{}:cr-4", tid)).await;
-    assert_eq!(next.number_value, 4, "After recycle, next number should be 4");
+    assert_eq!(
+        next.number_value, 4,
+        "After recycle, next number should be 4"
+    );
 
     // Verify: confirmed numbers are 1, 2, 3 (contiguous)
     // plus 4 reserved
     let confirmed = get_confirmed_numbers(&pool, tid, entity).await;
-    assert_eq!(confirmed, vec![1, 2, 3], "Confirmed numbers must be contiguous 1..3");
+    assert_eq!(
+        confirmed,
+        vec![1, 2, 3],
+        "Confirmed numbers must be contiguous 1..3"
+    );
 }
 
 // ============================================================================
@@ -579,7 +624,9 @@ async fn test_gap_free_concurrent_no_duplicates() {
         let idem_key = format!("gf:{}:conc-{}", tid, i);
         let entity = entity.to_string();
         handles.push(tokio::spawn(async move {
-            allocate_gap_free(&pool, tid, &entity, &idem_key).await.number_value
+            allocate_gap_free(&pool, tid, &entity, &idem_key)
+                .await
+                .number_value
         }));
     }
 
@@ -649,7 +696,10 @@ async fn test_standard_mode_status_confirmed() {
     .await
     .expect("status query failed");
 
-    assert_eq!(status, "confirmed", "Standard allocation must be immediately confirmed");
+    assert_eq!(
+        status, "confirmed",
+        "Standard allocation must be immediately confirmed"
+    );
 }
 
 // ============================================================================
@@ -744,9 +794,10 @@ async fn upsert_policy(
 ) -> numbering::policy::PolicyRow {
     let mut tx = pool.begin().await.expect("begin tx failed");
 
-    let row = numbering::policy::upsert_policy_tx(&mut tx, tenant_id, entity, pattern, prefix, padding)
-        .await
-        .expect("upsert_policy_tx failed");
+    let row =
+        numbering::policy::upsert_policy_tx(&mut tx, tenant_id, entity, pattern, prefix, padding)
+            .await
+            .expect("upsert_policy_tx failed");
 
     // Also enqueue outbox event (like the handler does)
     let event_id = Uuid::new_v4();
@@ -876,8 +927,7 @@ async fn allocate_gap_free(
         }
     };
 
-    let expires_at =
-        chrono::Utc::now() + chrono::Duration::seconds(ttl_secs as i64);
+    let expires_at = chrono::Utc::now() + chrono::Duration::seconds(ttl_secs as i64);
 
     if recycled {
         sqlx::query(
@@ -1020,11 +1070,7 @@ async fn expire_reservation(pool: &sqlx::PgPool, tenant_id: Uuid, idem_key: &str
 // Helper: get all confirmed numbers for a tenant+entity, sorted
 // ============================================================================
 
-async fn get_confirmed_numbers(
-    pool: &sqlx::PgPool,
-    tenant_id: Uuid,
-    entity: &str,
-) -> Vec<i64> {
+async fn get_confirmed_numbers(pool: &sqlx::PgPool, tenant_id: Uuid, entity: &str) -> Vec<i64> {
     let rows: Vec<(i64,)> = sqlx::query_as(
         "SELECT number_value FROM issued_numbers \
          WHERE tenant_id = $1 AND entity = $2 AND status = 'confirmed' \

@@ -1,6 +1,6 @@
 [package]
 name = "numbering"
-version = "1.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "Numbering service: tenant-scoped, idempotent, atomic sequence allocation"
 
@@ -40,6 +40,8 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 async-nats = "0.38"
 prometheus = "0.13"
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"

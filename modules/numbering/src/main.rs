@@ -1,8 +1,9 @@
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post, put},
-    Extension, Router,
+    Extension, Json, Router,
 };
+use utoipa::OpenApi;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use numbering::{config::Config, http, metrics, outbox, AppState};
 use security::{
@@ -76,9 +77,8 @@ async fn main() {
     });
     tracing::info!("Numbering: outbox publisher task started");
 
-    let app_metrics = Arc::new(
-        metrics::NumberingMetrics::new().expect("Numbering: failed to create metrics"),
-    );
+    let app_metrics =
+        Arc::new(metrics::NumberingMetrics::new().expect("Numbering: failed to create metrics"));
 
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
@@ -93,6 +93,7 @@ async fn main() {
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
         .route("/api/schema-version", get(http::health::schema_version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .merge(
             Router::new()
@@ -145,6 +146,10 @@ async fn main() {
     tracing::info!("Server stopped — closing resources");
     shutdown_pool.close().await;
     tracing::info!("Shutdown complete");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(http::ApiDoc::openapi())
 }
 
 async fn shutdown_signal() {
