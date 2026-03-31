@@ -60,6 +60,10 @@ modules/integrations/src/domain/qbo/client.rs             # 510 LOC — QBO REST
 # TTP module — cohesive concern (bd-nkzlc)
 modules/ttp/src/domain/billing.rs  # 488 LOC — billing run execution (types+logic+tests, single concern; OpenAPI will push over 500)
 
+# Fixed-Assets module — cohesive concerns (bd-859gk)
+modules/fixed-assets/src/domain/assets/models.rs          # 536 LOC — types + enums + validation impls + tests (single entity model)
+modules/fixed-assets/src/domain/depreciation/service.rs   # 528 LOC — schedule generation + run execution + queries + tests (single service)
+
 # Reporting module — cohesive concern (bd-ev4g4)
 modules/reporting/src/domain/statements/cashflow.rs  # 649 LOC — cashflow statement computation (types+query+cache+5 integrated tests; single concern)
 
