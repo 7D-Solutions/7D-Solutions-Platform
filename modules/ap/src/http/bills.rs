@@ -11,21 +11,22 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::bills::{
-    approve, service, void, ApproveBillRequest, BillError, CreateBillRequest, VendorBill,
-    VendorBillWithLines, VoidBillRequest,
+    approve, service, void, ApproveBillRequest, CreateBillRequest, VoidBillRequest,
 };
-use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
-use crate::domain::tax::{self, ApTaxSnapshot, ZeroTaxProvider};
-use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::domain::r#match::{engine, RunMatchRequest};
+use crate::domain::tax::{self, ZeroTaxProvider};
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -38,65 +39,6 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown")
         .to_string()
-}
-
-fn bill_error_response(e: BillError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        BillError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "bill_not_found",
-                &format!("Bill {} not found", id),
-            )),
-        ),
-        BillError::VendorNotFound(id) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "vendor_not_found",
-                &format!("Vendor {} not found or inactive", id),
-            )),
-        ),
-        BillError::DuplicateInvoice(ref_) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "duplicate_invoice",
-                &format!("Invoice '{}' already exists for this vendor", ref_),
-            )),
-        ),
-        BillError::InvalidTransition { from, to } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "invalid_transition",
-                &format!("Cannot transition bill from '{}' to '{}'", from, to),
-            )),
-        ),
-        BillError::EmptyLines => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "empty_lines",
-                "Bill must have at least one line",
-            )),
-        ),
-        BillError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        BillError::MatchPolicyViolation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("match_policy_violation", &msg)),
-        ),
-        BillError::TaxError(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("tax_error", &msg)),
-        ),
-        BillError::Database(e) => {
-            tracing::error!("AP bills DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
 }
 
 // ============================================================================
@@ -120,61 +62,72 @@ pub struct ListBillsQuery {
 pub async fn create_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreateBillRequest>,
-) -> Result<(StatusCode, Json<VendorBillWithLines>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let bill = service::create_bill(&state.pool, &tenant_id, &req, correlation_id)
-        .await
-        .map_err(bill_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(bill)))
+    match service::create_bill(&state.pool, &tenant_id, &req, correlation_id).await {
+        Ok(bill) => (StatusCode::CREATED, Json(bill)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/bills/:bill_id — get a single bill with its line items
 pub async fn get_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(bill_id): Path<Uuid>,
-) -> Result<Json<VendorBillWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let bill = service::get_bill(&state.pool, &tenant_id, bill_id)
-        .await
-        .map_err(bill_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "bill_not_found",
-                    &format!("Bill {} not found", bill_id),
-                )),
-            )
-        })?;
-
-    Ok(Json(bill))
+    match service::get_bill(&state.pool, &tenant_id, bill_id).await {
+        Ok(Some(bill)) => Json(bill).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Bill {} not found", bill_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/bills — list bills for tenant
 pub async fn list_bills(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListBillsQuery>,
-) -> Result<Json<Vec<VendorBill>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let bills = service::list_bills(
+    match service::list_bills(
         &state.pool,
         &tenant_id,
         query.vendor_id,
         query.include_voided,
     )
     .await
-    .map_err(bill_error_response)?;
-
-    Ok(Json(bills))
+    {
+        Ok(bills) => {
+            let total = bills.len() as i64;
+            let resp = PaginatedResponse::new(bills, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 // ============================================================================
@@ -185,15 +138,19 @@ pub async fn list_bills(
 pub async fn approve_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<ApproveBillRequest>,
-) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let provider = ZeroTaxProvider;
 
-    let bill = approve::approve_bill(
+    match approve::approve_bill(
         &state.pool,
         &provider,
         &tenant_id,
@@ -202,24 +159,29 @@ pub async fn approve_bill(
         correlation_id,
     )
     .await
-    .map_err(bill_error_response)?;
-
-    Ok(Json(bill))
+    {
+        Ok(bill) => Json(bill).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// POST /api/ap/bills/:bill_id/void — void a bill (requires reason)
 pub async fn void_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<VoidBillRequest>,
-) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let provider = ZeroTaxProvider;
 
-    let bill = void::void_bill(
+    match void::void_bill(
         &state.pool,
         &provider,
         &tenant_id,
@@ -228,9 +190,10 @@ pub async fn void_bill(
         correlation_id,
     )
     .await
-    .map_err(bill_error_response)?;
-
-    Ok(Json(bill))
+    {
+        Ok(bill) => Json(bill).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 // ============================================================================
@@ -250,26 +213,29 @@ pub struct BillTaxQuoteRequest {
 pub async fn quote_bill_tax(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<BillTaxQuoteRequest>,
-) -> Result<Json<ApTaxSnapshot>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
     // Fetch the bill and its lines to build the tax quote request
-    let bill_with_lines = service::get_bill(&state.pool, &tenant_id, bill_id)
-        .await
-        .map_err(bill_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "bill_not_found",
-                    &format!("Bill {} not found", bill_id),
-                )),
+    let bill_with_lines = match service::get_bill(&state.pool, &tenant_id, bill_id).await {
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            return with_request_id(
+                ApiError::not_found(format!("Bill {} not found", bill_id)),
+                &tracing_ctx,
             )
-        })?;
+            .into_response()
+        }
+        Err(e) => return with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    };
 
     let line_items: Vec<tax_core::TaxLineItem> = bill_with_lines
         .lines
@@ -297,81 +263,33 @@ pub async fn quote_bill_tax(
     };
 
     let provider = ZeroTaxProvider;
-    let snapshot =
-        tax::quote_bill_tax(&state.pool, &provider, "zero", &tenant_id, bill_id, tax_req)
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    Json(ErrorBody::new("tax_error", &e.to_string())),
-                )
-            })?;
-
-    Ok(Json(snapshot))
+    match tax::quote_bill_tax(&state.pool, &provider, "zero", &tenant_id, bill_id, tax_req).await {
+        Ok(snapshot) => Json(snapshot).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 // ============================================================================
 // 3-way match
 // ============================================================================
 
-fn match_error_response(e: MatchError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        MatchError::BillNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "bill_not_found",
-                &format!("Bill {} not found", id),
-            )),
-        ),
-        MatchError::PoNotFound(id) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "po_not_found",
-                &format!("PO {} not found", id),
-            )),
-        ),
-        MatchError::InvalidBillStatus(s) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "invalid_bill_status",
-                &format!(
-                    "Bill status '{}' cannot be matched; must be 'open' or 'matched'",
-                    s
-                ),
-            )),
-        ),
-        MatchError::NoMatchableLines => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("no_matchable_lines", "Bill has no lines")),
-        ),
-        MatchError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        MatchError::Database(e) => {
-            tracing::error!("AP match DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
-}
-
 /// POST /api/ap/bills/:bill_id/match — run 3-way match engine for a bill
 pub async fn match_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<RunMatchRequest>,
-) -> Result<(StatusCode, Json<MatchOutcome>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let outcome = engine::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id)
-        .await
-        .map_err(match_error_response)?;
-
-    Ok((StatusCode::OK, Json(outcome)))
+    match engine::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id).await {
+        Ok(outcome) => (StatusCode::OK, Json(outcome)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

@@ -10,17 +10,18 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::{NaiveDate, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::reports::aging::{compute_aging, AgingError};
-use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::domain::reports::aging::compute_aging;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -50,38 +51,23 @@ pub struct AgingQuery {
 pub async fn aging_report(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<AgingQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
     let as_of = params.as_of.unwrap_or_else(|| Utc::now().date_naive());
 
-    let report = compute_aging(&state.pool, &tenant_id, as_of, params.by_vendor)
-        .await
-        .map_err(aging_error_response)?;
-
-    Ok(Json(serde_json::json!({
-        "as_of": report.as_of.to_string(),
-        "buckets_by_currency": report.buckets_by_currency,
-        "vendor_breakdown": report.vendor_breakdown,
-    })))
-}
-
-// ============================================================================
-// Shared helpers
-// ============================================================================
-
-fn aging_error_response(e: AgingError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        AgingError::Database(e) => {
-            tracing::error!(error = %e, "Database error in aging report handler");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "database_error",
-                    "An internal error occurred",
-                )),
-            )
-        }
+    match compute_aging(&state.pool, &tenant_id, as_of, params.by_vendor).await {
+        Ok(report) => Json(serde_json::json!({
+            "as_of": report.as_of.to_string(),
+            "buckets_by_currency": report.buckets_by_currency,
+            "vendor_breakdown": report.vendor_breakdown,
+        }))
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

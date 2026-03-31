@@ -6,18 +6,18 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::vendors::{
-    service, CreateVendorRequest, UpdateVendorRequest, Vendor, VendorError,
-};
-pub use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::domain::vendors::{service, CreateVendorRequest, UpdateVendorRequest};
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -30,36 +30,6 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown")
         .to_string()
-}
-
-fn vendor_error_response(e: VendorError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        VendorError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "vendor_not_found",
-                &format!("Vendor {} not found", id),
-            )),
-        ),
-        VendorError::DuplicateName(name) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "duplicate_vendor_name",
-                &format!("Active vendor '{}' already exists for this tenant", name),
-            )),
-        ),
-        VendorError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        VendorError::Database(e) => {
-            tracing::error!("AP vendors DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
 }
 
 // ============================================================================
@@ -81,93 +51,110 @@ pub struct ListVendorsQuery {
 pub async fn create_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreateVendorRequest>,
-) -> Result<(StatusCode, Json<Vendor>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let vendor = service::create_vendor(&state.pool, &tenant_id, &req, correlation_id)
-        .await
-        .map_err(vendor_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(vendor)))
+    match service::create_vendor(&state.pool, &tenant_id, &req, correlation_id).await {
+        Ok(vendor) => (StatusCode::CREATED, Json(vendor)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/vendors — list vendors for tenant
 pub async fn list_vendors(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListVendorsQuery>,
-) -> Result<Json<Vec<Vendor>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let vendors = service::list_vendors(&state.pool, &tenant_id, query.include_inactive)
-        .await
-        .map_err(vendor_error_response)?;
-
-    Ok(Json(vendors))
+    match service::list_vendors(&state.pool, &tenant_id, query.include_inactive).await {
+        Ok(vendors) => {
+            let total = vendors.len() as i64;
+            let resp = PaginatedResponse::new(vendors, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/vendors/:vendor_id — get a single vendor
 pub async fn get_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(vendor_id): Path<Uuid>,
-) -> Result<Json<Vendor>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let vendor = service::get_vendor(&state.pool, &tenant_id, vendor_id)
-        .await
-        .map_err(vendor_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "vendor_not_found",
-                    &format!("Vendor {} not found", vendor_id),
-                )),
-            )
-        })?;
-
-    Ok(Json(vendor))
+    match service::get_vendor(&state.pool, &tenant_id, vendor_id).await {
+        Ok(Some(vendor)) => Json(vendor).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Vendor {} not found", vendor_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// PUT /api/ap/vendors/:vendor_id — update vendor fields
 pub async fn update_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(vendor_id): Path<Uuid>,
     Json(req): Json<UpdateVendorRequest>,
-) -> Result<Json<Vendor>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let vendor = service::update_vendor(&state.pool, &tenant_id, vendor_id, &req, correlation_id)
-        .await
-        .map_err(vendor_error_response)?;
-
-    Ok(Json(vendor))
+    match service::update_vendor(&state.pool, &tenant_id, vendor_id, &req, correlation_id).await {
+        Ok(vendor) => Json(vendor).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// POST /api/ap/vendors/:vendor_id/deactivate — soft-delete a vendor
 pub async fn deactivate_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(vendor_id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let actor = claims
         .as_ref()
         .map(|Extension(c)| c.user_id.to_string())
         .unwrap_or_else(|| "system".to_string());
 
-    service::deactivate_vendor(&state.pool, &tenant_id, vendor_id, &actor, correlation_id)
+    match service::deactivate_vendor(&state.pool, &tenant_id, vendor_id, &actor, correlation_id)
         .await
-        .map_err(vendor_error_response)?;
-
-    Ok(StatusCode::NO_CONTENT)
+    {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

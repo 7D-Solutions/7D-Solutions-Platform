@@ -10,13 +10,14 @@ use axum::{
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::domain::tax::reports;
-use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -62,44 +63,49 @@ pub struct ApTaxReportResponse {
 pub async fn tax_report_summary(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<TaxReportQuery>,
-) -> Result<Json<ApTaxReportResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
     if params.from >= params.to {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "invalid_range",
-                "`from` must be before `to`",
-            )),
-        ));
+        return with_request_id(
+            ApiError::bad_request("`from` must be before `to`"),
+            &tracing_ctx,
+        )
+        .into_response();
     }
 
-    let rows = reports::ap_tax_summary_by_period(&state.pool, &tenant_id, params.from, params.to)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "ap tax_report_summary DB error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "database_error",
-                    "An internal error occurred",
-                )),
-            )
-        })?;
+    let rows =
+        match reports::ap_tax_summary_by_period(&state.pool, &tenant_id, params.from, params.to)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "ap tax_report_summary DB error");
+                return with_request_id(
+                    ApiError::internal("An internal error occurred"),
+                    &tracing_ctx,
+                )
+                .into_response();
+            }
+        };
 
     let total_tax: i64 = rows.iter().map(|r| r.total_tax_minor).sum();
     let total_bills: i64 = rows.iter().map(|r| r.bill_count).sum();
 
-    Ok(Json(ApTaxReportResponse {
+    Json(ApTaxReportResponse {
         tenant_id,
         from: params.from.to_string(),
         to: params.to.to_string(),
         rows,
         total_tax_minor: total_tax,
         total_bills,
-    }))
+    })
+    .into_response()
 }
 
 // ============================================================================
@@ -109,48 +115,52 @@ pub async fn tax_report_summary(
 pub async fn tax_report_export(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<TaxExportQuery>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
     if params.from >= params.to {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "invalid_range",
-                "`from` must be before `to`",
-            )),
-        ));
+        return with_request_id(
+            ApiError::bad_request("`from` must be before `to`"),
+            &tracing_ctx,
+        )
+        .into_response();
     }
 
-    let rows = reports::ap_tax_summary_by_period(&state.pool, &tenant_id, params.from, params.to)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "ap tax_report_export DB error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "database_error",
-                    "An internal error occurred",
-                )),
-            )
-        })?;
+    let rows =
+        match reports::ap_tax_summary_by_period(&state.pool, &tenant_id, params.from, params.to)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "ap tax_report_export DB error");
+                return with_request_id(
+                    ApiError::internal("An internal error occurred"),
+                    &tracing_ctx,
+                )
+                .into_response();
+            }
+        };
 
     match params.format.as_str() {
         "csv" => {
             let csv = reports::render_csv(&rows);
-            Ok((
+            (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, "text/csv; charset=utf-8")],
                 csv,
             )
-                .into_response())
+                .into_response()
         }
         _ => {
             let total_tax: i64 = rows.iter().map(|r| r.total_tax_minor).sum();
             let total_bills: i64 = rows.iter().map(|r| r.bill_count).sum();
 
-            Ok(Json(ApTaxReportResponse {
+            Json(ApTaxReportResponse {
                 tenant_id,
                 from: params.from.to_string(),
                 to: params.to.to_string(),
@@ -158,7 +168,7 @@ pub async fn tax_report_export(
                 total_tax_minor: total_tax,
                 total_bills,
             })
-            .into_response())
+            .into_response()
         }
     }
 }

@@ -9,19 +9,20 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::po::{
-    approve, queries, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
-    PurchaseOrderWithLines, UpdatePoLinesRequest,
+    approve, queries, service, ApprovePoRequest, CreatePoRequest, UpdatePoLinesRequest,
 };
-use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -34,57 +35,6 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown")
         .to_string()
-}
-
-fn po_error_response(e: PoError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        PoError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "po_not_found",
-                &format!("PO {} not found", id),
-            )),
-        ),
-        PoError::VendorNotFound(id) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "vendor_not_found",
-                &format!("Vendor {} not found or inactive", id),
-            )),
-        ),
-        PoError::NotDraft(status) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "po_not_draft",
-                &format!("PO cannot be edited; current status: {}", status),
-            )),
-        ),
-        PoError::InvalidTransition { from, to } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "invalid_transition",
-                &format!("Cannot transition PO from '{}' to '{}'", from, to),
-            )),
-        ),
-        PoError::EmptyLines => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "empty_lines",
-                "PO must have at least one line",
-            )),
-        ),
-        PoError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        PoError::Database(e) => {
-            tracing::error!("AP purchase_orders DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
 }
 
 // ============================================================================
@@ -107,77 +57,91 @@ pub struct ListPosQuery {
 pub async fn create_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreatePoRequest>,
-) -> Result<(StatusCode, Json<PurchaseOrderWithLines>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let po = service::create_po(&state.pool, &tenant_id, &req, correlation_id)
-        .await
-        .map_err(po_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(po)))
+    match service::create_po(&state.pool, &tenant_id, &req, correlation_id).await {
+        Ok(po) => (StatusCode::CREATED, Json(po)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/pos/:po_id — get a single PO with its lines
 pub async fn get_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_id): Path<Uuid>,
-) -> Result<Json<PurchaseOrderWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let po = queries::get_po(&state.pool, &tenant_id, po_id)
-        .await
-        .map_err(po_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "po_not_found",
-                    &format!("PO {} not found", po_id),
-                )),
-            )
-        })?;
-
-    Ok(Json(po))
+    match queries::get_po(&state.pool, &tenant_id, po_id).await {
+        Ok(Some(po)) => Json(po).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("PO {} not found", po_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/pos — list POs for tenant (optionally filtered by vendor_id or status)
 pub async fn list_pos(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListPosQuery>,
-) -> Result<Json<Vec<PurchaseOrder>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let pos = queries::list_pos(
+    match queries::list_pos(
         &state.pool,
         &tenant_id,
         query.vendor_id,
         query.status.as_deref(),
     )
     .await
-    .map_err(po_error_response)?;
-
-    Ok(Json(pos))
+    {
+        Ok(pos) => {
+            let total = pos.len() as i64;
+            let resp = PaginatedResponse::new(pos, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// PUT /api/ap/pos/:po_id/lines — replace all lines on a draft PO (idempotent)
 pub async fn update_po_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_id): Path<Uuid>,
     Json(req): Json<UpdatePoLinesRequest>,
-) -> Result<Json<PurchaseOrderWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let po = service::update_po_lines(&state.pool, &tenant_id, po_id, &req)
-        .await
-        .map_err(po_error_response)?;
-
-    Ok(Json(po))
+    match service::update_po_lines(&state.pool, &tenant_id, po_id, &req).await {
+        Ok(po) => Json(po).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// POST /api/ap/pos/:po_id/approve — approve a draft PO (idempotent)
@@ -188,16 +152,19 @@ pub async fn update_po_lines(
 pub async fn approve_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(po_id): Path<Uuid>,
     Json(req): Json<ApprovePoRequest>,
-) -> Result<Json<PurchaseOrder>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let po = approve::approve_po(&state.pool, &tenant_id, po_id, &req, correlation_id)
-        .await
-        .map_err(po_error_response)?;
-
-    Ok(Json(po))
+    match approve::approve_po(&state.pool, &tenant_id, po_id, &req, correlation_id).await {
+        Ok(po) => Json(po).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

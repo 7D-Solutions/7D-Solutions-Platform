@@ -23,6 +23,7 @@ pub mod service;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -51,6 +52,35 @@ pub enum PoError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+impl From<PoError> for platform_http_contracts::ApiError {
+    fn from(err: PoError) -> Self {
+        match err {
+            PoError::NotFound(id) => Self::not_found(format!("PO {} not found", id)),
+            PoError::VendorNotFound(id) => {
+                Self::new(422, "vendor_not_found", format!("Vendor {} not found or inactive", id))
+            }
+            PoError::NotDraft(status) => Self::new(
+                422,
+                "po_not_draft",
+                format!("PO cannot be edited; current status: {}", status),
+            ),
+            PoError::InvalidTransition { from, to } => Self::new(
+                422,
+                "invalid_transition",
+                format!("Cannot transition PO from '{}' to '{}'", from, to),
+            ),
+            PoError::EmptyLines => {
+                Self::new(422, "empty_lines", "PO must have at least one line")
+            }
+            PoError::Validation(msg) => Self::new(422, "validation_error", msg),
+            PoError::Database(e) => {
+                tracing::error!("AP purchase_orders DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -117,7 +147,7 @@ impl PoStatus {
 // ============================================================================
 
 /// Purchase order header record as returned from the DB.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PurchaseOrder {
     pub po_id: Uuid,
     pub tenant_id: String,

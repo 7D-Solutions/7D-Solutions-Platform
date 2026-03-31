@@ -16,6 +16,7 @@ pub mod void;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -50,6 +51,38 @@ pub enum BillError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+impl From<BillError> for platform_http_contracts::ApiError {
+    fn from(err: BillError) -> Self {
+        match err {
+            BillError::NotFound(id) => Self::not_found(format!("Bill {} not found", id)),
+            BillError::VendorNotFound(id) => {
+                Self::new(422, "vendor_not_found", format!("Vendor {} not found or inactive", id))
+            }
+            BillError::DuplicateInvoice(ref_) => Self::conflict(format!(
+                "Invoice '{}' already exists for this vendor",
+                ref_
+            )),
+            BillError::InvalidTransition { from, to } => Self::new(
+                422,
+                "invalid_transition",
+                format!("Cannot transition bill from '{}' to '{}'", from, to),
+            ),
+            BillError::EmptyLines => {
+                Self::new(422, "empty_lines", "Bill must have at least one line")
+            }
+            BillError::Validation(msg) => Self::new(422, "validation_error", msg),
+            BillError::MatchPolicyViolation(msg) => {
+                Self::new(422, "match_policy_violation", msg)
+            }
+            BillError::TaxError(msg) => Self::new(422, "tax_error", msg),
+            BillError::Database(e) => {
+                tracing::error!("AP bills DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -130,7 +163,7 @@ impl BillStatus {
 // ============================================================================
 
 /// A vendor bill header record as returned from the DB.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct VendorBill {
     pub bill_id: Uuid,
     pub tenant_id: String,

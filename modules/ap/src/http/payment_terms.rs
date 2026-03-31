@@ -8,19 +8,20 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::payment_terms::{
-    service, AssignTermsRequest, AssignTermsResult, CreatePaymentTermsRequest, PaymentTerms,
-    PaymentTermsError, UpdatePaymentTermsRequest,
+    service, AssignTermsRequest, CreatePaymentTermsRequest, UpdatePaymentTermsRequest,
 };
-use crate::http::admin_types::ErrorBody;
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -33,50 +34,6 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown")
         .to_string()
-}
-
-fn terms_error_response(e: PaymentTermsError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        PaymentTermsError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "payment_terms_not_found",
-                &format!("Payment terms {} not found", id),
-            )),
-        ),
-        PaymentTermsError::BillNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "bill_not_found",
-                &format!("Bill {} not found", id),
-            )),
-        ),
-        PaymentTermsError::DuplicateTermCode(code) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "duplicate_term_code",
-                &format!("Term code '{}' already exists", code),
-            )),
-        ),
-        PaymentTermsError::DuplicateIdempotencyKey(key) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "duplicate_idempotency_key",
-                &format!("Idempotency key '{}' already used", key),
-            )),
-        ),
-        PaymentTermsError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        PaymentTermsError::Database(e) => {
-            tracing::error!("AP payment_terms DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
 }
 
 // ============================================================================
@@ -97,86 +54,101 @@ pub struct ListTermsQuery {
 pub async fn create_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreatePaymentTermsRequest>,
-) -> Result<(StatusCode, Json<PaymentTerms>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let terms = service::create_terms(&state.pool, &tenant_id, &req, correlation_id)
-        .await
-        .map_err(terms_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(terms)))
+    match service::create_terms(&state.pool, &tenant_id, &req, correlation_id).await {
+        Ok(terms) => (StatusCode::CREATED, Json(terms)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/payment-terms/:term_id — get a single payment terms record
 pub async fn get_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(term_id): Path<Uuid>,
-) -> Result<Json<PaymentTerms>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let terms = service::get_terms(&state.pool, &tenant_id, term_id)
-        .await
-        .map_err(terms_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "payment_terms_not_found",
-                    &format!("Payment terms {} not found", term_id),
-                )),
-            )
-        })?;
-
-    Ok(Json(terms))
+    match service::get_terms(&state.pool, &tenant_id, term_id).await {
+        Ok(Some(terms)) => Json(terms).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Payment terms {} not found", term_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// GET /api/ap/payment-terms — list payment terms for tenant
 pub async fn list_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListTermsQuery>,
-) -> Result<Json<Vec<PaymentTerms>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let terms = service::list_terms(&state.pool, &tenant_id, query.include_inactive)
-        .await
-        .map_err(terms_error_response)?;
-
-    Ok(Json(terms))
+    match service::list_terms(&state.pool, &tenant_id, query.include_inactive).await {
+        Ok(terms) => {
+            let total = terms.len() as i64;
+            let resp = PaginatedResponse::new(terms, 1, total, total);
+            Json(resp).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// PUT /api/ap/payment-terms/:term_id — update payment terms
 pub async fn update_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(term_id): Path<Uuid>,
     Json(req): Json<UpdatePaymentTermsRequest>,
-) -> Result<Json<PaymentTerms>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let terms = service::update_terms(&state.pool, &tenant_id, term_id, &req)
-        .await
-        .map_err(terms_error_response)?;
-
-    Ok(Json(terms))
+    match service::update_terms(&state.pool, &tenant_id, term_id, &req).await {
+        Ok(terms) => Json(terms).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }
 
 /// POST /api/ap/bills/:bill_id/assign-terms — assign terms to a bill
 pub async fn assign_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<AssignTermsRequest>,
-) -> Result<Json<AssignTermsResult>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
 
-    let result = service::assign_terms_to_bill(&state.pool, &tenant_id, bill_id, req.term_id)
-        .await
-        .map_err(terms_error_response)?;
-
-    Ok(Json(result))
+    match service::assign_terms_to_bill(&state.pool, &tenant_id, bill_id, req.term_id).await {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
 }

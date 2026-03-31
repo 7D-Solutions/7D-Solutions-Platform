@@ -10,6 +10,7 @@ pub mod service;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -29,6 +30,23 @@ pub enum VendorError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+impl From<VendorError> for platform_http_contracts::ApiError {
+    fn from(err: VendorError) -> Self {
+        match err {
+            VendorError::NotFound(id) => Self::not_found(format!("Vendor {} not found", id)),
+            VendorError::DuplicateName(name) => Self::conflict(format!(
+                "Active vendor '{}' already exists for this tenant",
+                name
+            )),
+            VendorError::Validation(msg) => Self::new(422, "validation_error", msg),
+            VendorError::Database(e) => {
+                tracing::error!("AP vendors DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -91,7 +109,7 @@ pub fn compute_due_date(invoice_date: NaiveDate, payment_terms_days: i32) -> Nai
 // ============================================================================
 
 /// Full vendor record as stored and returned.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Vendor {
     pub vendor_id: Uuid,
     pub tenant_id: String,
@@ -206,28 +224,28 @@ mod tests {
 
     #[test]
     fn compute_due_date_net30() {
-        let invoice = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let invoice = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
         let due = compute_due_date(invoice, 30);
         assert_eq!(due, NaiveDate::from_ymd_opt(2026, 1, 31).unwrap());
     }
 
     #[test]
     fn compute_due_date_net0_is_same_day() {
-        let invoice = NaiveDate::from_ymd_opt(2026, 3, 15).unwrap();
+        let invoice = NaiveDate::from_ymd_opt(2026, 3, 15).expect("valid date");
         let due = compute_due_date(invoice, 0);
         assert_eq!(due, invoice);
     }
 
     #[test]
     fn compute_due_date_net15() {
-        let invoice = NaiveDate::from_ymd_opt(2026, 2, 14).unwrap();
+        let invoice = NaiveDate::from_ymd_opt(2026, 2, 14).expect("valid date");
         let due = compute_due_date(invoice, 15);
         assert_eq!(due, NaiveDate::from_ymd_opt(2026, 3, 1).unwrap());
     }
 
     #[test]
     fn compute_due_date_crosses_year_boundary() {
-        let invoice = NaiveDate::from_ymd_opt(2025, 12, 15).unwrap();
+        let invoice = NaiveDate::from_ymd_opt(2025, 12, 15).expect("valid date");
         let due = compute_due_date(invoice, 30);
         assert_eq!(due, NaiveDate::from_ymd_opt(2026, 1, 14).unwrap());
     }

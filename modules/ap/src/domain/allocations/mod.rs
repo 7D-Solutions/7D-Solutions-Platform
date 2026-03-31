@@ -47,6 +47,41 @@ pub enum AllocationError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<AllocationError> for platform_http_contracts::ApiError {
+    fn from(err: AllocationError) -> Self {
+        match err {
+            AllocationError::BillNotFound(id) => {
+                Self::not_found(format!("Bill {} not found", id))
+            }
+            AllocationError::InvalidBillStatus(status) => Self::new(
+                422,
+                "invalid_bill_status",
+                format!(
+                    "Bill status '{}' does not accept allocations; \
+                     bill must be 'approved' or 'partially_paid'",
+                    status
+                ),
+            ),
+            AllocationError::OverAllocation {
+                available,
+                requested,
+            } => Self::new(
+                422,
+                "over_allocation",
+                format!(
+                    "Allocation of {} would exceed open balance of {}",
+                    requested, available
+                ),
+            ),
+            AllocationError::Validation(msg) => Self::bad_request(msg),
+            AllocationError::Database(e) => {
+                tracing::error!(error = %e, "Database error in allocation handler");
+                Self::internal("An internal error occurred")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Domain Structs
 // ============================================================================

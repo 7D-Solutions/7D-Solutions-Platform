@@ -78,6 +78,17 @@ pub enum AgingError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<AgingError> for platform_http_contracts::ApiError {
+    fn from(err: AgingError) -> Self {
+        match err {
+            AgingError::Database(e) => {
+                tracing::error!(error = %e, "Database error in aging report handler");
+                Self::internal("An internal error occurred")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
@@ -404,7 +415,7 @@ mod tests {
         let db = make_pool().await;
         cleanup(&db).await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
         let report = compute_aging(&db, TEST_TENANT, as_of, false)
             .await
             .expect("compute_aging");
@@ -425,7 +436,7 @@ mod tests {
         // due_date = 2026-02-15, as_of = 2026-01-31 → current
         create_approved_bill(&db, vendor_id, 50000, "2026-02-15", "USD").await;
 
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
         let report = compute_aging(&db, TEST_TENANT, as_of, false)
             .await
             .expect("compute_aging");
@@ -447,7 +458,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         // current: due 2026-02-15 (+15 days)
         create_approved_bill(&db, vendor_id, 10000, "2026-02-15", "USD").await;
@@ -483,7 +494,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         create_approved_bill(&db, vendor_id, 10000, "2026-01-15", "USD").await;
         create_approved_bill(&db, vendor_id, 20000, "2026-01-15", "EUR").await;
@@ -510,7 +521,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         // Bill of 50000, partially paid 20000 → open balance = 30000
         let bill_id = create_approved_bill(&db, vendor_id, 50000, "2026-01-15", "USD").await;
@@ -536,7 +547,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         // Bill fully paid → status = 'paid', must not appear in aging
         let bill_id = create_approved_bill(&db, vendor_id, 50000, "2026-01-15", "USD").await;
@@ -561,7 +572,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         create_approved_bill(&db, vendor_id, 30000, "2026-01-15", "USD").await;
         create_approved_bill(&db, vendor_id, 20000, "2025-12-15", "USD").await;
@@ -588,7 +599,7 @@ mod tests {
         cleanup(&db).await;
 
         let vendor_id = create_vendor(&db).await;
-        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let as_of = NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date");
 
         let bill_id = create_approved_bill(&db, vendor_id, 90000, "2026-01-15", "USD").await;
         // Apply two partial allocations

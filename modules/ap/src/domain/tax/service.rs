@@ -28,6 +28,23 @@ pub enum ApTaxError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<ApTaxError> for platform_http_contracts::ApiError {
+    fn from(err: ApTaxError) -> Self {
+        match err {
+            ApTaxError::NoQuoteFound(id) => {
+                Self::not_found(format!("No tax quote found for bill {}", id))
+            }
+            ApTaxError::Provider(e) => {
+                Self::new(422, "tax_error", e.to_string())
+            }
+            ApTaxError::Database(e) => {
+                tracing::error!("AP tax DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Quote hash
 // ============================================================================
@@ -317,7 +334,7 @@ mod tests {
 
     /// Fixed invoice date for deterministic quote hashing in tests.
     fn fixed_invoice_date() -> chrono::DateTime<Utc> {
-        "2026-01-15T12:00:00Z".parse().unwrap()
+        "2026-01-15T12:00:00Z".parse().expect("valid datetime")
     }
 
     fn sample_quote_req(bill_id: Uuid) -> TaxQuoteRequest {

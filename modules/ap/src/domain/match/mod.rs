@@ -46,6 +46,35 @@ pub enum MatchError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<MatchError> for platform_http_contracts::ApiError {
+    fn from(err: MatchError) -> Self {
+        match err {
+            MatchError::BillNotFound(id) => {
+                Self::not_found(format!("Bill {} not found", id))
+            }
+            MatchError::PoNotFound(id) => {
+                Self::new(422, "po_not_found", format!("PO {} not found", id))
+            }
+            MatchError::InvalidBillStatus(s) => Self::new(
+                422,
+                "invalid_bill_status",
+                format!(
+                    "Bill status '{}' cannot be matched; must be 'open' or 'matched'",
+                    s
+                ),
+            ),
+            MatchError::NoMatchableLines => {
+                Self::new(422, "no_matchable_lines", "Bill has no lines")
+            }
+            MatchError::Validation(msg) => Self::new(422, "validation_error", msg),
+            MatchError::Database(e) => {
+                tracing::error!("AP match DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Match Status
 // ============================================================================

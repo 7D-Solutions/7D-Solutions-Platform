@@ -1,6 +1,6 @@
 [package]
 name = "ap"
-version = "1.0.2"
+version = "2.0.0"
 edition = "2021"
 description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
 
@@ -21,8 +21,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 projections = { path = "../../platform/projections" }
 tax-core = { path = "../../platform/tax-core" }
+utoipa = { version = "5", features = ["uuid", "chrono"] }
 sha2 = "0.10"
 hex = "0.4"
 async-nats = "0.38"

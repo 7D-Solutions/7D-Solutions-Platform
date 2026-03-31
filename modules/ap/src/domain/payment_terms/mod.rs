@@ -13,6 +13,7 @@ pub mod service;
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -40,12 +41,36 @@ pub enum PaymentTermsError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<PaymentTermsError> for platform_http_contracts::ApiError {
+    fn from(err: PaymentTermsError) -> Self {
+        match err {
+            PaymentTermsError::NotFound(id) => {
+                Self::not_found(format!("Payment terms {} not found", id))
+            }
+            PaymentTermsError::BillNotFound(id) => {
+                Self::not_found(format!("Bill {} not found", id))
+            }
+            PaymentTermsError::DuplicateTermCode(code) => {
+                Self::conflict(format!("Term code '{}' already exists", code))
+            }
+            PaymentTermsError::DuplicateIdempotencyKey(key) => {
+                Self::conflict(format!("Idempotency key '{}' already used", key))
+            }
+            PaymentTermsError::Validation(msg) => Self::new(422, "validation_error", msg),
+            PaymentTermsError::Database(e) => {
+                tracing::error!("AP payment_terms DB error: {}", e);
+                Self::internal("Internal database error")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Domain Structs
 // ============================================================================
 
 /// Payment terms record as stored in the database.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PaymentTerms {
     pub term_id: Uuid,
     pub tenant_id: String,

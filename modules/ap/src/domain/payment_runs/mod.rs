@@ -124,6 +124,37 @@ pub enum PaymentRunError {
     Database(#[from] sqlx::Error),
 }
 
+impl From<PaymentRunError> for platform_http_contracts::ApiError {
+    fn from(err: PaymentRunError) -> Self {
+        match err {
+            PaymentRunError::NoBillsEligible(tenant, currency) => Self::new(
+                422,
+                "no_eligible_bills",
+                format!(
+                    "No eligible bills found for tenant '{}' in currency '{}'",
+                    tenant, currency
+                ),
+            ),
+            PaymentRunError::DuplicateRunId(id) => Self::conflict(format!(
+                "Payment run {} already exists for a different tenant",
+                id
+            )),
+            PaymentRunError::RunNotFound(id) => {
+                Self::not_found(format!("Payment run {} not found", id))
+            }
+            PaymentRunError::RunNotPending(status) => Self::conflict(format!(
+                "Payment run cannot be executed in status '{}'",
+                status
+            )),
+            PaymentRunError::Validation(msg) => Self::bad_request(msg),
+            PaymentRunError::Database(e) => {
+                tracing::error!(error = %e, "Database error in payment run handler");
+                Self::internal("An internal error occurred")
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Unit tests
 // ============================================================================
