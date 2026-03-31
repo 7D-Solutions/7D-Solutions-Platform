@@ -13,7 +13,7 @@ use sqlx::PgPool;
 
 use security::VerifiedClaims;
 
-use crate::models::{ErrorResponse, IdempotencyKey};
+use crate::models::{ApiError, IdempotencyKey};
 
 /// Extract app_id from request extensions (populated by auth middleware)
 fn extract_app_id(extensions: &axum::http::Extensions) -> Option<String> {
@@ -27,7 +27,7 @@ pub async fn check_idempotency(
     State(db): State<PgPool>,
     request: Request,
     next: Next,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Response, ApiError> {
     // Extract headers from request
     let headers = request.headers();
 
@@ -44,10 +44,7 @@ pub async fn check_idempotency(
     let app_id = match extract_app_id(request.extensions()) {
         Some(id) => id,
         None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(ErrorResponse::new("auth_error", "Missing app_id")),
-            ))
+            return Err(ApiError::unauthorized("Missing app_id"))
         }
     };
 
@@ -72,10 +69,7 @@ pub async fn check_idempotency(
     .await
     .map_err(|e| {
         tracing::error!("Idempotency key lookup failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("database_error", "Internal database error")),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     if let Some(cached) = existing {
@@ -96,13 +90,7 @@ pub async fn check_idempotency(
         // Buffer the response body so we can cache it
         let (parts, body) = response.into_parts();
         let bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "internal_error",
-                    "Failed to read response",
-                )),
-            )
+            ApiError::internal("Failed to read response")
         })?;
 
         // Parse as JSON to store in database

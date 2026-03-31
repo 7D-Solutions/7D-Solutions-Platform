@@ -7,7 +7,7 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
-    CaptureChargeRequest, Charge, CreateChargeRequest, Customer, ErrorResponse, ListChargesQuery,
+    ApiError, CaptureChargeRequest, Charge, CreateChargeRequest, Customer, ListChargesQuery,
 };
 use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
@@ -17,35 +17,20 @@ pub async fn create_charge(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateChargeRequest>,
-) -> Result<(StatusCode, Json<Charge>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<Charge>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.amount_cents <= 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "amount_cents must be greater than 0",
-            )),
-        ));
+        return Err(ApiError::bad_request("amount_cents must be greater than 0"));
     }
 
     if req.reason.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("validation_error", "reason is required")),
-        ));
+        return Err(ApiError::bad_request("reason is required"));
     }
 
     if req.reference_id.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "reference_id is required",
-            )),
-        ));
+        return Err(ApiError::bad_request("reference_id is required"));
     }
 
     // Verify customer exists and belongs to app
@@ -67,33 +52,15 @@ pub async fn create_charge(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", req.ar_customer_id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
     })?;
 
     // Ensure default payment method exists
     if customer.default_payment_method_id.is_none() {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "conflict",
-                "No default payment method on file",
-            )),
-        ));
+        return Err(ApiError::conflict("No default payment method on file"));
     }
 
     // Check for duplicate reference_id
@@ -115,13 +82,7 @@ pub async fn create_charge(
     .await
     .map_err(|e| {
         tracing::error!("Database error checking duplicate charge: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to check duplicate charge: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     if let Some(charge) = existing_charge {
@@ -167,13 +128,7 @@ pub async fn create_charge(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create charge: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to create charge: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Charge stays pending with NULL tilled_charge_id.
@@ -195,7 +150,7 @@ pub async fn get_charge(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Charge>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let charge = sqlx::query_as::<_, Charge>(
@@ -217,22 +172,10 @@ pub async fn get_charge(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching charge: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch charge: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Charge {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Charge {} not found", id))
     })?;
 
     Ok(Json(charge))
@@ -243,7 +186,7 @@ pub async fn list_charges(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListChargesQuery>,
-) -> Result<Json<Vec<Charge>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Charge>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
@@ -369,13 +312,7 @@ pub async fn list_charges(
     }
     .map_err(|e| {
         tracing::error!("Database error listing charges: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to list charges: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(charges))
@@ -387,7 +324,7 @@ pub async fn capture_charge(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<CaptureChargeRequest>,
-) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Charge>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify charge exists and belongs to app
@@ -410,30 +347,15 @@ pub async fn capture_charge(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching charge: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch charge: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", format!("Charge {} not found", id))),
-        )
+        ApiError::not_found(format!("Charge {} not found", id))
     })?;
 
     // Only authorized charges can be captured
     if existing.status != "authorized" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!("Cannot capture charge with status {}", existing.status),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!("Cannot capture charge with status {}", existing.status)));
     }
 
     // Use provided amount or existing amount
@@ -441,35 +363,17 @@ pub async fn capture_charge(
 
     // Validate capture amount is positive
     if capture_amount <= 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "Capture amount must be positive",
-            )),
-        ));
+        return Err(ApiError::bad_request("Capture amount must be positive"));
     }
 
     // Require a provider ID — capture only works on charges that Tilled knows about
     let tilled_charge_id = existing.tilled_charge_id.as_deref().ok_or_else(|| {
-        (
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "conflict",
-                "Charge has no provider ID — cannot capture until provider confirms authorization",
-            )),
-        )
+        ApiError::conflict("Charge has no provider ID — cannot capture until provider confirms authorization")
     })?;
 
     let client = TilledClient::from_env(&app_id).map_err(|e| {
         tracing::error!("Failed to create Tilled client: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "provider_config_error",
-                format!("Failed to initialize payment provider: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     let capture_amount_i64 = checked_i32_to_i64(capture_amount);
@@ -505,13 +409,7 @@ pub async fn capture_charge(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to update charge after capture: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "database_error",
-                        format!("Failed to update charge: {}", e),
-                    )),
-                )
+                ApiError::internal("Internal database error")
             })?;
 
             tracing::info!("Captured charge {} (amount: {})", id, capture_amount);
@@ -519,12 +417,10 @@ pub async fn capture_charge(
         }
         Err(e) => {
             tracing::error!("Tilled capture failed for charge {}: {:?}", id, e);
-            Err((
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse::new(
-                    "provider_error",
-                    format!("Payment provider capture failed: {}", e),
-                )),
+            Err(ApiError::new(
+                502,
+                "provider_error",
+                format!("Payment provider capture failed: {}", e),
             ))
         }
     }

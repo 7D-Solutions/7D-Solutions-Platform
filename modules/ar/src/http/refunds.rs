@@ -6,7 +6,7 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{Charge, CreateRefundRequest, ErrorResponse, ListRefundsQuery, Refund};
+use crate::models::{ApiError, Charge, CreateRefundRequest, ListRefundsQuery, Refund};
 use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
 
@@ -15,28 +15,16 @@ pub async fn create_refund(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateRefundRequest>,
-) -> Result<(StatusCode, Json<Refund>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<Refund>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.amount_cents <= 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "amount_cents must be greater than 0",
-            )),
-        ));
+        return Err(ApiError::bad_request("amount_cents must be greater than 0"));
     }
 
     if req.reference_id.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "reference_id is required",
-            )),
-        ));
+        return Err(ApiError::bad_request("reference_id is required"));
     }
 
     // Check for duplicate reference_id (domain-level idempotency)
@@ -56,13 +44,7 @@ pub async fn create_refund(
     .await
     .map_err(|e| {
         tracing::error!("Database error checking duplicate refund: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to check for duplicate refund",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     if let Some(refund) = existing_refund {
@@ -93,44 +75,21 @@ pub async fn create_refund(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching charge: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch charge",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
-    .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", "Charge not found")),
-        )
-    })?;
+    .ok_or_else(|| ApiError::not_found("Charge not found"))?;
 
     // Ensure charge has been settled in processor
     if charge.tilled_charge_id.is_none() {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "conflict",
-                "Charge not settled in processor",
-            )),
-        ));
+        return Err(ApiError::conflict("Charge not settled in processor"));
     }
 
     // Validate refund amount does not exceed charge amount
     if req.amount_cents > charge.amount_cents {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!(
-                    "Refund amount ({}) exceeds charge amount ({})",
-                    req.amount_cents, charge.amount_cents
-                ),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!(
+            "Refund amount ({}) exceeds charge amount ({})",
+            req.amount_cents, charge.amount_cents
+        )));
     }
 
     // Calculate total already refunded
@@ -147,29 +106,17 @@ pub async fn create_refund(
     .await
     .map_err(|e| {
         tracing::error!("Database error calculating refunded amount: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to calculate refunded amount",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     let total_refunded = total_refunded.unwrap_or(0) as i32;
     let remaining_refundable = charge.amount_cents - total_refunded;
 
     if req.amount_cents > remaining_refundable {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!(
-                    "Refund amount ({}) exceeds remaining refundable amount ({}). Total already refunded: {}",
-                    req.amount_cents, remaining_refundable, total_refunded
-                ),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!(
+            "Refund amount ({}) exceeds remaining refundable amount ({}). Total already refunded: {}",
+            req.amount_cents, remaining_refundable, total_refunded
+        )));
     }
 
     // Create pending refund record
@@ -201,31 +148,16 @@ pub async fn create_refund(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create refund: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to create refund: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Call Tilled API to create the refund
     let payment_intent_id = charge.tilled_charge_id.ok_or_else(|| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("missing_charge_id", "Charge is missing tilled_charge_id")),
-        )
+        ApiError::internal("Internal database error")
     })?;
     let client = TilledClient::from_env(&app_id).map_err(|e| {
         tracing::error!("Failed to create Tilled client: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "provider_config_error",
-                format!("Failed to initialize payment provider: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     let amount_i64 = checked_i32_to_i64(req.amount_cents);
@@ -262,13 +194,7 @@ pub async fn create_refund(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to update refund after provider call: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "database_error",
-                        "Failed to update refund",
-                    )),
-                )
+                ApiError::internal("Internal database error")
             })?;
 
             tracing::info!(
@@ -284,12 +210,10 @@ pub async fn create_refund(
         Err(e) => {
             tracing::error!("Tilled refund failed for charge {}: {:?}", req.charge_id, e);
             // Keep refund as 'pending' — do not advance status on failure
-            Err((
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse::new(
-                    "provider_error",
-                    format!("Payment provider refund failed: {}", e),
-                )),
+            Err(ApiError::new(
+                502,
+                "provider_error",
+                format!("Payment provider refund failed: {}", e),
             ))
         }
     }
@@ -300,7 +224,7 @@ pub async fn get_refund(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Refund>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Refund>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let refund = sqlx::query_as::<_, Refund>(
@@ -319,22 +243,10 @@ pub async fn get_refund(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching refund: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch refund",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Refund {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Refund {} not found", id))
     })?;
 
     Ok(Json(refund))
@@ -345,7 +257,7 @@ pub async fn list_refunds(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListRefundsQuery>,
-) -> Result<Json<Vec<Refund>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Refund>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
@@ -402,13 +314,7 @@ pub async fn list_refunds(
         .await
         .map_err(|e| {
             tracing::error!("Database error listing refunds: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to list refunds",
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?;
 
     Ok(Json(refunds))

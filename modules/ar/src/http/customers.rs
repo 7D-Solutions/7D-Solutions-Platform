@@ -36,23 +36,11 @@ pub async fn create_customer(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to check duplicate email: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "database_error",
-                        "Failed to validate email",
-                    )),
-                )
+                ApiError::internal("Internal database error")
             })?;
 
     if existing.is_some() {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "duplicate_email",
-                "A customer with this email already exists",
-            )),
-        ));
+        return Err(ApiError::conflict("A customer with this email already exists"));
     }
 
     // Create customer in database (local-first, low-code pattern).
@@ -87,23 +75,11 @@ pub async fn create_customer(
         // Check for unique constraint violation (duplicate email)
         if let sqlx::Error::Database(db_err) = &e {
             if db_err.code() == Some(std::borrow::Cow::Borrowed("23505")) {
-                return (
-                    StatusCode::CONFLICT,
-                    Json(ErrorResponse::new(
-                        "duplicate_email",
-                        "A customer with this email already exists",
-                    )),
-                );
+                return ApiError::conflict("A customer with this email already exists");
             }
         }
 
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to create customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Log event asynchronously
@@ -146,22 +122,10 @@ pub async fn get_customer(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", id))
     })?;
 
     Ok(Json(customer))
@@ -224,13 +188,7 @@ pub async fn list_customers(
     }
     .map_err(|e| {
         tracing::error!("Database error listing customers: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to list customers: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(customers))
@@ -264,34 +222,16 @@ pub async fn update_customer(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", id))
     })?;
 
     // Validate at least one field is being updated
     if req.email.is_none() && req.name.is_none() && req.metadata.is_none() && req.party_id.is_none()
     {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "No valid fields to update",
-            )),
-        ));
+        return Err(ApiError::bad_request("No valid fields to update"));
     }
 
     // Build dynamic update query based on provided fields
@@ -330,13 +270,7 @@ pub async fn update_customer(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(customer))

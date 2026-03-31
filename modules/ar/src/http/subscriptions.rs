@@ -7,7 +7,7 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
-    CancelSubscriptionRequest, CreateSubscriptionRequest, Customer, ErrorResponse,
+    ApiError, CancelSubscriptionRequest, CreateSubscriptionRequest, Customer,
     ListSubscriptionsQuery, Subscription, SubscriptionInterval, SubscriptionStatus,
     UpdateSubscriptionRequest,
 };
@@ -17,28 +17,16 @@ pub async fn create_subscription(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateSubscriptionRequest>,
-) -> Result<(StatusCode, Json<Subscription>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<Subscription>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.plan_id.is_empty() || req.plan_name.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "Plan ID and name are required",
-            )),
-        ));
+        return Err(ApiError::bad_request("Plan ID and name are required"));
     }
 
     if req.price_cents <= 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "Price must be greater than 0",
-            )),
-        ));
+        return Err(ApiError::bad_request("Price must be greater than 0"));
     }
 
     // Verify customer exists and belongs to app
@@ -60,22 +48,10 @@ pub async fn create_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", req.ar_customer_id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
     })?;
 
     // Validate party_id exists in Party Master if provided
@@ -85,14 +61,13 @@ pub async fn create_subscription(
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
-                let (status, code) = match &e {
-                    PartyClientError::ServiceUnavailable(_) => {
-                        (StatusCode::SERVICE_UNAVAILABLE, "party_service_unavailable")
-                    }
-                    _ => (StatusCode::UNPROCESSABLE_ENTITY, "party_not_found"),
-                };
                 tracing::warn!("Party validation failed for subscription create: {}", e);
-                (status, Json(ErrorResponse::new(code, e.to_string())))
+                match &e {
+                    PartyClientError::ServiceUnavailable(_) => {
+                        ApiError::new(503, "party_service_unavailable", e.to_string())
+                    }
+                    _ => ApiError::new(422, "party_not_found", e.to_string()),
+                }
             })?;
     }
 
@@ -151,13 +126,7 @@ pub async fn create_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create subscription: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to create subscription: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!(
@@ -174,7 +143,7 @@ pub async fn get_subscription(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Subscription>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let subscription = sqlx::query_as::<_, Subscription>(
@@ -197,22 +166,10 @@ pub async fn get_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching subscription: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch subscription: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Subscription {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Subscription {} not found", id))
     })?;
 
     Ok(Json(subscription))
@@ -223,7 +180,7 @@ pub async fn list_subscriptions(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListSubscriptionsQuery>,
-) -> Result<Json<Vec<Subscription>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Subscription>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
@@ -334,13 +291,7 @@ pub async fn list_subscriptions(
     }
     .map_err(|e| {
         tracing::error!("Database error listing subscriptions: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to list subscriptions: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(subscriptions))
@@ -352,7 +303,7 @@ pub async fn update_subscription(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateSubscriptionRequest>,
-) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Subscription>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify subscription exists and belongs to app
@@ -376,22 +327,10 @@ pub async fn update_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching subscription: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch subscription: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Subscription {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Subscription {} not found", id))
     })?;
 
     // Validate at least one field is being updated
@@ -400,13 +339,7 @@ pub async fn update_subscription(
         && req.price_cents.is_none()
         && req.metadata.is_none()
     {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "No valid fields to update",
-            )),
-        ));
+        return Err(ApiError::bad_request("No valid fields to update"));
     }
 
     // Build update based on provided fields
@@ -441,13 +374,7 @@ pub async fn update_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update subscription: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update subscription: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!("Updated subscription {}", id);
@@ -461,7 +388,7 @@ pub async fn cancel_subscription(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<CancelSubscriptionRequest>,
-) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Subscription>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify subscription exists and belongs to app
@@ -485,22 +412,10 @@ pub async fn cancel_subscription(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching subscription: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch subscription: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Subscription {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Subscription {} not found", id))
     })?;
 
     let cancel_at_period_end = req.cancel_at_period_end.unwrap_or(false);
@@ -526,13 +441,7 @@ pub async fn cancel_subscription(
         .await
         .map_err(|e| {
             tracing::error!("Failed to schedule subscription cancellation: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to cancel subscription: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?
     } else {
         // Immediate cancellation intent. Status transitions to 'canceling' —
@@ -556,13 +465,7 @@ pub async fn cancel_subscription(
         .await
         .map_err(|e| {
             tracing::error!("Failed to cancel subscription: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to cancel subscription: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?
     };
 

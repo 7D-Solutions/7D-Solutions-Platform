@@ -11,7 +11,7 @@ use crate::events::contracts::{
     build_invoice_opened_envelope, InvoiceLifecyclePayload, EVENT_TYPE_INVOICE_OPENED,
 };
 use crate::models::{
-    CreateInvoiceRequest, Customer, ErrorResponse, FinalizeInvoiceRequest, GlPostingLine,
+    ApiError, CreateInvoiceRequest, Customer, FinalizeInvoiceRequest, GlPostingLine,
     GlPostingRequestPayload, Invoice, ListInvoicesQuery, PaymentCollectionRequestedPayload,
     Subscription, UpdateInvoiceRequest,
 };
@@ -22,31 +22,22 @@ pub async fn create_invoice(
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateInvoiceRequest>,
-) -> Result<(StatusCode, Json<Invoice>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<Invoice>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Validate required fields
     if req.amount_cents < 0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "amount_cents must be non-negative",
-            )),
-        ));
+        return Err(ApiError::bad_request("amount_cents must be non-negative"));
     }
 
     let status = req.status.unwrap_or_else(|| "draft".to_string());
     let valid_statuses = ["draft", "open", "paid", "void", "uncollectible"];
     if !valid_statuses.contains(&status.as_str()) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!("status must be one of: {}", valid_statuses.join(", ")),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!(
+            "status must be one of: {}",
+            valid_statuses.join(", ")
+        )));
     }
 
     // Verify customer exists and belongs to app
@@ -68,22 +59,10 @@ pub async fn create_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", req.ar_customer_id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
     })?;
 
     // Verify subscription exists if provided
@@ -108,25 +87,13 @@ pub async fn create_invoice(
         .await
         .map_err(|e| {
             tracing::error!("Database error fetching subscription: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to fetch subscription: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?
         .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new(
-                    "not_found",
-                    format!(
+            ApiError::not_found(format!(
                         "Subscription {} not found for customer {}",
                         subscription_id, req.ar_customer_id
-                    ),
-                )),
-            )
+                    ))
         })?;
     }
 
@@ -137,14 +104,13 @@ pub async fn create_invoice(
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
-                let (status, code) = match &e {
-                    PartyClientError::ServiceUnavailable(_) => {
-                        (StatusCode::SERVICE_UNAVAILABLE, "party_service_unavailable")
-                    }
-                    _ => (StatusCode::UNPROCESSABLE_ENTITY, "party_not_found"),
-                };
                 tracing::warn!("Party validation failed for invoice create: {}", e);
-                (status, Json(ErrorResponse::new(code, e.to_string())))
+                match &e {
+                    PartyClientError::ServiceUnavailable(_) => {
+                        ApiError::new(503, "party_service_unavailable", e.to_string())
+                    }
+                    _ => ApiError::new(422, "party_not_found", e.to_string()),
+                }
             })?;
     }
 
@@ -155,13 +121,7 @@ pub async fn create_invoice(
     // Begin transaction: INSERT + outbox emit must be atomic
     let mut tx = db.begin().await.map_err(|e| {
         tracing::error!("Failed to begin transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to begin transaction: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Create invoice
@@ -200,13 +160,7 @@ pub async fn create_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to create invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Emit ar.invoice_opened — idempotency key: ar.events.ar.invoice_opened:{invoice_id}
@@ -240,24 +194,12 @@ pub async fn create_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Failed to enqueue invoice_opened event: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "outbox_error",
-                format!("Failed to enqueue event: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit create_invoice transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "transaction_error",
-                format!("Failed to commit transaction: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!(
@@ -275,7 +217,7 @@ pub async fn get_invoice(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Invoice>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
@@ -296,22 +238,10 @@ pub async fn get_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Invoice {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Invoice {} not found", id))
     })?;
 
     Ok(Json(invoice))
@@ -322,7 +252,7 @@ pub async fn list_invoices(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListInvoicesQuery>,
-) -> Result<Json<Vec<Invoice>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Invoice>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
@@ -443,13 +373,7 @@ pub async fn list_invoices(
     }
     .map_err(|e| {
         tracing::error!("Database error listing invoices: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to list invoices: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(invoices))
@@ -461,7 +385,7 @@ pub async fn update_invoice(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateInvoiceRequest>,
-) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Invoice>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify invoice exists and belongs to app
@@ -483,22 +407,10 @@ pub async fn update_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Invoice {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Invoice {} not found", id))
     })?;
 
     // Validate at least one field is being updated
@@ -507,13 +419,7 @@ pub async fn update_invoice(
         && req.due_at.is_none()
         && req.metadata.is_none()
     {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "No valid fields to update",
-            )),
-        ));
+        return Err(ApiError::bad_request("No valid fields to update"));
     }
 
     // Build update based on provided fields
@@ -543,13 +449,7 @@ pub async fn update_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!("Updated invoice {}", id);
@@ -564,7 +464,7 @@ pub async fn finalize_invoice(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<i32>,
     Json(req): Json<FinalizeInvoiceRequest>,
-) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Invoice>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
@@ -587,33 +487,15 @@ pub async fn finalize_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Invoice {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Invoice {} not found", id))
     })?;
 
     // Only draft invoices can be finalized to open
     if existing.status != "draft" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!("Cannot finalize invoice with status {}", existing.status),
-            )),
-        ));
+        return Err(ApiError::bad_request(format!("Cannot finalize invoice with status {}", existing.status)));
     }
 
     let paid_at = req.paid_at.or_else(|| Some(chrono::Utc::now().naive_utc()));
@@ -621,13 +503,7 @@ pub async fn finalize_invoice(
     // Begin transaction for atomicity (bd-umnu: invoice mutation + outbox must commit together)
     let mut tx = db.begin().await.map_err(|e| {
         tracing::error!("Failed to begin transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to begin transaction: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
@@ -648,13 +524,7 @@ pub async fn finalize_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Failed to finalize invoice: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to finalize invoice: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!("Finalized invoice {}", id);
@@ -667,13 +537,7 @@ pub async fn finalize_invoice(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to fetch customer payment method: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::new(
-                        "database_error",
-                        format!("Failed to fetch customer payment method: {}", e),
-                    )),
-                )
+                ApiError::internal("Internal database error")
             })?
             .flatten();
 
@@ -710,13 +574,7 @@ pub async fn finalize_invoice(
             "Failed to enqueue payment.collection.requested event: {:?}",
             e
         );
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "outbox_error",
-                format!("Failed to enqueue event: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Emit gl.posting.requested event to GL module
@@ -768,25 +626,13 @@ pub async fn finalize_invoice(
     .await
     .map_err(|e| {
         tracing::error!("Failed to enqueue gl.posting.requested event: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "outbox_error",
-                format!("Failed to enqueue event: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Commit transaction atomically
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "transaction_error",
-                format!("Failed to commit transaction: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(invoice))

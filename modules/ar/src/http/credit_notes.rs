@@ -11,7 +11,7 @@ use crate::credit_notes::{
     ApproveCreditMemoRequest, CreateCreditMemoRequest, IssueCreditMemoRequest,
     IssueCreditNoteRequest,
 };
-use crate::models::ErrorResponse;
+use crate::models::ApiError;
 
 // ============================================================================
 // CREDIT NOTE HANDLER WRAPPER (bd-1gt)
@@ -24,7 +24,7 @@ pub async fn issue_credit_note_route(
     State(db): State<PgPool>,
     Path(invoice_id): Path<i32>,
     Json(mut req): Json<IssueCreditNoteRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     use crate::credit_notes::IssueCreditNoteResult;
     req.invoice_id = invoice_id;
     match issue_credit_note(&db, req).await {
@@ -65,7 +65,7 @@ pub async fn issue_credit_note_route(
                 ),
                 other => (StatusCode::BAD_REQUEST, format!("{}", other)),
             };
-            Err((status, Json(ErrorResponse::new("credit_note_error", msg))))
+            Err(ApiError::new(status.as_u16(), "credit_note_error", msg))
         }
     }
 }
@@ -119,7 +119,7 @@ pub async fn issue_credit_note_handler(
     Path(invoice_id): Path<i32>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<IssueCreditNoteHttpRequest>,
-) -> Result<(StatusCode, Json<IssueCreditNoteResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<IssueCreditNoteResponse>), ApiError> {
     // Extract tenant from verified JWT claims (C1 fix: was header-based)
     let app_id = super::tenant::extract_tenant(&claims)?;
 
@@ -189,28 +189,10 @@ pub async fn issue_credit_note_handler(
         }
         Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, app_id }) => {
             tracing::warn!(invoice_id = invoice_id, app_id = %app_id, "Credit note: invoice not found");
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::new(
-                    "invoice_not_found",
-                    format!("Invoice {} not found", invoice_id),
-                )),
-            ))
+            Err(ApiError::not_found(format!("Invoice {} not found", invoice_id)))
         }
-        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse::new(
-                "invalid_amount",
-                format!("amount_minor must be > 0, got {}", n),
-            )),
-        )),
-        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse::new(
-                "invalid_currency",
-                "currency must not be empty",
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(422, "validation_error", format!("amount_minor must be > 0, got {}", n))),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(422, "validation_error", "currency must not be empty")),
         Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
             invoice_id,
             invoice_amount_cents,
@@ -224,47 +206,25 @@ pub async fn issue_credit_note_handler(
                 requested,
                 "Credit note rejected: over-credit guard triggered"
             );
-            Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse::new(
-                    "over_credit",
-                    format!(
+            Err(ApiError::new(422, "validation_error", format!(
                         "Credit of {} exceeds remaining balance {} on invoice {}",
                         requested,
                         invoice_amount_cents - existing_credits,
                         invoice_id
-                    ),
-                )),
-            ))
+                    )))
         }
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
             tracing::error!("Credit note DB error: {}", msg);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to issue credit note",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
-            expected, actual, ..
-        }) => Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "invalid_status_transition",
-                format!("Expected status '{}', got '{}'", expected, actual),
-            )),
-        )),
+            expected,
+            actual,
+            ..
+        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
         Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
             credit_note_id, ..
-        }) => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "credit_memo_not_found",
-                format!("Credit memo {} not found", credit_note_id),
-            )),
-        )),
+        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
     }
 }
 
@@ -302,7 +262,7 @@ pub async fn create_credit_memo_handler(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CreateCreditMemoHttpRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     match create_credit_memo(
         &pool,
@@ -347,63 +307,27 @@ pub async fn create_credit_memo_handler(
                 "credit_note_id": credit_note_id,
             })),
         )),
-        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, .. }) => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "invoice_not_found",
-                format!("Invoice {} not found", invoice_id),
-            )),
-        )),
-        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse::new(
-                "invalid_amount",
-                format!("amount_minor must be > 0, got {}", n),
-            )),
-        )),
-        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse::new(
-                "invalid_currency",
-                "currency must not be empty",
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, .. }) => Err(ApiError::not_found(format!("Invoice {} not found", invoice_id))),
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(422, "validation_error", format!("amount_minor must be > 0, got {}", n))),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(422, "validation_error", "currency must not be empty")),
         Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
             invoice_id,
             invoice_amount_cents,
             existing_credits,
             requested,
-        }) => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse::new(
-                "over_credit",
-                format!(
+        }) => Err(ApiError::new(422, "validation_error", format!(
                     "Credit of {} exceeds remaining balance {} on invoice {}",
                     requested,
                     invoice_amount_cents - existing_credits,
                     invoice_id
-                ),
-            )),
-        )),
+                ))),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
             tracing::error!("Credit memo create DB error: {}", msg);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to create credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
             tracing::error!("Credit memo create error: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "credit_memo_error",
-                    "Failed to create credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
     }
 }
@@ -413,7 +337,7 @@ pub async fn approve_credit_memo_handler(
     Path(credit_note_id): Path<uuid::Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<ApproveCreditMemoHttpRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     match approve_credit_memo(
         &pool,
@@ -450,41 +374,21 @@ pub async fn approve_credit_memo_handler(
                 "already_approved": true,
             })),
         )),
-        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound { credit_note_id, .. }) => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "credit_memo_not_found",
-                format!("Credit memo {} not found", credit_note_id),
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
+            credit_note_id, ..
+        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
-            expected, actual, ..
-        }) => Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "invalid_status_transition",
-                format!("Expected status '{}', got '{}'", expected, actual),
-            )),
-        )),
+            expected,
+            actual,
+            ..
+        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
             tracing::error!("Credit memo approve DB error: {}", msg);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to approve credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
             tracing::error!("Credit memo approve error: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "credit_memo_error",
-                    "Failed to approve credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
     }
 }
@@ -494,7 +398,7 @@ pub async fn issue_credit_memo_handler(
     Path(credit_note_id): Path<uuid::Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<IssueCreditMemoHttpRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     match issue_credit_memo(
         &pool,
@@ -532,41 +436,21 @@ pub async fn issue_credit_memo_handler(
                 "already_processed": true,
             })),
         )),
-        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound { credit_note_id, .. }) => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "credit_memo_not_found",
-                format!("Credit memo {} not found", credit_note_id),
-            )),
-        )),
+        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
+            credit_note_id, ..
+        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
-            expected, actual, ..
-        }) => Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "invalid_status_transition",
-                format!("Expected status '{}', got '{}'", expected, actual),
-            )),
-        )),
+            expected,
+            actual,
+            ..
+        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
             tracing::error!("Credit memo issue DB error: {}", msg);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    "Failed to issue credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
             tracing::error!("Credit memo issue error: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "credit_memo_error",
-                    "Failed to issue credit memo",
-                )),
-            ))
+            Err(ApiError::internal("Internal database error"))
         }
     }
 }

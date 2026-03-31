@@ -8,7 +8,7 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
-    AddPaymentMethodRequest, Customer, ErrorResponse, ListPaymentMethodsQuery, PaymentMethod,
+    AddPaymentMethodRequest, ApiError, Customer, ListPaymentMethodsQuery, PaymentMethod,
     UpdatePaymentMethodRequest,
 };
 use crate::tilled::TilledClient;
@@ -18,18 +18,12 @@ pub async fn add_payment_method(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<AddPaymentMethodRequest>,
-) -> Result<(StatusCode, Json<PaymentMethod>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<PaymentMethod>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.tilled_payment_method_id.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "tilled_payment_method_id is required",
-            )),
-        ));
+        return Err(ApiError::bad_request("tilled_payment_method_id is required"));
     }
 
     // Verify customer exists and belongs to app
@@ -51,22 +45,10 @@ pub async fn add_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching customer: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch customer: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Customer {} not found", req.ar_customer_id),
-            )),
-        )
+        ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
     })?;
 
     // Check if payment method already exists (upsert pattern)
@@ -86,13 +68,7 @@ pub async fn add_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error checking payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to check payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Local-first, low-code pattern: status starts as 'pending_sync'.
@@ -120,13 +96,7 @@ pub async fn add_payment_method(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update payment method: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to update payment method: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?
     } else {
         // Create new payment method record
@@ -151,13 +121,7 @@ pub async fn add_payment_method(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create payment method: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to create payment method: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?
     };
 
@@ -175,7 +139,7 @@ pub async fn get_payment_method(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<PaymentMethod>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
@@ -196,22 +160,10 @@ pub async fn get_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Payment method {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Payment method {} not found", id))
     })?;
 
     Ok(Json(payment_method))
@@ -222,7 +174,7 @@ pub async fn list_payment_methods(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListPaymentMethodsQuery>,
-) -> Result<Json<Vec<PaymentMethod>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<PaymentMethod>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
@@ -326,13 +278,7 @@ pub async fn list_payment_methods(
     }
     .map_err(|e| {
         tracing::error!("Database error listing payment methods: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to list payment methods: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     Ok(Json(payment_methods))
@@ -344,7 +290,7 @@ pub async fn update_payment_method(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdatePaymentMethodRequest>,
-) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<PaymentMethod>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists and belongs to app
@@ -366,33 +312,15 @@ pub async fn update_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Payment method {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Payment method {} not found", id))
     })?;
 
     // Validate at least one field is being updated
     if req.metadata.is_none() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                "No valid fields to update",
-            )),
-        ));
+        return Err(ApiError::bad_request("No valid fields to update"));
     }
 
     // Update metadata only (other fields come from Tilled)
@@ -416,13 +344,7 @@ pub async fn update_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!("Updated payment method {}", id);
@@ -435,7 +357,7 @@ pub async fn delete_payment_method(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<StatusCode, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists and belongs to app
@@ -457,22 +379,10 @@ pub async fn delete_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Payment method {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Payment method {} not found", id))
     })?;
 
     // Guard: block detach if there are pending or authorized charges using this PM
@@ -488,39 +398,21 @@ pub async fn delete_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error checking blocking charges: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to check blocking charges: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     if blocking_charge_count.unwrap_or(0) > 0 {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse::new(
-                "conflict",
-                format!(
-                    "Cannot detach payment method: {} pending/authorized charge(s) exist for this customer",
-                    blocking_charge_count.unwrap_or(0)
-                ),
-            )),
-        ));
+        return Err(ApiError::conflict(format!(
+            "Cannot detach payment method: {} pending/authorized charge(s) exist for this customer",
+            blocking_charge_count.unwrap_or(0)
+        )));
     }
 
     // Detach from Tilled if we have a provider ID
     if !payment_method.tilled_payment_method_id.is_empty() {
         let client = TilledClient::from_env(&app_id).map_err(|e| {
             tracing::error!("Failed to create Tilled client: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "provider_config_error",
-                    format!("Failed to initialize payment provider: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?;
 
         if let Err(e) = client
@@ -528,12 +420,10 @@ pub async fn delete_payment_method(
             .await
         {
             tracing::error!("Tilled detach failed for payment method {}: {:?}", id, e);
-            return Err((
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorResponse::new(
-                    "provider_error",
-                    format!("Payment provider detach failed: {}", e),
-                )),
+            return Err(ApiError::new(
+                502,
+                "provider_error",
+                format!("Payment provider detach failed: {}", e),
             ));
         }
     }
@@ -551,13 +441,7 @@ pub async fn delete_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Failed to delete payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to delete payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // If this was the default, clear customer fast-path
@@ -577,13 +461,7 @@ pub async fn delete_payment_method(
                 "Failed to clear default payment method from customer: {:?}",
                 e
             );
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "database_error",
-                    format!("Failed to update customer: {}", e),
-                )),
-            )
+            ApiError::internal("Internal database error")
         })?;
     }
 
@@ -597,7 +475,7 @@ pub async fn set_default_payment_method(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<PaymentMethod>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists, belongs to app, and is active
@@ -619,36 +497,18 @@ pub async fn set_default_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Database error fetching payment method: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to fetch payment method: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Payment method {} not found", id),
-            )),
-        )
+        ApiError::not_found(format!("Payment method {} not found", id))
     })?;
 
     // Verify payment method is active
     if payment_method.status != "active" {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!(
+        return Err(ApiError::bad_request(format!(
                     "Cannot set payment method with status {} as default",
                     payment_method.status
-                ),
-            )),
-        ));
+                )));
     }
 
     // Validate card expiration if it's a card
@@ -661,13 +521,7 @@ pub async fn set_default_payment_method(
             let current_month = now.month() as i32;
 
             if exp_year < current_year || (exp_year == current_year && exp_month < current_month) {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(ErrorResponse::new(
-                        "validation_error",
-                        "Card is expired and cannot be set as default",
-                    )),
-                ));
+                return Err(ApiError::bad_request("Card is expired and cannot be set as default"));
             }
         }
     }
@@ -675,13 +529,7 @@ pub async fn set_default_payment_method(
     // Use a transaction to atomically update defaults
     let mut tx = db.begin().await.map_err(|e| {
         tracing::error!("Failed to begin transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to begin transaction",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Clear all other defaults for this customer
@@ -698,13 +546,7 @@ pub async fn set_default_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Failed to clear default flags: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to clear default flags",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Set this payment method as default
@@ -725,13 +567,7 @@ pub async fn set_default_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Failed to set default flag: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to set default flag",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Update customer fast-path
@@ -749,25 +585,13 @@ pub async fn set_default_payment_method(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update customer default: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to update customer default",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Commit transaction
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to commit transaction",
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!(

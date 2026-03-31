@@ -7,12 +7,12 @@ mod subscriptions;
 
 pub use admin::{get_webhook, list_webhooks, replay_webhook};
 
-use axum::{body::Bytes, http::HeaderMap, http::StatusCode, Json};
+use axum::{body::Bytes, http::HeaderMap, http::StatusCode};
 
 use axum::extract::State;
 use sqlx::PgPool;
 
-use crate::models::{ErrorResponse, TilledWebhookEvent};
+use crate::models::{ApiError, TilledWebhookEvent};
 
 /// Process webhook event based on type
 async fn process_webhook_event(
@@ -60,7 +60,7 @@ pub async fn receive_tilled_webhook(
     State(db): State<PgPool>,
     headers: HeaderMap,
     body: Bytes,
-) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<StatusCode, ApiError> {
     // Webhook endpoints are called by Tilled (HMAC-authenticated, not JWT).
     // Tenant is determined by the registered webhook endpoint configuration.
     let app_id = std::env::var("TILLED_WEBHOOK_APP_ID").unwrap_or_else(|_| {
@@ -76,13 +76,7 @@ pub async fn receive_tilled_webhook(
         .or_else(|_| std::env::var("TILLED_WEBHOOK_SECRET"))
         .map_err(|_| {
             tracing::error!("TILLED_WEBHOOK_SECRET not configured — rejecting webhook");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new(
-                    "config_error",
-                    "Webhook secret not configured",
-                )),
-            )
+            ApiError::internal("Webhook secret not configured")
         })?;
 
     // Always verify signature — no bypass
@@ -93,22 +87,13 @@ pub async fn receive_tilled_webhook(
 
     if let Err(e) = signature::verify_tilled_signature(&body, sig, &webhook_secret) {
         tracing::warn!("Webhook signature verification failed: {}", e);
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse::new("signature_error", e)),
-        ));
+        return Err(ApiError::unauthorized(e));
     }
 
     // Parse webhook event
     let event: TilledWebhookEvent = serde_json::from_slice(&body).map_err(|e| {
         tracing::error!("Failed to parse webhook event: {}", e);
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "parse_error",
-                format!("Failed to parse webhook: {}", e),
-            )),
-        )
+        ApiError::bad_request(format!("Failed to parse webhook: {}", e))
     })?;
 
     tracing::info!(
@@ -130,13 +115,7 @@ pub async fn receive_tilled_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Failed to check for duplicate webhook: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to check idempotency",
-            )),
-        )
+        ApiError::internal("Failed to check idempotency")
     })?;
 
     if existing.is_some() {
@@ -160,25 +139,13 @@ pub async fn receive_tilled_webhook(
     .bind(&event.event_type)
     .bind(serde_json::to_value(&event).map_err(|e| {
         tracing::error!("Failed to serialize webhook event: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "serialization_error",
-                "Failed to serialize event",
-            )),
-        )
+        ApiError::internal("Failed to serialize event")
     })?)
     .fetch_one(&db)
     .await
     .map_err(|e| {
         tracing::error!("Failed to store webhook: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to store webhook",
-            )),
-        )
+        ApiError::internal("Failed to store webhook")
     })?;
 
     // Update status to processing
@@ -194,13 +161,7 @@ pub async fn receive_tilled_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update webhook status: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to update webhook status",
-            )),
-        )
+        ApiError::internal("Failed to update webhook status")
     })?;
 
     // Process the event

@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use security::VerifiedClaims;
 
 use crate::models::{
-    ErrorResponse, ListWebhooksQuery, ReplayWebhookRequest, TilledWebhookEvent, Webhook,
+    ApiError, ListWebhooksQuery, ReplayWebhookRequest, TilledWebhookEvent, Webhook,
     WebhookStatus,
 };
 
@@ -19,7 +19,7 @@ pub async fn list_webhooks(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListWebhooksQuery>,
-) -> Result<Json<Vec<Webhook>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Webhook>>, ApiError> {
     let app_id = super::super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
@@ -72,13 +72,7 @@ pub async fn list_webhooks(
 
     let webhooks = query_builder.fetch_all(&db).await.map_err(|e| {
         tracing::error!("Failed to list webhooks: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to list webhooks",
-            )),
-        )
+        ApiError::internal("Failed to list webhooks")
     })?;
 
     Ok(Json(webhooks))
@@ -89,7 +83,7 @@ pub async fn get_webhook(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Webhook>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Webhook>, ApiError> {
     let app_id = super::super::tenant::extract_tenant(&claims)?;
 
     let webhook = sqlx::query_as::<_, Webhook>(
@@ -108,19 +102,10 @@ pub async fn get_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Failed to fetch webhook: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch webhook",
-            )),
-        )
+        ApiError::internal("Failed to fetch webhook")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", "Webhook not found")),
-        )
+        ApiError::not_found("Webhook not found")
     })?;
 
     Ok(Json(webhook))
@@ -132,7 +117,7 @@ pub async fn replay_webhook(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<ReplayWebhookRequest>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<StatusCode, ApiError> {
     let app_id = super::super::tenant::extract_tenant(&claims)?;
 
     // Fetch webhook
@@ -152,52 +137,27 @@ pub async fn replay_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Failed to fetch webhook: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to fetch webhook",
-            )),
-        )
+        ApiError::internal("Failed to fetch webhook")
     })?
     .ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", "Webhook not found")),
-        )
+        ApiError::not_found("Webhook not found")
     })?;
 
     // Check if replay is allowed
     let force = req.force.unwrap_or(false);
     if webhook.status != WebhookStatus::Failed && !force {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "invalid_status",
-                "Can only replay failed webhooks (use force=true to override)",
-            )),
+        return Err(ApiError::bad_request(
+            "Can only replay failed webhooks (use force=true to override)",
         ));
     }
 
     // Parse payload
     let event: TilledWebhookEvent = serde_json::from_value(webhook.payload.ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "invalid_webhook",
-                "Webhook has no payload",
-            )),
-        )
+        ApiError::bad_request("Webhook has no payload")
     })?)
     .map_err(|e| {
         tracing::error!("Failed to parse webhook payload: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "parse_error",
-                "Failed to parse webhook payload",
-            )),
-        )
+        ApiError::internal("Failed to parse webhook payload")
     })?;
 
     // Update status to processing
@@ -213,13 +173,7 @@ pub async fn replay_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update webhook status: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                "Failed to update webhook status",
-            )),
-        )
+        ApiError::internal("Failed to update webhook status")
     })?;
 
     // Process the event
@@ -255,10 +209,7 @@ pub async fn replay_webhook(
             .ok();
 
             tracing::error!("Failed to replay webhook {}: {}", id, e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("processing_error", e)),
-            ))
+            Err(ApiError::internal(format!("Webhook replay failed: {}", e)))
         }
     }
 }
