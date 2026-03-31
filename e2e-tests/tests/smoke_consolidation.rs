@@ -318,7 +318,7 @@ async fn smoke_consolidation() {
         .bearer_auth(&jwt)
         .json(&json!({
             "rule_name": "Intercompany Revenue",
-            "rule_type": "intercompany",
+            "rule_type": "intercompany_revenue_cost",
             "debit_account_code": "4000",
             "credit_account_code": "5000",
             "description": "Eliminate intercompany revenue/expense"
@@ -338,7 +338,7 @@ async fn smoke_consolidation() {
         &client,
         "POST",
         &format!("{base}/api/consolidation/groups/{group_id}/elimination-rules"),
-        Some(json!({"rule_name": "X", "rule_type": "X", "debit_account_code": "1", "credit_account_code": "2"})),
+        Some(json!({"rule_name": "X", "rule_type": "intercompany_revenue_cost", "debit_account_code": "1", "credit_account_code": "2"})),
     )
     .await;
 

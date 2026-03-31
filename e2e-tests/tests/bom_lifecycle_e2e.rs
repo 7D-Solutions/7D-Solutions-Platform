@@ -360,11 +360,13 @@ async fn bom_lifecycle_e2e() {
     );
 
     // =========================================================================
-    // 7. Update a BOM line (PUT /api/bom/lines/{line_id})
+    // 7. Update a BOM line on draft Rev-B (PUT /api/bom/lines/{line_id})
+    //    Lines on effective revisions are immutable; add a line to Rev-B first.
     // =========================================================================
-    println!("\n--- 7. Update BOM line quantity ---");
+    println!("\n--- 7. Update BOM line quantity (on draft Rev-B) ---");
+    let rev_b_line_id = add_line(&client, &base, &jwt, assembly_rev_b_id, sub_assembly_part_id, 2.0, "EA").await;
     let resp = client
-        .put(format!("{base}/api/bom/lines/{line1_id}"))
+        .put(format!("{base}/api/bom/lines/{rev_b_line_id}"))
         .bearer_auth(&jwt)
         .json(&json!({"quantity": 3.0, "uom": "EA"}))
         .send()

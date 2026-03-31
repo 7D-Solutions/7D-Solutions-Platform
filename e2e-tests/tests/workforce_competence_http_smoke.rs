@@ -341,6 +341,7 @@ async fn smoke_workforce_competence() {
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": tenant_id,
+            "authority_id": authority_id,
             "revocation_reason": "Smoke test revocation",
             "idempotency_key": Uuid::new_v4().to_string()
         }))
@@ -363,7 +364,7 @@ async fn smoke_workforce_competence() {
         &format!(
             "{base}/api/workforce-competence/acceptance-authorities/{authority_id}/revoke"
         ),
-        Some(json!({"revocation_reason": "X", "idempotency_key": Uuid::new_v4().to_string()})),
+        Some(json!({"authority_id": Uuid::new_v4(), "revocation_reason": "X", "idempotency_key": Uuid::new_v4().to_string()})),
     )
     .await;
 

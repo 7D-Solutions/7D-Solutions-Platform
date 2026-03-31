@@ -295,17 +295,17 @@ async fn start_payment_consumer(bus: Arc<dyn EventBus>, payments_pool: PgPool) {
                 invoice_id
             );
 
-            // Create payment record
-            let payment_id = format!("pay_{}", Uuid::new_v4());
+            // Create payment record in payment_attempts ledger
+            let payment_uuid = Uuid::new_v4();
+            let payment_id = payment_uuid.to_string();
             sqlx::query(
-                "INSERT INTO payments (payment_id, invoice_id, amount_cents, currency, status, created_at)
-                 VALUES ($1, $2, $3, $4, 'succeeded', NOW())
-                 ON CONFLICT (payment_id) DO NOTHING"
+                "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
+                 VALUES ($1, $2, $3, 0, 'succeeded')
+                 ON CONFLICT (app_id, payment_id, attempt_no) DO NOTHING"
             )
-            .bind(&payment_id)
+            .bind(tenant_id)
+            .bind(payment_uuid)
             .bind(invoice_id)
-            .bind(amount)
-            .bind(currency)
             .execute(&payments_pool)
             .await
             .ok();
@@ -480,7 +480,7 @@ async fn test_bill_run_to_notification_happy_path() {
         .await
         .ok();
     sqlx::query(
-        "TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE",
+        "TRUNCATE TABLE payment_attempts, payments_events_outbox, payments_processed_events CASCADE",
     )
     .execute(&payments_pool)
     .await
@@ -649,16 +649,16 @@ async fn test_bill_run_to_notification_happy_path() {
         next_bill_date
     );
 
-    // Check Payments: Payment record exists
+    // Check Payments: Payment record exists in payment_attempts ledger
     let payment_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE payment_id = $1")
+        sqlx::query_scalar("SELECT COUNT(*) FROM payment_attempts WHERE payment_id = $1::uuid")
             .bind(payment_id)
             .fetch_one(&payments_pool)
             .await
-            .expect("Failed to query payments");
+            .expect("Failed to query payment_attempts");
 
-    assert_eq!(payment_count, 1, "Payment record should exist");
-    tracing::info!("  ✓ Payments: Payment record exists");
+    assert_eq!(payment_count, 1, "Payment attempt record should exist");
+    tracing::info!("  ✓ Payments: Payment attempt record exists");
 
     // Notifications is stateless — delivery confirmed via NATS event at STEP 5 above.
     tracing::info!("  ✓ Notifications: delivery confirmed via NATS event (stateless module)");
