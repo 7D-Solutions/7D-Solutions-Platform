@@ -20,8 +20,10 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use chrono::Utc;
 use common::get_integrations_pool;
 use integrations_rs::{http, metrics::IntegrationsMetrics, AppState};
+use security::{ActorType, VerifiedClaims};
 use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -98,7 +100,10 @@ async fn test_webhook_ingest_accepted_and_routed() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-wh-{}", Uuid::new_v4().simple());
+    // The handler uses claims.tenant_id as the app_id in the DB, so use a
+    // stable UUID for both the claims tenant_id AND our DB queries.
+    let tenant_id = Uuid::new_v4();
+    let app_id = tenant_id.to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -112,17 +117,31 @@ async fn test_webhook_ingest_accepted_and_routed() {
     });
 
     // ── First delivery ───────────────────────────────────────────────────
-    // We need to inject the app_id into the request. The webhook handler reads
-    // app_id from the X-App-Id header.
+    // Internal webhooks require JWT claims — inject VerifiedClaims so the
+    // handler can extract tenant_id (used as app_id).
     let body_str = payload.to_string();
-    let request = Request::builder()
+    let mut request = Request::builder()
         .method("POST")
         .uri("/api/webhooks/inbound/internal")
         .header("content-type", "application/json")
         .header("x-webhook-id", &idem_key)
-        .header("x-app-id", &app_id)
         .body(Body::from(body_str))
         .unwrap();
+
+    // Inject test claims with tenant_id matching app_id
+    let claims = VerifiedClaims {
+        user_id: Uuid::new_v4(),
+        tenant_id,
+        app_id: None,
+        roles: vec![],
+        perms: vec!["integrations.mutate".to_string()],
+        actor_type: ActorType::Service,
+        issued_at: Utc::now(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "test".to_string(),
+    };
+    request.extensions_mut().insert(claims);
 
     let response = router.clone().oneshot(request).await.unwrap();
     let status = response.status();
@@ -193,7 +212,8 @@ async fn test_webhook_replay_does_not_double_route() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-wh-dedup-{}", Uuid::new_v4().simple());
+    let tenant_id = Uuid::new_v4();
+    let app_id = tenant_id.to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -205,21 +225,32 @@ async fn test_webhook_replay_does_not_double_route() {
     })
     .to_string();
 
-    // Helper: send POST with given app_id header
+    // Helper: send POST with injected JWT claims (required for internal webhooks)
     let send = |key: &str| {
         let router = router.clone();
         let body = payload_str.clone();
-        let app = app_id.clone();
+        let tid = tenant_id;
         let k = key.to_string();
         async move {
-            let request = Request::builder()
+            let mut request = Request::builder()
                 .method("POST")
                 .uri("/api/webhooks/inbound/internal")
                 .header("content-type", "application/json")
                 .header("x-webhook-id", &k)
-                .header("x-app-id", &app)
                 .body(Body::from(body))
                 .unwrap();
+            request.extensions_mut().insert(VerifiedClaims {
+                user_id: Uuid::new_v4(),
+                tenant_id: tid,
+                app_id: None,
+                roles: vec![],
+                perms: vec!["integrations.mutate".to_string()],
+                actor_type: ActorType::Service,
+                issued_at: Utc::now(),
+                expires_at: Utc::now() + chrono::Duration::hours(1),
+                token_id: Uuid::new_v4(),
+                version: "test".to_string(),
+            });
             let response = router.oneshot(request).await.unwrap();
             let status = response.status();
             let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024)
