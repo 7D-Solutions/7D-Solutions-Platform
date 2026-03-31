@@ -20,17 +20,16 @@ use uuid::Uuid;
 
 /// Helper to run base migrations (projection_cursors)
 async fn run_base_migrations(pool: &PgPool) {
-    // Drop existing indexes first to avoid conflicts
-    sqlx::query("DROP INDEX IF EXISTS projection_cursors_updated_at CASCADE")
+    // Drop existing tables (including old/shadow from prior swap_cursor_tables_atomic,
+    // whose indexes like projection_cursors_updated_at would otherwise block CREATE INDEX)
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_old CASCADE")
         .execute(pool)
         .await
         .ok();
-    sqlx::query("DROP INDEX IF EXISTS projection_cursors_tenant_id CASCADE")
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_shadow CASCADE")
         .execute(pool)
         .await
         .ok();
-
-    // Drop table
     sqlx::query("DROP TABLE IF EXISTS projection_cursors CASCADE")
         .execute(pool)
         .await

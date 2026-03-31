@@ -23,7 +23,16 @@ async fn run_projections_migrations(pool: &PgPool) {
         "../../platform/projections/db/migrations/20260216000001_create_projection_cursors.sql"
     );
 
-    // Drop existing table if it exists (for test idempotency)
+    // Drop existing tables (including old/shadow from prior swap_cursor_tables_atomic,
+    // whose indexes like projection_cursors_updated_at would otherwise block CREATE INDEX)
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_old CASCADE")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_shadow CASCADE")
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DROP TABLE IF EXISTS projection_cursors CASCADE")
         .execute(pool)
         .await
