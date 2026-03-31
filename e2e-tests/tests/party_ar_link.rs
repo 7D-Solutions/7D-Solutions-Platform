@@ -55,8 +55,16 @@ use uuid::Uuid;
 // Constants
 // ============================================================================
 
-/// app_id must match the hardcoded "test-app" used by AR route handlers.
-const AR_APP_ID: &str = "test-app";
+/// Stable tenant UUID used as app_id throughout the test. The AR router
+/// derives app_id from claims.tenant_id, so this must be a valid UUID.
+fn test_tenant_id() -> Uuid {
+    // Deterministic so cleanup can find rows across test runs.
+    Uuid::new_v5(&Uuid::NAMESPACE_DNS, b"party-ar-link-e2e")
+}
+
+fn test_app_id() -> String {
+    test_tenant_id().to_string()
+}
 
 // ============================================================================
 // Helpers
@@ -86,13 +94,14 @@ fn make_ar_router(pool: PgPool) -> axum::Router {
 
 /// Create fake VerifiedClaims with ar.mutate permission so the
 /// RequirePermissionsLayer passes in the in-process AR router.
+/// Uses `test_tenant_id()` so the AR router's app_id matches the customer's.
 fn make_verified_claims() -> VerifiedClaims {
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: test_tenant_id(),
         app_id: None,
         roles: vec![],
-        perms: vec!["ar.mutate".to_string()],
+        perms: vec!["ar.mutate".to_string(), "ar.read".to_string()],
         actor_type: ActorType::User,
         issued_at: Utc::now(),
         expires_at: Utc::now() + chrono::Duration::hours(1),
@@ -137,8 +146,9 @@ async fn ar_send(
     (status, parsed)
 }
 
-/// Create an AR customer via direct SQL with the hardcoded AR app_id.
+/// Create an AR customer via direct SQL with the test app_id.
 async fn create_ar_customer(pool: &PgPool) -> i32 {
+    let app_id = test_app_id();
     sqlx::query_scalar::<_, i32>(
         r#"
         INSERT INTO ar_customers (app_id, email, name, status, retry_attempt_count, created_at, updated_at)
@@ -146,7 +156,7 @@ async fn create_ar_customer(pool: &PgPool) -> i32 {
         RETURNING id
         "#,
     )
-    .bind(AR_APP_ID)
+    .bind(&app_id)
     .bind(format!("party-link-{}@test.example", Uuid::new_v4()))
     .fetch_one(pool)
     .await
@@ -156,12 +166,12 @@ async fn create_ar_customer(pool: &PgPool) -> i32 {
 /// Delete AR invoices and customers created by this test run.
 async fn cleanup_ar(pool: &PgPool, customer_id: i32) {
     sqlx::query("DELETE FROM events_outbox WHERE app_id = $1")
-        .bind(AR_APP_ID)
+        .bind(&test_app_id())
         .execute(pool)
         .await
         .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1 AND ar_customer_id = $2")
-        .bind(AR_APP_ID)
+        .bind(&test_app_id())
         .bind(customer_id)
         .execute(pool)
         .await
@@ -176,7 +186,7 @@ async fn cleanup_ar(pool: &PgPool, customer_id: i32) {
 /// Delete party rows created by this test run (matched by unique display_name prefix).
 async fn cleanup_party(pool: &PgPool, party_id: Uuid) {
     sqlx::query("DELETE FROM party_outbox WHERE app_id = $1")
-        .bind(AR_APP_ID)
+        .bind(&test_app_id())
         .execute(pool)
         .await
         .ok();
@@ -234,7 +244,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
 async fn inject_party_claims(mut req: AxumRequest, next: Next) -> Response {
     let claims = VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::new_v4(),
+        tenant_id: test_tenant_id(),
         app_id: None,
         roles: vec![],
         perms: vec![
@@ -304,12 +314,12 @@ async fn test_party_ar_link_valid_party_id() {
     };
 
     let party_view =
-        party_service::create_company(&party_pool, AR_APP_ID, &company_req, run_id.to_string())
+        party_service::create_company(&party_pool, &test_app_id(), &company_req, run_id.to_string())
             .await
             .expect("create_company failed");
 
     let party_id = party_view.party.id;
-    assert_eq!(party_view.party.app_id, AR_APP_ID);
+    assert_eq!(party_view.party.app_id, test_app_id());
     assert_eq!(party_view.party.party_type, "company");
     assert_eq!(party_view.party.status, "active");
     println!("Created party: {}", party_id);
@@ -366,7 +376,7 @@ async fn test_party_ar_link_valid_party_id() {
         "GET",
         &format!("/api/ar/invoices/{}", invoice_id),
         None,
-        false, // GET is a read route — no auth needed
+        true,
     )
     .await;
 
@@ -393,7 +403,7 @@ async fn test_party_ar_link_valid_party_id() {
     let db_party_id: Option<Uuid> =
         sqlx::query_scalar("SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2")
             .bind(invoice_id as i32)
-            .bind(AR_APP_ID)
+            .bind(&test_app_id())
             .fetch_one(&ar_pool)
             .await
             .expect("DB query for party_id failed");
@@ -539,7 +549,7 @@ async fn test_party_ar_link_invoice_without_party_id() {
         "GET",
         &format!("/api/ar/invoices/{}", invoice_id),
         None,
-        false,
+        true,
     )
     .await;
 
@@ -559,7 +569,7 @@ async fn test_party_ar_link_invoice_without_party_id() {
     let db_party_id: Option<Uuid> =
         sqlx::query_scalar("SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2")
             .bind(invoice_id as i32)
-            .bind(AR_APP_ID)
+            .bind(&test_app_id())
             .fetch_one(&ar_pool)
             .await
             .expect("DB query failed");
