@@ -146,13 +146,14 @@ async fn test_credit_note_issued_with_outbox_event() {
                 .expect("failed to count outbox events");
             assert_eq!(event_count, 1, "expected exactly 1 outbox event");
 
-            // Verify event type is correct
-            let event_type: String =
-                sqlx::query_scalar("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
-                    .bind(credit_note_id.to_string())
-                    .fetch_one(&pool)
-                    .await
-                    .expect("failed to fetch event type");
+            // Verify the credit_note_issued event type is correct
+            let event_type: String = sqlx::query_scalar(
+                "SELECT event_type FROM events_outbox WHERE aggregate_type = 'credit_note' AND aggregate_id = $1",
+            )
+            .bind(credit_note_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("failed to fetch event type");
             assert_eq!(event_type, "ar.credit_note_issued");
         }
         IssueCreditNoteResult::AlreadyProcessed { .. } => {

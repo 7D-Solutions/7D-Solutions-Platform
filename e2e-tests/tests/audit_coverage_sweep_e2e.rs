@@ -32,6 +32,10 @@ use uuid::Uuid;
 const AR_AUDITABLE_EVENT_TYPES: &[&str] = &[
     "ar.invoice.finalizing",
     "ar.credit_note_issued",
+    "ar.credit_memo_created",
+    "ar.credit_memo_approved",
+    "ar.invoice_opened",
+    "ar.milestone_invoice_created",
     "ar.invoice_written_off",
     "ar.dunning_state_changed",
     "ar.invoice_suspended",
@@ -61,6 +65,8 @@ const GL_AUDITABLE_EVENT_TYPES: &[&str] = &[
     // FX revaluation / realized gain-loss
     "gl.fx_revaluation_posted",
     "gl.fx_realized_posted",
+    // Period management
+    "gl.period.reopened",
 ];
 
 const SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES: &[&str] = &["subscriptions.status.changed"];
@@ -647,17 +653,17 @@ async fn test_mutation_class_consistency() {
 /// the count matches expectations. This catches silent additions.
 #[tokio::test]
 async fn test_mutation_path_enumeration_complete() {
-    // AR: 13 auditable event types
+    // AR: 17 auditable event types
     assert_eq!(
         AR_AUDITABLE_EVENT_TYPES.len(),
-        13,
+        17,
         "AR auditable event type count changed — update registry"
     );
 
-    // GL: 10 auditable event types
+    // GL: 11 auditable event types
     assert_eq!(
         GL_AUDITABLE_EVENT_TYPES.len(),
-        10,
+        11,
         "GL auditable event type count changed — update registry"
     );
 
@@ -668,11 +674,11 @@ async fn test_mutation_path_enumeration_complete() {
         "Subscriptions auditable event type count changed — update registry"
     );
 
-    // Total: 24 auditable mutation paths
+    // Total: 29 auditable mutation paths
     let total = AR_AUDITABLE_EVENT_TYPES.len()
         + GL_AUDITABLE_EVENT_TYPES.len()
         + SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES.len();
-    assert_eq!(total, 24, "Total auditable mutation paths changed");
+    assert_eq!(total, 29, "Total auditable mutation paths changed");
 
     eprintln!(
         "Mutation path enumeration: {} AR + {} GL + {} Subs = {} total",
@@ -698,6 +704,8 @@ fn classify_event_type(event_type: &str) -> MutationClass {
         "ar.invoice.finalizing"
         | "ar.dunning_state_changed"
         | "ar.invoice_suspended"
+        | "ar.credit_memo_approved"
+        | "gl.period.reopened"
         | "subscriptions.status.changed" => MutationClass::StateTransition,
         // Updates (balance recalculations, aging, FX)
         "ar.ar_aging_updated"
