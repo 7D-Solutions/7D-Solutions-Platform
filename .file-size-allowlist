@@ -26,8 +26,10 @@ modules/inventory/src/domain/adjust_service.rs      # 580 LOC — adjustment ser
 modules/inventory/src/domain/reservation_service.rs # 592 LOC — reservation service (refactor in future bead)
 modules/inventory/src/routes/reservations.rs        # ~262 LOC — reservation routes + fulfill handler
 e2e-tests/tests/inventory_reservation_e2e.rs        # 726 LOC — full reservation lifecycle coverage
-modules/treasury/src/domain/accounts/service.rs # ~680 LOC — bank + CC account service (refactor in future bead)
-modules/treasury/src/consumers/payments.rs     # ~545 LOC — payments consumer + integrated tests
+modules/treasury/src/domain/accounts/service.rs   # ~680 LOC — bank + CC account service (single entity CRUD; bd-859gk confirmed cohesive)
+modules/treasury/src/domain/import/service.rs     # 656 LOC — statement import orchestrator + tests (single import_statement fn; bd-mnfuo)
+modules/treasury/src/domain/reports/forecast.rs   # 552 LOC — cash forecast computation + 3 data readers + tests (single forecast concern; bd-mnfuo)
+modules/treasury/src/consumers/payments.rs         # ~545 LOC — payments consumer + integrated tests
 platform/tenant-registry/src/routes.rs        # 537 LOC — control-plane routes (split in future bead)
 platform/identity-auth/src/clients/tenant_registry.rs  # 659 LOC — entitlement + status client (split in future bead)
 platform/identity-auth/src/auth/handlers.rs            # 535 LOC — login/register handlers (split in future bead)
