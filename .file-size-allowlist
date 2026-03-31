@@ -56,3 +56,6 @@ modules/ap/src/domain/bills/approve.rs                 # 526 LOC — bill approv
 # Integrations module — cohesive concerns per directive (bd-ccpd0)
 modules/integrations/src/domain/external_refs/service.rs  # 640 LOC — CRUD service (Guard→Mutation→Outbox, single entity)
 modules/integrations/src/domain/qbo/client.rs             # 510 LOC — QBO REST API client (single struct, types separate)
+
+# TTP module — cohesive concern (bd-nkzlc)
+modules/ttp/src/domain/billing.rs  # 488 LOC — billing run execution (types+logic+tests, single concern; OpenAPI will push over 500)
