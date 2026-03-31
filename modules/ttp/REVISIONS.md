@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.9 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.8 | 2026-03-28 | bd-312eg | Metering batch ingestion: N concurrent single-row INSERTs → single UNNEST batch INSERT. | Single DB round-trip for any batch size. Previous `try_join_all` still made N connection checkouts; now uses `INSERT ... SELECT * FROM UNNEST(arrays)` with `ON CONFLICT DO NOTHING` + `RETURNING event_id` to detect duplicates per-row. | No |
 | 2.1.7 | 2026-03-28 | bd-312eg | Metering batch ingestion: sequential single-insert loop → concurrent via `try_join_all`. | N sequential DB round trips for N events reduced to concurrent execution. Each insert is independent (ON CONFLICT DO NOTHING). | No |
 | 2.1.6 | 2026-03-05 | bd-1vesf | Reject CORS_ORIGINS=* at startup when ENV=production. | Security hardening: wildcard CORS allows cross-origin requests from any domain. | No |

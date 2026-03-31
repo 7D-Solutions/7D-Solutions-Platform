@@ -1,6 +1,6 @@
 [package]
 name = "party-rs"
-version = "2.3.0"
+version = "2.3.1"
 edition = "2021"
 description = "Party master: companies, individuals, contacts, and addresses"
 
@@ -45,6 +45,7 @@ prometheus = "0.13"
 sha2 = "0.10"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 serial_test = "3.3.1"

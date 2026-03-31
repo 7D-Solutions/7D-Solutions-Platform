@@ -4,8 +4,8 @@
 //! Invariant: GL service never starts with missing/invalid configuration.
 
 use std::collections::HashMap;
-use std::env;
 
+use config_validator::ConfigValidator;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -144,19 +144,13 @@ impl Config {
     /// - Invalid BUS_TYPE: Service cannot communicate with other modules
     /// - Invalid PORT: Service cannot bind to network interface
     pub fn from_env() -> Result<Self, String> {
-        // Required: DATABASE_URL
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://gl_user:gl_pass@localhost:5438/gl_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("gl");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        // Required: DATABASE_URL
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
 
         // Optional: BUS_TYPE (default: inmemory)
-        let bus_type = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+        let bus_type = v.optional("BUS_TYPE").or_default("inmemory");
 
         // Validate BUS_TYPE
         match bus_type.to_lowercase().as_str() {
@@ -170,37 +164,24 @@ impl Config {
         }
 
         // Optional: NATS_URL (default: nats://localhost:4222)
-        let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
-
-        if nats_url.trim().is_empty() {
-            return Err("NATS_URL cannot be empty".to_string());
-        }
+        let nats_url = v.optional("NATS_URL").or_default("nats://localhost:4222");
 
         // Optional: HOST (default: 0.0.0.0)
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let host = v.optional("HOST").or_default("0.0.0.0");
 
         // Optional: PORT (default: 8090)
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8090".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
-                    "PORT must be a valid u16 (0-65535), got: '{}'",
-                    env::var("PORT").unwrap_or_default()
-                )
-            })?;
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8090);
 
         // Optional: ENV (default: development)
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        let env = v.optional("ENV").or_default("development");
 
         // Optional: DLQ_VALIDATION_ENABLED (default: false)
-        let dlq_validation_enabled = env::var("DLQ_VALIDATION_ENABLED")
-            .unwrap_or_else(|_| "false".to_string())
-            .parse()
+        let dlq_validation_enabled = v
+            .optional_parse::<bool>("DLQ_VALIDATION_ENABLED")
             .unwrap_or(false);
 
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_raw = v.optional("CORS_ORIGINS").or_default("*");
+        let cors_origins: Vec<String> = cors_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -214,6 +195,9 @@ impl Config {
                     .to_string(),
             );
         }
+
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Config {
             database_url,
             bus_type,

@@ -1,6 +1,6 @@
 [package]
 name = "maintenance-rs"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "Maintenance management: work orders, preventive plans, meters, and labor tracking"
 
@@ -37,6 +37,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
+config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid", "decimal"] }

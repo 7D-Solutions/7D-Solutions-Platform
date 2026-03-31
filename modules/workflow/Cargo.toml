@@ -1,6 +1,6 @@
 [package]
 name = "workflow"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "Workflow engine: definitions, templates, and durable instance execution"
 
@@ -28,6 +28,7 @@ path = "src/lib.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 platform_contracts = { path = "../../platform/platform-contracts" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }

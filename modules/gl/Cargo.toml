@@ -1,11 +1,12 @@
 [package]
 name = "gl-rs"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "Double-entry general ledger with journal engine, accruals, and revenue recognition"
 
 [dependencies]
 axum = "0.8"
+config-validator = { path = "../../platform/config-validator" }
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 tokio = { version = "1", features = ["full"] }

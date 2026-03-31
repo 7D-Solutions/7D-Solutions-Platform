@@ -1,6 +1,6 @@
 [package]
 name = "pdf-editor-rs"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2021"
 description = "PDF template management, form submissions, annotations, and document generation"
 
@@ -32,6 +32,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
+config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.38"
 async-trait = "0.1"

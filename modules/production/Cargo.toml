@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -22,6 +22,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
+config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 

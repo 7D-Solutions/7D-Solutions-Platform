@@ -1,6 +1,6 @@
 [package]
 name = "subscriptions-rs"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2021"
 description = "Subscription lifecycle management, billing cycles, and usage gating"
 
@@ -23,6 +23,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 event-bus = { path = "../../platform/event-bus" }
 projections = { path = "../../platform/projections" }
+config-validator = { path = "../../platform/config-validator" }
 async-trait = "0.1"
 futures = "0.3"
 async-nats = "0.38"

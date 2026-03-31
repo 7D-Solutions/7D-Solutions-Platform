@@ -1,4 +1,4 @@
-use std::env;
+use config_validator::ConfigValidator;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -17,34 +17,30 @@ impl Config {
     /// Required: `DATABASE_URL` — must follow `consolidation_{app_id}_db` naming convention.
     /// Optional: `HOST` (default: 0.0.0.0), `PORT` (default: 8105).
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required. Example: postgres://consolidation_user:pass@localhost/consolidation_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("consolidation");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
 
-        let gl_base_url =
-            env::var("GL_BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string());
+        let gl_base_url = v
+            .optional("GL_BASE_URL")
+            .or_default("http://localhost:8080");
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8105".to_string())
-            .parse()
-            .map_err(|_| "PORT must be a valid u16".to_string())?;
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port: u16 = v.optional_parse::<u16>("PORT").unwrap_or(8105);
 
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        let env_val = v.optional("ENV").or_default("development");
 
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_origins: Vec<String> = v
+            .optional("CORS_ORIGINS")
+            .or_default("*")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+        v.finish().map_err(|e| e.to_string())?;
+
+        if env_val == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err("CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
@@ -55,7 +51,7 @@ impl Config {
             host,
             port,
             gl_base_url,
-            env,
+            env: env_val,
             cors_origins,
         })
     }

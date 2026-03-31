@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.4 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.3 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 1.0.0 | 2026-03-28 | bd-2ca0f | Initial proof. Competence registration, acceptance authority grant/revoke, qualification tracking, training record management, idempotent operations, admin endpoints, event publishing. 5 unit tests pass, clippy clean. | Workforce competence module complete and proven. All gates pass. | No |
 | 1.0.1 | 2026-03-30 | bd-d9iyz | Split service.rs into service/core.rs (commands) + service/queries.rs (reads). Split acceptance_authority.rs into acceptance_authority/grants.rs (grant+revoke) + acceptance_authority/checks.rs (authorization queries). Shared types in mod.rs with pub use re-exports. | Two files exceeded 500 LOC; split by separation of concerns (commands vs queries). | No |

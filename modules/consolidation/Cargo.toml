@@ -1,6 +1,6 @@
 [package]
 name = "consolidation"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2021"
 description = "Multi-entity financial consolidation with intercompany eliminations"
 
@@ -27,6 +27,7 @@ sha2 = "0.10"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 event-bus = { path = "../../platform/event-bus" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 serial_test = "3.3.1"

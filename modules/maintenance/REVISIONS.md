@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 1.0.0 | 2026-03-28 | bd-19t7c | Initial proof. Preventive maintenance scheduling, asset management CRUD, calibration events, downtime tracking with impact classification, work order lifecycle, admin endpoints, outbox event publishing, idempotent operations. 63 unit tests pass, clippy clean. | Maintenance module code complete and proven. All gates pass. | No |
 | 2.1.0 | 2026-03-30 | bd-ox08o | OpenAPI via utoipa: /api/openapi.json route, SecurityAddon (Bearer JWT), openapi_dump binary. | Machine-readable API spec for consumers and code generation. | No |
 | 2.0.0 | 2026-03-30 | bd-ox08o | Standard response envelopes: all handlers migrated to ApiError with request_id, all list endpoints return PaginatedResponse with page/page_size/total_items/total_pages. ErrorBody removed. Count queries added to repos. ToSchema derives on all response types. | Consistent API error and pagination contracts across all endpoints. | YES: list endpoints now use page/page_size params instead of limit/offset; response shape changed from bare arrays to {data, pagination} envelope; error responses now include request_id field. |

@@ -1,9 +1,9 @@
 //! Subscriptions Module Configuration
 //!
-//! Validates required environment variables at startup with clear error messages.
+//! Uses ConfigValidator to report ALL missing/invalid env vars at once.
 //! Invariant: Subscriptions service never starts with missing/invalid configuration.
 
-use std::env;
+use config_validator::ConfigValidator;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BusType {
@@ -22,18 +22,6 @@ impl BusType {
             )),
         }
     }
-
-    pub fn from_env() -> Self {
-        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
-        // For backward compatibility, log warning but don't fail on invalid BUS_TYPE
-        match Self::from_str(&bus_type_str) {
-            Ok(bus_type) => bus_type,
-            Err(err) => {
-                tracing::warn!("{}, defaulting to inmemory", err);
-                BusType::InMemory
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -47,57 +35,32 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load configuration from environment variables with strict validation
+    /// Load configuration from environment variables with structured validation.
     ///
-    /// ## Required Environment Variables
-    /// - `DATABASE_URL`: PostgreSQL connection string
-    ///
-    /// ## Optional Environment Variables (with defaults)
-    /// - `BUS_TYPE`: 'nats' or 'inmemory' (default: 'inmemory')
-    /// - `NATS_URL`: NATS server URL (default: 'nats://localhost:4222', required if BUS_TYPE=nats)
-    ///
-    /// ## Failure Modes
-    /// - Missing DATABASE_URL: Service cannot persist subscription data
-    /// - Invalid BUS_TYPE: Service cannot communicate with other modules
-    /// - Missing NATS_URL when BUS_TYPE=nats: Service cannot connect to event bus
+    /// All errors are collected and reported at once via ConfigValidator.
     pub fn from_env() -> Result<Self, String> {
-        // Required: DATABASE_URL
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("subscriptions");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
+        let env_name = v.optional("ENV").or_default("development");
 
-        let bus_type = BusType::from_env();
-
-        let nats_url = match bus_type {
-            BusType::Nats => {
-                let url =
-                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
-
-                if url.trim().is_empty() {
-                    return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
-                }
-
-                Some(url)
-            }
-            BusType::InMemory => None,
-        };
-
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
-
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_raw = v.optional("CORS_ORIGINS").or_default("*");
+        let cors_origins: Vec<String> = cors_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+        let bus_type_str = v.optional("BUS_TYPE").or_default("inmemory");
+        let bus_type = BusType::from_str(&bus_type_str).unwrap_or(BusType::InMemory);
+
+        let nats_url = v.require_when(
+            "NATS_URL",
+            || bus_type == BusType::Nats,
+            "required when BUS_TYPE=nats",
+        );
+
+        if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
                 "CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
@@ -105,11 +68,14 @@ impl Config {
                     .to_string(),
             );
         }
+
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Self {
             bus_type,
             database_url,
             nats_url,
-            env,
+            env: env_name,
             cors_origins,
         })
     }

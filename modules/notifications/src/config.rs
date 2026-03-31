@@ -3,6 +3,7 @@
 //! Validates required environment variables at startup with clear error messages.
 //! Invariant: Notifications service never starts with missing/invalid configuration.
 
+use config_validator::ConfigValidator;
 use std::env;
 
 /// Bus type enumeration
@@ -106,26 +107,21 @@ impl Config {
     /// - Missing NATS_URL when BUS_TYPE=nats: Service cannot connect to event bus
     /// - Invalid PORT: Service cannot bind to network interface
     pub fn from_env() -> Result<Self, String> {
-        // Required: DATABASE_URL
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://postgres:postgres@localhost:5432/notifications_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("notifications");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        // Required: DATABASE_URL
+        let database_url = v
+            .require("DATABASE_URL")
+            .unwrap_or_default();
 
         // Optional: BUS_TYPE (default: inmemory)
-        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+        let bus_type_str = v.optional("BUS_TYPE").or_default("inmemory");
         let bus_type = BusType::from_str(&bus_type_str)?;
 
         // Conditional: NATS_URL (required if BUS_TYPE=nats)
         let nats_url = match bus_type {
             BusType::Nats => {
-                let url =
-                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+                let url = v.optional("NATS_URL").or_default("nats://localhost:4222");
 
                 if url.trim().is_empty() {
                     return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
@@ -137,60 +133,53 @@ impl Config {
         };
 
         // Optional: HOST (default: 0.0.0.0)
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let host = v.optional("HOST").or_default("0.0.0.0");
 
         // Optional: PORT (default: 8089)
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8089".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
-                    "PORT must be a valid u16 (0-65535), got: '{}'",
-                    env::var("PORT").unwrap_or_default()
-                )
-            })?;
+        let port: u16 = v.optional_parse::<u16>("PORT").unwrap_or(8089);
 
-        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+        let env_val = v.optional("ENV").or_default("development");
 
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_origins: Vec<String> = v
+            .optional("CORS_ORIGINS")
+            .or_default("*")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
         let email_sender_type = EmailSenderType::from_str(
-            &env::var("EMAIL_SENDER_TYPE").unwrap_or_else(|_| "logging".to_string()),
+            &v.optional("EMAIL_SENDER_TYPE").or_default("logging"),
         )?;
         let email_http_endpoint = env::var("EMAIL_HTTP_ENDPOINT").ok();
-        let email_from =
-            env::var("EMAIL_FROM").unwrap_or_else(|_| "no-reply@notifications.local".to_string());
+        let email_from = v
+            .optional("EMAIL_FROM")
+            .or_default("no-reply@notifications.local");
         let email_api_key = env::var("EMAIL_API_KEY").ok();
         let sms_sender_type = SmsSenderType::from_str(
-            &env::var("SMS_SENDER_TYPE").unwrap_or_else(|_| "logging".to_string()),
+            &v.optional("SMS_SENDER_TYPE").or_default("logging"),
         )?;
         let sms_http_endpoint = env::var("SMS_HTTP_ENDPOINT").ok();
-        let sms_from_number =
-            env::var("SMS_FROM_NUMBER").unwrap_or_else(|_| "+10000000000".to_string());
+        let sms_from_number = v
+            .optional("SMS_FROM_NUMBER")
+            .or_default("+10000000000");
         let sms_api_key = env::var("SMS_API_KEY").ok();
-        let retry_max_attempts = env::var("NOTIFICATIONS_RETRY_MAX_ATTEMPTS")
-            .ok()
-            .and_then(|v| v.parse::<i32>().ok())
+        let retry_max_attempts = v
+            .optional_parse::<i32>("NOTIFICATIONS_RETRY_MAX_ATTEMPTS")
             .unwrap_or(5);
-        let retry_backoff_base_secs = env::var("NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS")
-            .ok()
-            .and_then(|v| v.parse::<i64>().ok())
+        let retry_backoff_base_secs = v
+            .optional_parse::<i64>("NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS")
             .unwrap_or(300);
-        let retry_backoff_multiplier = env::var("NOTIFICATIONS_RETRY_BACKOFF_MULTIPLIER")
-            .ok()
-            .and_then(|v| v.parse::<f64>().ok())
+        let retry_backoff_multiplier = v
+            .optional_parse::<f64>("NOTIFICATIONS_RETRY_BACKOFF_MULTIPLIER")
             .unwrap_or(1.0);
-        let retry_backoff_max_secs = env::var("NOTIFICATIONS_RETRY_BACKOFF_MAX_SECS")
-            .ok()
-            .and_then(|v| v.parse::<i64>().ok())
+        let retry_backoff_max_secs = v
+            .optional_parse::<i64>("NOTIFICATIONS_RETRY_BACKOFF_MAX_SECS")
             .unwrap_or(3600);
 
-        if env == "production" && cors_origins.iter().any(|o| o == "*") {
+        v.finish().map_err(|e| e.to_string())?;
+
+        if env_val == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
                 "CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
@@ -204,7 +193,7 @@ impl Config {
             nats_url,
             host,
             port,
-            env,
+            env: env_val,
             cors_origins,
             email_sender_type,
             email_http_endpoint,

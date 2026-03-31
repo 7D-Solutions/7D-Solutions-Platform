@@ -3,7 +3,7 @@
 //! Validates required environment variables at startup with clear error messages.
 //! Invariant: PDF Editor service never starts with missing/invalid configuration.
 
-use std::env;
+use config_validator::ConfigValidator;
 
 /// Bus type enumeration
 #[derive(Debug, Clone, PartialEq)]
@@ -52,23 +52,16 @@ impl Config {
     /// - `PORT`: HTTP port (default: '8102')
     /// - `CORS_ORIGINS`: Comma-separated allowed origins (omit to deny all cross-origin requests)
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://postgres:postgres@localhost:5432/pdf_editor_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("pdf-editor");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
 
-        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+        let bus_type_str = v.optional("BUS_TYPE").or_default("inmemory");
         let bus_type = BusType::from_str(&bus_type_str)?;
 
         let nats_url = match bus_type {
             BusType::Nats => {
-                let url =
-                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+                let url = v.optional("NATS_URL").or_default("nats://localhost:4222");
                 if url.trim().is_empty() {
                     return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
                 }
@@ -77,20 +70,12 @@ impl Config {
             BusType::InMemory => None,
         };
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8102);
 
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8102".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
-                    "PORT must be a valid u16 (0-65535), got: '{}'",
-                    env::var("PORT").unwrap_or_default()
-                )
-            })?;
-
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_default()
+        let cors_origins: Vec<String> = v
+            .optional("CORS_ORIGINS")
+            .or_default("")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -106,9 +91,13 @@ impl Config {
             );
         }
 
-        let env_name = env::var("ENV")
-            .unwrap_or_else(|_| "development".to_string())
+        let env_name = v
+            .optional("ENV")
+            .or_default("development")
             .to_lowercase();
+
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Config {
             database_url,
             bus_type,

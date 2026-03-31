@@ -1,6 +1,6 @@
 [package]
 name = "numbering"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2021"
 description = "Numbering service: tenant-scoped, idempotent, atomic sequence allocation"
 
@@ -25,6 +25,7 @@ axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 platform_contracts = { path = "../../platform/platform-contracts" }
+config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid", "json"] }

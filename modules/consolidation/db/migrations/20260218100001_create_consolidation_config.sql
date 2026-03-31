@@ -15,7 +15,7 @@
 -- are combined into a single consolidated view. Each group has one
 -- reporting currency; all entity balances are translated into it.
 
-CREATE TABLE csl_groups (
+CREATE TABLE IF NOT EXISTS csl_groups (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id             TEXT        NOT NULL,
     name                  TEXT        NOT NULL,
@@ -31,10 +31,10 @@ CREATE TABLE csl_groups (
         UNIQUE (tenant_id, name)
 );
 
-CREATE INDEX idx_csl_groups_tenant
+CREATE INDEX IF NOT EXISTS idx_csl_groups_tenant
     ON csl_groups (tenant_id);
 
-CREATE INDEX idx_csl_groups_tenant_active
+CREATE INDEX IF NOT EXISTS idx_csl_groups_tenant_active
     ON csl_groups (tenant_id) WHERE is_active = TRUE;
 
 COMMENT ON TABLE csl_groups IS
@@ -47,7 +47,7 @@ COMMENT ON TABLE csl_groups IS
 -- functional currency may differ from the group reporting currency,
 -- requiring FX translation during consolidation.
 
-CREATE TABLE csl_group_entities (
+CREATE TABLE IF NOT EXISTS csl_group_entities (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id              UUID        NOT NULL REFERENCES csl_groups(id) ON DELETE CASCADE,
     entity_tenant_id      TEXT        NOT NULL,   -- tenant_id of the subsidiary
@@ -66,10 +66,10 @@ CREATE TABLE csl_group_entities (
         UNIQUE (group_id, entity_tenant_id)
 );
 
-CREATE INDEX idx_csl_group_entities_group
+CREATE INDEX IF NOT EXISTS idx_csl_group_entities_group
     ON csl_group_entities (group_id);
 
-CREATE INDEX idx_csl_group_entities_entity
+CREATE INDEX IF NOT EXISTS idx_csl_group_entities_entity
     ON csl_group_entities (entity_tenant_id);
 
 COMMENT ON TABLE csl_group_entities IS
@@ -82,7 +82,7 @@ COMMENT ON TABLE csl_group_entities IS
 -- account codes. The consolidated TB builder uses these to reclassify
 -- entity-level balances into a uniform group chart of accounts.
 
-CREATE TABLE csl_coa_mappings (
+CREATE TABLE IF NOT EXISTS csl_coa_mappings (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id              UUID        NOT NULL REFERENCES csl_groups(id) ON DELETE CASCADE,
     entity_tenant_id      TEXT        NOT NULL,
@@ -96,10 +96,10 @@ CREATE TABLE csl_coa_mappings (
         UNIQUE (group_id, entity_tenant_id, source_account_code)
 );
 
-CREATE INDEX idx_csl_coa_mappings_group
+CREATE INDEX IF NOT EXISTS idx_csl_coa_mappings_group
     ON csl_coa_mappings (group_id);
 
-CREATE INDEX idx_csl_coa_mappings_group_entity
+CREATE INDEX IF NOT EXISTS idx_csl_coa_mappings_group_entity
     ON csl_coa_mappings (group_id, entity_tenant_id);
 
 COMMENT ON TABLE csl_coa_mappings IS
@@ -112,7 +112,7 @@ COMMENT ON TABLE csl_coa_mappings IS
 -- Each rule specifies which account codes to debit/credit when eliminating
 -- intercompany balances (e.g. intercompany receivable vs payable).
 
-CREATE TABLE csl_elimination_rules (
+CREATE TABLE IF NOT EXISTS csl_elimination_rules (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id              UUID        NOT NULL REFERENCES csl_groups(id) ON DELETE CASCADE,
     rule_name             TEXT        NOT NULL,
@@ -135,10 +135,10 @@ CREATE TABLE csl_elimination_rules (
         UNIQUE (group_id, rule_name)
 );
 
-CREATE INDEX idx_csl_elimination_rules_group
+CREATE INDEX IF NOT EXISTS idx_csl_elimination_rules_group
     ON csl_elimination_rules (group_id);
 
-CREATE INDEX idx_csl_elimination_rules_group_active
+CREATE INDEX IF NOT EXISTS idx_csl_elimination_rules_group_active
     ON csl_elimination_rules (group_id) WHERE is_active = TRUE;
 
 COMMENT ON TABLE csl_elimination_rules IS
@@ -152,7 +152,7 @@ COMMENT ON TABLE csl_elimination_rules IS
 -- sections use different rate types (e.g. BS at closing rate,
 -- P&L at average rate, equity at historical rate).
 
-CREATE TABLE csl_fx_policies (
+CREATE TABLE IF NOT EXISTS csl_fx_policies (
     id                    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id              UUID        NOT NULL REFERENCES csl_groups(id) ON DELETE CASCADE,
     entity_tenant_id      TEXT        NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE csl_fx_policies (
         UNIQUE (group_id, entity_tenant_id)
 );
 
-CREATE INDEX idx_csl_fx_policies_group
+CREATE INDEX IF NOT EXISTS idx_csl_fx_policies_group
     ON csl_fx_policies (group_id);
 
 COMMENT ON TABLE csl_fx_policies IS

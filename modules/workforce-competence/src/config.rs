@@ -1,4 +1,4 @@
-use std::env;
+use config_validator::ConfigValidator;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -19,32 +19,16 @@ impl Config {
     /// - `HOST`: Bind host (default: '0.0.0.0')
     /// - `PORT`: HTTP port (default: '8121')
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://wc_user:wc_pass@localhost:5458/workforce_competence_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("workforce-competence");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8121);
+        let env_name = v.optional("ENV").or_default("development");
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8121".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
-                    "PORT must be a valid u16 (0-65535), got: '{}'",
-                    env::var("PORT").unwrap_or_default()
-                )
-            })?;
-
-        let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
-
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_origins: Vec<String> = v
+            .optional("CORS_ORIGINS")
+            .or_default("*")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -58,6 +42,9 @@ impl Config {
                     .to_string(),
             );
         }
+
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Config {
             database_url,
             host,

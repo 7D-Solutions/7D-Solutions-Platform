@@ -6,7 +6,7 @@
 --   - Stores GL journal entry IDs for audit trail
 --   - Tables prefixed csl_ to avoid clashes with source-module schemas
 
-CREATE TABLE csl_elimination_postings (
+CREATE TABLE IF NOT EXISTS csl_elimination_postings (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id          UUID        NOT NULL REFERENCES csl_groups(id) ON DELETE CASCADE,
     period_id         UUID        NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE csl_elimination_postings (
         UNIQUE (group_id, period_id, idempotency_key)
 );
 
-CREATE INDEX idx_csl_elim_postings_group_period
+CREATE INDEX IF NOT EXISTS idx_csl_elim_postings_group_period
     ON csl_elimination_postings (group_id, period_id);
 
 COMMENT ON TABLE csl_elimination_postings IS
