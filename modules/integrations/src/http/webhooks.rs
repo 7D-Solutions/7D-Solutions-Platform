@@ -30,7 +30,18 @@ use std::sync::Arc;
 use crate::domain::webhooks::{IngestWebhookRequest, QboNormalizer, WebhookError, WebhookService};
 use crate::AppState;
 
-/// `POST /api/webhooks/inbound/{system}`
+#[utoipa::path(
+    post,
+    path = "/api/webhooks/inbound/{system}",
+    params(("system" = String, Path, description = "Webhook source system (stripe, github, quickbooks, internal)")),
+    responses(
+        (status = 200, description = "Webhook accepted or duplicate"),
+        (status = 400, description = "Malformed payload"),
+        (status = 401, description = "Signature verification failed"),
+        (status = 404, description = "Unknown webhook system"),
+    ),
+    tag = "Webhooks"
+)]
 pub async fn inbound_webhook(
     State(state): State<Arc<AppState>>,
     Path(system): Path<String>,

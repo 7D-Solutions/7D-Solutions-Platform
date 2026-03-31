@@ -22,7 +22,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::domain::external_refs::{
-    service, CreateExternalRefRequest, ExternalRefError, UpdateExternalRefRequest,
+    service, CreateExternalRefRequest, ExternalRef, ExternalRefError, UpdateExternalRefRequest,
 };
 use crate::AppState;
 
@@ -81,7 +81,18 @@ pub struct BySystemQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/integrations/external-refs — create or upsert an external ref
+#[utoipa::path(
+    post,
+    path = "/api/integrations/external-refs",
+    request_body = CreateExternalRefRequest,
+    responses(
+        (status = 201, description = "External ref created", body = ExternalRef),
+        (status = 409, description = "Conflict"),
+        (status = 422, description = "Validation error"),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn create_external_ref(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -100,7 +111,19 @@ pub async fn create_external_ref(
     }
 }
 
-/// GET /api/integrations/external-refs/by-entity — list refs by internal entity
+#[utoipa::path(
+    get,
+    path = "/api/integrations/external-refs/by-entity",
+    params(
+        ("entity_type" = String, Query, description = "Internal entity type"),
+        ("entity_id" = String, Query, description = "Internal entity ID"),
+    ),
+    responses(
+        (status = 200, description = "Paginated list of external refs", body = PaginatedResponse<ExternalRef>),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn list_by_entity(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -121,7 +144,20 @@ pub async fn list_by_entity(
     }
 }
 
-/// GET /api/integrations/external-refs/by-system — lookup ref by external system + id
+#[utoipa::path(
+    get,
+    path = "/api/integrations/external-refs/by-system",
+    params(
+        ("system" = String, Query, description = "External system name"),
+        ("external_id" = String, Query, description = "External ID"),
+    ),
+    responses(
+        (status = 200, description = "External ref found", body = ExternalRef),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn get_by_external(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -143,7 +179,17 @@ pub async fn get_by_external(
     }
 }
 
-/// GET /api/integrations/external-refs/:id — get a single ref by id
+#[utoipa::path(
+    get,
+    path = "/api/integrations/external-refs/{id}",
+    params(("id" = i64, Path, description = "External ref ID")),
+    responses(
+        (status = 200, description = "External ref found", body = ExternalRef),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn get_external_ref(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -163,7 +209,18 @@ pub async fn get_external_ref(
     }
 }
 
-/// PUT /api/integrations/external-refs/:id — update label/metadata
+#[utoipa::path(
+    put,
+    path = "/api/integrations/external-refs/{id}",
+    params(("id" = i64, Path, description = "External ref ID")),
+    request_body = UpdateExternalRefRequest,
+    responses(
+        (status = 200, description = "External ref updated", body = ExternalRef),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn update_external_ref(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -183,7 +240,17 @@ pub async fn update_external_ref(
     }
 }
 
-/// DELETE /api/integrations/external-refs/:id — hard delete
+#[utoipa::path(
+    delete,
+    path = "/api/integrations/external-refs/{id}",
+    params(("id" = i64, Path, description = "External ref ID")),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "Not found"),
+    ),
+    security(("bearer" = [])),
+    tag = "External Refs"
+)]
 pub async fn delete_external_ref(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

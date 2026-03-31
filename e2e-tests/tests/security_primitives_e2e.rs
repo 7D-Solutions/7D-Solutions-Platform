@@ -11,7 +11,7 @@ use axum::body::Body;
 use axum::http::Request;
 use customer_portal::auth::{generate_refresh_token, PortalJwt};
 use customer_portal::{build_router, metrics::PortalMetrics, AppState};
-use payments_rs::config::{Config as PaymentsConfig, BusType, PaymentsProvider};
+use payments_rs::config::Config as PaymentsConfig;
 use rand::thread_rng;
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::RsaPrivateKey;
@@ -244,48 +244,51 @@ async fn security_primitives_osrng_refresh_tokens_unique() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+#[serial_test::serial]
 async fn security_primitives_webhook_secret_required_in_production() {
     // Tilled + production + no webhook secret → must error
-    let config_missing = PaymentsConfig {
-        database_url: "postgresql://localhost/test".to_string(),
-        bus_type: BusType::InMemory,
-        nats_url: None,
-        host: "0.0.0.0".to_string(),
-        port: 8088,
-        env: "production".to_string(),
-        cors_origins: vec!["https://app.example.com".to_string()],
-        payments_provider: PaymentsProvider::Tilled,
-        tilled_api_key: Some("sk_test_key".to_string()),
-        tilled_account_id: Some("acct_test".to_string()),
-        tilled_webhook_secret: None,
-        tilled_webhook_secret_prev: None,
-    };
-    let err = config_missing.validate().unwrap_err();
+    std::env::set_var("DATABASE_URL", "postgresql://localhost/test");
+    std::env::set_var("BUS_TYPE", "inmemory");
+    std::env::set_var("HOST", "0.0.0.0");
+    std::env::set_var("PORT", "8088");
+    std::env::set_var("ENV", "production");
+    std::env::set_var("CORS_ORIGINS", "https://app.example.com");
+    std::env::set_var("PAYMENTS_PROVIDER", "tilled");
+    std::env::set_var("TILLED_API_KEY", "sk_test_key");
+    std::env::set_var("TILLED_ACCOUNT_ID", "acct_test");
+    std::env::remove_var("TILLED_WEBHOOK_SECRET");
+    std::env::remove_var("TILLED_WEBHOOK_SECRET_PREV");
+    std::env::remove_var("NATS_URL");
+
+    let err = PaymentsConfig::from_env().unwrap_err();
     assert!(
         err.contains("TILLED_WEBHOOK_SECRET"),
         "production Tilled config without webhook secret must fail: {err}"
     );
 
     // Tilled + production + webhook secret present → must succeed
-    let config_ok = PaymentsConfig {
-        tilled_webhook_secret: Some("whsec_prod".to_string()),
-        ..config_missing.clone()
-    };
+    std::env::set_var("TILLED_WEBHOOK_SECRET", "whsec_prod");
     assert!(
-        config_ok.validate().is_ok(),
+        PaymentsConfig::from_env().is_ok(),
         "production Tilled config with webhook secret should pass"
     );
 
     // Mock provider + production + no webhook secret → must succeed (not Tilled)
-    let config_mock = PaymentsConfig {
-        payments_provider: PaymentsProvider::Mock,
-        tilled_api_key: None,
-        tilled_account_id: None,
-        tilled_webhook_secret: None,
-        ..config_missing.clone()
-    };
+    std::env::set_var("PAYMENTS_PROVIDER", "mock");
+    std::env::remove_var("TILLED_API_KEY");
+    std::env::remove_var("TILLED_ACCOUNT_ID");
+    std::env::remove_var("TILLED_WEBHOOK_SECRET");
     assert!(
-        config_mock.validate().is_ok(),
+        PaymentsConfig::from_env().is_ok(),
         "mock provider should not require webhook secret"
     );
+
+    // Cleanup env vars
+    std::env::remove_var("DATABASE_URL");
+    std::env::remove_var("BUS_TYPE");
+    std::env::remove_var("HOST");
+    std::env::remove_var("PORT");
+    std::env::remove_var("ENV");
+    std::env::remove_var("CORS_ORIGINS");
+    std::env::remove_var("PAYMENTS_PROVIDER");
 }

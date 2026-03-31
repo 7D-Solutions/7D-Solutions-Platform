@@ -20,7 +20,7 @@ use platform_http_contracts::{ApiError, FieldError, PaginatedResponse, Paginatio
 #[openapi(
     info(
         title = "Integrations Service",
-        version = "2.2.0",
+        version = "2.3.0",
         description = "External system connectors, webhook routing, OAuth connection management, \
                         and reference linking.\n\n\
                         **Authentication:** Bearer JWT. Tenant identity derived from JWT claims \

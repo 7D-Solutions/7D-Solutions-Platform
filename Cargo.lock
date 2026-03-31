@@ -153,13 +153,14 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "async-nats",
  "axum",
  "axum-extra",
  "base64",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -824,10 +825,11 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "health",
@@ -1545,11 +1547,12 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -1803,11 +1806,12 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -2298,7 +2302,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -2606,11 +2610,12 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "maintenance-rs"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -2785,7 +2790,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2939,11 +2944,12 @@ dependencies = [
 
 [[package]]
 name = "numbering"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "health",
@@ -3040,11 +3046,12 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -3126,7 +3133,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor-rs"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3134,6 +3141,7 @@ dependencies = [
  "axum",
  "base64",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -3433,10 +3441,11 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "1.0.2"
+version = "2.1.1"
 dependencies = [
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "health",
@@ -4412,7 +4421,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.1"
+version = "2.2.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -4826,12 +4835,13 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "async-nats",
  "async-trait",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -5057,11 +5067,12 @@ dependencies = [
 
 [[package]]
 name = "timekeeping"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -5417,16 +5428,18 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "1.0.1"
+version = "2.1.0"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "csv",
  "dotenvy",
  "event-bus",
  "futures",
  "health",
+ "platform-http-contracts",
  "projections",
  "prometheus",
  "rust_decimal",
@@ -5441,6 +5454,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "utoipa",
  "uuid",
 ]
 
@@ -5468,11 +5482,12 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.8"
+version = "2.1.9"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -6305,11 +6320,12 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "async-nats",
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "futures",
@@ -6334,10 +6350,11 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "axum",
  "chrono",
+ "config-validator",
  "dotenvy",
  "event-bus",
  "health",

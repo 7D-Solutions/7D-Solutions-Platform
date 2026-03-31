@@ -15,6 +15,7 @@ use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 use crate::domain::oauth::{service as oauth_service, OAuthError};
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
@@ -24,7 +25,7 @@ use crate::AppState;
 // Request / Response
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateInvoiceRequest {
     /// Ship date in YYYY-MM-DD format
     pub ship_date: Option<String>,
@@ -40,7 +41,7 @@ impl UpdateInvoiceRequest {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UpdateInvoiceResponse {
     pub invoice_id: String,
     pub ship_date: Option<String>,
@@ -141,11 +142,21 @@ impl TokenProvider for DbTokenProvider {
 // Handler
 // ============================================================================
 
-/// POST /api/integrations/qbo/invoice/{invoice_id}/update
-///
-/// Sparse-update a QBO invoice with shipping fields.
-///
-/// Requires `integrations.mutate` permission.
+#[utoipa::path(
+    post,
+    path = "/api/integrations/qbo/invoice/{invoice_id}/update",
+    params(("invoice_id" = String, Path, description = "QBO invoice ID")),
+    request_body = UpdateInvoiceRequest,
+    responses(
+        (status = 200, description = "Invoice updated", body = UpdateInvoiceResponse),
+        (status = 400, description = "No fields provided"),
+        (status = 404, description = "Invoice or connection not found"),
+        (status = 409, description = "Concurrent modification"),
+        (status = 412, description = "QBO connection not active"),
+    ),
+    security(("bearer" = [])),
+    tag = "QBO Invoice"
+)]
 pub async fn update_invoice(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
