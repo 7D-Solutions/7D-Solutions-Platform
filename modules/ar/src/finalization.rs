@@ -254,17 +254,19 @@ pub async fn finalize_invoice(
 
     // 4. MUTATE: Update invoice status to ATTEMPTING (within same transaction)
     // Status transition from OPEN → ATTEMPTING is idempotent (multiple attempts allowed)
-    let current_status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+    let current_status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1 AND app_id = $2")
         .bind(invoice_id)
+        .bind(app_id)
         .fetch_one(&mut *tx)
         .await?;
 
     // Only transition to ATTEMPTING if currently OPEN
     // (Subsequent attempts don't re-transition status)
     if current_status == lifecycle::status::OPEN {
-        sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2")
+        sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2 AND app_id = $3")
             .bind(lifecycle::status::ATTEMPTING)
             .bind(invoice_id)
+            .bind(app_id)
             .execute(&mut *tx)
             .await?;
 

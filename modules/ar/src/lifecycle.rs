@@ -119,12 +119,14 @@ pub mod status {
 async fn validate_transition(
     tx: &mut Transaction<'_, Postgres>,
     invoice_id: i32,
+    app_id: &str,
     to_status: &str,
 ) -> Result<(), TransitionError> {
-    // Fetch current invoice status
+    // Fetch current invoice status (tenant-scoped)
     let current_status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1 AND app_id = $2")
             .bind(invoice_id)
+            .bind(app_id)
             .fetch_optional(&mut **tx)
             .await
             .map_err(|e| TransitionError::DatabaseError(e.to_string()))?;
@@ -201,22 +203,24 @@ async fn validate_transition(
 /// **Usage:**
 /// ```rust,ignore
 /// let pool = todo!();
-/// transition_to_attempting(&pool, invoice_id, "Initiating payment collection").await?;
+/// transition_to_attempting(&pool, invoice_id, "app-demo", "Initiating payment collection").await?;
 /// ```
 pub async fn transition_to_attempting(
     pool: &PgPool,
     invoice_id: i32,
+    app_id: &str,
     _reason: &str,
 ) -> Result<(), LifecycleError> {
     let mut tx = pool.begin().await?;
 
     // 1. GUARD: Validate transition (ZERO side effects)
-    validate_transition(&mut tx, invoice_id, status::ATTEMPTING).await?;
+    validate_transition(&mut tx, invoice_id, app_id, status::ATTEMPTING).await?;
 
-    // 2. MUTATE: Update invoice status (after guard approval)
-    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2")
+    // 2. MUTATE: Update invoice status (after guard approval, tenant-scoped)
+    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2 AND app_id = $3")
         .bind(status::ATTEMPTING)
         .bind(invoice_id)
+        .bind(app_id)
         .execute(&mut *tx)
         .await?;
 
@@ -233,17 +237,19 @@ pub async fn transition_to_attempting(
 pub async fn transition_to_paid(
     pool: &PgPool,
     invoice_id: i32,
+    app_id: &str,
     _reason: &str,
 ) -> Result<(), LifecycleError> {
     let mut tx = pool.begin().await?;
 
     // 1. GUARD: Validate transition
-    validate_transition(&mut tx, invoice_id, status::PAID).await?;
+    validate_transition(&mut tx, invoice_id, app_id, status::PAID).await?;
 
-    // 2. MUTATE: Update invoice status
-    sqlx::query("UPDATE ar_invoices SET status = $1, paid_at = CURRENT_TIMESTAMP WHERE id = $2")
+    // 2. MUTATE: Update invoice status (tenant-scoped)
+    sqlx::query("UPDATE ar_invoices SET status = $1, paid_at = CURRENT_TIMESTAMP WHERE id = $2 AND app_id = $3")
         .bind(status::PAID)
         .bind(invoice_id)
+        .bind(app_id)
         .execute(&mut *tx)
         .await?;
 
@@ -260,17 +266,19 @@ pub async fn transition_to_paid(
 pub async fn transition_to_failed_final(
     pool: &PgPool,
     invoice_id: i32,
+    app_id: &str,
     _reason: &str,
 ) -> Result<(), LifecycleError> {
     let mut tx = pool.begin().await?;
 
     // 1. GUARD: Validate transition
-    validate_transition(&mut tx, invoice_id, status::FAILED_FINAL).await?;
+    validate_transition(&mut tx, invoice_id, app_id, status::FAILED_FINAL).await?;
 
-    // 2. MUTATE: Update invoice status
-    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2")
+    // 2. MUTATE: Update invoice status (tenant-scoped)
+    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2 AND app_id = $3")
         .bind(status::FAILED_FINAL)
         .bind(invoice_id)
+        .bind(app_id)
         .execute(&mut *tx)
         .await?;
 
@@ -287,17 +295,19 @@ pub async fn transition_to_failed_final(
 pub async fn transition_to_void(
     pool: &PgPool,
     invoice_id: i32,
+    app_id: &str,
     _reason: &str,
 ) -> Result<(), LifecycleError> {
     let mut tx = pool.begin().await?;
 
     // 1. GUARD: Validate transition
-    validate_transition(&mut tx, invoice_id, status::VOID).await?;
+    validate_transition(&mut tx, invoice_id, app_id, status::VOID).await?;
 
-    // 2. MUTATE: Update invoice status
-    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2")
+    // 2. MUTATE: Update invoice status (tenant-scoped)
+    sqlx::query("UPDATE ar_invoices SET status = $1 WHERE id = $2 AND app_id = $3")
         .bind(status::VOID)
         .bind(invoice_id)
+        .bind(app_id)
         .execute(&mut *tx)
         .await?;
 

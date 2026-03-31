@@ -188,8 +188,9 @@ pub async fn write_off_invoice(
 
     // 2. Idempotency check: has this exact write_off_id been applied before?
     let existing_by_id: Option<i32> =
-        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE write_off_id = $1")
+        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE write_off_id = $1 AND app_id = $2")
             .bind(req.write_off_id)
+            .bind(&req.app_id)
             .fetch_optional(&mut *tx)
             .await?;
 
@@ -203,8 +204,9 @@ pub async fn write_off_invoice(
 
     // 3. Check if this invoice already has a write-off (different write_off_id)
     let existing_by_invoice: Option<i32> =
-        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE invoice_id = $1")
+        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE invoice_id = $1 AND app_id = $2")
             .bind(req.invoice_id)
+            .bind(&req.app_id)
             .fetch_optional(&mut *tx)
             .await?;
 
@@ -288,9 +290,10 @@ pub async fn write_off_invoice(
     .await?;
 
     // 6. Update write-off row with the outbox event ID for correlation
-    sqlx::query("UPDATE ar_invoice_write_offs SET outbox_event_id = $1 WHERE id = $2")
+    sqlx::query("UPDATE ar_invoice_write_offs SET outbox_event_id = $1 WHERE id = $2 AND app_id = $3")
         .bind(outbox_event_id)
         .bind(write_off_row_id)
+        .bind(&req.app_id)
         .execute(&mut *tx)
         .await?;
 

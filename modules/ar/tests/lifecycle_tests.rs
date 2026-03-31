@@ -114,7 +114,7 @@ async fn test_transition_open_to_attempting() {
     let invoice_id = create_test_invoice(&pool, status::OPEN).await;
 
     // Transition to ATTEMPTING should succeed
-    let result = transition_to_attempting(&pool, invoice_id, "Starting payment collection").await;
+    let result = transition_to_attempting(&pool, invoice_id, "app-test", "Starting payment collection").await;
     assert!(result.is_ok(), "Should allow OPEN → ATTEMPTING transition");
 
     // Verify status was updated
@@ -134,7 +134,7 @@ async fn test_transition_attempting_to_paid() {
     let invoice_id = create_test_invoice(&pool, status::ATTEMPTING).await;
 
     // Transition to PAID should succeed
-    let result = transition_to_paid(&pool, invoice_id, "Payment received").await;
+    let result = transition_to_paid(&pool, invoice_id, "app-test", "Payment received").await;
     assert!(result.is_ok(), "Should allow ATTEMPTING → PAID transition");
 
     // Verify status was updated and paid_at was set
@@ -166,7 +166,7 @@ async fn test_transition_attempting_to_failed_final() {
     let invoice_id = create_test_invoice(&pool, status::ATTEMPTING).await;
 
     // Transition to FAILED_FINAL should succeed
-    let result = transition_to_failed_final(&pool, invoice_id, "Max retries exceeded").await;
+    let result = transition_to_failed_final(&pool, invoice_id, "app-test", "Max retries exceeded").await;
     assert!(
         result.is_ok(),
         "Should allow ATTEMPTING → FAILED_FINAL transition"
@@ -189,7 +189,7 @@ async fn test_transition_open_to_void() {
     let invoice_id = create_test_invoice(&pool, status::OPEN).await;
 
     // Transition to VOID should succeed
-    let result = transition_to_void(&pool, invoice_id, "Customer cancelled").await;
+    let result = transition_to_void(&pool, invoice_id, "app-test", "Customer cancelled").await;
     assert!(result.is_ok(), "Should allow OPEN → VOID transition");
 
     // Verify status was updated
@@ -213,7 +213,7 @@ async fn test_transition_open_to_paid_rejected() {
     let invoice_id = create_test_invoice(&pool, status::OPEN).await;
 
     // Attempt to skip ATTEMPTING and go directly to PAID (illegal)
-    let result = transition_to_paid(&pool, invoice_id, "Direct payment").await;
+    let result = transition_to_paid(&pool, invoice_id, "app-test", "Direct payment").await;
     assert!(
         result.is_err(),
         "Should reject OPEN → PAID transition (must go through ATTEMPTING)"
@@ -251,7 +251,7 @@ async fn test_transition_paid_is_terminal() {
     let invoice_id = create_test_invoice(&pool, status::PAID).await;
 
     // Attempt to transition from PAID to ATTEMPTING (illegal)
-    let result = transition_to_attempting(&pool, invoice_id, "Retry payment").await;
+    let result = transition_to_attempting(&pool, invoice_id, "app-test", "Retry payment").await;
     assert!(
         result.is_err(),
         "Should reject transitions from PAID (terminal state)"
@@ -274,7 +274,7 @@ async fn test_transition_failed_final_is_terminal() {
     let invoice_id = create_test_invoice(&pool, status::FAILED_FINAL).await;
 
     // Attempt to transition from FAILED_FINAL to ATTEMPTING (illegal)
-    let result = transition_to_attempting(&pool, invoice_id, "Retry payment").await;
+    let result = transition_to_attempting(&pool, invoice_id, "app-test", "Retry payment").await;
     assert!(
         result.is_err(),
         "Should reject transitions from FAILED_FINAL (terminal state)"
@@ -298,7 +298,7 @@ async fn test_transition_invoice_not_found() {
     cleanup_test_data(&pool).await;
 
     // Attempt to transition non-existent invoice
-    let result = transition_to_attempting(&pool, 999999, "Test").await;
+    let result = transition_to_attempting(&pool, 999999, "app-test", "Test").await;
     assert!(
         result.is_err(),
         "Should return error for non-existent invoice"
@@ -334,7 +334,7 @@ async fn test_guard_has_zero_side_effects_on_rejection() {
     let invoice_id = create_test_invoice(&pool, status::OPEN).await;
 
     // Attempt illegal transition (OPEN → PAID)
-    let result = transition_to_paid(&pool, invoice_id, "Direct payment").await;
+    let result = transition_to_paid(&pool, invoice_id, "app-test", "Direct payment").await;
     assert!(result.is_err(), "Illegal transition should be rejected");
 
     // Guard rejection should NOT have modified database
