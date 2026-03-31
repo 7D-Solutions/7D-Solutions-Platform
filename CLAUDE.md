@@ -30,7 +30,7 @@ Keep source files under 500 LOC. If a file would exceed 500 LOC after your chang
 
 ## Native Development (MANDATORY)
 
-All Rust compilation happens **natively on the host**, not inside Docker containers. Agents never interact with Docker.
+All Rust compilation happens **natively on the host**. Agents never run Docker commands (the hook will block you).
 
 **Build and test:**
 ```bash
@@ -39,19 +39,27 @@ All Rust compilation happens **natively on the host**, not inside Docker contain
 ./scripts/cargo-slot.sh test --workspace         # Test everything
 ```
 
-**What Docker does:** Infrastructure (Postgres, NATS) and idle services run in containers. Agents don't manage them.
+## How Docker Works (READ THIS)
+
+**The pipeline:** Agent writes code → git commit → supervisord cross-watcher detects (polls every 30s) → cross-compiles for Linux ARM64 via cargo-slot.sh → docker restart → container runs new binary.
+
+**Binaries are volume-mounted, not baked into images.** `docker-compose.cross.yml` mounts each binary from `target/aarch64-unknown-linux-musl/debug/<name>` into the container. The `target` symlink points to whichever `target-slot-N` cargo-slot.sh last used.
+
+**SDK-converted modules** (Party, Production, and future conversions) also need `module.toml` volume-mounted. These mounts are in `docker-compose.cross.yml`.
+
+**What agents must do:**
+- Write code and commit with `[bd-xxx]` prefix. The watcher handles the rest.
+- If a new module needs env vars (e.g., `BUS_TYPE`, `NATS_URL`), edit `docker-compose.services.yml` and commit. GentleCliff handles container recreation.
 
 **What agents must NOT do:**
-- Run `docker` commands (the hook will block you)
-- Modify Dockerfiles or docker-compose files
+- Run `docker` commands (hook blocks it)
+- Modify Dockerfiles
 - Start, stop, or restart containers
 
-**For the developer (not agents):**
-```bash
-scripts/dev-watch.sh                # Start stack with compose watch (auto-rebuild)
-scripts/dev-native.sh inventory     # Stop container, run natively with cargo-watch
-scripts/dev-native.sh --list        # Show all services
-```
+**Who manages Docker:**
+- **Supervisord cross-watcher:** Detects commits, cross-compiles, restarts containers
+- **GentleCliff:** Handles container recreation when volume mounts or compose config changes
+- **Developer:** `scripts/dev-watch.sh` (compose watch), `scripts/dev-native.sh` (run natively)
 
 ## Frontend
 
