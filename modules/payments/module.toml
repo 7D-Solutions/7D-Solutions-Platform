@@ -1,6 +1,6 @@
 [module]
 name = "payments"
-version = "2.1.6"
+version = "2.1.7"
 description = "Payment processing: checkout sessions, Tilled webhooks, payment collection"
 
 [server]

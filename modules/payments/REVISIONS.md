@@ -7,6 +7,8 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.7 | 2026-03-31 | bd-5vmu6.4 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. Consumer adapter for payment collection. SLO metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
+| 2.1.6 | 2026-03-31 | bd-xs0ry.2 | Bump for idempotency key unique constraint migration. | Needed unique index for idempotent checkout. | No |
 | 2.1.5 | 2026-03-31 | bd-xs0ry.2 | Add idempotency to POST /api/payments/checkout-sessions. New optional `idempotency_key` field in request; falls back to `invoice_id` as natural key. Check-before-create with UNIQUE(tenant_id, idempotency_key) constraint. Re-adds `client_secret` column (needed for idempotent return). Migration backfills existing rows. 4 new integration tests. | Double-submit or network retry creates duplicate Tilled payment intents with real money impact. | No |
 | 2.1.4 | 2026-03-31 | bd-vnuvp.2 | Add app_id tenant filter to all 12 payment_attempts queries in lifecycle, webhook_handler, and reconciliation. Thread app_id through all function signatures. | Tenant isolation: queries by id alone allow cross-tenant data access. | No |
 | 2.1.3 | 2026-03-30 | bd-nhmgu.3 | Add info(title, version, description) and security(("bearer" = [])) to OpenAPI spec. Both main.rs and openapi_dump.rs updated. | Spec was missing title/version/description and global security requirement, inconsistent with other modules. | No |
