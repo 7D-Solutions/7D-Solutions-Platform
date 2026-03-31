@@ -48,6 +48,8 @@ const AR_AUDITABLE_EVENT_TYPES: &[&str] = &[
     "ar.payment_allocated",
     "ar.ar_aging_updated",
     "ar.invoice_settled_fx",
+    "gl.posting.requested",
+    "payment.collection.requested",
 ];
 
 const GL_AUDITABLE_EVENT_TYPES: &[&str] = &[
