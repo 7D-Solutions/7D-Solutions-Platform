@@ -58,8 +58,8 @@ pub async fn run_auto_match(
             .await?;
 
             // Mark both sides as matched
-            mark_txn_matched(&mut tx, c.statement_line.id).await?;
-            mark_txn_matched(&mut tx, c.bank_transaction.id).await?;
+            mark_txn_matched(&mut tx, app_id, c.statement_line.id).await?;
+            mark_txn_matched(&mut tx, app_id, c.bank_transaction.id).await?;
         }
 
         let event_id = Uuid::new_v4();
@@ -122,7 +122,7 @@ pub async fn create_manual_match(
     // Mutation: supersede any existing active match for this statement line, insert new
     let mut tx = pool.begin().await?;
 
-    supersede_active_match(&mut tx, req.statement_line_id).await?;
+    supersede_active_match(&mut tx, app_id, req.statement_line_id).await?;
 
     let match_id = insert_match_tx(
         &mut tx,
@@ -135,8 +135,8 @@ pub async fn create_manual_match(
     )
     .await?;
 
-    mark_txn_matched(&mut tx, req.statement_line_id).await?;
-    mark_txn_matched(&mut tx, req.bank_transaction_id).await?;
+    mark_txn_matched(&mut tx, app_id, req.statement_line_id).await?;
+    mark_txn_matched(&mut tx, app_id, req.bank_transaction_id).await?;
 
     // Outbox
     let event_id = Uuid::new_v4();
@@ -359,16 +359,18 @@ async fn insert_match_tx(
 
 async fn supersede_active_match(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_id: &str,
     statement_line_id: Uuid,
 ) -> Result<(), sqlx::Error> {
     // Find current active match for this statement line (if any)
     let existing: Option<Uuid> = sqlx::query_scalar(
         r#"
         SELECT id FROM treasury_recon_matches
-        WHERE statement_line_id = $1 AND superseded_by IS NULL
+        WHERE statement_line_id = $1 AND superseded_by IS NULL AND app_id = $2
         "#,
     )
     .bind(statement_line_id)
+    .bind(app_id)
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -393,17 +395,19 @@ async fn supersede_active_match(
 
         // Also revert the old bank_transaction_id to unmatched
         let old_txn_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT bank_transaction_id FROM treasury_recon_matches WHERE id = $1",
+            "SELECT bank_transaction_id FROM treasury_recon_matches WHERE id = $1 AND app_id = $2",
         )
         .bind(old_id)
+        .bind(app_id)
         .fetch_optional(&mut **tx)
         .await?;
 
         if let Some(txn_id) = old_txn_id {
             sqlx::query(
-                "UPDATE treasury_bank_transactions SET status = 'unmatched', updated_at = NOW() WHERE id = $1",
+                "UPDATE treasury_bank_transactions SET status = 'unmatched', updated_at = NOW() WHERE id = $1 AND app_id = $2",
             )
             .bind(txn_id)
+            .bind(app_id)
             .execute(&mut **tx)
             .await?;
         }
@@ -414,12 +418,14 @@ async fn supersede_active_match(
 
 async fn mark_txn_matched(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_id: &str,
     txn_id: Uuid,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
-        "UPDATE treasury_bank_transactions SET status = 'matched', updated_at = NOW() WHERE id = $1",
+        "UPDATE treasury_bank_transactions SET status = 'matched', updated_at = NOW() WHERE id = $1 AND app_id = $2",
     )
     .bind(txn_id)
+    .bind(app_id)
     .execute(&mut **tx)
     .await?;
     Ok(())

@@ -12,8 +12,6 @@ use prometheus::{
 };
 use std::sync::Arc;
 
-use crate::domain::recon::metrics as recon_metrics;
-
 /// Treasury-specific Prometheus metrics.
 pub struct TreasuryMetrics {
     // -- Existing counters --
@@ -205,19 +203,8 @@ impl TreasuryMetrics {
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
-    // Refresh recon gauges from DB
-    if let Ok(snap) = recon_metrics::snapshot(&app_state.pool).await {
-        app_state.metrics.recon_matched_total.set(snap.matched);
-        app_state
-            .metrics
-            .recon_unmatched_lines
-            .set(snap.unmatched_lines);
-        app_state
-            .metrics
-            .recon_unmatched_txns
-            .set(snap.unmatched_txns);
-        app_state.metrics.recon_match_rate.set(snap.match_rate);
-    }
+    // Recon gauges require tenant context (app_id) and are now set by
+    // tenant-scoped operations rather than this global scrape endpoint.
 
     let encoder = TextEncoder::new();
     let metric_families = app_state.metrics.registry().gather();

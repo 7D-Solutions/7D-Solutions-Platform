@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.3 | 2026-03-31 | bd-vnuvp.4 | Add tenant_id (app_id) filters to 12 queries in import/service.rs, recon/service.rs, and recon/metrics.rs. Removed cross-tenant snapshot from global /metrics endpoint. | P0 tenant isolation: queries on bank statements, transactions, and recon matches used id-only lookups without app_id, allowing cross-tenant data access. | No |
 | 2.1.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 1.0.0 | 2026-03-28 | bd-14lud | Initial proof baseline for treasury covering bank account management, transaction import, reconciliation, and cash position reporting. Added the module proof script used by the promotion gate. | Establish the first proven release after package tests and module proof passed end-to-end. | No |

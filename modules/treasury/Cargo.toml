@@ -1,6 +1,6 @@
 [package]
 name = "treasury"
-version = "2.1.2"
+version = "2.1.3"
 edition = "2021"
 description = "Bank account management, transaction import, reconciliation, and cash position"
 
