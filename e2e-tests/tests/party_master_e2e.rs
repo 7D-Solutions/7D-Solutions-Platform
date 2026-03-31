@@ -439,9 +439,10 @@ async fn test_deactivate_excluded_from_list() {
         list_body
     );
 
-    let parties = list_body
+    let parties = list_body["data"]
         .as_array()
-        .expect("list response must be an array");
+        .or_else(|| list_body.as_array())
+        .expect("list response must contain a data array");
     let found = parties.iter().any(|p| p["id"].as_str() == Some(party_id));
     assert!(
         !found,
@@ -521,9 +522,10 @@ async fn test_search_by_type_returns_only_companies() {
         search_body
     );
 
-    let results = search_body
+    let results = search_body["data"]
         .as_array()
-        .expect("search response must be array");
+        .or_else(|| search_body.as_array())
+        .expect("search response must contain a data array");
     // All results must be company type
     for p in results.iter() {
         let pt = p["party_type"].as_str().unwrap_or("");
@@ -619,9 +621,10 @@ async fn test_search_by_name_fragment() {
         search_body
     );
 
-    let results = search_body
+    let results = search_body["data"]
         .as_array()
-        .expect("search response must be array");
+        .or_else(|| search_body.as_array())
+        .expect("search response must contain a data array");
     assert!(
         !results.is_empty(),
         "search must return at least one result; fragment={}",

@@ -386,7 +386,10 @@ async fn test_external_ref_create_and_query_by_entity() {
         .unwrap();
     let list: Value = serde_json::from_slice(&list_bytes).unwrap_or(json!([]));
 
-    let refs = list.as_array().expect("list must be array");
+    let refs = list["data"]
+        .as_array()
+        .or_else(|| list.as_array())
+        .expect("list must contain a data array");
     assert!(!refs.is_empty(), "list must contain at least one ref");
     let found = refs.iter().find(|r| r["id"] == ref_id);
     assert!(found.is_some(), "created ref must appear in by-entity list");
