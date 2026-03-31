@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-183if | Initial proof. Receiving inspection and in-process inspection workflows, inspection plan configuration, acceptance criteria management, disposition handling, admin endpoints. Builds and clippy clean. Integration tests advisory (DB connectivity). | Quality inspection module code complete. All gates pass. | No |
+| 1.0.1 | 2026-03-30 | bd-dx75u | Split domain/service.rs into plan_service.rs (plan CRUD) and inspection_service.rs (inspection CRUD + disposition + queries). service.rs retains QiError and re-exports. No API changes. | Separation of concerns — plans and inspections are distinct domain objects. | No |
 
 ## How to read this table
 
