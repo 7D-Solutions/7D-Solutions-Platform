@@ -127,14 +127,31 @@ impl RoutingRepo {
     pub async fn list(
         pool: &PgPool,
         tenant_id: &str,
-    ) -> Result<Vec<RoutingTemplate>, RoutingError> {
-        sqlx::query_as::<_, RoutingTemplate>(
-            "SELECT * FROM routing_templates WHERE tenant_id = $1 ORDER BY name",
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<RoutingTemplate>, i64), RoutingError> {
+        let limit = page_size.clamp(1, 200);
+        let offset = (page.max(1) - 1) * limit;
+
+        let items = sqlx::query_as::<_, RoutingTemplate>(
+            "SELECT * FROM routing_templates WHERE tenant_id = $1 ORDER BY name LIMIT $2 OFFSET $3",
         )
         .bind(tenant_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await
-        .map_err(RoutingError::Database)
+        .map_err(RoutingError::Database)?;
+
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM routing_templates WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .map_err(RoutingError::Database)?;
+
+        Ok((items, total))
     }
 
     pub async fn update(

@@ -1,5 +1,6 @@
 pub mod component_issue;
 pub mod downtime;
+pub mod error_conversions;
 pub mod fg_receipt;
 pub mod operations;
 pub mod outbox;

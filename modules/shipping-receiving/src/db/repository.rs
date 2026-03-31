@@ -184,6 +184,28 @@ impl ShipmentRepository {
         .await
     }
 
+    pub async fn count_shipments(
+        pool: &PgPool,
+        tenant_id: Uuid,
+        direction: Option<&str>,
+        status: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let row: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM shipments
+            WHERE tenant_id = $1
+              AND ($2::text IS NULL OR direction = $2)
+              AND ($3::text IS NULL OR status = $3)
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(direction)
+        .bind(status)
+        .fetch_one(pool)
+        .await?;
+        Ok(row.0)
+    }
+
     pub async fn find_by_source_ref(
         pool: &PgPool,
         tenant_id: Uuid,

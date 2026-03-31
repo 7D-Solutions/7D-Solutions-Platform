@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::outbox::enqueue_event;
@@ -11,7 +12,7 @@ use crate::events::{self, ProductionEventType};
 // Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct WorkcenterDowntime {
     pub downtime_id: Uuid,
     pub tenant_id: String,
@@ -31,7 +32,7 @@ pub struct WorkcenterDowntime {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct StartDowntimeRequest {
     pub tenant_id: String,
     pub workcenter_id: Uuid,
@@ -41,7 +42,7 @@ pub struct StartDowntimeRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct EndDowntimeRequest {
     pub tenant_id: String,
     pub ended_by: Option<String>,
@@ -230,18 +231,36 @@ impl DowntimeRepo {
     pub async fn list_active(
         pool: &PgPool,
         tenant_id: &str,
-    ) -> Result<Vec<WorkcenterDowntime>, DowntimeError> {
-        sqlx::query_as::<_, WorkcenterDowntime>(
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<WorkcenterDowntime>, i64), DowntimeError> {
+        let limit = page_size.clamp(1, 200);
+        let offset = (page.max(1) - 1) * limit;
+
+        let items = sqlx::query_as::<_, WorkcenterDowntime>(
             r#"
             SELECT * FROM workcenter_downtime
             WHERE tenant_id = $1 AND ended_at IS NULL
             ORDER BY started_at DESC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(tenant_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await
-        .map_err(DowntimeError::Database)
+        .map_err(DowntimeError::Database)?;
+
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM workcenter_downtime WHERE tenant_id = $1 AND ended_at IS NULL",
+        )
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .map_err(DowntimeError::Database)?;
+
+        Ok((items, total))
     }
 
     pub async fn list_for_workcenter(

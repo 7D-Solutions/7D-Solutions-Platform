@@ -6,14 +6,14 @@
 //! - shipping_receiving_http_requests_total: Total HTTP requests by method/route/status
 //! - shipping_receiving_event_consumer_lag_messages: Event consumer lag gauge
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::extract::State;
 use prometheus::{
     Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry,
     TextEncoder,
 };
 use std::sync::Arc;
 
-use crate::http::shipments::types::ErrorBody;
+use platform_http_contracts::ApiError;
 
 #[derive(Clone)]
 pub struct ShippingReceivingMetrics {
@@ -165,28 +165,15 @@ mod tests {
 /// Axum handler for /metrics endpoint
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
-) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+) -> Result<String, ApiError> {
     let encoder = TextEncoder::new();
     let metric_families = app_state.metrics.registry().gather();
 
     let mut buffer = vec![];
-    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to encode metrics: {}", e),
-            )),
-        )
-    })?;
+    encoder
+        .encode(&metric_families, &mut buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to encode metrics: {}", e)))?;
 
-    String::from_utf8(buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to convert metrics to string: {}", e),
-            )),
-        )
-    })
+    String::from_utf8(buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to convert metrics to string: {}", e)))
 }

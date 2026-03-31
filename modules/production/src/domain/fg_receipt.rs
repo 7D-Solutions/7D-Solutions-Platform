@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::outbox::enqueue_event;
@@ -10,7 +11,7 @@ use crate::events::{self, ProductionEventType};
 // Request type
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RequestFgReceiptRequest {
     pub tenant_id: String,
     pub item_id: Uuid,

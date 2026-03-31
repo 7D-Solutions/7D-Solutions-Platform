@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::outbox::enqueue_event;
@@ -11,7 +12,7 @@ use crate::events::{self, ProductionEventType};
 // Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Workcenter {
     pub workcenter_id: Uuid,
     pub tenant_id: String,
@@ -29,7 +30,7 @@ pub struct Workcenter {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWorkcenterRequest {
     pub tenant_id: String,
     pub code: String,
@@ -39,7 +40,7 @@ pub struct CreateWorkcenterRequest {
     pub cost_rate_minor: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateWorkcenterRequest {
     pub tenant_id: String,
     pub name: Option<String>,
@@ -162,14 +163,31 @@ impl WorkcenterRepo {
     pub async fn list(
         pool: &PgPool,
         tenant_id: &str,
-    ) -> Result<Vec<Workcenter>, WorkcenterError> {
-        sqlx::query_as::<_, Workcenter>(
-            "SELECT * FROM workcenters WHERE tenant_id = $1 ORDER BY code",
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<Workcenter>, i64), WorkcenterError> {
+        let limit = page_size.clamp(1, 200);
+        let offset = (page.max(1) - 1) * limit;
+
+        let items = sqlx::query_as::<_, Workcenter>(
+            "SELECT * FROM workcenters WHERE tenant_id = $1 ORDER BY code LIMIT $2 OFFSET $3",
         )
         .bind(tenant_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await
-        .map_err(WorkcenterError::Database)
+        .map_err(WorkcenterError::Database)?;
+
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM workcenters WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .map_err(WorkcenterError::Database)?;
+
+        Ok((items, total))
     }
 
     pub async fn update(

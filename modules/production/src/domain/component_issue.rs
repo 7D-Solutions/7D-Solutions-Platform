@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::outbox::enqueue_event;
@@ -10,7 +11,7 @@ use crate::events::{self, ComponentIssueItem, ProductionEventType};
 // Request type
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RequestComponentIssueRequest {
     pub tenant_id: String,
     pub items: Vec<ComponentIssueItemInput>,
@@ -18,7 +19,7 @@ pub struct RequestComponentIssueRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ComponentIssueItemInput {
     pub item_id: Uuid,
     pub warehouse_id: Uuid,

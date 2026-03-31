@@ -4,29 +4,43 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::{
-    domain::component_issue::{
-        request_component_issue, ComponentIssueError, RequestComponentIssueRequest,
-    },
+    domain::component_issue::{request_component_issue, RequestComponentIssueRequest},
     AppState,
 };
 
 /// POST /api/production/work-orders/:id/component-issues
+#[utoipa::path(
+    post,
+    path = "/api/production/work-orders/{id}/component-issues",
+    tag = "Component Issues",
+    params(("id" = Uuid, Path, description = "Work order ID")),
+    request_body = RequestComponentIssueRequest,
+    responses(
+        (status = 202, description = "Component issue accepted"),
+        (status = 404, description = "Work order not found", body = ApiError),
+        (status = 422, description = "Not released or validation failure", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_component_issue(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<RequestComponentIssueRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     req.tenant_id = tenant_id;
 
@@ -36,31 +50,9 @@ pub async fn post_component_issue(
             Json(json!({ "status": "accepted", "work_order_id": id })),
         )
             .into_response(),
-        Err(ComponentIssueError::NotFound) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Work order not found" })),
-        )
-            .into_response(),
-        Err(ComponentIssueError::NotReleased) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "not_released",
-                "message": "Work order must be in 'released' status"
-            })),
-        )
-            .into_response(),
-        Err(ComponentIssueError::Validation(msg)) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        )
-            .into_response(),
-        Err(ComponentIssueError::Database(e)) => {
-            tracing::error!(error = %e, "component issue database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-                .into_response()
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
         }
     }
 }

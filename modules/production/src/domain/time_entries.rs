@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::outbox::enqueue_event;
@@ -11,7 +12,7 @@ use crate::events::{self, ProductionEventType};
 // Model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct TimeEntry {
     pub time_entry_id: Uuid,
     pub tenant_id: String,
@@ -29,7 +30,7 @@ pub struct TimeEntry {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct StartTimerRequest {
     pub work_order_id: Uuid,
     pub operation_id: Option<Uuid>,
@@ -37,12 +38,12 @@ pub struct StartTimerRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct StopTimerRequest {
     pub end_ts: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ManualEntryRequest {
     pub work_order_id: Uuid,
     pub operation_id: Option<Uuid>,
