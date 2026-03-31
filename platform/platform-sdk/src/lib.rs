@@ -23,18 +23,20 @@
 //! ```
 
 pub mod builder;
+pub mod consumer;
 pub mod context;
 pub mod manifest;
 pub mod publisher;
 pub mod startup;
 
 pub use builder::ModuleBuilder;
+pub use consumer::{ConsumerDef, ConsumerError};
 pub use context::{BusNotAvailable, ModuleContext};
 pub use manifest::Manifest;
 pub use startup::StartupError;
 
 // Re-export commonly needed types so modules don't have to depend on
 // platform sub-crates directly for basic operations.
-pub use event_bus::EventBus;
+pub use event_bus::{EventBus, EventEnvelope};
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;

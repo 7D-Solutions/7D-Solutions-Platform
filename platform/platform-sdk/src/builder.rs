@@ -23,10 +23,14 @@
 //! }
 //! ```
 
+use std::future::Future;
 use std::path::Path;
+use std::sync::Arc;
 
 use axum::Router;
+use event_bus::EventEnvelope;
 
+use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError};
 use crate::context::ModuleContext;
 use crate::manifest::{Manifest, ManifestError};
 use crate::startup::{self, StartupError};
@@ -36,6 +40,7 @@ pub struct ModuleBuilder {
     manifest: Result<Manifest, ManifestError>,
     routes_fn: Option<Box<dyn FnOnce(ModuleContext) -> Router + Send>>,
     migrator: Option<&'static sqlx::migrate::Migrator>,
+    consumers: Vec<ConsumerDef>,
 }
 
 impl ModuleBuilder {
@@ -49,6 +54,7 @@ impl ModuleBuilder {
             manifest: Manifest::from_file(path.as_ref()),
             routes_fn: None,
             migrator: None,
+            consumers: Vec::new(),
         }
     }
 
@@ -74,6 +80,25 @@ impl ModuleBuilder {
         self
     }
 
+    /// Register an event consumer for a NATS subject.
+    ///
+    /// The handler is called for each message on `subject`, wrapped in
+    /// retry middleware (3 attempts, exponential backoff 100 ms → 30 s).
+    /// Consumers are wired after the event bus is created and drained
+    /// on shutdown before the database pool closes.
+    pub fn consumer<F, Fut>(mut self, subject: impl Into<String>, handler: F) -> Self
+    where
+        F: Fn(ModuleContext, EventEnvelope<serde_json::Value>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(), ConsumerError>> + Send + 'static,
+    {
+        let handler: BoxedHandler = Arc::new(move |ctx, env| Box::pin(handler(ctx, env)));
+        self.consumers.push(ConsumerDef {
+            subject: subject.into(),
+            handler,
+        });
+        self
+    }
+
     /// Run the module through the full startup sequence.
     ///
     /// This blocks until the server receives a shutdown signal (SIGTERM
@@ -84,8 +109,23 @@ impl ModuleBuilder {
         // Phase A: infrastructure
         let phase_a = startup::phase_a(&manifest).await?;
 
-        // Build module context for the route factory
+        // Build module context for the route factory and consumers
         let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
+
+        // Phase A step 8: wire consumers (after EventBus in step 6)
+        let consumer_handles = if !self.consumers.is_empty() {
+            let bus = phase_a.bus.as_ref().ok_or_else(|| {
+                StartupError::Config("consumers registered but no event bus configured".into())
+            })?;
+            tracing::info!(
+                module = %manifest.module.name,
+                count = self.consumers.len(),
+                "wiring consumers"
+            );
+            crate::consumer::wire_consumers(self.consumers, bus, &ctx).await?
+        } else {
+            crate::consumer::ConsumerHandles::empty()
+        };
 
         // Build routes (or empty router if none provided)
         let module_routes = match self.routes_fn {
@@ -100,6 +140,6 @@ impl ModuleBuilder {
         };
 
         // Phase B: HTTP stack + serve
-        startup::phase_b(&manifest, phase_a, module_routes, self.migrator).await
+        startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles).await
     }
 }

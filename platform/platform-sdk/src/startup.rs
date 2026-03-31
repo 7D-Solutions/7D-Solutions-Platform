@@ -20,6 +20,7 @@ use security::{optional_claims_mw, JwtVerifier};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
+use crate::consumer::ConsumerHandles;
 use crate::context::ModuleContext;
 use crate::manifest::Manifest;
 use crate::publisher;
@@ -193,6 +194,7 @@ pub(crate) async fn phase_b(
     phase_a: PhaseAOutput,
     module_routes: Router,
     migrator: Option<&sqlx::migrate::Migrator>,
+    consumer_handles: ConsumerHandles,
 ) -> Result<(), StartupError> {
     let module_name = &manifest.module.name;
     let version = manifest
@@ -342,7 +344,9 @@ pub(crate) async fn phase_b(
         .await
         .map_err(|e| StartupError::Serve(e.to_string()))?;
 
-    tracing::info!(module = %module_name, "server stopped — closing resources");
+    tracing::info!(module = %module_name, "server stopped — draining consumers");
+    consumer_handles.shutdown().await;
+    tracing::info!(module = %module_name, "consumers drained — closing resources");
     shutdown_pool.close().await;
     tracing::info!(module = %module_name, "shutdown complete");
 

@@ -22,7 +22,7 @@ pub struct ModuleContext {
 
 impl ModuleContext {
     /// Create a new context from a database pool, parsed manifest, and optional bus.
-    pub(crate) fn new(pool: PgPool, manifest: Manifest, bus: Option<Arc<dyn EventBus>>) -> Self {
+    pub fn new(pool: PgPool, manifest: Manifest, bus: Option<Arc<dyn EventBus>>) -> Self {
         Self {
             pool,
             manifest: Arc::new(manifest),
