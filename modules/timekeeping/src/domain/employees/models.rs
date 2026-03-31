@@ -9,13 +9,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Employee {
     pub id: Uuid,
     pub app_id: String,
@@ -36,7 +37,7 @@ pub struct Employee {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateEmployeeRequest {
     pub app_id: String,
     pub employee_code: String,
@@ -49,7 +50,7 @@ pub struct CreateEmployeeRequest {
     pub currency: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateEmployeeRequest {
     pub app_id: String,
     pub first_name: Option<String>,

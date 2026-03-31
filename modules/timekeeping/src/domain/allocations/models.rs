@@ -8,13 +8,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Domain model (mirrors tk_allocations)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Allocation {
     pub id: Uuid,
     pub app_id: String,
@@ -33,7 +34,7 @@ pub struct Allocation {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateAllocationRequest {
     pub app_id: String,
     pub employee_id: Uuid,
@@ -44,7 +45,7 @@ pub struct CreateAllocationRequest {
     pub effective_to: Option<NaiveDate>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateAllocationRequest {
     pub app_id: String,
     pub allocated_minutes_per_week: Option<i32>,
@@ -55,7 +56,7 @@ pub struct UpdateAllocationRequest {
 // Rollup response types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct ProjectRollup {
     pub project_id: Uuid,
     pub project_name: String,
@@ -63,7 +64,7 @@ pub struct ProjectRollup {
     pub entry_count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct EmployeeRollup {
     pub employee_id: Uuid,
     pub first_name: String,
@@ -72,7 +73,7 @@ pub struct EmployeeRollup {
     pub entry_count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct TaskRollup {
     pub project_id: Uuid,
     pub task_id: Uuid,
@@ -157,8 +158,8 @@ mod tests {
             project_id: Uuid::new_v4(),
             task_id: None,
             allocated_minutes_per_week: 2400,
-            effective_from: NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
-            effective_to: Some(NaiveDate::from_ymd_opt(2026, 6, 30).unwrap()),
+            effective_from: NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date"),
+            effective_to: Some(NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid date")),
         }
     }
 
@@ -191,7 +192,7 @@ mod tests {
     #[test]
     fn create_end_before_start() {
         let mut r = valid_create();
-        r.effective_to = Some(NaiveDate::from_ymd_opt(2025, 12, 31).unwrap());
+        r.effective_to = Some(NaiveDate::from_ymd_opt(2025, 12, 31).expect("valid date"));
         assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 

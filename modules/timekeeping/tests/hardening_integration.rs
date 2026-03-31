@@ -79,9 +79,7 @@ fn work_date() -> NaiveDate {
 /// Without a JwtVerifier, the `optional_claims_mw` inserts no claims,
 /// so RequirePermissionsLayer will reject mutation requests with 401.
 fn build_test_router(pool: sqlx::PgPool) -> axum::Router {
-    let tk_metrics = Arc::new(
-        metrics::TimekeepingMetrics::new().expect("metrics"),
-    );
+    let tk_metrics = Arc::new(metrics::TimekeepingMetrics::new().expect("metrics"));
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
         metrics: tk_metrics,
@@ -90,11 +88,10 @@ fn build_test_router(pool: sqlx::PgPool) -> axum::Router {
     // No JWT verifier — simulates unauthenticated caller
     let maybe_verifier: Option<Arc<security::JwtVerifier>> = None;
 
-    http::router(app_state)
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            security::optional_claims_mw,
-        ))
+    http::router(app_state).layer(axum::middleware::from_fn_with_state(
+        maybe_verifier,
+        security::optional_claims_mw,
+    ))
 }
 
 // ============================================================================
@@ -136,7 +133,11 @@ async fn test_migration_safety_all_tables_present() {
         .await
         .unwrap();
 
-        assert!(exists, "Expected table '{}' missing after migrations", table);
+        assert!(
+            exists,
+            "Expected table '{}' missing after migrations",
+            table
+        );
     }
 
     // Verify custom enum types exist
@@ -313,15 +314,9 @@ async fn test_tenant_boundary_approvals() {
     );
 
     // Tenant B listing approvals for the same employee — zero rows
-    let b_approvals = approval_svc::list_approvals(
-        &pool,
-        &app_b,
-        emp_a,
-        work_date(),
-        work_date(),
-    )
-    .await
-    .unwrap();
+    let b_approvals = approval_svc::list_approvals(&pool, &app_b, emp_a, work_date(), work_date())
+        .await
+        .unwrap();
     assert_eq!(
         b_approvals.len(),
         0,
@@ -491,13 +486,12 @@ async fn test_guard_mutation_outbox_atomicity() {
     assert_eq!(agg_id, entry.entry_id.to_string());
 
     // Verify outbox payload contains the expected fields
-    let payload: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(entry.entry_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let payload: serde_json::Value =
+        sqlx::query_scalar("SELECT payload FROM events_outbox WHERE aggregate_id = $1")
+            .bind(entry.entry_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(payload["app_id"], app_id);
     assert_eq!(payload["employee_id"], emp_id.to_string());
@@ -546,13 +540,12 @@ async fn test_guard_mutation_outbox_approval_submit() {
     .unwrap();
 
     // Outbox event for the approval submission
-    let outbox_event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(approval.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let outbox_event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(approval.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(
         outbox_event.unwrap().0,
@@ -661,11 +654,7 @@ async fn test_concurrent_tenant_isolation_entries() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        cross_a.len(),
-        0,
-        "Tenant A must not see tenant B's entries"
-    );
+    assert_eq!(cross_a.len(), 0, "Tenant A must not see tenant B's entries");
 
     let cross_b = service::list_entries(
         &pool,
@@ -676,29 +665,23 @@ async fn test_concurrent_tenant_isolation_entries() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        cross_b.len(),
-        0,
-        "Tenant B must not see tenant A's entries"
-    );
+    assert_eq!(cross_b.len(), 0, "Tenant B must not see tenant A's entries");
 
     // Verify outbox events are per-tenant (no cross-contamination)
-    let a_outbox: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE payload->>'app_id' = $1",
-    )
-    .bind(&app_a)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let a_outbox: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE payload->>'app_id' = $1")
+            .bind(&app_a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(a_outbox, 5, "Tenant A should have 5 outbox events");
 
-    let b_outbox: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE payload->>'app_id' = $1",
-    )
-    .bind(&app_b)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let b_outbox: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE payload->>'app_id' = $1")
+            .bind(&app_b)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(b_outbox, 5, "Tenant B should have 5 outbox events");
 }
 

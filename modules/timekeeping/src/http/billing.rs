@@ -1,14 +1,17 @@
 //! Billing rates + billing runs HTTP handlers.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{extract::State, http::StatusCode, Extension, Json};
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 
 use super::tenant::extract_tenant;
 use crate::{
     domain::billing::{
-        models::{BillingError, CreateBillingRateRequest, CreateBillingRunRequest},
+        models::{
+            BillingError, BillingRate, BillingRunResult, CreateBillingRateRequest,
+            CreateBillingRunRequest,
+        },
         service,
     },
     AppState,
@@ -18,23 +21,15 @@ use crate::{
 // Error mapping
 // ============================================================================
 
-fn billing_error_response(err: BillingError) -> impl IntoResponse {
+fn map_billing_error(err: BillingError) -> ApiError {
     match err {
-        BillingError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
+        BillingError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+        BillingError::NoBillableEntries => ApiError::new(
+            422,
+            "no_billable_entries",
+            "No unbilled billable entries found for the specified period",
         ),
-        BillingError::NoBillableEntries => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "no_billable_entries",
-                "message": "No unbilled billable entries found for the specified period"
-            })),
-        ),
-        BillingError::Database(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "database_error", "message": e.to_string() })),
-        ),
+        BillingError::Database(e) => ApiError::internal(e.to_string()),
     }
 }
 
@@ -42,36 +37,51 @@ fn billing_error_response(err: BillingError) -> impl IntoResponse {
 // Handlers
 // ============================================================================
 
-/// POST /api/timekeeping/rates
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/rates",
+    request_body = CreateBillingRateRequest,
+    responses(
+        (status = 201, description = "Billing rate created", body = BillingRate),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Billing",
+)]
 pub async fn create_rate(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateBillingRateRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<(StatusCode, Json<BillingRate>), ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::create_billing_rate(&state.pool, &req).await {
-        Ok(rate) => (StatusCode::CREATED, Json(json!(rate))).into_response(),
-        Err(err) => billing_error_response(err).into_response(),
-    }
+    let rate = service::create_billing_rate(&state.pool, &req)
+        .await
+        .map_err(map_billing_error)?;
+    Ok((StatusCode::CREATED, Json(rate)))
 }
 
-/// GET /api/timekeeping/rates
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/rates",
+    responses(
+        (status = 200, description = "Billing rate list", body = Vec<BillingRate>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Billing",
+)]
 pub async fn list_rates(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::list_billing_rates(&state.pool, &app_id).await {
-        Ok(rates) => (StatusCode::OK, Json(json!(rates))).into_response(),
-        Err(err) => billing_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<BillingRate>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let rates = service::list_billing_rates(&state.pool, &app_id)
+        .await
+        .map_err(map_billing_error)?;
+    let total = rates.len() as i64;
+    Ok(Json(PaginatedResponse::new(rates, 1, total, total)))
 }
 
 /// POST /api/timekeeping/billing-runs
@@ -79,14 +89,11 @@ pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateBillingRunRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<(StatusCode, Json<BillingRunResult>), ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::create_billing_run(&state.pool, &req).await {
-        Ok(result) => (StatusCode::CREATED, Json(json!(result))).into_response(),
-        Err(err) => billing_error_response(err).into_response(),
-    }
+    let result = service::create_billing_run(&state.pool, &req)
+        .await
+        .map_err(map_billing_error)?;
+    Ok((StatusCode::CREATED, Json(result)))
 }

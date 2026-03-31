@@ -3,13 +3,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Billing Rate
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct BillingRate {
     pub id: Uuid,
     pub app_id: String,
@@ -19,7 +20,7 @@ pub struct BillingRate {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateBillingRateRequest {
     pub app_id: String,
     pub name: String,
@@ -30,7 +31,7 @@ pub struct CreateBillingRateRequest {
 // Billing Run
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct BillingRun {
     pub id: Uuid,
     pub app_id: String,
@@ -44,7 +45,7 @@ pub struct BillingRun {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateBillingRunRequest {
     pub app_id: String,
     pub ar_customer_id: i32,
@@ -53,7 +54,7 @@ pub struct CreateBillingRunRequest {
 }
 
 /// A single billing line item computed from an entry + its rate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BillingLineItem {
     pub entry_id: Uuid,
     pub minutes: i32,
@@ -66,7 +67,7 @@ pub struct BillingLineItem {
 ///
 /// When `already_ran = true`, the caller should use the existing `run`
 /// without creating a duplicate AR invoice (idempotency).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct BillingRunResult {
     pub run: BillingRun,
     pub line_items: Vec<BillingLineItem>,

@@ -7,13 +7,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Entry type enum (mirrors tk_entry_type in DB)
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "tk_entry_type", rename_all = "lowercase")]
 pub enum EntryType {
     Original,
@@ -25,7 +26,7 @@ pub enum EntryType {
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct TimesheetEntry {
     pub id: i64,
     pub entry_id: Uuid,
@@ -47,7 +48,7 @@ pub struct TimesheetEntry {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateEntryRequest {
     pub app_id: String,
     pub employee_id: Uuid,
@@ -59,7 +60,7 @@ pub struct CreateEntryRequest {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CorrectEntryRequest {
     pub app_id: String,
     pub entry_id: Uuid,
@@ -70,7 +71,7 @@ pub struct CorrectEntryRequest {
     pub created_by: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct VoidEntryRequest {
     pub app_id: String,
     pub entry_id: Uuid,
@@ -114,19 +115,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn entry_type_serde_roundtrip() {
+    fn entry_type_serde_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let orig = EntryType::Original;
-        let json = serde_json::to_string(&orig).unwrap();
+        let json = serde_json::to_string(&orig)?;
         assert!(json.contains("original") || json.contains("Original"));
-        let back: EntryType = serde_json::from_str(&json).unwrap();
+        let back: EntryType = serde_json::from_str(&json)?;
         assert_eq!(back, orig);
+        Ok(())
     }
 
     #[test]
-    fn entry_type_correction() {
+    fn entry_type_correction() -> Result<(), Box<dyn std::error::Error>> {
         let c = EntryType::Correction;
-        let json = serde_json::to_string(&c).unwrap();
-        let back: EntryType = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&c)?;
+        let back: EntryType = serde_json::from_str(&json)?;
         assert_eq!(back, EntryType::Correction);
+        Ok(())
     }
 }

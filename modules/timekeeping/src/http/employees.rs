@@ -3,18 +3,17 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
     Extension, Json,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::tenant::extract_tenant;
 use crate::{
     domain::employees::{
-        models::{CreateEmployeeRequest, EmployeeError, UpdateEmployeeRequest},
+        models::{CreateEmployeeRequest, Employee, EmployeeError, UpdateEmployeeRequest},
         service::EmployeeRepo,
     },
     AppState,
@@ -24,27 +23,15 @@ use crate::{
 // Error mapping
 // ============================================================================
 
-fn employee_error_response(err: EmployeeError) -> impl IntoResponse {
+fn map_employee_error(err: EmployeeError) -> ApiError {
     match err {
-        EmployeeError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Employee not found" })),
-        ),
-        EmployeeError::DuplicateCode(code, app) => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_code",
-                "message": format!("Employee code '{}' already exists for app '{}'", code, app)
-            })),
-        ),
-        EmployeeError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        EmployeeError::Database(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "database_error", "message": e.to_string() })),
-        ),
+        EmployeeError::NotFound => ApiError::not_found("Employee not found"),
+        EmployeeError::DuplicateCode(code, app) => ApiError::conflict(format!(
+            "Employee code '{}' already exists for app '{}'",
+            code, app
+        )),
+        EmployeeError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+        EmployeeError::Database(e) => ApiError::internal(e.to_string()),
     }
 }
 
@@ -52,79 +39,123 @@ fn employee_error_response(err: EmployeeError) -> impl IntoResponse {
 // Handlers
 // ============================================================================
 
-/// POST /api/timekeeping/employees
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/employees",
+    request_body = CreateEmployeeRequest,
+    responses(
+        (status = 201, description = "Employee created", body = Employee),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 409, description = "Duplicate employee code", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Employees",
+)]
 pub async fn create_employee(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateEmployeeRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<(StatusCode, Json<Employee>), ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match EmployeeRepo::create(&state.pool, &req).await {
-        Ok(emp) => (StatusCode::CREATED, Json(json!(emp))).into_response(),
-        Err(err) => employee_error_response(err).into_response(),
-    }
+    let emp = EmployeeRepo::create(&state.pool, &req)
+        .await
+        .map_err(map_employee_error)?;
+    Ok((StatusCode::CREATED, Json(emp)))
 }
 
-/// GET /api/timekeeping/employees/:id
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/employees/{id}",
+    params(("id" = Uuid, Path, description = "Employee UUID")),
+    responses(
+        (status = 200, description = "Employee found", body = Employee),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Employees",
+)]
 pub async fn get_employee(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match EmployeeRepo::find_by_id(&state.pool, id, &app_id).await {
-        Ok(Some(emp)) => (StatusCode::OK, Json(json!(emp))).into_response(),
-        Ok(None) => employee_error_response(EmployeeError::NotFound).into_response(),
-        Err(err) => employee_error_response(err).into_response(),
-    }
+) -> Result<Json<Employee>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let emp = EmployeeRepo::find_by_id(&state.pool, id, &app_id)
+        .await
+        .map_err(map_employee_error)?
+        .ok_or_else(|| ApiError::not_found("Employee not found"))?;
+    Ok(Json(emp))
 }
 
-/// GET /api/timekeeping/employees
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/employees",
+    responses(
+        (status = 200, description = "Employee list", body = Vec<Employee>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Employees",
+)]
 pub async fn list_employees(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match EmployeeRepo::list(&state.pool, &app_id, true).await {
-        Ok(employees) => (StatusCode::OK, Json(json!(employees))).into_response(),
-        Err(err) => employee_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<Employee>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let employees = EmployeeRepo::list(&state.pool, &app_id, true)
+        .await
+        .map_err(map_employee_error)?;
+    let total = employees.len() as i64;
+    Ok(Json(PaginatedResponse::new(employees, 1, total, total)))
 }
 
-/// PUT /api/timekeeping/employees/:id
+#[utoipa::path(
+    put,
+    path = "/api/timekeeping/employees/{id}",
+    params(("id" = Uuid, Path, description = "Employee UUID")),
+    request_body = UpdateEmployeeRequest,
+    responses(
+        (status = 200, description = "Employee updated", body = Employee),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Employees",
+)]
 pub async fn update_employee(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateEmployeeRequest>,
-) -> impl IntoResponse {
-    match EmployeeRepo::update(&state.pool, id, &req).await {
-        Ok(emp) => (StatusCode::OK, Json(json!(emp))).into_response(),
-        Err(err) => employee_error_response(err).into_response(),
-    }
+) -> Result<Json<Employee>, ApiError> {
+    let emp = EmployeeRepo::update(&state.pool, id, &req)
+        .await
+        .map_err(map_employee_error)?;
+    Ok(Json(emp))
 }
 
-/// DELETE /api/timekeeping/employees/:id
+#[utoipa::path(
+    delete,
+    path = "/api/timekeeping/employees/{id}",
+    params(("id" = Uuid, Path, description = "Employee UUID")),
+    responses(
+        (status = 200, description = "Employee deactivated", body = Employee),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Employees",
+)]
 pub async fn deactivate_employee(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match EmployeeRepo::deactivate(&state.pool, id, &app_id).await {
-        Ok(emp) => (StatusCode::OK, Json(json!(emp))).into_response(),
-        Err(err) => employee_error_response(err).into_response(),
-    }
+) -> Result<Json<Employee>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let emp = EmployeeRepo::deactivate(&state.pool, id, &app_id)
+        .await
+        .map_err(map_employee_error)?;
+    Ok(Json(emp))
 }

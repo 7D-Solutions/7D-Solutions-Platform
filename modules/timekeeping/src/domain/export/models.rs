@@ -6,13 +6,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Export status enum (mirrors tk_export_status in DB)
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "tk_export_status", rename_all = "lowercase")]
 pub enum ExportStatus {
     Pending,
@@ -25,7 +26,7 @@ pub enum ExportStatus {
 // Domain models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ExportRun {
     pub id: Uuid,
     pub app_id: String,
@@ -57,7 +58,7 @@ pub struct ExportEntry {
 }
 
 /// Generated export artifacts returned to the caller.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ExportArtifact {
     pub run: ExportRun,
     pub csv: String,
@@ -68,7 +69,7 @@ pub struct ExportArtifact {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateExportRunRequest {
     pub app_id: String,
     pub export_type: String,
@@ -118,29 +119,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn export_status_serde_roundtrip() {
+    fn export_status_serde_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         for status in [
             ExportStatus::Pending,
             ExportStatus::InProgress,
             ExportStatus::Completed,
             ExportStatus::Failed,
         ] {
-            let json = serde_json::to_string(&status).unwrap();
-            let back: ExportStatus = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&status)?;
+            let back: ExportStatus = serde_json::from_str(&json)?;
             assert_eq!(back, status);
         }
+        Ok(())
     }
 
     #[test]
-    fn create_request_deserialize() {
+    fn create_request_deserialize() -> Result<(), Box<dyn std::error::Error>> {
         let json = r#"{
             "app_id": "acme",
             "export_type": "payroll",
             "period_start": "2026-02-01",
             "period_end": "2026-02-14"
         }"#;
-        let req: CreateExportRunRequest = serde_json::from_str(json).unwrap();
+        let req: CreateExportRunRequest = serde_json::from_str(json)?;
         assert_eq!(req.app_id, "acme");
         assert_eq!(req.export_type, "payroll");
+        Ok(())
     }
 }

@@ -6,13 +6,14 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Approval status enum (mirrors tk_approval_status in DB)
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "tk_approval_status", rename_all = "lowercase")]
 pub enum ApprovalStatus {
     Draft,
@@ -25,7 +26,7 @@ pub enum ApprovalStatus {
 // Domain models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ApprovalRequest {
     pub id: Uuid,
     pub app_id: String,
@@ -42,7 +43,7 @@ pub struct ApprovalRequest {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ApprovalAction {
     pub id: i64,
     pub approval_id: Uuid,
@@ -56,7 +57,7 @@ pub struct ApprovalAction {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SubmitApprovalRequest {
     pub app_id: String,
     pub employee_id: Uuid,
@@ -65,7 +66,7 @@ pub struct SubmitApprovalRequest {
     pub actor_id: Uuid,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReviewApprovalRequest {
     pub app_id: String,
     pub approval_id: Uuid,
@@ -73,7 +74,7 @@ pub struct ReviewApprovalRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RecallApprovalRequest {
     pub app_id: String,
     pub approval_id: Uuid,
@@ -112,21 +113,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn approval_status_serde_roundtrip() {
+    fn approval_status_serde_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         for status in [
             ApprovalStatus::Draft,
             ApprovalStatus::Submitted,
             ApprovalStatus::Approved,
             ApprovalStatus::Rejected,
         ] {
-            let json = serde_json::to_string(&status).unwrap();
-            let back: ApprovalStatus = serde_json::from_str(&json).unwrap();
+            let json = serde_json::to_string(&status)?;
+            let back: ApprovalStatus = serde_json::from_str(&json)?;
             assert_eq!(back, status);
         }
+        Ok(())
     }
 
     #[test]
-    fn submit_request_deserialize() {
+    fn submit_request_deserialize() -> Result<(), Box<dyn std::error::Error>> {
         let json = r#"{
             "app_id": "acme",
             "employee_id": "00000000-0000-0000-0000-000000000001",
@@ -134,7 +136,8 @@ mod tests {
             "period_end": "2026-02-07",
             "actor_id": "00000000-0000-0000-0000-000000000001"
         }"#;
-        let req: SubmitApprovalRequest = serde_json::from_str(json).unwrap();
+        let req: SubmitApprovalRequest = serde_json::from_str(json)?;
         assert_eq!(req.app_id, "acme");
+        Ok(())
     }
 }

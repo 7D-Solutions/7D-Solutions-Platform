@@ -2,14 +2,12 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -17,7 +15,8 @@ use super::tenant::extract_tenant;
 use crate::{
     domain::approvals::{
         models::{
-            ApprovalError, RecallApprovalRequest, ReviewApprovalRequest, SubmitApprovalRequest,
+            ApprovalAction, ApprovalError, ApprovalRequest, RecallApprovalRequest,
+            ReviewApprovalRequest, SubmitApprovalRequest,
         },
         service,
     },
@@ -36,37 +35,29 @@ pub struct ListApprovalsQuery {
 }
 
 // ============================================================================
+// Sub-collection wrapper
+// ============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct DataWrapper<T: Serialize> {
+    pub data: Vec<T>,
+}
+
+// ============================================================================
 // Error mapping
 // ============================================================================
 
-fn approval_error_response(err: ApprovalError) -> impl IntoResponse {
+fn map_approval_error(err: ApprovalError) -> ApiError {
     match err {
-        ApprovalError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Approval request not found" })),
-        ),
-        ApprovalError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        ApprovalError::InvalidTransition { from, to } => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "invalid_transition",
-                "message": format!("Cannot transition from {} to {}", from, to)
-            })),
-        ),
-        ApprovalError::Duplicate => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate",
-                "message": "Approval request already exists for this period"
-            })),
-        ),
-        ApprovalError::Database(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "database_error", "message": e.to_string() })),
-        ),
+        ApprovalError::NotFound => ApiError::not_found("Approval request not found"),
+        ApprovalError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+        ApprovalError::InvalidTransition { from, to } => {
+            ApiError::conflict(format!("Cannot transition from {} to {}", from, to))
+        }
+        ApprovalError::Duplicate => {
+            ApiError::conflict("Approval request already exists for this period")
+        }
+        ApprovalError::Database(e) => ApiError::internal(e.to_string()),
     }
 }
 
@@ -74,128 +65,201 @@ fn approval_error_response(err: ApprovalError) -> impl IntoResponse {
 // Handlers
 // ============================================================================
 
-/// POST /api/timekeeping/approvals/submit
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/approvals/submit",
+    request_body = SubmitApprovalRequest,
+    responses(
+        (status = 200, description = "Approval submitted", body = ApprovalRequest),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 409, description = "Duplicate or invalid transition", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn submit_approval(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<SubmitApprovalRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<Json<ApprovalRequest>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::submit(&state.pool, &req).await {
-        Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+    let approval = service::submit(&state.pool, &req)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(approval))
 }
 
-/// POST /api/timekeeping/approvals/approve
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/approvals/approve",
+    request_body = ReviewApprovalRequest,
+    responses(
+        (status = 200, description = "Approval approved", body = ApprovalRequest),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Invalid transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn approve_approval(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<ReviewApprovalRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<Json<ApprovalRequest>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::approve(&state.pool, &req).await {
-        Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+    let approval = service::approve(&state.pool, &req)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(approval))
 }
 
-/// POST /api/timekeeping/approvals/reject
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/approvals/reject",
+    request_body = ReviewApprovalRequest,
+    responses(
+        (status = 200, description = "Approval rejected", body = ApprovalRequest),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Invalid transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn reject_approval(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<ReviewApprovalRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<Json<ApprovalRequest>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::reject(&state.pool, &req).await {
-        Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+    let approval = service::reject(&state.pool, &req)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(approval))
 }
 
-/// POST /api/timekeeping/approvals/recall
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/approvals/recall",
+    request_body = RecallApprovalRequest,
+    responses(
+        (status = 200, description = "Approval recalled", body = ApprovalRequest),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Invalid transition", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn recall_approval(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<RecallApprovalRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<Json<ApprovalRequest>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::recall(&state.pool, &req).await {
-        Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+    let approval = service::recall(&state.pool, &req)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(approval))
 }
 
-/// GET /api/timekeeping/approvals
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/approvals",
+    params(
+        ("employee_id" = Uuid, Query, description = "Employee UUID"),
+        ("from" = NaiveDate, Query, description = "Period start date"),
+        ("to" = NaiveDate, Query, description = "Period end date"),
+    ),
+    responses(
+        (status = 200, description = "Approval list", body = Vec<ApprovalRequest>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn list_approvals(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListApprovalsQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::list_approvals(&state.pool, &app_id, q.employee_id, q.from, q.to).await {
-        Ok(approvals) => (StatusCode::OK, Json(json!(approvals))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<ApprovalRequest>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let approvals = service::list_approvals(&state.pool, &app_id, q.employee_id, q.from, q.to)
+        .await
+        .map_err(map_approval_error)?;
+    let total = approvals.len() as i64;
+    Ok(Json(PaginatedResponse::new(approvals, 1, total, total)))
 }
 
-/// GET /api/timekeeping/approvals/pending
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/approvals/pending",
+    responses(
+        (status = 200, description = "Pending approvals", body = Vec<ApprovalRequest>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn list_pending(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::list_pending_review(&state.pool, &app_id).await {
-        Ok(approvals) => (StatusCode::OK, Json(json!(approvals))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<ApprovalRequest>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let approvals = service::list_pending_review(&state.pool, &app_id)
+        .await
+        .map_err(map_approval_error)?;
+    let total = approvals.len() as i64;
+    Ok(Json(PaginatedResponse::new(approvals, 1, total, total)))
 }
 
-/// GET /api/timekeeping/approvals/:id
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/approvals/{id}",
+    params(("id" = Uuid, Path, description = "Approval UUID")),
+    responses(
+        (status = 200, description = "Approval found", body = ApprovalRequest),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn get_approval(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::get_approval(&state.pool, &app_id, id).await {
-        Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+) -> Result<Json<ApprovalRequest>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let approval = service::get_approval(&state.pool, &app_id, id)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(approval))
 }
 
-/// GET /api/timekeeping/approvals/:id/actions
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/approvals/{id}/actions",
+    params(("id" = Uuid, Path, description = "Approval UUID")),
+    responses(
+        (status = 200, description = "Approval action history", body = Vec<ApprovalAction>),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Approvals",
+)]
 pub async fn approval_actions(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    match service::approval_actions(&state.pool, id).await {
-        Ok(actions) => (StatusCode::OK, Json(json!(actions))).into_response(),
-        Err(err) => approval_error_response(err).into_response(),
-    }
+) -> Result<Json<DataWrapper<ApprovalAction>>, ApiError> {
+    let actions = service::approval_actions(&state.pool, id)
+        .await
+        .map_err(map_approval_error)?;
+    Ok(Json(DataWrapper { data: actions }))
 }

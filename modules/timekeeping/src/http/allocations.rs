@@ -3,20 +3,22 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::tenant::extract_tenant;
 use crate::{
     domain::allocations::{
-        models::{AllocationError, CreateAllocationRequest, UpdateAllocationRequest},
+        models::{
+            Allocation, AllocationError, CreateAllocationRequest, EmployeeRollup, ProjectRollup,
+            TaskRollup, UpdateAllocationRequest,
+        },
         service,
     },
     AppState,
@@ -48,20 +50,11 @@ fn default_true() -> bool {
 // Error mapping
 // ============================================================================
 
-fn allocation_error_response(err: AllocationError) -> impl IntoResponse {
+fn map_allocation_error(err: AllocationError) -> ApiError {
     match err {
-        AllocationError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Allocation not found" })),
-        ),
-        AllocationError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        AllocationError::Database(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "database_error", "message": e.to_string() })),
-        ),
+        AllocationError::NotFound => ApiError::not_found("Allocation not found"),
+        AllocationError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+        AllocationError::Database(e) => ApiError::internal(e.to_string()),
     }
 }
 
@@ -69,34 +62,53 @@ fn allocation_error_response(err: AllocationError) -> impl IntoResponse {
 // Allocation CRUD handlers
 // ============================================================================
 
-/// POST /api/timekeeping/allocations
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/allocations",
+    request_body = CreateAllocationRequest,
+    responses(
+        (status = 201, description = "Allocation created", body = Allocation),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Allocations",
+)]
 pub async fn create_allocation(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateAllocationRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<(StatusCode, Json<Allocation>), ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::create_allocation(&state.pool, &req).await {
-        Ok(alloc) => (StatusCode::CREATED, Json(json!(alloc))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+    let alloc = service::create_allocation(&state.pool, &req)
+        .await
+        .map_err(map_allocation_error)?;
+    Ok((StatusCode::CREATED, Json(alloc)))
 }
 
-/// GET /api/timekeeping/allocations
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/allocations",
+    params(
+        ("employee_id" = Option<Uuid>, Query, description = "Filter by employee"),
+        ("project_id" = Option<Uuid>, Query, description = "Filter by project"),
+        ("active_only" = bool, Query, description = "Active only (default true)"),
+    ),
+    responses(
+        (status = 200, description = "Allocation list", body = Vec<Allocation>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Allocations",
+)]
 pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<AllocationListQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::list_allocations(
+) -> Result<Json<PaginatedResponse<Allocation>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let allocs = service::list_allocations(
         &state.pool,
         &app_id,
         q.employee_id,
@@ -104,105 +116,166 @@ pub async fn list_allocations(
         q.active_only,
     )
     .await
-    {
-        Ok(allocs) => (StatusCode::OK, Json(json!(allocs))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+    .map_err(map_allocation_error)?;
+    let total = allocs.len() as i64;
+    Ok(Json(PaginatedResponse::new(allocs, 1, total, total)))
 }
 
-/// GET /api/timekeeping/allocations/:id
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/allocations/{id}",
+    params(("id" = Uuid, Path, description = "Allocation UUID")),
+    responses(
+        (status = 200, description = "Allocation found", body = Allocation),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Allocations",
+)]
 pub async fn get_allocation(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::get_allocation(&state.pool, id, &app_id).await {
-        Ok(alloc) => (StatusCode::OK, Json(json!(alloc))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<Allocation>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let alloc = service::get_allocation(&state.pool, id, &app_id)
+        .await
+        .map_err(map_allocation_error)?;
+    Ok(Json(alloc))
 }
 
-/// PUT /api/timekeeping/allocations/:id
+#[utoipa::path(
+    put,
+    path = "/api/timekeeping/allocations/{id}",
+    params(("id" = Uuid, Path, description = "Allocation UUID")),
+    request_body = UpdateAllocationRequest,
+    responses(
+        (status = 200, description = "Allocation updated", body = Allocation),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Allocations",
+)]
 pub async fn update_allocation(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateAllocationRequest>,
-) -> impl IntoResponse {
-    match service::update_allocation(&state.pool, id, &req).await {
-        Ok(alloc) => (StatusCode::OK, Json(json!(alloc))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<Allocation>, ApiError> {
+    let alloc = service::update_allocation(&state.pool, id, &req)
+        .await
+        .map_err(map_allocation_error)?;
+    Ok(Json(alloc))
 }
 
-/// DELETE /api/timekeeping/allocations/:id
+#[utoipa::path(
+    delete,
+    path = "/api/timekeeping/allocations/{id}",
+    params(("id" = Uuid, Path, description = "Allocation UUID")),
+    responses(
+        (status = 200, description = "Allocation deactivated", body = Allocation),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Allocations",
+)]
 pub async fn deactivate_allocation(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::deactivate_allocation(&state.pool, id, &app_id).await {
-        Ok(alloc) => (StatusCode::OK, Json(json!(alloc))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<Allocation>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let alloc = service::deactivate_allocation(&state.pool, id, &app_id)
+        .await
+        .map_err(map_allocation_error)?;
+    Ok(Json(alloc))
 }
 
 // ============================================================================
 // Rollup handlers (actual time from entries)
 // ============================================================================
 
-/// GET /api/timekeeping/rollups/by-project
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/rollups/by-project",
+    params(
+        ("from" = NaiveDate, Query, description = "Period start date"),
+        ("to" = NaiveDate, Query, description = "Period end date"),
+    ),
+    responses(
+        (status = 200, description = "Project rollups", body = Vec<ProjectRollup>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Rollups",
+)]
 pub async fn rollup_by_project(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<RollupQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::rollup_by_project(&state.pool, &app_id, q.from, q.to).await {
-        Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<ProjectRollup>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let rows = service::rollup_by_project(&state.pool, &app_id, q.from, q.to)
+        .await
+        .map_err(map_allocation_error)?;
+    let total = rows.len() as i64;
+    Ok(Json(PaginatedResponse::new(rows, 1, total, total)))
 }
 
-/// GET /api/timekeeping/rollups/by-employee
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/rollups/by-employee",
+    params(
+        ("from" = NaiveDate, Query, description = "Period start date"),
+        ("to" = NaiveDate, Query, description = "Period end date"),
+    ),
+    responses(
+        (status = 200, description = "Employee rollups", body = Vec<EmployeeRollup>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Rollups",
+)]
 pub async fn rollup_by_employee(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<RollupQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::rollup_by_employee(&state.pool, &app_id, q.from, q.to).await {
-        Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<EmployeeRollup>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let rows = service::rollup_by_employee(&state.pool, &app_id, q.from, q.to)
+        .await
+        .map_err(map_allocation_error)?;
+    let total = rows.len() as i64;
+    Ok(Json(PaginatedResponse::new(rows, 1, total, total)))
 }
 
-/// GET /api/timekeeping/rollups/by-task/:project_id
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/rollups/by-task/{project_id}",
+    params(
+        ("project_id" = Uuid, Path, description = "Project UUID"),
+        ("from" = NaiveDate, Query, description = "Period start date"),
+        ("to" = NaiveDate, Query, description = "Period end date"),
+    ),
+    responses(
+        (status = 200, description = "Task rollups for project", body = Vec<TaskRollup>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Rollups",
+)]
 pub async fn rollup_by_task(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(project_id): Path<Uuid>,
     Query(q): Query<RollupQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::rollup_by_task(&state.pool, &app_id, project_id, q.from, q.to).await {
-        Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
-        Err(err) => allocation_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<TaskRollup>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let rows = service::rollup_by_task(&state.pool, &app_id, project_id, q.from, q.to)
+        .await
+        .map_err(map_allocation_error)?;
+    let total = rows.len() as i64;
+    Ok(Json(PaginatedResponse::new(rows, 1, total, total)))
 }

@@ -1,5 +1,4 @@
 pub mod admin;
-pub mod admin_types;
 pub mod allocations;
 pub mod approvals;
 pub mod billing;

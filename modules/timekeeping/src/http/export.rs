@@ -3,19 +3,18 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     Extension, Json,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::tenant::extract_tenant;
 use crate::{
     domain::export::{
-        models::{CreateExportRunRequest, ExportError},
+        models::{CreateExportRunRequest, ExportArtifact, ExportError, ExportRun},
         service,
     },
     AppState,
@@ -34,35 +33,20 @@ pub struct ListExportsQuery {
 // Error mapping
 // ============================================================================
 
-fn export_error_response(err: ExportError) -> impl IntoResponse {
+fn map_export_error(err: ExportError) -> ApiError {
     match err {
-        ExportError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Export run not found" })),
+        ExportError::NotFound => ApiError::not_found("Export run not found"),
+        ExportError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+        ExportError::NoApprovedEntries => ApiError::new(
+            422,
+            "no_approved_entries",
+            "No approved timesheet entries found for this period",
         ),
-        ExportError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        ExportError::NoApprovedEntries => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "no_approved_entries",
-                "message": "No approved timesheet entries found for this period"
-            })),
-        ),
-        ExportError::IdempotentReplay { run_id } => (
-            StatusCode::OK,
-            Json(json!({
-                "error": "idempotent_replay",
-                "message": "Export with identical content already exists",
-                "existing_run_id": run_id
-            })),
-        ),
-        ExportError::Database(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": "database_error", "message": e.to_string() })),
-        ),
+        ExportError::IdempotentReplay { run_id } => ApiError::conflict(format!(
+            "Export with identical content already exists: {}",
+            run_id
+        )),
+        ExportError::Database(e) => ApiError::internal(e.to_string()),
     }
 }
 
@@ -70,51 +54,76 @@ fn export_error_response(err: ExportError) -> impl IntoResponse {
 // Handlers
 // ============================================================================
 
-/// POST /api/timekeeping/exports
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/exports",
+    request_body = CreateExportRunRequest,
+    responses(
+        (status = 201, description = "Export run created", body = ExportArtifact),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 409, description = "Idempotent replay", body = ApiError),
+        (status = 422, description = "Validation or no approved entries", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Exports",
+)]
 pub async fn create_export(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateExportRunRequest>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
+) -> Result<(StatusCode, Json<ExportArtifact>), ApiError> {
+    let app_id = extract_tenant(&claims)?;
     req.app_id = app_id;
-    match service::create_export_run(&state.pool, &req).await {
-        Ok(artifact) => (StatusCode::CREATED, Json(json!(artifact))).into_response(),
-        Err(err) => export_error_response(err).into_response(),
-    }
+    let artifact = service::create_export_run(&state.pool, &req)
+        .await
+        .map_err(map_export_error)?;
+    Ok((StatusCode::CREATED, Json(artifact)))
 }
 
-/// GET /api/timekeeping/exports/:id
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/exports/{id}",
+    params(("id" = Uuid, Path, description = "Export run UUID")),
+    responses(
+        (status = 200, description = "Export run found", body = ExportRun),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Exports",
+)]
 pub async fn get_export(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::get_export_run(&state.pool, &app_id, id).await {
-        Ok(run) => (StatusCode::OK, Json(json!(run))).into_response(),
-        Err(err) => export_error_response(err).into_response(),
-    }
+) -> Result<Json<ExportRun>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let run = service::get_export_run(&state.pool, &app_id, id)
+        .await
+        .map_err(map_export_error)?;
+    Ok(Json(run))
 }
 
-/// GET /api/timekeeping/exports
+#[utoipa::path(
+    get,
+    path = "/api/timekeeping/exports",
+    params(("export_type" = Option<String>, Query, description = "Filter by export type")),
+    responses(
+        (status = 200, description = "Export run list", body = Vec<ExportRun>),
+        (status = 401, description = "Unauthorized", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Exports",
+)]
 pub async fn list_exports(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListExportsQuery>,
-) -> impl IntoResponse {
-    let app_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return e.into_response(),
-    };
-    match service::list_export_runs(&state.pool, &app_id, q.export_type.as_deref()).await {
-        Ok(runs) => (StatusCode::OK, Json(json!(runs))).into_response(),
-        Err(err) => export_error_response(err).into_response(),
-    }
+) -> Result<Json<PaginatedResponse<ExportRun>>, ApiError> {
+    let app_id = extract_tenant(&claims)?;
+    let runs = service::list_export_runs(&state.pool, &app_id, q.export_type.as_deref())
+        .await
+        .map_err(map_export_error)?;
+    let total = runs.len() as i64;
+    Ok(Json(PaginatedResponse::new(runs, 1, total, total)))
 }

@@ -9,13 +9,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
 // Domain models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Project {
     pub id: Uuid,
     pub app_id: String,
@@ -29,7 +30,7 @@ pub struct Project {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Task {
     pub id: Uuid,
     pub app_id: String,
@@ -45,7 +46,7 @@ pub struct Task {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateProjectRequest {
     pub app_id: String,
     pub project_code: String,
@@ -55,7 +56,7 @@ pub struct CreateProjectRequest {
     pub gl_account_ref: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateProjectRequest {
     pub app_id: String,
     pub name: Option<String>,
@@ -64,7 +65,7 @@ pub struct UpdateProjectRequest {
     pub gl_account_ref: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateTaskRequest {
     pub app_id: String,
     pub project_id: Uuid,
@@ -72,7 +73,7 @@ pub struct CreateTaskRequest {
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateTaskRequest {
     pub app_id: String,
     pub name: Option<String>,

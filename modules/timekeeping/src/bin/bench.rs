@@ -19,14 +19,8 @@ use timekeeping::domain::{
         models::{ReviewApprovalRequest, SubmitApprovalRequest},
         service as approval_svc,
     },
-    employees::{
-        models::CreateEmployeeRequest,
-        service::EmployeeRepo,
-    },
-    entries::{
-        models::CreateEntryRequest,
-        service as entry_svc,
-    },
+    employees::{models::CreateEmployeeRequest, service::EmployeeRepo},
+    entries::{models::CreateEntryRequest, service as entry_svc},
 };
 use uuid::Uuid;
 
@@ -187,9 +181,8 @@ async fn bench_approval_flow(
     bench: &mut BenchResult,
 ) {
     let offset = bench.samples.len() as i64;
-    let period_start =
-        NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date")
-            + chrono::Duration::days(offset * 7);
+    let period_start = NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date")
+        + chrono::Duration::days(offset * 7);
     let period_end = period_start + chrono::Duration::days(6);
 
     // Create an entry in the period first

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-03-28 | bd-28v5u | Initial proof. Time entry CRUD, timesheet lifecycle, approval workflow, labor costing, overtime calculations, project/work-order allocation, admin endpoints, event publishing, multi-tenant isolation. 64 unit tests pass, clippy clean. | Timekeeping module complete and proven. All gates pass. | No |
+| 2.0.0 | 2026-03-30 | bd-qtry2 | Response envelopes: 11 list endpoints wrapped in PaginatedResponse (employees, projects, entries, approvals, pending, allocations, exports, rates, rollup-by-project, rollup-by-employee, rollup-by-task). 3 sub-collections wrapped in {data:[]}. All handlers return Result<…, ApiError> — replaced inline json!() error construction with platform-http-contracts ApiError. Admin endpoints migrated to ApiError. Removed ErrorBody (admin_types.rs). Added utoipa ToSchema to all domain model structs and enums. | Plug-and-play: consumers get consistent paginated envelopes and structured error responses across all timekeeping endpoints. | YES: All list endpoints now return `{data:[], pagination:{…}}` instead of bare arrays. Error responses changed from ad-hoc JSON to `{error, message, request_id?, details?}`. Consumers must update response parsing. |
 
 ## How to read this table
 
