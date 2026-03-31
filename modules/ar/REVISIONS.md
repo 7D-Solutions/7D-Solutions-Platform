@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.0 | 2026-03-30 | bd-m7hi6 | Add utoipa OpenAPI annotations to all 62 handler functions. Serve /api/openapi.json. Bearer JWT security scheme for API routes; HMAC for Tilled webhook. | Plug-and-play: consumers discover endpoints and types from the spec. | No |
 | 2.0.1 | 2026-03-30 | bd-tfnv7 | Continue ApiError migration — events, dunning, admin, reconciliation, usage, tax, customers handlers migrated. | Same bead, incremental progress. | No |
 | 2.0.0 | 2026-03-30 | bd-tfnv7 | Replace `ErrorResponse` with `ApiError` from platform-http-contracts across all handlers. Add `PaginatedResponse` wrapping for list endpoints. Webhook responses to Tilled preserved (identical JSON format). | Plug-and-play envelope standardization — consistent error/pagination contract across all modules. | YES: Error responses now include optional `request_id` and `details` fields. List endpoints return `PaginatedResponse<T>` instead of `Vec<T>`. |
 | 1.0.65 | 2026-03-30 | bd-wwgiq | Split `http/webhooks.rs` (1256 LOC) into 7 files: `webhooks/mod.rs` (receive handler + dispatcher), `signature.rs`, `customer.rs`, `payments.rs` (payment_intent + charge + invoice), `payment_methods.rs`, `subscriptions.rs`, `admin.rs` (list/get/replay). All under 500 LOC. | File exceeded 500 LOC limit; split required for CI compliance. | No |

@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
 /// Standard error response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ErrorResponse {
     pub error: String,
     pub message: String,
@@ -32,7 +33,7 @@ pub struct IdempotencyKey {
 }
 
 /// Event record from ar_events table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Event {
     pub id: i32,
     pub app_id: String,
@@ -45,7 +46,7 @@ pub struct Event {
 }
 
 /// Query parameters for listing events
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListEventsQuery {
     pub entity_id: Option<String>,
     pub entity_type: Option<String>,
@@ -58,7 +59,7 @@ pub struct ListEventsQuery {
 }
 
 /// Dispute record from ar_disputes table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Dispute {
     pub id: i32,
     pub app_id: String,
@@ -78,13 +79,13 @@ pub struct Dispute {
 }
 
 /// Request body for submitting dispute evidence
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SubmitDisputeEvidenceRequest {
     pub evidence: JsonValue,
 }
 
 /// Query parameters for listing disputes
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListDisputesQuery {
     pub charge_id: Option<i32>,
     pub status: Option<String>,

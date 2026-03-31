@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
 /// Webhook status enum (matches ar_webhooks_status in schema)
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, ToSchema)]
 #[sqlx(type_name = "ar_webhooks_status", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum WebhookStatus {
@@ -14,7 +15,7 @@ pub enum WebhookStatus {
 }
 
 /// Webhook record from ar_webhooks table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Webhook {
     pub id: i32,
     pub app_id: String,
@@ -48,7 +49,7 @@ pub struct WebhookAttempt {
 }
 
 /// Incoming Tilled webhook event payload
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
 pub struct TilledWebhookEvent {
     pub id: String,
     #[serde(rename = "type")]
@@ -59,13 +60,13 @@ pub struct TilledWebhookEvent {
 }
 
 /// Request to replay a failed webhook
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ReplayWebhookRequest {
     pub force: Option<bool>,
 }
 
 /// Query parameters for listing webhooks
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListWebhooksQuery {
     pub event_type: Option<String>,
     pub status: Option<String>,

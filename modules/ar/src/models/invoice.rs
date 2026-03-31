@@ -1,10 +1,11 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 pub use uuid::Uuid;
 
 /// Invoice status enum
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(transparent)]
 #[serde(rename_all = "lowercase")]
 pub struct InvoiceStatus(pub String);
@@ -18,7 +19,7 @@ impl InvoiceStatus {
 }
 
 /// Invoice record from ar_invoices table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Invoice {
     pub id: i32,
     pub app_id: String,
@@ -45,7 +46,7 @@ pub struct Invoice {
 }
 
 /// Request body for creating an invoice
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateInvoiceRequest {
     pub ar_customer_id: i32,
     pub subscription_id: Option<i32>,
@@ -64,7 +65,7 @@ pub struct CreateInvoiceRequest {
 }
 
 /// Request body for updating an invoice
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateInvoiceRequest {
     pub status: Option<String>,
     pub amount_cents: Option<i32>,
@@ -73,13 +74,13 @@ pub struct UpdateInvoiceRequest {
 }
 
 /// Request body for finalizing an invoice
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct FinalizeInvoiceRequest {
     pub paid_at: Option<NaiveDateTime>,
 }
 
 /// Query parameters for listing invoices
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListInvoicesQuery {
     pub customer_id: Option<i32>,
     pub subscription_id: Option<i32>,
@@ -89,7 +90,7 @@ pub struct ListInvoicesQuery {
 }
 
 /// Invoice attempt status enum (Phase 15 lifecycle states)
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "ar_invoice_attempt_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum InvoiceAttemptStatus {

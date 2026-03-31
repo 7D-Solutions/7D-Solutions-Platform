@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Payload for ar.payment.collection.requested event
@@ -49,7 +50,7 @@ pub struct GlPostingLine {
 }
 
 /// Request body for POST /api/ar/usage — capture metered usage
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CaptureUsageRequest {
     pub idempotency_key: Uuid,
     pub customer_id: String,
@@ -63,7 +64,7 @@ pub struct CaptureUsageRequest {
 }
 
 /// Response for a captured usage record
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, sqlx::FromRow, ToSchema)]
 pub struct UsageRecord {
     pub id: i32,
     pub usage_uuid: Uuid,

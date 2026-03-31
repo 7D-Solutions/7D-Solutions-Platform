@@ -18,6 +18,7 @@
 
 use serde::Serialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -25,7 +26,7 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Pre-computed aging snapshot for one (app_id, customer_id, currency)
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct AgingSnapshot {
     pub id: i32,
     pub app_id: String,

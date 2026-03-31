@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
 /// Charge status enum
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(transparent)]
 #[serde(rename_all = "lowercase")]
 pub struct ChargeStatus(pub String);
@@ -17,7 +18,7 @@ impl ChargeStatus {
 }
 
 /// Charge record from ar_charges table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Charge {
     pub id: i32,
     pub app_id: String,
@@ -46,7 +47,7 @@ pub struct Charge {
 }
 
 /// Request body for creating a charge
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateChargeRequest {
     pub ar_customer_id: i32,
     pub amount_cents: i32,
@@ -60,13 +61,13 @@ pub struct CreateChargeRequest {
 }
 
 /// Request body for capturing an authorized charge
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CaptureChargeRequest {
     pub amount_cents: Option<i32>,
 }
 
 /// Query parameters for listing charges
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListChargesQuery {
     pub customer_id: Option<i32>,
     pub invoice_id: Option<i32>,

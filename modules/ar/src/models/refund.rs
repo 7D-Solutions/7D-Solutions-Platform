@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
 /// Refund record from ar_refunds table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Refund {
     pub id: i32,
     pub app_id: String,
@@ -25,7 +26,7 @@ pub struct Refund {
 }
 
 /// Request body for creating a refund
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRefundRequest {
     pub charge_id: i32,
     pub amount_cents: i32,
@@ -37,7 +38,7 @@ pub struct CreateRefundRequest {
 }
 
 /// Query parameters for listing refunds
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListRefundsQuery {
     pub charge_id: Option<i32>,
     pub customer_id: Option<i32>,

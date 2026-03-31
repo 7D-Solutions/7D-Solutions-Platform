@@ -1,9 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 
 /// Payment method record from ar_payment_methods table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PaymentMethod {
     pub id: i32,
     pub app_id: String,
@@ -27,26 +28,26 @@ pub struct PaymentMethod {
 }
 
 /// Request body for adding a payment method
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AddPaymentMethodRequest {
     pub ar_customer_id: i32,
     pub tilled_payment_method_id: String,
 }
 
 /// Request body for updating a payment method
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdatePaymentMethodRequest {
     pub metadata: Option<JsonValue>,
 }
 
 /// Request body for setting default payment method
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SetDefaultPaymentMethodRequest {
     pub tilled_payment_method_id: String,
 }
 
 /// Query parameters for listing payment methods
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListPaymentMethodsQuery {
     pub customer_id: Option<i32>,
     pub status: Option<String>,

@@ -1,10 +1,11 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Subscription status enum
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "ar_subscriptions_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum SubscriptionStatus {
@@ -21,7 +22,7 @@ pub enum SubscriptionStatus {
 }
 
 /// Subscription interval enum
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "ar_subscriptions_interval", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum SubscriptionInterval {
@@ -32,7 +33,7 @@ pub enum SubscriptionInterval {
 }
 
 /// Subscription record from ar_subscriptions table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Subscription {
     pub id: i32,
     pub app_id: String,
@@ -64,7 +65,7 @@ pub struct Subscription {
 }
 
 /// Request body for creating a subscription
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateSubscriptionRequest {
     pub ar_customer_id: i32,
     pub payment_method_id: String,
@@ -79,7 +80,7 @@ pub struct CreateSubscriptionRequest {
 }
 
 /// Request body for updating a subscription
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateSubscriptionRequest {
     pub plan_id: Option<String>,
     pub plan_name: Option<String>,
@@ -88,13 +89,13 @@ pub struct UpdateSubscriptionRequest {
 }
 
 /// Request body for canceling a subscription
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CancelSubscriptionRequest {
     pub cancel_at_period_end: Option<bool>,
 }
 
 /// Query parameters for listing subscriptions
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListSubscriptionsQuery {
     pub customer_id: Option<i32>,
     pub status: Option<SubscriptionStatus>,

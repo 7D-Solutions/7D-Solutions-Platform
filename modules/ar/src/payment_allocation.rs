@@ -10,6 +10,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::contracts::{
@@ -22,7 +23,7 @@ use crate::events::outbox::enqueue_event_tx;
 // Request / Response types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AllocatePaymentRequest {
     pub payment_id: String,
     pub customer_id: i32,
@@ -31,7 +32,7 @@ pub struct AllocatePaymentRequest {
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AllocationResult {
     pub payment_id: String,
     pub allocated_amount_cents: i32,
@@ -40,7 +41,7 @@ pub struct AllocationResult {
     pub allocations: Vec<AllocationRow>,
 }
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct AllocationRow {
     pub id: i32,
     pub invoice_id: i32,

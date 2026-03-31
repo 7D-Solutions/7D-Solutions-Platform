@@ -1,10 +1,11 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Customer record from ar_customers table
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Customer {
     pub id: i32,
     pub app_id: String,
@@ -30,7 +31,7 @@ pub struct Customer {
 }
 
 /// Request body for creating a customer
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateCustomerRequest {
     pub email: Option<String>,
     pub name: Option<String>,
@@ -41,7 +42,7 @@ pub struct CreateCustomerRequest {
 }
 
 /// Request body for updating a customer
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateCustomerRequest {
     pub email: Option<String>,
     pub name: Option<String>,
@@ -51,7 +52,7 @@ pub struct UpdateCustomerRequest {
 }
 
 /// Query parameters for listing customers
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListCustomersQuery {
     pub external_customer_id: Option<String>,
     pub limit: Option<i32>,
