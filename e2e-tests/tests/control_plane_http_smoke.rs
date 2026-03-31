@@ -17,10 +17,26 @@ fn cp_url() -> String {
 }
 
 async fn wait_for_control_plane(client: &Client) -> bool {
-    let url = format!("{}/api/ready", cp_url());
+    // First check basic connectivity
+    let ready_url = format!("{}/api/ready", cp_url());
     for attempt in 1..=15 {
-        match client.get(&url).send().await {
-            Ok(r) if r.status().is_success() => return true,
+        match client.get(&ready_url).send().await {
+            Ok(r) if r.status().is_success() => {
+                // Verify this is actually the control plane by probing a
+                // control-plane-specific route. Other services (e.g. inventory)
+                // share /api/ready but won't have /api/control/tenants.
+                let probe = format!("{}/api/control/tenants", cp_url());
+                match client.get(&probe).send().await {
+                    Ok(r) if r.status().as_u16() != 404 => return true,
+                    _ => {
+                        eprintln!(
+                            "  Service at {} is not the control plane (no /api/control/tenants)",
+                            cp_url()
+                        );
+                        return false;
+                    }
+                }
+            }
             Ok(r) => eprintln!("  Control-Plane ready {}/15: {}", attempt, r.status()),
             Err(e) => eprintln!("  Control-Plane ready {}/15: {}", attempt, e),
         }
