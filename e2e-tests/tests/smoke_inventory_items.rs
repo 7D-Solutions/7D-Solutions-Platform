@@ -150,6 +150,7 @@ async fn smoke_inventory_items_crud() {
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "Create UOM failed: {status} - {body}");
+    let ea_uom_id = body["id"].as_str().expect("No id in UOM response").to_string();
     println!("  created UOM: {body}");
 
     assert_unauth(
@@ -251,8 +252,13 @@ async fn smoke_inventory_items_crud() {
         .json(&json!({
             "tenant_id": tenant_id,
             "item_id": item_id,
-            "revision_code": "A",
+            "name": "Rev A",
             "description": "Initial revision",
+            "uom": "EA",
+            "inventory_account_ref": "1200",
+            "cogs_account_ref": "5000",
+            "variance_account_ref": "5100",
+            "change_reason": "Initial revision creation",
             "idempotency_key": Uuid::new_v4()
         }))
         .send()
@@ -294,8 +300,9 @@ async fn smoke_inventory_items_crud() {
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": tenant_id,
-            "lot_tracked": true,
-            "serial_tracked": false,
+            "traceability_level": "lot",
+            "inspection_required": false,
+            "shelf_life_enforced": false,
             "idempotency_key": Uuid::new_v4()
         }))
         .send()
@@ -318,6 +325,7 @@ async fn smoke_inventory_items_crud() {
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": tenant_id,
+            "effective_from": Utc::now().to_rfc3339(),
             "idempotency_key": Uuid::new_v4()
         }))
         .send()
@@ -337,9 +345,10 @@ async fn smoke_inventory_items_crud() {
         .post(format!("{base}/api/inventory/items/{item_id}/labels"))
         .bearer_auth(&jwt)
         .json(&json!({
+            "tenant_id": tenant_id,
             "item_id": item_id,
             "revision_id": revision_id,
-            "label_type": "item",
+            "label_type": "item_label",
             "barcode_format": "code128",
             "idempotency_key": Uuid::new_v4()
         }))
@@ -396,7 +405,10 @@ async fn smoke_inventory_items_crud() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Create UOM2 failed: {}", resp.status());
+    let dz_status = resp.status();
+    let dz_body: Value = resp.json().await.unwrap_or(json!({}));
+    assert!(dz_status.is_success(), "Create UOM2 failed: {dz_status} - {dz_body}");
+    let dz_uom_id = dz_body["id"].as_str().expect("No id in UOM2 response").to_string();
 
     let resp = client
         .post(format!(
@@ -405,8 +417,8 @@ async fn smoke_inventory_items_crud() {
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": tenant_id,
-            "from_uom": "EA",
-            "to_uom": "DZ",
+            "from_uom_id": ea_uom_id,
+            "to_uom_id": dz_uom_id,
             "factor": 12.0,
             "idempotency_key": Uuid::new_v4()
         }))
