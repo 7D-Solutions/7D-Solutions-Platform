@@ -66,3 +66,36 @@ impl utoipa::Modify for SecurityAddon {
 pub async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn openapi_spec_is_valid_json() {
+        let spec = ApiDoc::openapi();
+        let json = serde_json::to_string_pretty(&spec)
+            .expect("OpenAPI spec must serialize to JSON");
+        assert!(json.contains("\"openapi\""), "must contain openapi version");
+        assert!(
+            json.contains("/api/quality-inspection/plans"),
+            "must contain plans path"
+        );
+        assert!(
+            json.contains("/api/quality-inspection/inspections"),
+            "must contain inspections path"
+        );
+        assert!(
+            json.contains("\"InspectionPlan\""),
+            "must have InspectionPlan schema"
+        );
+        assert!(
+            json.contains("\"Inspection\""),
+            "must have Inspection schema"
+        );
+        assert!(
+            json.contains("\"ApiError\""),
+            "must have ApiError schema"
+        );
+    }
+}
