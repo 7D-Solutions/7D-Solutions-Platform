@@ -201,3 +201,86 @@ async fn update_with_wrong_tenant_must_not_affect_rows() {
 
     assert_eq!(status, "active", "Subscription should still be active");
 }
+
+#[tokio::test]
+#[serial]
+async fn bill_run_tenant_isolation() {
+    // bd-dwb41: Bill runs must be scoped by tenant_id.
+    // Tenant B must not see tenant A's bill run records.
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    let bill_run_id_a = format!("br-{}", Uuid::new_v4());
+    let bill_run_id_b = format!("br-{}", Uuid::new_v4());
+
+    // Create bill run for tenant A
+    sqlx::query(
+        "INSERT INTO bill_runs (bill_run_id, tenant_id, execution_date, status, subscriptions_processed, invoices_created, failures)
+         VALUES ($1, $2, CURRENT_DATE, 'completed', 5, 5, 0)",
+    )
+    .bind(&bill_run_id_a)
+    .bind(&tenant_a)
+    .execute(&pool)
+    .await
+    .expect("Failed to create bill run for tenant A");
+
+    // Create bill run for tenant B
+    sqlx::query(
+        "INSERT INTO bill_runs (bill_run_id, tenant_id, execution_date, status, subscriptions_processed, invoices_created, failures)
+         VALUES ($1, $2, CURRENT_DATE, 'completed', 3, 3, 0)",
+    )
+    .bind(&bill_run_id_b)
+    .bind(&tenant_b)
+    .execute(&pool)
+    .await
+    .expect("Failed to create bill run for tenant B");
+
+    // Tenant B must NOT see tenant A's bill run
+    let cross_read: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2",
+    )
+    .bind(&bill_run_id_a)
+    .bind(&tenant_b)
+    .fetch_optional(&pool)
+    .await
+    .expect("Query should succeed");
+
+    assert!(
+        cross_read.is_none(),
+        "Tenant B must NOT see tenant A's bill run via scoped query"
+    );
+
+    // Tenant A should see their own bill run
+    let own_read: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2",
+    )
+    .bind(&bill_run_id_a)
+    .bind(&tenant_a)
+    .fetch_optional(&pool)
+    .await
+    .expect("Query should succeed");
+
+    assert!(
+        own_read.is_some(),
+        "Tenant A must see their own bill run"
+    );
+
+    // Count: each tenant should only see their own bill runs
+    let a_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
+            .bind(&tenant_a)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let b_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
+            .bind(&tenant_b)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    assert!(a_count >= 1, "Tenant A should have at least 1 bill run");
+    assert!(b_count >= 1, "Tenant B should have at least 1 bill run");
+}

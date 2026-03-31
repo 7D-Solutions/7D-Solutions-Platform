@@ -1,6 +1,6 @@
 [package]
 name = "subscriptions-rs"
-version = "2.2.4"
+version = "2.2.5"
 edition = "2021"
 description = "Subscription lifecycle management, billing cycles, and usage gating"
 

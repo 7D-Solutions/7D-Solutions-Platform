@@ -85,6 +85,7 @@ pub struct CancelSubscriptionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct BillRun {
     pub id: Uuid,
+    pub tenant_id: String,
     pub bill_run_id: String,
     pub execution_date: NaiveDate,
     pub subscriptions_processed: i32,

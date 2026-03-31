@@ -77,9 +77,10 @@ pub async fn execute_bill_run(
     let existing = sqlx::query_as::<_, ExistingBillRun>(
         "SELECT id, subscriptions_processed, invoices_created, failures, created_at
          FROM bill_runs
-         WHERE bill_run_id = $1",
+         WHERE bill_run_id = $1 AND tenant_id = $2",
     )
     .bind(&bill_run_id)
+    .bind(&tenant_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -106,10 +107,11 @@ pub async fn execute_bill_run(
 
     // Create bill run record
     sqlx::query(
-        "INSERT INTO bill_runs (bill_run_id, execution_date, status)
-         VALUES ($1, $2, 'running')",
+        "INSERT INTO bill_runs (bill_run_id, tenant_id, execution_date, status)
+         VALUES ($1, $2, $3, 'running')",
     )
     .bind(&bill_run_id)
+    .bind(&tenant_id)
     .bind(execution_date)
     .execute(&db)
     .await
@@ -244,13 +246,14 @@ pub async fn execute_bill_run(
              failures = $3,
              status = 'completed',
              updated_at = $4
-         WHERE bill_run_id = $5",
+         WHERE bill_run_id = $5 AND tenant_id = $6",
     )
     .bind(subscriptions_processed)
     .bind(invoices_created)
     .bind(failures)
     .bind(execution_time)
     .bind(&bill_run_id)
+    .bind(&tenant_id)
     .execute(&db)
     .await
     .map_err(|e| {
