@@ -87,7 +87,7 @@ pub struct PaymentTerms {
 }
 
 /// Request body to create payment terms.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreatePaymentTermsRequest {
     pub term_code: String,
     pub description: Option<String>,
@@ -103,7 +103,7 @@ pub struct CreatePaymentTermsRequest {
 }
 
 /// Request body to update payment terms (partial update).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdatePaymentTermsRequest {
     pub description: Option<String>,
     pub days_due: Option<i32>,
@@ -114,7 +114,7 @@ pub struct UpdatePaymentTermsRequest {
 }
 
 /// Request to assign payment terms to an existing bill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AssignTermsRequest {
     pub term_id: Uuid,
 }

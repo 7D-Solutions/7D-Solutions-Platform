@@ -166,7 +166,7 @@ pub struct PurchaseOrder {
 }
 
 /// A single PO line as returned from the DB.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct PoLineRecord {
     pub line_id: Uuid,
     pub po_id: Uuid,
@@ -180,7 +180,7 @@ pub struct PoLineRecord {
 }
 
 /// PO with its line items (for GET and POST 201 responses).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PurchaseOrderWithLines {
     #[serde(flatten)]
     pub po: PurchaseOrder,
@@ -192,7 +192,7 @@ pub struct PurchaseOrderWithLines {
 // ============================================================================
 
 /// A single line in a PO create or update request.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreatePoLineRequest {
     /// Optional inventory item UUID reference.
     /// Validated as non-empty if provided; no cross-DB reads are performed.
@@ -262,7 +262,7 @@ impl CreatePoLineRequest {
 }
 
 /// Request body to create a purchase order (always created as draft).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreatePoRequest {
     pub vendor_id: Uuid,
     /// ISO 4217 currency code
@@ -299,7 +299,7 @@ impl CreatePoRequest {
 }
 
 /// Request body to replace all lines on a draft PO (idempotent full replacement).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdatePoLinesRequest {
     /// Actor performing the update (for audit)
     pub updated_by: String,
@@ -325,7 +325,7 @@ impl UpdatePoLinesRequest {
 }
 
 /// Request body to approve a purchase order.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, ToSchema)]
 pub struct ApprovePoRequest {
     /// Actor performing the approval (for event attribution and audit)
     pub approved_by: String,

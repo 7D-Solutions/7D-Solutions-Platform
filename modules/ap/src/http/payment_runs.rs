@@ -27,7 +27,7 @@ use crate::AppState;
 // Request body
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreatePaymentRunBody {
     pub run_id: Option<Uuid>,
     pub currency: String,
@@ -46,6 +46,9 @@ pub struct CreatePaymentRunBody {
 ///
 /// Create a payment run by selecting all eligible bills for the tenant.
 /// Idempotent: supplying the same `run_id` returns the existing run (200 OK).
+#[utoipa::path(post, path = "/api/ap/payment-runs", tag = "Payment Runs",
+    request_body = CreatePaymentRunBody,
+    responses((status = 201, description = "Run created")), security(("bearer" = [])))]
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -107,6 +110,9 @@ pub async fn create_run(
 /// GET /api/ap/payment-runs/:run_id
 ///
 /// Fetch a payment run and its items.
+#[utoipa::path(get, path = "/api/ap/payment-runs/{run_id}", tag = "Payment Runs",
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details")),
+    security(("bearer" = [])))]
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -206,6 +212,9 @@ pub async fn get_run(
 ///
 /// Idempotent: calling this endpoint on an already-completed run returns the
 /// existing execution state with 200 OK.
+#[utoipa::path(post, path = "/api/ap/payment-runs/{run_id}/execute", tag = "Payment Runs",
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run executed")),
+    security(("bearer" = [])))]
 pub async fn execute_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -53,7 +53,9 @@ pub struct ListPosQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/ap/pos — create a draft PO with line items
+#[utoipa::path(post, path = "/api/ap/pos", tag = "Purchase Orders",
+    request_body = CreatePoRequest,
+    responses((status = 201, description = "PO created")), security(("bearer" = [])))]
 pub async fn create_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -73,7 +75,9 @@ pub async fn create_po(
     }
 }
 
-/// GET /api/ap/pos/:po_id — get a single PO with its lines
+#[utoipa::path(get, path = "/api/ap/pos/{po_id}", tag = "Purchase Orders",
+    params(("po_id" = Uuid, Path)), responses((status = 200, description = "PO details")),
+    security(("bearer" = [])))]
 pub async fn get_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -96,7 +100,9 @@ pub async fn get_po(
     }
 }
 
-/// GET /api/ap/pos — list POs for tenant (optionally filtered by vendor_id or status)
+#[utoipa::path(get, path = "/api/ap/pos", tag = "Purchase Orders",
+    responses((status = 200, description = "PO list", body = PaginatedResponse<crate::domain::po::PurchaseOrder>)),
+    security(("bearer" = [])))]
 pub async fn list_pos(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -125,7 +131,9 @@ pub async fn list_pos(
     }
 }
 
-/// PUT /api/ap/pos/:po_id/lines — replace all lines on a draft PO (idempotent)
+#[utoipa::path(put, path = "/api/ap/pos/{po_id}/lines", tag = "Purchase Orders",
+    params(("po_id" = Uuid, Path)), request_body = UpdatePoLinesRequest,
+    responses((status = 200, description = "Lines replaced")), security(("bearer" = [])))]
 pub async fn update_po_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -148,7 +156,9 @@ pub async fn update_po_lines(
 ///
 /// Transitions the PO from draft → approved and emits ap.po_approved.
 /// If the PO is already approved, returns 200 with the current state (no re-emit).
-/// Returns 422 if the PO is in a terminal state that cannot be approved.
+#[utoipa::path(post, path = "/api/ap/pos/{po_id}/approve", tag = "Purchase Orders",
+    params(("po_id" = Uuid, Path)), request_body = ApprovePoRequest,
+    responses((status = 200, description = "PO approved")), security(("bearer" = [])))]
 pub async fn approve_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

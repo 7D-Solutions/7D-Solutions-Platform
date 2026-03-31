@@ -47,7 +47,12 @@ pub struct ListVendorsQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/ap/vendors — create a vendor
+#[utoipa::path(
+    post, path = "/api/ap/vendors", tag = "Vendors",
+    request_body = CreateVendorRequest,
+    responses((status = 201, description = "Vendor created"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn create_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -67,7 +72,11 @@ pub async fn create_vendor(
     }
 }
 
-/// GET /api/ap/vendors — list vendors for tenant
+#[utoipa::path(
+    get, path = "/api/ap/vendors", tag = "Vendors",
+    responses((status = 200, description = "Vendor list", body = PaginatedResponse<crate::domain::vendors::Vendor>)),
+    security(("bearer" = [])),
+)]
 pub async fn list_vendors(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -89,7 +98,12 @@ pub async fn list_vendors(
     }
 }
 
-/// GET /api/ap/vendors/:vendor_id — get a single vendor
+#[utoipa::path(
+    get, path = "/api/ap/vendors/{vendor_id}", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    responses((status = 200, description = "Vendor details"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -112,7 +126,13 @@ pub async fn get_vendor(
     }
 }
 
-/// PUT /api/ap/vendors/:vendor_id — update vendor fields
+#[utoipa::path(
+    put, path = "/api/ap/vendors/{vendor_id}", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    request_body = UpdateVendorRequest,
+    responses((status = 200, description = "Vendor updated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn update_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -133,7 +153,12 @@ pub async fn update_vendor(
     }
 }
 
-/// POST /api/ap/vendors/:vendor_id/deactivate — soft-delete a vendor
+#[utoipa::path(
+    post, path = "/api/ap/vendors/{vendor_id}/deactivate", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    responses((status = 204, description = "Vendor deactivated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_vendor(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

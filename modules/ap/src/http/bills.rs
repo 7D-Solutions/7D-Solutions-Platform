@@ -58,7 +58,9 @@ pub struct ListBillsQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/ap/bills — create a vendor bill
+#[utoipa::path(post, path = "/api/ap/bills", tag = "Bills",
+    request_body = CreateBillRequest,
+    responses((status = 201, description = "Bill created")), security(("bearer" = [])))]
 pub async fn create_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -78,7 +80,9 @@ pub async fn create_bill(
     }
 }
 
-/// GET /api/ap/bills/:bill_id — get a single bill with its line items
+#[utoipa::path(get, path = "/api/ap/bills/{bill_id}", tag = "Bills",
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill details")),
+    security(("bearer" = [])))]
 pub async fn get_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -101,7 +105,9 @@ pub async fn get_bill(
     }
 }
 
-/// GET /api/ap/bills — list bills for tenant
+#[utoipa::path(get, path = "/api/ap/bills", tag = "Bills",
+    responses((status = 200, description = "Bill list", body = PaginatedResponse<crate::domain::bills::VendorBill>)),
+    security(("bearer" = [])))]
 pub async fn list_bills(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -134,7 +140,9 @@ pub async fn list_bills(
 // Approve / Void
 // ============================================================================
 
-/// POST /api/ap/bills/:bill_id/approve — approve a bill (enforces match policy)
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/approve", tag = "Bills",
+    params(("bill_id" = Uuid, Path)), request_body = ApproveBillRequest,
+    responses((status = 200, description = "Bill approved")), security(("bearer" = [])))]
 pub async fn approve_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -165,6 +173,9 @@ pub async fn approve_bill(
     }
 }
 
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/void", tag = "Bills",
+    params(("bill_id" = Uuid, Path)), request_body = VoidBillRequest,
+    responses((status = 200, description = "Bill voided")), security(("bearer" = [])))]
 /// POST /api/ap/bills/:bill_id/void — void a bill (requires reason)
 pub async fn void_bill(
     State(state): State<Arc<AppState>>,
@@ -209,7 +220,9 @@ pub struct BillTaxQuoteRequest {
     pub ship_from: tax_core::TaxAddress,
 }
 
-/// POST /api/ap/bills/:bill_id/tax-quote — quote tax for a bill draft
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/tax-quote", tag = "Bills",
+    params(("bill_id" = Uuid, Path)),
+    responses((status = 200, description = "Tax quote")), security(("bearer" = [])))]
 pub async fn quote_bill_tax(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -273,7 +286,10 @@ pub async fn quote_bill_tax(
 // 3-way match
 // ============================================================================
 
-/// POST /api/ap/bills/:bill_id/match — run 3-way match engine for a bill
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/match", tag = "Bills",
+    params(("bill_id" = Uuid, Path)), request_body = RunMatchRequest,
+    responses((status = 200, description = "Match result", body = crate::domain::r#match::MatchOutcome)),
+    security(("bearer" = [])))]
 pub async fn match_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

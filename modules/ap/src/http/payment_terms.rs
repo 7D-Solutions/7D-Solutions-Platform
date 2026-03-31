@@ -50,7 +50,9 @@ pub struct ListTermsQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/ap/payment-terms — create payment terms
+#[utoipa::path(post, path = "/api/ap/payment-terms", tag = "Payment Terms",
+    request_body = CreatePaymentTermsRequest,
+    responses((status = 201, description = "Terms created")), security(("bearer" = [])))]
 pub async fn create_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -70,7 +72,9 @@ pub async fn create_terms(
     }
 }
 
-/// GET /api/ap/payment-terms/:term_id — get a single payment terms record
+#[utoipa::path(get, path = "/api/ap/payment-terms/{term_id}", tag = "Payment Terms",
+    params(("term_id" = Uuid, Path)), responses((status = 200, description = "Terms details")),
+    security(("bearer" = [])))]
 pub async fn get_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -93,7 +97,9 @@ pub async fn get_terms(
     }
 }
 
-/// GET /api/ap/payment-terms — list payment terms for tenant
+#[utoipa::path(get, path = "/api/ap/payment-terms", tag = "Payment Terms",
+    responses((status = 200, description = "Terms list", body = PaginatedResponse<crate::domain::payment_terms::PaymentTerms>)),
+    security(("bearer" = [])))]
 pub async fn list_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -115,7 +121,9 @@ pub async fn list_terms(
     }
 }
 
-/// PUT /api/ap/payment-terms/:term_id — update payment terms
+#[utoipa::path(put, path = "/api/ap/payment-terms/{term_id}", tag = "Payment Terms",
+    params(("term_id" = Uuid, Path)), request_body = UpdatePaymentTermsRequest,
+    responses((status = 200, description = "Terms updated")), security(("bearer" = [])))]
 pub async fn update_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -134,7 +142,9 @@ pub async fn update_terms(
     }
 }
 
-/// POST /api/ap/bills/:bill_id/assign-terms — assign terms to a bill
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/assign-terms", tag = "Payment Terms",
+    params(("bill_id" = Uuid, Path)), request_body = AssignTermsRequest,
+    responses((status = 200, description = "Terms assigned")), security(("bearer" = [])))]
 pub async fn assign_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

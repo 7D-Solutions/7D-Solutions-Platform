@@ -28,6 +28,9 @@ use crate::AppState;
 ///
 /// Apply a payment allocation to an approved or partially-paid bill.
 /// Idempotent: duplicate allocation_id returns the existing record (200 OK).
+#[utoipa::path(post, path = "/api/ap/bills/{bill_id}/allocations", tag = "Allocations",
+    params(("bill_id" = Uuid, Path)), request_body = CreateAllocationRequest,
+    responses((status = 200, description = "Allocation applied")), security(("bearer" = [])))]
 pub async fn create_allocation(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -58,6 +61,9 @@ pub async fn create_allocation(
 /// GET /api/ap/bills/:bill_id/allocations
 ///
 /// List all allocations for a bill in insertion order.
+#[utoipa::path(get, path = "/api/ap/bills/{bill_id}/allocations", tag = "Allocations",
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Allocation list")),
+    security(("bearer" = [])))]
 pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -78,6 +84,9 @@ pub async fn list_allocations(
 /// GET /api/ap/bills/:bill_id/balance
 ///
 /// Return remaining open balance for a bill.
+#[utoipa::path(get, path = "/api/ap/bills/{bill_id}/balance", tag = "Allocations",
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill balance")),
+    security(("bearer" = [])))]
 pub async fn get_balance(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

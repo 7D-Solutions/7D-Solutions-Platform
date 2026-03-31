@@ -23,6 +23,7 @@ pub mod service;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -121,7 +122,7 @@ pub struct BillBalanceSummary {
 // ============================================================================
 
 /// Request body to apply a payment allocation to a vendor bill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateAllocationRequest {
     /// Caller-generated stable UUID — used for idempotency.
     /// Duplicate submissions with the same allocation_id return the existing record.

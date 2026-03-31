@@ -187,7 +187,7 @@ pub struct VendorBill {
 }
 
 /// A single line on a vendor bill as returned from the DB.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct BillLineRecord {
     pub line_id: Uuid,
     pub bill_id: Uuid,
@@ -202,7 +202,7 @@ pub struct BillLineRecord {
 }
 
 /// A vendor bill with its line items (for GET responses and POST 201).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct VendorBillWithLines {
     #[serde(flatten)]
     pub bill: VendorBill,
@@ -214,7 +214,7 @@ pub struct VendorBillWithLines {
 // ============================================================================
 
 /// A single bill line in the creation request.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateBillLineRequest {
     /// Optional description (defaults to "" if not supplied)
     pub description: Option<String>,
@@ -229,7 +229,7 @@ pub struct CreateBillLineRequest {
 }
 
 /// Request body to create a vendor bill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateBillRequest {
     pub vendor_id: Uuid,
     /// Vendor's external invoice reference (must be unique per vendor per tenant)
@@ -255,7 +255,7 @@ pub struct CreateBillRequest {
 /// Match policy is enforced unless `override_reason` is provided:
 ///   - Bills in 'open' status (never matched) require an override.
 ///   - Bills in 'matched' status with tolerance violations require an override.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ApproveBillRequest {
     /// Actor approving the bill (for audit attribution)
     pub approved_by: String,
@@ -280,7 +280,7 @@ impl ApproveBillRequest {
 /// Voiding is append-only: the void_reason is persisted in the outbox event
 /// and serves as the immutable audit record. Void is allowed from any active
 /// status (open, matched, approved, partially_paid).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct VoidBillRequest {
     /// Actor performing the void
     pub voided_by: String,

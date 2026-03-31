@@ -82,7 +82,6 @@ use utoipa::OpenApi;
         crate::domain::bills::CreateBillRequest,
         crate::domain::bills::ApproveBillRequest,
         crate::domain::bills::VoidBillRequest,
-        bills::BillTaxQuoteRequest,
         // Match
         crate::domain::r#match::RunMatchRequest,
         crate::domain::r#match::MatchOutcome,

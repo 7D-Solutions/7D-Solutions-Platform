@@ -132,7 +132,7 @@ pub struct Vendor {
 }
 
 /// Request body to create a new vendor.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateVendorRequest {
     pub name: String,
     pub tax_id: Option<String>,
@@ -149,7 +149,7 @@ pub struct CreateVendorRequest {
 }
 
 /// Request body to update an existing vendor. All fields are optional (partial update).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpdateVendorRequest {
     pub name: Option<String>,
     pub tax_id: Option<String>,

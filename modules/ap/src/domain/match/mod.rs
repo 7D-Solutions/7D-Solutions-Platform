@@ -19,6 +19,7 @@ pub mod engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================================
@@ -109,7 +110,7 @@ impl MatchStatus {
 // ============================================================================
 
 /// Request to run the match engine for a vendor bill against a PO.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct RunMatchRequest {
     /// PO to match this bill against
     pub po_id: Uuid,
@@ -145,7 +146,7 @@ impl RunMatchRequest {
 // Per-line result
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MatchLineResult {
     pub bill_line_id: Uuid,
     /// PO line matched against (None for non-PO lines)
@@ -170,7 +171,7 @@ pub struct MatchLineResult {
 // Overall outcome
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MatchOutcome {
     pub bill_id: Uuid,
     pub po_id: Uuid,
