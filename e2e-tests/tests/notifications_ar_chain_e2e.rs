@@ -1,24 +1,23 @@
-//! E2E Test: Notification delivery chain — AR invoice.issued → customer notification (bd-1v9t)
+//! E2E Test: Notification delivery chain — payment.succeeded → delivery notification (bd-1v9t)
 //!
 //! ## Coverage
 //! 1. Subscribe to `notifications.delivery.succeeded` on NATS before triggering.
-//! 2. Create AR customer + invoice in AR DB (real postgres, port 5434).
-//! 3. Publish `ar.events.invoice.issued` to NATS (simulating AR outbox publisher).
-//! 4. In-process notifications consumer picks it up from NATS.
-//! 5. Handler enqueues `notifications.delivery.succeeded` in notifications outbox.
-//! 6. In-process notifications outbox publisher delivers it to NATS.
-//! 7. Assert: NATS event received within 5s with correct tenant_id.
-//! 8. Assert: notifications outbox row exists with channel=email, status=pending→published.
+//! 2. Publish `payments.events.payment.succeeded` to NATS (simulating Payments outbox).
+//! 3. In-process notifications consumer picks it up from NATS.
+//! 4. Handler enqueues `notifications.delivery.succeeded` in notifications outbox.
+//! 5. In-process notifications outbox publisher delivers it to NATS.
+//! 6. Assert: NATS event received within 5s with correct tenant_id.
+//! 7. Assert: notifications outbox row exists with channel=email, status=pending→published.
 //!
 //! ## Pattern
 //! No Docker, no mocks, no stubs.
-//! Real NATS (4222), real AR postgres (5434), real notifications postgres (5437).
+//! Real NATS (4222), real notifications postgres (5437).
 //! Services run in-process via tokio::spawn.
 
 mod common;
 
-use common::{get_ar_pool, get_notifications_pool, setup_nats_client};
-use event_bus::{BusMessage, NatsBus};
+use common::{get_notifications_pool, setup_nats_client};
+use event_bus::NatsBus;
 use futures::StreamExt;
 use notifications_rs::{consumer_tasks, event_bus::start_outbox_publisher};
 use serde_json::json;
@@ -33,13 +32,6 @@ use uuid::Uuid;
 // DB setup helpers
 // ============================================================================
 
-async fn run_ar_migrations(pool: &PgPool) {
-    sqlx::migrate!("../modules/ar/db/migrations")
-        .run(pool)
-        .await
-        .expect("AR migrations failed");
-}
-
 async fn run_notif_migrations(pool: &PgPool) {
     sqlx::migrate!("../modules/notifications/db/migrations")
         .run(pool)
@@ -48,70 +40,26 @@ async fn run_notif_migrations(pool: &PgPool) {
 }
 
 // ============================================================================
-// AR record creation (direct SQL — avoids HTTP router complexity)
+// Envelope builder — matches what Payments outbox publisher would emit
 // ============================================================================
 
-async fn create_ar_customer(pool: &PgPool, tenant_id: &str) -> i32 {
-    sqlx::query_scalar::<_, i32>(
-        r#"
-        INSERT INTO ar_customers (app_id, email, name, status, retry_attempt_count, created_at, updated_at)
-        VALUES ($1, $2, $3, 'active', 0, NOW(), NOW())
-        RETURNING id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(format!("notif-chain-{}@e2e.test", tenant_id))
-    .bind(format!("E2E Customer {}", tenant_id))
-    .fetch_one(pool)
-    .await
-    .expect("Failed to create AR customer")
-}
-
-async fn create_ar_invoice(
-    pool: &PgPool,
+fn build_payment_succeeded_envelope(
     tenant_id: &str,
-    customer_id: i32,
-    amount_cents: i32,
-) -> i32 {
-    sqlx::query_scalar::<_, i32>(
-        r#"
-        INSERT INTO ar_invoices (
-            app_id, tilled_invoice_id, ar_customer_id, status,
-            amount_cents, currency, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, 'open', $4, 'usd', NOW(), NOW())
-        RETURNING id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(format!("in_notifchain_{}", Uuid::new_v4()))
-    .bind(customer_id)
-    .bind(amount_cents)
-    .fetch_one(pool)
-    .await
-    .expect("Failed to create AR invoice")
-}
-
-// ============================================================================
-// Envelope builder — matches what AR outbox publisher would emit
-// ============================================================================
-
-fn build_invoice_issued_envelope(
-    tenant_id: &str,
-    invoice_id: i32,
-    customer_id: i32,
-    amount_cents: i32,
+    payment_id: &str,
+    invoice_id: &str,
+    amount_minor: i32,
 ) -> serde_json::Value {
     json!({
         "event_id": Uuid::new_v4().to_string(),
         "occurred_at": chrono::Utc::now().to_rfc3339(),
         "tenant_id": tenant_id,
-        "source_module": "ar",
+        "source_module": "payments",
         "source_version": "1.0.0",
         "payload": {
-            "invoice_id": invoice_id.to_string(),
-            "customer_id": customer_id.to_string(),
-            "amount_due_minor": amount_cents,
+            "payment_id": payment_id,
+            "invoice_id": invoice_id,
+            "ar_customer_id": "cust-e2e-chain-001",
+            "amount_minor": amount_minor,
             "currency": "USD"
         }
     })
@@ -146,36 +94,19 @@ async fn cleanup_notif(pool: &PgPool, tenant_id: &str) {
     }
 }
 
-async fn cleanup_ar(pool: &PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
-        .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
-        .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
-}
-
 // ============================================================================
-// Test 1: invoice.issued → notifications.delivery.succeeded on NATS (NATS chain)
+// Test 1: payment.succeeded → notifications.delivery.succeeded on NATS
 // ============================================================================
 
 #[tokio::test]
 #[serial]
-async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
+async fn payment_succeeded_triggers_delivery_succeeded_on_nats() {
     let tenant_id = format!("notif-chain-{}", Uuid::new_v4().simple());
 
-    // Connect to both real DBs and run migrations
-    let ar_pool = get_ar_pool().await;
     let notif_pool = get_notifications_pool().await;
-    run_ar_migrations(&ar_pool).await;
     run_notif_migrations(&notif_pool).await;
 
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 
     // Connect to real NATS
     let nats = setup_nats_client().await;
@@ -186,9 +117,9 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
         .await
         .expect("Failed to subscribe to notifications.delivery.succeeded");
 
-    // 2. Start in-process notifications consumers (subscribe to ar.events.invoice.issued)
+    // 2. Start in-process notifications consumer (payments.events.payment.succeeded)
     let notif_bus = Arc::new(NatsBus::new(nats.clone()));
-    consumer_tasks::start_invoice_issued_consumer(notif_bus.clone(), notif_pool.clone()).await;
+    consumer_tasks::start_payment_succeeded_consumer(notif_bus.clone(), notif_pool.clone()).await;
 
     // 3. Start in-process notifications outbox publisher
     let notif_pool_pub = notif_pool.clone();
@@ -200,20 +131,20 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
     // 4. Wait for NATS subscriptions to register on the server
     tokio::time::sleep(Duration::from_millis(300)).await;
 
-    // 5. Create AR customer + invoice in real AR DB
-    let customer_id = create_ar_customer(&ar_pool, &tenant_id).await;
-    let amount_cents = 15_000_i32; // $150.00
-    let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, amount_cents).await;
-
-    // 6. Build and publish ar.events.invoice.issued to NATS
-    //    (simulates what AR outbox publisher emits when an invoice is issued)
-    let envelope = build_invoice_issued_envelope(&tenant_id, invoice_id, customer_id, amount_cents);
+    // 5. Build and publish payments.events.payment.succeeded to NATS
+    let payment_id = format!("pay-{}", Uuid::new_v4());
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
+    let envelope =
+        build_payment_succeeded_envelope(&tenant_id, &payment_id, &invoice_id, 15_000);
     let payload_bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
-    nats.publish("ar.events.invoice.issued", payload_bytes.into())
-        .await
-        .expect("Failed to publish ar.events.invoice.issued");
+    nats.publish(
+        "payments.events.payment.succeeded",
+        payload_bytes.into(),
+    )
+    .await
+    .expect("Failed to publish payments.events.payment.succeeded");
 
-    // 7. Wait up to 5s for notifications.delivery.succeeded on NATS
+    // 6. Wait up to 5s for notifications.delivery.succeeded on NATS
     let received_msg = timeout(Duration::from_secs(5), notif_sub.next())
         .await
         .expect(
@@ -221,14 +152,14 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
         )
         .expect("NATS subscription closed unexpectedly");
 
-    // 8. Verify the NATS event fields
+    // 7. Verify the NATS event fields
     let notif_body: serde_json::Value =
         serde_json::from_slice(&received_msg.payload).expect("parse notification envelope");
 
     assert_eq!(
         notif_body["tenant_id"].as_str(),
         Some(tenant_id.as_str()),
-        "tenant_id in notification event must match the AR invoice tenant"
+        "tenant_id in notification event must match"
     );
     assert_eq!(
         notif_body["source_module"].as_str(),
@@ -249,8 +180,7 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
         "notification status must be succeeded"
     );
 
-    // 9. Verify notifications DB has the outbox row
-    // Give the outbox publisher a moment to mark as published
+    // 8. Verify notifications DB has the outbox row
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     let outbox_count =
@@ -261,9 +191,7 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
         outbox_count
     );
 
-    // Cleanup
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 }
 
 // ============================================================================
@@ -275,13 +203,10 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
 async fn outbox_row_has_correct_channel_and_tenant() {
     let tenant_id = format!("notif-row-{}", Uuid::new_v4().simple());
 
-    let ar_pool = get_ar_pool().await;
     let notif_pool = get_notifications_pool().await;
-    run_ar_migrations(&ar_pool).await;
     run_notif_migrations(&notif_pool).await;
 
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 
     let nats = setup_nats_client().await;
 
@@ -291,7 +216,7 @@ async fn outbox_row_has_correct_channel_and_tenant() {
         .expect("subscribe");
 
     let notif_bus = Arc::new(NatsBus::new(nats.clone()));
-    consumer_tasks::start_invoice_issued_consumer(notif_bus.clone(), notif_pool.clone()).await;
+    consumer_tasks::start_payment_succeeded_consumer(notif_bus.clone(), notif_pool.clone()).await;
 
     tokio::spawn({
         let p = notif_pool.clone();
@@ -303,12 +228,14 @@ async fn outbox_row_has_correct_channel_and_tenant() {
 
     tokio::time::sleep(Duration::from_millis(300)).await;
 
-    let customer_id = create_ar_customer(&ar_pool, &tenant_id).await;
-    let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, 30_000).await;
-
-    let envelope = build_invoice_issued_envelope(&tenant_id, invoice_id, customer_id, 30_000);
+    let envelope = build_payment_succeeded_envelope(
+        &tenant_id,
+        &format!("pay-{}", Uuid::new_v4()),
+        &format!("inv-{}", Uuid::new_v4()),
+        30_000,
+    );
     nats.publish(
-        "ar.events.invoice.issued",
+        "payments.events.payment.succeeded",
         serde_json::to_vec(&envelope).unwrap().into(),
     )
     .await
@@ -356,11 +283,10 @@ async fn outbox_row_has_correct_channel_and_tenant() {
     );
 
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 }
 
 // ============================================================================
-// Test 3: Verify notification envelope fields — amount in content, tenant matches
+// Test 3: Verify notification envelope fields — tenant matches, metadata correct
 // ============================================================================
 
 #[tokio::test]
@@ -368,13 +294,10 @@ async fn outbox_row_has_correct_channel_and_tenant() {
 async fn notification_envelope_has_correct_metadata() {
     let tenant_id = format!("notif-meta-{}", Uuid::new_v4().simple());
 
-    let ar_pool = get_ar_pool().await;
     let notif_pool = get_notifications_pool().await;
-    run_ar_migrations(&ar_pool).await;
     run_notif_migrations(&notif_pool).await;
 
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 
     let nats = setup_nats_client().await;
     let mut notif_sub = nats
@@ -383,7 +306,7 @@ async fn notification_envelope_has_correct_metadata() {
         .expect("subscribe");
 
     let notif_bus = Arc::new(NatsBus::new(nats.clone()));
-    consumer_tasks::start_invoice_issued_consumer(notif_bus.clone(), notif_pool.clone()).await;
+    consumer_tasks::start_payment_succeeded_consumer(notif_bus.clone(), notif_pool.clone()).await;
 
     tokio::spawn({
         let p = notif_pool.clone();
@@ -395,12 +318,14 @@ async fn notification_envelope_has_correct_metadata() {
 
     tokio::time::sleep(Duration::from_millis(300)).await;
 
-    let customer_id = create_ar_customer(&ar_pool, &tenant_id).await;
-    let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, 50_000).await;
-
-    let envelope = build_invoice_issued_envelope(&tenant_id, invoice_id, customer_id, 50_000);
+    let envelope = build_payment_succeeded_envelope(
+        &tenant_id,
+        &format!("pay-{}", Uuid::new_v4()),
+        &format!("inv-{}", Uuid::new_v4()),
+        50_000,
+    );
     nats.publish(
-        "ar.events.invoice.issued",
+        "payments.events.payment.succeeded",
         serde_json::to_vec(&envelope).unwrap().into(),
     )
     .await
@@ -438,5 +363,4 @@ async fn notification_envelope_has_correct_metadata() {
     );
 
     cleanup_notif(&notif_pool, &tenant_id).await;
-    cleanup_ar(&ar_pool, &tenant_id).await;
 }

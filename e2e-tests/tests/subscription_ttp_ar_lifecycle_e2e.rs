@@ -265,7 +265,7 @@ async fn test_subscription_lifecycle_triggers_ttp_billing_and_ar_invoice() {
     assert_eq!(status, "suspended", "subscription must start suspended");
 
     // ── Step 2: Activate subscription (suspended → active) ──────────────────
-    subscriptions_rs::transition_to_active(sub_id, "trial_converted", &subs_pool)
+    subscriptions_rs::transition_to_active(sub_id, &tid_str, "trial_converted", &subs_pool)
         .await
         .expect("activate subscription");
 

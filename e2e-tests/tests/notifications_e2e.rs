@@ -2,9 +2,9 @@
 //! payment events propagate (bd-267l)
 //!
 //! ## Coverage
-//! 1. invoice_issued event → notification row in events_outbox (delivery.succeeded)
+//! 1. invoice_issued event → scheduled_notifications row (invoice_due_soon)
 //! 2. payment_succeeded event → notification row in events_outbox
-//! 3. payment_failed event → notification row in events_outbox
+//! 3. payment_failed event → scheduled_notifications row (payment_retry)
 //! 4. Re-publish same event_id → no duplicate rows (idempotent)
 //! 5. DLQ (failed_events) empty after clean run
 //!
@@ -53,6 +53,10 @@ async fn get_notif_pool() -> sqlx::PgPool {
 // ============================================================================
 
 fn make_invoice_issued_msg(event_id: Uuid, tenant_id: &str, invoice_id: &str) -> BusMessage {
+    // due_date is required for handle_invoice_issued to schedule a reminder
+    let due_date = (chrono::Utc::now() + chrono::Duration::days(30))
+        .format("%Y-%m-%d")
+        .to_string();
     let envelope = serde_json::json!({
         "event_id": event_id.to_string(),
         "occurred_at": "2026-02-19T00:00:00Z",
@@ -63,7 +67,8 @@ fn make_invoice_issued_msg(event_id: Uuid, tenant_id: &str, invoice_id: &str) ->
             "invoice_id": invoice_id,
             "customer_id": "cust-e2e-001",
             "amount_due_minor": 10000,
-            "currency": "USD"
+            "currency": "USD",
+            "due_date": due_date
         }
     });
     BusMessage {
@@ -164,6 +169,18 @@ async fn count_dlq(pool: &sqlx::PgPool, tenant_id: &str) -> i64 {
     row.0
 }
 
+async fn count_scheduled(pool: &sqlx::PgPool, tenant_id: &str, template_key: &str) -> i64 {
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM scheduled_notifications WHERE tenant_id = $1 AND template_key = $2",
+    )
+    .bind(tenant_id)
+    .bind(template_key)
+    .fetch_one(pool)
+    .await
+    .unwrap_or((0,));
+    row.0
+}
+
 // ============================================================================
 // Cleanup
 // ============================================================================
@@ -173,6 +190,7 @@ async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
         "DELETE FROM events_outbox WHERE tenant_id = $1",
         "DELETE FROM processed_events WHERE tenant_id = $1",
         "DELETE FROM failed_events WHERE tenant_id = $1",
+        "DELETE FROM scheduled_notifications WHERE tenant_id = $1",
     ] {
         sqlx::query(q).bind(tenant_id).execute(pool).await.ok();
     }
@@ -257,10 +275,11 @@ async fn invoice_issued_creates_notification_row() {
     let msg = make_invoice_issued_msg(event_id, &tenant_id, &invoice_id);
     drive_invoice_issued(&pool, &msg).await;
 
-    let outbox_count = count_outbox(&pool, &tenant_id, "notifications.delivery.succeeded").await;
+    // invoice_issued schedules an invoice_due_soon reminder (not outbox)
+    let scheduled_count = count_scheduled(&pool, &tenant_id, "invoice_due_soon").await;
     assert_eq!(
-        outbox_count, 1,
-        "Expected 1 delivery.succeeded row in events_outbox after invoice_issued, got {outbox_count}"
+        scheduled_count, 1,
+        "Expected 1 invoice_due_soon row in scheduled_notifications after invoice_issued, got {scheduled_count}"
     );
 
     let processed_count = count_processed(&pool, event_id).await;
@@ -325,10 +344,11 @@ async fn payment_failed_creates_notification_row() {
     );
     drive_payment_failed(&pool, &msg).await;
 
-    let outbox_count = count_outbox(&pool, &tenant_id, "notifications.delivery.succeeded").await;
+    // payment_failed schedules a payment_retry reminder (not outbox)
+    let scheduled_count = count_scheduled(&pool, &tenant_id, "payment_retry").await;
     assert_eq!(
-        outbox_count, 1,
-        "Expected 1 delivery.succeeded row after payment_failed, got {outbox_count}"
+        scheduled_count, 1,
+        "Expected 1 payment_retry row in scheduled_notifications after payment_failed, got {scheduled_count}"
     );
 
     let processed_count = count_processed(&pool, event_id).await;
@@ -360,10 +380,11 @@ async fn idempotent_on_republish() {
     let msg2 = make_invoice_issued_msg(event_id, &tenant_id, &invoice_id);
     drive_invoice_issued(&pool, &msg2).await;
 
-    let outbox_count = count_outbox(&pool, &tenant_id, "notifications.delivery.succeeded").await;
+    // invoice_issued schedules to scheduled_notifications, not events_outbox
+    let scheduled_count = count_scheduled(&pool, &tenant_id, "invoice_due_soon").await;
     assert_eq!(
-        outbox_count, 1,
-        "Expected exactly 1 outbox row after duplicate publish (got {outbox_count})"
+        scheduled_count, 1,
+        "Expected exactly 1 scheduled row after duplicate publish (got {scheduled_count})"
     );
 
     let processed_count = count_processed(&pool, event_id).await;
@@ -423,10 +444,24 @@ async fn dlq_empty_after_clean_run() {
         "DLQ must be empty after all three event types process cleanly (got {dlq_count})"
     );
 
+    // Only payment_succeeded writes to events_outbox; invoice_issued and
+    // payment_failed schedule reminders to scheduled_notifications
     let outbox_count = count_outbox(&pool, &tenant_id, "notifications.delivery.succeeded").await;
     assert_eq!(
-        outbox_count, 3,
-        "Expected 3 delivery.succeeded rows (one per event type), got {outbox_count}"
+        outbox_count, 1,
+        "Expected 1 delivery.succeeded row (from payment_succeeded), got {outbox_count}"
+    );
+
+    let sched_invoice = count_scheduled(&pool, &tenant_id, "invoice_due_soon").await;
+    assert_eq!(
+        sched_invoice, 1,
+        "Expected 1 invoice_due_soon scheduled row, got {sched_invoice}"
+    );
+
+    let sched_retry = count_scheduled(&pool, &tenant_id, "payment_retry").await;
+    assert_eq!(
+        sched_retry, 1,
+        "Expected 1 payment_retry scheduled row, got {sched_retry}"
     );
 
     cleanup(&pool, &tenant_id).await;
