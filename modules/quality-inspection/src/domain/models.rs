@@ -1,13 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-// ============================================================================
-// DB row types
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct InspectionPlan {
     pub id: Uuid,
     pub tenant_id: String,
@@ -22,7 +19,7 @@ pub struct InspectionPlan {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct Inspection {
     pub id: Uuid,
     pub tenant_id: String,
@@ -43,11 +40,7 @@ pub struct Inspection {
     pub updated_at: DateTime<Utc>,
 }
 
-// ============================================================================
-// Request types
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Characteristic {
     pub name: String,
     pub characteristic_type: String,
@@ -57,7 +50,7 @@ pub struct Characteristic {
     pub uom: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateInspectionPlanRequest {
     pub part_id: Uuid,
     pub plan_name: String,
@@ -67,7 +60,7 @@ pub struct CreateInspectionPlanRequest {
     pub sample_size: Option<i32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateReceivingInspectionRequest {
     pub plan_id: Option<Uuid>,
     pub receipt_id: Option<Uuid>,
@@ -79,7 +72,7 @@ pub struct CreateReceivingInspectionRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateInProcessInspectionRequest {
     pub wo_id: Uuid,
     pub op_instance_id: Uuid,
@@ -92,7 +85,7 @@ pub struct CreateInProcessInspectionRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateFinalInspectionRequest {
     pub wo_id: Uuid,
     pub lot_id: Option<Uuid>,
@@ -104,30 +97,8 @@ pub struct CreateFinalInspectionRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DispositionTransitionRequest {
     pub inspector_id: Option<Uuid>,
     pub reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InspectionsByPartRevQuery {
-    pub part_id: Uuid,
-    pub part_revision: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InspectionsByReceiptQuery {
-    pub receipt_id: Uuid,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InspectionsByWoQuery {
-    pub wo_id: Uuid,
-    pub inspection_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct InspectionsByLotQuery {
-    pub lot_id: Uuid,
 }

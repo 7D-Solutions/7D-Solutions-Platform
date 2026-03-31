@@ -1,4 +1,23 @@
-use std::env;
+use config_validator::ConfigValidator;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BusType {
+    Nats,
+    InMemory,
+}
+
+impl BusType {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "nats" => Ok(BusType::Nats),
+            "inmemory" => Ok(BusType::InMemory),
+            other => Err(format!(
+                "Invalid BUS_TYPE '{}'. Must be 'nats' or 'inmemory'",
+                other
+            )),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -7,53 +26,50 @@ pub struct Config {
     pub port: u16,
     pub env: String,
     pub cors_origins: Vec<String>,
-    pub nats_url: String,
-    pub bus_type: String,
+    pub bus_type: BusType,
+    pub nats_url: Option<String>,
     pub workforce_competence_database_url: String,
 }
 
 impl Config {
     pub fn from_env() -> Result<Self, String> {
-        let database_url = env::var("DATABASE_URL").map_err(|_| {
-            "DATABASE_URL is required but not set. \
-             Example: postgresql://quality_inspection_user:quality_inspection_pass@localhost:5459/quality_inspection_db"
-                .to_string()
-        })?;
+        let mut v = ConfigValidator::new("quality-inspection");
 
-        if database_url.trim().is_empty() {
-            return Err("DATABASE_URL cannot be empty".to_string());
-        }
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
+        let host = v.optional("HOST").or_default("0.0.0.0");
+        let port = v.optional_parse::<u16>("PORT").unwrap_or(8106);
+        let env_name = v.optional("ENV").or_default("development");
 
-        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-
-        let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8106".to_string())
-            .parse()
-            .map_err(|_| {
-                format!(
-                    "PORT must be a valid u16 (0-65535), got: '{}'",
-                    env::var("PORT").unwrap_or_default()
-                )
-            })?;
-
-        let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
-
-        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
-            .unwrap_or_else(|_| "*".to_string())
+        let cors_raw = v.optional("CORS_ORIGINS").or_default("*");
+        let cors_origins: Vec<String> = cors_raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
 
-        let nats_url =
-            env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
-        let bus_type = env::var("BUS_TYPE").unwrap_or_else(|_| "nats".to_string());
+        let bus_type_str = v.optional("BUS_TYPE").or_default("inmemory");
+        let bus_type = match BusType::from_str(&bus_type_str) {
+            Ok(bt) => bt,
+            Err(_err) => {
+                // ConfigValidator doesn't have a push_error method, so we handle
+                // the error by returning early after finish collects other errors.
+                // The BusType::from_str error message is clear enough.
+                return Err(format!(
+                    "Config validation failed for module quality-inspection:\n{}",
+                    _err
+                ));
+            }
+        };
 
-        let workforce_competence_database_url =
-            env::var("WORKFORCE_COMPETENCE_DATABASE_URL").unwrap_or_else(|_| {
-                "postgresql://wc_user:wc_pass@localhost:5458/workforce_competence_db?sslmode=require"
-                    .to_string()
-            });
+        let nats_url = v.require_when(
+            "NATS_URL",
+            || bus_type == BusType::Nats,
+            "required when BUS_TYPE=nats",
+        );
+
+        let workforce_competence_database_url = v
+            .require("WORKFORCE_COMPETENCE_DATABASE_URL")
+            .unwrap_or_default();
 
         if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
@@ -63,14 +79,17 @@ impl Config {
                     .to_string(),
             );
         }
+
+        v.finish().map_err(|e| e.to_string())?;
+
         Ok(Config {
             database_url,
             host,
             port,
             env: env_name,
             cors_origins,
-            nats_url,
             bus_type,
+            nats_url,
             workforce_competence_database_url,
         })
     }

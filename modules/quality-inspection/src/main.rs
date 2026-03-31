@@ -12,6 +12,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use quality_inspection_rs::{
+    config::BusType,
     consumers::production_event_bridge::start_production_event_bridge,
     consumers::receipt_event_bridge::start_receipt_event_bridge,
     db::resolver::resolve_pool,
@@ -24,6 +25,7 @@ use quality_inspection_rs::{
             post_hold_inspection, post_in_process_inspection, post_inspection_plan,
             post_receiving_inspection, post_reject_inspection, post_release_inspection,
         },
+        openapi_json,
     },
     metrics::{metrics_handler, QualityInspectionMetrics},
     AppState, Config,
@@ -54,28 +56,37 @@ async fn main() {
         .await
         .expect("Failed to connect to database");
 
+    // Auto-migrations
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("Quality Inspection: failed to run migrations");
+
     tracing::info!("Connecting to Workforce-Competence database...");
     let wc_pool = resolve_pool(&config.workforce_competence_database_url)
         .await
         .expect("Failed to connect to Workforce-Competence database");
 
-    // Create event bus and start receipt event bridge consumer
-    let bus: Arc<dyn EventBus> = match config.bus_type.to_lowercase().as_str() {
-        "inmemory" => {
+    // Create event bus with graceful degradation
+    let bus: Arc<dyn EventBus> = match config.bus_type {
+        BusType::InMemory => {
             tracing::info!("Using InMemory event bus");
             Arc::new(InMemoryBus::new())
         }
-        "nats" => {
-            tracing::info!("Connecting to NATS at {}", config.nats_url);
-            let client = event_bus::connect_nats(&config.nats_url)
-                .await
-                .expect("Failed to connect to NATS");
-            Arc::new(NatsBus::new(client))
+        BusType::Nats => {
+            let nats_url = config.nats_url.as_deref().unwrap_or("nats://localhost:4222");
+            tracing::info!("Connecting to NATS at {}", nats_url);
+            match event_bus::connect_nats(nats_url).await {
+                Ok(client) => Arc::new(NatsBus::new(client)),
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        "Failed to connect to NATS — falling back to InMemory bus (degraded mode)"
+                    );
+                    Arc::new(InMemoryBus::new())
+                }
+            }
         }
-        _ => panic!(
-            "Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'",
-            config.bus_type
-        ),
     };
 
     start_receipt_event_bridge(bus.clone(), pool.clone()).await;
@@ -170,6 +181,7 @@ async fn main() {
         .route("/api/health", get(health_fn))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
         .merge(qi_reads)

@@ -2,6 +2,7 @@ pub mod assets;
 pub mod calibration;
 pub mod calibration_events;
 pub mod downtime;
+pub mod error_conversions;
 pub mod meters;
 pub mod overdue;
 pub mod plans;

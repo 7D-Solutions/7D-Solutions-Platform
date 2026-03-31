@@ -1,6 +1,6 @@
 [package]
 name = "quality-inspection-rs"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "Quality Inspection: receiving inspection, in-process inspection, disposition tracking"
 
@@ -22,6 +22,9 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+config-validator = { path = "../../platform/config-validator" }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 workforce-competence-rs = { path = "../workforce-competence" }
 futures = "0.3"
 

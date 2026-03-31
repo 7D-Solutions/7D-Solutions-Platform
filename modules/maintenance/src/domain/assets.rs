@@ -21,7 +21,7 @@ use crate::outbox;
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct Asset {
     pub id: Uuid,
     pub tenant_id: String,

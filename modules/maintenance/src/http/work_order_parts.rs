@@ -1,102 +1,23 @@
-//! Work order parts HTTP handlers.
-//!
-//! Endpoints:
-//!   POST   /api/maintenance/work-orders/:wo_id/parts           — add part
-//!   GET    /api/maintenance/work-orders/:wo_id/parts           — list parts
-//!   DELETE /api/maintenance/work-orders/:wo_id/parts/:part_id  — remove part
-
-use axum::{
-    extract::{Path, State},
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
-
-use super::ErrorBody;
-use crate::domain::work_orders::{AddPartRequest, WoPartError, WoPartsRepo};
+use super::tenant::{extract_tenant, with_request_id};
+use crate::domain::work_orders::{AddPartRequest, WoPartsRepo};
 use crate::AppState;
 
-fn part_error_response(err: WoPartError) -> (StatusCode, Json<ErrorBody>) {
-    match err {
-        WoPartError::WoNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", "Work order not found")),
-        ),
-        WoPartError::PartNotFound => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", "Part not found")),
-        ),
-        WoPartError::WoImmutable(status) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "wo_immutable",
-                &format!("Cannot modify parts: work order status is {}", status),
-            )),
-        ),
-        WoPartError::Validation(msg) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        WoPartError::Database(e) => {
-            tracing::error!(error = %e, "work order parts database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", "Database error")),
-            )
-        }
-    }
-}
-
-/// POST /api/maintenance/work-orders/:wo_id/parts
-pub async fn add_part(
-    State(state): State<Arc<AppState>>,
-    Path(wo_id): Path<Uuid>,
-    claims: Option<Extension<VerifiedClaims>>,
-    Json(mut req): Json<AddPartRequest>,
-) -> impl IntoResponse {
-    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
+pub async fn add_part(State(state): State<Arc<AppState>>, Path(wo_id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>, Json(mut req): Json<AddPartRequest>) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     req.tenant_id = tenant_id;
-    match WoPartsRepo::add(&state.pool, wo_id, &req).await {
-        Ok(part) => (StatusCode::CREATED, Json(json!(part))).into_response(),
-        Err(e) => part_error_response(e).into_response(),
-    }
+    match WoPartsRepo::add(&state.pool, wo_id, &req).await { Ok(p) => (StatusCode::CREATED, Json(p)).into_response(), Err(e) => { let a = ApiError::from(e); with_request_id(a, &tracing_ctx).into_response() } }
 }
-
-/// GET /api/maintenance/work-orders/:wo_id/parts
-pub async fn list_parts(
-    State(state): State<Arc<AppState>>,
-    Path(wo_id): Path<Uuid>,
-    claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
-    match WoPartsRepo::list(&state.pool, wo_id, &tenant_id).await {
-        Ok(parts) => (StatusCode::OK, Json(json!(parts))).into_response(),
-        Err(e) => part_error_response(e).into_response(),
-    }
+pub async fn list_parts(State(state): State<Arc<AppState>>, Path(wo_id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
+    match WoPartsRepo::list(&state.pool, wo_id, &tenant_id).await { Ok(v) => { let t = v.len() as i64; (StatusCode::OK, Json(PaginatedResponse::new(v, 1, t.max(1), t))).into_response() } Err(e) => { let a = ApiError::from(e); with_request_id(a, &tracing_ctx).into_response() } }
 }
-
-/// DELETE /api/maintenance/work-orders/:wo_id/parts/:part_id
-pub async fn remove_part(
-    State(state): State<Arc<AppState>>,
-    Path((wo_id, part_id)): Path<(Uuid, Uuid)>,
-    claims: Option<Extension<VerifiedClaims>>,
-) -> impl IntoResponse {
-    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
-        Ok(t) => t,
-        Err(resp) => return resp.into_response(),
-    };
-    match WoPartsRepo::remove(&state.pool, wo_id, part_id, &tenant_id).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => part_error_response(e).into_response(),
-    }
+pub async fn remove_part(State(state): State<Arc<AppState>>, Path((wo_id, part_id)): Path<(Uuid, Uuid)>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
+    match WoPartsRepo::remove(&state.pool, wo_id, part_id, &tenant_id).await { Ok(()) => StatusCode::NO_CONTENT.into_response(), Err(e) => { let a = ApiError::from(e); with_request_id(a, &tracing_ctx).into_response() } }
 }

@@ -156,6 +156,16 @@ impl PlanRepo {
         .map_err(PlanError::Database)
     }
 
+
+    pub async fn count(pool: &PgPool, q: &ListPlansQuery) -> Result<i64, PlanError> {
+        if q.tenant_id.trim().is_empty() {
+            return Err(PlanError::Validation("tenant_id is required".into()));
+        }
+        let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) FROM maintenance_plans WHERE tenant_id = $1 AND ($2::BOOL IS NULL OR is_active = $2)"#)
+            .bind(&q.tenant_id).bind(q.is_active).fetch_one(pool).await.map_err(PlanError::Database)?;
+        Ok(row.0)
+    }
+
     pub async fn update(
         pool: &PgPool,
         id: Uuid,
@@ -350,6 +360,16 @@ impl AssignmentRepo {
         .fetch_all(pool)
         .await
         .map_err(PlanError::Database)
+    }
+
+
+    pub async fn count(pool: &PgPool, q: &ListAssignmentsQuery) -> Result<i64, PlanError> {
+        if q.tenant_id.trim().is_empty() {
+            return Err(PlanError::Validation("tenant_id is required".into()));
+        }
+        let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) FROM maintenance_plan_assignments WHERE tenant_id = $1 AND ($2::UUID IS NULL OR plan_id = $2) AND ($3::UUID IS NULL OR asset_id = $3)"#)
+            .bind(&q.tenant_id).bind(q.plan_id).bind(q.asset_id).fetch_one(pool).await.map_err(PlanError::Database)?;
+        Ok(row.0)
     }
 
     pub async fn find_by_id(

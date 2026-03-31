@@ -21,7 +21,7 @@ use crate::outbox;
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct DowntimeEvent {
     pub id: Uuid,
     pub tenant_id: String,
@@ -283,6 +283,16 @@ impl DowntimeRepo {
         .fetch_all(pool)
         .await
         .map_err(DowntimeError::Database)
+    }
+
+
+    pub async fn count(pool: &PgPool, q: &ListDowntimeQuery) -> Result<i64, DowntimeError> {
+        if q.tenant_id.trim().is_empty() {
+            return Err(DowntimeError::Validation("tenant_id is required".into()));
+        }
+        let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) FROM downtime_events WHERE tenant_id = $1 AND ($2::UUID IS NULL OR asset_id = $2) AND ($3::TIMESTAMPTZ IS NULL OR start_time >= $3) AND ($4::TIMESTAMPTZ IS NULL OR start_time <= $4)"#)
+            .bind(&q.tenant_id).bind(q.asset_id).bind(q.from).bind(q.to).fetch_one(pool).await.map_err(DowntimeError::Database)?;
+        Ok(row.0)
     }
 
     /// List downtime events for a specific asset, ordered by start_time DESC.

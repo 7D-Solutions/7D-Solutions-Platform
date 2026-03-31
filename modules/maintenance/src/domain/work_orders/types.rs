@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Work order type — classifies the nature of the maintenance work.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WoType {
     Preventive,
@@ -39,7 +39,7 @@ impl fmt::Display for WoType {
 }
 
 /// Work order status — tracks lifecycle position within the state machine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WoStatus {
     Draft,
@@ -95,7 +95,7 @@ impl fmt::Display for WoStatus {
 }
 
 /// Priority level for work orders and maintenance plans.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Priority {
     Low,
@@ -136,7 +136,7 @@ impl fmt::Display for Priority {
 
 /// Asset type — classifies what kind of thing is being maintained.
 /// Asset-type agnostic: this is for filtering/reporting, not behavior.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetType {
     Vehicle,
@@ -187,7 +187,7 @@ impl TryFrom<String> for AssetType {
 }
 
 /// Asset operational status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetStatus {
     Active,
@@ -232,7 +232,7 @@ impl TryFrom<String> for AssetStatus {
 }
 
 /// Schedule type for maintenance plans.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ScheduleType {
     Calendar,

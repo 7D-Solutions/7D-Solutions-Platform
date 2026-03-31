@@ -19,7 +19,7 @@ use crate::outbox;
 // Domain model
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct CalibrationEvent {
     pub id: Uuid,
     pub tenant_id: String,
@@ -36,7 +36,7 @@ pub struct CalibrationEvent {
 // Calibration status (derived, not stored)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CalibrationStatus {
     InCal,
@@ -56,7 +56,7 @@ impl CalibrationStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CalibrationStatusResponse {
     pub status: CalibrationStatus,
     pub last_calibrated_at: Option<DateTime<Utc>>,

@@ -4,65 +4,18 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde_json::json;
+use serde::Deserialize;
 use std::sync::Arc;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use super::tenant::{extract_tenant, with_request_id};
 use crate::domain::models::*;
 use crate::domain::service::{self, QiError};
 use crate::AppState;
-
-// ============================================================================
-// Error mapping
-// ============================================================================
-
-fn error_response(err: QiError) -> impl IntoResponse {
-    match err {
-        QiError::NotFound(msg) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": msg })),
-        ),
-        QiError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": msg })),
-        ),
-        QiError::Unauthorized(msg) => (
-            StatusCode::FORBIDDEN,
-            Json(json!({ "error": "unauthorized_inspector", "message": msg })),
-        ),
-        QiError::ServiceUnavailable(msg) => {
-            tracing::error!(error = %msg, "workforce-competence authorization check failed");
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(json!({ "error": "service_unavailable", "message": msg })),
-            )
-        }
-        QiError::Serialization(e) => {
-            tracing::error!(error = %e, "serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        QiError::Database(ref e) => {
-            if let sqlx::Error::Database(dbe) = e {
-                if dbe.code().as_deref() == Some("23505") {
-                    return (
-                        StatusCode::CONFLICT,
-                        Json(json!({ "error": "duplicate", "message": dbe.message() })),
-                    );
-                }
-            }
-            tracing::error!(error = %e, "database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-    }
-}
 
 fn correlation_id() -> String {
     Uuid::new_v4().to_string()
@@ -72,14 +25,28 @@ fn correlation_id() -> String {
 // Inspection Plans
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/plans",
+    tag = "Inspection Plans",
+    request_body = CreateInspectionPlanRequest,
+    responses(
+        (status = 201, description = "Plan created", body = InspectionPlan),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_inspection_plan(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateInspectionPlanRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::create_inspection_plan(
         &state.pool,
@@ -90,38 +57,67 @@ pub async fn post_inspection_plan(
     )
     .await
     {
-        Ok(plan) => (StatusCode::CREATED, Json(json!(plan))).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(plan) => (StatusCode::CREATED, Json(plan)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/plans/{plan_id}",
+    tag = "Inspection Plans",
+    params(("plan_id" = Uuid, Path, description = "Plan ID")),
+    responses(
+        (status = 200, description = "Plan details", body = InspectionPlan),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspection_plan(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(plan_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::get_inspection_plan(&state.pool, &tenant_id, plan_id).await {
-        Ok(plan) => Json(json!(plan)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(plan) => Json(plan).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/plans/{plan_id}/activate",
+    tag = "Inspection Plans",
+    params(("plan_id" = Uuid, Path, description = "Plan ID")),
+    responses(
+        (status = 200, description = "Plan activated", body = InspectionPlan),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_activate_plan(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(plan_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::activate_plan(&state.pool, &tenant_id, plan_id).await {
-        Ok(plan) => Json(json!(plan)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(plan) => Json(plan).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
@@ -129,14 +125,28 @@ pub async fn post_activate_plan(
 // Receiving Inspections
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections",
+    tag = "Inspections",
+    request_body = CreateReceivingInspectionRequest,
+    responses(
+        (status = 201, description = "Receiving inspection created", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_receiving_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateReceivingInspectionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::create_receiving_inspection(
         &state.pool,
@@ -147,23 +157,37 @@ pub async fn post_receiving_inspection(
     )
     .await
     {
-        Ok(inspection) => (StatusCode::CREATED, Json(json!(inspection))).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(inspection) => (StatusCode::CREATED, Json(inspection)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/inspections/{inspection_id}",
+    tag = "Inspections",
+    params(("inspection_id" = Uuid, Path, description = "Inspection ID")),
+    responses(
+        (status = 200, description = "Inspection details", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(inspection_id): Path<Uuid>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::get_inspection(&state.pool, &tenant_id, inspection_id).await {
-        Ok(i) => Json(json!(i)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(i) => Json(i).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
@@ -171,15 +195,31 @@ pub async fn get_inspection(
 // Disposition transitions
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/{inspection_id}/hold",
+    tag = "Disposition",
+    params(("inspection_id" = Uuid, Path, description = "Inspection ID")),
+    request_body = DispositionTransitionRequest,
+    responses(
+        (status = 200, description = "Inspection held", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_hold_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::hold_inspection(
         &state.pool,
@@ -193,20 +233,36 @@ pub async fn post_hold_inspection(
     )
     .await
     {
-        Ok(i) => Json(json!(i)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(i) => Json(i).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/{inspection_id}/release",
+    tag = "Disposition",
+    params(("inspection_id" = Uuid, Path, description = "Inspection ID")),
+    request_body = DispositionTransitionRequest,
+    responses(
+        (status = 200, description = "Inspection released", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_release_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::release_inspection(
         &state.pool,
@@ -220,20 +276,36 @@ pub async fn post_release_inspection(
     )
     .await
     {
-        Ok(i) => Json(json!(i)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(i) => Json(i).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/{inspection_id}/accept",
+    tag = "Disposition",
+    params(("inspection_id" = Uuid, Path, description = "Inspection ID")),
+    request_body = DispositionTransitionRequest,
+    responses(
+        (status = 200, description = "Inspection accepted", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_accept_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::accept_inspection(
         &state.pool,
@@ -247,20 +319,36 @@ pub async fn post_accept_inspection(
     )
     .await
     {
-        Ok(i) => Json(json!(i)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(i) => Json(i).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/{inspection_id}/reject",
+    tag = "Disposition",
+    params(("inspection_id" = Uuid, Path, description = "Inspection ID")),
+    request_body = DispositionTransitionRequest,
+    responses(
+        (status = 200, description = "Inspection rejected", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_reject_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::reject_inspection(
         &state.pool,
@@ -274,8 +362,8 @@ pub async fn post_reject_inspection(
     )
     .await
     {
-        Ok(i) => Json(json!(i)).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(i) => Json(i).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
@@ -283,14 +371,28 @@ pub async fn post_reject_inspection(
 // In-Process Inspections
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/in-process",
+    tag = "Inspections",
+    request_body = CreateInProcessInspectionRequest,
+    responses(
+        (status = 201, description = "In-process inspection created", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_in_process_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateInProcessInspectionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::create_in_process_inspection(
         &state.pool,
@@ -301,8 +403,8 @@ pub async fn post_in_process_inspection(
     )
     .await
     {
-        Ok(inspection) => (StatusCode::CREATED, Json(json!(inspection))).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(inspection) => (StatusCode::CREATED, Json(inspection)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
@@ -310,14 +412,28 @@ pub async fn post_in_process_inspection(
 // Final Inspections
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/quality-inspection/inspections/final",
+    tag = "Inspections",
+    request_body = CreateFinalInspectionRequest,
+    responses(
+        (status = 201, description = "Final inspection created", body = Inspection),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_MUTATE"]))
+)]
 pub async fn post_final_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateFinalInspectionRequest>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     match service::create_final_inspection(
         &state.pool,
@@ -328,85 +444,327 @@ pub async fn post_final_inspection(
     )
     .await
     {
-        Ok(inspection) => (StatusCode::CREATED, Json(json!(inspection))).into_response(),
-        Err(e) => error_response(e).into_response(),
+        Ok(inspection) => (StatusCode::CREATED, Json(inspection)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
 // ============================================================================
-// Queries
+// Queries (paginated)
 // ============================================================================
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct InspectionsByPartRevPaginatedQuery {
+    pub part_id: Uuid,
+    pub part_revision: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/inspections/by-part-rev",
+    tag = "Queries",
+    params(InspectionsByPartRevPaginatedQuery),
+    responses(
+        (status = 200, description = "Paginated inspections", body = PaginatedResponse<Inspection>),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspections_by_part_rev(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(q): Query<InspectionsByPartRevQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Query(q): Query<InspectionsByPartRevPaginatedQuery>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::list_inspections_by_part_rev(
-        &state.pool,
-        &tenant_id,
-        q.part_id,
-        q.part_revision.as_deref(),
-    )
-    .await
-    {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    let result: Result<_, QiError> = async {
+        let (rows, total) = if let Some(rev) = q.part_revision.as_deref() {
+            let rows = sqlx::query_as::<_, Inspection>(
+                r#"SELECT * FROM inspections
+                   WHERE tenant_id = $1 AND part_id = $2 AND part_revision = $3
+                   ORDER BY created_at DESC LIMIT $4 OFFSET $5"#,
+            )
+            .bind(&tenant_id)
+            .bind(q.part_id)
+            .bind(rev)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND part_id = $2 AND part_revision = $3",
+            )
+            .bind(&tenant_id)
+            .bind(q.part_id)
+            .bind(rev)
+            .fetch_one(&state.pool)
+            .await?;
+
+            (rows, total.0)
+        } else {
+            let rows = sqlx::query_as::<_, Inspection>(
+                r#"SELECT * FROM inspections
+                   WHERE tenant_id = $1 AND part_id = $2
+                   ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
+            )
+            .bind(&tenant_id)
+            .bind(q.part_id)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND part_id = $2",
+            )
+            .bind(&tenant_id)
+            .bind(q.part_id)
+            .fetch_one(&state.pool)
+            .await?;
+
+            (rows, total.0)
+        };
+        Ok(PaginatedResponse::new(rows, page, page_size, total))
+    }
+    .await;
+
+    match result {
+        Ok(resp) => Json(resp).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct InspectionsByReceiptPaginatedQuery {
+    pub receipt_id: Uuid,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/inspections/by-receipt",
+    tag = "Queries",
+    params(InspectionsByReceiptPaginatedQuery),
+    responses(
+        (status = 200, description = "Paginated inspections", body = PaginatedResponse<Inspection>),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspections_by_receipt(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(q): Query<InspectionsByReceiptQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Query(q): Query<InspectionsByReceiptPaginatedQuery>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::list_inspections_by_receipt(&state.pool, &tenant_id, q.receipt_id).await {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    let result: Result<_, QiError> = async {
+        let rows = sqlx::query_as::<_, Inspection>(
+            r#"SELECT * FROM inspections
+               WHERE tenant_id = $1 AND receipt_id = $2
+               ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
+        )
+        .bind(&tenant_id)
+        .bind(q.receipt_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await?;
+
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND receipt_id = $2",
+        )
+        .bind(&tenant_id)
+        .bind(q.receipt_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+        Ok(PaginatedResponse::new(rows, page, page_size, total.0))
+    }
+    .await;
+
+    match result {
+        Ok(resp) => Json(resp).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct InspectionsByWoPaginatedQuery {
+    pub wo_id: Uuid,
+    pub inspection_type: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/inspections/by-wo",
+    tag = "Queries",
+    params(InspectionsByWoPaginatedQuery),
+    responses(
+        (status = 200, description = "Paginated inspections", body = PaginatedResponse<Inspection>),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspections_by_wo(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(q): Query<InspectionsByWoQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Query(q): Query<InspectionsByWoPaginatedQuery>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::list_inspections_by_wo(
-        &state.pool,
-        &tenant_id,
-        q.wo_id,
-        q.inspection_type.as_deref(),
-    )
-    .await
-    {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    let result: Result<_, QiError> = async {
+        let (rows, total) = if let Some(itype) = q.inspection_type.as_deref() {
+            let rows = sqlx::query_as::<_, Inspection>(
+                r#"SELECT * FROM inspections
+                   WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3
+                   ORDER BY created_at DESC LIMIT $4 OFFSET $5"#,
+            )
+            .bind(&tenant_id)
+            .bind(q.wo_id)
+            .bind(itype)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3",
+            )
+            .bind(&tenant_id)
+            .bind(q.wo_id)
+            .bind(itype)
+            .fetch_one(&state.pool)
+            .await?;
+
+            (rows, total.0)
+        } else {
+            let rows = sqlx::query_as::<_, Inspection>(
+                r#"SELECT * FROM inspections
+                   WHERE tenant_id = $1 AND wo_id = $2
+                   ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
+            )
+            .bind(&tenant_id)
+            .bind(q.wo_id)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&state.pool)
+            .await?;
+
+            let total: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2",
+            )
+            .bind(&tenant_id)
+            .bind(q.wo_id)
+            .fetch_one(&state.pool)
+            .await?;
+
+            (rows, total.0)
+        };
+        Ok(PaginatedResponse::new(rows, page, page_size, total))
+    }
+    .await;
+
+    match result {
+        Ok(resp) => Json(resp).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct InspectionsByLotPaginatedQuery {
+    pub lot_id: Uuid,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/inspections/by-lot",
+    tag = "Queries",
+    params(InspectionsByLotPaginatedQuery),
+    responses(
+        (status = 200, description = "Paginated inspections", body = PaginatedResponse<Inspection>),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
 pub async fn get_inspections_by_lot(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(q): Query<InspectionsByLotQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Query(q): Query<InspectionsByLotPaginatedQuery>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
-        Err(e) => return e.into_response(),
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::list_inspections_by_lot(&state.pool, &tenant_id, q.lot_id).await {
-        Ok(rows) => Json(json!(rows)).into_response(),
-        Err(e) => error_response(e).into_response(),
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    let result: Result<_, QiError> = async {
+        let rows = sqlx::query_as::<_, Inspection>(
+            r#"SELECT * FROM inspections
+               WHERE tenant_id = $1 AND lot_id = $2
+               ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
+        )
+        .bind(&tenant_id)
+        .bind(q.lot_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&state.pool)
+        .await?;
+
+        let total: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND lot_id = $2",
+        )
+        .bind(&tenant_id)
+        .bind(q.lot_id)
+        .fetch_one(&state.pool)
+        .await?;
+
+        Ok(PaginatedResponse::new(rows, page, page_size, total.0))
+    }
+    .await;
+
+    match result {
+        Ok(resp) => Json(resp).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

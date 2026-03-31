@@ -16,7 +16,7 @@ use uuid::Uuid;
 // Models
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct MeterType {
     pub id: Uuid,
     pub tenant_id: String,
@@ -27,7 +27,7 @@ pub struct MeterType {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct MeterReading {
     pub id: Uuid,
     pub tenant_id: String,
@@ -350,6 +350,12 @@ impl MeterReadingRepo {
         .fetch_all(pool)
         .await
         .map_err(MeterError::Database)
+    }
+
+    pub async fn count(pool: &PgPool, tenant_id: &str, asset_id: Uuid, q: &ListReadingsQuery) -> Result<i64, MeterError> {
+        let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) FROM meter_readings WHERE tenant_id = $1 AND asset_id = $2 AND ($3::UUID IS NULL OR meter_type_id = $3)"#)
+            .bind(tenant_id).bind(asset_id).bind(q.meter_type_id).fetch_one(pool).await.map_err(MeterError::Database)?;
+        Ok(row.0)
     }
 }
 

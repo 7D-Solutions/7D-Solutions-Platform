@@ -13,7 +13,7 @@ use super::types::WoStatus;
 
 // ── Domain model ──────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WoPart {
     pub id: Uuid,
     pub tenant_id: String,

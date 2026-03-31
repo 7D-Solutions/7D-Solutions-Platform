@@ -335,6 +335,31 @@ mod tests {
     }
 
     #[test]
+    fn openapi_spec_is_valid_json_with_endpoints() {
+        let spec = ApiDoc::openapi();
+        let json = serde_json::to_value(&spec).expect("spec serializes to JSON");
+
+        // Has paths
+        let paths = json["paths"].as_object().expect("paths is an object");
+        assert!(paths.len() >= 5, "expected at least 5 paths, got {}", paths.len());
+
+        // Key endpoints present
+        assert!(paths.contains_key("/api/payments/checkout-sessions"));
+        assert!(paths.contains_key("/api/payments/checkout-sessions/{id}"));
+        assert!(paths.contains_key("/api/payments/webhook/tilled"));
+        assert!(paths.contains_key("/api/payments/payments"));
+
+        // Has security scheme
+        let schemes = &json["components"]["securitySchemes"];
+        assert!(schemes["bearer"].is_object(), "bearer security scheme missing");
+
+        // Has schemas
+        let schemas = json["components"]["schemas"].as_object().expect("schemas object");
+        assert!(schemas.contains_key("ApiError"), "ApiError schema missing");
+        assert!(schemas.contains_key("CreateCheckoutSessionRequest"), "Request schema missing");
+    }
+
+    #[test]
     fn cors_specific_origins_parse() {
         let config = Config {
             database_url: "postgresql://localhost/test".to_string(),

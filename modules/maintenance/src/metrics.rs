@@ -7,14 +7,14 @@
 //!
 //! No PII in labels — method, route, status are operational values only.
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::extract::State;
 use prometheus::{
     Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
     TextEncoder,
 };
 use std::sync::Arc;
 
-use crate::http::ErrorBody;
+use platform_http_contracts::ApiError;
 
 /// Maintenance-specific Prometheus metrics
 pub struct MaintenanceMetrics {
@@ -90,7 +90,7 @@ impl MaintenanceMetrics {
 /// Axum handler for GET /metrics
 pub async fn metrics_handler(
     State(state): State<Arc<crate::AppState>>,
-) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+) -> Result<String, ApiError> {
     // Refresh outbox queue depth gauge on each scrape
     match crate::outbox::count_unpublished(&state.pool).await {
         Ok(depth) => state.metrics.outbox_queue_depth.set(depth),
@@ -100,24 +100,10 @@ pub async fn metrics_handler(
     let encoder = TextEncoder::new();
     let families = state.metrics.registry().gather();
     let mut buffer = Vec::new();
-    encoder.encode(&families, &mut buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to encode metrics: {}", e),
-            )),
-        )
-    })?;
-    String::from_utf8(buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new(
-                "internal_error",
-                &format!("Failed to convert metrics to UTF-8: {}", e),
-            )),
-        )
-    })
+    encoder.encode(&families, &mut buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to encode metrics: {}", e)))?;
+    String::from_utf8(buffer)
+        .map_err(|e| ApiError::internal(format!("Failed to convert metrics to UTF-8: {}", e)))
 }
 
 #[cfg(test)]

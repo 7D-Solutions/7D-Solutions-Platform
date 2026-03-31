@@ -1,3 +1,4 @@
+pub mod error_conversions;
 pub mod inspection_service;
 pub mod models;
 pub mod outbox;
