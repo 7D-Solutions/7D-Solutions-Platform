@@ -1,6 +1,6 @@
 [package]
 name = "notifications-rs"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "Event-driven notification delivery with scheduled dispatch and retry"
 
@@ -31,6 +31,7 @@ prometheus = "0.13"
 lazy_static = "1.4"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 serial_test = "3.3.1"
