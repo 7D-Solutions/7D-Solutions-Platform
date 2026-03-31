@@ -5,13 +5,14 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 // ============================================================================
 // Row types (read from DB)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Group {
     pub id: Uuid,
     pub tenant_id: String,
@@ -24,7 +25,7 @@ pub struct Group {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct GroupEntity {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -38,7 +39,7 @@ pub struct GroupEntity {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct CoaMapping {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -50,7 +51,7 @@ pub struct CoaMapping {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct EliminationRule {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -64,7 +65,7 @@ pub struct EliminationRule {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct FxPolicy {
     pub id: Uuid,
     pub group_id: Uuid,
@@ -81,7 +82,7 @@ pub struct FxPolicy {
 // Create request types
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateGroupRequest {
     pub name: String,
     pub description: Option<String>,
@@ -89,7 +90,7 @@ pub struct CreateGroupRequest {
     pub fiscal_year_end_month: Option<i16>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateEntityRequest {
     pub entity_tenant_id: String,
     pub entity_name: String,
@@ -98,7 +99,7 @@ pub struct CreateEntityRequest {
     pub consolidation_method: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateCoaMappingRequest {
     pub entity_tenant_id: String,
     pub source_account_code: String,
@@ -106,7 +107,7 @@ pub struct CreateCoaMappingRequest {
     pub target_account_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateEliminationRuleRequest {
     pub rule_name: String,
     pub rule_type: String,
@@ -115,7 +116,7 @@ pub struct CreateEliminationRuleRequest {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpsertFxPolicyRequest {
     pub entity_tenant_id: String,
     pub bs_rate_type: Option<String>,
@@ -128,7 +129,7 @@ pub struct UpsertFxPolicyRequest {
 // Update request types
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateGroupRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -137,7 +138,7 @@ pub struct UpdateGroupRequest {
     pub is_active: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateEntityRequest {
     pub entity_name: Option<String>,
     pub functional_currency: Option<String>,
@@ -146,7 +147,7 @@ pub struct UpdateEntityRequest {
     pub is_active: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateEliminationRuleRequest {
     pub rule_name: Option<String>,
     pub rule_type: Option<String>,
@@ -160,24 +161,28 @@ pub struct UpdateEliminationRuleRequest {
 // Query params
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListGroupsQuery {
     #[serde(default)]
     pub include_inactive: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListEntitiesQuery {
     #[serde(default)]
     pub include_inactive: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListCoaMappingsQuery {
     pub entity_tenant_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
 pub struct ListEliminationRulesQuery {
     #[serde(default)]
     pub include_inactive: bool,
@@ -187,7 +192,7 @@ pub struct ListEliminationRulesQuery {
 // Validation result
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ValidationResult {
     pub is_complete: bool,
     pub missing_coa_mappings: Vec<String>,

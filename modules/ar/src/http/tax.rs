@@ -120,9 +120,7 @@ async fn quote_tax_handler(
 ) -> impl IntoResponse {
     let tenant_id = match super::tenant::extract_tenant(&claims) {
         Ok(id) => id,
-        Err((status, Json(err))) => {
-            return (status, Json(ErrorBody { error: err.message })).into_response();
-        }
+        Err(err) => return err.into_response(),
     };
 
     let correlation_id = body
@@ -234,9 +232,7 @@ async fn lookup_cached_quote(
 ) -> impl IntoResponse {
     let tenant_id = match super::tenant::extract_tenant(&claims) {
         Ok(id) => id,
-        Err((status, Json(err))) => {
-            return (status, Json(ErrorBody { error: err.message })).into_response();
-        }
+        Err(err) => return err.into_response(),
     };
 
     // Look up the most recent cached quote for this tenant + invoice_id
@@ -321,9 +317,7 @@ async fn commit_tax_handler(
 ) -> impl IntoResponse {
     let tenant_id = match super::tenant::extract_tenant(&claims) {
         Ok(id) => id,
-        Err((status, Json(err))) => {
-            return (status, Json(ErrorBody { error: err.message })).into_response();
-        }
+        Err(err) => return err.into_response(),
     };
 
     let correlation_id = body
@@ -381,9 +375,7 @@ async fn void_tax_handler(
 ) -> impl IntoResponse {
     let tenant_id = match super::tenant::extract_tenant(&claims) {
         Ok(id) => id,
-        Err((status, Json(err))) => {
-            return (status, Json(ErrorBody { error: err.message })).into_response();
-        }
+        Err(err) => return err.into_response(),
     };
 
     let correlation_id = body

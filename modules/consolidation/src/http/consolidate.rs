@@ -1,39 +1,31 @@
 //! HTTP handler for consolidated trial balance.
-//!
-//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::domain::engine::{self, compute, EngineError};
+use super::tenant::{extract_tenant, with_request_id};
+use crate::domain::engine::{self, compute};
 use crate::AppState;
 
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ConsolidateError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ConsolidateError {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Missing or invalid authentication".to_string(),
-        }),
-    }
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ConsolidateQuery {
     pub period_id: Uuid,
     pub as_of: NaiveDate,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ConsolidateResponse {
     pub group_id: Uuid,
     pub as_of: String,
@@ -44,119 +36,97 @@ pub struct ConsolidateResponse {
     pub entity_hashes: Vec<engine::EntityHashEntry>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CachedTbResponse {
     pub group_id: Uuid,
     pub as_of: String,
     pub row_count: usize,
     pub rows: Vec<compute::CachedTbRow>,
-    pub source: &'static str,
+    pub source: String,
 }
 
-#[derive(Debug)]
-pub struct ConsolidateError {
-    pub status: StatusCode,
-    pub message: String,
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct CachedTbQuery {
+    pub as_of: NaiveDate,
 }
 
-impl IntoResponse for ConsolidateError {
-    fn into_response(self) -> Response {
-        let body = Json(serde_json::json!({ "error": self.message }));
-        (self.status, body).into_response()
-    }
-}
-
-fn map_engine_error(e: EngineError) -> ConsolidateError {
-    match &e {
-        EngineError::PeriodNotClosed(_) => ConsolidateError {
-            status: StatusCode::PRECONDITION_FAILED,
-            message: e.to_string(),
-        },
-        EngineError::HashMismatch { .. } => ConsolidateError {
-            status: StatusCode::CONFLICT,
-            message: e.to_string(),
-        },
-        EngineError::MissingCoaMapping { .. } | EngineError::MissingFxPolicy(_) => {
-            ConsolidateError {
-                status: StatusCode::UNPROCESSABLE_ENTITY,
-                message: e.to_string(),
-            }
-        }
-        EngineError::Config(_) => ConsolidateError {
-            status: StatusCode::NOT_FOUND,
-            message: e.to_string(),
-        },
-        _ => ConsolidateError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal consolidation error".to_string(),
-        },
-    }
-}
-
-/// POST /api/consolidation/groups/{group_id}/consolidate
-///
-/// Runs the full consolidation pipeline and caches the result.
+#[utoipa::path(
+    post, path = "/api/consolidation/groups/{group_id}/consolidate", tag = "Engine",
+    params(("group_id" = Uuid, Path)),
+    request_body = ConsolidateQuery,
+    responses((status = 200, body = ConsolidateResponse), (status = 422, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn run_consolidation(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<ConsolidateQuery>,
-) -> Result<Json<ConsolidateResponse>, ConsolidateError> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let _tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let gl_client = app_state.gl_client();
 
-    let result = compute::consolidate(
+    match compute::consolidate(
         &app_state.pool,
         &gl_client,
-        &tenant_id,
+        &_tenant_id,
         group_id,
         params.period_id,
         params.as_of,
     )
     .await
-    .map_err(map_engine_error)?;
-
-    app_state.metrics.consolidation_runs_total.inc();
-
-    Ok(Json(ConsolidateResponse {
-        group_id: result.group_id,
-        as_of: result.as_of.to_string(),
-        reporting_currency: result.reporting_currency,
-        row_count: result.rows.len(),
-        rows: result.rows,
-        input_hash: result.input_hash,
-        entity_hashes: result.entity_hashes,
-    }))
+    {
+        Ok(result) => {
+            app_state.metrics.consolidation_runs_total.inc();
+            Json(ConsolidateResponse {
+                group_id: result.group_id,
+                as_of: result.as_of.to_string(),
+                reporting_currency: result.reporting_currency,
+                row_count: result.rows.len(),
+                rows: result.rows,
+                input_hash: result.input_hash,
+                entity_hashes: result.entity_hashes,
+            })
+            .into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
-/// GET /api/consolidation/groups/{group_id}/trial-balance?as_of=YYYY-MM-DD
-///
-/// Returns cached consolidated TB if available.
+#[utoipa::path(
+    get, path = "/api/consolidation/groups/{group_id}/trial-balance", tag = "Engine",
+    params(("group_id" = Uuid, Path), CachedTbQuery),
+    responses((status = 200, body = CachedTbResponse), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_consolidated_tb(
     State(app_state): State<Arc<AppState>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(group_id): Path<Uuid>,
     Query(params): Query<CachedTbQuery>,
-) -> Result<Json<CachedTbResponse>, ConsolidateError> {
-    let cached = compute::get_cached_tb(&app_state.pool, group_id, params.as_of)
-        .await
-        .map_err(map_engine_error)?;
-
-    match cached {
-        Some(rows) => Ok(Json(CachedTbResponse {
+) -> impl IntoResponse {
+    match compute::get_cached_tb(&app_state.pool, group_id, params.as_of).await {
+        Ok(Some(rows)) => Json(CachedTbResponse {
             group_id,
             as_of: params.as_of.to_string(),
             row_count: rows.len(),
             rows,
-            source: "cache",
-        })),
-        None => Err(ConsolidateError {
-            status: StatusCode::NOT_FOUND,
-            message: format!("No cached TB for group {} as_of {}", group_id, params.as_of),
-        }),
+            source: "cache".to_string(),
+        })
+        .into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!(
+                "No cached TB for group {} as_of {}",
+                group_id, params.as_of
+            )),
+            &ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CachedTbQuery {
-    pub as_of: NaiveDate,
 }

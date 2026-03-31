@@ -1,32 +1,29 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     Extension, Json,
 };
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{ErrorResponse, Event, ListEventsQuery};
+use crate::models::{ApiError, Event, ListEventsQuery};
 
 /// GET /api/ar/events - List events with filtering
 pub async fn list_events(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListEventsQuery>,
-) -> Result<Json<Vec<Event>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Event>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(1000);
     let offset = query.offset.unwrap_or(0);
 
-    // Build dynamic query based on filters
     let mut sql = String::from(
         "SELECT id, app_id, event_type, source, entity_type, entity_id, payload, created_at FROM ar_events WHERE app_id = $1",
     );
     let mut param_count = 1;
     let mut conditions = Vec::new();
 
-    // Add filters
     if query.entity_id.is_some() {
         param_count += 1;
         conditions.push(format!("entity_id = ${}", param_count));
@@ -63,7 +60,6 @@ pub async fn list_events(
     param_count += 1;
     sql.push_str(&format!(" OFFSET ${}", param_count));
 
-    // Build query with parameters
     let mut q = sqlx::query_as::<_, Event>(&sql).bind(&app_id);
 
     if let Some(ref entity_id) = query.entity_id {
@@ -89,10 +85,7 @@ pub async fn list_events(
 
     let events = q.fetch_all(&db).await.map_err(|e| {
         tracing::error!("Failed to list events: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("database_error", e.to_string())),
-        )
+        ApiError::internal("Failed to list events")
     })?;
 
     Ok(Json(events))
@@ -103,7 +96,7 @@ pub async fn get_event(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Event>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Event>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let event = sqlx::query_as::<_, Event>(
@@ -119,20 +112,11 @@ pub async fn get_event(
     .await
     .map_err(|e| {
         tracing::error!("Failed to fetch event {}: {}", id, e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("database_error", e.to_string())),
-        )
+        ApiError::internal("Failed to fetch event")
     })?;
 
     match event {
         Some(e) => Ok(Json(e)),
-        None => Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new(
-                "not_found",
-                format!("Event {} not found", id),
-            )),
-        )),
+        None => Err(ApiError::not_found(format!("Event {} not found", id))),
     }
 }

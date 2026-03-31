@@ -1,8 +1,8 @@
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{extract::State, Extension, Json};
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::ErrorResponse;
+use crate::models::ApiError;
 
 // ============================================================================
 // Reconciliation Matching (bd-2cn)
@@ -23,7 +23,7 @@ pub async fn recon_run_route(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ReconRunRequest>,
-) -> Result<Json<crate::reconciliation::ReconRunResult>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<crate::reconciliation::ReconRunResult>, ApiError> {
     let recon_run_id = req.recon_run_id.unwrap_or_else(uuid::Uuid::new_v4);
     let app_id = super::tenant::extract_tenant(&claims)?;
 
@@ -39,10 +39,7 @@ pub async fn recon_run_route(
     .await
     .map_err(|e| {
         tracing::error!("Reconciliation run failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("recon_error", e.to_string())),
-        )
+        ApiError::internal(format!("Reconciliation failed: {}", e))
     })?;
 
     match result {
@@ -68,7 +65,7 @@ pub struct ScheduleReconRequest {
 pub async fn schedule_recon_route(
     State(db): State<PgPool>,
     Json(req): Json<ScheduleReconRequest>,
-) -> Result<Json<crate::recon_scheduler::ScheduledRunResult>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<crate::recon_scheduler::ScheduledRunResult>, ApiError> {
     let scheduled_run_id = req.scheduled_run_id.unwrap_or_else(uuid::Uuid::new_v4);
 
     let result = crate::recon_scheduler::create_scheduled_run(
@@ -84,10 +81,7 @@ pub async fn schedule_recon_route(
     .await
     .map_err(|e| {
         tracing::error!("Schedule recon run failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("recon_schedule_error", e.to_string())),
-        )
+        ApiError::internal(format!("Schedule recon failed: {}", e))
     })?;
 
     match result {
@@ -108,10 +102,7 @@ pub struct ReconPollRequest {
 pub async fn recon_poll_route(
     State(db): State<PgPool>,
     Json(req): Json<ReconPollRequest>,
-) -> Result<
-    Json<Vec<crate::recon_scheduler::ScheduledRunExecutionOutcome>>,
-    (StatusCode, Json<ErrorResponse>),
-> {
+) -> Result<Json<Vec<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError> {
     let worker_id = req.worker_id.unwrap_or_else(|| "api-worker".to_string());
     let batch_size = req.batch_size.unwrap_or(10);
     let correlation_id = uuid::Uuid::new_v4().to_string();

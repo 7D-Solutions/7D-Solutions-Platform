@@ -1,7 +1,7 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, Json};
 use sqlx::PgPool;
 
-use crate::models::ErrorResponse;
+use crate::models::ApiError;
 
 // ============================================================================
 // Dunning Scheduler (bd-2bj)
@@ -34,7 +34,7 @@ pub struct DunningPollResponse {
 pub async fn dunning_poll_route(
     State(db): State<PgPool>,
     Json(req): Json<DunningPollRequest>,
-) -> Result<Json<DunningPollResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<DunningPollResponse>, ApiError> {
     let batch_size = req.batch_size.min(100); // Cap at 100
     let correlation_id = uuid::Uuid::new_v4().to_string();
 

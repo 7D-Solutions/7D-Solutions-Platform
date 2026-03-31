@@ -344,7 +344,7 @@ pub async fn get_cached_tb(
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct CachedTbRow {
     pub account_code: String,
     pub account_name: String,
@@ -373,7 +373,7 @@ mod tests {
             updated_at: chrono::Utc::now(),
         };
         let mappings = vec![&mapping];
-        let (code, name) = map_account("ent-1", "1000", "Cash", &mappings).unwrap();
+        let (code, name) = map_account("ent-1", "1000", "Cash", &mappings).expect("mapped");
         assert_eq!(code, "10000");
         assert_eq!(name, "Consolidated Cash");
     }
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn test_map_account_passthrough() {
         let mappings: Vec<&crate::domain::config::CoaMapping> = vec![];
-        let (code, name) = map_account("ent-1", "9999", "Misc", &mappings).unwrap();
+        let (code, name) = map_account("ent-1", "9999", "Misc", &mappings).expect("passthrough");
         assert_eq!(code, "9999");
         assert_eq!(name, "Misc");
     }
@@ -402,8 +402,8 @@ mod tests {
 
     #[test]
     fn test_input_hash_deterministic() {
-        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let date = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("uuid");
+        let date = NaiveDate::from_ymd_opt(2026, 1, 31).expect("date");
 
         let mut hashes1 = vec![
             EntityHashEntry {

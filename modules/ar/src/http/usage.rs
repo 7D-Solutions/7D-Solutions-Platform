@@ -7,7 +7,7 @@ use event_bus::TracingContext;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{CaptureUsageRequest, ErrorResponse, UsageRecord};
+use crate::models::{ApiError, CaptureUsageRequest, UsageRecord};
 
 // ============================================================================
 // USAGE INGESTION (bd-23z)
@@ -25,7 +25,7 @@ pub async fn capture_usage(
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CaptureUsageRequest>,
-) -> Result<Json<UsageRecord>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<UsageRecord>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
@@ -43,13 +43,7 @@ pub async fn capture_usage(
     .await
     .map_err(|e| {
         tracing::error!("DB error checking usage idempotency: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("DB error: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     if let Some(record) = existing {
@@ -62,16 +56,10 @@ pub async fn capture_usage(
 
     // Resolve customer_id integer from string external_customer_id or numeric string
     let customer_id: i32 = req.customer_id.parse().map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new(
-                "validation_error",
-                format!(
-                    "customer_id must be a numeric AR customer id, got: {}",
-                    req.customer_id
-                ),
-            )),
-        )
+        ApiError::bad_request(format!(
+            "customer_id must be a numeric AR customer id, got: {}",
+            req.customer_id
+        ))
     })?;
 
     let quantity_minor: i64 = req.unit_price_minor;
@@ -79,13 +67,7 @@ pub async fn capture_usage(
     // Begin transaction: insert usage + outbox event atomically
     let mut tx = db.begin().await.map_err(|e| {
         tracing::error!("Failed to begin transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to begin tx: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Mutation: insert usage record
@@ -114,13 +96,7 @@ pub async fn capture_usage(
     .await
     .map_err(|e| {
         tracing::error!("Failed to insert usage record: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to insert usage: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Outbox: emit ar.usage_captured in the same transaction
@@ -160,25 +136,13 @@ pub async fn capture_usage(
     .await
     .map_err(|e| {
         tracing::error!("Failed to enqueue ar.usage_captured event: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "outbox_error",
-                format!("Failed to enqueue event: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     // Commit: usage insert + outbox event commit atomically
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit usage transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "transaction_error",
-                format!("Failed to commit: {}", e),
-            )),
-        )
+        ApiError::internal("Internal database error")
     })?;
 
     tracing::info!(
@@ -207,7 +171,7 @@ pub async fn bill_usage_route(
     claims: Option<Extension<VerifiedClaims>>,
     Path(invoice_id): Path<i32>,
     Json(req): Json<BillUsageHttpRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     use crate::usage_billing::{bill_usage_for_invoice, BillUsageRequest};
 
     let app_id = super::tenant::extract_tenant(&claims)?;
@@ -232,9 +196,6 @@ pub async fn bill_usage_route(
     })
     .map_err(|e| {
         tracing::error!(invoice_id = %invoice_id, error = %e, "bill-usage failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("database_error", e.to_string())),
-        )
+        ApiError::internal("Internal database error")
     })
 }

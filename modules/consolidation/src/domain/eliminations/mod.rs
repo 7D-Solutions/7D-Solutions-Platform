@@ -7,10 +7,11 @@ pub mod service;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// A suggested elimination journal entry.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EliminationSuggestion {
     pub rule_id: Uuid,
     pub rule_name: String,

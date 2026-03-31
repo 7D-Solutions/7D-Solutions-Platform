@@ -8,7 +8,7 @@ use sqlx::PgPool;
 
 use crate::idempotency::log_event_async;
 use crate::models::{
-    CreateCustomerRequest, Customer, ErrorResponse, ListCustomersQuery, UpdateCustomerRequest,
+    ApiError, CreateCustomerRequest, Customer, ListCustomersQuery, UpdateCustomerRequest,
 };
 
 /// POST /api/ar/customers - Create a new customer
@@ -16,15 +16,12 @@ pub async fn create_customer(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateCustomerRequest>,
-) -> Result<(StatusCode, Json<Customer>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<Customer>), ApiError> {
     // Validate email
     let email = match &req.email {
         Some(e) if !e.trim().is_empty() => e.trim(),
         _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::new("validation_error", "Email is required")),
-            ));
+            return Err(ApiError::bad_request("Email is required"));
         }
     };
 
@@ -128,7 +125,7 @@ pub async fn get_customer(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
-) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Customer>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let customer = sqlx::query_as::<_, Customer>(
@@ -175,7 +172,7 @@ pub async fn list_customers(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListCustomersQuery>,
-) -> Result<Json<Vec<Customer>>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Vec<Customer>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
@@ -245,7 +242,7 @@ pub async fn update_customer(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateCustomerRequest>,
-) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<Customer>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify customer exists and belongs to app

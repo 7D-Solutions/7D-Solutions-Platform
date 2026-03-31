@@ -12,11 +12,12 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 use serde::Serialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ── Response types ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BsAccountLine {
     pub account_code: String,
     pub account_name: String,
@@ -24,14 +25,14 @@ pub struct BsAccountLine {
     pub amount_minor: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct BsSection {
     pub section: String,
     pub accounts: Vec<BsAccountLine>,
     pub total_by_currency: HashMap<String, i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ConsolidatedBalanceSheet {
     pub group_id: Uuid,
     pub as_of: NaiveDate,

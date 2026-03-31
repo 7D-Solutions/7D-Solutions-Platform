@@ -36,6 +36,11 @@ async fn main() {
         .await
         .expect("Consolidation: failed to connect to Postgres");
 
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("Consolidation: failed to run database migrations");
+
     let shutdown_pool = pool.clone();
 
     tracing::info!("Consolidation: database connected");

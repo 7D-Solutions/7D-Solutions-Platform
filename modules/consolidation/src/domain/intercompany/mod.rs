@@ -8,10 +8,11 @@ pub mod service;
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// A matched intercompany balance pair across two entities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IntercompanyMatch {
     pub rule_id: Uuid,
     pub rule_name: String,

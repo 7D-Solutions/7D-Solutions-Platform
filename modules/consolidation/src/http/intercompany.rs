@@ -1,40 +1,31 @@
 //! HTTP handlers for intercompany matching and elimination posting.
-//!
-//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::tenant::{extract_tenant, with_request_id};
 use crate::domain::eliminations::{self, service as elim_service};
 use crate::domain::intercompany::{self, service as ic_service};
 use crate::AppState;
 
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, IntercompanyError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(IntercompanyError {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Missing or invalid authentication".to_string(),
-        }),
-    }
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct IntercompanyMatchRequest {
     pub period_id: Uuid,
     pub as_of: NaiveDate,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct IntercompanyMatchResponse {
     pub group_id: Uuid,
     pub as_of: String,
@@ -45,14 +36,14 @@ pub struct IntercompanyMatchResponse {
     pub suggestions: Vec<eliminations::EliminationSuggestion>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PostEliminationsRequest {
     pub period_id: Uuid,
     pub as_of: NaiveDate,
     pub reporting_currency: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PostEliminationsResponse {
     pub group_id: Uuid,
     pub period_id: Uuid,
@@ -62,39 +53,27 @@ pub struct PostEliminationsResponse {
     pub already_posted: bool,
 }
 
-#[derive(Debug)]
-pub struct IntercompanyError {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for IntercompanyError {
-    fn into_response(self) -> Response {
-        let body = Json(serde_json::json!({ "error": self.message }));
-        (self.status, body).into_response()
-    }
-}
-
-fn map_error(e: crate::domain::engine::EngineError) -> IntercompanyError {
-    IntercompanyError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: e.to_string(),
-    }
-}
-
-/// POST /api/consolidation/groups/{group_id}/intercompany-match
-///
-/// Run intercompany matching and return suggestions.
+#[utoipa::path(
+    post, path = "/api/consolidation/groups/{group_id}/intercompany-match", tag = "Intercompany",
+    params(("group_id" = Uuid, Path)),
+    request_body = IntercompanyMatchRequest,
+    responses((status = 200, body = IntercompanyMatchResponse), (status = 500, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn run_intercompany_match(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<IntercompanyMatchRequest>,
-) -> Result<Json<IntercompanyMatchResponse>, IntercompanyError> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let gl_client = app_state.gl_client();
 
-    let match_result = ic_service::match_intercompany_for_group(
+    match ic_service::match_intercompany_for_group(
         &app_state.pool,
         &gl_client,
         &tenant_id,
@@ -103,35 +82,45 @@ pub async fn run_intercompany_match(
         params.as_of,
     )
     .await
-    .map_err(map_error)?;
-
-    let suggestions = elim_service::suggest_eliminations(&match_result);
-
-    Ok(Json(IntercompanyMatchResponse {
-        group_id,
-        as_of: params.as_of.to_string(),
-        match_count: match_result.matches.len(),
-        unmatched_count: match_result.unmatched_count,
-        total_matched_minor: match_result.total_matched_minor,
-        matches: match_result.matches,
-        suggestions,
-    }))
+    {
+        Ok(match_result) => {
+            let suggestions = elim_service::suggest_eliminations(&match_result);
+            Json(IntercompanyMatchResponse {
+                group_id,
+                as_of: params.as_of.to_string(),
+                match_count: match_result.matches.len(),
+                unmatched_count: match_result.unmatched_count,
+                total_matched_minor: match_result.total_matched_minor,
+                matches: match_result.matches,
+                suggestions,
+            })
+            .into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
-/// POST /api/consolidation/groups/{group_id}/eliminations
-///
-/// Post elimination journals to GL. Idempotent per group+period.
+#[utoipa::path(
+    post, path = "/api/consolidation/groups/{group_id}/eliminations", tag = "Intercompany",
+    params(("group_id" = Uuid, Path)),
+    request_body = PostEliminationsRequest,
+    responses((status = 200, body = PostEliminationsResponse), (status = 500, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn post_eliminations(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<PostEliminationsRequest>,
-) -> Result<Json<PostEliminationsResponse>, IntercompanyError> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let gl_client = app_state.gl_client();
 
-    // First, run matching to get current suggestions
-    let match_result = ic_service::match_intercompany_for_group(
+    let match_result = match ic_service::match_intercompany_for_group(
         &app_state.pool,
         &gl_client,
         &tenant_id,
@@ -140,12 +129,14 @@ pub async fn post_eliminations(
         params.as_of,
     )
     .await
-    .map_err(map_error)?;
+    {
+        Ok(r) => r,
+        Err(e) => return with_request_id(ApiError::from(e), &ctx).into_response(),
+    };
 
     let suggestions = elim_service::suggest_eliminations(&match_result);
 
-    // Post to GL
-    let post_result = elim_service::post_eliminations(
+    match elim_service::post_eliminations(
         &app_state.pool,
         &gl_client,
         &tenant_id,
@@ -156,14 +147,16 @@ pub async fn post_eliminations(
         &params.reporting_currency,
     )
     .await
-    .map_err(map_error)?;
-
-    Ok(Json(PostEliminationsResponse {
-        group_id,
-        period_id: params.period_id,
-        posted_count: post_result.posted_count,
-        idempotency_key: post_result.idempotency_key,
-        journal_entry_ids: post_result.journal_entry_ids,
-        already_posted: post_result.already_posted,
-    }))
+    {
+        Ok(post_result) => Json(PostEliminationsResponse {
+            group_id,
+            period_id: params.period_id,
+            posted_count: post_result.posted_count,
+            idempotency_key: post_result.idempotency_key,
+            journal_entry_ids: post_result.journal_entry_ids,
+            already_posted: post_result.already_posted,
+        })
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
