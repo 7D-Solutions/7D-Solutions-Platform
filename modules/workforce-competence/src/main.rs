@@ -22,6 +22,7 @@ use workforce_competence_rs::{
     metrics::{metrics_handler, WcMetrics},
     AppState, Config,
 };
+use health::healthz;
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +49,11 @@ async fn main() {
     let pool = resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
+
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
 
     let shutdown_pool = pool.clone();
 
@@ -97,6 +103,7 @@ async fn main() {
         .with_state(app_state.clone());
 
     let app = Router::new()
+        .route("/healthz", get(healthz))
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
