@@ -53,3 +53,7 @@ modules/ap/src/domain/payment_runs/execute.rs          # 566 LOC — payment run
 modules/ap/src/domain/po/approve.rs                    # 558 LOC — PO approval (single operation)
 modules/ap/src/domain/bills/mod.rs                     # 541 LOC — bill domain model (types+validation+status machine)
 modules/ap/src/domain/bills/approve.rs                 # 526 LOC — bill approval (single operation)
+
+# Integrations module — cohesive concerns per directive (bd-ccpd0)
+modules/integrations/src/domain/external_refs/service.rs  # 640 LOC — CRUD service (Guard→Mutation→Outbox, single entity)
+modules/integrations/src/domain/qbo/client.rs             # 510 LOC — QBO REST API client (single struct, types separate)
