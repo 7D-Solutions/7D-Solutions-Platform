@@ -14,8 +14,138 @@ use axum::{
 };
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 use crate::{metrics, ops, AppState};
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Timekeeping Service",
+        version = "2.1.0",
+        description = "Time entry, approval workflows, project billing, allocations, exports, and AR/GL integration.",
+    ),
+    paths(
+        // Employees
+        employees::create_employee,
+        employees::get_employee,
+        employees::list_employees,
+        employees::update_employee,
+        employees::deactivate_employee,
+        // Projects
+        projects::create_project,
+        projects::get_project,
+        projects::list_projects,
+        projects::update_project,
+        projects::deactivate_project,
+        // Tasks
+        projects::create_task,
+        projects::list_tasks,
+        projects::get_task,
+        projects::update_task,
+        projects::deactivate_task,
+        // Entries
+        entries::create_entry,
+        entries::correct_entry,
+        entries::void_entry,
+        entries::list_entries,
+        entries::entry_history,
+        // Approvals
+        approvals::submit_approval,
+        approvals::approve_approval,
+        approvals::reject_approval,
+        approvals::recall_approval,
+        approvals::list_approvals,
+        approvals::list_pending,
+        approvals::get_approval,
+        approvals::approval_actions,
+        // Allocations
+        allocations::create_allocation,
+        allocations::list_allocations,
+        allocations::get_allocation,
+        allocations::update_allocation,
+        allocations::deactivate_allocation,
+        // Rollups
+        allocations::rollup_by_project,
+        allocations::rollup_by_employee,
+        allocations::rollup_by_task,
+        // Exports
+        export::create_export,
+        export::get_export,
+        export::list_exports,
+        // Billing
+        billing::create_rate,
+        billing::list_rates,
+        billing::create_billing_run,
+    ),
+    components(schemas(
+        // Employees
+        crate::domain::employees::models::Employee,
+        crate::domain::employees::models::CreateEmployeeRequest,
+        crate::domain::employees::models::UpdateEmployeeRequest,
+        // Projects
+        crate::domain::projects::models::Project,
+        crate::domain::projects::models::Task,
+        crate::domain::projects::models::CreateProjectRequest,
+        crate::domain::projects::models::UpdateProjectRequest,
+        crate::domain::projects::models::CreateTaskRequest,
+        crate::domain::projects::models::UpdateTaskRequest,
+        // Entries
+        crate::domain::entries::models::TimesheetEntry,
+        crate::domain::entries::models::EntryType,
+        crate::domain::entries::models::CreateEntryRequest,
+        crate::domain::entries::models::CorrectEntryRequest,
+        crate::domain::entries::models::VoidEntryRequest,
+        // Approvals
+        crate::domain::approvals::models::ApprovalRequest,
+        crate::domain::approvals::models::ApprovalAction,
+        crate::domain::approvals::models::ApprovalStatus,
+        crate::domain::approvals::models::SubmitApprovalRequest,
+        crate::domain::approvals::models::ReviewApprovalRequest,
+        crate::domain::approvals::models::RecallApprovalRequest,
+        // Allocations
+        crate::domain::allocations::models::Allocation,
+        crate::domain::allocations::models::CreateAllocationRequest,
+        crate::domain::allocations::models::UpdateAllocationRequest,
+        crate::domain::allocations::models::ProjectRollup,
+        crate::domain::allocations::models::EmployeeRollup,
+        crate::domain::allocations::models::TaskRollup,
+        // Exports
+        crate::domain::export::models::ExportRun,
+        crate::domain::export::models::ExportStatus,
+        crate::domain::export::models::ExportArtifact,
+        crate::domain::export::models::CreateExportRunRequest,
+        // Billing
+        crate::domain::billing::models::BillingRate,
+        crate::domain::billing::models::BillingRun,
+        crate::domain::billing::models::BillingLineItem,
+        crate::domain::billing::models::BillingRunResult,
+        crate::domain::billing::models::CreateBillingRateRequest,
+        crate::domain::billing::models::CreateBillingRunRequest,
+        // Platform
+        platform_http_contracts::ApiError,
+    )),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// Build the Timekeeping HTTP router with all endpoints.
 ///
@@ -160,4 +290,73 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state);
 
     Router::new().merge(mutations).merge(reads)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn openapi_spec_is_valid_json() {
+        let spec = ApiDoc::openapi();
+        let json =
+            serde_json::to_string_pretty(&spec).expect("OpenAPI spec must serialize to JSON");
+        assert!(json.contains("\"openapi\""), "must contain openapi version");
+        assert!(
+            json.contains("/api/timekeeping/employees"),
+            "must contain employees path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/projects"),
+            "must contain projects path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/entries"),
+            "must contain entries path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/approvals"),
+            "must contain approvals path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/allocations"),
+            "must contain allocations path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/exports"),
+            "must contain exports path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/rates"),
+            "must contain rates path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/billing-runs"),
+            "must contain billing-runs path"
+        );
+        assert!(
+            json.contains("/api/timekeeping/rollups/by-project"),
+            "must contain rollups path"
+        );
+        assert!(
+            json.contains("\"Employee\""),
+            "must have Employee schema"
+        );
+        assert!(
+            json.contains("\"TimesheetEntry\""),
+            "must have TimesheetEntry schema"
+        );
+        assert!(
+            json.contains("\"ApprovalRequest\""),
+            "must have ApprovalRequest schema"
+        );
+        assert!(
+            json.contains("\"ApiError\""),
+            "must have ApiError schema"
+        );
+        assert!(
+            json.contains("\"BillingRate\""),
+            "must have BillingRate schema"
+        );
+    }
 }

@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, Extension};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json};
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -9,8 +9,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
-use timekeeping::{config::Config, db, http, metrics, AppState};
+use timekeeping::{config::Config, db, http, http::ApiDoc, metrics, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -59,6 +60,10 @@ async fn main() {
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = http::router(app_state)
+        .route(
+            "/api/openapi.json",
+            get(|| async { Json(ApiDoc::openapi()) }),
+        )
         .merge(http::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(

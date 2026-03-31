@@ -84,7 +84,18 @@ pub async fn list_rates(
     Ok(Json(PaginatedResponse::new(rates, 1, total, total)))
 }
 
-/// POST /api/timekeeping/billing-runs
+#[utoipa::path(
+    post,
+    path = "/api/timekeeping/billing-runs",
+    request_body = CreateBillingRunRequest,
+    responses(
+        (status = 201, description = "Billing run created", body = BillingRunResult),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 422, description = "No billable entries or validation error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+    tag = "Billing",
+)]
 pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
