@@ -3,50 +3,31 @@
 //! Provides HTTP endpoints for querying income statement (P&L) reports.
 
 use crate::AppState;
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::{Query, State}, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
 
-/// Query parameters for income statement endpoint
 #[derive(Debug, Deserialize)]
 pub struct IncomeStatementQuery {
-    /// Accounting period ID
     pub period_id: Uuid,
-    /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
     pub currency: String,
 }
 
-/// Income statement error response
-#[derive(Debug, serde::Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-/// Handler for GET /api/gl/income-statement
-///
-/// Returns income statement (P&L) for a tenant and period with required currency.
-/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_income_statement(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(params): Query<IncomeStatementQuery>,
-) -> Result<Json<IncomeStatementResponse>, IncomeStatementErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| IncomeStatementErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<IncomeStatementResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    // Query income statement (service layer handles all transformation and totals calculation)
     let response = income_statement_service::get_income_statement(
         &app_state.pool,
         &tenant_id,
@@ -55,40 +36,14 @@ pub async fn get_income_statement(
     )
     .await
     .map_err(|e| {
-        // Map service errors to appropriate HTTP status codes
-        let status = match e {
+        let api_err = match e {
             income_statement_service::IncomeStatementError::InvalidTenantId(_) => {
-                StatusCode::BAD_REQUEST
+                ApiError::bad_request(e.to_string())
             }
-            income_statement_service::IncomeStatementError::AccountingEquationViolation {
-                ..
-            } => StatusCode::INTERNAL_SERVER_ERROR,
-            income_statement_service::IncomeStatementError::StatementRepo(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            _ => ApiError::internal(e.to_string()),
         };
-
-        IncomeStatementErrorResponse {
-            status,
-            message: e.to_string(),
-        }
+        with_request_id(api_err, &ctx)
     })?;
 
     Ok(Json(response))
-}
-
-/// Error response wrapper for proper HTTP error handling
-#[derive(Debug)]
-pub struct IncomeStatementErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for IncomeStatementErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }

@@ -2,18 +2,15 @@
 
 use crate::exports::service::{self, ExportFormat, ExportRequest, ExportType};
 use crate::AppState;
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::State, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 
 #[derive(Debug, Deserialize)]
 pub struct CreateExportRequest {
@@ -32,52 +29,31 @@ pub struct ExportResponse {
     pub created_at: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ExportErrorBody {
-    pub error: String,
-}
-
-pub struct ExportErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for ExportErrorResponse {
-    fn into_response(self) -> Response {
-        (
-            self.status,
-            Json(ExportErrorBody {
-                error: self.message,
-            }),
-        )
-            .into_response()
-    }
-}
-
 /// POST /api/gl/exports
 pub async fn create_export(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(body): Json<CreateExportRequest>,
-) -> Result<Json<ExportResponse>, ExportErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| ExportErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
+) -> Result<Json<ExportResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let format = ExportFormat::from_str(&body.format).ok_or_else(|| {
+        with_request_id(
+            ApiError::bad_request(format!("Invalid format: {}. Use 'quickbooks' or 'xero'", body.format)),
+            &ctx,
+        )
     })?;
 
-    let format = ExportFormat::from_str(&body.format).ok_or_else(|| ExportErrorResponse {
-        status: StatusCode::BAD_REQUEST,
-        message: format!("Invalid format: {}. Use 'quickbooks' or 'xero'", body.format),
-    })?;
-
-    let export_type =
-        ExportType::from_str(&body.export_type).ok_or_else(|| ExportErrorResponse {
-            status: StatusCode::BAD_REQUEST,
-            message: format!(
+    let export_type = ExportType::from_str(&body.export_type).ok_or_else(|| {
+        with_request_id(
+            ApiError::bad_request(format!(
                 "Invalid export_type: {}. Use 'chart_of_accounts' or 'journal_entries'",
                 body.export_type
-            ),
-        })?;
+            )),
+            &ctx,
+        )
+    })?;
 
     let req = ExportRequest {
         tenant_id,
@@ -90,18 +66,16 @@ pub async fn create_export(
     let result = service::execute_export(&app_state.pool, req)
         .await
         .map_err(|e| {
-            let status = match &e {
-                service::ExportError::InvalidFormat(_) | service::ExportError::InvalidExportType(_) => {
-                    StatusCode::BAD_REQUEST
+            let api_err = match &e {
+                service::ExportError::InvalidFormat(_)
+                | service::ExportError::InvalidExportType(_)
+                | service::ExportError::MissingPeriodId => ApiError::bad_request(e.to_string()),
+                service::ExportError::DuplicateIdempotencyKey => {
+                    ApiError::conflict(e.to_string())
                 }
-                service::ExportError::MissingPeriodId => StatusCode::BAD_REQUEST,
-                service::ExportError::DuplicateIdempotencyKey => StatusCode::CONFLICT,
-                service::ExportError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+                service::ExportError::Database(_) => ApiError::internal(e.to_string()),
             };
-            ExportErrorResponse {
-                status,
-                message: e.to_string(),
-            }
+            with_request_id(api_err, &ctx)
         })?;
 
     Ok(Json(ExportResponse {

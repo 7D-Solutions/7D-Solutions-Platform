@@ -5,16 +5,16 @@
 use crate::AppState;
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};
 
 /// Query parameters for trial balance endpoint
@@ -26,12 +26,6 @@ pub struct TrialBalanceQuery {
     pub currency: Option<String>,
 }
 
-/// Trial balance error response
-#[derive(Debug, serde::Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
 /// Handler for GET /api/gl/trial-balance
 ///
 /// Returns trial balance for a tenant and period with optional currency filter.
@@ -39,14 +33,11 @@ pub struct ErrorResponse {
 pub async fn get_trial_balance(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(params): Query<TrialBalanceQuery>,
-) -> Result<Json<TrialBalanceResponse>, TrialBalanceErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| TrialBalanceErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<TrialBalanceResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    // Query trial balance (service layer handles all transformation and totals calculation)
     let response = trial_balance_service::get_trial_balance(
         &app_state.pool,
         &tenant_id,
@@ -55,38 +46,14 @@ pub async fn get_trial_balance(
     )
     .await
     .map_err(|e| {
-        // Map service errors to appropriate HTTP status codes
-        let status = match e {
-            trial_balance_service::TrialBalanceError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
-            trial_balance_service::TrialBalanceError::Unbalanced { .. } => {
-                StatusCode::INTERNAL_SERVER_ERROR
+        let api_err = match e {
+            trial_balance_service::TrialBalanceError::InvalidTenantId(_) => {
+                ApiError::bad_request(e.to_string())
             }
-            trial_balance_service::TrialBalanceError::StatementRepo(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            _ => ApiError::internal(e.to_string()),
         };
-
-        TrialBalanceErrorResponse {
-            status,
-            message: e.to_string(),
-        }
+        with_request_id(api_err, &ctx)
     })?;
 
     Ok(Json(response))
-}
-
-/// Error response wrapper for proper HTTP error handling
-#[derive(Debug)]
-pub struct TrialBalanceErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for TrialBalanceErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }

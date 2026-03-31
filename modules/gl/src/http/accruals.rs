@@ -5,71 +5,46 @@
 //! POST /api/gl/accruals/reversals/execute   — Execute auto-reversals for a target period
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::accruals;
 use crate::AppState;
-
-// ============================================================================
-// Error response
-// ============================================================================
-
-#[derive(serde::Serialize)]
-struct ErrorBody {
-    error: String,
-}
-
-// ============================================================================
-// POST /api/gl/accruals/templates
-// ============================================================================
 
 pub async fn create_template_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(mut body): Json<accruals::CreateTemplateRequest>,
 ) -> impl IntoResponse {
-    // Override client-supplied tenant_id with JWT claims
     match extract_tenant(&claims) {
         Ok(tid) => body.tenant_id = tid,
-        Err((status, msg)) => {
-            return (status, Json(ErrorBody { error: msg })).into_response();
-        }
+        Err(e) => return with_request_id(e, &ctx).into_response(),
     }
     match accruals::create_template(&app_state.pool, &body).await {
         Ok(result) => (StatusCode::CREATED, Json(result)).into_response(),
         Err(e) => {
-            let status = match &e {
-                accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            let api_err = match &e {
+                accruals::AccrualError::Validation(_) => ApiError::bad_request(e.to_string()),
+                _ => ApiError::internal(e.to_string()),
             };
-            (
-                status,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
+            with_request_id(api_err, &ctx).into_response()
         }
     }
 }
 
-// ============================================================================
-// POST /api/gl/accruals/create
-// ============================================================================
-
 pub async fn create_accrual_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(mut body): Json<accruals::CreateAccrualRequest>,
 ) -> impl IntoResponse {
-    // Override client-supplied tenant_id with JWT claims
     match extract_tenant(&claims) {
         Ok(tid) => body.tenant_id = tid,
-        Err((status, msg)) => {
-            return (status, Json(ErrorBody { error: msg })).into_response();
-        }
+        Err(e) => return with_request_id(e, &ctx).into_response(),
     }
     match accruals::create_accrual_instance(&app_state.pool, &body).await {
         Ok(result) => {
@@ -81,51 +56,33 @@ pub async fn create_accrual_handler(
             (status, Json(result)).into_response()
         }
         Err(e) => {
-            let status = match &e {
-                accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            let api_err = match &e {
+                accruals::AccrualError::Validation(_) => ApiError::bad_request(e.to_string()),
+                _ => ApiError::internal(e.to_string()),
             };
-            (
-                status,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
+            with_request_id(api_err, &ctx).into_response()
         }
     }
 }
 
-// ============================================================================
-// POST /api/gl/accruals/reversals/execute
-// ============================================================================
-
 pub async fn execute_reversals_handler(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(mut body): Json<accruals::ExecuteReversalsRequest>,
 ) -> impl IntoResponse {
-    // Override client-supplied tenant_id with JWT claims
     match extract_tenant(&claims) {
         Ok(tid) => body.tenant_id = tid,
-        Err((status, msg)) => {
-            return (status, Json(ErrorBody { error: msg })).into_response();
-        }
+        Err(e) => return with_request_id(e, &ctx).into_response(),
     }
     match accruals::execute_auto_reversals(&app_state.pool, &body).await {
         Ok(result) => (StatusCode::OK, Json(result)).into_response(),
         Err(e) => {
-            let status = match &e {
-                accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            let api_err = match &e {
+                accruals::AccrualError::Validation(_) => ApiError::bad_request(e.to_string()),
+                _ => ApiError::internal(e.to_string()),
             };
-            (
-                status,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
+            with_request_id(api_err, &ctx).into_response()
         }
     }
 }

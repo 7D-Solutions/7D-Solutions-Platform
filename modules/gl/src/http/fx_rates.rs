@@ -1,22 +1,15 @@
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::{Query, State}, Extension, Json};
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::services::fx_rate_service;
 use crate::AppState;
-
-// ============================================================================
-// Request / Response types
-// ============================================================================
 
 #[derive(Debug, Deserialize)]
 pub struct CreateFxRateRequest {
@@ -54,27 +47,14 @@ pub struct FxRateResponse {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-// ============================================================================
-// Handlers
-// ============================================================================
-
 /// POST /api/gl/fx-rates
-///
-/// Create a new FX rate. Duplicate idempotency_key returns 200 with created=false.
 pub async fn create_fx_rate(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateFxRateRequest>,
-) -> Result<Json<CreateFxRateResponse>, FxRateErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| FxRateErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<CreateFxRateResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let svc_req = fx_rate_service::CreateFxRateRequest {
         tenant_id,
@@ -88,10 +68,7 @@ pub async fn create_fx_rate(
 
     let result = fx_rate_service::create_fx_rate(&app_state.pool, svc_req)
         .await
-        .map_err(|e| FxRateErrorResponse {
-            status: StatusCode::BAD_REQUEST,
-            message: e,
-        })?;
+        .map_err(|e| with_request_id(ApiError::bad_request(e), &ctx))?;
 
     Ok(Json(CreateFxRateResponse {
         rate_id: result.rate_id,
@@ -100,17 +77,13 @@ pub async fn create_fx_rate(
 }
 
 /// GET /api/gl/fx-rates/latest
-///
-/// Returns the latest rate for a currency pair as-of a given time (default: now).
 pub async fn get_latest_rate(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(params): Query<LatestRateQuery>,
-) -> Result<Json<FxRateResponse>, FxRateErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| FxRateErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<FxRateResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let as_of = params.as_of.unwrap_or_else(Utc::now);
 
@@ -122,16 +95,15 @@ pub async fn get_latest_rate(
         as_of,
     )
     .await
-    .map_err(|e| FxRateErrorResponse {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: e,
-    })?
-    .ok_or_else(|| FxRateErrorResponse {
-        status: StatusCode::NOT_FOUND,
-        message: format!(
-            "No FX rate found for {}/{} as of {}",
-            params.base_currency, params.quote_currency, as_of
-        ),
+    .map_err(|e| with_request_id(ApiError::internal(e), &ctx))?
+    .ok_or_else(|| {
+        with_request_id(
+            ApiError::not_found(format!(
+                "No FX rate found for {}/{} as of {}",
+                params.base_currency, params.quote_currency, as_of
+            )),
+            &ctx,
+        )
     })?;
 
     Ok(Json(FxRateResponse {
@@ -145,23 +117,4 @@ pub async fn get_latest_rate(
         source: rate.source,
         created_at: rate.created_at,
     }))
-}
-
-// ============================================================================
-// Error type
-// ============================================================================
-
-#[derive(Debug)]
-pub struct FxRateErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for FxRateErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }

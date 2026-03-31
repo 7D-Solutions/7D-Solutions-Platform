@@ -3,50 +3,31 @@
 //! Provides HTTP endpoints for querying period summary reports.
 
 use crate::AppState;
-use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::{Path, Query, State}, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::services::period_summary_service::{self, PeriodSummaryResponse};
 
-/// Query parameters for period summary endpoint
 #[derive(Debug, Deserialize)]
 pub struct PeriodSummaryQuery {
-    /// Optional currency filter (e.g., "USD", "EUR")
     pub currency: Option<String>,
 }
 
-/// Error response
-#[derive(Debug, serde::Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-/// Handler for GET /api/gl/periods/{period_id}/summary
-///
-/// Returns period summary for a tenant and period with optional currency filter.
-/// Prefers precomputed snapshot if present, otherwise computes from account_balances.
-/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_period_summary(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
     Query(params): Query<PeriodSummaryQuery>,
-) -> Result<Json<PeriodSummaryResponse>, PeriodSummaryErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodSummaryErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<PeriodSummaryResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    // Query period summary (service layer handles snapshot vs computed logic)
     let response = period_summary_service::get_period_summary(
         &app_state.pool,
         &tenant_id,
@@ -55,46 +36,24 @@ pub async fn get_period_summary(
     )
     .await
     .map_err(|e| {
-        // Map service errors to appropriate HTTP status codes
-        let status = match e {
-            period_summary_service::PeriodSummaryServiceError::InvalidTenantId(_) => {
-                StatusCode::BAD_REQUEST
+        let api_err = match &e {
+            period_summary_service::PeriodSummaryServiceError::InvalidTenantId(_)
+            | period_summary_service::PeriodSummaryServiceError::InvalidCurrency(_) => {
+                ApiError::bad_request(e.to_string())
             }
-            period_summary_service::PeriodSummaryServiceError::InvalidCurrency(_) => {
-                StatusCode::BAD_REQUEST
+            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => {
+                match repo_err {
+                    crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
+                        ApiError::not_found(e.to_string())
+                    }
+                    crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
+                        ApiError::internal(e.to_string())
+                    }
+                }
             }
-            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => match repo_err
-            {
-                crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
-                    StatusCode::NOT_FOUND
-                }
-                crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
-                    StatusCode::INTERNAL_SERVER_ERROR
-                }
-            },
         };
-
-        PeriodSummaryErrorResponse {
-            status,
-            message: e.to_string(),
-        }
+        with_request_id(api_err, &ctx)
     })?;
 
     Ok(Json(response))
-}
-
-/// Error response wrapper for proper HTTP error handling
-#[derive(Debug)]
-pub struct PeriodSummaryErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for PeriodSummaryErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }

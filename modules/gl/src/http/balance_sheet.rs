@@ -3,50 +3,32 @@
 //! Provides HTTP endpoints for querying balance sheet reports.
 
 use crate::AppState;
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Extension, Json,
-};
+use axum::{extract::{Query, State}, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::extract_tenant;
+use super::auth::{extract_tenant, with_request_id};
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 
 /// Query parameters for balance sheet endpoint
 #[derive(Debug, Deserialize)]
 pub struct BalanceSheetQuery {
-    /// Accounting period ID
     pub period_id: Uuid,
-    /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
     pub currency: String,
 }
 
-/// Balance sheet error response
-#[derive(Debug, serde::Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-/// Handler for GET /api/gl/balance-sheet
-///
-/// Returns balance sheet for a tenant and period with required currency.
-/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_balance_sheet(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(params): Query<BalanceSheetQuery>,
-) -> Result<Json<BalanceSheetResponse>, BalanceSheetErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| BalanceSheetErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: msg,
-    })?;
+) -> Result<Json<BalanceSheetResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    // Query balance sheet (service layer handles all transformation and totals calculation)
     let response = balance_sheet_service::get_balance_sheet(
         &app_state.pool,
         &tenant_id,
@@ -55,38 +37,14 @@ pub async fn get_balance_sheet(
     )
     .await
     .map_err(|e| {
-        // Map service errors to appropriate HTTP status codes
-        let status = match e {
-            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
-            balance_sheet_service::BalanceSheetError::Unbalanced { .. } => {
-                StatusCode::INTERNAL_SERVER_ERROR
+        let api_err = match e {
+            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => {
+                ApiError::bad_request(e.to_string())
             }
-            balance_sheet_service::BalanceSheetError::StatementRepo(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            _ => ApiError::internal(e.to_string()),
         };
-
-        BalanceSheetErrorResponse {
-            status,
-            message: e.to_string(),
-        }
+        with_request_id(api_err, &ctx)
     })?;
 
     Ok(Json(response))
-}
-
-/// Error response wrapper for proper HTTP error handling
-#[derive(Debug)]
-pub struct BalanceSheetErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for BalanceSheetErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }
