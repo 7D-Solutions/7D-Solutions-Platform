@@ -12,9 +12,12 @@
 services:
   ar:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/ar-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/usr/local/bin/ar-rs:ro
+      - ./modules/ar/module.toml:/app/module.toml:ro
+      - ./modules/ar/db/migrations:/app/db/migrations:ro
 
   subscriptions:
     image: 7d-runtime
@@ -48,15 +51,21 @@ services:
 
   ap:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/ap"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ap:/usr/local/bin/ap:ro
+      - ./modules/ap/module.toml:/app/module.toml:ro
+      - ./modules/ap/db/migrations:/app/db/migrations:ro
 
   treasury:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/treasury"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/treasury:/usr/local/bin/treasury:ro
+      - ./modules/treasury/module.toml:/app/module.toml:ro
+      - ./modules/treasury/db/migrations:/app/db/migrations:ro
 
   fixed-assets:
     image: 7d-runtime
@@ -66,15 +75,21 @@ services:
 
   consolidation:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/consolidation"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/consolidation:/usr/local/bin/consolidation:ro
+      - ./modules/consolidation/module.toml:/app/module.toml:ro
+      - ./modules/consolidation/db/migrations:/app/db/migrations:ro
 
   timekeeping:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/timekeeping"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/timekeeping:/usr/local/bin/timekeeping:ro
+      - ./modules/timekeeping/module.toml:/app/module.toml:ro
+      - ./modules/timekeeping/db/migrations:/app/db/migrations:ro
 
   party:
     image: 7d-runtime
@@ -93,15 +108,21 @@ services:
 
   ttp:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/ttp"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ttp:/usr/local/bin/ttp:ro
+      - ./modules/ttp/module.toml:/app/module.toml:ro
+      - ./modules/ttp/db/migrations:/app/db/migrations:ro
 
   pdf-editor:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/pdf-editor-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/usr/local/bin/pdf-editor-rs:ro
+      - ./modules/pdf-editor/module.toml:/app/module.toml:ro
+      - ./modules/pdf-editor/db/migrations:/app/db/migrations:ro
 
   maintenance:
     image: 7d-runtime
@@ -123,9 +144,12 @@ services:
 
   bom:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/bom-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/bom-rs:/usr/local/bin/bom-rs:ro
+      - ./modules/bom/module.toml:/app/module.toml:ro
+      - ./modules/bom/db/migrations:/app/db/migrations:ro
 
   production:
     image: 7d-runtime
@@ -138,21 +162,30 @@ services:
 
   workflow:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/workflow"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/workflow:/usr/local/bin/workflow:ro
+      - ./modules/workflow/module.toml:/app/module.toml:ro
+      - ./modules/workflow/db/migrations:/app/db/migrations:ro
 
   numbering:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/numbering"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/numbering:/usr/local/bin/numbering:ro
+      - ./modules/numbering/module.toml:/app/module.toml:ro
+      - ./modules/numbering/db/migrations:/app/db/migrations:ro
 
   workforce-competence:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/workforce-competence-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/workforce-competence-rs:/usr/local/bin/workforce-competence-rs:ro
+      - ./modules/workforce-competence/module.toml:/app/module.toml:ro
+      - ./modules/workforce-competence/db/migrations:/app/db/migrations:ro
 
   customer-portal:
     image: 7d-runtime
@@ -162,9 +195,12 @@ services:
 
   reporting:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/reporting"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/reporting:/usr/local/bin/reporting:ro
+      - ./modules/reporting/module.toml:/app/module.toml:ro
+      - ./modules/reporting/db/migrations:/app/db/migrations:ro
 
   control-plane:
     image: 7d-runtime
