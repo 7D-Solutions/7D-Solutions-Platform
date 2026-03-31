@@ -209,3 +209,6 @@ e2e-tests/tests/.tmp_b64
 
 # AgentCore symlinked directory (created at runtime, points outside this repo)
 flywheel_tools
+sweep.timestamp
+SDK_AUDIT.md
+target

@@ -153,7 +153,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "2.2.4"
+version = "2.3.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -169,6 +169,7 @@ dependencies = [
  "hmac",
  "http-body-util",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -3046,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "2.4.1"
+version = "2.4.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -3306,6 +3307,7 @@ dependencies = [
  "config-validator",
  "dotenvy",
  "event-bus",
+ "futures",
  "health",
  "http",
  "platform-http-contracts",
@@ -3471,7 +3473,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "2.2.3"
+version = "2.3.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3480,6 +3482,7 @@ dependencies = [
  "event-bus",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "security",
  "serde",

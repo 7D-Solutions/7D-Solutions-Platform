@@ -40,12 +40,12 @@ if [ "${1:-}" = "--legacy" ]; then
     docker compose \
         -f docker-compose.modules.yml \
         -f docker-compose.platform.yml \
-        watch --remove-orphans
+        watch
 else
     echo "Starting watch on all services..."
     echo "  - docker-compose.yml (includes docker-compose.services.yml)"
     echo ""
     echo "Press Ctrl+C to stop."
     echo ""
-    docker compose watch --remove-orphans
+    docker compose watch
 fi
