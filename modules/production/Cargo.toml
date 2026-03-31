@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -8,6 +8,7 @@ description = "Production execution: work orders, operations, workcenters, routi
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }
@@ -22,6 +23,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"
