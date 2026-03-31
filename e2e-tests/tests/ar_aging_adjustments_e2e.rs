@@ -1080,9 +1080,7 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("{}", e))?;
 
         // GL for credit note
-        let cn_issued_at = chrono::DateTime::parse_from_rfc3339("2026-02-17T10:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+        let cn_issued_at = Utc::now();
         process_credit_note_posting(
             &gl_pool,
             uuid::Uuid::new_v4(),
