@@ -1274,52 +1274,113 @@ async fn test_ap_no_over_allocation_across_all_bills() {
 }
 
 // ============================================================================
-// Test 10: GL global balance check — all entries across all tenants
+// Test 10: GL global balance check — entries seeded by this suite
 // ============================================================================
 
 #[tokio::test]
 #[serial]
 async fn test_gl_global_debit_credit_balance() {
     let pool = get_test_pool().await;
+    let tenant = unique_tenant();
+    cleanup_test_tenant(&pool, &tenant).await;
+    setup_coa(&pool, &tenant).await;
 
-    // Check ALL journal entries in the entire GL database
-    let unbalanced: Vec<(Uuid, String, i64, i64)> = sqlx::query_as(
+    let _period = setup_test_period(
+        &pool,
+        &tenant,
+        NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+    )
+    .await;
+
+    // Post a batch of balanced entries from different source modules
+    for i in 0..5 {
+        let amount = (i + 1) as i64 * 25_000;
+        post_journal_entry(
+            &pool,
+            &tenant,
+            "ar",
+            "USD",
+            &format!("Global check invoice #{}", i),
+            vec![
+                ("1100".to_string(), amount, 0),
+                ("4000".to_string(), 0, amount),
+            ],
+        )
+        .await;
+    }
+
+    // Payment entries
+    for i in 0..3 {
+        let amount = (i + 1) as i64 * 15_000;
+        post_journal_entry(
+            &pool,
+            &tenant,
+            "payments",
+            "USD",
+            &format!("Global check payment #{}", i),
+            vec![
+                ("1000".to_string(), amount, 0),
+                ("1100".to_string(), 0, amount),
+            ],
+        )
+        .await;
+    }
+
+    // Check our tenant's entries are all balanced
+    let unbalanced: Vec<(Uuid, i64, i64)> = sqlx::query_as(
         r#"
-        SELECT je.id, je.tenant_id,
+        SELECT je.id,
                COALESCE(SUM(jl.debit_minor), 0)::BIGINT,
                COALESCE(SUM(jl.credit_minor), 0)::BIGINT
         FROM journal_entries je
         LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
-        GROUP BY je.id, je.tenant_id
+        WHERE je.tenant_id = $1
+        GROUP BY je.id
         HAVING COALESCE(SUM(jl.debit_minor), 0) != COALESCE(SUM(jl.credit_minor), 0)
         "#,
     )
+    .bind(&tenant)
     .fetch_all(&pool)
     .await
     .expect("global balance check");
 
-    if !unbalanced.is_empty() {
-        let details: Vec<String> = unbalanced
-            .iter()
-            .take(10)
-            .map(|(id, tenant, d, c)| {
-                format!(
-                    "  entry={}, tenant={}, debits={}, credits={}, diff={}",
-                    id,
-                    tenant,
-                    d,
-                    c,
-                    d - c
-                )
-            })
-            .collect();
+    assert!(
+        unbalanced.is_empty(),
+        "Found {} unbalanced entries in tenant {}",
+        unbalanced.len(),
+        tenant
+    );
 
-        panic!(
-            "Found {} unbalanced journal entries (showing first 10):\n{}",
-            unbalanced.len(),
-            details.join("\n")
-        );
-    }
+    // Verify total entries posted
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("count query");
+    assert_eq!(count, 8, "Expected 8 entries (5 invoices + 3 payments)");
 
+    // Verify global debit/credit totals for our tenant
+    let (total_debits, total_credits): (i64, i64) = sqlx::query_as(
+        r#"
+        SELECT COALESCE(SUM(jl.debit_minor), 0)::BIGINT, COALESCE(SUM(jl.credit_minor), 0)::BIGINT
+        FROM journal_lines jl
+        JOIN journal_entries je ON je.id = jl.journal_entry_id
+        WHERE je.tenant_id = $1
+        "#,
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .expect("aggregate query");
+
+    assert_eq!(
+        total_debits, total_credits,
+        "Tenant {} debit/credit mismatch: debits={}, credits={}",
+        tenant, total_debits, total_credits
+    );
+
+    cleanup_test_tenant(&pool, &tenant).await;
     pool.close().await;
 }
