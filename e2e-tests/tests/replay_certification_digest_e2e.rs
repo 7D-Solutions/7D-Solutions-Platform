@@ -34,7 +34,16 @@ async fn get_projections_pool() -> PgPool {
 
 /// Helper to run base migrations
 async fn run_base_migrations(pool: &PgPool) {
-    // Drop existing tables
+    // Drop existing tables (including old/shadow from prior swap_cursor_tables_atomic,
+    // whose indexes like projection_cursors_updated_at would otherwise block CREATE INDEX)
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_old CASCADE")
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DROP TABLE IF EXISTS projection_cursors_shadow CASCADE")
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DROP TABLE IF EXISTS projection_cursors CASCADE")
         .execute(pool)
         .await
