@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.0.0 | 2026-03-30 | bd-dhozf | Standard response envelopes. All list endpoints (deliveries, inbox, DLQ) wrapped in PaginatedResponse. All error responses migrated from custom ErrorResponse/ErrorBody to ApiError. Templates handlers converted from tuple error returns to ApiError. Added count_receipts repo function for delivery pagination. Added ToSchema derive to DeliveryReceipt. Enabled utoipa chrono+uuid features. | Plug-and-play envelope standard — consistent paginated responses and error shapes across all endpoints. | YES — list endpoints now return `{data, pagination}` envelope instead of bare arrays. Error responses use `ApiError` shape (`{status, error, message, request_id}`). Consumers update response parsing accordingly. |
 | 1.0.0 | 2026-03-28 | bd-4ym3v | Initial proof. All unit tests passing (32/32). Clippy clean. Proof script created. Covers: scheduled dispatch with retry, DLQ replay/abandon, inbox CRUD, broadcast fan-out, escalation rules, template rendering, event consumers (invoice issued, payment succeeded/failed, low stock), outbox publishing, Prometheus metrics. | Module build complete — event-driven notification delivery ready for production. | — |
 
 ## How to read this table

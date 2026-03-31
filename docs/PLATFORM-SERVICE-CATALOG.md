@@ -29,7 +29,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | integrations | integrations-rs | 2.0.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [Revisions](modules/integrations/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | inventory | inventory-rs | 2.4.4 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [Revisions](modules/inventory/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | maintenance | maintenance-rs | 1.0.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md), [Revisions](modules/maintenance/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| notifications | notifications-rs | 1.0.0 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry | [Revisions](modules/notifications/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| notifications | notifications-rs | 2.0.0 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry | [Revisions](modules/notifications/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | numbering | numbering | 2.1.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [Revisions](modules/numbering/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | party | party-rs | 2.3.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [Revisions](modules/party/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 1.1.20 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -43,7 +43,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | treasury | treasury | 1.0.1 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [Revisions](modules/treasury/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ttp | ttp-rs | 2.1.8 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workflow | workflow | 1.0.0 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [Revisions](modules/workflow/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| workforce-competence | workforce-competence-rs | 2.0.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [Revisions](modules/workforce-competence/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| workforce-competence | workforce-competence-rs | 2.1.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [Revisions](modules/workforce-competence/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
 

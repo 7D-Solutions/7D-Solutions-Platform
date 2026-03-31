@@ -9,6 +9,7 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Serialize;
 use sqlx::PgPool;
@@ -37,30 +38,25 @@ pub struct TemplateDetailResponse {
     pub versions: Vec<models::TemplateVersionSummary>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
-
 // ── Handlers ────────────────────────────────────────────────────────
 
 async fn publish_template(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(input): Json<models::CreateTemplate>,
-) -> Result<(StatusCode, Json<TemplateResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<TemplateResponse>), ApiError> {
     let tenant_id = require_tenant(&claims)?;
-    let created_by = claims
-        .as_ref()
-        .map(|Extension(c)| c.user_id.to_string());
+    let created_by = claims.as_ref().map(|Extension(c)| c.user_id.to_string());
 
     let tpl = repo::publish_template(&pool, &tenant_id, &input, created_by.as_deref())
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Emit template.published event via outbox
-    let mut tx = pool.begin().await.map_err(|e| internal_error(&e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
     let event_payload = serde_json::json!({
         "template_key": tpl.template_key,
         "version": tpl.version,
@@ -81,8 +77,10 @@ async fn publish_template(
         &envelope,
     )
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
-    tx.commit().await.map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok((StatusCode::CREATED, Json(to_response(&tpl))))
 }
@@ -91,17 +89,17 @@ async fn get_template(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(key): Path<String>,
-) -> Result<Json<TemplateDetailResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<TemplateDetailResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let latest = repo::get_latest(&pool, &tenant_id, &key)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Template not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Template not found"))?;
 
     let versions = repo::list_versions(&pool, &tenant_id, &key)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok(Json(TemplateDetailResponse {
         latest: to_response(&latest),
@@ -124,43 +122,11 @@ fn to_response(tpl: &crate::template_store::models::NotificationTemplate) -> Tem
     }
 }
 
-fn require_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ErrorResponse>)> {
+fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(unauthorized("Missing or invalid authentication")),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
-}
-
-fn unauthorized(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(ErrorResponse {
-            error: "unauthorized".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn internal_error(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: "internal_error".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn not_found(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ErrorResponse {
-            error: "not_found".to_string(),
-            message: msg.to_string(),
-        }),
-    )
 }
 
 // ── Router ──────────────────────────────────────────────────────────

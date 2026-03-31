@@ -16,8 +16,8 @@ pub async fn insert_send(
     causation_id: Option<&str>,
     rendered_hash: Option<&str>,
 ) -> Result<NotificationSend, sqlx::Error> {
-    let recipients_json = serde_json::to_value(recipients)
-        .unwrap_or_else(|_| serde_json::Value::Array(vec![]));
+    let recipients_json =
+        serde_json::to_value(recipients).unwrap_or_else(|_| serde_json::Value::Array(vec![]));
 
     sqlx::query_as::<_, NotificationSend>(
         r#"
@@ -142,14 +142,43 @@ pub async fn update_send_status(
     send_id: Uuid,
     status: &str,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE notification_sends SET status = $1, updated_at = NOW() WHERE id = $2",
-    )
-    .bind(status)
-    .bind(send_id)
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE notification_sends SET status = $1, updated_at = NOW() WHERE id = $2")
+        .bind(status)
+        .bind(send_id)
+        .execute(pool)
+        .await?;
     Ok(())
+}
+
+/// Count delivery receipts matching filters (for pagination metadata).
+pub async fn count_receipts(
+    pool: &PgPool,
+    tenant_id: &str,
+    correlation_id: Option<&str>,
+    recipient: Option<&str>,
+    from: Option<chrono::DateTime<chrono::Utc>>,
+    to: Option<chrono::DateTime<chrono::Utc>>,
+) -> Result<i64, sqlx::Error> {
+    let (count,): (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*)
+        FROM delivery_receipts dr
+        JOIN notification_sends ns ON ns.id = dr.send_id
+        WHERE dr.tenant_id = $1
+          AND ($2::text IS NULL OR ns.correlation_id = $2)
+          AND ($3::text IS NULL OR dr.recipient = $3)
+          AND ($4::timestamptz IS NULL OR dr.created_at >= $4)
+          AND ($5::timestamptz IS NULL OR dr.created_at <= $5)
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(correlation_id)
+    .bind(recipient)
+    .bind(from)
+    .bind(to)
+    .fetch_one(pool)
+    .await?;
+    Ok(count)
 }
 
 /// Query delivery receipts with filters (tenant-scoped).

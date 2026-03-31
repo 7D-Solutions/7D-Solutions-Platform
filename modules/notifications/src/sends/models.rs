@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// A notification send request record.
@@ -32,7 +33,7 @@ pub struct SendRequest {
 }
 
 /// A delivery receipt row.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct DeliveryReceipt {
     pub id: Uuid,
     pub tenant_id: String,

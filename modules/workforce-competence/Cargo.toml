@@ -1,6 +1,6 @@
 [package]
 name = "workforce-competence-rs"
-version = "2.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "Workforce competence registry: skills, certifications, training records, and authorization queries"
 
@@ -23,6 +23,8 @@ uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
+utoipa-axum = "0.2"
 
 [dev-dependencies]
 serial_test = "3.3.1"
