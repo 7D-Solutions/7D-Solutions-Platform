@@ -160,8 +160,8 @@ pub async fn assert_all_entries_balanced(
     // Query for unbalanced entries
     let unbalanced: Vec<(Uuid, i64, i64)> = sqlx::query_as(
         "SELECT je.id,
-                COALESCE(SUM(jl.debit_minor), 0) as total_debits,
-                COALESCE(SUM(jl.credit_minor), 0) as total_credits
+                COALESCE(SUM(jl.debit_minor), 0)::BIGINT as total_debits,
+                COALESCE(SUM(jl.credit_minor), 0)::BIGINT as total_credits
          FROM journal_entries je
          LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
          WHERE je.tenant_id = $1

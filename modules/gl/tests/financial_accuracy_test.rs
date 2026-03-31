@@ -209,7 +209,7 @@ async fn test_gl_every_entry_is_balanced() {
     // Also verify with a raw aggregate query as a cross-check
     let (total_debits, total_credits): (i64, i64) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(jl.debit_minor), 0), COALESCE(SUM(jl.credit_minor), 0)
+        SELECT COALESCE(SUM(jl.debit_minor), 0)::BIGINT, COALESCE(SUM(jl.credit_minor), 0)::BIGINT
         FROM journal_lines jl
         JOIN journal_entries je ON je.id = jl.journal_entry_id
         WHERE je.tenant_id = $1
@@ -331,7 +331,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
 
     // Create invoices with different statuses
     // Invoice 1: paid ($500)
-    let inv1_id: i32 = sqlx::query_scalar(
+    let _inv1_id: i32 = sqlx::query_scalar(
         r#"INSERT INTO ar_invoices (
             app_id, tilled_invoice_id, ar_customer_id, status,
             amount_cents, currency, created_at, updated_at, paid_at
@@ -346,7 +346,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
     .expect("seed invoice 1");
 
     // Invoice 2: open ($300)
-    let inv2_id: i32 = sqlx::query_scalar(
+    let _inv2_id: i32 = sqlx::query_scalar(
         r#"INSERT INTO ar_invoices (
             app_id, tilled_invoice_id, ar_customer_id, status,
             amount_cents, currency, due_at, created_at, updated_at
@@ -394,7 +394,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
     // Void invoices are excluded from the accounting equation.
     let (total_invoiced,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(amount_cents::bigint), 0)
+        SELECT COALESCE(SUM(amount_cents::bigint), 0)::BIGINT
         FROM ar_invoices
         WHERE app_id = $1 AND status != 'void' AND status != 'draft'
         "#,
@@ -406,7 +406,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
 
     let (total_paid,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(amount_cents::bigint), 0)
+        SELECT COALESCE(SUM(amount_cents::bigint), 0)::BIGINT
         FROM ar_invoices
         WHERE app_id = $1 AND status = 'paid'
         "#,
@@ -418,7 +418,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
 
     let (total_outstanding,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(amount_cents::bigint), 0)
+        SELECT COALESCE(SUM(amount_cents::bigint), 0)::BIGINT
         FROM ar_invoices
         WHERE app_id = $1 AND status = 'open'
         "#,
@@ -430,7 +430,7 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
 
     let (total_written_off,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(amount_cents::bigint), 0)
+        SELECT COALESCE(SUM(amount_cents::bigint), 0)::BIGINT
         FROM ar_invoices
         WHERE app_id = $1 AND status = 'uncollectible'
         "#,
@@ -600,7 +600,7 @@ async fn test_ap_reconciliation_billed_equals_paid_plus_outstanding() {
     // total_billed == total_allocated + total_open_balance
     let (total_billed,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(total_minor), 0)
+        SELECT COALESCE(SUM(total_minor), 0)::BIGINT
         FROM vendor_bills
         WHERE tenant_id = $1 AND status != 'voided'
         "#,
@@ -612,7 +612,7 @@ async fn test_ap_reconciliation_billed_equals_paid_plus_outstanding() {
 
     let (total_allocated,): (i64,) = sqlx::query_as(
         r#"
-        SELECT COALESCE(SUM(a.amount_minor), 0)
+        SELECT COALESCE(SUM(a.amount_minor), 0)::BIGINT
         FROM ap_allocations a
         JOIN vendor_bills b ON b.bill_id = a.bill_id
         WHERE a.tenant_id = $1 AND b.status != 'voided'
@@ -645,7 +645,7 @@ async fn test_ap_reconciliation_billed_equals_paid_plus_outstanding() {
     let per_bill: Vec<(Uuid, i64, i64)> = sqlx::query_as(
         r#"
         SELECT b.bill_id, b.total_minor,
-               COALESCE(SUM(a.amount_minor), 0) as allocated
+               COALESCE(SUM(a.amount_minor), 0)::BIGINT as allocated
         FROM vendor_bills b
         LEFT JOIN ap_allocations a ON a.bill_id = b.bill_id AND a.tenant_id = b.tenant_id
         WHERE b.tenant_id = $1 AND b.status != 'voided'
@@ -896,8 +896,8 @@ async fn test_multi_currency_gl_entries_balance_per_currency() {
     let per_currency: Vec<(String, i64, i64)> = sqlx::query_as(
         r#"
         SELECT je.currency,
-               COALESCE(SUM(jl.debit_minor), 0),
-               COALESCE(SUM(jl.credit_minor), 0)
+               COALESCE(SUM(jl.debit_minor), 0)::BIGINT,
+               COALESCE(SUM(jl.credit_minor), 0)::BIGINT
         FROM journal_lines jl
         JOIN journal_entries je ON je.id = jl.journal_entry_id
         WHERE je.tenant_id = $1
@@ -1027,8 +1027,8 @@ async fn test_period_close_trial_balance_sums_to_zero() {
     let account_balances: Vec<(String, i64, i64)> = sqlx::query_as(
         r#"
         SELECT jl.account_ref,
-               COALESCE(SUM(jl.debit_minor), 0),
-               COALESCE(SUM(jl.credit_minor), 0)
+               COALESCE(SUM(jl.debit_minor), 0)::BIGINT,
+               COALESCE(SUM(jl.credit_minor), 0)::BIGINT
         FROM journal_lines jl
         JOIN journal_entries je ON je.id = jl.journal_entry_id
         WHERE je.tenant_id = $1
@@ -1248,12 +1248,12 @@ async fn test_ap_no_over_allocation_across_all_bills() {
     // Query ALL non-voided bills for any over-allocation
     let over_allocated: Vec<(Uuid, i64, i64)> = sqlx::query_as(
         r#"
-        SELECT b.bill_id, b.total_minor, COALESCE(SUM(a.amount_minor), 0) as allocated
+        SELECT b.bill_id, b.total_minor, COALESCE(SUM(a.amount_minor), 0)::BIGINT as allocated
         FROM vendor_bills b
         LEFT JOIN ap_allocations a ON a.bill_id = b.bill_id AND a.tenant_id = b.tenant_id
         WHERE b.status != 'voided'
         GROUP BY b.bill_id, b.total_minor
-        HAVING COALESCE(SUM(a.amount_minor), 0) > b.total_minor
+        HAVING COALESCE(SUM(a.amount_minor), 0)::BIGINT > b.total_minor
         "#,
     )
     .fetch_all(&ap_pool)
@@ -1286,8 +1286,8 @@ async fn test_gl_global_debit_credit_balance() {
     let unbalanced: Vec<(Uuid, String, i64, i64)> = sqlx::query_as(
         r#"
         SELECT je.id, je.tenant_id,
-               COALESCE(SUM(jl.debit_minor), 0),
-               COALESCE(SUM(jl.credit_minor), 0)
+               COALESCE(SUM(jl.debit_minor), 0)::BIGINT,
+               COALESCE(SUM(jl.credit_minor), 0)::BIGINT
         FROM journal_entries je
         LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
         GROUP BY je.id, je.tenant_id
