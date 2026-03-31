@@ -136,6 +136,8 @@ async fn inventory_reservation_reserve_creates_atomically() {
         .await
         .expect("create item");
 
+    seed_on_hand(&pool, &tenant_id, item.id, warehouse_id, 200).await;
+
     let req = test_reserve_req(&tenant_id, item.id, warehouse_id);
     let (result, is_replay) = process_reserve(&pool, &req)
         .await
@@ -192,6 +194,8 @@ async fn inventory_reservation_release_compensates() {
     let item = ItemRepo::create(&pool, &test_item_req(&tenant_id, "E2E-REL-001"))
         .await
         .expect("create item");
+
+    seed_on_hand(&pool, &tenant_id, item.id, warehouse_id, 200).await;
 
     let (reserve_result, _) =
         process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
@@ -255,6 +259,8 @@ async fn inventory_reservation_idempotency_reserve() {
         .await
         .expect("create item");
 
+    seed_on_hand(&pool, &tenant_id, item.id, warehouse_id, 200).await;
+
     let req = test_reserve_req(&tenant_id, item.id, warehouse_id);
     let (r1, _) = process_reserve(&pool, &req).await.expect("first reserve");
     let (r2, is_replay) = process_reserve(&pool, &req).await.expect("second reserve");
@@ -296,6 +302,8 @@ async fn inventory_reservation_idempotency_release() {
     let item = ItemRepo::create(&pool, &test_item_req(&tenant_id, "E2E-IDEM-REL-001"))
         .await
         .expect("create item");
+
+    seed_on_hand(&pool, &tenant_id, item.id, warehouse_id, 200).await;
 
     let (reserve_result, _) =
         process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
@@ -344,6 +352,8 @@ async fn inventory_reservation_double_release_rejected() {
     let item = ItemRepo::create(&pool, &test_item_req(&tenant_id, "E2E-DBL-REL-001"))
         .await
         .expect("create item");
+
+    seed_on_hand(&pool, &tenant_id, item.id, warehouse_id, 200).await;
 
     let (reserve_result, _) =
         process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))

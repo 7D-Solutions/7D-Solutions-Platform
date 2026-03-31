@@ -281,6 +281,23 @@ async fn inventory_idempotency_duplicate_reserve_is_replay() {
     .await
     .expect("create item");
 
+    // Seed on-hand stock so the reservation guard passes.
+    sqlx::query(
+        r#"
+        INSERT INTO item_on_hand
+            (tenant_id, item_id, warehouse_id, quantity_on_hand, available_status_on_hand, projected_at)
+        VALUES ($1, $2, $3, 200, 200, NOW())
+        ON CONFLICT (tenant_id, item_id, warehouse_id) WHERE location_id IS NULL DO UPDATE
+            SET quantity_on_hand = 200, available_status_on_hand = 200, projected_at = NOW()
+        "#,
+    )
+    .bind(&tenant_id)
+    .bind(item.id)
+    .bind(warehouse_id)
+    .execute(&pool)
+    .await
+    .expect("seed on-hand");
+
     let req = ReserveRequest {
         tenant_id: tenant_id.clone(),
         item_id: item.id,

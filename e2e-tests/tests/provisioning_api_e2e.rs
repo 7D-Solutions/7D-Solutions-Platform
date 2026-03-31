@@ -34,15 +34,29 @@ use uuid::Uuid;
 /// The smoke test resets `tenants` + `provisioning_steps` for its own tests;
 /// we recreate the control-plane tables here if they were dropped.
 async fn ensure_control_plane_tables(pool: &PgPool) {
-    // Ensure status constraint includes 'pending' and 'failed'.
-    // We recreate the tenants table constraint via a separate migration.
-    // Since the smoke test may have reset the DB, apply our migration idempotently.
-    let migration_sql = include_str!(
-        "../../platform/tenant-registry/db/migrations/20260217000001_add_control_plane_tables.sql"
-    );
+    // Apply all control-plane migrations idempotently.
+    // The handler now requires product_code, plan_code, entitlements, bundles etc.
+    let migrations: &[&str] = &[
+        include_str!(
+            "../../platform/tenant-registry/db/migrations/20260217000001_add_control_plane_tables.sql"
+        ),
+        include_str!(
+            "../../platform/tenant-registry/db/migrations/20260219000001_extend_tenants_product_plan_status_appid.sql"
+        ),
+        include_str!(
+            "../../platform/tenant-registry/db/migrations/20260219000002_add_entitlements.sql"
+        ),
+        include_str!(
+            "../../platform/tenant-registry/db/migrations/20260219000003_add_cp_plans.sql"
+        ),
+        include_str!(
+            "../../platform/tenant-registry/db/migrations/20260220000002_add_bundle_tables.sql"
+        ),
+    ];
 
-    // Tables may already exist; the migration uses IF NOT EXISTS so it's safe.
-    sqlx::raw_sql(migration_sql).execute(pool).await.ok(); // Ignore errors (e.g. tables already exist from a clean state)
+    for sql in migrations {
+        sqlx::raw_sql(sql).execute(pool).await.ok();
+    }
 }
 
 /// Helper: build in-process provisioning router
@@ -213,7 +227,9 @@ async fn test_idempotency_replay_returns_200() {
 
     let body = json!({
         "idempotency_key": idempotency_key,
-        "environment": "development"
+        "environment": "development",
+        "product_code": "starter",
+        "plan_code": "monthly"
     });
 
     // First request: 202 Accepted
