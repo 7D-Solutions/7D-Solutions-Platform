@@ -23,10 +23,12 @@ use super::helpers::tenant::{extract_tenant, with_request_id};
 // Schedule endpoints
 // ============================================================================
 
-/// POST /api/fixed-assets/depreciation/schedule
-///
-/// Generate (or refresh) the straight-line depreciation schedule for a single asset.
-/// Idempotent — safe to call multiple times.
+#[utoipa::path(
+    post, path = "/api/fixed-assets/depreciation/schedule", tag = "Depreciation",
+    request_body = GenerateScheduleRequest,
+    responses((status = 201, description = "Schedule generated"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn generate_schedule(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -49,10 +51,12 @@ pub async fn generate_schedule(
 // Run endpoints
 // ============================================================================
 
-/// POST /api/fixed-assets/depreciation/runs
-///
-/// Execute a depreciation run: posts all unposted periods up to as_of_date.
-/// Idempotent — re-running for the same period skips already-posted entries.
+#[utoipa::path(
+    post, path = "/api/fixed-assets/depreciation/runs", tag = "Depreciation",
+    request_body = CreateRunRequest,
+    responses((status = 201, description = "Run created"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -71,9 +75,11 @@ pub async fn create_run(
     }
 }
 
-/// GET /api/fixed-assets/depreciation/runs
-///
-/// List all depreciation runs for a tenant, newest first.
+#[utoipa::path(
+    get, path = "/api/fixed-assets/depreciation/runs", tag = "Depreciation",
+    responses((status = 200, description = "Run list", body = PaginatedResponse<crate::domain::depreciation::DepreciationRun>)),
+    security(("bearer" = [])),
+)]
 pub async fn list_runs(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -94,9 +100,12 @@ pub async fn list_runs(
     }
 }
 
-/// GET /api/fixed-assets/depreciation/runs/:id
-///
-/// Fetch a single depreciation run.
+#[utoipa::path(
+    get, path = "/api/fixed-assets/depreciation/runs/{id}", tag = "Depreciation",
+    params(("id" = Uuid, Path, description = "Run ID")),
+    responses((status = 200, description = "Run details"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

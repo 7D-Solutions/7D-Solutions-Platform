@@ -25,6 +25,12 @@ use super::helpers::tenant::{extract_tenant, with_request_id};
 // Category endpoints
 // ============================================================================
 
+#[utoipa::path(
+    post, path = "/api/fixed-assets/categories", tag = "Categories",
+    request_body = CreateCategoryRequest,
+    responses((status = 201, description = "Category created"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn create_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -43,6 +49,13 @@ pub async fn create_category(
     }
 }
 
+#[utoipa::path(
+    put, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
+    params(("id" = Uuid, Path, description = "Category ID")),
+    request_body = UpdateCategoryRequest,
+    responses((status = 200, description = "Category updated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn update_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -62,6 +75,12 @@ pub async fn update_category(
     }
 }
 
+#[utoipa::path(
+    delete, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
+    params(("id" = Uuid, Path, description = "Category ID")),
+    responses((status = 200, description = "Category deactivated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -79,6 +98,12 @@ pub async fn deactivate_category(
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
+    params(("id" = Uuid, Path, description = "Category ID")),
+    responses((status = 200, description = "Category details"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_category(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -101,6 +126,11 @@ pub async fn get_category(
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/fixed-assets/categories", tag = "Categories",
+    responses((status = 200, description = "Category list", body = PaginatedResponse<crate::domain::assets::Category>)),
+    security(("bearer" = [])),
+)]
 pub async fn list_categories(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -130,6 +160,12 @@ pub struct ListAssetsQuery {
     pub status: Option<String>,
 }
 
+#[utoipa::path(
+    post, path = "/api/fixed-assets/assets", tag = "Assets",
+    request_body = CreateAssetRequest,
+    responses((status = 201, description = "Asset created"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn create_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -148,6 +184,13 @@ pub async fn create_asset(
     }
 }
 
+#[utoipa::path(
+    put, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
+    params(("id" = Uuid, Path, description = "Asset ID")),
+    request_body = UpdateAssetRequest,
+    responses((status = 200, description = "Asset updated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn update_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -167,6 +210,12 @@ pub async fn update_asset(
     }
 }
 
+#[utoipa::path(
+    delete, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
+    params(("id" = Uuid, Path, description = "Asset ID")),
+    responses((status = 200, description = "Asset deactivated"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn deactivate_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -184,6 +233,12 @@ pub async fn deactivate_asset(
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
+    params(("id" = Uuid, Path, description = "Asset ID")),
+    responses((status = 200, description = "Asset details"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -206,6 +261,11 @@ pub async fn get_asset(
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/fixed-assets/assets", tag = "Assets",
+    responses((status = 200, description = "Asset list", body = PaginatedResponse<crate::domain::assets::Asset>)),
+    security(("bearer" = [])),
+)]
 pub async fn list_assets(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

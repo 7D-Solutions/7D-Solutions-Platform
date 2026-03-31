@@ -17,7 +17,12 @@ use crate::AppState;
 
 use super::helpers::tenant::{extract_tenant, with_request_id};
 
-/// POST /api/fixed-assets/disposals — Dispose or impair an asset. Idempotent.
+#[utoipa::path(
+    post, path = "/api/fixed-assets/disposals", tag = "Disposals",
+    request_body = DisposeAssetRequest,
+    responses((status = 201, description = "Disposal created"), (status = 401, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn dispose_asset(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -36,7 +41,11 @@ pub async fn dispose_asset(
     }
 }
 
-/// GET /api/fixed-assets/disposals — List all disposals.
+#[utoipa::path(
+    get, path = "/api/fixed-assets/disposals", tag = "Disposals",
+    responses((status = 200, description = "Disposal list", body = PaginatedResponse<crate::domain::disposals::Disposal>)),
+    security(("bearer" = [])),
+)]
 pub async fn list_disposals(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -57,7 +66,12 @@ pub async fn list_disposals(
     }
 }
 
-/// GET /api/fixed-assets/disposals/:id — Fetch a single disposal.
+#[utoipa::path(
+    get, path = "/api/fixed-assets/disposals/{id}", tag = "Disposals",
+    params(("id" = Uuid, Path, description = "Disposal ID")),
+    responses((status = 200, description = "Disposal details"), (status = 404, body = ApiError)),
+    security(("bearer" = [])),
+)]
 pub async fn get_disposal(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

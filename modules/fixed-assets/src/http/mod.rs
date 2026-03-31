@@ -11,6 +11,85 @@ use health::{
 };
 use std::sync::Arc;
 use std::time::Instant;
+use utoipa::OpenApi;
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Fixed Assets Service",
+        version = "2.1.0",
+        description = "Fixed asset lifecycle: capitalization, depreciation schedules, disposals, and impairments.",
+    ),
+    paths(
+        // Categories
+        assets::create_category,
+        assets::update_category,
+        assets::deactivate_category,
+        assets::get_category,
+        assets::list_categories,
+        // Assets
+        assets::create_asset,
+        assets::update_asset,
+        assets::deactivate_asset,
+        assets::get_asset,
+        assets::list_assets,
+        // Depreciation
+        depreciation::generate_schedule,
+        depreciation::create_run,
+        depreciation::list_runs,
+        depreciation::get_run,
+        // Disposals
+        disposals::dispose_asset,
+        disposals::list_disposals,
+        disposals::get_disposal,
+    ),
+    components(schemas(
+        // Categories & Assets
+        crate::domain::assets::Category,
+        crate::domain::assets::Asset,
+        crate::domain::assets::DepreciationMethod,
+        crate::domain::assets::AssetStatus,
+        crate::domain::assets::CreateCategoryRequest,
+        crate::domain::assets::UpdateCategoryRequest,
+        crate::domain::assets::CreateAssetRequest,
+        crate::domain::assets::UpdateAssetRequest,
+        // Depreciation
+        crate::domain::depreciation::DepreciationSchedule,
+        crate::domain::depreciation::DepreciationRun,
+        crate::domain::depreciation::GenerateScheduleRequest,
+        crate::domain::depreciation::CreateRunRequest,
+        // Disposals
+        crate::domain::disposals::Disposal,
+        crate::domain::disposals::DisposalType,
+        crate::domain::disposals::DisposeAssetRequest,
+        // Platform
+        platform_http_contracts::ApiError,
+        platform_http_contracts::PaginatedResponse<crate::domain::assets::Category>,
+        platform_http_contracts::PaginatedResponse<crate::domain::assets::Asset>,
+        platform_http_contracts::PaginatedResponse<crate::domain::depreciation::DepreciationRun>,
+        platform_http_contracts::PaginatedResponse<crate::domain::disposals::Disposal>,
+    )),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// GET /api/health — liveness probe (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {

@@ -11,7 +11,7 @@ use sqlx::PgPool;
 // ============================================================================
 
 /// A single row in an AP paid-tax summary report.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ApTaxSummaryRow {
     pub period: String,
     pub jurisdiction: String,
@@ -138,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_row_json_roundtrip() {
+    fn summary_row_json_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let row = ApTaxSummaryRow {
             period: "2026-02".to_string(),
             jurisdiction: "California State Tax".to_string(),
@@ -147,9 +147,10 @@ mod tests {
             total_tax_minor: 8500,
             bill_count: 10,
         };
-        let json = serde_json::to_string(&row).unwrap();
-        let back: ApTaxSummaryRow = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&row)?;
+        let back: ApTaxSummaryRow = serde_json::from_str(&json)?;
         assert_eq!(back.period, "2026-02");
         assert_eq!(back.total_tax_minor, 8500);
+        Ok(())
     }
 }

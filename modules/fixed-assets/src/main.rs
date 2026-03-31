@@ -1,7 +1,7 @@
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post, put},
-    Extension, Router,
+    Extension, Json, Router,
 };
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
@@ -14,6 +14,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
 use fixed_assets::{config::Config, consumers, db, http, metrics, outbox, AppState};
 
@@ -138,6 +139,7 @@ async fn main() {
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route("/api/openapi.json", get(openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         // Category CRUD — read
         .route(
@@ -233,6 +235,10 @@ async fn shutdown_signal() {
     }
 
     tracing::info!("Shutdown signal received — draining in-flight requests");
+}
+
+async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(http::ApiDoc::openapi())
 }
 
 fn build_cors_layer(config: &Config) -> CorsLayer {

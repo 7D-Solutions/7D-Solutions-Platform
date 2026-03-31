@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.0 | 2026-03-30 | bd-70nin | OpenAPI via utoipa: `#[utoipa::path]` annotations on all 17 handlers, `ApiDoc` struct in http/mod.rs, `/api/openapi.json` endpoint serving full spec with JWT bearer security scheme. Tags: Categories, Assets, Depreciation, Disposals. | Self-describing API for plug-and-play consumer onboarding. | No |
 | 2.0.0 | 2026-03-30 | bd-70nin | Standard response envelopes: all handlers use `ApiError` and `PaginatedResponse` from platform-http-contracts. Tenant extraction returns `ApiError`. List endpoints (categories, assets, runs, disposals) wrapped in `PaginatedResponse`. `From<XError> for ApiError` impls for AssetError, DepreciationError, DisposalError. `ToSchema` derives on all domain models. | Consistent error/pagination contract for plug-and-play consumers. | YES: Response shape changed — list endpoints now return `{data, pagination}` envelope; error responses now return `{error, message, request_id}` envelope. |
 | 1.0.0 | 2026-03-28 | bd-1lvg0 | Initial proof. Asset register CRUD, depreciation schedule generation (straight-line, 12-period), depreciation run execution, idempotent schedule generation, disposal workflow, asset categorization, admin endpoints, event publishing. 63 unit tests pass, clippy clean. | Fixed assets module complete and proven. All gates pass. | No |
 

@@ -2,13 +2,14 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Persisted tax snapshot for an AP vendor bill.
 ///
 /// Records the full quote -> commit -> void lifecycle with provider references
 /// and a deterministic quote hash for idempotency.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ApTaxSnapshot {
     pub id: Uuid,
     pub bill_id: Uuid,
@@ -33,7 +34,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn snapshot_serializes_roundtrip() {
+    fn snapshot_serializes_roundtrip() -> Result<(), Box<dyn std::error::Error>> {
         let snap = ApTaxSnapshot {
             id: Uuid::new_v4(),
             bill_id: Uuid::new_v4(),
@@ -52,10 +53,11 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        let json = serde_json::to_string(&snap).unwrap();
-        let back: ApTaxSnapshot = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&snap)?;
+        let back: ApTaxSnapshot = serde_json::from_str(&json)?;
         assert_eq!(back.total_tax_minor, 500);
         assert_eq!(back.status, "quoted");
+        Ok(())
     }
 
     #[test]
