@@ -3,8 +3,7 @@
 //! Proves no cross-tenant data leakage for subscriptions.
 //! Two tenants operate on the same database — tenant B must never see tenant A's data.
 //!
-//! ## Known Gaps (documented in docs/audits/tenant-isolation-sweep-2026-03-31.md)
-//! - lifecycle/transitions.rs: fetch_current_status and update_status query by id without tenant_id
+//! ## Fixed (bd-vnuvp.5): All lifecycle queries now filter by tenant_id
 //!
 //! ## Prerequisites
 //! - PostgreSQL at localhost:5435 (docker compose up -d)
@@ -136,44 +135,36 @@ async fn tenant_list_returns_only_own_subscriptions() {
 
 #[tokio::test]
 #[serial]
-async fn lifecycle_query_without_tenant_demonstrates_gap() {
-    // This test documents a known vulnerability:
-    // transitions.rs queries "SELECT status FROM subscriptions WHERE id = $1"
-    // without tenant_id. An unscoped query returns data regardless of tenant.
+async fn lifecycle_transition_rejects_wrong_tenant() {
+    // bd-vnuvp.5: Proves lifecycle functions now enforce tenant isolation.
+    // transition_to_active with wrong tenant_id must fail (SubscriptionNotFound).
     let pool = setup_db().await;
     let tenant_a = unique_tenant();
-
-    let a_sub = create_subscription(&pool, &tenant_a, "active").await;
-
-    // Unscoped query (how transitions.rs does it):
-    let unscoped: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM subscriptions WHERE id = $1",
-    )
-    .bind(a_sub)
-    .fetch_optional(&pool)
-    .await
-    .expect("Unscoped query should succeed");
-
-    assert!(
-        unscoped.is_some(),
-        "Unscoped query returns data (expected — documents the gap)"
-    );
-
-    // The CORRECT query should require tenant context:
     let wrong_tenant = unique_tenant();
-    let scoped: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2",
+
+    let a_sub = create_subscription(&pool, &tenant_a, "past_due").await;
+
+    // Attempt transition with wrong tenant — must fail
+    let result = subscriptions_rs::lifecycle::transition_to_active(
+        a_sub, &wrong_tenant, "payment_recovered", &pool,
     )
-    .bind(a_sub)
-    .bind(&wrong_tenant)
-    .fetch_optional(&pool)
-    .await
-    .expect("Scoped query should succeed");
+    .await;
 
     assert!(
-        scoped.is_none(),
-        "Scoped query with wrong tenant must return nothing"
+        result.is_err(),
+        "Transition with wrong tenant_id must fail"
     );
+
+    // Verify status was NOT modified
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
+            .bind(a_sub)
+            .bind(&tenant_a)
+            .fetch_one(&pool)
+            .await
+            .expect("Should find subscription");
+
+    assert_eq!(status, "past_due", "Subscription should still be past_due");
 }
 
 #[tokio::test]

@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.2 | 2026-03-31 | bd-vnuvp.5 | Add tenant_id filter to 4 lifecycle queries (fetch_current_status, update_status, fetch_current_status_tx, update_status_tx). Public transition functions now require tenant_id parameter. Removes 2 redundant unscoped tenant_id fetches. | Tenant isolation: queries on subscriptions table used id without tenant_id, allowing cross-tenant data access in lifecycle transitions. | YES: transition_to_past_due, transition_to_suspended, transition_to_active now require tenant_id: &str parameter. |
 | 2.2.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.2.0 | 2026-03-30 | bd-nhmgu | Export http module from lib.rs; add openapi_dump utility binary. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.1.0 | 2026-03-31 | bd-f97fk | OpenAPI spec at /api/openapi.json via utoipa 5.x on execute_bill_run. Bearer JWT SecurityScheme. Split http.rs (456 LOC) into http/bill_run.rs + http/health.rs + http/mod.rs. | Plug-and-play: OpenAPI + startup standardization. | No |

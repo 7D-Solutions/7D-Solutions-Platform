@@ -33,7 +33,7 @@ async fn setup_test_pool() -> PgPool {
 }
 
 // Test helper to create a subscription in a specific status
-async fn create_test_subscription(pool: &PgPool, status: &str) -> Uuid {
+async fn create_test_subscription(pool: &PgPool, status: &str) -> (Uuid, String) {
     let tenant_id = format!("test-tenant-{}", Uuid::new_v4());
     let ar_customer_id = format!("customer-{}", Uuid::new_v4());
 
@@ -62,7 +62,7 @@ async fn create_test_subscription(pool: &PgPool, status: &str) -> Uuid {
     .await
     .expect("Failed to create test subscription");
 
-    subscription_id
+    (subscription_id, tenant_id)
 }
 
 // Test helper to fetch subscription status
@@ -81,7 +81,7 @@ async fn get_subscription_status(pool: &PgPool, subscription_id: Uuid) -> String
 #[tokio::test]
 async fn test_transition_active_to_past_due() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "active").await;
+    let (subscription_id, _tenant_id) = create_test_subscription(&pool, "active").await;
 
     let result = transition_guard(
         SubscriptionStatus::Active,
@@ -102,10 +102,10 @@ async fn test_transition_active_to_past_due() {
 #[tokio::test]
 async fn test_lifecycle_function_active_to_past_due() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "active").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "active").await;
 
     // Call lifecycle function
-    transition_to_past_due(subscription_id, "payment_failed", &pool)
+    transition_to_past_due(subscription_id, &tenant_id, "payment_failed", &pool)
         .await
         .expect("Transition should succeed");
 
@@ -139,10 +139,10 @@ async fn test_transition_past_due_to_suspended() {
 #[tokio::test]
 async fn test_lifecycle_function_past_due_to_suspended() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "past_due").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "past_due").await;
 
     // Call lifecycle function
-    transition_to_suspended(subscription_id, "grace_period_expired", &pool)
+    transition_to_suspended(subscription_id, &tenant_id, "grace_period_expired", &pool)
         .await
         .expect("Transition should succeed");
 
@@ -176,10 +176,10 @@ async fn test_transition_suspended_to_active() {
 #[tokio::test]
 async fn test_lifecycle_function_suspended_to_active() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "suspended").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "suspended").await;
 
     // Call lifecycle function
-    transition_to_active(subscription_id, "payment_recovered", &pool)
+    transition_to_active(subscription_id, &tenant_id, "payment_recovered", &pool)
         .await
         .expect("Transition should succeed");
 
@@ -213,10 +213,10 @@ async fn test_transition_past_due_to_active() {
 #[tokio::test]
 async fn test_lifecycle_function_past_due_to_active() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "past_due").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "past_due").await;
 
     // Call lifecycle function
-    transition_to_active(subscription_id, "payment_recovered", &pool)
+    transition_to_active(subscription_id, &tenant_id, "payment_recovered", &pool)
         .await
         .expect("Transition should succeed");
 
@@ -277,19 +277,19 @@ async fn test_illegal_transition_suspended_to_past_due() {
 #[tokio::test]
 async fn test_lifecycle_function_rejects_illegal_transition() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "active").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "active").await;
 
     // Attempt illegal transition: Active → PastDue → then try Suspended → PastDue (backwards)
     // First set the subscription to suspended state
-    transition_to_past_due(subscription_id, "payment_failed", &pool)
+    transition_to_past_due(subscription_id, &tenant_id, "payment_failed", &pool)
         .await
         .unwrap();
-    transition_to_suspended(subscription_id, "grace_expired", &pool)
+    transition_to_suspended(subscription_id, &tenant_id, "grace_expired", &pool)
         .await
         .unwrap();
 
     // Now attempt illegal Suspended → PastDue (backwards)
-    let result = transition_to_past_due(subscription_id, "backwards", &pool).await;
+    let result = transition_to_past_due(subscription_id, &tenant_id, "backwards", &pool).await;
 
     assert!(
         result.is_err(),
@@ -329,15 +329,15 @@ async fn test_idempotent_transition_active_to_active() {
 #[tokio::test]
 async fn test_lifecycle_function_idempotent() {
     let pool = setup_test_pool().await;
-    let subscription_id = create_test_subscription(&pool, "past_due").await;
+    let (subscription_id, tenant_id) = create_test_subscription(&pool, "past_due").await;
 
     // First transition
-    transition_to_past_due(subscription_id, "idempotent_test", &pool)
+    transition_to_past_due(subscription_id, &tenant_id, "idempotent_test", &pool)
         .await
         .expect("First call should succeed");
 
     // Second transition (idempotent)
-    transition_to_past_due(subscription_id, "idempotent_test", &pool)
+    transition_to_past_due(subscription_id, &tenant_id, "idempotent_test", &pool)
         .await
         .expect("Second call should succeed (idempotent)");
 
@@ -362,7 +362,7 @@ async fn test_lifecycle_function_subscription_not_found() {
     let pool = setup_test_pool().await;
     let non_existent_id = Uuid::new_v4();
 
-    let result = transition_to_past_due(non_existent_id, "test", &pool).await;
+    let result = transition_to_past_due(non_existent_id, "nonexistent-tenant", "test", &pool).await;
 
     assert!(
         result.is_err(),

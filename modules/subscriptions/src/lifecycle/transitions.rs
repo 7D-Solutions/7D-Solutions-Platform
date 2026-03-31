@@ -20,36 +20,33 @@ use super::state_machine::{transition_guard, SubscriptionStatus, TransitionError
 /// 3. Side Effect: Emit subscriptions.status.changed event
 pub async fn transition_to_past_due(
     subscription_id: Uuid,
+    tenant_id: &str,
     reason: &str,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
     // Phase 16 bd-299f: Wrap in transaction for atomicity
     let mut tx = pool.begin().await?;
 
-    // Fetch current status
-    let current_status = fetch_current_status_tx(&mut tx, subscription_id).await?;
+    // Fetch current status (scoped by tenant_id)
+    let current_status = fetch_current_status_tx(&mut tx, subscription_id, tenant_id).await?;
 
     // Guard: Validate transition (ZERO side effects)
     transition_guard(current_status, SubscriptionStatus::PastDue, reason)?;
 
-    // Mutation: Update status (within transaction)
-    update_status_tx(&mut tx, subscription_id, SubscriptionStatus::PastDue).await?;
+    // Mutation: Update status (within transaction, scoped by tenant_id)
+    update_status_tx(&mut tx, subscription_id, tenant_id, SubscriptionStatus::PastDue).await?;
 
     // Side Effect: Emit subscriptions.status.changed event atomically within the same TX
-    let tenant_id: String = sqlx::query_scalar("SELECT tenant_id FROM subscriptions WHERE id = $1")
-        .bind(subscription_id)
-        .fetch_one(&mut *tx)
-        .await?;
     let status_payload = crate::models::SubscriptionStatusChangedPayload {
         subscription_id: subscription_id.to_string(),
-        tenant_id: tenant_id.clone(),
+        tenant_id: tenant_id.to_string(),
         from_status: current_status.as_str().to_string(),
         to_status: SubscriptionStatus::PastDue.as_str().to_string(),
         reason: reason.to_string(),
     };
     let envelope = crate::envelope::create_subscriptions_envelope(
         uuid::Uuid::new_v4(),
-        tenant_id,
+        tenant_id.to_string(),
         "subscriptions.status.changed".to_string(),
         None,
         None,
@@ -76,35 +73,32 @@ pub async fn transition_to_past_due(
 /// 3. Side Effect: Emit subscriptions.status.changed event
 pub async fn transition_to_suspended(
     subscription_id: Uuid,
+    tenant_id: &str,
     reason: &str,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
     let mut tx = pool.begin().await?;
 
-    // Fetch current status (within transaction)
-    let current_status = fetch_current_status_tx(&mut tx, subscription_id).await?;
+    // Fetch current status (within transaction, scoped by tenant_id)
+    let current_status = fetch_current_status_tx(&mut tx, subscription_id, tenant_id).await?;
 
     // Guard: Validate transition (ZERO side effects)
     transition_guard(current_status, SubscriptionStatus::Suspended, reason)?;
 
-    // Mutation: Update status (within transaction)
-    update_status_tx(&mut tx, subscription_id, SubscriptionStatus::Suspended).await?;
+    // Mutation: Update status (within transaction, scoped by tenant_id)
+    update_status_tx(&mut tx, subscription_id, tenant_id, SubscriptionStatus::Suspended).await?;
 
     // Side Effect: Emit subscriptions.status.changed event atomically
-    let tenant_id: String = sqlx::query_scalar("SELECT tenant_id FROM subscriptions WHERE id = $1")
-        .bind(subscription_id)
-        .fetch_one(&mut *tx)
-        .await?;
     let status_payload = crate::models::SubscriptionStatusChangedPayload {
         subscription_id: subscription_id.to_string(),
-        tenant_id: tenant_id.clone(),
+        tenant_id: tenant_id.to_string(),
         from_status: current_status.as_str().to_string(),
         to_status: SubscriptionStatus::Suspended.as_str().to_string(),
         reason: reason.to_string(),
     };
     let envelope = crate::envelope::create_subscriptions_envelope(
         uuid::Uuid::new_v4(),
-        tenant_id,
+        tenant_id.to_string(),
         "subscriptions.status.changed".to_string(),
         None,
         None,
@@ -132,17 +126,18 @@ pub async fn transition_to_suspended(
 /// 3. Side Effect: (Future) Emit event, trigger notifications
 pub async fn transition_to_active(
     subscription_id: Uuid,
+    tenant_id: &str,
     reason: &str,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
-    // Fetch current status
-    let current_status = fetch_current_status(subscription_id, pool).await?;
+    // Fetch current status (scoped by tenant_id)
+    let current_status = fetch_current_status(subscription_id, tenant_id, pool).await?;
 
     // Guard: Validate transition (ZERO side effects)
     transition_guard(current_status, SubscriptionStatus::Active, reason)?;
 
-    // Mutation: Update status
-    update_status(subscription_id, SubscriptionStatus::Active, pool).await?;
+    // Mutation: Update status (scoped by tenant_id)
+    update_status(subscription_id, tenant_id, SubscriptionStatus::Active, pool).await?;
 
     tracing::info!(
         subscription_id = %subscription_id,
@@ -160,10 +155,12 @@ pub async fn transition_to_active(
 /// Fetch current subscription status from database.
 async fn fetch_current_status(
     subscription_id: Uuid,
+    tenant_id: &str,
     pool: &PgPool,
 ) -> Result<SubscriptionStatus, TransitionError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1")
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
         .bind(subscription_id)
+        .bind(tenant_id)
         .fetch_optional(pool)
         .await?;
 
@@ -176,13 +173,15 @@ async fn fetch_current_status(
 /// Update subscription status in database.
 async fn update_status(
     subscription_id: Uuid,
+    tenant_id: &str,
     new_status: SubscriptionStatus,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
     let rows_affected =
-        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2")
+        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3")
             .bind(new_status.as_str())
             .bind(subscription_id)
+            .bind(tenant_id)
             .execute(pool)
             .await?
             .rows_affected();
@@ -201,9 +200,11 @@ async fn update_status(
 pub(super) async fn fetch_current_status_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     subscription_id: Uuid,
+    tenant_id: &str,
 ) -> Result<SubscriptionStatus, TransitionError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1")
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
         .bind(subscription_id)
+        .bind(tenant_id)
         .fetch_optional(&mut **tx)
         .await?;
 
@@ -220,12 +221,14 @@ pub(super) async fn fetch_current_status_tx(
 pub(super) async fn update_status_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     subscription_id: Uuid,
+    tenant_id: &str,
     new_status: SubscriptionStatus,
 ) -> Result<(), TransitionError> {
     let rows_affected =
-        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2")
+        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3")
             .bind(new_status.as_str())
             .bind(subscription_id)
+            .bind(tenant_id)
             .execute(&mut **tx)
             .await?
             .rows_affected();

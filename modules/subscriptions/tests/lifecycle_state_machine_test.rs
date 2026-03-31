@@ -91,22 +91,22 @@ async fn cleanup(pool: &PgPool, id: Uuid) {
 #[tokio::test]
 async fn test_full_dunning_lifecycle_and_recovery() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "active").await;
 
     // Step 1: Payment fails → PastDue
-    transition_to_past_due(sub_id, "payment_failed", &pool)
+    transition_to_past_due(sub_id, &tenant_id, "payment_failed", &pool)
         .await
         .expect("Active → PastDue should succeed");
     assert_eq!(get_status(&pool, sub_id).await, "past_due");
 
     // Step 2: Grace period expires → Suspended
-    transition_to_suspended(sub_id, "grace_period_expired", &pool)
+    transition_to_suspended(sub_id, &tenant_id, "grace_period_expired", &pool)
         .await
         .expect("PastDue → Suspended should succeed");
     assert_eq!(get_status(&pool, sub_id).await, "suspended");
 
     // Step 3: Payment recovered → Active (reactivation)
-    transition_to_active(sub_id, "payment_recovered", &pool)
+    transition_to_active(sub_id, &tenant_id, "payment_recovered", &pool)
         .await
         .expect("Suspended → Active should succeed");
     assert_eq!(get_status(&pool, sub_id).await, "active");
@@ -117,10 +117,10 @@ async fn test_full_dunning_lifecycle_and_recovery() {
 #[tokio::test]
 async fn test_direct_active_to_suspended_dunning_escalation() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "active").await;
 
     // Direct Active → Suspended (dunning terminal escalation)
-    transition_to_suspended(sub_id, "dunning_terminal_escalation", &pool)
+    transition_to_suspended(sub_id, &tenant_id, "dunning_terminal_escalation", &pool)
         .await
         .expect("Active → Suspended (direct) should succeed");
     assert_eq!(get_status(&pool, sub_id).await, "suspended");
@@ -131,16 +131,16 @@ async fn test_direct_active_to_suspended_dunning_escalation() {
 #[tokio::test]
 async fn test_past_due_recovery_without_suspension() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "active").await;
 
     // Payment fails
-    transition_to_past_due(sub_id, "payment_failed", &pool)
+    transition_to_past_due(sub_id, &tenant_id, "payment_failed", &pool)
         .await
         .unwrap();
     assert_eq!(get_status(&pool, sub_id).await, "past_due");
 
     // Payment recovered before suspension
-    transition_to_active(sub_id, "payment_recovered", &pool)
+    transition_to_active(sub_id, &tenant_id, "payment_recovered", &pool)
         .await
         .expect("PastDue → Active should succeed");
     assert_eq!(get_status(&pool, sub_id).await, "active");
@@ -155,9 +155,9 @@ async fn test_past_due_recovery_without_suspension() {
 #[tokio::test]
 async fn test_suspended_to_past_due_rejected_via_lifecycle_fn() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "suspended").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "suspended").await;
 
-    let result = transition_to_past_due(sub_id, "backwards", &pool).await;
+    let result = transition_to_past_due(sub_id, &tenant_id, "backwards", &pool).await;
 
     assert!(result.is_err());
     match result {
@@ -178,7 +178,7 @@ async fn test_nonexistent_subscription_transition_fails() {
     let pool = setup_test_pool().await;
     let fake_id = Uuid::new_v4();
 
-    let result = transition_to_past_due(fake_id, "test", &pool).await;
+    let result = transition_to_past_due(fake_id, "nonexistent-tenant", "test", &pool).await;
     assert!(result.is_err());
     match result {
         Err(TransitionError::SubscriptionNotFound { subscription_id }) => {
@@ -191,10 +191,10 @@ async fn test_nonexistent_subscription_transition_fails() {
 #[tokio::test]
 async fn test_double_suspension_is_idempotent() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "suspended").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "suspended").await;
 
     // Suspending an already-suspended subscription should succeed (idempotent)
-    transition_to_suspended(sub_id, "duplicate_suspension", &pool)
+    transition_to_suspended(sub_id, &tenant_id, "duplicate_suspension", &pool)
         .await
         .expect("Suspended → Suspended should be idempotent");
     assert_eq!(get_status(&pool, sub_id).await, "suspended");
@@ -209,7 +209,7 @@ async fn test_double_suspension_is_idempotent() {
 #[tokio::test]
 async fn test_transition_to_past_due_emits_outbox_event() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "active").await;
 
     // Count outbox events before
     let before: i64 = sqlx::query_scalar(
@@ -219,7 +219,7 @@ async fn test_transition_to_past_due_emits_outbox_event() {
     .await
     .unwrap();
 
-    transition_to_past_due(sub_id, "payment_failed", &pool)
+    transition_to_past_due(sub_id, &tenant_id, "payment_failed", &pool)
         .await
         .unwrap();
 
@@ -239,7 +239,7 @@ async fn test_transition_to_past_due_emits_outbox_event() {
 #[tokio::test]
 async fn test_transition_to_suspended_emits_outbox_event() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "past_due").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "past_due").await;
 
     let before: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM events_outbox WHERE subject = 'subscriptions.status.changed'",
@@ -248,7 +248,7 @@ async fn test_transition_to_suspended_emits_outbox_event() {
     .await
     .unwrap();
 
-    transition_to_suspended(sub_id, "grace_expired", &pool)
+    transition_to_suspended(sub_id, &tenant_id, "grace_expired", &pool)
         .await
         .unwrap();
 
@@ -267,7 +267,7 @@ async fn test_transition_to_suspended_emits_outbox_event() {
 #[tokio::test]
 async fn test_failed_transition_does_not_emit_outbox_event() {
     let pool = setup_test_pool().await;
-    let (sub_id, _, _) = create_test_subscription(&pool, "suspended").await;
+    let (sub_id, tenant_id, _) = create_test_subscription(&pool, "suspended").await;
 
     let sub_id_str = sub_id.to_string();
     let before: i64 = sqlx::query_scalar(
@@ -281,7 +281,7 @@ async fn test_failed_transition_does_not_emit_outbox_event() {
     .unwrap();
 
     // Illegal transition should fail
-    let _ = transition_to_past_due(sub_id, "backwards", &pool).await;
+    let _ = transition_to_past_due(sub_id, &tenant_id, "backwards", &pool).await;
 
     let after: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM events_outbox \
