@@ -12,7 +12,7 @@
 mod common;
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{Datelike, NaiveDate, Utc};
 use common::{generate_test_tenant, get_ap_pool, get_gl_pool};
 use gl_rs::consumers::ap_vendor_bill_approved_consumer::{
     process_ap_bill_approved_posting, ApprovedGlLine, VendorBillApprovedPayload,
@@ -47,17 +47,29 @@ async fn setup_gl_accounts(gl_pool: &PgPool, tenant_id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Create an open accounting period covering today.
+/// Create an open accounting period covering the current month.
+///
+/// Uses dynamic dates so the test works regardless of when it runs.
 async fn setup_open_period(gl_pool: &PgPool, tenant_id: &str) -> Result<Uuid> {
+    let today = chrono::Utc::now().date_naive();
+    let first_of_month = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
+    let last_of_month = first_of_month
+        .checked_add_months(chrono::Months::new(1))
+        .unwrap()
+        .pred_opt()
+        .unwrap();
+
     let period_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
-        VALUES ($1, '2026-02-01', '2026-02-28', false)
+        VALUES ($1, $2, $3, false)
         ON CONFLICT DO NOTHING
         RETURNING id
         "#,
     )
     .bind(tenant_id)
+    .bind(first_of_month)
+    .bind(last_of_month)
     .fetch_optional(gl_pool)
     .await?;
 
@@ -68,9 +80,10 @@ async fn setup_open_period(gl_pool: &PgPool, tenant_id: &str) -> Result<Uuid> {
     // Conflict on period — fetch existing
     let id = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM accounting_periods WHERE tenant_id = $1 \
-         AND period_start = '2026-02-01' LIMIT 1",
+         AND period_start = $2 LIMIT 1",
     )
     .bind(tenant_id)
+    .bind(first_of_month)
     .fetch_one(gl_pool)
     .await?;
     Ok(id)

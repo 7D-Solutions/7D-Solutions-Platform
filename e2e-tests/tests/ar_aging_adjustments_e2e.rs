@@ -20,7 +20,7 @@ use ar_rs::aging::refresh_aging;
 use ar_rs::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
 use ar_rs::usage_billing::{bill_usage_for_invoice, BillUsageRequest};
 use ar_rs::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
-use chrono::{TimeZone, Utc};
+use chrono::{Datelike, TimeZone, Utc};
 use common::{
     cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
     get_subscriptions_pool,
@@ -560,16 +560,29 @@ async fn setup_gl_accounts(gl_pool: &sqlx::PgPool, tenant_id: &str) -> Result<()
     Ok(())
 }
 
-/// Open accounting period for Feb 2026
+/// Open accounting period covering the current month.
+///
+/// Uses dynamic dates so the test works regardless of when it runs.
 async fn setup_open_period(gl_pool: &sqlx::PgPool, tenant_id: &str) -> Result<uuid::Uuid> {
+    let today = chrono::Utc::now().date_naive();
+    let first_of_month =
+        chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
+    let last_of_month = first_of_month
+        .checked_add_months(chrono::Months::new(1))
+        .unwrap()
+        .pred_opt()
+        .unwrap();
+
     let period_id = sqlx::query_scalar::<_, uuid::Uuid>(
         r#"
         INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
-        VALUES ($1, '2026-02-01', '2026-02-28', false)
+        VALUES ($1, $2, $3, false)
         RETURNING id
         "#,
     )
     .bind(tenant_id)
+    .bind(first_of_month)
+    .bind(last_of_month)
     .fetch_one(gl_pool)
     .await?;
     Ok(period_id)
@@ -639,8 +652,20 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
     let period_id = setup_open_period(&gl_pool, &tenant_id).await?;
 
-    let period_start = Utc.with_ymd_and_hms(2026, 2, 1, 0, 0, 0).unwrap();
-    let period_end = Utc.with_ymd_and_hms(2026, 2, 28, 23, 59, 59).unwrap();
+    let now = Utc::now();
+    let period_start = Utc
+        .with_ymd_and_hms(now.year(), now.month(), 1, 0, 0, 0)
+        .unwrap();
+    let last_day = chrono::NaiveDate::from_ymd_opt(now.year(), now.month(), 1)
+        .unwrap()
+        .checked_add_months(chrono::Months::new(1))
+        .unwrap()
+        .pred_opt()
+        .unwrap()
+        .day();
+    let period_end = Utc
+        .with_ymd_and_hms(now.year(), now.month(), last_day, 23, 59, 59)
+        .unwrap();
 
     // Create an invoice (overdue by 10 days so it shows in 1-30 bucket)
     let invoice_id = make_invoice(&ar_pool, &tenant_id, customer_id, 0, -10).await?;
@@ -768,9 +793,7 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
 
     println!("=== STEP 4: GL posting for credit note (DR REV 3000, CR AR 3000) ===");
     let cn_event_id = uuid::Uuid::new_v4();
-    let cn_issued_at = chrono::DateTime::parse_from_rfc3339("2026-02-17T10:00:00Z")
-        .unwrap()
-        .with_timezone(&Utc);
+    let cn_issued_at = Utc::now();
     let cn_gl_payload = CreditNoteIssuedPayload {
         credit_note_id,
         tenant_id: tenant_id.clone(),
@@ -982,8 +1005,20 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
         setup_gl_accounts(&gl_pool, &tenant_id).await?;
         let period_id = setup_open_period(&gl_pool, &tenant_id).await?;
 
-        let period_start = Utc.with_ymd_and_hms(2026, 2, 1, 0, 0, 0).unwrap();
-        let period_end = Utc.with_ymd_and_hms(2026, 2, 28, 23, 59, 59).unwrap();
+        let now2 = Utc::now();
+        let period_start = Utc
+            .with_ymd_and_hms(now2.year(), now2.month(), 1, 0, 0, 0)
+            .unwrap();
+        let last_day2 = chrono::NaiveDate::from_ymd_opt(now2.year(), now2.month(), 1)
+            .unwrap()
+            .checked_add_months(chrono::Months::new(1))
+            .unwrap()
+            .pred_opt()
+            .unwrap()
+            .day();
+        let period_end = Utc
+            .with_ymd_and_hms(now2.year(), now2.month(), last_day2, 23, 59, 59)
+            .unwrap();
 
         // Invoice overdue by 15 days
         let invoice_id = make_invoice(&ar_pool, &tenant_id, customer_id, 0, -15).await?;
