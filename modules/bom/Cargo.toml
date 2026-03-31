@@ -1,6 +1,6 @@
 [package]
 name = "bom-rs"
-version = "2.2.1"
+version = "2.2.2"
 edition = "2021"
 description = "Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used"
 
@@ -8,6 +8,7 @@ description = "Bill of Materials: multi-level BOM structure with revisions, effe
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }

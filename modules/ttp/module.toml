@@ -1,0 +1,15 @@
+[module]
+name = "ttp"
+version = "2.1.12"
+description = "Third-party transaction processing: billing runs, metering, service agreements"
+
+[server]
+host = "0.0.0.0"
+port = 8100
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[sdk]
+min_version = "0.1.0"

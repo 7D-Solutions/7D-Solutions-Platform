@@ -1,0 +1,15 @@
+[module]
+name = "reporting"
+version = "2.1.1"
+description = "Financial reporting: aging, KPIs, statements, cash flow forecasts"
+
+[server]
+host = "0.0.0.0"
+port = 8097
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[sdk]
+min_version = "0.1.0"

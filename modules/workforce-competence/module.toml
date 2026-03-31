@@ -1,0 +1,15 @@
+[module]
+name = "workforce-competence"
+version = "2.1.5"
+description = "Workforce competence tracking: artifacts, assignments, acceptance authorities"
+
+[server]
+host = "0.0.0.0"
+port = 8110
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[sdk]
+min_version = "0.1.0"

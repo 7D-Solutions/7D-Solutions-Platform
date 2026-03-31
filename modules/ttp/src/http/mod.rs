@@ -9,7 +9,7 @@ use axum::{
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
-use crate::{metrics, ops, AppState};
+use crate::AppState;
 
 /// Build the TTP HTTP router with all endpoints.
 ///
@@ -35,13 +35,5 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route_layer(RequirePermissionsLayer::new(&[permissions::TTP_READ]))
         .with_state(state.clone());
 
-    let ops = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(ops::health::health))
-        .route("/api/ready", get(ops::ready::ready))
-        .route("/api/version", get(ops::version::version))
-        .route("/metrics", get(metrics::metrics_handler))
-        .with_state(state);
-
-    Router::new().merge(mutations).merge(reads).merge(ops)
+    Router::new().merge(mutations).merge(reads)
 }

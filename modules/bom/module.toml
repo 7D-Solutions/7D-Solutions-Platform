@@ -1,0 +1,15 @@
+[module]
+name = "bom"
+version = "2.2.2"
+description = "Bill of Materials: multi-level structure, revisions, ECO lifecycle"
+
+[server]
+host = "0.0.0.0"
+port = 8120
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[sdk]
+min_version = "0.1.0"

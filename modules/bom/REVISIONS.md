@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.2 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 2.2.0 | 2026-03-29 | bd-pyoiy | OpenAPI spec via utoipa on all 25 BOM/ECO endpoints. Serves /api/openapi.json with Bearer JWT SecurityScheme. All request/response models derive ToSchema; query types derive IntoParams. Explosion returns flat rows (not recursive tree). Documents NUMBERING_URL dependency in spec description. | Enable typed client generation and API documentation for BOM consumers. | No |
 | 2.1.0 | 2026-03-29 | bd-y4zq5 | Startup validation collector: config.rs now reports ALL env errors at once instead of stopping at the first. Added sqlx::migrate!() to main.rs for automatic DB migrations on startup. | BOM could silently skip migrations (no migrate call in main.rs) and config errors were reported one-at-a-time, slowing operator debugging. | No |

@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. Ops routes stripped from http::router(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.2.0 | 2026-03-30 | bd-nhmgu | Make ApiDoc pub in http/mod.rs; add openapi_dump utility binary. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 1.0.0 | 2026-03-28 | bd-1mhtm | Initial proof. Group/entity/COA-mapping/FX-policy/elimination-rule CRUD with validation, consolidation engine (per-entity TB fetch, COA mapping, FX translation, cross-entity aggregation, intercompany elimination), deterministic input hashing, csl_trial_balance_cache (DELETE+INSERT idempotent), consolidated BS/PL from cache, admin endpoints, tenant isolation, intercompany matching engine. 30 unit tests, 33 integration tests (real Postgres). | Multi-entity consolidation module complete and proven. All gates pass. | No |

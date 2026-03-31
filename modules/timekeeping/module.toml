@@ -1,0 +1,15 @@
+[module]
+name = "timekeeping"
+version = "2.1.5"
+description = "Time tracking, approval workflows, project billing, allocations, and exports"
+
+[server]
+host = "0.0.0.0"
+port = 8102
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[sdk]
+min_version = "0.1.0"
