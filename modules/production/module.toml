@@ -1,0 +1,21 @@
+[module]
+name = "production"
+version = "2.3.0"
+description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
+
+[server]
+host = "0.0.0.0"
+port = 8108
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "production_outbox"
+
+[sdk]
+min_version = "0.1.0"
