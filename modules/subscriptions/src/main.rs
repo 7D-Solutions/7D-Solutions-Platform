@@ -21,6 +21,7 @@ mod publisher;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Json, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
+use futures::StreamExt;
 use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -96,6 +97,95 @@ async fn main() {
     });
 
     tracing::info!("Background event publisher started");
+
+    // Spawn ar.invoice_suspended consumer
+    {
+        let consumer_bus = bus.clone();
+        let consumer_pool = pool.clone();
+        tokio::spawn(async move {
+            let subject = "ar.events.ar.invoice_suspended";
+            let mut stream = match consumer_bus.subscribe(subject).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!("Failed to subscribe to {}: {}", subject, e);
+                    return;
+                }
+            };
+
+            tracing::info!("Subscribed to {}", subject);
+
+            while let Some(msg) = stream.next().await {
+                let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::error!(subject = %msg.subject, error = %e, "Failed to parse envelope");
+                        continue;
+                    }
+                };
+
+                if let Err(e) = envelope_validation::validate_envelope(&envelope) {
+                    tracing::error!(subject = %msg.subject, error = %e, "Envelope validation failed");
+                    continue;
+                }
+
+                let event_id = match envelope.get("event_id").and_then(|v| v.as_str()) {
+                    Some(id) => id.to_string(),
+                    None => {
+                        tracing::error!(subject = %msg.subject, "Missing event_id in envelope");
+                        continue;
+                    }
+                };
+
+                let payload: consumer::InvoiceSuspendedEvent = match envelope
+                    .get("payload")
+                    .and_then(|p| serde_json::from_value(p.clone()).ok())
+                {
+                    Some(p) => p,
+                    None => {
+                        tracing::error!(event_id = %event_id, "Failed to parse InvoiceSuspendedEvent payload");
+                        continue;
+                    }
+                };
+
+                let span = tracing::info_span!(
+                    "consume_invoice_suspended",
+                    event_id = %event_id,
+                    tenant_id = %payload.tenant_id,
+                    customer_id = %payload.customer_id,
+                );
+
+                let _guard = span.enter();
+
+                let result = consumer::handle_invoice_suspended(&consumer_pool, &event_id, &payload)
+                    .await
+                    .map_err(|e| e.to_string());
+
+                match result {
+                    Ok(true) => tracing::info!(event_id = %event_id, "Processed ar.invoice_suspended"),
+                    Ok(false) => tracing::debug!(event_id = %event_id, "Duplicate ar.invoice_suspended, skipped"),
+                    Err(err_msg) => {
+                        tracing::error!(event_id = %event_id, error = %err_msg, "Failed to handle ar.invoice_suspended");
+                        if let Ok(uuid) = uuid::Uuid::parse_str(&event_id) {
+                            let _ = dlq::insert_failed_event(
+                                &consumer_pool,
+                                uuid,
+                                subject,
+                                &payload.tenant_id,
+                                &envelope,
+                                &err_msg,
+                                1,
+                            )
+                            .await;
+                        }
+                    }
+                }
+            }
+
+            tracing::warn!("ar.invoice_suspended consumer stopped");
+        });
+    }
+
+    tracing::info!("ar.invoice_suspended consumer started");
 
     let metrics = Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
     tracing::info!("Metrics initialized");
