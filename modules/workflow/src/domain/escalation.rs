@@ -231,12 +231,13 @@ impl EscalationRepo {
         let existing = sqlx::query_as::<_, EscalationTimer>(
             r#"
             SELECT * FROM workflow_escalation_timers
-            WHERE instance_id = $1 AND rule_id = $2
+            WHERE instance_id = $1 AND rule_id = $2 AND tenant_id = $3
               AND fired_at IS NULL AND cancelled_at IS NULL
             "#,
         )
         .bind(instance_id)
         .bind(rule.id)
+        .bind(tenant_id)
         .fetch_optional(pool)
         .await?;
 
@@ -292,61 +293,29 @@ impl EscalationRepo {
         Ok(cancelled)
     }
 
-    /// Tick: find and fire all due timers. Exactly-once via Guard→Mutation→Outbox.
+    /// Tick: find and fire all due timers for a tenant. Exactly-once via Guard→Mutation→Outbox.
     /// Returns the list of escalation timers that were fired.
-    pub async fn tick(
-        pool: &PgPool,
-        limit: i64,
-    ) -> Result<Vec<EscalationTimer>, EscalationError> {
-        Self::tick_inner(pool, limit, None).await
-    }
-
-    /// Tick scoped to a single tenant. Same semantics as `tick()` but only
-    /// processes timers belonging to `tenant_id`. Prevents cross-tenant
-    /// interference when multiple callers share the same database.
     pub async fn tick_for_tenant(
         pool: &PgPool,
         tenant_id: &str,
         limit: i64,
     ) -> Result<Vec<EscalationTimer>, EscalationError> {
-        Self::tick_inner(pool, limit, Some(tenant_id)).await
-    }
-
-    async fn tick_inner(
-        pool: &PgPool,
-        limit: i64,
-        tenant_id: Option<&str>,
-    ) -> Result<Vec<EscalationTimer>, EscalationError> {
         let mut fired = Vec::new();
         let limit = limit.min(100);
 
         // Fetch due timers (not yet fired, not cancelled, due_at <= now)
-        let due_timers = if let Some(tid) = tenant_id {
-            sqlx::query_as::<_, EscalationTimer>(
-                r#"
-                SELECT * FROM workflow_escalation_timers
-                WHERE tenant_id = $1 AND fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
-                ORDER BY due_at ASC
-                LIMIT $2
-                "#,
-            )
-            .bind(tid)
-            .bind(limit)
-            .fetch_all(pool)
-            .await?
-        } else {
-            sqlx::query_as::<_, EscalationTimer>(
-                r#"
-                SELECT * FROM workflow_escalation_timers
-                WHERE fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
-                ORDER BY due_at ASC
-                LIMIT $1
-                "#,
-            )
-            .bind(limit)
-            .fetch_all(pool)
-            .await?
-        };
+        let due_timers = sqlx::query_as::<_, EscalationTimer>(
+            r#"
+            SELECT * FROM workflow_escalation_timers
+            WHERE tenant_id = $1 AND fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
+            ORDER BY due_at ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
 
         for timer in due_timers {
             match Self::fire_timer(pool, &timer).await {
@@ -360,10 +329,11 @@ impl EscalationRepo {
                         r#"
                         UPDATE workflow_escalation_timers
                         SET cancelled_at = now()
-                        WHERE id = $1 AND fired_at IS NULL AND cancelled_at IS NULL
+                        WHERE id = $1 AND tenant_id = $2 AND fired_at IS NULL AND cancelled_at IS NULL
                         "#,
                     )
                     .bind(timer.id)
+                    .bind(&timer.tenant_id)
                     .execute(pool)
                     .await;
                 }
@@ -394,10 +364,11 @@ impl EscalationRepo {
         let locked = sqlx::query_as::<_, EscalationTimer>(
             r#"
             SELECT * FROM workflow_escalation_timers
-            WHERE id = $1 FOR UPDATE
+            WHERE id = $1 AND tenant_id = $2 FOR UPDATE
             "#,
         )
         .bind(timer.id)
+        .bind(&timer.tenant_id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(EscalationError::TimerNotFound)?;
@@ -411,9 +382,10 @@ impl EscalationRepo {
 
         // Guard: fetch rule to check max_escalations
         let rule = sqlx::query_as::<_, EscalationRule>(
-            "SELECT * FROM workflow_escalation_rules WHERE id = $1",
+            "SELECT * FROM workflow_escalation_rules WHERE id = $1 AND tenant_id = $2",
         )
         .bind(locked.rule_id)
+        .bind(&locked.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -421,11 +393,12 @@ impl EscalationRepo {
         let prev_count: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(*) FROM workflow_escalation_timers
-            WHERE instance_id = $1 AND rule_id = $2 AND fired_at IS NOT NULL
+            WHERE instance_id = $1 AND rule_id = $2 AND tenant_id = $3 AND fired_at IS NOT NULL
             "#,
         )
         .bind(locked.instance_id)
         .bind(locked.rule_id)
+        .bind(&locked.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -439,12 +412,13 @@ impl EscalationRepo {
             r#"
             UPDATE workflow_escalation_timers
             SET fired_at = now(), escalation_count = $1
-            WHERE id = $2
+            WHERE id = $2 AND tenant_id = $3
             RETURNING *
             "#,
         )
         .bind(new_count)
         .bind(locked.id)
+        .bind(&locked.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
 
@@ -488,12 +462,14 @@ impl EscalationRepo {
     /// Get a timer by ID.
     pub async fn get_timer(
         pool: &PgPool,
+        tenant_id: &str,
         timer_id: Uuid,
     ) -> Result<EscalationTimer, EscalationError> {
         sqlx::query_as::<_, EscalationTimer>(
-            "SELECT * FROM workflow_escalation_timers WHERE id = $1",
+            "SELECT * FROM workflow_escalation_timers WHERE id = $1 AND tenant_id = $2",
         )
         .bind(timer_id)
+        .bind(tenant_id)
         .fetch_optional(pool)
         .await?
         .ok_or(EscalationError::TimerNotFound)
@@ -530,12 +506,13 @@ impl EscalationRepo {
         let existing = sqlx::query_as::<_, EscalationTimer>(
             r#"
             SELECT * FROM workflow_escalation_timers
-            WHERE instance_id = $1 AND rule_id = $2
+            WHERE instance_id = $1 AND rule_id = $2 AND tenant_id = $3
               AND fired_at IS NULL AND cancelled_at IS NULL
             "#,
         )
         .bind(instance_id)
         .bind(rule.id)
+        .bind(tenant_id)
         .fetch_optional(pool)
         .await?;
 
