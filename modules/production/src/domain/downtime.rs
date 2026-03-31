@@ -1,10 +1,11 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, ProductionEventType};
 
@@ -32,7 +33,7 @@ pub struct WorkcenterDowntime {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct StartDowntimeRequest {
     pub tenant_id: String,
     pub workcenter_id: Uuid,
@@ -40,6 +41,7 @@ pub struct StartDowntimeRequest {
     pub reason_code: Option<String>,
     pub started_by: Option<String>,
     pub notes: Option<String>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -66,6 +68,9 @@ pub enum DowntimeError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Conflicting idempotency key")]
+    ConflictingIdempotencyKey,
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -90,7 +95,33 @@ impl DowntimeRepo {
             return Err(DowntimeError::Validation("reason is required".into()));
         }
 
+        let request_hash = serde_json::to_string(req)
+            .map_err(|e| DowntimeError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
         let mut tx = pool.begin().await?;
+
+        // Idempotency check
+        if let Some(key) = &req.idempotency_key {
+            match check_idempotency(&mut tx, &req.tenant_id, key, &request_hash).await {
+                Ok(Some(cached)) => {
+                    let dt: WorkcenterDowntime = serde_json::from_str(&cached).map_err(|e| {
+                        DowntimeError::Database(sqlx::Error::Protocol(e.to_string()))
+                    })?;
+                    tx.commit().await?;
+                    return Ok(dt);
+                }
+                Ok(None) => {}
+                Err(IdempotencyError::Conflict) => {
+                    return Err(DowntimeError::ConflictingIdempotencyKey);
+                }
+                Err(IdempotencyError::Database(e)) => return Err(DowntimeError::Database(e)),
+                Err(IdempotencyError::Json(e)) => {
+                    return Err(DowntimeError::Database(sqlx::Error::Protocol(
+                        e.to_string(),
+                    )));
+                }
+            }
+        }
 
         // Verify workcenter exists and belongs to tenant
         let wc_exists: bool = sqlx::query_scalar(
@@ -143,6 +174,22 @@ impl DowntimeRepo {
             causation_id,
         )
         .await?;
+
+        // Store idempotency key
+        if let Some(key) = &req.idempotency_key {
+            let resp = serde_json::to_string(&dt)
+                .map_err(|e| DowntimeError::Database(sqlx::Error::Protocol(e.to_string())))?;
+            store_idempotency_key(
+                &mut tx,
+                &req.tenant_id,
+                key,
+                &request_hash,
+                &resp,
+                201,
+                Utc::now() + Duration::hours(24),
+            )
+            .await?;
+        }
 
         tx.commit().await?;
         Ok(dt)

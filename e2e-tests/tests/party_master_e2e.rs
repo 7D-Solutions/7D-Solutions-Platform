@@ -122,7 +122,7 @@ async fn test_create_company_returns_201() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-co-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -171,7 +171,7 @@ async fn test_create_individual_returns_201() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-ind-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -220,7 +220,7 @@ async fn test_get_party_matches_created() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-get-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -298,7 +298,7 @@ async fn test_update_party_display_name() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-upd-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -384,7 +384,7 @@ async fn test_deactivate_excluded_from_list() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-deact-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -461,7 +461,7 @@ async fn test_search_by_type_returns_only_companies() {
     let pool = get_party_pool().await;
     run_migrations(&pool).await;
 
-    let app_id = format!("e2e-party-srchtype-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -559,7 +559,7 @@ async fn test_search_by_name_fragment() {
 
     // Use a unique fragment to avoid cross-test contamination
     let fragment = format!("ZXQ{}", &Uuid::new_v4().simple().to_string()[..6]);
-    let app_id = format!("e2e-party-srchname-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());

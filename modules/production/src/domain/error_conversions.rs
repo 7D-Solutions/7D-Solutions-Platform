@@ -25,6 +25,9 @@ impl From<WorkcenterError> for ApiError {
             )),
             WorkcenterError::NotFound => ApiError::not_found("Workcenter not found"),
             WorkcenterError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+            WorkcenterError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
+            }
             WorkcenterError::Database(e) => {
                 tracing::error!(error = %e, "workcenter database error");
                 ApiError::internal("Database error")
@@ -118,6 +121,9 @@ impl From<TimeEntryError> for ApiError {
                 "invalid_time_range",
                 "End time must be after start time",
             ),
+            TimeEntryError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
+            }
             TimeEntryError::Database(e) => {
                 tracing::error!(error = %e, "time entry database error");
                 ApiError::internal("Database error")
@@ -139,6 +145,9 @@ impl From<DowntimeError> for ApiError {
                 ApiError::conflict("Downtime already ended")
             }
             DowntimeError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+            DowntimeError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
+            }
             DowntimeError::Database(e) => {
                 tracing::error!(error = %e, "downtime database error");
                 ApiError::internal("Database error")
@@ -174,6 +183,9 @@ impl From<RoutingError> for ApiError {
                 ApiError::conflict("Cannot modify a released routing")
             }
             RoutingError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+            RoutingError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
+            }
             RoutingError::Database(e) => {
                 tracing::error!(error = %e, "routing database error");
                 ApiError::internal("Database error")
@@ -196,6 +208,9 @@ impl From<ComponentIssueError> for ApiError {
             ComponentIssueError::Validation(msg) => {
                 ApiError::new(422, "validation_error", msg)
             }
+            ComponentIssueError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
+            }
             ComponentIssueError::Database(e) => {
                 tracing::error!(error = %e, "component issue database error");
                 ApiError::internal("Database error")
@@ -217,6 +232,9 @@ impl From<FgReceiptError> for ApiError {
             ),
             FgReceiptError::Validation(msg) => {
                 ApiError::new(422, "validation_error", msg)
+            }
+            FgReceiptError::ConflictingIdempotencyKey => {
+                ApiError::new(409, "conflict", "Conflicting idempotency key")
             }
             FgReceiptError::Database(e) => {
                 tracing::error!(error = %e, "fg receipt database error");

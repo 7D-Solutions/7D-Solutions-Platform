@@ -137,7 +137,7 @@ async fn dispatch_outbox_to_nats(pool: &PgPool, nats: &async_nats::Client, app_i
 async fn test_webhook_ingest_full_path_with_nats() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
-    let app_id = format!("e2e-integ-wh-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let nats = setup_nats_client().await;
@@ -249,7 +249,7 @@ async fn test_webhook_ingest_full_path_with_nats() {
 async fn test_webhook_idempotent_replay() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
-    let app_id = format!("e2e-integ-dedup-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -294,7 +294,7 @@ async fn test_webhook_idempotent_replay() {
 async fn test_external_ref_create_and_query_by_entity() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
-    let app_id = format!("e2e-integ-extref-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());
@@ -400,7 +400,7 @@ async fn test_external_ref_create_and_query_by_entity() {
 async fn test_external_ref_query_by_external_key() {
     let pool = get_integrations_pool().await;
     run_migrations(&pool).await;
-    let app_id = format!("e2e-integ-byext-{}", Uuid::new_v4().simple());
+    let app_id = Uuid::new_v4().to_string();
     cleanup(&pool, &app_id).await;
 
     let router = make_router(pool.clone());

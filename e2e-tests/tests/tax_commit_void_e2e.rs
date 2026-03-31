@@ -261,7 +261,7 @@ async fn test_tax_commit_after_quote() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-cm-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -327,7 +327,7 @@ async fn test_tax_commit_idempotent() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-ci-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -384,7 +384,7 @@ async fn test_tax_commit_then_void() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-cv-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -454,7 +454,7 @@ async fn test_tax_void_idempotent() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-vi-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -508,7 +508,7 @@ async fn test_tax_void_without_commit_rejected() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-vn-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -544,7 +544,7 @@ async fn test_tax_commit_without_quote_rejected() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-cn-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -580,7 +580,7 @@ async fn test_tax_events_emitted_to_outbox() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-ev-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 
@@ -666,7 +666,7 @@ async fn test_tax_commit_void_db_state_transitions() {
     let pool = get_ar_pool().await;
     run_migrations(&pool).await;
 
-    let tenant = format!("tx-st-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup(&pool, &tenant).await;
 

@@ -70,7 +70,7 @@ pub struct RoutingStep {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct CreateRoutingRequest {
     pub tenant_id: String,
     pub name: String,
@@ -79,6 +79,7 @@ pub struct CreateRoutingRequest {
     pub bom_revision_id: Option<Uuid>,
     pub revision: Option<String>,
     pub effective_from_date: Option<NaiveDate>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -89,7 +90,7 @@ pub struct UpdateRoutingRequest {
     pub effective_from_date: Option<NaiveDate>,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct AddRoutingStepRequest {
     pub tenant_id: String,
     pub sequence_number: i32,
@@ -99,6 +100,7 @@ pub struct AddRoutingStepRequest {
     pub setup_time_minutes: Option<i32>,
     pub run_time_minutes: Option<i32>,
     pub is_required: Option<bool>,
+    pub idempotency_key: Option<String>,
 }
 
 // ============================================================================
@@ -127,6 +129,9 @@ pub enum RoutingError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Conflicting idempotency key")]
+    ConflictingIdempotencyKey,
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),

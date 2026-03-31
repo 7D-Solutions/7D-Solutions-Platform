@@ -20,6 +20,7 @@ pub async fn enqueue_event<T: serde::Serialize>(
              payload, correlation_id, causation_id, schema_version)
         VALUES
             ($1, $2, $3, $4, $5, $6::JSONB, $7, $8, '1.0.0')
+        ON CONFLICT (event_id) DO NOTHING
         "#,
     )
     .bind(envelope.event_id)

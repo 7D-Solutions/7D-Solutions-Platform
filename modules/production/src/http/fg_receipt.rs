@@ -45,7 +45,7 @@ pub async fn post_fg_receipt(
     req.tenant_id = tenant_id;
 
     match request_fg_receipt(&state.pool, id, &req).await {
-        Ok(()) => (
+        Ok(_replay) => (
             StatusCode::ACCEPTED,
             Json(json!({ "status": "accepted", "work_order_id": id })),
         )

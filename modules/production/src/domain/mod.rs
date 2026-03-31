@@ -2,6 +2,7 @@ pub mod component_issue;
 pub mod downtime;
 pub mod error_conversions;
 pub mod fg_receipt;
+pub mod idempotency;
 pub mod operations;
 pub mod outbox;
 pub mod routings;

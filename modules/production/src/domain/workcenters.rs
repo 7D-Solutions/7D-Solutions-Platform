@@ -1,10 +1,11 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, ProductionEventType};
 
@@ -30,7 +31,7 @@ pub struct Workcenter {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct CreateWorkcenterRequest {
     pub tenant_id: String,
     pub code: String,
@@ -38,6 +39,7 @@ pub struct CreateWorkcenterRequest {
     pub description: Option<String>,
     pub capacity: Option<i32>,
     pub cost_rate_minor: Option<i64>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -63,6 +65,9 @@ pub enum WorkcenterError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Conflicting idempotency key")]
+    ConflictingIdempotencyKey,
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -93,7 +98,33 @@ impl WorkcenterRepo {
             return Err(WorkcenterError::Validation("name is required".to_string()));
         }
 
+        let request_hash = serde_json::to_string(req)
+            .map_err(|e| WorkcenterError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
         let mut tx = pool.begin().await?;
+
+        // Idempotency check
+        if let Some(key) = &req.idempotency_key {
+            match check_idempotency(&mut tx, &req.tenant_id, key, &request_hash).await {
+                Ok(Some(cached)) => {
+                    let wc: Workcenter = serde_json::from_str(&cached).map_err(|e| {
+                        WorkcenterError::Database(sqlx::Error::Protocol(e.to_string()))
+                    })?;
+                    tx.commit().await?;
+                    return Ok(wc);
+                }
+                Ok(None) => {}
+                Err(IdempotencyError::Conflict) => {
+                    return Err(WorkcenterError::ConflictingIdempotencyKey);
+                }
+                Err(IdempotencyError::Database(e)) => return Err(WorkcenterError::Database(e)),
+                Err(IdempotencyError::Json(e)) => {
+                    return Err(WorkcenterError::Database(sqlx::Error::Protocol(
+                        e.to_string(),
+                    )));
+                }
+            }
+        }
 
         let wc = sqlx::query_as::<_, Workcenter>(
             r#"
@@ -140,6 +171,22 @@ impl WorkcenterRepo {
             causation_id,
         )
         .await?;
+
+        // Store idempotency key
+        if let Some(key) = &req.idempotency_key {
+            let resp = serde_json::to_string(&wc)
+                .map_err(|e| WorkcenterError::Database(sqlx::Error::Protocol(e.to_string())))?;
+            store_idempotency_key(
+                &mut tx,
+                &req.tenant_id,
+                key,
+                &request_hash,
+                &resp,
+                201,
+                Utc::now() + Duration::hours(24),
+            )
+            .await?;
+        }
 
         tx.commit().await?;
         Ok(wc)

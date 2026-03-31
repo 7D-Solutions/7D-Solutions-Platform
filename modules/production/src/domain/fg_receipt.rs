@@ -1,9 +1,11 @@
-use serde::Deserialize;
+use chrono::{Duration, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, ProductionEventType};
 
@@ -11,7 +13,7 @@ use crate::events::{self, ProductionEventType};
 // Request type
 // ============================================================================
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct RequestFgReceiptRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
@@ -20,6 +22,7 @@ pub struct RequestFgReceiptRequest {
     pub currency: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    pub idempotency_key: Option<String>,
 }
 
 // ============================================================================
@@ -37,6 +40,9 @@ pub enum FgReceiptError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Conflicting idempotency key")]
+    ConflictingIdempotencyKey,
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -45,11 +51,12 @@ pub enum FgReceiptError {
 // Service
 // ============================================================================
 
+/// Returns `Ok(true)` on idempotency replay, `Ok(false)` on fresh creation.
 pub async fn request_fg_receipt(
     pool: &PgPool,
     work_order_id: Uuid,
     req: &RequestFgReceiptRequest,
-) -> Result<(), FgReceiptError> {
+) -> Result<bool, FgReceiptError> {
     if req.tenant_id.trim().is_empty() {
         return Err(FgReceiptError::Validation(
             "tenant_id is required".to_string(),
@@ -66,7 +73,30 @@ pub async fn request_fg_receipt(
         ));
     }
 
+    let request_hash = serde_json::to_string(req)
+        .map_err(|e| FgReceiptError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
     let mut tx = pool.begin().await?;
+
+    // Idempotency check
+    if let Some(key) = &req.idempotency_key {
+        match check_idempotency(&mut tx, &req.tenant_id, key, &request_hash).await {
+            Ok(Some(_)) => {
+                tx.commit().await?;
+                return Ok(true);
+            }
+            Ok(None) => {}
+            Err(IdempotencyError::Conflict) => {
+                return Err(FgReceiptError::ConflictingIdempotencyKey);
+            }
+            Err(IdempotencyError::Database(e)) => return Err(FgReceiptError::Database(e)),
+            Err(IdempotencyError::Json(e)) => {
+                return Err(FgReceiptError::Database(sqlx::Error::Protocol(
+                    e.to_string(),
+                )));
+            }
+        }
+    }
 
     let row = sqlx::query_as::<_, (String, String, Uuid)>(
         "SELECT status, order_number, item_id FROM work_orders WHERE work_order_id = $1 AND tenant_id = $2 FOR UPDATE",
@@ -109,6 +139,21 @@ pub async fn request_fg_receipt(
     )
     .await?;
 
+    // Store idempotency key
+    if let Some(key) = &req.idempotency_key {
+        let resp = serde_json::json!({ "status": "accepted", "work_order_id": work_order_id });
+        store_idempotency_key(
+            &mut tx,
+            &req.tenant_id,
+            key,
+            &request_hash,
+            &resp.to_string(),
+            202,
+            Utc::now() + Duration::hours(24),
+        )
+        .await?;
+    }
+
     tx.commit().await?;
-    Ok(())
+    Ok(false)
 }

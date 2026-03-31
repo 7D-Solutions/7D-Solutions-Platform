@@ -212,7 +212,7 @@ async fn test_tax_quote_california_rate() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-ca-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     cleanup_tax_cache(&pool, &tenant).await;
 
     let body = TaxQuoteHttpRequest {
@@ -258,7 +258,7 @@ async fn test_tax_quote_cache_hit_deterministic() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-ch-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup_tax_cache(&pool, &tenant).await;
 
@@ -317,7 +317,7 @@ async fn test_tax_quote_cache_lookup_get() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-gt-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup_tax_cache(&pool, &tenant).await;
 
@@ -368,7 +368,7 @@ async fn test_tax_quote_changed_request_new_calculation() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-cg-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup_tax_cache(&pool, &tenant).await;
 
@@ -443,7 +443,7 @@ async fn test_tax_quote_empty_lines_rejected() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-em-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
 
     let body = TaxQuoteHttpRequest {
         app_id: tenant.clone(),
@@ -480,7 +480,7 @@ async fn test_tax_quote_db_cache_row_correct() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-db-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     let invoice_id = format!("inv-{}", Uuid::new_v4());
     cleanup_tax_cache(&pool, &tenant).await;
 
@@ -557,7 +557,7 @@ async fn test_tax_quote_multi_line_breakdown() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-ml-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     cleanup_tax_cache(&pool, &tenant).await;
 
     let body = TaxQuoteHttpRequest {
@@ -615,7 +615,7 @@ async fn test_tax_quote_non_us_exempt() {
     let pool = get_ar_pool().await;
     run_tax_migration(&pool).await;
 
-    let tenant = format!("tx-uk-{}", Uuid::new_v4());
+    let tenant = Uuid::new_v4().to_string();
     cleanup_tax_cache(&pool, &tenant).await;
 
     let body = TaxQuoteHttpRequest {

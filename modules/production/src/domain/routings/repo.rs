@@ -1,7 +1,8 @@
-use chrono::NaiveDate;
+use chrono::{Duration, NaiveDate, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, ProductionEventType};
 
@@ -28,9 +29,35 @@ impl RoutingRepo {
             return Err(RoutingError::Validation("name is required".to_string()));
         }
 
+        let request_hash = serde_json::to_string(req)
+            .map_err(|e| RoutingError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
         let revision = req.revision.as_deref().unwrap_or("1");
 
         let mut tx = pool.begin().await?;
+
+        // Idempotency check
+        if let Some(key) = &req.idempotency_key {
+            match check_idempotency(&mut tx, &req.tenant_id, key, &request_hash).await {
+                Ok(Some(cached)) => {
+                    let rt: RoutingTemplate = serde_json::from_str(&cached).map_err(|e| {
+                        RoutingError::Database(sqlx::Error::Protocol(e.to_string()))
+                    })?;
+                    tx.commit().await?;
+                    return Ok(rt);
+                }
+                Ok(None) => {}
+                Err(IdempotencyError::Conflict) => {
+                    return Err(RoutingError::ConflictingIdempotencyKey);
+                }
+                Err(IdempotencyError::Database(e)) => return Err(RoutingError::Database(e)),
+                Err(IdempotencyError::Json(e)) => {
+                    return Err(RoutingError::Database(sqlx::Error::Protocol(
+                        e.to_string(),
+                    )));
+                }
+            }
+        }
 
         let rt = sqlx::query_as::<_, RoutingTemplate>(
             r#"
@@ -80,6 +107,22 @@ impl RoutingRepo {
             causation_id,
         )
         .await?;
+
+        // Store idempotency key
+        if let Some(key) = &req.idempotency_key {
+            let resp = serde_json::to_string(&rt)
+                .map_err(|e| RoutingError::Database(sqlx::Error::Protocol(e.to_string())))?;
+            store_idempotency_key(
+                &mut tx,
+                &req.tenant_id,
+                key,
+                &request_hash,
+                &resp,
+                201,
+                Utc::now() + Duration::hours(24),
+            )
+            .await?;
+        }
 
         tx.commit().await?;
         Ok(rt)
@@ -317,7 +360,33 @@ impl RoutingRepo {
             ));
         }
 
+        let request_hash = serde_json::to_string(req)
+            .map_err(|e| RoutingError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
         let mut tx = pool.begin().await?;
+
+        // Idempotency check
+        if let Some(key) = &req.idempotency_key {
+            match check_idempotency(&mut tx, &req.tenant_id, key, &request_hash).await {
+                Ok(Some(cached)) => {
+                    let step: RoutingStep = serde_json::from_str(&cached).map_err(|e| {
+                        RoutingError::Database(sqlx::Error::Protocol(e.to_string()))
+                    })?;
+                    tx.commit().await?;
+                    return Ok(step);
+                }
+                Ok(None) => {}
+                Err(IdempotencyError::Conflict) => {
+                    return Err(RoutingError::ConflictingIdempotencyKey);
+                }
+                Err(IdempotencyError::Database(e)) => return Err(RoutingError::Database(e)),
+                Err(IdempotencyError::Json(e)) => {
+                    return Err(RoutingError::Database(sqlx::Error::Protocol(
+                        e.to_string(),
+                    )));
+                }
+            }
+        }
 
         // Verify routing exists and belongs to tenant, and is still draft
         let routing = sqlx::query_as::<_, RoutingTemplate>(
@@ -395,6 +464,22 @@ impl RoutingRepo {
             causation_id,
         )
         .await?;
+
+        // Store idempotency key
+        if let Some(key) = &req.idempotency_key {
+            let resp = serde_json::to_string(&step)
+                .map_err(|e| RoutingError::Database(sqlx::Error::Protocol(e.to_string())))?;
+            store_idempotency_key(
+                &mut tx,
+                &req.tenant_id,
+                key,
+                &request_hash,
+                &resp,
+                201,
+                Utc::now() + Duration::hours(24),
+            )
+            .await?;
+        }
 
         tx.commit().await?;
         Ok(step)
