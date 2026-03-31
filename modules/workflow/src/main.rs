@@ -94,6 +94,7 @@ async fn main() {
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
+        .route("/api/openapi.json", get(http::openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         .merge(
             Router::new()

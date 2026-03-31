@@ -1,6 +1,6 @@
 [package]
 name = "workflow"
-version = "1.0.0"
+version = "2.1.0"
 edition = "2021"
 description = "Workflow engine: definitions, templates, and durable instance execution"
 
@@ -16,6 +16,10 @@ path = "src/bin/bench.rs"
 name = "dlq_replay_drill"
 path = "src/bin/dlq_replay_drill.rs"
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lib]
 name = "workflow"
 path = "src/lib.rs"
@@ -26,6 +30,8 @@ security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 event-bus = { path = "../../platform/event-bus" }
 platform_contracts = { path = "../../platform/platform-contracts" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid", "json"] }
 serde = { version = "1", features = ["derive"] }

@@ -14,7 +14,7 @@ use crate::outbox;
 
 // ── Domain model ──────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkflowDefinition {
     pub id: Uuid,
     pub tenant_id: String,
@@ -30,7 +30,7 @@ pub struct WorkflowDefinition {
 
 // ── Request types ─────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateDefinitionRequest {
     pub tenant_id: String,
     pub name: String,
@@ -201,6 +201,29 @@ impl DefinitionRepo {
         .fetch_optional(pool)
         .await?
         .ok_or(DefError::NotFound)
+    }
+
+    pub async fn count(
+        pool: &PgPool,
+        q: &ListDefinitionsQuery,
+    ) -> Result<i64, DefError> {
+        let active_only = q.active_only.unwrap_or(false);
+        let row: (i64,) = if active_only {
+            sqlx::query_as(
+                "SELECT COUNT(*) FROM workflow_definitions WHERE tenant_id = $1 AND is_active = true",
+            )
+            .bind(&q.tenant_id)
+            .fetch_one(pool)
+            .await?
+        } else {
+            sqlx::query_as(
+                "SELECT COUNT(*) FROM workflow_definitions WHERE tenant_id = $1",
+            )
+            .bind(&q.tenant_id)
+            .fetch_one(pool)
+            .await?
+        };
+        Ok(row.0)
     }
 
     pub async fn list(

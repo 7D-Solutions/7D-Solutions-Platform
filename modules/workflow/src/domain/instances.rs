@@ -18,7 +18,7 @@ use crate::outbox;
 
 // ── Domain model ──────────────────────────────────────────────
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkflowInstance {
     pub id: Uuid,
     pub tenant_id: String,
@@ -36,7 +36,7 @@ pub struct WorkflowInstance {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct WorkflowTransition {
     pub id: Uuid,
     pub tenant_id: String,
@@ -54,7 +54,7 @@ pub struct WorkflowTransition {
 
 // ── Request types ─────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct StartInstanceRequest {
     pub tenant_id: String,
     pub definition_id: Uuid,
@@ -64,7 +64,7 @@ pub struct StartInstanceRequest {
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AdvanceInstanceRequest {
     pub tenant_id: String,
     pub to_step_id: String,
@@ -486,6 +486,54 @@ impl InstanceRepo {
         .fetch_optional(pool)
         .await?
         .ok_or(InstanceError::NotFound)
+    }
+
+    pub async fn count(
+        pool: &PgPool,
+        q: &ListInstancesQuery,
+    ) -> Result<i64, InstanceError> {
+        let mut conditions = vec!["tenant_id = $1".to_string()];
+        let mut param_idx = 2u32;
+
+        if q.entity_type.is_some() {
+            conditions.push(format!("entity_type = ${}", param_idx));
+            param_idx += 1;
+        }
+        if q.entity_id.is_some() {
+            conditions.push(format!("entity_id = ${}", param_idx));
+            param_idx += 1;
+        }
+        if q.status.is_some() {
+            conditions.push(format!("status = ${}", param_idx));
+            param_idx += 1;
+        }
+        if q.definition_id.is_some() {
+            conditions.push(format!("definition_id = ${}", param_idx));
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let query_str = format!(
+            "SELECT COUNT(*) FROM workflow_instances WHERE {}",
+            where_clause
+        );
+
+        let mut query = sqlx::query_as::<_, (i64,)>(&query_str).bind(&q.tenant_id);
+
+        if let Some(ref et) = q.entity_type {
+            query = query.bind(et);
+        }
+        if let Some(ref ei) = q.entity_id {
+            query = query.bind(ei);
+        }
+        if let Some(ref st) = q.status {
+            query = query.bind(st);
+        }
+        if let Some(ref di) = q.definition_id {
+            query = query.bind(di);
+        }
+
+        let row = query.fetch_one(pool).await?;
+        Ok(row.0)
     }
 
     pub async fn list(

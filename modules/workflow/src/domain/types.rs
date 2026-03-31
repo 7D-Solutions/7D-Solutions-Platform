@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum InstanceStatus {
     Active,
