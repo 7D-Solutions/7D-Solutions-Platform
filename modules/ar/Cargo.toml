@@ -1,6 +1,6 @@
 [package]
 name = "ar-rs"
-version = "2.1.0"
+version = "2.2.0"
 edition = "2021"
 description = "Invoicing, collections, payment application, dunning, and cash flow forecasting"
 
@@ -28,6 +28,7 @@ hex = "0.4"
 base64 = "0.22"
 http-body-util = "0.1"
 event-bus = { path = "../../platform/event-bus" }
+config-validator = { path = "../../platform/config-validator" }
 tax-core = { path = "../../platform/tax-core" }
 projections = { path = "../../platform/projections" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
