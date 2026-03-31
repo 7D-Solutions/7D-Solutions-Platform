@@ -1,0 +1,21 @@
+[module]
+name = "gl"
+version = "2.1.8"
+description = "General Ledger: journal entries, trial balance, period close, FX, revenue recognition"
+
+[server]
+host = "0.0.0.0"
+port = 8090
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"
