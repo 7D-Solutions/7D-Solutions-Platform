@@ -16,7 +16,7 @@ use crate::startup::StartupError;
 ///
 /// Returns `Some(table_name)` if an undeclared outbox table is found
 /// (tables ending in `_outbox` in the `public` schema).
-pub(crate) async fn detect_outbox_table(
+pub async fn detect_outbox_table(
     pool: &sqlx::PgPool,
 ) -> Result<Option<String>, StartupError> {
     let row = sqlx::query(
