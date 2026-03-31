@@ -21,9 +21,12 @@ services:
 
   subscriptions:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/subscriptions-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/subscriptions-rs:/usr/local/bin/subscriptions-rs:ro
+      - ./modules/subscriptions/module.toml:/app/module.toml:ro
+      - ./modules/subscriptions/db/migrations:/app/db/migrations:ro
 
   payments:
     image: 7d-runtime
@@ -69,9 +72,12 @@ services:
 
   fixed-assets:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/fixed-assets"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/fixed-assets:/usr/local/bin/fixed-assets:ro
+      - ./modules/fixed-assets/module.toml:/app/module.toml:ro
+      - ./modules/fixed-assets/db/migrations:/app/db/migrations:ro
 
   consolidation:
     image: 7d-runtime
@@ -102,9 +108,12 @@ services:
 
   integrations:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/integrations"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/integrations:/usr/local/bin/integrations:ro
+      - ./modules/integrations/module.toml:/app/module.toml:ro
+      - ./modules/integrations/db/migrations:/app/db/migrations:ro
 
   ttp:
     image: 7d-runtime
@@ -132,15 +141,21 @@ services:
 
   shipping-receiving:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/shipping-receiving-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/usr/local/bin/shipping-receiving-rs:ro
+      - ./modules/shipping-receiving/module.toml:/app/module.toml:ro
+      - ./modules/shipping-receiving/db/migrations:/app/db/migrations:ro
 
   quality-inspection:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/quality-inspection-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/quality-inspection-rs:/usr/local/bin/quality-inspection-rs:ro
+      - ./modules/quality-inspection/module.toml:/app/module.toml:ro
+      - ./modules/quality-inspection/db/migrations:/app/db/migrations:ro
 
   bom:
     image: 7d-runtime
@@ -189,9 +204,12 @@ services:
 
   customer-portal:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/customer-portal"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/customer-portal:/usr/local/bin/customer-portal:ro
+      - ./modules/customer-portal/module.toml:/app/module.toml:ro
+      - ./modules/customer-portal/db/migrations:/app/db/migrations:ro
 
   reporting:
     image: 7d-runtime
