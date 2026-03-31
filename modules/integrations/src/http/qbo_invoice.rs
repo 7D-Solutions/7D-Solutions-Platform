@@ -7,9 +7,10 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    response::IntoResponse,
     Extension, Json,
 };
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,45 +53,20 @@ pub struct UpdateInvoiceResponse {
 // Error handling
 // ============================================================================
 
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
-
-fn qbo_error_response(e: QboError) -> (StatusCode, Json<ErrorBody>) {
+fn qbo_error(e: QboError) -> ApiError {
     match e {
-        QboError::SyncTokenExhausted(_) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "sync_token_conflict",
-                "Invoice was modified concurrently — retry the request",
-            )),
+        QboError::SyncTokenExhausted(_) => ApiError::conflict(
+            "Invoice was modified concurrently — retry the request",
         ),
-        QboError::RateLimited => (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(ErrorBody::new("rate_limited", "QBO rate limit exceeded")),
+        QboError::RateLimited => {
+            ApiError::new(429, "rate_limited", "QBO rate limit exceeded")
+        }
+        QboError::AuthFailed => ApiError::new(
+            502,
+            "auth_failed",
+            "QBO authentication failed — connection may need reauthorization",
         ),
-        QboError::AuthFailed => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new(
-                "auth_failed",
-                "QBO authentication failed — connection may need reauthorization",
-            )),
-        ),
-        QboError::TokenError(msg) => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new("token_error", &msg)),
-        ),
+        QboError::TokenError(msg) => ApiError::new(502, "token_error", msg),
         QboError::ApiFault {
             fault_type,
             message,
@@ -98,74 +74,42 @@ fn qbo_error_response(e: QboError) -> (StatusCode, Json<ErrorBody>) {
             ..
         } => {
             let status = if fault_type.to_lowercase().contains("validation") {
-                StatusCode::UNPROCESSABLE_ENTITY
+                422
             } else {
-                StatusCode::BAD_GATEWAY
+                502
             };
-            (
+            ApiError::new(
                 status,
-                Json(ErrorBody::new(
-                    "qbo_fault",
-                    &format!("{}: {} (code {})", fault_type, message, code),
-                )),
+                "qbo_fault",
+                format!("{}: {} (code {})", fault_type, message, code),
             )
         }
-        QboError::Http(e) => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new("network_error", &e.to_string())),
-        ),
-        QboError::Deserialize(msg) => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new("parse_error", &msg)),
-        ),
+        QboError::Http(e) => ApiError::new(502, "network_error", e.to_string()),
+        QboError::Deserialize(msg) => ApiError::new(502, "parse_error", msg),
     }
 }
 
-fn oauth_error_response(e: OAuthError) -> (StatusCode, Json<ErrorBody>) {
+fn oauth_err(e: OAuthError) -> ApiError {
     match e {
-        OAuthError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "no_connection",
-                "No QuickBooks connection found for this tenant",
-            )),
-        ),
+        OAuthError::NotFound => {
+            ApiError::not_found("No QuickBooks connection found for this tenant")
+        }
         OAuthError::MissingEncryptionKey => {
             tracing::error!("OAUTH_ENCRYPTION_KEY not set");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "configuration_error",
-                    "Server misconfiguration",
-                )),
-            )
+            ApiError::internal("Server misconfiguration")
         }
         OAuthError::Database(e) => {
             tracing::error!("OAuth DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
+            ApiError::internal("Internal database error")
         }
-        _ => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", "Internal error")),
-        ),
+        _ => ApiError::internal("Internal error"),
     }
 }
 
-fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new(
-                "unauthorized",
-                "Missing or invalid authentication",
-            )),
-        )),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 
@@ -207,47 +151,45 @@ pub async fn update_invoice(
     claims: Option<Extension<VerifiedClaims>>,
     Path(invoice_id): Path<String>,
     Json(req): Json<UpdateInvoiceRequest>,
-) -> Result<Json<UpdateInvoiceResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> impl IntoResponse {
     // 1. Validate request has at least one field
     if !req.has_fields() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new(
-                "no_fields",
-                "At least one of ship_date, tracking_num, or carrier is required",
-            )),
-        ));
+        return ApiError::bad_request(
+            "At least one of ship_date, tracking_num, or carrier is required",
+        )
+        .into_response();
     }
 
     // 2. Extract tenant from JWT
-    let app_id = extract_tenant(&claims)?;
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
     // 3. Look up QBO connection
-    let connection = oauth_service::get_connection_status(&state.pool, &app_id, "quickbooks")
-        .await
-        .map_err(oauth_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "no_connection",
+    let connection =
+        match oauth_service::get_connection_status(&state.pool, &app_id, "quickbooks").await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                return ApiError::not_found(
                     "No QuickBooks connection found for this tenant",
-                )),
-            )
-        })?;
+                )
+                .into_response()
+            }
+            Err(e) => return oauth_err(e).into_response(),
+        };
 
     // 4. Validate connection is active
     if connection.connection_status != "connected" {
-        return Err((
-            StatusCode::PRECONDITION_FAILED,
-            Json(ErrorBody::new(
-                "not_connected",
-                &format!(
-                    "QuickBooks connection is '{}' — reconnection required",
-                    connection.connection_status
-                ),
-            )),
-        ));
+        return ApiError::new(
+            412,
+            "not_connected",
+            format!(
+                "QuickBooks connection is '{}' — reconnection required",
+                connection.connection_status
+            ),
+        )
+        .into_response();
     }
 
     // 5. Create QBO client with DB-backed token provider
@@ -262,38 +204,30 @@ pub async fn update_invoice(
     let client = QboClient::new(&base_url, &connection.realm_id, tokens);
 
     // 6. Fetch current invoice to get SyncToken
-    let current = client
-        .get_entity("Invoice", &invoice_id)
-        .await
-        .map_err(|e| {
+    let current = match client.get_entity("Invoice", &invoice_id).await {
+        Ok(c) => c,
+        Err(e) => {
             if matches!(
                 e,
                 QboError::ApiFault { ref code, .. } if code == "610" || code == "6210"
             ) {
-                (
-                    StatusCode::NOT_FOUND,
-                    Json(ErrorBody::new(
-                        "invoice_not_found",
-                        &format!("Invoice '{}' not found in QuickBooks", invoice_id),
-                    )),
-                )
-            } else {
-                qbo_error_response(e)
+                return ApiError::not_found(format!(
+                    "Invoice '{}' not found in QuickBooks",
+                    invoice_id
+                ))
+                .into_response();
             }
-        })?;
+            return qbo_error(e).into_response();
+        }
+    };
 
-    let sync_token = current["Invoice"]["SyncToken"]
-        .as_str()
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_GATEWAY,
-                Json(ErrorBody::new(
-                    "parse_error",
-                    "Invoice response missing SyncToken",
-                )),
-            )
-        })?
-        .to_string();
+    let sync_token = match current["Invoice"]["SyncToken"].as_str() {
+        Some(t) => t.to_string(),
+        None => {
+            return ApiError::new(502, "parse_error", "Invoice response missing SyncToken")
+                .into_response()
+        }
+    };
 
     // 7. Build sparse update body
     let mut body = serde_json::json!({
@@ -313,23 +247,21 @@ pub async fn update_invoice(
     }
 
     // 8. Call QBO update (handles SyncToken retry internally)
-    let result = client
-        .update_entity("Invoice", body)
-        .await
-        .map_err(qbo_error_response)?;
+    let result = match client.update_entity("Invoice", body).await {
+        Ok(r) => r,
+        Err(e) => return qbo_error(e).into_response(),
+    };
 
     // 9. Extract confirmed values from response
     let invoice = &result["Invoice"];
-    let new_sync_token = invoice["SyncToken"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
+    let new_sync_token = invoice["SyncToken"].as_str().unwrap_or("").to_string();
 
-    Ok(Json(UpdateInvoiceResponse {
+    Json(UpdateInvoiceResponse {
         invoice_id,
         ship_date: invoice["ShipDate"].as_str().map(String::from),
         tracking_num: invoice["TrackingNum"].as_str().map(String::from),
         carrier: invoice["ShipMethodRef"]["value"].as_str().map(String::from),
         sync_token: new_sync_token,
-    }))
+    })
+    .into_response()
 }

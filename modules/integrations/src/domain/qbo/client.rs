@@ -194,9 +194,7 @@ impl QboClient {
             }
 
             match classify_error(status, &resp_body) {
-                QboApiAction::RetryWithFreshSyncToken
-                    if attempt < SYNC_TOKEN_MAX_RETRIES =>
-                {
+                QboApiAction::RetryWithFreshSyncToken if attempt < SYNC_TOKEN_MAX_RETRIES => {
                     tracing::warn!(
                         attempt = attempt + 1,
                         max = SYNC_TOKEN_MAX_RETRIES,
@@ -359,9 +357,8 @@ mod tests {
         let c = test_client("https://sandbox-quickbooks.api.intuit.com/v3");
         let url = c.read_url("invoice/42");
         assert!(url.contains("minorversion=75"));
-        assert!(url.starts_with(
-            "https://sandbox-quickbooks.api.intuit.com/v3/company/12345/invoice/42"
-        ));
+        assert!(url
+            .starts_with("https://sandbox-quickbooks.api.intuit.com/v3/company/12345/invoice/42"));
     }
 
     #[test]
@@ -382,8 +379,7 @@ mod tests {
 
     #[test]
     fn paginated_query_format() {
-        let q =
-            QboClient::paginated_query("SELECT * FROM Invoice WHERE Balance > '0'", 1, 1000);
+        let q = QboClient::paginated_query("SELECT * FROM Invoice WHERE Balance > '0'", 1, 1000);
         assert_eq!(
             q,
             "SELECT * FROM Invoice WHERE Balance > '0' STARTPOSITION 1 MAXRESULTS 1000"

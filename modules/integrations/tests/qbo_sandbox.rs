@@ -152,7 +152,10 @@ async fn qbo_sandbox_integration() {
     let customers = cust_resp["QueryResponse"]["Customer"]
         .as_array()
         .expect("no Customer array");
-    assert!(!customers.is_empty(), "sandbox should have sample customers");
+    assert!(
+        !customers.is_empty(),
+        "sandbox should have sample customers"
+    );
 
     let cust_id = customers[0]["Id"].as_str().unwrap();
     let cust = client
@@ -258,10 +261,12 @@ async fn qbo_sandbox_integration() {
         .expect("QueryResponse array");
     let has_entities = qrs.iter().any(|qr| {
         qr.as_object().map_or(false, |obj| {
-            obj.keys()
-                .any(|k| k == "Invoice" || k == "Customer")
+            obj.keys().any(|k| k == "Invoice" || k == "Customer")
         })
     });
     assert!(has_entities, "CDC should contain full entity payloads");
-    eprintln!("CDC returned {} query responses with entity data", qrs.len());
+    eprintln!(
+        "CDC returned {} query responses with entity data",
+        qrs.len()
+    );
 }

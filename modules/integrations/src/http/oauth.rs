@@ -9,102 +9,58 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::Redirect,
+    response::{IntoResponse, Redirect},
     Extension, Json,
 };
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::oauth::{service, OAuthConnectionInfo, OAuthError, TokenResponse};
+use crate::domain::oauth::{service, OAuthError, TokenResponse};
 use crate::AppState;
 
 // ============================================================================
 // Error helpers
 // ============================================================================
 
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
-
-fn oauth_error_response(e: OAuthError) -> (StatusCode, Json<ErrorBody>) {
+fn oauth_error(e: OAuthError) -> ApiError {
     match e {
-        OAuthError::NotFound => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", "No connection found")),
-        ),
-        OAuthError::UnsupportedProvider(p) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "unsupported_provider",
-                &format!("Provider not supported: {}", p),
-            )),
-        ),
-        OAuthError::TokenExchangeFailed(msg) => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new("token_exchange_failed", &msg)),
-        ),
+        OAuthError::NotFound => ApiError::not_found("No connection found"),
+        OAuthError::UnsupportedProvider(p) => {
+            ApiError::new(422, "unsupported_provider", format!("Provider not supported: {}", p))
+        }
+        OAuthError::TokenExchangeFailed(msg) => {
+            ApiError::new(502, "token_exchange_failed", msg)
+        }
         OAuthError::MissingEncryptionKey => {
             tracing::error!("OAUTH_ENCRYPTION_KEY not set");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "configuration_error",
-                    "Server misconfiguration",
-                )),
-            )
+            ApiError::internal("Server misconfiguration")
         }
-        OAuthError::DuplicateConnection(msg) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new("duplicate_connection", &msg)),
-        ),
-        OAuthError::AlreadyDisconnected => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new(
-                "already_disconnected",
-                "Connection is already disconnected",
-            )),
-        ),
+        OAuthError::DuplicateConnection(msg) => {
+            ApiError::conflict(msg)
+        }
+        OAuthError::AlreadyDisconnected => {
+            ApiError::conflict("Connection is already disconnected")
+        }
         OAuthError::Database(e) => {
             tracing::error!("OAuth DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
+            ApiError::internal("Internal database error")
         }
     }
 }
 
-fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new(
-                "unauthorized",
-                "Missing or invalid authentication",
-            )),
-        )),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 
-fn validate_provider(provider: &str) -> Result<(), (StatusCode, Json<ErrorBody>)> {
+fn validate_provider(provider: &str) -> Result<(), ApiError> {
     match provider {
         "quickbooks" => Ok(()),
-        _ => Err(oauth_error_response(OAuthError::UnsupportedProvider(
+        _ => Err(oauth_error(OAuthError::UnsupportedProvider(
             provider.to_string(),
         ))),
     }
@@ -123,16 +79,10 @@ struct QboConfig {
 }
 
 impl QboConfig {
-    fn from_env() -> Result<Self, (StatusCode, Json<ErrorBody>)> {
+    fn from_env() -> Result<Self, ApiError> {
         let missing = |var: &str| {
             tracing::error!("{} env var not set", var);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "configuration_error",
-                    "Server misconfiguration",
-                )),
-            )
+            ApiError::internal("Server misconfiguration")
         };
 
         Ok(Self {
@@ -173,11 +123,19 @@ pub struct OAuthCallbackQuery {
 pub async fn connect(
     claims: Option<Extension<VerifiedClaims>>,
     Path(provider): Path<String>,
-) -> Result<Redirect, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
-    validate_provider(&provider)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    if let Err(e) = validate_provider(&provider) {
+        return e.into_response();
+    }
 
-    let config = QboConfig::from_env()?;
+    let config = match QboConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
 
     let scopes = "com.intuit.quickbooks.accounting";
     let auth_url = format!(
@@ -189,7 +147,7 @@ pub async fn connect(
         urlencoding::encode(&app_id),
     );
 
-    Ok(Redirect::temporary(&auth_url))
+    Redirect::temporary(&auth_url).into_response()
 }
 
 /// GET /api/integrations/oauth/callback/{provider}
@@ -200,17 +158,22 @@ pub async fn callback(
     State(state): State<Arc<AppState>>,
     Path(provider): Path<String>,
     Query(params): Query<OAuthCallbackQuery>,
-) -> Result<(StatusCode, Json<OAuthConnectionInfo>), (StatusCode, Json<ErrorBody>)> {
-    validate_provider(&provider)?;
+) -> impl IntoResponse {
+    if let Err(e) = validate_provider(&provider) {
+        return e.into_response();
+    }
 
-    let config = QboConfig::from_env()?;
+    let config = match QboConfig::from_env() {
+        Ok(c) => c,
+        Err(e) => return e.into_response(),
+    };
 
     // The state parameter carries the app_id set during connect
     let app_id = params.state.as_deref().unwrap_or("default");
 
     // Exchange authorization code for tokens
     let client = reqwest::Client::new();
-    let resp = client
+    let resp = match client
         .post(&config.token_url)
         .basic_auth(&config.client_id, Some(&config.client_secret))
         .form(&[
@@ -220,31 +183,41 @@ pub async fn callback(
         ])
         .send()
         .await
-        .map_err(|e| {
-            oauth_error_response(OAuthError::TokenExchangeFailed(format!(
+    {
+        Ok(r) => r,
+        Err(e) => {
+            return oauth_error(OAuthError::TokenExchangeFailed(format!(
                 "HTTP request failed: {}",
                 e
             )))
-        })?;
+            .into_response()
+        }
+    };
 
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(oauth_error_response(OAuthError::TokenExchangeFailed(
-            format!("Token exchange failed: HTTP {} — {}", status, body),
-        )));
+        return oauth_error(OAuthError::TokenExchangeFailed(format!(
+            "Token exchange failed: HTTP {} — {}",
+            status, body
+        )))
+        .into_response();
     }
 
-    let tokens: TokenResponse = resp.json().await.map_err(|e| {
-        oauth_error_response(OAuthError::TokenExchangeFailed(format!(
-            "Failed to parse token response: {}",
-            e
-        )))
-    })?;
+    let tokens: TokenResponse = match resp.json().await {
+        Ok(t) => t,
+        Err(e) => {
+            return oauth_error(OAuthError::TokenExchangeFailed(format!(
+                "Failed to parse token response: {}",
+                e
+            )))
+            .into_response()
+        }
+    };
 
     let scopes = "com.intuit.quickbooks.accounting";
 
-    let connection = service::create_connection(
+    match service::create_connection(
         &state.pool,
         app_id,
         &provider,
@@ -253,9 +226,10 @@ pub async fn callback(
         &tokens,
     )
     .await
-    .map_err(oauth_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(connection)))
+    {
+        Ok(connection) => (StatusCode::CREATED, Json(connection)).into_response(),
+        Err(e) => oauth_error(e).into_response(),
+    }
 }
 
 /// GET /api/integrations/oauth/status/{provider}
@@ -265,21 +239,20 @@ pub async fn status(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(provider): Path<String>,
-) -> Result<Json<OAuthConnectionInfo>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
-    validate_provider(&provider)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    if let Err(e) = validate_provider(&provider) {
+        return e.into_response();
+    }
 
-    let info = service::get_connection_status(&state.pool, &app_id, &provider)
-        .await
-        .map_err(oauth_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("not_found", "No connection found")),
-            )
-        })?;
-
-    Ok(Json(info))
+    match service::get_connection_status(&state.pool, &app_id, &provider).await {
+        Ok(Some(info)) => Json(info).into_response(),
+        Ok(None) => ApiError::not_found("No connection found").into_response(),
+        Err(e) => oauth_error(e).into_response(),
+    }
 }
 
 /// POST /api/integrations/oauth/disconnect/{provider}
@@ -289,13 +262,17 @@ pub async fn disconnect(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(provider): Path<String>,
-) -> Result<Json<OAuthConnectionInfo>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
-    validate_provider(&provider)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    if let Err(e) = validate_provider(&provider) {
+        return e.into_response();
+    }
 
-    let info = service::disconnect(&state.pool, &app_id, &provider)
-        .await
-        .map_err(oauth_error_response)?;
-
-    Ok(Json(info))
+    match service::disconnect(&state.pool, &app_id, &provider).await {
+        Ok(info) => Json(info).into_response(),
+        Err(e) => oauth_error(e).into_response(),
+    }
 }

@@ -40,13 +40,6 @@ pub use edi_transaction_status_changed::{
     build_edi_transaction_status_changed_envelope, EdiTransactionStatusChangedPayload,
     EVENT_TYPE_EDI_TRANSACTION_STATUS_CHANGED,
 };
-pub use file_job_created::{
-    build_file_job_created_envelope, FileJobCreatedPayload, EVENT_TYPE_FILE_JOB_CREATED,
-};
-pub use file_job_status_changed::{
-    build_file_job_status_changed_envelope, FileJobStatusChangedPayload,
-    EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
-};
 pub use external_ref_created::{
     build_external_ref_created_envelope, ExternalRefCreatedPayload, EVENT_TYPE_EXTERNAL_REF_CREATED,
 };
@@ -55,6 +48,13 @@ pub use external_ref_deleted::{
 };
 pub use external_ref_updated::{
     build_external_ref_updated_envelope, ExternalRefUpdatedPayload, EVENT_TYPE_EXTERNAL_REF_UPDATED,
+};
+pub use file_job_created::{
+    build_file_job_created_envelope, FileJobCreatedPayload, EVENT_TYPE_FILE_JOB_CREATED,
+};
+pub use file_job_status_changed::{
+    build_file_job_status_changed_envelope, FileJobStatusChangedPayload,
+    EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
 };
 pub use outbound_webhook_created::{
     build_outbound_webhook_created_envelope, OutboundWebhookCreatedPayload,

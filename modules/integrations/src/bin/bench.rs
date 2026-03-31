@@ -28,8 +28,7 @@ impl Args {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let db_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&db_url)
@@ -311,9 +310,7 @@ fn print_stats(name: &str, values: &[f64]) {
     let p99 = percentile(&sorted, 99.0);
     let avg = sorted.iter().sum::<f64>() / count as f64;
 
-    println!(
-        "{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms"
-    );
+    println!("{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms");
 }
 
 fn percentile(sorted: &[f64], pct: f64) -> f64 {

@@ -20,13 +20,14 @@ pub mod service;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 // ============================================================================
 // Config schema self-description
 // ============================================================================
 
 /// A single declared config field for a connector.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigField {
     /// Machine-readable field key.
     pub key: String,
@@ -41,7 +42,7 @@ pub struct ConfigField {
 }
 
 /// Supported config field types.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ConfigFieldType {
     Text,
@@ -56,7 +57,7 @@ pub enum ConfigFieldType {
 // ============================================================================
 
 /// What a given connector implementation supports.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConnectorCapabilities {
     /// Connector kind identifier (e.g. `"echo"`, `"http-push"`).
     pub connector_type: String,
@@ -159,7 +160,7 @@ pub fn all_connectors() -> Vec<ConnectorCapabilities> {
 // ============================================================================
 
 /// A persisted connector config row.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ConnectorConfig {
     pub id: uuid::Uuid,
     pub app_id: String,

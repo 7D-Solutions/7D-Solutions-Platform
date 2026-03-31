@@ -18,8 +18,8 @@ use crate::outbox::enqueue_event_tx;
 
 use super::guards::{validate_create, validate_update};
 use super::models::{
-    CreateOutboundWebhookRequest, OutboundWebhook, OutboundWebhookDelivery,
-    OutboundWebhookError, RecordDeliveryRequest, UpdateOutboundWebhookRequest,
+    CreateOutboundWebhookRequest, OutboundWebhook, OutboundWebhookDelivery, OutboundWebhookError,
+    RecordDeliveryRequest, UpdateOutboundWebhookRequest,
 };
 
 pub struct OutboundWebhookService {
@@ -89,9 +89,8 @@ impl OutboundWebhookService {
         let raw_secret = format!("whsec_{}", Uuid::new_v4().as_simple());
         let secret_hash = hex::encode(Sha256::digest(raw_secret.as_bytes()));
 
-        let event_types_json = serde_json::to_value(&req.event_types).map_err(|e| {
-            OutboundWebhookError::Validation(format!("invalid event_types: {}", e))
-        })?;
+        let event_types_json = serde_json::to_value(&req.event_types)
+            .map_err(|e| OutboundWebhookError::Validation(format!("invalid event_types: {}", e)))?;
 
         let webhook_id = Uuid::new_v4();
 

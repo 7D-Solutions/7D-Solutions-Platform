@@ -56,10 +56,7 @@ impl TokenRefresher for HttpTokenRefresher {
                 if !resp.status().is_success() {
                     let status = resp.status();
                     let body = resp.text().await.unwrap_or_default();
-                    return Err(format!(
-                        "Token refresh failed: HTTP {} — {}",
-                        status, body
-                    ));
+                    return Err(format!("Token refresh failed: HTTP {} — {}", status, body));
                 }
 
                 resp.json::<TokenResponse>()

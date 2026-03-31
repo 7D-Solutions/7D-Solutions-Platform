@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
@@ -43,6 +43,8 @@ hex = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1"
 urlencoding = "2"
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 async-trait = "0.1"

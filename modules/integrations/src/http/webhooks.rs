@@ -27,9 +27,7 @@ use security::VerifiedClaims;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::domain::webhooks::{
-    IngestWebhookRequest, QboNormalizer, WebhookError, WebhookService,
-};
+use crate::domain::webhooks::{IngestWebhookRequest, QboNormalizer, WebhookError, WebhookService};
 use crate::AppState;
 
 /// `POST /api/webhooks/inbound/{system}`

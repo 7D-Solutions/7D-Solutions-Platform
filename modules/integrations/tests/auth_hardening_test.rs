@@ -122,9 +122,7 @@ async fn concurrent_connector_tenant_isolation() {
 
     // Create 5 tenants that will write concurrently
     let tenants: Vec<String> = (0..5).map(|_| unique_tenant()).collect();
-    let connector_names: Vec<String> = (0..5)
-        .map(|i| format!("concurrent-echo-{}", i))
-        .collect();
+    let connector_names: Vec<String> = (0..5).map(|i| format!("concurrent-echo-{}", i)).collect();
 
     // Spawn concurrent writes — each tenant registers its own connector
     let mut handles = vec![];
@@ -190,10 +188,7 @@ async fn concurrent_connector_tenant_isolation() {
         idempotency_key: "cross-tenant-key".to_string(),
     };
     let err = run_test_action(&pool, &tenants[1], results[0].id, &action_req).await;
-    assert!(
-        err.is_err(),
-        "cross-tenant test action must be rejected"
-    );
+    assert!(err.is_err(), "cross-tenant test action must be rejected");
     match err.unwrap_err() {
         ConnectorError::NotFound(_) => {}
         other => panic!(
@@ -258,10 +253,7 @@ async fn concurrent_external_ref_tenant_isolation() {
             let cross = get_external_ref(&pool, tid, results[j].id)
                 .await
                 .expect("cross-tenant get should not error");
-            assert!(
-                cross.is_none(),
-                "tenant must not see other tenant's ref"
-            );
+            assert!(cross.is_none(), "tenant must not see other tenant's ref");
         }
 
         // get_by_external scoped by tenant
@@ -303,13 +295,12 @@ async fn guard_mutation_outbox_atomicity_connector_register() {
     let tid = unique_tenant();
 
     // Count outbox events before
-    let before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count before");
+    let before: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count before");
 
     // Register a connector — should succeed and write outbox event
     let req = echo_req("outbox-atomicity-test");
@@ -318,13 +309,12 @@ async fn guard_mutation_outbox_atomicity_connector_register() {
         .expect("register failed");
 
     // Outbox must have exactly one new event
-    let after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count after");
+    let after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count after");
 
     assert_eq!(
         after.0,
@@ -370,13 +360,12 @@ async fn guard_rejection_no_outbox_connector_unknown_type() {
     let tid = unique_tenant();
 
     // Count outbox events before
-    let before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count before");
+    let before: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count before");
 
     // Attempt to register with unknown type — guard should reject
     let req = RegisterConnectorRequest {
@@ -389,13 +378,12 @@ async fn guard_rejection_no_outbox_connector_unknown_type() {
     assert!(matches!(err.unwrap_err(), ConnectorError::UnknownType(_)));
 
     // Outbox must NOT have new events
-    let after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count after");
+    let after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count after");
 
     assert_eq!(
         before.0, after.0,
@@ -407,7 +395,10 @@ async fn guard_rejection_no_outbox_connector_unknown_type() {
     let configs = list_connector_configs(&pool, &tid, false)
         .await
         .expect("list failed");
-    assert!(configs.is_empty(), "no connector row should exist after guard rejection");
+    assert!(
+        configs.is_empty(),
+        "no connector row should exist after guard rejection"
+    );
 }
 
 // ============================================================================
@@ -421,13 +412,12 @@ async fn guard_rejection_no_outbox_external_ref_empty_entity_type() {
     let tid = unique_tenant();
 
     // Count outbox events before
-    let before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count before");
+    let before: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count before");
 
     // Attempt to create external ref with empty entity_type — guard rejects
     let req = CreateExternalRefRequest {
@@ -443,13 +433,12 @@ async fn guard_rejection_no_outbox_external_ref_empty_entity_type() {
     assert!(matches!(err.unwrap_err(), ExternalRefError::Validation(_)));
 
     // Outbox must NOT have new events
-    let after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&tid)
-    .fetch_one(&pool)
-    .await
-    .expect("count after");
+    let after: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&tid)
+            .fetch_one(&pool)
+            .await
+            .expect("count after");
 
     assert_eq!(
         before.0, after.0,
@@ -535,14 +524,32 @@ async fn migration_schema_validation() {
 
     // Verify critical indexes exist
     let indexes = vec![
-        ("integrations_external_refs", "idx_integrations_ext_refs_entity"),
-        ("integrations_external_refs", "idx_integrations_ext_refs_system"),
-        ("integrations_webhook_ingest", "idx_integrations_wh_ingest_unprocessed"),
-        ("integrations_webhook_ingest", "idx_integrations_wh_ingest_system"),
+        (
+            "integrations_external_refs",
+            "idx_integrations_ext_refs_entity",
+        ),
+        (
+            "integrations_external_refs",
+            "idx_integrations_ext_refs_system",
+        ),
+        (
+            "integrations_webhook_ingest",
+            "idx_integrations_wh_ingest_unprocessed",
+        ),
+        (
+            "integrations_webhook_ingest",
+            "idx_integrations_wh_ingest_system",
+        ),
         ("integrations_outbox", "idx_integrations_outbox_unpublished"),
         ("integrations_outbox", "idx_integrations_outbox_app_id"),
-        ("integrations_connector_configs", "idx_integrations_connector_configs_app_enabled"),
-        ("integrations_connector_configs", "idx_integrations_connector_configs_app_type"),
+        (
+            "integrations_connector_configs",
+            "idx_integrations_connector_configs_app_enabled",
+        ),
+        (
+            "integrations_connector_configs",
+            "idx_integrations_connector_configs_app_type",
+        ),
     ];
 
     for (table, index) in &indexes {
@@ -556,11 +563,7 @@ async fn migration_schema_validation() {
         .await
         .unwrap_or_else(|e| panic!("Failed to query index {} on {}: {}", index, table, e));
 
-        assert_eq!(
-            count.0, 1,
-            "Index '{}' on '{}' must exist",
-            index, table
-        );
+        assert_eq!(count.0, 1, "Index '{}' on '{}' must exist", index, table);
     }
 
     // Verify all tables have app_id column (tenant scoping enforcement)
@@ -581,9 +584,7 @@ async fn migration_schema_validation() {
         .bind(table)
         .fetch_one(&pool)
         .await
-        .unwrap_or_else(|e| {
-            panic!("Failed to query app_id column on {}: {}", table, e)
-        });
+        .unwrap_or_else(|e| panic!("Failed to query app_id column on {}: {}", table, e));
 
         assert_eq!(
             count.0, 1,
@@ -752,6 +753,12 @@ async fn guard_mutation_outbox_atomicity_external_ref_update_delete() {
     .expect("event types query");
 
     let types: Vec<&str> = event_types.iter().map(|(t,)| t.as_str()).collect();
-    assert!(types.contains(&"external_ref.updated"), "must have updated event");
-    assert!(types.contains(&"external_ref.deleted"), "must have deleted event");
+    assert!(
+        types.contains(&"external_ref.updated"),
+        "must have updated event"
+    );
+    assert!(
+        types.contains(&"external_ref.deleted"),
+        "must have deleted event"
+    );
 }

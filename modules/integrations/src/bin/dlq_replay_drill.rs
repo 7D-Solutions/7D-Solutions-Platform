@@ -6,8 +6,7 @@ const DEFAULT_DB_URL: &str =
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
+    let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&db_url)
@@ -58,12 +57,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
 
     // ── 3. Check pending count before replay ──────────────────────────────
-    let pending_before: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await?;
+    let pending_before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await?;
     println!("pending_before={pending_before}");
 
     // ── 4. Replay: read the DLQ row and re-execute the domain operation ──
@@ -145,12 +143,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // ── 6. Verify ─────────────────────────────────────────────────────────
-    let pending_after: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await?;
+    let pending_after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await?;
 
     let ref_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM integrations_external_refs WHERE app_id = $1 AND system = $2 AND external_id = $3",

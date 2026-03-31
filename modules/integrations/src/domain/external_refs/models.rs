@@ -3,9 +3,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 /// A single external ID mapping: internal entity ↔ external system identifier.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct ExternalRef {
     pub id: i64,
     pub app_id: String,

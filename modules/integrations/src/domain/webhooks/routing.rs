@@ -39,18 +39,12 @@ pub fn map_to_domain_event(system: &str, source_event_type: Option<&str>) -> Opt
         ("quickbooks", Some("qbo.customer.updated.v1")) => {
             Some("party.customer.synced".to_string())
         }
-        ("quickbooks", Some("qbo.invoice.created.v1")) => {
-            Some("ar.invoice.synced".to_string())
-        }
-        ("quickbooks", Some("qbo.invoice.updated.v1")) => {
-            Some("ar.invoice.synced".to_string())
-        }
+        ("quickbooks", Some("qbo.invoice.created.v1")) => Some("ar.invoice.synced".to_string()),
+        ("quickbooks", Some("qbo.invoice.updated.v1")) => Some("ar.invoice.synced".to_string()),
         ("quickbooks", Some("qbo.payment.created.v1")) => {
             Some("payments.payment.synced".to_string())
         }
-        ("quickbooks", Some("qbo.item.updated.v1")) => {
-            Some("inventory.item.synced".to_string())
-        }
+        ("quickbooks", Some("qbo.item.updated.v1")) => Some("inventory.item.synced".to_string()),
         // Internal pass-through
         ("internal", Some(et)) => Some(et.to_string()),
         // Unknown — do not route

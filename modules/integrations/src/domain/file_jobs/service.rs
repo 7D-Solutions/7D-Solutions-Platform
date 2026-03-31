@@ -9,9 +9,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{
-    build_file_job_created_envelope, build_file_job_status_changed_envelope,
-    FileJobCreatedPayload, FileJobStatusChangedPayload, EVENT_TYPE_FILE_JOB_CREATED,
-    EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
+    build_file_job_created_envelope, build_file_job_status_changed_envelope, FileJobCreatedPayload,
+    FileJobStatusChangedPayload, EVENT_TYPE_FILE_JOB_CREATED, EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
 };
 use crate::outbox::enqueue_event_tx;
 

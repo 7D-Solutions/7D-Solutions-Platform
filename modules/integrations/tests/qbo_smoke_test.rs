@@ -37,8 +37,18 @@ impl SandboxTokenProvider {
         let tokens: Value = serde_json::from_str(&content).expect("parse tokens");
 
         Self {
-            access_token: RwLock::new(tokens["access_token"].as_str().expect("access_token").into()),
-            refresh_tok: RwLock::new(tokens["refresh_token"].as_str().expect("refresh_token").into()),
+            access_token: RwLock::new(
+                tokens["access_token"]
+                    .as_str()
+                    .expect("access_token")
+                    .into(),
+            ),
+            refresh_tok: RwLock::new(
+                tokens["refresh_token"]
+                    .as_str()
+                    .expect("refresh_token")
+                    .into(),
+            ),
             client_id,
             client_secret,
             http: reqwest::Client::new(),
@@ -61,7 +71,8 @@ impl TokenProvider for SandboxTokenProvider {
 
     async fn refresh_token(&self) -> Result<String, QboError> {
         let rt = self.refresh_tok.read().await.clone();
-        let resp = self.http
+        let resp = self
+            .http
             .post("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer")
             .basic_auth(&self.client_id, Some(&self.client_secret))
             .form(&[("grant_type", "refresh_token"), ("refresh_token", &rt)])
@@ -74,11 +85,18 @@ impl TokenProvider for SandboxTokenProvider {
             return Err(QboError::TokenError(format!("Refresh failed: {}", body)));
         }
 
-        let tr: Value = resp.json().await.map_err(|e| QboError::TokenError(e.to_string()))?;
-        let new_at = tr["access_token"].as_str()
-            .ok_or_else(|| QboError::TokenError("no access_token".into()))?.to_string();
-        let new_rt = tr["refresh_token"].as_str()
-            .ok_or_else(|| QboError::TokenError("no refresh_token".into()))?.to_string();
+        let tr: Value = resp
+            .json()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+        let new_at = tr["access_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no access_token".into()))?
+            .to_string();
+        let new_rt = tr["refresh_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no refresh_token".into()))?
+            .to_string();
 
         *self.access_token.write().await = new_at.clone();
         *self.refresh_tok.write().await = new_rt.clone();
@@ -87,11 +105,16 @@ impl TokenProvider for SandboxTokenProvider {
             if let Ok(mut existing) = serde_json::from_str::<Value>(&content) {
                 existing["access_token"] = Value::String(new_at.clone());
                 existing["refresh_token"] = Value::String(new_rt);
-                if let Some(v) = tr.get("expires_in") { existing["expires_in"] = v.clone(); }
+                if let Some(v) = tr.get("expires_in") {
+                    existing["expires_in"] = v.clone();
+                }
                 if let Some(v) = tr.get("x_refresh_token_expires_in") {
                     existing["x_refresh_token_expires_in"] = v.clone();
                 }
-                let _ = std::fs::write(&self.tokens_path, serde_json::to_string_pretty(&existing).expect("json"));
+                let _ = std::fs::write(
+                    &self.tokens_path,
+                    serde_json::to_string_pretty(&existing).expect("json"),
+                );
             }
         }
         Ok(new_at)
@@ -139,7 +162,6 @@ fn bad_client() -> QboClient {
 // ============================================================================
 // Helpers
 // ============================================================================
-
 
 // ============================================================================
 // Test
@@ -189,8 +211,14 @@ async fn qbo_smoke_test() {
     // === 2. Entity reads: every type ===
     eprintln!("\n▸ Entity reads (all types)");
     let entity_types = [
-        "Customer", "Invoice", "Payment", "Item",
-        "Estimate", "Vendor", "Account", "PurchaseOrder",
+        "Customer",
+        "Invoice",
+        "Payment",
+        "Item",
+        "Estimate",
+        "Vendor",
+        "Account",
+        "PurchaseOrder",
     ];
 
     for et in &entity_types {
@@ -205,9 +233,7 @@ async fn qbo_smoke_test() {
 
                 // If we got results, try reading the first one individually
                 if count > 0 {
-                    let id = resp["QueryResponse"][et][0]["Id"]
-                        .as_str()
-                        .unwrap_or("1");
+                    let id = resp["QueryResponse"][et][0]["Id"].as_str().unwrap_or("1");
                     match client.get_entity(et, id).await {
                         Ok(_) => eprintln!("  PASS  GET {}/{}", et, id),
                         Err(e) => {
@@ -226,9 +252,7 @@ async fn qbo_smoke_test() {
 
     // === 3. Invoice shipping writeback ===
     eprintln!("\n▸ Invoice shipping writeback");
-    let inv_resp = client
-        .query("SELECT * FROM Invoice MAXRESULTS 1")
-        .await;
+    let inv_resp = client.query("SELECT * FROM Invoice MAXRESULTS 1").await;
     match inv_resp {
         Ok(resp) => {
             if let Some(inv) = resp["QueryResponse"]["Invoice"]
@@ -249,14 +273,18 @@ async fn qbo_smoke_test() {
 
                 match client.update_entity("Invoice", update).await {
                     Ok(_) => {
-                        eprintln!("  PASS  Sparse update invoice {} with shipping fields", inv_id);
+                        eprintln!(
+                            "  PASS  Sparse update invoice {} with shipping fields",
+                            inv_id
+                        );
 
                         // Verify
                         match client.get_entity("Invoice", inv_id).await {
                             Ok(re) => {
                                 let ri = &re["Invoice"];
                                 let ship_ok = ri["ShipDate"].as_str() == Some("2026-03-27");
-                                let track_ok = ri["TrackingNum"].as_str() == Some("SMOKE-TEST-TRK-001");
+                                let track_ok =
+                                    ri["TrackingNum"].as_str() == Some("SMOKE-TEST-TRK-001");
                                 let method_ok = ri["ShipMethodRef"]["value"].as_str().is_some();
                                 if ship_ok && track_ok && method_ok {
                                     eprintln!("  PASS  Verified shipping fields persisted");
@@ -340,12 +368,12 @@ async fn qbo_smoke_test() {
 
     for (label, dur) in &time_ranges {
         let since = chrono::Utc::now() - *dur;
-        match client.cdc(&["Customer", "Invoice", "Payment", "Item"], &since).await {
+        match client
+            .cdc(&["Customer", "Invoice", "Payment", "Item"], &since)
+            .await
+        {
             Ok(resp) => {
-                let entries = resp["CDCResponse"]
-                    .as_array()
-                    .map(|a| a.len())
-                    .unwrap_or(0);
+                let entries = resp["CDCResponse"].as_array().map(|a| a.len()).unwrap_or(0);
                 let entity_count = resp["CDCResponse"]
                     .as_array()
                     .and_then(|arr| arr.first())
@@ -359,7 +387,10 @@ async fn qbo_smoke_test() {
                             .sum::<usize>()
                     })
                     .unwrap_or(0);
-                eprintln!("  PASS  CDC {} — {} entries, {} entities", label, entries, entity_count);
+                eprintln!(
+                    "  PASS  CDC {} — {} entries, {} entities",
+                    label, entries, entity_count
+                );
             }
             Err(e) => {
                 failures.push(format!("CDC {}: {}", label, e));
@@ -377,7 +408,10 @@ async fn qbo_smoke_test() {
 
     // === 6. Pagination ===
     eprintln!("\n▸ Pagination (STARTPOSITION / MAXRESULTS)");
-    match client.query("SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 2").await {
+    match client
+        .query("SELECT * FROM Customer STARTPOSITION 1 MAXRESULTS 2")
+        .await
+    {
         Ok(resp) => {
             let page1 = resp["QueryResponse"]["Customer"]
                 .as_array()
@@ -386,7 +420,10 @@ async fn qbo_smoke_test() {
             eprintln!("  PASS  Page 1 (MAXRESULTS 2): {} customers", page1);
 
             // Page 2
-            match client.query("SELECT * FROM Customer STARTPOSITION 3 MAXRESULTS 2").await {
+            match client
+                .query("SELECT * FROM Customer STARTPOSITION 3 MAXRESULTS 2")
+                .await
+            {
                 Ok(resp2) => {
                     let page2 = resp2["QueryResponse"]["Customer"]
                         .as_array()
@@ -408,7 +445,10 @@ async fn qbo_smoke_test() {
 
     // query_all test
     match client.query_all("SELECT * FROM Customer", "Customer").await {
-        Ok(all) => eprintln!("  PASS  query_all: {} total customers across all pages", all.len()),
+        Ok(all) => eprintln!(
+            "  PASS  query_all: {} total customers across all pages",
+            all.len()
+        ),
         Err(e) => {
             failures.push(format!("query_all: {}", e));
             eprintln!("  FAIL  query_all — {}", e);
@@ -451,7 +491,10 @@ async fn qbo_smoke_test() {
     }
 
     // Missing required fields in update
-    match client.update_entity("Invoice", json!({"sparse": true})).await {
+    match client
+        .update_entity("Invoice", json!({"sparse": true}))
+        .await
+    {
         Err(e) => eprintln!("  PASS  Update missing Id → {}", e),
         Ok(_) => {
             failures.push("Update without Id accepted".into());
@@ -464,7 +507,10 @@ async fn qbo_smoke_test() {
         Err(e) => eprintln!("  PASS  Bogus entity type → {}", e),
         Ok(v) => {
             // QBO may return empty results instead of error for some types
-            eprintln!("  WARN  Bogus entity type returned: {}", &v.to_string()[..v.to_string().len().min(100)]);
+            eprintln!(
+                "  WARN  Bogus entity type returned: {}",
+                &v.to_string()[..v.to_string().len().min(100)]
+            );
         }
     }
 
@@ -478,10 +524,7 @@ async fn qbo_smoke_test() {
     let realm_id = provider.realm_id();
 
     for i in 0..20 {
-        let url = format!(
-            "{}/company/{}/query?minorversion=75",
-            base_url, realm_id
-        );
+        let url = format!("{}/company/{}/query?minorversion=75", base_url, realm_id);
         let tok = token.clone();
         let h = http.clone();
         handles.push(tokio::spawn(async move {
@@ -523,14 +566,21 @@ async fn qbo_smoke_test() {
     }
     eprintln!(
         "  {}  Burst: {} ok, {} rate-limited, {} errors",
-        if rate_limited > 0 || other_errors > 0 { "WARN" } else { "PASS" },
+        if rate_limited > 0 || other_errors > 0 {
+            "WARN"
+        } else {
+            "PASS"
+        },
         ok_count,
         rate_limited,
         other_errors
     );
     // Rate limiting is expected in sandbox — informational only
     if rate_limited > 15 {
-        failures.push(format!("Extreme rate limiting: {}/20 blocked", rate_limited));
+        failures.push(format!(
+            "Extreme rate limiting: {}/20 blocked",
+            rate_limited
+        ));
     }
 
     // Cooldown after burst to avoid residual rate limiting
@@ -541,11 +591,17 @@ async fn qbo_smoke_test() {
     eprintln!("\n▸ Create test data");
 
     // Create a customer
-    match client.update_entity("Customer", json!({
-        "DisplayName": format!("Smoke Test Customer {}", chrono::Utc::now().timestamp()),
-        "PrimaryEmailAddr": {"Address": "smoke@test.example.com"},
-        "CompanyName": "Smoke Test Corp"
-    })).await {
+    match client
+        .update_entity(
+            "Customer",
+            json!({
+                "DisplayName": format!("Smoke Test Customer {}", chrono::Utc::now().timestamp()),
+                "PrimaryEmailAddr": {"Address": "smoke@test.example.com"},
+                "CompanyName": "Smoke Test Corp"
+            }),
+        )
+        .await
+    {
         Ok(resp) => {
             let cust_id = resp["Customer"]["Id"].as_str().unwrap_or("?");
             eprintln!("  PASS  Created customer ID {}", cust_id);
@@ -608,10 +664,7 @@ async fn qbo_smoke_test() {
     }
 
     // Large MAXRESULTS
-    match client
-        .query("SELECT * FROM Customer MAXRESULTS 1000")
-        .await
-    {
+    match client.query("SELECT * FROM Customer MAXRESULTS 1000").await {
         Ok(resp) => {
             let count = resp["QueryResponse"]["Customer"]
                 .as_array()

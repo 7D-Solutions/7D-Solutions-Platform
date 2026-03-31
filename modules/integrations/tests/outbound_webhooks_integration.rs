@@ -318,7 +318,10 @@ async fn test_outbound_webhook_tenant_isolation() {
 
     // Tenant A cannot see Tenant B's webhook
     let cross_b = svc.get(&tenant_a, wh_b.id).await.expect("get failed");
-    assert!(cross_b.is_none(), "Tenant A must not see Tenant B's webhook");
+    assert!(
+        cross_b.is_none(),
+        "Tenant A must not see Tenant B's webhook"
+    );
 
     // Listing is scoped
     let list_a = svc.list(&tenant_a).await.expect("list A failed");

@@ -6,7 +6,7 @@ pub mod models;
 pub mod service;
 
 pub use models::{
-    CreateOutboundWebhookRequest, OutboundWebhook, OutboundWebhookDelivery,
-    OutboundWebhookError, RecordDeliveryRequest, UpdateOutboundWebhookRequest,
+    CreateOutboundWebhookRequest, OutboundWebhook, OutboundWebhookDelivery, OutboundWebhookError,
+    RecordDeliveryRequest, UpdateOutboundWebhookRequest,
 };
 pub use service::OutboundWebhookService;

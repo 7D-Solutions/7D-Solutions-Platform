@@ -250,7 +250,10 @@ async fn test_file_job_idempotency() {
     // Second create with same key returns same job
     let second = svc.create(req.clone()).await.expect("second create failed");
 
-    assert_eq!(first.id, second.id, "idempotent create should return same job");
+    assert_eq!(
+        first.id, second.id,
+        "idempotent create should return same job"
+    );
 
     // Verify only one row exists
     let list = svc.list(TENANT_A).await.expect("list failed");

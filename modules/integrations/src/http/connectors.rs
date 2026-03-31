@@ -10,16 +10,17 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::connectors::{
-    all_connectors, service, ConnectorCapabilities, ConnectorConfig, ConnectorError,
-    RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
+    all_connectors, service, ConnectorError, RegisterConnectorRequest, RunTestActionRequest,
 };
 use crate::AppState;
 
@@ -27,67 +28,31 @@ use crate::AppState;
 // Error helpers
 // ============================================================================
 
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
-
-fn connector_error_response(e: ConnectorError) -> (StatusCode, Json<ErrorBody>) {
+fn connector_error(e: ConnectorError) -> ApiError {
     match e {
-        ConnectorError::UnknownType(t) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new(
-                "unknown_connector_type",
-                &format!("Unknown connector type: {}", t),
-            )),
-        ),
-        ConnectorError::InvalidConfig(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("invalid_config", &msg)),
-        ),
-        ConnectorError::ActionFailed(msg) => (
-            StatusCode::BAD_GATEWAY,
-            Json(ErrorBody::new("action_failed", &msg)),
-        ),
-        ConnectorError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "not_found",
-                &format!("Connector config {} not found", id),
-            )),
-        ),
+        ConnectorError::UnknownType(t) => {
+            ApiError::new(422, "unknown_connector_type", format!("Unknown connector type: {}", t))
+        }
+        ConnectorError::InvalidConfig(msg) => {
+            ApiError::new(422, "invalid_config", msg)
+        }
+        ConnectorError::ActionFailed(msg) => {
+            ApiError::new(502, "action_failed", msg)
+        }
+        ConnectorError::NotFound(id) => {
+            ApiError::not_found(format!("Connector config {} not found", id))
+        }
         ConnectorError::Database(e) => {
             tracing::error!("Connector DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
+            ApiError::internal("Internal database error")
         }
     }
 }
 
-fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new(
-                "unauthorized",
-                "Missing or invalid authentication",
-            )),
-        )),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 
@@ -114,8 +79,11 @@ pub struct ListQuery {
 // ============================================================================
 
 /// GET /api/integrations/connectors/types — list all registered connector types and their capabilities
-pub async fn list_connector_types() -> Json<Vec<ConnectorCapabilities>> {
-    Json(all_connectors())
+pub async fn list_connector_types() -> impl IntoResponse {
+    let types = all_connectors();
+    let total = types.len() as i64;
+    let resp = PaginatedResponse::new(types, 1, total.max(1), total);
+    Json(resp).into_response()
 }
 
 /// POST /api/integrations/connectors — register a connector config for this tenant
@@ -124,15 +92,17 @@ pub async fn register_connector(
     claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<RegisterConnectorRequest>,
-) -> Result<(StatusCode, Json<ConnectorConfig>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let created = service::register_connector(&state.pool, &app_id, &req, correlation_id)
-        .await
-        .map_err(connector_error_response)?;
-
-    Ok((StatusCode::CREATED, Json(created)))
+    match service::register_connector(&state.pool, &app_id, &req, correlation_id).await {
+        Ok(created) => (StatusCode::CREATED, Json(created)).into_response(),
+        Err(e) => connector_error(e).into_response(),
+    }
 }
 
 /// GET /api/integrations/connectors — list this tenant's connector configs
@@ -140,14 +110,20 @@ pub async fn list_connectors(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListQuery>,
-) -> Result<Json<Vec<ConnectorConfig>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
-    let configs = service::list_connector_configs(&state.pool, &app_id, q.enabled_only)
-        .await
-        .map_err(connector_error_response)?;
-
-    Ok(Json(configs))
+    match service::list_connector_configs(&state.pool, &app_id, q.enabled_only).await {
+        Ok(configs) => {
+            let total = configs.len() as i64;
+            let resp = PaginatedResponse::new(configs, 1, total.max(1), total);
+            Json(resp).into_response()
+        }
+        Err(e) => connector_error(e).into_response(),
+    }
 }
 
 /// GET /api/integrations/connectors/:id — fetch a single connector config
@@ -155,23 +131,19 @@ pub async fn get_connector(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<ConnectorConfig>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
-    let config = service::get_connector_config(&state.pool, &app_id, id)
-        .await
-        .map_err(connector_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "not_found",
-                    &format!("Connector config {} not found", id),
-                )),
-            )
-        })?;
-
-    Ok(Json(config))
+    match service::get_connector_config(&state.pool, &app_id, id).await {
+        Ok(Some(config)) => Json(config).into_response(),
+        Ok(None) => {
+            ApiError::not_found(format!("Connector config {} not found", id)).into_response()
+        }
+        Err(e) => connector_error(e).into_response(),
+    }
 }
 
 /// POST /api/integrations/connectors/:id/test — run the connector's test action
@@ -180,12 +152,14 @@ pub async fn run_connector_test(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(req): Json<RunTestActionRequest>,
-) -> Result<Json<TestActionResult>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
-    let result = service::run_test_action(&state.pool, &app_id, id, &req)
-        .await
-        .map_err(connector_error_response)?;
-
-    Ok(Json(result))
+    match service::run_test_action(&state.pool, &app_id, id, &req).await {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => connector_error(e).into_response(),
+    }
 }

@@ -85,9 +85,7 @@ pub fn classify_error(status: u16, body: &str) -> QboApiAction {
             if ft.contains("validation") {
                 for err in &fault.errors {
                     let lc = err.detail.to_lowercase();
-                    if err.code == "5010"
-                        || lc.contains("stale object")
-                        || lc.contains("synctoken")
+                    if err.code == "5010" || lc.contains("stale object") || lc.contains("synctoken")
                     {
                         return QboApiAction::RetryWithFreshSyncToken;
                     }
@@ -121,10 +119,7 @@ pub(crate) fn parse_api_error(body: &str) -> QboError {
             };
         }
     }
-    QboError::Deserialize(format!(
-        "Unknown error: {}",
-        &body[..body.len().min(200)]
-    ))
+    QboError::Deserialize(format!("Unknown error: {}", &body[..body.len().min(200)]))
 }
 
 /// Trait for providing access tokens to the QBO client.

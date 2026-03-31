@@ -375,10 +375,7 @@ async fn test_edi_idempotency() {
     let first = svc.ingest(req.clone()).await.expect("first ingest failed");
 
     // Second ingest with same key returns same transaction
-    let second = svc
-        .ingest(req.clone())
-        .await
-        .expect("second ingest failed");
+    let second = svc.ingest(req.clone()).await.expect("second ingest failed");
 
     assert_eq!(
         first.id, second.id,
