@@ -1,8 +1,12 @@
 [package]
 name = "treasury"
-version = "1.0.1"
+version = "2.1.0"
 edition = "2021"
 description = "Bank account management, transaction import, reconciliation, and cash position"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
@@ -21,7 +25,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+config-validator = { path = "../../platform/config-validator" }
 projections = { path = "../../platform/projections" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 async-nats = "0.38"
 futures = "0.3"
 csv = "1"

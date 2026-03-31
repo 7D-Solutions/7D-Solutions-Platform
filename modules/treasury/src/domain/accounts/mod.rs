@@ -37,7 +37,7 @@ pub enum AccountError {
 // Enums
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema)]
 #[sqlx(type_name = "treasury_account_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum AccountStatus {
@@ -46,7 +46,7 @@ pub enum AccountStatus {
     Closed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema)]
 #[sqlx(type_name = "treasury_account_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum AccountType {
@@ -61,7 +61,7 @@ pub enum AccountType {
 /// Full treasury account record as stored and returned.
 /// Covers both bank and credit card accounts; CC-specific fields are None
 /// for bank accounts and vice-versa.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct TreasuryAccount {
     pub id: Uuid,
     pub app_id: String,
@@ -89,7 +89,7 @@ pub struct TreasuryAccount {
 }
 
 /// Request body to create a bank account.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CreateBankAccountRequest {
     pub account_name: String,
     pub institution: Option<String>,
@@ -102,7 +102,7 @@ pub struct CreateBankAccountRequest {
 }
 
 /// Request body to create a credit card account.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct CreateCreditCardAccountRequest {
     pub account_name: String,
     pub institution: Option<String>,
@@ -120,7 +120,7 @@ pub struct CreateCreditCardAccountRequest {
 }
 
 /// Request body for partial updates to a treasury account.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct UpdateAccountRequest {
     pub account_name: Option<String>,
     pub institution: Option<String>,

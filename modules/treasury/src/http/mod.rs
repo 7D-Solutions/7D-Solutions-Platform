@@ -1,6 +1,5 @@
 pub mod accounts;
 pub mod admin;
-pub mod admin_types;
 pub mod import;
 pub mod recon;
 pub mod recon_gl;
@@ -13,6 +12,90 @@ use health::{
 };
 use std::sync::Arc;
 use std::time::Instant;
+use utoipa::OpenApi;
+
+pub async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
+    Json(ApiDoc::openapi())
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "Treasury Service",
+        version = "2.1.0",
+        description = "Bank account management, transaction import, reconciliation, and cash position reporting.",
+    ),
+    paths(
+        accounts::create_bank_account,
+        accounts::create_credit_card_account,
+        accounts::list_accounts,
+        accounts::get_account,
+        accounts::update_account,
+        accounts::deactivate_account,
+        recon::auto_match,
+        recon::manual_match,
+        recon::list_matches,
+        recon::list_unmatched,
+        recon_gl::link_to_gl,
+        recon_gl::unmatched_bank_txns,
+        recon_gl::unmatched_gl_entries,
+        reports::cash_position,
+        reports::forecast,
+        import::import_statement,
+    ),
+    components(schemas(
+        crate::domain::accounts::TreasuryAccount,
+        crate::domain::accounts::AccountStatus,
+        crate::domain::accounts::AccountType,
+        crate::domain::accounts::CreateBankAccountRequest,
+        crate::domain::accounts::CreateCreditCardAccountRequest,
+        crate::domain::accounts::UpdateAccountRequest,
+        crate::domain::recon::models::ReconMatch,
+        crate::domain::recon::models::ReconMatchStatus,
+        crate::domain::recon::models::ReconMatchType,
+        crate::domain::recon::models::AutoMatchRequest,
+        crate::domain::recon::models::AutoMatchResult,
+        crate::domain::recon::models::ManualMatchRequest,
+        crate::domain::recon::gl_link::LinkToGlRequest,
+        crate::domain::recon::gl_link::GlLinkResponse,
+        crate::domain::recon::gl_link::UnmatchedBankTxnGl,
+        crate::domain::recon::gl_link::UnmatchedGlRequest,
+        crate::domain::recon::gl_link::UnmatchedGlResult,
+        recon_gl::UnmatchedBankTxnsResponse,
+        crate::domain::reports::cash_position::CashPositionResponse,
+        crate::domain::reports::cash_position::AccountPosition,
+        crate::domain::reports::cash_position::CashPositionSummary,
+        crate::domain::reports::forecast::ForecastResponse,
+        crate::domain::reports::forecast::CurrencyForecast,
+        crate::domain::reports::forecast::ForecastBuckets,
+        crate::domain::reports::assumptions::ForecastAssumptions,
+        crate::domain::import::ImportResult,
+        crate::domain::import::LineError,
+        platform_http_contracts::ApiError,
+        platform_http_contracts::PaginatedResponse<crate::domain::accounts::TreasuryAccount>,
+        platform_http_contracts::PaginationMeta,
+    )),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// GET /api/health — liveness probe (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {

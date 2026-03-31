@@ -7,10 +7,13 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -18,7 +21,7 @@ use crate::domain::accounts::{
     service, AccountError, CreateBankAccountRequest, CreateCreditCardAccountRequest,
     TreasuryAccount, UpdateAccountRequest,
 };
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 // ============================================================================
@@ -41,58 +44,13 @@ fn idempotency_key_from_headers(headers: &HeaderMap) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn account_error_response(e: AccountError) -> (StatusCode, Json<ErrorBody>) {
-    match e {
-        AccountError::NotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody::new(
-                "account_not_found",
-                &format!("Bank account {} not found", id),
-            )),
-        ),
-        AccountError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("validation_error", &msg)),
-        ),
-        AccountError::IdempotentReplay { .. } => {
-            // Caller inspects the error directly; this branch should not be hit
-            (
-                StatusCode::OK,
-                Json(ErrorBody::new(
-                    "idempotent_replay",
-                    "Request already processed",
-                )),
-            )
-        }
-        AccountError::Database(e) => {
-            tracing::error!("Treasury accounts DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Internal database error")),
-            )
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    pub fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListAccountsQuery {
     #[serde(default)]
     pub include_inactive: bool,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
 }
 
 // ============================================================================
@@ -100,13 +58,26 @@ pub struct ListAccountsQuery {
 // ============================================================================
 
 /// POST /api/treasury/accounts/bank — create a bank account
+#[utoipa::path(
+    post, path = "/api/treasury/accounts/bank", tag = "Accounts",
+    request_body = CreateBankAccountRequest,
+    responses(
+        (status = 201, description = "Account created", body = TreasuryAccount),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn create_bank_account(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreateBankAccountRequest>,
-) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let idempotency_key = idempotency_key_from_headers(&headers);
 
@@ -119,32 +90,45 @@ pub async fn create_bank_account(
     )
     .await
     {
-        Ok(account) => Ok((StatusCode::CREATED, Json(account))),
+        Ok(account) => (StatusCode::CREATED, Json(account)).into_response(),
         Err(AccountError::IdempotentReplay { status_code, body }) => {
-            let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody::new(
-                        "replay_error",
-                        "Failed to deserialize cached response",
-                    )),
+            match serde_json::from_value::<TreasuryAccount>(body) {
+                Ok(account) => {
+                    let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
+                    (status, Json(account)).into_response()
+                }
+                Err(_) => with_request_id(
+                    ApiError::internal("Failed to deserialize cached response"),
+                    &ctx,
                 )
-            })?;
-            let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
-            Ok((status, Json(account)))
+                .into_response(),
+            }
         }
-        Err(e) => Err(account_error_response(e)),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }
 }
 
 /// POST /api/treasury/accounts/credit-card — create a credit card account
+#[utoipa::path(
+    post, path = "/api/treasury/accounts/credit-card", tag = "Accounts",
+    request_body = CreateCreditCardAccountRequest,
+    responses(
+        (status = 201, description = "Account created", body = TreasuryAccount),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn create_credit_card_account(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<CreateCreditCardAccountRequest>,
-) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let idempotency_key = idempotency_key_from_headers(&headers);
 
@@ -157,98 +141,159 @@ pub async fn create_credit_card_account(
     )
     .await
     {
-        Ok(account) => Ok((StatusCode::CREATED, Json(account))),
+        Ok(account) => (StatusCode::CREATED, Json(account)).into_response(),
         Err(AccountError::IdempotentReplay { status_code, body }) => {
-            let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody::new(
-                        "replay_error",
-                        "Failed to deserialize cached response",
-                    )),
+            match serde_json::from_value::<TreasuryAccount>(body) {
+                Ok(account) => {
+                    let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
+                    (status, Json(account)).into_response()
+                }
+                Err(_) => with_request_id(
+                    ApiError::internal("Failed to deserialize cached response"),
+                    &ctx,
                 )
-            })?;
-            let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
-            Ok((status, Json(account)))
+                .into_response(),
+            }
         }
-        Err(e) => Err(account_error_response(e)),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }
 }
 
 /// GET /api/treasury/accounts — list accounts for tenant
+#[utoipa::path(
+    get, path = "/api/treasury/accounts", tag = "Accounts",
+    params(ListAccountsQuery),
+    responses(
+        (status = 200, description = "Paginated accounts", body = PaginatedResponse<TreasuryAccount>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_accounts(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListAccountsQuery>,
-) -> Result<Json<Vec<TreasuryAccount>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
 
-    let accounts = service::list_accounts(&state.pool, &app_id, query.include_inactive)
-        .await
-        .map_err(account_error_response)?;
-
-    Ok(Json(accounts))
+    let total = match service::count_accounts(&state.pool, &app_id, query.include_inactive).await {
+        Ok(t) => t,
+        Err(e) => return with_request_id(ApiError::from(e), &ctx).into_response(),
+    };
+    match service::list_accounts_paginated(
+        &state.pool,
+        &app_id,
+        query.include_inactive,
+        page_size,
+        (page - 1) * page_size,
+    )
+    .await
+    {
+        Ok(accounts) => {
+            Json(PaginatedResponse::new(accounts, page, page_size, total)).into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// GET /api/treasury/accounts/:id — get a single account
+#[utoipa::path(
+    get, path = "/api/treasury/accounts/{id}", tag = "Accounts",
+    params(("id" = Uuid, Path, description = "Account ID")),
+    responses(
+        (status = 200, description = "Account found", body = TreasuryAccount),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_account(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
-    let account = service::get_account(&state.pool, &app_id, id)
-        .await
-        .map_err(account_error_response)?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody::new(
-                    "account_not_found",
-                    &format!("Bank account {} not found", id),
-                )),
-            )
-        })?;
-
-    Ok(Json(account))
+    match service::get_account(&state.pool, &app_id, id).await {
+        Ok(Some(account)) => Json(account).into_response(),
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Treasury account {} not found", id)),
+            &ctx,
+        )
+        .into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// PUT /api/treasury/accounts/:id — update account fields
+#[utoipa::path(
+    put, path = "/api/treasury/accounts/{id}", tag = "Accounts",
+    params(("id" = Uuid, Path, description = "Account ID")),
+    request_body = UpdateAccountRequest,
+    responses(
+        (status = 200, description = "Account updated", body = TreasuryAccount),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn update_account(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateAccountRequest>,
-) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
 
-    let account = service::update_account(&state.pool, &app_id, id, &req, correlation_id)
-        .await
-        .map_err(account_error_response)?;
-
-    Ok(Json(account))
+    match service::update_account(&state.pool, &app_id, id, &req, correlation_id).await {
+        Ok(account) => Json(account).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// POST /api/treasury/accounts/:id/deactivate — soft-delete a bank account
+#[utoipa::path(
+    post, path = "/api/treasury/accounts/{id}/deactivate", tag = "Accounts",
+    params(("id" = Uuid, Path, description = "Account ID")),
+    responses(
+        (status = 204, description = "Account deactivated"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn deactivate_account(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation_from_headers(&headers);
     let actor = claims
         .as_ref()
         .map(|Extension(c)| c.user_id.to_string())
         .unwrap_or_else(|| "system".to_string());
 
-    service::deactivate_account(&state.pool, &app_id, id, &actor, correlation_id)
-        .await
-        .map_err(account_error_response)?;
-
-    Ok(StatusCode::NO_CONTENT)
+    match service::deactivate_account(&state.pool, &app_id, id, &actor, correlation_id).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }

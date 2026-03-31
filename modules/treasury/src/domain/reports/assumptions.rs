@@ -10,7 +10,7 @@ use serde::Serialize;
 ///
 /// Rates are expressed as fractions (0.0–1.0). A rate of 0.95 means
 /// 95% of the bucket value is expected to convert to a cash flow.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ForecastAssumptions {
     /// Expected collection rate for AR "current" (not yet due).
     pub ar_current_rate: f64,

@@ -48,13 +48,13 @@ pub enum ImportError {
 // Response types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct LineError {
     pub line: usize,
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ImportResult {
     pub statement_id: Uuid,
     pub lines_imported: usize,

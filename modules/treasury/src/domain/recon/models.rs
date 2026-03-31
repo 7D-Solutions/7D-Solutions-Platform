@@ -8,7 +8,7 @@ use uuid::Uuid;
 // Enums (mirror SQL enums)
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema)]
 #[sqlx(type_name = "treasury_recon_match_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum ReconMatchStatus {
@@ -17,7 +17,7 @@ pub enum ReconMatchStatus {
     Rejected,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, utoipa::ToSchema)]
 #[sqlx(type_name = "treasury_recon_match_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum ReconMatchType {
@@ -30,7 +30,7 @@ pub enum ReconMatchType {
 // DB row
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct ReconMatch {
     pub id: Uuid,
     pub app_id: String,
@@ -38,6 +38,7 @@ pub struct ReconMatch {
     pub bank_transaction_id: Uuid,
     pub gl_entry_id: Option<i64>,
     pub match_type: ReconMatchType,
+    #[schema(value_type = Option<String>)]
     pub confidence_score: Option<rust_decimal::Decimal>,
     pub matched_by: Option<String>,
     pub status: ReconMatchStatus,
@@ -71,25 +72,26 @@ pub struct UnmatchedTxn {
 // Request / response types
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 pub struct AutoMatchRequest {
     pub account_id: Uuid,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct AutoMatchResult {
     pub matches_created: usize,
     pub unmatched_statement_lines: usize,
     pub unmatched_transactions: usize,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, utoipa::ToSchema)]
 pub struct ManualMatchRequest {
     pub statement_line_id: Uuid,
     pub bank_transaction_id: Uuid,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListMatchesQuery {
     pub account_id: Uuid,
     #[serde(default)]

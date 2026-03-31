@@ -30,7 +30,7 @@ struct AccountPositionRow {
 }
 
 /// Position for a single account.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct AccountPosition {
     pub account_id: Uuid,
     pub account_name: String,
@@ -42,7 +42,7 @@ pub struct AccountPosition {
 }
 
 /// Aggregated summary across all accounts.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CashPositionSummary {
     pub total_bank_cash_minor: i64,
     pub total_cc_liability_minor: i64,
@@ -51,7 +51,7 @@ pub struct CashPositionSummary {
 }
 
 /// Full cash position response.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CashPositionResponse {
     pub as_of: DateTime<Utc>,
     pub bank_cash: Vec<AccountPosition>,

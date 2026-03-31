@@ -18,13 +18,13 @@ const EVT_RECON_GL_LINKED: &str = "recon.gl_linked";
 // Request / response types
 // ============================================================================
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
 pub struct LinkToGlRequest {
     pub bank_transaction_id: Uuid,
     pub gl_entry_id: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct UnmatchedBankTxnGl {
     pub id: Uuid,
     pub account_id: Uuid,
@@ -37,16 +37,27 @@ pub struct UnmatchedBankTxnGl {
     pub has_statement_match: bool,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
 pub struct UnmatchedGlRequest {
     pub gl_entry_ids: Vec<i64>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct UnmatchedGlResult {
     pub provided: usize,
     pub linked: usize,
     pub unmatched_gl_entry_ids: Vec<i64>,
+}
+
+/// Response from the GL link endpoint.
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct GlLinkResponse {
+    pub match_id: Uuid,
+    pub bank_transaction_id: Uuid,
+    pub gl_entry_id: Option<i64>,
+    pub status: super::models::ReconMatchStatus,
+    pub match_type: super::models::ReconMatchType,
+    pub matched_at: chrono::DateTime<chrono::Utc>,
 }
 
 // ============================================================================

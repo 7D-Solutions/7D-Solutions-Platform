@@ -140,6 +140,7 @@ async fn main() {
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route("/api/openapi.json", get(http::openapi_json))
         .route("/metrics", get(metrics::metrics_handler))
         // Accounts — read
         .route("/api/treasury/accounts", get(http::accounts::list_accounts))

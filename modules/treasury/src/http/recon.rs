@@ -3,112 +3,25 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::recon::{
     models::{AutoMatchRequest, AutoMatchResult, ListMatchesQuery, ManualMatchRequest, ReconMatch},
-    service, ReconError,
+    service,
 };
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
-
-// ============================================================================
-// Error body
-// ============================================================================
-
-#[derive(Debug, Serialize)]
-pub struct ReconErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ReconErrorBody {
-    pub fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-        }
-    }
-}
-
-fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
-    match e {
-        ReconError::StatementLineNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ReconErrorBody::new(
-                "statement_line_not_found",
-                &format!("Statement line {} not found", id),
-            )),
-        ),
-        ReconError::TransactionNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ReconErrorBody::new(
-                "transaction_not_found",
-                &format!("Bank transaction {} not found", id),
-            )),
-        ),
-        ReconError::MatchNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ReconErrorBody::new(
-                "match_not_found",
-                &format!("Recon match {} not found", id),
-            )),
-        ),
-        ReconError::AmountMismatch {
-            stmt_amount,
-            txn_amount,
-        } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ReconErrorBody::new(
-                "amount_mismatch",
-                &format!(
-                    "Statement amount {} does not match transaction amount {}",
-                    stmt_amount, txn_amount
-                ),
-            )),
-        ),
-        ReconError::CurrencyMismatch {
-            stmt_currency,
-            txn_currency,
-        } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ReconErrorBody::new(
-                "currency_mismatch",
-                &format!("Currency mismatch: {} vs {}", stmt_currency, txn_currency),
-            )),
-        ),
-        ReconError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ReconErrorBody::new("validation_error", &msg)),
-        ),
-        ReconError::Database(e) => {
-            tracing::error!("Recon DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ReconErrorBody::new(
-                    "database_error",
-                    "Internal database error",
-                )),
-            )
-        }
-    }
-}
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-fn tenant_from_claims(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
-    extract_tenant(claims)
-        .map_err(|(status, Json(e))| (status, Json(ReconErrorBody::new(&e.error, &e.message))))
-}
 
 fn correlation(headers: &HeaderMap) -> String {
     headers
@@ -123,100 +36,155 @@ fn correlation(headers: &HeaderMap) -> String {
 // ============================================================================
 
 /// POST /api/treasury/recon/auto-match — run auto-match for an account
+#[utoipa::path(
+    post, path = "/api/treasury/recon/auto-match", tag = "Reconciliation",
+    request_body = AutoMatchRequest,
+    responses(
+        (status = 200, description = "Auto-match result", body = AutoMatchResult),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn auto_match(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<AutoMatchRequest>,
-) -> Result<Json<AutoMatchResult>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = tenant_from_claims(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation(&headers);
 
-    service::run_auto_match(&state.pool, &app_id, req.account_id, &correlation_id)
-        .await
-        .map(Json)
-        .map_err(recon_error_response)
+    match service::run_auto_match(&state.pool, &app_id, req.account_id, &correlation_id).await {
+        Ok(result) => Json(result).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// POST /api/treasury/recon/manual-match — create a manual match
+#[utoipa::path(
+    post, path = "/api/treasury/recon/manual-match", tag = "Reconciliation",
+    request_body = ManualMatchRequest,
+    responses(
+        (status = 201, description = "Match created", body = ReconMatch),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn manual_match(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     Json(req): Json<ManualMatchRequest>,
-) -> Result<(StatusCode, Json<ReconMatch>), (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = tenant_from_claims(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let correlation_id = correlation(&headers);
     let actor = claims
         .as_ref()
         .map(|Extension(c)| c.user_id.to_string())
         .unwrap_or_else(|| "system".to_string());
 
-    service::create_manual_match(&state.pool, &app_id, &req, &actor, &correlation_id)
-        .await
-        .map(|m| (StatusCode::CREATED, Json(m)))
-        .map_err(recon_error_response)
+    match service::create_manual_match(&state.pool, &app_id, &req, &actor, &correlation_id).await {
+        Ok(m) => (StatusCode::CREATED, Json(m)).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// GET /api/treasury/recon/matches?account_id=...&include_superseded=false
+#[utoipa::path(
+    get, path = "/api/treasury/recon/matches", tag = "Reconciliation",
+    params(ListMatchesQuery),
+    responses(
+        (status = 200, description = "Recon matches", body = Vec<ReconMatch>),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_matches(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(query): Query<ListMatchesQuery>,
-) -> Result<Json<Vec<ReconMatch>>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = tenant_from_claims(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
-    service::list_matches(
+    match service::list_matches(
         &state.pool,
         &app_id,
         query.account_id,
         query.include_superseded,
     )
     .await
-    .map(Json)
-    .map_err(recon_error_response)
+    {
+        Ok(matches) => Json(matches).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }
 
 /// Unmatched query params — just account_id
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct UnmatchedQuery {
     pub account_id: Uuid,
 }
 
 /// GET /api/treasury/recon/unmatched?account_id=...
+#[utoipa::path(
+    get, path = "/api/treasury/recon/unmatched", tag = "Reconciliation",
+    params(UnmatchedQuery),
+    responses(
+        (status = 200, description = "Unmatched items"),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_unmatched(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     Query(query): Query<UnmatchedQuery>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = tenant_from_claims(&claims)?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
-    let txns = service::list_unmatched(&state.pool, &app_id, query.account_id)
-        .await
-        .map_err(recon_error_response)?;
+    match service::list_unmatched(&state.pool, &app_id, query.account_id).await {
+        Ok(txns) => {
+            let (stmt_lines, pay_txns): (Vec<_>, Vec<_>) =
+                txns.into_iter().partition(|t| t.statement_id.is_some());
 
-    // Split into statement lines vs payment txns for clarity
-    let (stmt_lines, pay_txns): (Vec<_>, Vec<_>) =
-        txns.into_iter().partition(|t| t.statement_id.is_some());
-
-    Ok(Json(serde_json::json!({
-        "unmatched_statement_lines": stmt_lines.len(),
-        "unmatched_payment_transactions": pay_txns.len(),
-        "statement_lines": stmt_lines.iter().map(|t| serde_json::json!({
-            "id": t.id,
-            "transaction_date": t.transaction_date,
-            "amount_minor": t.amount_minor,
-            "currency": t.currency,
-            "description": t.description,
-            "reference": t.reference,
-        })).collect::<Vec<_>>(),
-        "payment_transactions": pay_txns.iter().map(|t| serde_json::json!({
-            "id": t.id,
-            "transaction_date": t.transaction_date,
-            "amount_minor": t.amount_minor,
-            "currency": t.currency,
-            "description": t.description,
-            "reference": t.reference,
-        })).collect::<Vec<_>>(),
-    })))
+            Json(serde_json::json!({
+                "unmatched_statement_lines": stmt_lines.len(),
+                "unmatched_payment_transactions": pay_txns.len(),
+                "statement_lines": stmt_lines.iter().map(|t| serde_json::json!({
+                    "id": t.id,
+                    "transaction_date": t.transaction_date,
+                    "amount_minor": t.amount_minor,
+                    "currency": t.currency,
+                    "description": t.description,
+                    "reference": t.reference,
+                })).collect::<Vec<_>>(),
+                "payment_transactions": pay_txns.iter().map(|t| serde_json::json!({
+                    "id": t.id,
+                    "transaction_date": t.transaction_date,
+                    "amount_minor": t.amount_minor,
+                    "currency": t.currency,
+                    "description": t.description,
+                    "reference": t.reference,
+                })).collect::<Vec<_>>(),
+            }))
+            .into_response()
+        }
+        Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
+    }
 }

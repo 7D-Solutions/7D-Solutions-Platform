@@ -2,50 +2,62 @@
 //!
 //! Tenant identity is derived from JWT claims via [`VerifiedClaims`].
 
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{extract::State, response::IntoResponse, Extension, Json};
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use super::accounts::ErrorBody;
 use crate::domain::reports::cash_position;
 use crate::domain::reports::{assumptions::ForecastAssumptions, forecast};
-use crate::http::tenant::extract_tenant;
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
 
 /// GET /api/treasury/cash-position — real-time cash position by account and currency
+#[utoipa::path(
+    get, path = "/api/treasury/cash-position", tag = "Reports",
+    responses(
+        (status = 200, description = "Cash position report", body = cash_position::CashPositionResponse),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn cash_position(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> Result<Json<cash_position::CashPositionResponse>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+    ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
-    let position = cash_position::get_cash_position(&state.pool, &app_id)
-        .await
-        .map_err(|e| {
+    match cash_position::get_cash_position(&state.pool, &app_id).await {
+        Ok(position) => Json(position).into_response(),
+        Err(e) => {
             tracing::error!("Cash position query failed: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new(
-                    "database_error",
-                    "Failed to compute cash position",
-                )),
-            )
-        })?;
-
-    Ok(Json(position))
+            with_request_id(ApiError::internal("Failed to compute cash position"), &ctx)
+                .into_response()
+        }
+    }
 }
 
 /// GET /api/treasury/forecast — cash forecast from AR/AP aging + scheduled payments
-///
-/// Reads AR aging (expected inflows) and AP aging (expected outflows) from
-/// their respective databases via `AR_DATABASE_URL` and `AP_DATABASE_URL`.
-/// If either env var is unset, that data source is skipped and the forecast
-/// only includes the available data.
+#[utoipa::path(
+    get, path = "/api/treasury/forecast", tag = "Reports",
+    responses(
+        (status = 200, description = "Cash forecast", body = forecast::ForecastResponse),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn forecast(
     State(_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-) -> Result<Json<forecast::ForecastResponse>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = extract_tenant(&claims)?;
+    ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
     let assumptions = ForecastAssumptions::default();
     let mut data_sources = Vec::new();
 
@@ -115,5 +127,5 @@ pub async fn forecast(
     let response =
         forecast::compute_forecast(&ar_aging, &ap_aging, &scheduled, &assumptions, data_sources);
 
-    Ok(Json(response))
+    Json(response).into_response()
 }

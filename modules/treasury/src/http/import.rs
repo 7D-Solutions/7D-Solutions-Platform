@@ -7,48 +7,20 @@
 use axum::{
     extract::{Multipart, State},
     http::{HeaderMap, StatusCode},
+    response::IntoResponse,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::import::adapters::CsvFormat;
-use crate::domain::import::{service, ImportError, ImportResult, LineError};
-use crate::http::tenant::extract_tenant;
+use crate::domain::import::{service, ImportResult};
+use crate::http::tenant::{extract_tenant, with_request_id};
 use crate::AppState;
-
-// ============================================================================
-// Error response
-// ============================================================================
-
-#[derive(Debug, Serialize)]
-pub struct ImportErrorBody {
-    error: String,
-    message: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    line_errors: Vec<LineError>,
-}
-
-impl ImportErrorBody {
-    fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-            line_errors: vec![],
-        }
-    }
-
-    fn with_lines(error: &str, message: &str, errors: Vec<LineError>) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
-            line_errors: errors,
-        }
-    }
-}
 
 // ============================================================================
 // Multipart field collector
@@ -65,9 +37,7 @@ struct ImportFields {
     format: Option<CsvFormat>,
 }
 
-async fn collect_fields(
-    mut multipart: Multipart,
-) -> Result<ImportFields, (StatusCode, Json<ImportErrorBody>)> {
+async fn collect_fields(mut multipart: Multipart) -> Result<ImportFields, ApiError> {
     let mut account_id: Option<Uuid> = None;
     let mut period_start: Option<NaiveDate> = None;
     let mut period_end: Option<NaiveDate> = None;
@@ -86,7 +56,7 @@ async fn collect_fields(
                     field
                         .bytes()
                         .await
-                        .map_err(|e| bad_request(&format!("Failed to read file: {}", e)))?
+                        .map_err(|e| ApiError::bad_request(format!("Failed to read file: {}", e)))?
                         .to_vec(),
                 );
             }
@@ -94,7 +64,7 @@ async fn collect_fields(
                 let text = field_text(field).await?;
                 account_id = Some(
                     text.parse::<Uuid>()
-                        .map_err(|_| bad_request("account_id must be a valid UUID"))?,
+                        .map_err(|_| ApiError::bad_request("account_id must be a valid UUID"))?,
                 );
             }
             "period_start" => {
@@ -110,7 +80,9 @@ async fn collect_fields(
                 opening_balance = Some(
                     text.trim()
                         .parse::<i64>()
-                        .map_err(|_| bad_request("opening_balance_minor must be an integer"))?,
+                        .map_err(|_| {
+                            ApiError::bad_request("opening_balance_minor must be an integer")
+                        })?,
                 );
             }
             "closing_balance_minor" => {
@@ -118,7 +90,9 @@ async fn collect_fields(
                 closing_balance = Some(
                     text.trim()
                         .parse::<i64>()
-                        .map_err(|_| bad_request("closing_balance_minor must be an integer"))?,
+                        .map_err(|_| {
+                            ApiError::bad_request("closing_balance_minor must be an integer")
+                        })?,
                 );
             }
             "format" => {
@@ -128,7 +102,9 @@ async fn collect_fields(
                         text.trim().to_string(),
                     ))
                     .map_err(|_| {
-                        bad_request("format must be one of: generic, chase_credit, amex_credit")
+                        ApiError::bad_request(
+                            "format must be one of: generic, chase_credit, amex_credit",
+                        )
                     })?,
                 );
             }
@@ -136,44 +112,38 @@ async fn collect_fields(
         }
     }
 
-    let csv_data = csv_data.ok_or_else(|| bad_request("file field is required"))?;
+    let csv_data = csv_data.ok_or_else(|| ApiError::bad_request("file field is required"))?;
     if csv_data.is_empty() {
-        return Err(bad_request("CSV file is empty"));
+        return Err(ApiError::bad_request("CSV file is empty"));
     }
 
     Ok(ImportFields {
-        account_id: account_id.ok_or_else(|| bad_request("account_id is required"))?,
-        period_start: period_start.ok_or_else(|| bad_request("period_start is required"))?,
-        period_end: period_end.ok_or_else(|| bad_request("period_end is required"))?,
+        account_id: account_id
+            .ok_or_else(|| ApiError::bad_request("account_id is required"))?,
+        period_start: period_start
+            .ok_or_else(|| ApiError::bad_request("period_start is required"))?,
+        period_end: period_end
+            .ok_or_else(|| ApiError::bad_request("period_end is required"))?,
         opening_balance_minor: opening_balance
-            .ok_or_else(|| bad_request("opening_balance_minor is required"))?,
+            .ok_or_else(|| ApiError::bad_request("opening_balance_minor is required"))?,
         closing_balance_minor: closing_balance
-            .ok_or_else(|| bad_request("closing_balance_minor is required"))?,
+            .ok_or_else(|| ApiError::bad_request("closing_balance_minor is required"))?,
         csv_data,
         filename,
         format,
     })
 }
 
-async fn field_text(
-    field: axum::extract::multipart::Field<'_>,
-) -> Result<String, (StatusCode, Json<ImportErrorBody>)> {
+async fn field_text(field: axum::extract::multipart::Field<'_>) -> Result<String, ApiError> {
     field
         .text()
         .await
-        .map_err(|e| bad_request(&format!("Failed to read field: {}", e)))
+        .map_err(|e| ApiError::bad_request(format!("Failed to read field: {}", e)))
 }
 
-fn parse_date_field(s: &str, name: &str) -> Result<NaiveDate, (StatusCode, Json<ImportErrorBody>)> {
+fn parse_date_field(s: &str, name: &str) -> Result<NaiveDate, ApiError> {
     NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
-        .map_err(|_| bad_request(&format!("{} must be YYYY-MM-DD format", name)))
-}
-
-fn bad_request(msg: &str) -> (StatusCode, Json<ImportErrorBody>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ImportErrorBody::new("bad_request", msg)),
-    )
+        .map_err(|_| ApiError::bad_request(format!("{} must be YYYY-MM-DD format", name)))
 }
 
 // ============================================================================
@@ -181,14 +151,27 @@ fn bad_request(msg: &str) -> (StatusCode, Json<ImportErrorBody>) {
 // ============================================================================
 
 /// POST /api/treasury/statements/import
+#[utoipa::path(
+    post, path = "/api/treasury/statements/import", tag = "Import",
+    responses(
+        (status = 201, description = "Statement imported", body = ImportResult),
+        (status = 400, description = "Bad request", body = ApiError),
+        (status = 404, description = "Account not found", body = ApiError),
+        (status = 422, description = "Validation error", body = ApiError),
+    ),
+    security(("bearer" = ["TREASURY_MUTATE"])),
+)]
 pub async fn import_statement(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
     headers: HeaderMap,
     multipart: Multipart,
-) -> Result<(StatusCode, Json<ImportResult>), (StatusCode, Json<ImportErrorBody>)> {
-    let app_id = extract_tenant(&claims)
-        .map_err(|(status, Json(e))| (status, Json(ImportErrorBody::new(&e.error, &e.message))))?;
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
     let correlation_id = headers
         .get("x-correlation-id")
@@ -196,7 +179,10 @@ pub async fn import_statement(
         .unwrap_or("unknown")
         .to_string();
 
-    let fields = collect_fields(multipart).await?;
+    let fields = match collect_fields(multipart).await {
+        Ok(f) => f,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
 
     let req = service::ImportRequest {
         account_id: fields.account_id,
@@ -212,69 +198,11 @@ pub async fn import_statement(
     match service::import_statement(&state.pool, &app_id, req, correlation_id).await {
         Ok(result) => {
             state.metrics.record_import_success();
-            Ok((StatusCode::CREATED, Json(result)))
+            (StatusCode::CREATED, Json(result)).into_response()
         }
         Err(e) => {
             state.metrics.record_import_fail();
-            Err(import_error_response(e))
-        }
-    }
-}
-
-fn import_error_response(e: ImportError) -> (StatusCode, Json<ImportErrorBody>) {
-    match e {
-        ImportError::AccountNotFound(id) => (
-            StatusCode::NOT_FOUND,
-            Json(ImportErrorBody::new(
-                "account_not_found",
-                &format!("Bank account {} not found", id),
-            )),
-        ),
-        ImportError::AccountNotActive => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ImportErrorBody::new(
-                "account_not_active",
-                "Bank account is not active",
-            )),
-        ),
-        ImportError::DuplicateImport { statement_id } => (
-            StatusCode::OK,
-            Json(ImportErrorBody::new(
-                "duplicate_import",
-                &format!(
-                    "Statement already imported with id {}. No duplicates created.",
-                    statement_id
-                ),
-            )),
-        ),
-        ImportError::EmptyImport => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ImportErrorBody::new(
-                "empty_import",
-                "CSV contains no transaction lines",
-            )),
-        ),
-        ImportError::AllLinesFailed(errors) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ImportErrorBody::with_lines(
-                "all_lines_failed",
-                "Every CSV line failed validation",
-                errors,
-            )),
-        ),
-        ImportError::Validation(msg) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ImportErrorBody::new("validation_error", &msg)),
-        ),
-        ImportError::Database(e) => {
-            tracing::error!("Statement import DB error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ImportErrorBody::new(
-                    "database_error",
-                    "Internal database error",
-                )),
-            )
+            with_request_id(ApiError::from(e), &ctx).into_response()
         }
     }
 }

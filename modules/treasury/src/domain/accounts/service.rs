@@ -88,6 +88,77 @@ pub async fn list_accounts(
     Ok(accounts)
 }
 
+pub async fn count_accounts(
+    pool: &PgPool,
+    app_id: &str,
+    include_inactive: bool,
+) -> Result<i64, AccountError> {
+    let row: (i64,) = if include_inactive {
+        sqlx::query_as(
+            "SELECT COUNT(*) FROM treasury_bank_accounts WHERE app_id = $1",
+        )
+        .bind(app_id)
+        .fetch_one(pool)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT COUNT(*) FROM treasury_bank_accounts WHERE app_id = $1 AND status = 'active'::treasury_account_status",
+        )
+        .bind(app_id)
+        .fetch_one(pool)
+        .await?
+    };
+    Ok(row.0)
+}
+
+pub async fn list_accounts_paginated(
+    pool: &PgPool,
+    app_id: &str,
+    include_inactive: bool,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<TreasuryAccount>, AccountError> {
+    let accounts = if include_inactive {
+        sqlx::query_as::<_, TreasuryAccount>(
+            r#"
+            SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+                   routing_number, currency, current_balance_minor, status,
+                   credit_limit_minor, statement_closing_day, cc_network,
+                   metadata, created_at, updated_at
+            FROM treasury_bank_accounts
+            WHERE app_id = $1
+            ORDER BY account_name ASC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(app_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?
+    } else {
+        sqlx::query_as::<_, TreasuryAccount>(
+            r#"
+            SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+                   routing_number, currency, current_balance_minor, status,
+                   credit_limit_minor, statement_closing_day, cc_network,
+                   metadata, created_at, updated_at
+            FROM treasury_bank_accounts
+            WHERE app_id = $1 AND status = 'active'::treasury_account_status
+            ORDER BY account_name ASC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(app_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?
+    };
+
+    Ok(accounts)
+}
+
 // ============================================================================
 // Writes
 // ============================================================================

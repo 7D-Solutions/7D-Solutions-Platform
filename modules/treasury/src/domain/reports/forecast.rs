@@ -56,7 +56,7 @@ pub struct ScheduledPaymentInput {
 // ============================================================================
 
 /// Forecast for a single currency.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CurrencyForecast {
     pub currency: String,
     pub inflows: ForecastBuckets,
@@ -67,7 +67,7 @@ pub struct CurrencyForecast {
 }
 
 /// Amounts per aging time bucket, after applying assumption rates.
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Default, utoipa::ToSchema)]
 pub struct ForecastBuckets {
     pub current_minor: i64,
     pub days_1_30_minor: i64,
@@ -78,7 +78,7 @@ pub struct ForecastBuckets {
 }
 
 /// Full forecast response.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct ForecastResponse {
     pub as_of: DateTime<Utc>,
     pub forecasts: Vec<CurrencyForecast>,
