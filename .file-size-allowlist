@@ -64,6 +64,11 @@ modules/ttp/src/domain/billing.rs  # 488 LOC — billing run execution (types+lo
 modules/fixed-assets/src/domain/assets/models.rs          # 536 LOC — types + enums + validation impls + tests (single entity model)
 modules/fixed-assets/src/domain/depreciation/service.rs   # 528 LOC — schedule generation + run execution + queries + tests (single service)
 
+# Workflow module — cohesive concerns (bd-004bi)
+modules/workflow/src/domain/routing.rs     # 677 LOC — routing engine (types + record_decision + evaluate + helpers + tests; single RoutingEngine)
+modules/workflow/src/domain/instances.rs   # 603 LOC — instance repo (types + start/advance state machine + queries; single InstanceRepo)
+modules/workflow/src/domain/escalation.rs  # 569 LOC — escalation repo (rules + timers + tick loop; tightly coupled concerns)
+
 # Reporting module — cohesive concern (bd-ev4g4)
 modules/reporting/src/domain/statements/cashflow.rs  # 649 LOC — cashflow statement computation (types+query+cache+5 integrated tests; single concern)
 
@@ -73,3 +78,6 @@ modules/shipping-receiving/src/http/shipments/handlers.rs  # 671 LOC — 11 ship
 
 # Quality-Inspection module — cohesive concern (bd-dx75u)
 modules/quality-inspection/src/domain/inspection_service.rs  # 554 LOC — inspection CRUD + disposition state machine + queries (single entity)
+
+# Production module — cohesive concern (bd-mm0z8)
+modules/production/src/events/mod.rs  # 705 LOC — event payloads + envelope builders (one repeating pattern, single concern)
