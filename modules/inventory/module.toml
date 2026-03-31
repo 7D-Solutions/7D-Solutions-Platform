@@ -1,0 +1,21 @@
+[module]
+name = "inventory"
+version = "2.4.7"
+description = "Inventory management: items, stock, reservations, cycle counts, traceability"
+
+[server]
+host = "0.0.0.0"
+port = 8092
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "inv_outbox"
+
+[sdk]
+min_version = "0.1.0"
