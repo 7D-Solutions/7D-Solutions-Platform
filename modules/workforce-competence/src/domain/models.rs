@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// The type of competence artifact in the registry.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "TEXT", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactType {
@@ -35,7 +36,7 @@ impl std::str::FromStr for ArtifactType {
 }
 
 /// A registered competence artifact (the "what").
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CompetenceArtifact {
     pub id: Uuid,
     pub tenant_id: String,
@@ -51,7 +52,7 @@ pub struct CompetenceArtifact {
 }
 
 /// Request to register a new competence artifact.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RegisterArtifactRequest {
     pub tenant_id: String,
     pub artifact_type: ArtifactType,
@@ -65,7 +66,7 @@ pub struct RegisterArtifactRequest {
 }
 
 /// An operator's competence assignment (the "who has what").
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct OperatorCompetence {
     pub id: Uuid,
     pub tenant_id: String,
@@ -81,7 +82,7 @@ pub struct OperatorCompetence {
 }
 
 /// Request to assign a competence to an operator.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AssignCompetenceRequest {
     pub tenant_id: String,
     pub operator_id: Uuid,
@@ -106,7 +107,7 @@ pub struct AuthorizationQuery {
 }
 
 /// Result of an authorization check.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AuthorizationResult {
     pub authorized: bool,
     pub operator_id: Uuid,

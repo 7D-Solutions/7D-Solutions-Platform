@@ -12,6 +12,7 @@ pub mod grants;
 
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 pub use checks::check_acceptance_authority;
@@ -19,7 +20,7 @@ pub use grants::{grant_acceptance_authority, revoke_acceptance_authority};
 
 // -- Models ------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AcceptanceAuthority {
     pub id: Uuid,
     pub tenant_id: String,
@@ -36,7 +37,7 @@ pub struct AcceptanceAuthority {
     pub updated_at: chrono::DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GrantAuthorityRequest {
     pub tenant_id: String,
     pub operator_id: Uuid,
@@ -50,7 +51,7 @@ pub struct GrantAuthorityRequest {
     pub causation_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct RevokeAuthorityRequest {
     pub tenant_id: String,
     pub authority_id: Uuid,
@@ -68,7 +69,7 @@ pub struct AcceptanceAuthorityQuery {
     pub at_time: chrono::DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AcceptanceAuthorityResult {
     pub allowed: bool,
     pub operator_id: Uuid,

@@ -26,9 +26,13 @@ use super::tenant::{extract_tenant, with_request_id};
 use crate::{
     domain::{
         acceptance_authority::{
-            self, AcceptanceAuthorityQuery, GrantAuthorityRequest, RevokeAuthorityRequest,
+            self, AcceptanceAuthority, AcceptanceAuthorityQuery, AcceptanceAuthorityResult,
+            GrantAuthorityRequest, RevokeAuthorityRequest,
         },
-        models::{AssignCompetenceRequest, AuthorizationQuery, RegisterArtifactRequest},
+        models::{
+            AssignCompetenceRequest, AuthorizationQuery, AuthorizationResult,
+            CompetenceArtifact, OperatorCompetence, RegisterArtifactRequest,
+        },
         service,
     },
     AppState,
@@ -38,7 +42,19 @@ use crate::{
 // Handlers
 // ============================================================================
 
-/// POST /api/workforce-competence/artifacts
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/artifacts",
+    tag = "Artifacts",
+    request_body = RegisterArtifactRequest,
+    responses(
+        (status = 201, description = "Artifact created", body = CompetenceArtifact),
+        (status = 200, description = "Idempotent replay", body = CompetenceArtifact),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
 pub async fn post_artifact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -61,7 +77,18 @@ pub async fn post_artifact(
     Ok((status, Json(result)))
 }
 
-/// GET /api/workforce-competence/artifacts/{id}
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/artifacts/{id}",
+    tag = "Artifacts",
+    params(("id" = Uuid, Path, description = "Artifact ID")),
+    responses(
+        (status = 200, description = "Artifact details", body = CompetenceArtifact),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
 pub async fn get_artifact(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -86,7 +113,19 @@ pub async fn get_artifact(
     Ok((StatusCode::OK, Json(artifact)))
 }
 
-/// POST /api/workforce-competence/assignments
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/assignments",
+    tag = "Assignments",
+    request_body = AssignCompetenceRequest,
+    responses(
+        (status = 201, description = "Assignment created", body = OperatorCompetence),
+        (status = 200, description = "Idempotent replay", body = OperatorCompetence),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
 pub async fn post_assignment(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -110,13 +149,26 @@ pub async fn post_assignment(
 }
 
 /// GET /api/workforce-competence/authorization
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct AuthorizationQueryParams {
     pub operator_id: Uuid,
     pub artifact_code: String,
     pub at_time: chrono::DateTime<chrono::Utc>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/authorization",
+    tag = "Authorization",
+    params(AuthorizationQueryParams),
+    responses(
+        (status = 200, description = "Authorization result", body = AuthorizationResult),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
 pub async fn get_authorization(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -144,7 +196,19 @@ pub async fn get_authorization(
 // Acceptance authority handlers
 // ============================================================================
 
-/// POST /api/workforce-competence/acceptance-authorities
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/acceptance-authorities",
+    tag = "Acceptance Authorities",
+    request_body = GrantAuthorityRequest,
+    responses(
+        (status = 201, description = "Authority granted", body = AcceptanceAuthority),
+        (status = 200, description = "Idempotent replay", body = AcceptanceAuthority),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
 pub async fn post_grant_authority(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -168,7 +232,20 @@ pub async fn post_grant_authority(
     Ok((status, Json(result)))
 }
 
-/// POST /api/workforce-competence/acceptance-authorities/{id}/revoke
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/acceptance-authorities/{id}/revoke",
+    tag = "Acceptance Authorities",
+    params(("id" = Uuid, Path, description = "Authority ID")),
+    request_body = RevokeAuthorityRequest,
+    responses(
+        (status = 200, description = "Authority revoked", body = AcceptanceAuthority),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
 pub async fn post_revoke_authority(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -190,13 +267,26 @@ pub async fn post_revoke_authority(
 }
 
 /// GET /api/workforce-competence/acceptance-authority-check
-#[derive(Deserialize)]
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct AcceptanceAuthorityCheckParams {
     pub operator_id: Uuid,
     pub capability_scope: String,
     pub at_time: chrono::DateTime<chrono::Utc>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/acceptance-authority-check",
+    tag = "Acceptance Authorities",
+    params(AcceptanceAuthorityCheckParams),
+    responses(
+        (status = 200, description = "Authority check result", body = AcceptanceAuthorityResult),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
 pub async fn get_acceptance_authority_check(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
