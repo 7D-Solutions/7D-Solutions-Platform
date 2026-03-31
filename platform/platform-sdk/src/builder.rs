@@ -85,7 +85,7 @@ impl ModuleBuilder {
         let phase_a = startup::phase_a(&manifest).await?;
 
         // Build module context for the route factory
-        let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone());
+        let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
 
         // Build routes (or empty router if none provided)
         let module_routes = match self.routes_fn {

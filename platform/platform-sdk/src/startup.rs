@@ -1,7 +1,7 @@
 //! Two-phase startup sequence for platform modules.
 //!
 //! **Phase A** — infrastructure: dotenv, tracing, config, DB pool, migrations,
-//! JWT verifier, rate limiter, health probes.
+//! event bus, outbox publisher, JWT verifier, rate limiter.
 //!
 //! **Phase B** — HTTP: middleware stack, health routes, module routes, TCP bind,
 //! graceful shutdown.
@@ -12,6 +12,7 @@ use std::sync::Arc;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
+use event_bus::EventBus;
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };
@@ -21,6 +22,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::context::ModuleContext;
 use crate::manifest::Manifest;
+use crate::publisher;
 
 /// Errors that can occur during startup.
 #[derive(Debug, thiserror::Error)]
@@ -45,6 +47,9 @@ pub enum StartupError {
 
     #[error("manifest error: {0}")]
     Manifest(#[from] crate::manifest::ManifestError),
+
+    #[error("database has outbox table '{table}' but manifest does not declare [events.publish].outbox_table — add it or remove the table")]
+    UndeclaredOutboxTable { table: String },
 }
 
 /// Phase A: infrastructure setup.
@@ -53,9 +58,11 @@ pub enum StartupError {
 /// 2. Initialize tracing
 /// 3. Parse DATABASE_URL from env
 /// 4. Connect DB pool
-/// 5. Run migrations (if auto_migrate)
-/// 6. Build JWT verifier (optional)
-/// 7. Build rate limiter
+/// 5. Log migration intent (actual run is in Phase B)
+/// 6. Create EventBus (if bus_type != "none")
+/// 7. Detect undeclared outbox tables / spawn outbox publisher
+/// 8. Build JWT verifier (optional)
+/// 9. Build rate limiter
 pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
     dotenvy::dotenv().ok();
@@ -88,9 +95,6 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
     // Step 5: migrations
     if let Some(ref db) = manifest.database {
         if db.auto_migrate {
-            // sqlx::migrate! requires a compile-time path, so modules must
-            // still embed their own migrations. The SDK just runs the migrator
-            // they provide via the builder.
             tracing::info!(
                 module = %manifest.module.name,
                 migrations = %db.migrations,
@@ -99,7 +103,62 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         }
     }
 
-    // Step 6: JWT verifier (optional — absent in dev)
+    // Step 6: Create EventBus (if bus_type != "none")
+    let bus_type = manifest
+        .bus
+        .as_ref()
+        .map(|b| b.bus_type.to_lowercase())
+        .unwrap_or_default();
+
+    let bus: Option<Arc<dyn EventBus>> = match bus_type.as_str() {
+        "nats" => {
+            let nats_url = std::env::var("NATS_URL").map_err(|_| {
+                StartupError::Config("NATS_URL is required when bus.type=nats".into())
+            })?;
+            tracing::info!(module = %manifest.module.name, url = %nats_url, "connecting to NATS");
+            let client = event_bus::connect_nats(&nats_url)
+                .await
+                .map_err(|e| StartupError::Config(format!("NATS connection failed: {e}")))?;
+            tracing::info!(module = %manifest.module.name, "NATS event bus connected");
+            Some(Arc::new(event_bus::NatsBus::new(client)))
+        }
+        "inmemory" => {
+            tracing::info!(module = %manifest.module.name, "in-memory event bus created");
+            Some(Arc::new(event_bus::InMemoryBus::new()))
+        }
+        _ => None, // "none", missing section
+    };
+
+    // Step 7: outbox publisher / undeclared outbox detection
+    let outbox_table = manifest
+        .events
+        .as_ref()
+        .and_then(|e| e.publish.as_ref())
+        .map(|p| p.outbox_table.clone());
+
+    if let Some(ref table) = outbox_table {
+        if let Some(ref bus) = bus {
+            let pub_pool = pool.clone();
+            let pub_bus = bus.clone();
+            let pub_table = table.clone();
+            let pub_module = manifest.module.name.clone();
+            tokio::spawn(async move {
+                publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, &pub_module).await;
+            });
+            tracing::info!(
+                module = %manifest.module.name,
+                outbox_table = %table,
+                "outbox publisher task spawned"
+            );
+        }
+    } else if bus.is_some() {
+        // No outbox_table declared — check if DB secretly has one.
+        if let Some(found) = publisher::detect_outbox_table(&pool).await? {
+            return Err(StartupError::UndeclaredOutboxTable { table: found });
+        }
+    }
+
+    // Step 8: JWT verifier (optional — absent in dev)
     let jwt_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
     if jwt_verifier.is_some() {
         tracing::info!(module = %manifest.module.name, "JWT verifier initialized");
@@ -110,11 +169,12 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         );
     }
 
-    // Step 7: rate limiter
+    // Step 9: rate limiter
     let rate_limiter = default_rate_limiter();
 
     Ok(PhaseAOutput {
         pool,
+        bus,
         jwt_verifier,
         rate_limiter,
     })
@@ -122,14 +182,12 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
 
 pub(crate) struct PhaseAOutput {
     pub pool: sqlx::PgPool,
+    pub bus: Option<Arc<dyn EventBus>>,
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub rate_limiter: Arc<security::ratelimit::RateLimiter>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
-///
-/// Steps 9-11: health routes, metrics endpoint, module routes.
-/// Steps 12-18: middleware stack, TCP bind, graceful shutdown.
 pub(crate) async fn phase_b(
     manifest: &Manifest,
     phase_a: PhaseAOutput,
@@ -159,7 +217,7 @@ pub(crate) async fn phase_b(
         }
     }
 
-    let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone());
+    let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
     let shutdown_pool = phase_a.pool.clone();
 
     // Health routes

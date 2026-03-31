@@ -21,21 +21,20 @@
 //!         .expect("module failed");
 //! }
 //! ```
-//!
-//! This version provides the HTTP-only core. Event bus, outbox, and consumer
-//! support arrive in later SDK slices.
 
 pub mod builder;
 pub mod context;
 pub mod manifest;
+pub mod publisher;
 pub mod startup;
 
 pub use builder::ModuleBuilder;
-pub use context::ModuleContext;
+pub use context::{BusNotAvailable, ModuleContext};
 pub use manifest::Manifest;
 pub use startup::StartupError;
 
 // Re-export commonly needed types so modules don't have to depend on
 // platform sub-crates directly for basic operations.
+pub use event_bus::EventBus;
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;

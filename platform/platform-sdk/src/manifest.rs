@@ -61,6 +61,8 @@ pub struct Manifest {
     #[serde(default)]
     pub bus: Option<BusSection>,
     #[serde(default)]
+    pub events: Option<EventsSection>,
+    #[serde(default)]
     pub sdk: Option<SdkSection>,
 
     /// Unknown top-level keys are captured here so we can warn without erroring.
@@ -136,6 +138,27 @@ fn default_bus_type() -> String {
     "inmemory".to_string()
 }
 
+/// `[events]` — event publishing and consuming configuration.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct EventsSection {
+    /// `[events.publish]` — outbox publisher settings.
+    #[serde(default)]
+    pub publish: Option<EventsPublishSection>,
+
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
+/// `[events.publish]` — outbox publisher configuration.
+#[derive(Debug, Clone, Deserialize)]
+pub struct EventsPublishSection {
+    /// Name of the outbox table to poll (e.g. `"events_outbox"`).
+    pub outbox_table: String,
+
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
 /// `[sdk]` — SDK compatibility constraints.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SdkSection {
@@ -173,12 +196,47 @@ impl Manifest {
 
         // Validate bus type if present.
         if let Some(ref bus) = self.bus {
-            let valid_types = ["nats", "inmemory"];
+            let valid_types = ["nats", "inmemory", "none"];
             if !valid_types.contains(&bus.bus_type.to_lowercase().as_str()) {
                 return Err(ManifestError::Validation(format!(
                     "bus.type must be one of {:?}, got '{}'",
                     valid_types, bus.bus_type
                 )));
+            }
+        }
+
+        // Validate events section if present.
+        if let Some(ref events) = self.events {
+            if let Some(ref publish) = events.publish {
+                if publish.outbox_table.trim().is_empty() {
+                    return Err(ManifestError::Validation(
+                        "events.publish.outbox_table must not be empty".into(),
+                    ));
+                }
+                if !publish
+                    .outbox_table
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                {
+                    return Err(ManifestError::Validation(format!(
+                        "events.publish.outbox_table '{}' contains invalid characters \
+                         (only ASCII alphanumeric and underscores allowed)",
+                        publish.outbox_table
+                    )));
+                }
+                // Publishing requires a bus.
+                let bus_type = self
+                    .bus
+                    .as_ref()
+                    .map(|b| b.bus_type.to_lowercase())
+                    .unwrap_or_default();
+                if bus_type == "none" || bus_type.is_empty() {
+                    return Err(ManifestError::Validation(
+                        "events.publish.outbox_table is declared but no event bus is configured \
+                         — set [bus] type to 'nats' or 'inmemory'"
+                            .into(),
+                    ));
+                }
             }
         }
 
@@ -227,6 +285,12 @@ impl Manifest {
         }
         if let Some(ref bus) = self.bus {
             warn_extra_keys("bus", &bus.extra);
+        }
+        if let Some(ref events) = self.events {
+            warn_extra_keys("events", &events.extra);
+            if let Some(ref publish) = events.publish {
+                warn_extra_keys("events.publish", &publish.extra);
+            }
         }
         if let Some(ref sdk) = self.sdk {
             warn_extra_keys("sdk", &sdk.extra);
@@ -392,6 +456,79 @@ auto_migrate = true
             ManifestError::Validation(msg) => assert!(msg.contains("does not exist")),
             other => panic!("expected validation error, got: {}", other),
         }
+    }
+
+    #[test]
+    fn events_publish_section_parses() {
+        let toml_str = r#"
+[module]
+name = "with-events"
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("events section should parse");
+        let publish = manifest
+            .events
+            .expect("events section")
+            .publish
+            .expect("publish section");
+        assert_eq!(publish.outbox_table, "events_outbox");
+    }
+
+    #[test]
+    fn empty_outbox_table_fails() {
+        let toml_str = r#"
+[module]
+name = "bad-outbox"
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = ""
+"#;
+        let err = Manifest::from_str(toml_str, None).expect_err("empty outbox table should fail");
+        match err {
+            ManifestError::Validation(msg) => assert!(msg.contains("must not be empty")),
+            other => panic!("expected validation error, got: {}", other),
+        }
+    }
+
+    #[test]
+    fn outbox_table_without_bus_fails() {
+        let toml_str = r#"
+[module]
+name = "no-bus"
+
+[events.publish]
+outbox_table = "events_outbox"
+"#;
+        let err =
+            Manifest::from_str(toml_str, None).expect_err("outbox without bus should fail");
+        match err {
+            ManifestError::Validation(msg) => assert!(msg.contains("no event bus is configured")),
+            other => panic!("expected validation error, got: {}", other),
+        }
+    }
+
+    #[test]
+    fn none_bus_type_parses() {
+        let toml_str = r#"
+[module]
+name = "no-bus"
+
+[bus]
+type = "none"
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("none bus type should parse");
+        assert_eq!(
+            manifest.bus.as_ref().expect("bus section").bus_type.as_str(),
+            "none"
+        );
     }
 
     #[test]

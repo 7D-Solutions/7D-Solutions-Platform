@@ -1,10 +1,11 @@
 //! Runtime context shared across all handlers in a module.
 //!
 //! [`ModuleContext`] provides access to the database pool, configuration,
-//! and (eventually) the event bus. Handlers receive it via Axum state.
+//! and the event bus. Handlers receive it via Axum state.
 
 use std::sync::Arc;
 
+use event_bus::EventBus;
 use sqlx::PgPool;
 
 use crate::manifest::Manifest;
@@ -16,14 +17,16 @@ use crate::manifest::Manifest;
 pub struct ModuleContext {
     pool: PgPool,
     manifest: Arc<Manifest>,
+    bus: Option<Arc<dyn EventBus>>,
 }
 
 impl ModuleContext {
-    /// Create a new context from a database pool and parsed manifest.
-    pub(crate) fn new(pool: PgPool, manifest: Manifest) -> Self {
+    /// Create a new context from a database pool, parsed manifest, and optional bus.
+    pub(crate) fn new(pool: PgPool, manifest: Manifest, bus: Option<Arc<dyn EventBus>>) -> Self {
         Self {
             pool,
             manifest: Arc::new(manifest),
+            bus,
         }
     }
 
@@ -37,12 +40,13 @@ impl ModuleContext {
         &self.manifest
     }
 
-    /// Attempt to access the event bus.
+    /// Access the event bus.
     ///
-    /// Returns `Err` in this SDK version — event bus support is added in
-    /// Slice 3. Callers that need the bus today should wire it manually.
-    pub fn bus(&self) -> Result<(), BusNotAvailable> {
-        Err(BusNotAvailable)
+    /// Returns `Ok` when a bus was configured via `[bus]` in the manifest.
+    /// Returns `Err(BusNotAvailable)` when bus type is `"none"` or the
+    /// `[bus]` section is absent.
+    pub fn bus(&self) -> Result<&dyn EventBus, BusNotAvailable> {
+        self.bus.as_deref().ok_or(BusNotAvailable)
     }
 
     /// Check that the caller has the given permission.
@@ -58,7 +62,7 @@ impl ModuleContext {
     }
 }
 
-/// Error returned when a module tries to access the event bus before Slice 3.
+/// Error returned when a module tries to access the event bus without one configured.
 #[derive(Debug, thiserror::Error)]
-#[error("event bus is not available in this SDK version — use Slice 3+")]
+#[error("event bus is not available — configure [bus] in module.toml")]
 pub struct BusNotAvailable;
