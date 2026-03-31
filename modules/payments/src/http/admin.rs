@@ -8,26 +8,22 @@
 use crate::AppState;
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     routing::{get, post},
     Json, Router,
 };
+use platform_http_contracts::ApiError;
 use projections::admin;
 use std::sync::Arc;
-
-use super::admin_types::ErrorBody;
 
 fn extract_token(headers: &HeaderMap) -> Option<&str> {
     headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
-fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
+fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
     admin::verify_admin_token(extract_token(headers)).map_err(|msg| {
         tracing::warn!(reason = msg, "Admin request rejected");
-        (
-            StatusCode::FORBIDDEN,
-            Json(ErrorBody::new("forbidden", msg)),
-        )
+        ApiError::forbidden(msg)
     })
 }
 
@@ -35,16 +31,14 @@ async fn projection_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
-) -> Result<Json<admin::ProjectionStatusResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ProjectionStatusResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: projection-status");
     let resp = admin::query_projection_status(&state.pool, &req)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
+            tracing::error!("Admin projection-status error: {}", e);
+            ApiError::internal("Internal error")
         })?;
     Ok(Json(resp))
 }
@@ -53,16 +47,14 @@ async fn consistency_check(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
-) -> Result<Json<admin::ConsistencyCheckResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ConsistencyCheckResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: consistency-check");
     let resp = admin::query_consistency_check(&state.pool, &req)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
+            tracing::error!("Admin consistency-check error: {}", e);
+            ApiError::internal("Internal error")
         })?;
     Ok(Json(resp))
 }
@@ -70,16 +62,14 @@ async fn consistency_check(
 async fn list_projections(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<admin::ProjectionListResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<admin::ProjectionListResponse>, ApiError> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
     let resp = admin::query_projection_list(&state.pool)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
+            tracing::error!("Admin list-projections error: {}", e);
+            ApiError::internal("Internal error")
         })?;
     Ok(Json(resp))
 }

@@ -1,18 +1,14 @@
 //! Checkout session types, validation, and Tilled payment processor integration.
 
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 // ============================================================================
 // Request / Response types
 // ============================================================================
 
 /// POST /api/payments/checkout-sessions request body
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateCheckoutSessionRequest {
     pub invoice_id: String,
     pub tenant_id: String,
@@ -26,7 +22,7 @@ pub struct CreateCheckoutSessionRequest {
 }
 
 /// POST /api/payments/checkout-sessions response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CreateCheckoutSessionResponse {
     pub session_id: String,
     pub payment_intent_id: String,
@@ -35,7 +31,7 @@ pub struct CreateCheckoutSessionResponse {
 }
 
 /// GET /api/payments/checkout-sessions/:id response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CheckoutSessionStatusResponse {
     pub session_id: String,
     pub status: String,
@@ -51,34 +47,10 @@ pub struct CheckoutSessionStatusResponse {
 }
 
 /// GET /api/payments/checkout-sessions/:id/status response (no secrets)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SessionStatusPollResponse {
     pub session_id: String,
     pub status: String,
-}
-
-/// Error response body
-#[derive(Debug, Serialize)]
-struct ErrorBody {
-    pub error: String,
-}
-
-/// HTTP error wrapper
-pub struct ApiError {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        (
-            self.status,
-            Json(ErrorBody {
-                error: self.message,
-            }),
-        )
-            .into_response()
-    }
 }
 
 // ============================================================================

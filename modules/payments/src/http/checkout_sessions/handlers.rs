@@ -17,6 +17,8 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -24,51 +26,89 @@ use uuid::Uuid;
 use crate::webhook_signature::{validate_webhook_signature, WebhookSource};
 
 use super::session_logic::{
-    create_tilled_payment_intent, poll_tilled_intent_status, validate_https_url, ApiError,
+    create_tilled_payment_intent, poll_tilled_intent_status, validate_https_url,
     CheckoutSessionStatusResponse, CreateCheckoutSessionRequest, CreateCheckoutSessionResponse,
     SessionStatusPollResponse,
 };
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
+    }
+}
+
+fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
+    match ctx {
+        Some(Extension(c)) => {
+            if let Some(tid) = &c.trace_id {
+                err.with_request_id(tid.clone())
+            } else {
+                err
+            }
+        }
+        None => err,
+    }
+}
+
+// ============================================================================
 // POST /api/payments/checkout-sessions
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/payments/checkout-sessions",
+    tag = "Checkout Sessions",
+    request_body = CreateCheckoutSessionRequest,
+    responses(
+        (status = 200, description = "Session created", body = CreateCheckoutSessionResponse),
+        (status = 400, description = "Invalid request", body = ApiError),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 502, description = "Payment processor error", body = ApiError),
+    ),
+    security(("bearer" = ["PAYMENTS_MUTATE"]))
+)]
 pub async fn create_checkout_session(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateCheckoutSessionRequest>,
 ) -> Result<Json<CreateCheckoutSessionResponse>, ApiError> {
-    let tenant_id = extract_tenant(&claims)?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
     req.tenant_id = tenant_id;
 
     if req.invoice_id.is_empty() || req.currency.is_empty() {
-        return Err(ApiError {
-            status: StatusCode::BAD_REQUEST,
-            message: "invoice_id and currency are required".to_string(),
-        });
+        return Err(with_request_id(
+            ApiError::bad_request("invoice_id and currency are required"),
+            &tracing_ctx,
+        ));
     }
     if req.amount <= 0 {
-        return Err(ApiError {
-            status: StatusCode::BAD_REQUEST,
-            message: "amount must be positive".to_string(),
-        });
+        return Err(with_request_id(
+            ApiError::bad_request("amount must be positive"),
+            &tracing_ctx,
+        ));
     }
 
     // Strict URL validation: absolute HTTPS only, no injection
     if let Some(ref url) = req.return_url {
         if !validate_https_url(url) {
-            return Err(ApiError {
-                status: StatusCode::BAD_REQUEST,
-                message: "return_url must be an absolute HTTPS URL".to_string(),
-            });
+            return Err(with_request_id(
+                ApiError::bad_request("return_url must be an absolute HTTPS URL"),
+                &tracing_ctx,
+            ));
         }
     }
     if let Some(ref url) = req.cancel_url {
         if !validate_https_url(url) {
-            return Err(ApiError {
-                status: StatusCode::BAD_REQUEST,
-                message: "cancel_url must be an absolute HTTPS URL".to_string(),
-            });
+            return Err(with_request_id(
+                ApiError::bad_request("cancel_url must be an absolute HTTPS URL"),
+                &tracing_ctx,
+            ));
         }
     }
 
@@ -80,10 +120,10 @@ pub async fn create_checkout_session(
             .await
             .map_err(|e| {
                 tracing::error!("Tilled API error: {}", e);
-                ApiError {
-                    status: StatusCode::BAD_GATEWAY,
-                    message: "Payment processor error".to_string(),
-                }
+                with_request_id(
+                    ApiError::new(502, "bad_gateway", "Payment processor error"),
+                    &tracing_ctx,
+                )
             })?
     } else {
         // Mock provider: generate fake IDs for dev/test
@@ -111,10 +151,10 @@ pub async fn create_checkout_session(
     .await
     .map_err(|e| {
         tracing::error!("Failed to insert checkout session: {}", e);
-        ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(
+            ApiError::internal("Internal database error"),
+            &tracing_ctx,
+        )
     })?;
 
     tracing::info!(
@@ -136,12 +176,25 @@ pub async fn create_checkout_session(
 // GET /api/payments/checkout-sessions/:id
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/payments/checkout-sessions/{id}",
+    tag = "Checkout Sessions",
+    params(("id" = Uuid, Path, description = "Checkout session ID")),
+    responses(
+        (status = 200, description = "Session details", body = CheckoutSessionStatusResponse),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Session not found", body = ApiError),
+    ),
+    security(("bearer" = ["PAYMENTS_MUTATE"]))
+)]
 pub async fn get_checkout_session(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<CheckoutSessionStatusResponse>, ApiError> {
-    let tenant_id = extract_tenant(&claims)?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     #[derive(sqlx::FromRow)]
     struct SessionRow {
@@ -166,15 +219,17 @@ pub async fn get_checkout_session(
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
-        ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(
+            ApiError::internal("Internal database error"),
+            &tracing_ctx,
+        )
     })?;
 
-    let session = row.ok_or_else(|| ApiError {
-        status: StatusCode::NOT_FOUND,
-        message: format!("Checkout session not found: {}", session_id),
+    let session = row.ok_or_else(|| {
+        with_request_id(
+            ApiError::not_found(format!("Checkout session not found: {}", session_id)),
+            &tracing_ctx,
+        )
     })?;
 
     // For non-terminal sessions, poll Tilled for live status
@@ -227,12 +282,25 @@ pub async fn get_checkout_session(
 // If already in 'presented' or a terminal state, returns 200 (no-op).
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/payments/checkout-sessions/{id}/present",
+    tag = "Checkout Sessions",
+    params(("id" = Uuid, Path, description = "Checkout session ID")),
+    responses(
+        (status = 200, description = "Session presented (or already in later state)"),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Session not found", body = ApiError),
+    ),
+    security(("bearer" = ["PAYMENTS_MUTATE"]))
+)]
 pub async fn present_checkout_session(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> Result<StatusCode, ApiError> {
-    let tenant_id = extract_tenant(&claims)?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     let rows = sqlx::query(
         "UPDATE checkout_sessions \
@@ -245,10 +313,10 @@ pub async fn present_checkout_session(
     .await
     .map_err(|e| {
         tracing::error!("Database error updating checkout session: {}", e);
-        ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        with_request_id(
+            ApiError::internal("Internal database error"),
+            &tracing_ctx,
+        )
     })?
     .rows_affected();
 
@@ -263,17 +331,17 @@ pub async fn present_checkout_session(
         .await
         .map_err(|e| {
             tracing::error!("Database error checking session existence: {}", e);
-            ApiError {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: "Internal database error".to_string(),
-            }
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
         })?;
 
         if !exists {
-            return Err(ApiError {
-                status: StatusCode::NOT_FOUND,
-                message: format!("Checkout session not found: {}", session_id),
-            });
+            return Err(with_request_id(
+                ApiError::not_found(format!("Checkout session not found: {}", session_id)),
+                &tracing_ctx,
+            ));
         }
         // Already presented or terminal — idempotent no-op
     }
@@ -288,12 +356,25 @@ pub async fn present_checkout_session(
 // Used by the hosted pay page for client-side status polling after payment.
 // ============================================================================
 
+#[utoipa::path(
+    get,
+    path = "/api/payments/checkout-sessions/{id}/status",
+    tag = "Checkout Sessions",
+    params(("id" = Uuid, Path, description = "Checkout session ID")),
+    responses(
+        (status = 200, description = "Session status", body = SessionStatusPollResponse),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 404, description = "Session not found", body = ApiError),
+    ),
+    security(("bearer" = ["PAYMENTS_MUTATE"]))
+)]
 pub async fn poll_checkout_session_status(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<SessionStatusPollResponse>, ApiError> {
-    let tenant_id = extract_tenant(&claims)?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     let status: Option<String> =
         sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1 AND tenant_id = $2")
@@ -303,15 +384,17 @@ pub async fn poll_checkout_session_status(
             .await
             .map_err(|e| {
                 tracing::error!("Database error polling session status: {}", e);
-                ApiError {
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                    message: "Internal database error".to_string(),
-                }
+                with_request_id(
+                    ApiError::internal("Internal database error"),
+                    &tracing_ctx,
+                )
             })?;
 
-    let status = status.ok_or_else(|| ApiError {
-        status: StatusCode::NOT_FOUND,
-        message: format!("Checkout session not found: {}", session_id),
+    let status = status.ok_or_else(|| {
+        with_request_id(
+            ApiError::not_found(format!("Checkout session not found: {}", session_id)),
+            &tracing_ctx,
+        )
     })?;
 
     Ok(Json(SessionStatusPollResponse {
@@ -322,8 +405,19 @@ pub async fn poll_checkout_session_status(
 
 // ============================================================================
 // POST /api/payments/webhook/tilled  — Tilled PSP callbacks
+// NOTE: This endpoint is UNAUTHENTICATED — webhook signature is the only guard.
 // ============================================================================
 
+#[utoipa::path(
+    post,
+    path = "/api/payments/webhook/tilled",
+    tag = "Webhooks",
+    responses(
+        (status = 200, description = "Webhook processed"),
+        (status = 400, description = "Invalid JSON body", body = ApiError),
+        (status = 401, description = "Invalid signature", body = ApiError),
+    ),
+)]
 pub async fn tilled_webhook(
     State(state): State<Arc<crate::AppState>>,
     headers: HeaderMap,
@@ -350,15 +444,11 @@ pub async fn tilled_webhook(
     }
 
     validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets).map_err(
-        |e| ApiError {
-            status: StatusCode::UNAUTHORIZED,
-            message: format!("Webhook signature invalid: {}", e),
-        },
+        |e| ApiError::unauthorized(format!("Webhook signature invalid: {}", e)),
     )?;
 
-    let event: serde_json::Value = serde_json::from_slice(&body).map_err(|_| ApiError {
-        status: StatusCode::BAD_REQUEST,
-        message: "Invalid JSON body".to_string(),
+    let event: serde_json::Value = serde_json::from_slice(&body).map_err(|_| {
+        ApiError::bad_request("Invalid JSON body")
     })?;
 
     let event_type = event["type"].as_str().unwrap_or("");
@@ -390,10 +480,7 @@ pub async fn tilled_webhook(
     .await
     .map_err(|e| {
         tracing::error!("Database error in webhook handler: {}", e);
-        ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            message: "Internal database error".to_string(),
-        }
+        ApiError::internal("Internal database error")
     })?
     .rows_affected();
 
@@ -406,18 +493,4 @@ pub async fn tilled_webhook(
     );
 
     Ok(StatusCode::OK)
-}
-
-// ============================================================================
-// Auth helper
-// ============================================================================
-
-pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Missing or invalid authentication".to_string(),
-        }),
-    }
 }

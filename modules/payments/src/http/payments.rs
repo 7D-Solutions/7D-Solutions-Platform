@@ -5,27 +5,42 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
     Extension, Json,
 };
+use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use projections::{cursor::ProjectionCursor, CircuitBreaker, FallbackMetrics, FallbackPolicy};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::http::checkout_sessions::extract_tenant;
 
+fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
+    match ctx {
+        Some(Extension(c)) => {
+            if let Some(tid) = &c.trace_id {
+                err.with_request_id(tid.clone())
+            } else {
+                err
+            }
+        }
+        None => err,
+    }
+}
+
 /// Query parameters for payment endpoint
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct PaymentQuery {
     /// Payment ID
     pub payment_id: Uuid,
 }
 
 /// Payment response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PaymentResponse {
     pub payment_id: Uuid,
     pub tenant_id: String,
@@ -35,19 +50,13 @@ pub struct PaymentResponse {
 }
 
 /// Indicates where the data came from
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum DataSource {
     /// Data from projection (fast path)
     Projection,
     /// Data from HTTP fallback (write service)
     Fallback,
-}
-
-/// Error response
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
 }
 
 /// Handler for GET /api/payments/payments
@@ -58,15 +67,26 @@ pub struct ErrorResponse {
 /// 3. Otherwise, query projection normally
 ///
 /// This prevents cascading failures when projections fall behind.
+#[utoipa::path(
+    get,
+    path = "/api/payments/payments",
+    tag = "Payments",
+    params(PaymentQuery),
+    responses(
+        (status = 200, description = "Payment details", body = PaymentResponse),
+        (status = 401, description = "Unauthorized", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["PAYMENTS_MUTATE"]))
+)]
 pub async fn get_payment(
     State(app_state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<PaymentQuery>,
-) -> Result<Json<PaymentResponse>, PaymentErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|_| PaymentErrorResponse {
-        status: StatusCode::UNAUTHORIZED,
-        message: "Missing or invalid authentication".to_string(),
-    })?;
+) -> Result<Json<PaymentResponse>, ApiError> {
+    let tenant_id =
+        extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     // In production, these would be stored in AppState
     let policy = FallbackPolicy::new(5000, 200); // 5s staleness, 200ms budget
@@ -78,10 +98,10 @@ pub async fn get_payment(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load projection cursor: {}", e);
-            PaymentErrorResponse {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: "Internal database error".to_string(),
-            }
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
         })?;
 
     // Check if projection is stale and fallback is possible
@@ -121,10 +141,10 @@ pub async fn get_payment(
         .await
         .map_err(|e| {
             tracing::error!("Failed to query payment projection: {}", e);
-            PaymentErrorResponse {
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                message: "Internal database error".to_string(),
-            }
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
         })?;
 
     Ok(Json(payment))
@@ -173,20 +193,4 @@ async fn query_write_service(
         status: "completed".to_string(),
         data_source: DataSource::Fallback,
     })
-}
-
-/// Error response wrapper for proper HTTP error handling
-#[derive(Debug)]
-pub struct PaymentErrorResponse {
-    pub status: StatusCode,
-    pub message: String,
-}
-
-impl IntoResponse for PaymentErrorResponse {
-    fn into_response(self) -> Response {
-        let body = Json(ErrorResponse {
-            error: self.message,
-        });
-        (self.status, body).into_response()
-    }
 }
