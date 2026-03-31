@@ -364,7 +364,7 @@ async fn smoke_shipping_receiving() {
             "{base}/api/shipping-receiving/shipments/{inbound_id}/status"
         ))
         .bearer_auth(&jwt)
-        .json(&json!({"status": "arrived"}))
+        .json(&json!({"status": "arrived", "arrived_at": chrono::Utc::now().to_rfc3339()}))
         .send()
         .await
         .expect("arrived failed");

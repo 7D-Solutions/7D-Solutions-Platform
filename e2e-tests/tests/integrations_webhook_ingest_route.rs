@@ -299,7 +299,7 @@ async fn test_webhook_replay_does_not_double_route() {
     cleanup(&pool, &app_id).await;
 }
 
-/// Unsupported system name returns 404.
+/// Unsupported system name returns 400 (cannot determine tenant).
 #[tokio::test]
 async fn test_unsupported_system_rejected() {
     let pool = get_integrations_pool().await;
@@ -317,8 +317,8 @@ async fn test_unsupported_system_rejected() {
 
     assert_eq!(
         status,
-        StatusCode::NOT_FOUND,
-        "unknown system must return 404; body={}",
+        StatusCode::BAD_REQUEST,
+        "unknown system must return 400; body={}",
         body
     );
 }

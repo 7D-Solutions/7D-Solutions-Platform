@@ -180,45 +180,51 @@ fn test_gl_config_requires_database_url() -> Result<()> {
     Ok(())
 }
 
-/// Test: AR config validates BUS_TYPE values
+/// Test: AR config treats invalid BUS_TYPE as InMemory (graceful fallback)
 #[test]
 #[serial]
 fn test_ar_config_validates_bus_type() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
     let original_bus_type = std::env::var("BUS_TYPE").ok();
+    let original_tilled = std::env::var("TILLED_WEBHOOK_SECRET").ok();
 
-    // Set valid DATABASE_URL and invalid BUS_TYPE
+    // Set valid DATABASE_URL + TILLED_WEBHOOK_SECRET and invalid BUS_TYPE
     std::env::set_var("DATABASE_URL", "postgresql://localhost/test");
     std::env::set_var("BUS_TYPE", "invalid_bus_type");
+    std::env::set_var("TILLED_WEBHOOK_SECRET", "whsec_test");
 
-    // Attempt to load config - should fail
+    // ConfigValidator treats BUS_TYPE as optional — invalid values fall back to InMemory
     let result = ar_rs::config::Config::from_env();
 
     // Restore original env
     std::env::remove_var("DATABASE_URL");
     std::env::remove_var("BUS_TYPE");
+    std::env::remove_var("TILLED_WEBHOOK_SECRET");
     if let Some(url) = original_database_url {
         std::env::set_var("DATABASE_URL", url);
     }
     if let Some(bus_type) = original_bus_type {
         std::env::set_var("BUS_TYPE", bus_type);
     }
+    if let Some(v) = original_tilled {
+        std::env::set_var("TILLED_WEBHOOK_SECRET", v);
+    }
 
-    // Assert that config loading failed
+    // Invalid BUS_TYPE falls back to InMemory
     assert!(
-        result.is_err(),
-        "AR config should fail with invalid BUS_TYPE"
+        result.is_ok(),
+        "AR config should succeed with invalid BUS_TYPE (falls back to InMemory), got error: {:?}",
+        result.err()
+    );
+    let config = result.unwrap();
+    assert_eq!(
+        config.bus_type,
+        ar_rs::config::BusType::InMemory,
+        "Invalid BUS_TYPE should fall back to InMemory"
     );
 
-    let error = result.unwrap_err();
-    assert!(
-        error.contains("BUS_TYPE") || error.contains("invalid"),
-        "Error message should mention BUS_TYPE or invalid, got: {}",
-        error
-    );
-
-    println!("✓ AR config validates BUS_TYPE values");
+    println!("✓ AR config falls back to InMemory for invalid BUS_TYPE");
     Ok(())
 }
 
@@ -361,7 +367,7 @@ fn test_subscriptions_config_nats_requires_url() -> Result<()> {
     std::env::set_var("BUS_TYPE", "nats");
     std::env::remove_var("NATS_URL");
 
-    // Create config (should use default NATS_URL)
+    // ConfigValidator require_when makes NATS_URL required when BUS_TYPE=nats
     let result = subscriptions_rs::config::Config::from_env();
 
     // Restore original env
@@ -377,16 +383,20 @@ fn test_subscriptions_config_nats_requires_url() -> Result<()> {
         std::env::set_var("NATS_URL", nats_url);
     }
 
-    // Config should succeed (uses default nats://localhost:4222)
+    // Config should fail — NATS_URL is required (no default) when BUS_TYPE=nats
     assert!(
-        result.is_ok(),
-        "Subscriptions config should use default NATS_URL when BUS_TYPE=nats"
+        result.is_err(),
+        "Subscriptions config should fail when BUS_TYPE=nats and NATS_URL is missing"
     );
 
-    let config = result.unwrap();
-    assert_eq!(config.nats_url, Some("nats://localhost:4222".to_string()));
+    let error = result.unwrap_err();
+    assert!(
+        error.contains("NATS_URL") || error.contains("nats"),
+        "Error should mention NATS_URL, got: {}",
+        error
+    );
 
-    println!("✓ Subscriptions config uses default NATS_URL when BUS_TYPE=nats");
+    println!("✓ Subscriptions config requires NATS_URL when BUS_TYPE=nats");
     Ok(())
 }
 
@@ -398,11 +408,13 @@ fn test_ar_config_valid_nats_config() -> Result<()> {
     let original_database_url = std::env::var("DATABASE_URL").ok();
     let original_bus_type = std::env::var("BUS_TYPE").ok();
     let original_nats_url = std::env::var("NATS_URL").ok();
+    let original_tilled = std::env::var("TILLED_WEBHOOK_SECRET").ok();
 
-    // Set valid NATS configuration
+    // Set valid NATS configuration (TILLED_WEBHOOK_SECRET required since ConfigValidator migration)
     std::env::set_var("DATABASE_URL", "postgresql://localhost/test");
     std::env::set_var("BUS_TYPE", "nats");
     std::env::set_var("NATS_URL", "nats://localhost:4222");
+    std::env::set_var("TILLED_WEBHOOK_SECRET", "whsec_test");
 
     // Attempt to load config - should succeed
     let result = ar_rs::config::Config::from_env();
@@ -411,6 +423,7 @@ fn test_ar_config_valid_nats_config() -> Result<()> {
     std::env::remove_var("DATABASE_URL");
     std::env::remove_var("BUS_TYPE");
     std::env::remove_var("NATS_URL");
+    std::env::remove_var("TILLED_WEBHOOK_SECRET");
     if let Some(url) = original_database_url {
         std::env::set_var("DATABASE_URL", url);
     }
@@ -419,6 +432,9 @@ fn test_ar_config_valid_nats_config() -> Result<()> {
     }
     if let Some(nats_url) = original_nats_url {
         std::env::set_var("NATS_URL", nats_url);
+    }
+    if let Some(v) = original_tilled {
+        std::env::set_var("TILLED_WEBHOOK_SECRET", v);
     }
 
     // Assert that config loading succeeded

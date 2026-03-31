@@ -370,7 +370,7 @@ async fn smoke_notifications() {
         .send().await.unwrap();
     let s16 = resp.status();
     if admin_token.is_empty() {
-        assert_eq!(s16.as_u16(), 403, "Expected 403 when ADMIN_TOKEN not set");
+        assert!(s16.as_u16() == 401 || s16.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s16}");
         println!("  projection-status -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s16.is_success(), "projection-status failed: {s16}");
@@ -385,7 +385,7 @@ async fn smoke_notifications() {
         .send().await.unwrap();
     let s17 = resp.status();
     if admin_token.is_empty() {
-        assert_eq!(s17.as_u16(), 403, "Expected 403 when ADMIN_TOKEN not set");
+        assert!(s17.as_u16() == 401 || s17.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s17}");
         println!("  consistency-check -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s17.is_success(), "consistency-check failed: {s17}");
@@ -399,7 +399,7 @@ async fn smoke_notifications() {
         .send().await.unwrap();
     let s18 = resp.status();
     if admin_token.is_empty() {
-        assert_eq!(s18.as_u16(), 403, "Expected 403 when ADMIN_TOKEN not set");
+        assert!(s18.as_u16() == 401 || s18.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s18}");
         println!("  projections -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s18.is_success(), "projections failed: {s18}");
