@@ -1,0 +1,21 @@
+[module]
+name = "pdf-editor"
+version = "2.1.4"
+description = "PDF template management, form submissions, annotations, and document generation"
+
+[server]
+host = "0.0.0.0"
+port = 8121
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

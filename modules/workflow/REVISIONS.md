@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.3 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/bus/outbox/middleware/health/shutdown boilerplate with SDK startup sequence. Bus and outbox publisher now configured via module.toml. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.2 | 2026-03-31 | bd-vnuvp.7 | Add tenant_id filter to all escalation queries: fire_timer guard/rule/count/update, arm_timer/arm_timer_with_due_at existing checks, get_timer, tick_inner cancel. Removed unused global tick() that bypassed tenant isolation. | Tenant isolation bug: 4+ queries on escalation_timers and escalation_rules could cross tenant boundaries. | No |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.0 | 2026-03-30 | bd-2oyhr | OpenAPI via utoipa: 8 annotated handlers, /api/openapi.json endpoint (6 paths, 13 schemas), openapi_dump binary, ToSchema derives on all API types, IntoParams on query params. | Consumers can generate typed clients from the served spec. | No |

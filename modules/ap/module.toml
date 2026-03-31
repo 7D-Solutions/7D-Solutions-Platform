@@ -1,0 +1,21 @@
+[module]
+name = "ap"
+version = "2.1.4"
+description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
+
+[server]
+host = "0.0.0.0"
+port = 8093
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"

@@ -1,6 +1,6 @@
 [package]
 name = "numbering"
-version = "2.1.2"
+version = "2.1.3"
 edition = "2021"
 description = "Numbering service: tenant-scoped, idempotent, atomic sequence allocation"
 
@@ -24,6 +24,7 @@ path = "src/lib.rs"
 axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 platform_contracts = { path = "../../platform/platform-contracts" }
 config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
