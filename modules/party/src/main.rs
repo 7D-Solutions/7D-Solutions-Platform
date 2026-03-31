@@ -97,7 +97,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
-    ModuleBuilder::from_manifest("module.toml")
+    ModuleBuilder::from_manifest(concat!(env!("CARGO_MANIFEST_DIR"), "/module.toml"))
         .migrator(&MIGRATOR)
         .routes(|ctx| {
             let party_metrics = Arc::new(

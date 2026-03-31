@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.1 | 2026-03-31 | bd-jhlc7 | Fix manifest path to use `CARGO_MANIFEST_DIR` so `module.toml` is found regardless of working directory. | `cargo run` from workspace root could not locate `module.toml` with a relative path. | No |
 | 2.4.0 | 2026-03-31 | bd-jhlc7 | Replace hand-written startup boilerplate in main.rs with `platform-sdk` `ModuleBuilder`. SDK now owns health routes (`/healthz`, `/api/health`, `/api/ready`, `/api/version`), `/metrics`, middleware stack (CORS, JWT, rate limiting, timeouts), and graceful shutdown. Added `module.toml` manifest. Removed manual health/ops routes from `http/mod.rs`. | First SDK conversion proof — eliminates ~200 lines of duplicated startup code. All endpoints, response formats, and OpenAPI spec unchanged. | No |
 | 2.3.3 | 2026-03-31 | bd-t7vnc | Add `openapi_dump` binary for generating OpenAPI JSON specs from the command line. Add AP service OpenAPI spec to `.openapi-specs/`. | Enables automated spec generation for client SDK builds and API documentation. | No |
 | 2.3.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
