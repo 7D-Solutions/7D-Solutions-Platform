@@ -292,7 +292,7 @@ async fn test_approve_bill_happy_path() {
         StatusCode::OK,
         "GET /api/ap/bills must return 200"
     );
-    let bills = list_resp.as_array().expect("list response must be array");
+    let bills = list_resp["data"].as_array().expect("list response must have data array");
     let approved_in_list = bills.iter().any(|b| {
         b["bill_id"].as_str() == Some(&bill_id.to_string())
             && b["status"].as_str() == Some("approved")
@@ -400,7 +400,7 @@ async fn test_reject_bill_void_path() {
         StatusCode::OK,
         "GET /api/ap/bills must return 200"
     );
-    let bills = list_resp.as_array().expect("list response must be array");
+    let bills = list_resp["data"].as_array().expect("list response must have data array");
     let voided_in_list = bills
         .iter()
         .any(|b| b["bill_id"].as_str() == Some(&bill_id.to_string()));
