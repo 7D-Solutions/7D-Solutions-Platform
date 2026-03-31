@@ -27,10 +27,13 @@
 
 mod common;
 
-use ar_rs::{metrics::ArMetrics, http::ar_router};
+use ar_rs::http::ar_router_permissive;
 use axum::{
     body::Body,
+    extract::Request as AxumRequest,
     http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
 };
 use chrono::Utc;
 use common::{get_ar_pool, get_party_pool};
@@ -40,7 +43,7 @@ use party_rs::{
     metrics::PartyMetrics,
     AppState as PartyAppState,
 };
-use security::{ActorType, VerifiedClaims};
+use security::{permissions, ActorType, VerifiedClaims};
 use serde_json::{json, Value};
 use serial_test::serial;
 use sqlx::PgPool;
@@ -76,11 +79,9 @@ async fn run_party_migrations(pool: &PgPool) {
 }
 
 /// Build an in-process AR router wired to the real AR pool.
+/// Uses `ar_router_permissive` to skip JWT enforcement for in-process tests.
 fn make_ar_router(pool: PgPool) -> axum::Router {
-    let metrics = Arc::new(ArMetrics::new().expect("AR metrics init failed"));
-    // AppState is used by health/version routes; ar_router takes PgPool directly
-    drop(metrics); // ar_router does not accept AppState
-    ar_router(pool)
+    ar_router_permissive(pool)
 }
 
 /// Create fake VerifiedClaims with ar.mutate permission so the
@@ -202,7 +203,8 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
         pool: party_pool,
         metrics,
     });
-    let router = party_http::router(state);
+    let router = party_http::router(state)
+        .layer(axum::middleware::from_fn(inject_party_claims));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -225,6 +227,28 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     }
 
     port
+}
+
+/// Middleware that injects test VerifiedClaims so RequirePermissionsLayer
+/// passes without a real JWT (for in-process inter-service calls).
+async fn inject_party_claims(mut req: AxumRequest, next: Next) -> Response {
+    let claims = VerifiedClaims {
+        user_id: Uuid::new_v4(),
+        tenant_id: Uuid::new_v4(),
+        app_id: None,
+        roles: vec![],
+        perms: vec![
+            permissions::PARTY_MUTATE.to_string(),
+            permissions::PARTY_READ.to_string(),
+        ],
+        actor_type: ActorType::Service,
+        issued_at: Utc::now(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "test".to_string(),
+    };
+    req.extensions_mut().insert(claims);
+    next.run(req).await
 }
 
 // ============================================================================

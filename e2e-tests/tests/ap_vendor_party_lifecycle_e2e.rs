@@ -26,7 +26,10 @@ mod common;
 use ap::{http, metrics::ApMetrics, AppState};
 use axum::{
     body::Body,
+    extract::Request as AxumRequest,
     http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
     routing::{get, post, put},
     Router,
 };
@@ -149,8 +152,31 @@ async fn ap_send(
     (status, parsed)
 }
 
+/// Middleware that injects test VerifiedClaims on every request, so
+/// RequirePermissionsLayer passes without a real JWT.
+async fn inject_party_claims(mut req: AxumRequest, next: Next) -> Response {
+    let claims = VerifiedClaims {
+        user_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(LIFECYCLE_TENANT_ID).unwrap(),
+        app_id: None,
+        roles: vec![],
+        perms: vec![
+            permissions::PARTY_MUTATE.to_string(),
+            permissions::PARTY_READ.to_string(),
+        ],
+        actor_type: ActorType::Service,
+        issued_at: Utc::now(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "test".to_string(),
+    };
+    req.extensions_mut().insert(claims);
+    next.run(req).await
+}
+
 /// Spawn an in-process Party Master HTTP server on an ephemeral port.
 /// Sets PARTY_MASTER_URL env var so the AP service can reach it.
+/// Injects test claims so inter-service calls (without JWT) pass auth.
 ///
 /// # Safety
 /// Caller must hold the `serial` lock to prevent env var races.
@@ -160,7 +186,8 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
         pool: party_pool,
         metrics,
     });
-    let router = party_http::router(state);
+    let router = party_http::router(state)
+        .layer(axum::middleware::from_fn(inject_party_claims));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
