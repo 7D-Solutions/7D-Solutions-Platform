@@ -445,8 +445,9 @@ mod tests {
         .expect("create_po failed");
 
         // Force-cancel the PO via raw SQL
-        sqlx::query("UPDATE purchase_orders SET status = 'cancelled' WHERE po_id = $1")
+        sqlx::query("UPDATE purchase_orders SET status = 'cancelled' WHERE po_id = $1 AND tenant_id = $2")
             .bind(created.po.po_id)
+            .bind(TEST_TENANT)
             .execute(&pool)
             .await
             .expect("status update failed");
@@ -495,9 +496,11 @@ mod tests {
         .expect("approve_po failed");
 
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM po_status WHERE po_id = $1 AND status = 'approved'",
+            "SELECT COUNT(*) FROM po_status WHERE po_id = $1 AND status = 'approved' \
+             AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $2)",
         )
         .bind(created.po.po_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("po_status query failed");

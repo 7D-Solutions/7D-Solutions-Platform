@@ -344,16 +344,18 @@ mod tests {
         let allocation_id = Uuid::new_v4();
         // Determine allocation_type
         let (total,): (i64,) =
-            sqlx::query_as("SELECT total_minor FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT total_minor FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(db)
                 .await
                 .expect("fetch total");
         let (already,): (i64,) = sqlx::query_as(
             "SELECT COALESCE(SUM(amount_minor), 0)::bigint \
-             FROM ap_allocations WHERE bill_id = $1",
+             FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2",
         )
         .bind(bill_id)
+        .bind(TEST_TENANT)
         .fetch_one(db)
         .await
         .expect("fetch already allocated");
@@ -384,9 +386,10 @@ mod tests {
         .await
         .expect("insert allocation");
 
-        sqlx::query("UPDATE vendor_bills SET status = $1 WHERE bill_id = $2")
+        sqlx::query("UPDATE vendor_bills SET status = $1 WHERE bill_id = $2 AND tenant_id = $3")
             .bind(new_status)
             .bind(bill_id)
+            .bind(TEST_TENANT)
             .execute(db)
             .await
             .expect("update bill status");

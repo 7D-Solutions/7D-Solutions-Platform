@@ -84,8 +84,9 @@ pub async fn handle_item_received(
 
     // Look up vendor_id from AP's own purchase_orders table (no cross-module read)
     let vendor_id: Option<Uuid> =
-        sqlx::query_scalar("SELECT vendor_id FROM purchase_orders WHERE po_id = $1")
+        sqlx::query_scalar("SELECT vendor_id FROM purchase_orders WHERE po_id = $1 AND tenant_id = $2")
             .bind(po_id)
+            .bind(&payload.tenant_id)
             .fetch_optional(pool)
             .await?;
 
@@ -361,10 +362,12 @@ mod tests {
             .expect("handle failed");
 
         let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM po_receipt_links WHERE po_id = $1 AND receipt_id = $2",
+            "SELECT COUNT(*) FROM po_receipt_links WHERE po_id = $1 AND receipt_id = $2 \
+             AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $3)",
         )
         .bind(po_id)
         .bind(receipt_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("count query failed");
@@ -390,10 +393,12 @@ mod tests {
             .expect("second handle must not error");
 
         let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM po_receipt_links WHERE po_id = $1 AND receipt_id = $2",
+            "SELECT COUNT(*) FROM po_receipt_links WHERE po_id = $1 AND receipt_id = $2 \
+             AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $3)",
         )
         .bind(po_id)
         .bind(receipt_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("count query failed");
@@ -413,10 +418,14 @@ mod tests {
             .await
             .expect("handle with no PO must return Ok");
 
-        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM po_receipt_links")
-            .fetch_one(&pool)
-            .await
-            .expect("count query failed");
+        let (count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM po_receipt_links \
+             WHERE po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $1)",
+        )
+        .bind(TEST_TENANT)
+        .fetch_one(&pool)
+        .await
+        .expect("count query failed");
         assert_eq!(count, 0);
         cleanup(&pool).await;
     }

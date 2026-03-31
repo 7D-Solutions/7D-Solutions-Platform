@@ -397,8 +397,9 @@ mod tests {
 
         // Bill must be 'paid'
         let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("fetch status");
@@ -516,8 +517,9 @@ mod tests {
         .execute(&db)
         .await
         .expect("pre-alloc");
-        sqlx::query("UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1")
+        sqlx::query("UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1 AND tenant_id = $2")
             .bind(bill_id)
+            .bind(TEST_TENANT)
             .execute(&db)
             .await
             .expect("update status");
@@ -534,10 +536,11 @@ mod tests {
 
         // Execution allocation should be 30000 (the open balance)
         let (alloc_amount,): (i64,) = sqlx::query_as(
-            "SELECT amount_minor FROM ap_allocations WHERE bill_id = $1 AND payment_run_id = $2",
+            "SELECT amount_minor FROM ap_allocations WHERE bill_id = $1 AND payment_run_id = $2 AND tenant_id = $3",
         )
         .bind(bill_id)
         .bind(run_id)
+        .bind(TEST_TENANT)
         .fetch_one(&db)
         .await
         .expect("fetch alloc");

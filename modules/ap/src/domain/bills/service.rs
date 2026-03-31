@@ -504,7 +504,7 @@ mod tests {
             .expect("get_bill failed");
 
         assert!(fetched.is_some());
-        let bwl = fetched.unwrap();
+        let bwl = fetched.expect("bill must be present");
         assert_eq!(bwl.bill.bill_id, created.bill.bill_id);
         assert_eq!(bwl.lines.len(), 2);
 
@@ -607,8 +607,9 @@ mod tests {
             .expect("create failed");
 
         // Manually void the bill
-        sqlx::query("UPDATE vendor_bills SET status = 'voided' WHERE bill_id = $1")
+        sqlx::query("UPDATE vendor_bills SET status = 'voided' WHERE bill_id = $1 AND tenant_id = $2")
             .bind(created.bill.bill_id)
+            .bind(TEST_TENANT)
             .execute(&pool)
             .await
             .expect("void update failed");

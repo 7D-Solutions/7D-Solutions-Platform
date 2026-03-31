@@ -60,13 +60,18 @@ pub async fn ingest_receipt_link(
 /// Count receipt links for a PO line (used for 3-way match readiness checks).
 pub async fn count_receipt_links_for_line(
     pool: &PgPool,
+    tenant_id: &str,
     po_line_id: Uuid,
 ) -> Result<i64, ReceiptLinkError> {
-    let (count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1")
-            .bind(po_line_id)
-            .fetch_one(pool)
-            .await?;
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM po_receipt_links \
+         WHERE po_line_id = $1 \
+           AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $2)",
+    )
+    .bind(po_line_id)
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
     Ok(count)
 }
 
@@ -236,11 +241,13 @@ mod tests {
 
         let (count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM po_receipt_links \
-             WHERE po_id = $1 AND po_line_id = $2 AND receipt_id = $3",
+             WHERE po_id = $1 AND po_line_id = $2 AND receipt_id = $3 \
+             AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $4)",
         )
         .bind(po_id)
         .bind(line_id)
         .bind(receipt_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("count query failed");
@@ -266,10 +273,12 @@ mod tests {
             .expect("second ingest must not error");
 
         let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1 AND receipt_id = $2",
+            "SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1 AND receipt_id = $2 \
+             AND po_id IN (SELECT po_id FROM purchase_orders WHERE tenant_id = $3)",
         )
         .bind(line_id)
         .bind(receipt_id)
+        .bind(TEST_TENANT)
         .fetch_one(&pool)
         .await
         .expect("count query failed");
@@ -298,7 +307,7 @@ mod tests {
         .await
         .expect("second ingest failed");
 
-        let count = count_receipt_links_for_line(&pool, line_id)
+        let count = count_receipt_links_for_line(&pool, TEST_TENANT, line_id)
             .await
             .expect("count failed");
         assert_eq!(count, 2);

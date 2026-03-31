@@ -280,8 +280,9 @@ mod tests {
 
         // Bill status should be 'paid'
         let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("fetch status");
@@ -304,8 +305,9 @@ mod tests {
         assert_eq!(result.allocation_type, "partial");
 
         let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("fetch status");
@@ -330,8 +332,9 @@ mod tests {
             .expect("second allocation");
 
         let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("fetch status");
@@ -378,8 +381,9 @@ mod tests {
 
         // Only one allocation row should exist
         let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1")
+            sqlx::query_as("SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("count");

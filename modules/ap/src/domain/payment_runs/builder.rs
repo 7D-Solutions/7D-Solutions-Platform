@@ -415,7 +415,7 @@ mod tests {
             .items
             .iter()
             .find(|i| i.vendor_id == vendor1)
-            .unwrap();
+            .expect("vendor1 item must exist");
         assert_eq!(v1_item.bill_ids.len(), 2);
         assert_eq!(v1_item.amount_minor, 100000);
 
@@ -424,7 +424,7 @@ mod tests {
             .items
             .iter()
             .find(|i| i.vendor_id == vendor2)
-            .unwrap();
+            .expect("vendor2 item must exist");
         assert_eq!(v2_item.bill_ids.len(), 1);
         assert_eq!(v2_item.amount_minor, 50000);
 
@@ -550,8 +550,9 @@ mod tests {
         .expect("insert partial allocation");
 
         // Update bill status to partially_paid
-        sqlx::query("UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1")
+        sqlx::query("UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1 AND tenant_id = $2")
             .bind(bill_id)
+            .bind(TEST_TENANT)
             .execute(&db)
             .await
             .expect("update status");

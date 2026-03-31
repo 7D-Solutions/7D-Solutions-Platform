@@ -22,9 +22,12 @@ pub struct MetricsSnapshot {
 
 /// Fetch current operational metrics snapshot from the database.
 ///
-/// Queries are cross-tenant totals — no per-tenant or per-vendor labels
-/// that could expose PII.
-pub async fn fetch_snapshot(pool: &PgPool) -> Result<MetricsSnapshot, sqlx::Error> {
+/// When `tenant_id` is Some, results are scoped to that tenant.
+/// When None, cross-tenant totals are returned (internal ops use).
+pub async fn fetch_snapshot(
+    pool: &PgPool,
+    tenant_id: Option<&str>,
+) -> Result<MetricsSnapshot, sqlx::Error> {
     let (open_bills_count, overdue_bills_count, total_open_amount_minor): (i64, i64, i64) =
         sqlx::query_as(
             r#"
@@ -34,18 +37,26 @@ pub async fn fetch_snapshot(pool: &PgPool) -> Result<MetricsSnapshot, sqlx::Erro
                 COALESCE(SUM(total_minor), 0)::BIGINT                AS total_open_amount_minor
             FROM vendor_bills
             WHERE status NOT IN ('paid', 'voided')
+              AND ($1::TEXT IS NULL OR tenant_id = $1)
             "#,
         )
+        .bind(tenant_id)
         .fetch_one(pool)
         .await?;
 
-    let (payment_runs_created,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM payment_runs")
-        .fetch_one(pool)
-        .await?;
+    let (payment_runs_created,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM payment_runs WHERE ($1::TEXT IS NULL OR tenant_id = $1)",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
 
-    let (allocations_created,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM ap_allocations")
-        .fetch_one(pool)
-        .await?;
+    let (allocations_created,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM ap_allocations WHERE ($1::TEXT IS NULL OR tenant_id = $1)",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
 
     Ok(MetricsSnapshot {
         open_bills_count,
@@ -69,7 +80,7 @@ mod tests {
     async fn test_fetch_snapshot_returns_without_error() {
         let pool = PgPool::connect(&db_url()).await.expect("DB connect failed");
 
-        let snapshot = fetch_snapshot(&pool)
+        let snapshot = fetch_snapshot(&pool, None)
             .await
             .expect("fetch_snapshot should succeed");
 

@@ -203,7 +203,7 @@ pub async fn metrics_handler(
     }
 
     // Refresh operational gauges from DB on each scrape.
-    match crate::domain::reports::metrics::fetch_snapshot(&app_state.pool).await {
+    match crate::domain::reports::metrics::fetch_snapshot(&app_state.pool, None).await {
         Ok(snapshot) => {
             let m = &app_state.metrics;
             m.open_bills_count.set(snapshot.open_bills_count);

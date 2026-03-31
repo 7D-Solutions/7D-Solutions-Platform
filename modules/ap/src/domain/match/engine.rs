@@ -584,18 +584,22 @@ mod tests {
         assert!(line.qty_variance.abs() < 1e-6);
 
         // Verify match record persisted
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1")
-                .bind(bill_id)
-                .fetch_one(&db)
-                .await
-                .expect("count");
+        let (count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1 \
+             AND bill_id IN (SELECT bill_id FROM vendor_bills WHERE tenant_id = $2)",
+        )
+        .bind(bill_id)
+        .bind(TEST_TENANT)
+        .fetch_one(&db)
+        .await
+        .expect("count");
         assert_eq!(count, 1);
 
         // Verify bill status updated to 'matched'
         let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
                 .bind(bill_id)
+                .bind(TEST_TENANT)
                 .fetch_one(&db)
                 .await
                 .expect("status");
@@ -668,12 +672,15 @@ mod tests {
         .await
         .expect("second run must not error");
 
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1")
-                .bind(bill_id)
-                .fetch_one(&db)
-                .await
-                .expect("count");
+        let (count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1 \
+             AND bill_id IN (SELECT bill_id FROM vendor_bills WHERE tenant_id = $2)",
+        )
+        .bind(bill_id)
+        .bind(TEST_TENANT)
+        .fetch_one(&db)
+        .await
+        .expect("count");
         assert_eq!(count, 1, "re-run must not create duplicate match records");
 
         cleanup(&db).await;
