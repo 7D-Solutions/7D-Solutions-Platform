@@ -60,7 +60,7 @@ pub enum StartupError {
 /// 7. Detect undeclared outbox tables / spawn outbox publisher
 /// 8. Build JWT verifier (optional)
 /// 9. Build rate limiter
-pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, StartupError> {
+pub(crate) async fn phase_a(manifest: &Manifest, skip_outbox: bool) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
     dotenvy::dotenv().ok();
 
@@ -110,6 +110,8 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         .map(|b| b.bus_type.to_lowercase())
         .unwrap_or_default();
 
+    let mut nats_client: Option<async_nats::Client> = None;
+
     let bus: Option<Arc<dyn EventBus>> = match bus_type.as_str() {
         "nats" => {
             let nats_url = std::env::var("NATS_URL").map_err(|_| {
@@ -120,6 +122,7 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
                 .await
                 .map_err(|e| StartupError::Config(format!("NATS connection failed: {e}")))?;
             tracing::info!(module = %manifest.module.name, "NATS event bus connected");
+            nats_client = Some(client.clone());
             Some(Arc::new(event_bus::NatsBus::new(client)))
         }
         "inmemory" => {
@@ -139,7 +142,13 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
     let mut outbox_handle: Option<tokio::task::JoinHandle<()>> = None;
 
     if let Some(ref table) = outbox_table {
-        if let Some(ref bus) = bus {
+        if skip_outbox {
+            tracing::info!(
+                module = %manifest.module.name,
+                outbox_table = %table,
+                "outbox publisher skipped — module manages its own publishing"
+            );
+        } else if let Some(ref bus) = bus {
             let pub_pool = pool.clone();
             let pub_bus = bus.clone();
             let pub_table = table.clone();
@@ -206,6 +215,7 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
     Ok(PhaseAOutput {
         pool,
         bus,
+        nats_client,
         jwt_verifier,
         rate_limiter,
         outbox_handle,
@@ -215,6 +225,7 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
 pub(crate) struct PhaseAOutput {
     pub pool: sqlx::PgPool,
     pub bus: Option<Arc<dyn EventBus>>,
+    pub nats_client: Option<async_nats::Client>,
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub rate_limiter: Arc<security::ratelimit::RateLimiter>,
     pub outbox_handle: Option<tokio::task::JoinHandle<()>>,
@@ -254,125 +265,19 @@ pub(crate) async fn phase_b(
 
     let shutdown_pool = phase_a.pool.clone();
 
-    // Determine which dependencies to probe from manifest [health] section.
+    // Observability routes (health, ready, version, metrics) — always served.
     let health_deps: Vec<String> = manifest
         .health
         .as_ref()
         .map(|h| h.dependencies.clone())
         .unwrap_or_default();
     let probe_nats = health_deps.iter().any(|d| d == "nats");
-
-    // Warn if manifest declares nats dependency but no bus is configured.
-    if probe_nats && phase_a.bus.is_none() {
-        tracing::warn!(
-            module = %module_name,
-            "health.dependencies includes 'nats' but no event bus is configured — \
-             NATS will report as down in health checks"
-        );
-    }
-
-    // Health routes
-    let health_name = module_name.clone();
-    let health_version = version.clone();
-    let health_pool = phase_a.pool.clone();
-    let health_bus = if probe_nats { phase_a.bus.clone() } else { None };
-
-    let health_routes = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route(
-            "/api/health",
-            get(move || async move {
-                let mut checks = Vec::new();
-
-                // Postgres probe
-                let start = std::time::Instant::now();
-                let err = sqlx::query("SELECT 1")
-                    .execute(&health_pool)
-                    .await
-                    .err()
-                    .map(|e| e.to_string());
-                let latency = start.elapsed().as_millis() as u64;
-                checks.push(health::db_check(latency, err));
-
-                // NATS probe (only if declared in health.dependencies)
-                if let Some(ref bus) = health_bus {
-                    let nats_start = std::time::Instant::now();
-                    let connected = bus.health_check().await;
-                    let nats_latency = nats_start.elapsed().as_millis() as u64;
-                    checks.push(health::nats_check(connected, nats_latency));
-                }
-
-                let resp = health::build_ready_response(&health_name, &health_version, checks);
-                health::ready_response_to_axum(resp)
-            }),
-        )
-        .route(
-            "/api/ready",
-            get({
-                let ready_name = module_name.clone();
-                let ready_version = version.clone();
-                let ready_pool = phase_a.pool.clone();
-                let ready_bus = if probe_nats { phase_a.bus.clone() } else { None };
-                move || async move {
-                    let mut checks = Vec::new();
-
-                    // Postgres probe
-                    let start = std::time::Instant::now();
-                    let err = sqlx::query("SELECT 1")
-                        .execute(&ready_pool)
-                        .await
-                        .err()
-                        .map(|e| e.to_string());
-                    let latency = start.elapsed().as_millis() as u64;
-                    checks.push(health::db_check(latency, err));
-
-                    // NATS probe (only if declared in health.dependencies)
-                    if let Some(ref bus) = ready_bus {
-                        let nats_start = std::time::Instant::now();
-                        let connected = bus.health_check().await;
-                        let nats_latency = nats_start.elapsed().as_millis() as u64;
-                        checks.push(health::nats_check(connected, nats_latency));
-                    }
-
-                    let resp =
-                        health::build_ready_response(&ready_name, &ready_version, checks);
-                    health::ready_response_to_axum(resp)
-                }
-            }),
-        )
-        .route(
-            "/api/version",
-            get({
-                let ver = version.clone();
-                let name = module_name.clone();
-                move || async move {
-                    Json(serde_json::json!({
-                        "module": name,
-                        "version": ver,
-                    }))
-                }
-            }),
-        );
-
-    // Metrics endpoint
-    let metrics_route = Router::new().route(
-        "/metrics",
-        get(|| async {
-            let encoder = prometheus::TextEncoder::new();
-            let families = prometheus::gather();
-            match encoder.encode_to_string(&families) {
-                Ok(body) => (
-                    axum::http::StatusCode::OK,
-                    [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
-                    body,
-                ),
-                Err(e) => (
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    [(axum::http::header::CONTENT_TYPE, "text/plain")],
-                    format!("metrics encoding error: {e}"),
-                ),
-            }
-        }),
+    let obs_routes = build_observability_routes(
+        module_name.clone(),
+        version.clone(),
+        phase_a.pool.clone(),
+        phase_a.bus.clone(),
+        probe_nats,
     );
 
     // CORS
@@ -391,10 +296,9 @@ pub(crate) async fn phase_b(
     // Request timeout from manifest [server] section (default: "30s")
     let request_timeout = parse_duration_str(&manifest.server.request_timeout);
 
-    // Assemble the full app: module routes + health + metrics + middleware
+    // Assemble the full app: module routes + observability + middleware
     let app = module_routes
-        .merge(health_routes)
-        .merge(metrics_route)
+        .merge(obs_routes)
         .layer(Extension(ctx))
         .layer(DefaultBodyLimit::max(body_limit))
         .layer(axum::middleware::from_fn(
@@ -475,6 +379,27 @@ pub(crate) async fn phase_b_raw(
 
     let shutdown_pool = phase_a.pool.clone();
 
+    // Observability routes are always served — they are not middleware.
+    let version = manifest
+        .module
+        .version
+        .as_deref()
+        .unwrap_or("0.0.0")
+        .to_string();
+    let health_deps: Vec<String> = manifest
+        .health
+        .as_ref()
+        .map(|h| h.dependencies.clone())
+        .unwrap_or_default();
+    let probe_nats = health_deps.iter().any(|d| d == "nats");
+    let obs_routes = build_observability_routes(
+        module_name.clone(),
+        version,
+        phase_a.pool.clone(),
+        phase_a.bus.clone(),
+        probe_nats,
+    );
+
     // Env-based overrides for host/port
     let host = std::env::var("HOST").unwrap_or_else(|_| manifest.server.host.clone());
     let port: u16 = std::env::var("PORT")
@@ -482,7 +407,9 @@ pub(crate) async fn phase_b_raw(
         .and_then(|p| p.parse().ok())
         .unwrap_or(manifest.server.port);
 
-    let app = module_routes.into_make_service_with_connect_info::<SocketAddr>();
+    let app = module_routes
+        .merge(obs_routes)
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
@@ -511,4 +438,124 @@ pub(crate) async fn phase_b_raw(
     tracing::info!(module = %module_name, "shutdown complete");
 
     Ok(())
+}
+
+/// Build observability routes that are always served regardless of middleware config.
+///
+/// These are not middleware — they are endpoints that orchestrators (k8s, Docker)
+/// depend on. Stripping them when a module skips middleware would break health checks.
+pub(crate) fn build_observability_routes(
+    module_name: String,
+    version: String,
+    pool: sqlx::PgPool,
+    bus: Option<Arc<dyn EventBus>>,
+    probe_nats: bool,
+) -> Router {
+    if probe_nats && bus.is_none() {
+        tracing::warn!(
+            module = %module_name,
+            "health.dependencies includes 'nats' but no event bus is configured — \
+             NATS will report as down in health checks"
+        );
+    }
+
+    let health_name = module_name.clone();
+    let health_version = version.clone();
+    let health_pool = pool.clone();
+    let health_bus = if probe_nats { bus.clone() } else { None };
+
+    let health_routes = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route(
+            "/api/health",
+            get(move || async move {
+                let mut checks = Vec::new();
+
+                let start = std::time::Instant::now();
+                let err = sqlx::query("SELECT 1")
+                    .execute(&health_pool)
+                    .await
+                    .err()
+                    .map(|e| e.to_string());
+                let latency = start.elapsed().as_millis() as u64;
+                checks.push(health::db_check(latency, err));
+
+                if let Some(ref bus) = health_bus {
+                    let nats_start = std::time::Instant::now();
+                    let connected = bus.health_check().await;
+                    let nats_latency = nats_start.elapsed().as_millis() as u64;
+                    checks.push(health::nats_check(connected, nats_latency));
+                }
+
+                let resp = health::build_ready_response(&health_name, &health_version, checks);
+                health::ready_response_to_axum(resp)
+            }),
+        )
+        .route(
+            "/api/ready",
+            get({
+                let ready_name = module_name.clone();
+                let ready_version = version.clone();
+                let ready_pool = pool.clone();
+                let ready_bus = if probe_nats { bus.clone() } else { None };
+                move || async move {
+                    let mut checks = Vec::new();
+
+                    let start = std::time::Instant::now();
+                    let err = sqlx::query("SELECT 1")
+                        .execute(&ready_pool)
+                        .await
+                        .err()
+                        .map(|e| e.to_string());
+                    let latency = start.elapsed().as_millis() as u64;
+                    checks.push(health::db_check(latency, err));
+
+                    if let Some(ref bus) = ready_bus {
+                        let nats_start = std::time::Instant::now();
+                        let connected = bus.health_check().await;
+                        let nats_latency = nats_start.elapsed().as_millis() as u64;
+                        checks.push(health::nats_check(connected, nats_latency));
+                    }
+
+                    let resp =
+                        health::build_ready_response(&ready_name, &ready_version, checks);
+                    health::ready_response_to_axum(resp)
+                }
+            }),
+        )
+        .route(
+            "/api/version",
+            get({
+                let ver = version;
+                let name = module_name;
+                move || async move {
+                    Json(serde_json::json!({
+                        "module": name,
+                        "version": ver,
+                    }))
+                }
+            }),
+        );
+
+    let metrics_route = Router::new().route(
+        "/metrics",
+        get(|| async {
+            let encoder = prometheus::TextEncoder::new();
+            let families = prometheus::gather();
+            match encoder.encode_to_string(&families) {
+                Ok(body) => (
+                    StatusCode::OK,
+                    [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+                    body,
+                ),
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    [(axum::http::header::CONTENT_TYPE, "text/plain")],
+                    format!("metrics encoding error: {e}"),
+                ),
+            }
+        }),
+    );
+
+    health_routes.merge(metrics_route)
 }

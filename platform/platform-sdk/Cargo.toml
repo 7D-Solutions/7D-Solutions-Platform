@@ -16,6 +16,7 @@ config-validator = { path = "../config-validator" }
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "signal", "macros", "net", "sync"] }
 futures = "0.3"
+async-nats = "0.38"
 
 # Web framework
 axum = "0.8"

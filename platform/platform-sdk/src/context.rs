@@ -23,6 +23,7 @@ pub struct ModuleContext {
     pool: PgPool,
     manifest: Arc<Manifest>,
     bus: Option<Arc<dyn EventBus>>,
+    nats_client: Option<async_nats::Client>,
     extensions: Extensions,
 }
 
@@ -32,6 +33,7 @@ impl std::fmt::Debug for ModuleContext {
             .field("pool", &"<PgPool>")
             .field("manifest", &self.manifest)
             .field("bus", &self.bus.as_ref().map(|_| "<EventBus>"))
+            .field("nats_client", &self.nats_client.as_ref().map(|_| "<NatsClient>"))
             .field("extensions", &format!("{} entries", self.extensions.len()))
             .finish()
     }
@@ -44,21 +46,24 @@ impl ModuleContext {
             pool,
             manifest: Arc::new(manifest),
             bus,
+            nats_client: None,
             extensions: Arc::new(HashMap::new()),
         }
     }
 
-    /// Create a new context with pre-built extensions map.
+    /// Create a new context with pre-built extensions map and optional raw NATS client.
     pub(crate) fn with_extensions(
         pool: PgPool,
         manifest: Manifest,
         bus: Option<Arc<dyn EventBus>>,
+        nats_client: Option<async_nats::Client>,
         extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     ) -> Self {
         Self {
             pool,
             manifest: Arc::new(manifest),
             bus,
+            nats_client,
             extensions: Arc::new(extensions),
         }
     }
@@ -80,6 +85,16 @@ impl ModuleContext {
     /// `[bus]` section is absent.
     pub fn bus(&self) -> Result<&dyn EventBus, BusNotAvailable> {
         self.bus.as_deref().ok_or(BusNotAvailable)
+    }
+
+    /// Access the raw NATS client for non-EventEnvelope subscriptions.
+    ///
+    /// Returns `Some` when the bus type is NATS. Returns `None` for
+    /// InMemoryBus or when no bus is configured. Use this for subjects
+    /// that use bare JSON payloads instead of the platform EventEnvelope
+    /// format (e.g. `tenant.provisioned`).
+    pub fn raw_nats_client(&self) -> Option<&async_nats::Client> {
+        self.nats_client.as_ref()
     }
 
     /// Get an owned `Arc<dyn EventBus>` for storing in module-specific state.

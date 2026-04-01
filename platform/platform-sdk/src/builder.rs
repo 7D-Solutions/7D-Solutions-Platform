@@ -71,6 +71,7 @@ pub struct ModuleBuilder {
     extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     startup_fns: Vec<StartupFn>,
     skip_default_middleware: bool,
+    skip_outbox_publisher: bool,
 }
 
 impl ModuleBuilder {
@@ -94,6 +95,7 @@ impl ModuleBuilder {
             extensions: HashMap::new(),
             startup_fns: Vec::new(),
             skip_default_middleware: false,
+            skip_outbox_publisher: false,
         }
     }
 
@@ -203,6 +205,18 @@ impl ModuleBuilder {
         self
     }
 
+    /// Skip the SDK's built-in outbox publisher.
+    ///
+    /// Use this when the module manages its own outbox publishing — for
+    /// example a multi-tenant vertical that publishes from per-tenant
+    /// databases rather than the management database. The manifest can
+    /// still declare `[events.publish].outbox_table` for documentation
+    /// and validation without the SDK spawning a publisher for it.
+    pub fn skip_outbox_publisher(mut self) -> Self {
+        self.skip_outbox_publisher = true;
+        self
+    }
+
     /// Run the module through the full startup sequence.
     ///
     /// This blocks until the server receives a shutdown signal (SIGTERM
@@ -211,7 +225,7 @@ impl ModuleBuilder {
         let manifest = self.manifest?;
 
         // Phase A: infrastructure
-        let phase_a = startup::phase_a(&manifest).await?;
+        let phase_a = startup::phase_a(&manifest, self.skip_outbox_publisher).await?;
 
         // Run startup callbacks — each returns a typed value to store.
         let mut extensions = self.extensions;
@@ -225,6 +239,7 @@ impl ModuleBuilder {
             phase_a.pool.clone(),
             manifest.clone(),
             phase_a.bus.clone(),
+            phase_a.nats_client.clone(),
             extensions,
         );
 

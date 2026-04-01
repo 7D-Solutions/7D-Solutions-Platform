@@ -40,6 +40,7 @@ pub use startup::StartupError;
 
 // Re-export commonly needed types so modules don't have to depend on
 // platform sub-crates directly for basic operations.
+pub use async_nats::Client as NatsClient;
 pub use event_bus::{EventBus, EventEnvelope};
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;
