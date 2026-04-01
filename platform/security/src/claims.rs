@@ -3,6 +3,9 @@
 //! Verifies RS256-signed JWTs issued by identity-auth and returns structured
 //! [`VerifiedClaims`] for downstream service consumption.
 
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
+
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
@@ -76,37 +79,52 @@ struct RawAccessClaims {
     pub ver: String,
 }
 
+/// Internal key storage: static PEM-based keys or dynamic JWKS-fetched keys.
+#[derive(Clone)]
+enum KeyStore {
+    /// PEM-loaded keys (env var or file). Supports rotation overlap.
+    Static {
+        primary: DecodingKey,
+        prev: Option<DecodingKey>,
+    },
+    /// JWKS-fetched keys behind a shared lock. Background task refreshes.
+    Dynamic {
+        keys: Arc<RwLock<Vec<DecodingKey>>>,
+    },
+}
+
 /// JWT verifier for platform access tokens.
 ///
 /// Holds the RSA public key and validation rules. Create once at service
 /// startup, then call [`verify`](JwtVerifier::verify) on each request.
 #[derive(Clone)]
 pub struct JwtVerifier {
-    decoding: DecodingKey,
+    keys: KeyStore,
     validation: Validation,
-    // Previous key present during zero-downtime JWT key rotation overlap.
-    prev_decoding: Option<DecodingKey>,
 }
 
 impl JwtVerifier {
+    fn default_validation() -> Validation {
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.validate_exp = true;
+        // Allow 30 seconds of clock skew between identity service and consumers.
+        validation.leeway = 30;
+        validation.set_issuer(&["auth-rs"]);
+        validation.set_audience(&["7d-platform"]);
+        validation
+    }
+
     /// Create a verifier from an RSA public key PEM.
     pub fn from_public_pem(pem: &str) -> Result<Self, String> {
         let decoding = DecodingKey::from_rsa_pem(pem.as_bytes())
             .map_err(|e| format!("invalid public key: {e}"))?;
 
-        let mut validation = Validation::new(Algorithm::RS256);
-        validation.validate_exp = true;
-        // Allow 30 seconds of clock skew between identity service and consumers.
-        // Without this, even minor clock drift causes valid tokens to be rejected
-        // at the boundary of their lifetime.
-        validation.leeway = 30;
-        validation.set_issuer(&["auth-rs"]);
-        validation.set_audience(&["7d-platform"]);
-
         Ok(Self {
-            decoding,
-            validation,
-            prev_decoding: None,
+            keys: KeyStore::Static {
+                primary: decoding,
+                prev: None,
+            },
+            validation: Self::default_validation(),
         })
     }
 
@@ -116,10 +134,12 @@ impl JwtVerifier {
     /// accepted. Remove `JWT_PUBLIC_KEY_PREV` once all outstanding tokens
     /// signed by the old key have expired (typically after one TTL cycle).
     pub fn with_prev_key(&mut self, pem: &str) -> Result<(), String> {
-        self.prev_decoding = Some(
-            DecodingKey::from_rsa_pem(pem.as_bytes())
-                .map_err(|e| format!("invalid prev public key: {e}"))?,
-        );
+        if let KeyStore::Static { ref mut prev, .. } = self.keys {
+            *prev = Some(
+                DecodingKey::from_rsa_pem(pem.as_bytes())
+                    .map_err(|e| format!("invalid prev public key: {e}"))?,
+            );
+        }
         Ok(())
     }
 
@@ -160,26 +180,83 @@ impl JwtVerifier {
         Some(verifier)
     }
 
-    /// Verify a Bearer token and return structured claims.
-    pub fn verify(&self, token: &str) -> Result<VerifiedClaims, SecurityError> {
-        match jsonwebtoken::decode::<RawAccessClaims>(token, &self.decoding, &self.validation) {
-            Ok(data) => Self::convert_raw(data.claims),
-            Err(primary_err) => {
-                // During rotation overlap: try the previous key before failing.
-                if let Some(ref prev) = self.prev_decoding {
-                    if let Ok(data) =
-                        jsonwebtoken::decode::<RawAccessClaims>(token, prev, &self.validation)
-                    {
-                        return Self::convert_raw(data.claims);
-                    }
-                }
-                Err(match primary_err.kind() {
-                    jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
-                        SecurityError::TokenExpired
-                    }
-                    _ => SecurityError::InvalidToken,
+    /// Create a verifier from a JWKS URL with background refresh.
+    ///
+    /// Fetches the JWK set from `url` at startup. On success, spawns a
+    /// background task that re-fetches every `refresh_interval`. If the initial
+    /// fetch fails and `fallback_to_env` is true, falls back to `JWT_PUBLIC_KEY`.
+    pub async fn from_jwks_url(
+        url: &str,
+        refresh_interval: Duration,
+        fallback_to_env: bool,
+    ) -> Result<Self, SecurityError> {
+        match fetch_jwks(url).await {
+            Ok(keys) => {
+                let key_store = Arc::new(RwLock::new(keys));
+                let refresh_store = key_store.clone();
+                let refresh_url = url.to_string();
+                tokio::spawn(async move {
+                    jwks_refresh_loop(refresh_store, &refresh_url, refresh_interval).await;
+                });
+                tracing::info!(jwks_url = %url, "JWKS verifier initialized with background refresh");
+                Ok(Self {
+                    keys: KeyStore::Dynamic { keys: key_store },
+                    validation: Self::default_validation(),
                 })
             }
+            Err(e) => {
+                if fallback_to_env {
+                    tracing::warn!("JWKS fetch failed ({e}), falling back to JWT_PUBLIC_KEY");
+                    Self::from_env_with_overlap().ok_or_else(|| {
+                        SecurityError::JwksUnavailable(
+                            "JWKS fetch failed and JWT_PUBLIC_KEY not set".into(),
+                        )
+                    })
+                } else {
+                    Err(SecurityError::JwksUnavailable(e))
+                }
+            }
+        }
+    }
+
+    /// Verify a Bearer token and return structured claims.
+    pub fn verify(&self, token: &str) -> Result<VerifiedClaims, SecurityError> {
+        match &self.keys {
+            KeyStore::Static { primary, prev } => {
+                match jsonwebtoken::decode::<RawAccessClaims>(token, primary, &self.validation) {
+                    Ok(data) => Self::convert_raw(data.claims),
+                    Err(primary_err) => {
+                        if let Some(prev_key) = prev {
+                            if let Ok(data) = jsonwebtoken::decode::<RawAccessClaims>(
+                                token,
+                                prev_key,
+                                &self.validation,
+                            ) {
+                                return Self::convert_raw(data.claims);
+                            }
+                        }
+                        Err(Self::classify_error(&primary_err))
+                    }
+                }
+            }
+            KeyStore::Dynamic { keys } => {
+                let key_set = keys.read().expect("JWKS key lock poisoned");
+                let mut last_err = SecurityError::InvalidToken;
+                for key in key_set.iter() {
+                    match jsonwebtoken::decode::<RawAccessClaims>(token, key, &self.validation) {
+                        Ok(data) => return Self::convert_raw(data.claims),
+                        Err(e) => last_err = Self::classify_error(&e),
+                    }
+                }
+                Err(last_err)
+            }
+        }
+    }
+
+    fn classify_error(e: &jsonwebtoken::errors::Error) -> SecurityError {
+        match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => SecurityError::TokenExpired,
+            _ => SecurityError::InvalidToken,
         }
     }
 
@@ -209,6 +286,49 @@ impl JwtVerifier {
             token_id,
             version: raw.ver,
         })
+    }
+}
+
+/// Fetch and parse a JWKS endpoint into decoding keys.
+async fn fetch_jwks(url: &str) -> Result<Vec<DecodingKey>, String> {
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("JWKS HTTP request failed: {e}"))?;
+    let jwk_set: jsonwebtoken::jwk::JwkSet = resp
+        .json()
+        .await
+        .map_err(|e| format!("JWKS JSON parse failed: {e}"))?;
+    let mut keys = Vec::new();
+    for jwk in &jwk_set.keys {
+        match DecodingKey::from_jwk(jwk) {
+            Ok(key) => keys.push(key),
+            Err(e) => tracing::warn!("skipping unusable JWK: {e}"),
+        }
+    }
+    if keys.is_empty() {
+        return Err("JWKS endpoint returned no usable keys".into());
+    }
+    Ok(keys)
+}
+
+/// Background loop that refreshes JWKS keys on an interval.
+async fn jwks_refresh_loop(
+    key_store: Arc<RwLock<Vec<DecodingKey>>>,
+    url: &str,
+    interval: Duration,
+) {
+    loop {
+        tokio::time::sleep(interval).await;
+        match fetch_jwks(url).await {
+            Ok(new_keys) => {
+                let mut guard = key_store.write().expect("JWKS key lock poisoned");
+                *guard = new_keys;
+                tracing::info!(jwks_url = %url, "JWKS keys refreshed");
+            }
+            Err(e) => {
+                tracing::warn!(jwks_url = %url, "JWKS refresh failed, keeping existing keys: {e}");
+            }
+        }
     }
 }
 
@@ -377,5 +497,45 @@ mod tests {
             verifier.verify(&token_signed_with_old_key),
             Err(SecurityError::InvalidToken)
         ));
+    }
+
+    /// Dynamic key store: verify works when keys are stored in an RwLock.
+    #[test]
+    fn dynamic_key_store_verify() {
+        let (enc, pub_pem) = make_keys();
+        let claims = default_claims();
+        let token = sign_test_token(&enc, &claims);
+
+        let decoding = DecodingKey::from_rsa_pem(pub_pem.as_bytes()).expect("decoding key");
+        let verifier = JwtVerifier {
+            keys: KeyStore::Dynamic {
+                keys: Arc::new(RwLock::new(vec![decoding])),
+            },
+            validation: JwtVerifier::default_validation(),
+        };
+
+        let verified = verifier.verify(&token).expect("verify");
+        assert_eq!(verified.user_id.to_string(), claims.sub);
+    }
+
+    /// Dynamic key store with multiple keys: verify tries each key.
+    #[test]
+    fn dynamic_key_store_tries_all_keys() {
+        let (enc, pub_pem) = make_keys();
+        let (_, wrong_pub_pem) = make_keys();
+        let claims = default_claims();
+        let token = sign_test_token(&enc, &claims);
+
+        let wrong_key = DecodingKey::from_rsa_pem(wrong_pub_pem.as_bytes()).expect("wrong key");
+        let right_key = DecodingKey::from_rsa_pem(pub_pem.as_bytes()).expect("right key");
+        let verifier = JwtVerifier {
+            keys: KeyStore::Dynamic {
+                keys: Arc::new(RwLock::new(vec![wrong_key, right_key])),
+            },
+            validation: JwtVerifier::default_validation(),
+        };
+
+        let verified = verifier.verify(&token).expect("verify");
+        assert_eq!(verified.user_id.to_string(), claims.sub);
     }
 }

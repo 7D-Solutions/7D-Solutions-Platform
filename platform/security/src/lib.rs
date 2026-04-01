@@ -68,4 +68,6 @@ pub enum SecurityError {
     InsufficientPermissions,
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
+    #[error("JWKS unavailable: {0}")]
+    JwksUnavailable(String),
 }

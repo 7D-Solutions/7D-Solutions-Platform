@@ -12,6 +12,7 @@
 | 1.0.2 | 2026-03-28 | bd-29c9i.3 | Add CUSTOMER_PORTAL_ADMIN permission constant. | Customer portal admin routes incorrectly used party.mutate — separate privilege scope needed. | No |
 | 1.0.3 | 2026-03-30 | bd-zbahz | `RequirePermissionsLayer` and `ClaimsMiddleware` (strict mode) now return JSON error bodies (`{error, message, request_id}`) on 401 Unauthorized and 403 Forbidden instead of empty responses. `request_id` populated from `TracingContext` when available. | Consumers parsing empty 401/403 bodies got deserialization errors instead of machine-readable error codes. All modules behind these layers are affected. | No |
 | 1.0.4 | 2026-03-31 | bd-68y44 | `JwtVerifier::from_env()` and `from_env_with_overlap()` now fall back to `JWT_PUBLIC_KEY_PEM` when `JWT_PUBLIC_KEY` is not set. | `.env` uses `JWT_PUBLIC_KEY_PEM` but verifier only read `JWT_PUBLIC_KEY`, so all services ran without JWT verification enabled. | No |
+| 1.1.0 | 2026-04-01 | bd-x2k12 | Add `JwtVerifier::from_jwks_url()` async constructor with `Arc<RwLock<Vec<DecodingKey>>>` key storage, background refresh loop, and env var fallback. Add `SecurityError::JwksUnavailable` variant. Internal `KeyStore` enum splits static (PEM) and dynamic (JWKS) key paths. | Verticals need JWKS URL support for identity-auth integration without hardcoding public keys. | No |
 
 ## How to read this table
 
