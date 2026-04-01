@@ -10,12 +10,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use event_bus::EventBus;
-use security::middleware::{
-    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
-};
+use security::middleware::rate_limit_middleware;
+use security::ratelimit::{RateLimitConfig, RateLimiter};
 use security::{optional_claims_mw, JwtVerifier};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
@@ -84,9 +85,12 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         StartupError::Config("DATABASE_URL is required but not set".into())
     })?;
 
-    // Step 4: DB pool
+    // Step 4: DB pool — sizes from manifest [database] section (defaults: min=5, max=20)
+    let pool_max = manifest.database.as_ref().map_or(20, |db| db.pool_max);
+    let pool_min = manifest.database.as_ref().map_or(5, |db| db.pool_min);
     let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(20)
+        .max_connections(pool_max)
+        .min_connections(pool_min)
         .connect(&database_url)
         .await
         .map_err(|e| StartupError::Database(e.to_string()))?;
@@ -170,8 +174,16 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         );
     }
 
-    // Step 9: rate limiter
-    let rate_limiter = default_rate_limiter();
+    // Step 9: rate limiter — from manifest [rate_limit] section or platform defaults
+    let rate_limiter = if let Some(ref rl) = manifest.rate_limit {
+        let window = std::time::Duration::from_secs(1);
+        Arc::new(RateLimiter::with_configs(
+            RateLimitConfig::new(rl.burst, window),
+            RateLimitConfig::new(rl.requests_per_second / 10, window),
+        ))
+    } else {
+        security::middleware::default_rate_limiter()
+    };
 
     Ok(PhaseAOutput {
         pool,
@@ -310,16 +322,27 @@ pub(crate) async fn phase_b(
         .and_then(|p| p.parse().ok())
         .unwrap_or(manifest.server.port);
 
+    // Body limit from manifest [server] section (default: "2mb")
+    let body_limit = parse_body_limit(&manifest.server.body_limit);
+
+    // Request timeout from manifest [server] section (default: "30s")
+    let request_timeout = parse_duration_str(&manifest.server.request_timeout);
+
     // Assemble the full app: module routes + health + metrics + middleware
     let app = module_routes
         .merge(health_routes)
         .merge(metrics_route)
         .layer(Extension(ctx))
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(DefaultBodyLimit::max(body_limit))
         .layer(axum::middleware::from_fn(
             security::tracing::tracing_context_middleware,
         ))
-        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(move |req, next: axum::middleware::Next| async move {
+            match tokio::time::timeout(request_timeout, next.run(req)).await {
+                Ok(response) => response,
+                Err(_) => (StatusCode::REQUEST_TIMEOUT, "Request timeout\n").into_response(),
+            }
+        }))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(phase_a.rate_limiter))
         .layer(axum::middleware::from_fn_with_state(
@@ -417,11 +440,72 @@ pub(crate) async fn phase_b_raw(
     Ok(())
 }
 
-/// CORS layer copied from Party's working `build_cors_layer()` implementation.
+/// Parse a human-readable body-limit string (e.g. "2mb", "512kb") into bytes.
+/// Falls back to 2 MiB on unrecognised input.
+fn parse_body_limit(s: &str) -> usize {
+    let s = s.trim().to_lowercase();
+    if let Some(n) = s.strip_suffix("mb") {
+        n.trim().parse::<usize>().unwrap_or(2) * 1024 * 1024
+    } else if let Some(n) = s.strip_suffix("kb") {
+        n.trim().parse::<usize>().unwrap_or(2048) * 1024
+    } else if let Some(n) = s.strip_suffix("gb") {
+        n.trim().parse::<usize>().unwrap_or(0) * 1024 * 1024 * 1024
+    } else {
+        s.parse::<usize>().unwrap_or(2 * 1024 * 1024)
+    }
+}
+
+/// Parse a human-readable duration string (e.g. "30s", "5m") into `Duration`.
+/// Falls back to 30 seconds on unrecognised input.
+fn parse_duration_str(s: &str) -> std::time::Duration {
+    let s = s.trim().to_lowercase();
+    if let Some(n) = s.strip_suffix('s') {
+        std::time::Duration::from_secs(n.trim().parse::<u64>().unwrap_or(30))
+    } else if let Some(n) = s.strip_suffix('m') {
+        std::time::Duration::from_secs(n.trim().parse::<u64>().unwrap_or(0) * 60)
+    } else {
+        std::time::Duration::from_secs(s.parse::<u64>().unwrap_or(30))
+    }
+}
+
+/// CORS layer: manifest `[cors]` section takes priority, then `CORS_ORIGINS` env var fallback.
 fn build_cors_layer(manifest: &Manifest) -> CorsLayer {
-    let cors_env = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| "*".to_string());
     let env_val = std::env::var("ENV").unwrap_or_else(|_| "development".to_string());
 
+    // 1. Manifest cors.origin_pattern → regex predicate
+    if let Some(ref pattern) = manifest.cors.as_ref().and_then(|c| c.origin_pattern.clone()) {
+        let re = regex::Regex::new(pattern).expect("manifest validate() ensures valid regex");
+        tracing::info!(
+            module = %manifest.module.name,
+            pattern = %pattern,
+            "CORS origin_pattern from manifest"
+        );
+        return CorsLayer::new()
+            .allow_origin(AllowOrigin::predicate(move |origin, _| {
+                origin.to_str().map_or(false, |s| re.is_match(s))
+            }))
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
+            .allow_credentials(false);
+    }
+
+    // 2. Manifest cors.origins → explicit list
+    if let Some(ref origins) = manifest.cors.as_ref().and_then(|c| c.origins.clone()) {
+        tracing::info!(
+            module = %manifest.module.name,
+            count = origins.len(),
+            "CORS origins from manifest"
+        );
+        let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
+        return CorsLayer::new()
+            .allow_origin(parsed)
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
+            .allow_credentials(false);
+    }
+
+    // 3. Fallback: CORS_ORIGINS env var (existing behavior)
+    let cors_env = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| "*".to_string());
     let origins: Vec<String> = cors_env
         .split(',')
         .map(|s| s.trim().to_string())
