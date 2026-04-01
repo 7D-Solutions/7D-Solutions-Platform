@@ -1,26 +1,19 @@
-use axum::{extract::State, http::StatusCode};
-use prometheus::{
-    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, Opts, Registry, TextEncoder,
-};
-use std::sync::Arc;
+use prometheus::{HistogramOpts, HistogramVec, IntCounter, IntCounterVec, Opts};
 
 #[derive(Clone)]
 pub struct ProductionMetrics {
     pub production_operations_total: IntCounter,
     pub http_request_duration_seconds: HistogramVec,
     pub http_requests_total: IntCounterVec,
-    registry: Registry,
 }
 
 impl ProductionMetrics {
     pub fn new() -> Result<Self, prometheus::Error> {
-        let registry = Registry::new();
-
         let production_operations_total = IntCounter::new(
             "production_operations_total",
             "Total number of production operations processed",
         )?;
-        registry.register(Box::new(production_operations_total.clone()))?;
+        prometheus::register(Box::new(production_operations_total.clone()))?;
 
         let http_request_duration_seconds = HistogramVec::new(
             HistogramOpts::new(
@@ -32,45 +25,18 @@ impl ProductionMetrics {
             ]),
             &["method", "route", "status"],
         )?;
-        registry.register(Box::new(http_request_duration_seconds.clone()))?;
+        prometheus::register(Box::new(http_request_duration_seconds.clone()))?;
 
         let http_requests_total = IntCounterVec::new(
             Opts::new("production_http_requests_total", "Total HTTP requests"),
             &["method", "route", "status"],
         )?;
-        registry.register(Box::new(http_requests_total.clone()))?;
+        prometheus::register(Box::new(http_requests_total.clone()))?;
 
         Ok(Self {
             production_operations_total,
             http_request_duration_seconds,
             http_requests_total,
-            registry,
         })
     }
-
-    pub fn registry(&self) -> &Registry {
-        &self.registry
-    }
-}
-
-pub async fn metrics_handler(
-    State(app_state): State<Arc<crate::AppState>>,
-) -> Result<String, (StatusCode, String)> {
-    let encoder = TextEncoder::new();
-    let metric_families = app_state.metrics.registry().gather();
-
-    let mut buffer = vec![];
-    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to encode metrics: {}", e),
-        )
-    })?;
-
-    String::from_utf8(buffer).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to convert metrics to string: {}", e),
-        )
-    })
 }
