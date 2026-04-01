@@ -469,6 +469,24 @@ async fn activate_tenant_atomic_transitions_to_active() {
     .expect("read outbox event");
     assert_eq!(event_type, "tenant.provisioned");
 
+    // Verify payload is EventEnvelope format (not bare JSON)
+    let payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT payload FROM provisioning_outbox WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(tid)
+    .fetch_one(&pool)
+    .await
+    .expect("read outbox payload");
+
+    assert!(payload.get("event_id").is_some(), "envelope must have event_id");
+    assert_eq!(payload["event_type"], "tenant.provisioned");
+    assert_eq!(payload["tenant_id"], tid.to_string());
+    assert_eq!(payload["source_module"], "tenant-registry");
+    assert!(payload.get("occurred_at").is_some(), "envelope must have occurred_at");
+    assert!(payload.get("payload").is_some(), "envelope must have inner payload");
+    assert_eq!(payload["payload"]["tenant_id"], tid.to_string());
+    assert_eq!(payload["payload"]["event_version"], "1.0");
+
     cleanup(&pool, tid).await;
 }
 

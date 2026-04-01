@@ -12,6 +12,7 @@
 
 use crate::lifecycle::event_types;
 use crate::summary::{ModuleReadiness, ModuleUrl, ReadinessStatus, MODULE_READINESS_TIMEOUT};
+use event_bus::EventEnvelope;
 use serde_json::json;
 use sqlx::PgPool;
 use std::time::Instant;
@@ -171,11 +172,22 @@ pub async fn activate_tenant_atomic(
         return Err(ActivationError::TenantNotFound(tenant_id));
     }
 
-    // Outbox: emit tenant.provisioned event in same transaction
-    let payload = json!({
+    // Outbox: emit tenant.provisioned event wrapped in EventEnvelope
+    let inner_payload = json!({
         "tenant_id": tenant_id.to_string(),
         "event_version": "1.0",
     });
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "tenant-registry".to_string(),
+        event_types::TENANT_PROVISIONED.to_string(),
+        inner_payload,
+    )
+    .with_mutation_class(Some("LIFECYCLE".to_string()));
+
+    let envelope_json = serde_json::to_value(&envelope)
+        .expect("EventEnvelope serialization cannot fail");
 
     sqlx::query(
         r#"
@@ -185,7 +197,7 @@ pub async fn activate_tenant_atomic(
     )
     .bind(tenant_id)
     .bind(event_types::TENANT_PROVISIONED)
-    .bind(&payload)
+    .bind(&envelope_json)
     .execute(&mut *tx)
     .await?;
 
@@ -291,7 +303,7 @@ mod tests {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(100))
             .build()
-            .unwrap();
+            .expect("test client");
         let module_urls = vec![ModuleUrl::new("test-module", "http://127.0.0.1:19999")];
         let result = check_all_modules_ready(&client, &module_urls).await;
         assert!(!result.all_ready);

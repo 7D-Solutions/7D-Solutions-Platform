@@ -1,6 +1,6 @@
 [package]
 name = "tenant-registry"
-version = "1.0.3"
+version = "1.1.0"
 edition = "2021"
 description = "Tenant CRUD, lifecycle management, plan tiers, and fleet summary"
 publish = ["7d-platform"]
@@ -14,6 +14,7 @@ thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+event-bus = { path = "../event-bus" }
 axum = "0.8"
 futures = "0.3"
 
