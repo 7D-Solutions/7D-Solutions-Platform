@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "2.2.5"
+version = "2.2.6"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 

@@ -3,6 +3,7 @@ use bom_rs::domain::eco_models::*;
 use bom_rs::domain::eco_service;
 use bom_rs::domain::models::*;
 use chrono::{Duration, Utc};
+use platform_sdk::PlatformClient;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -161,6 +162,7 @@ async fn eco_full_lifecycle_applies_bom_revision_supersession() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco");
@@ -330,6 +332,7 @@ async fn query_bom_revision_effective_on_date() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .unwrap();
@@ -436,6 +439,7 @@ async fn cannot_apply_draft_eco() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .unwrap();
@@ -492,6 +496,7 @@ async fn eco_events_emitted_to_outbox() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .unwrap();
@@ -633,6 +638,7 @@ async fn eco_rejection_preserves_bom_state() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .unwrap();

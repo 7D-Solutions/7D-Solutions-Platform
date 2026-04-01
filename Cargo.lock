@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "2.3.2"
+version = "2.3.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.2.3"
+version = "2.2.4"
 dependencies = [
  "axum",
  "chrono",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "argon2",
  "axum",
@@ -3323,7 +3323,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3336,7 +3335,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3349,7 +3347,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3362,7 +3359,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3375,7 +3371,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3388,7 +3383,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3401,7 +3395,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3414,7 +3407,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3427,7 +3419,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3440,7 +3431,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3453,7 +3443,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -4725,7 +4714,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.5"
+version = "2.2.6"
 dependencies = [
  "async-nats",
  "axum",
@@ -5141,7 +5130,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "2.2.7"
+version = "2.2.8"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -5834,7 +5823,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.14"
+version = "2.1.15"
 dependencies = [
  "async-nats",
  "axum",

@@ -13,6 +13,7 @@ use bom_rs::domain::numbering_client::NumberingClient;
 use chrono::{Duration, Utc};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use platform_sdk::PlatformClient;
 use uuid::Uuid;
 
 async fn setup_bom_db() -> sqlx::PgPool {
@@ -184,6 +185,7 @@ async fn e2e_eco_full_lifecycle_with_numbering() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco with auto-numbering");
@@ -420,6 +422,7 @@ async fn e2e_eco_sequential_numbering() {
             None,
             &Uuid::new_v4().to_string(),
             None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
         )
         .await
         .unwrap_or_else(|e| panic!("create eco #{}: {}", i, e));

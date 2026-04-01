@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.3 | 2026-04-01 | bd-2gyqj | Update party_client to pass &VerifiedClaims through verify_party. Constructor uses PlatformClient::new().with_bearer_token(). HTTP handlers extract claims from request extensions. | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.3.2 | 2026-04-01 | bd-ik3o3 | Replace hand-rolled party_client.rs HTTP with platform-client-party typed client. Use PartiesClient::get_party() + service token auth. Same PartyClientError contract, no call-site changes. ~53 LOC removed. | Typed client consistency — all cross-module HTTP should use generated clients, not hand-rolled reqwest. | No |
 | 2.3.1 | 2026-04-01 | bd-manm4 | Add ApiDoc struct in http/mod.rs and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.3.0 | 2026-03-31 | bd-w91p1 | Convert AR startup to platform SDK with consumer wiring. SDK handles dotenv, tracing, DB, migrations, event bus, outbox publisher, health, CORS, JWT, rate limiting, shutdown. Consumer for payment.succeeded wired via .consumer() API. | SDK standardization — eliminate per-module boilerplate, prove consumer wiring API works on AR (most complex module). | No |

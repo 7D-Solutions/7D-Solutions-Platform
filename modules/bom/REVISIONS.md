@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.4 | 2026-04-01 | bd-2gyqj | Update NumberingClient to pass &VerifiedClaims through allocate_eco_number and confirm_eco_number. Constructor uses PlatformClient::new().with_bearer_token(). eco_service::create_eco threads claims from handler. Tests use PlatformClient::service_claims(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.2.3 | 2026-04-01 | bd-8ls7t | Replace hand-rolled reqwest HTTP in numbering_client.rs with platform-client-numbering typed client. Removes local AllocateRequest/AllocateResponse/ConfirmRequest structs and ~50 LOC of manual HTTP handling. Direct-DB branch unchanged. | Typed client conversion — eliminate hand-rolled HTTP in favor of generated client for consistency and maintainability. | No |
 | 2.2.2 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |

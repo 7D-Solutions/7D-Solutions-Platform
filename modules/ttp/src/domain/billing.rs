@@ -17,6 +17,7 @@
 ///   4. Finalize the AR invoice (draft → open).
 ///   5. Mark one-time charges as billed with ar_invoice_id.
 ///   6. Upsert a billing run item with status = invoiced.
+use platform_sdk::PlatformClient;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -257,13 +258,15 @@ async fn bill_party(
     total_amount_minor: &mut i64,
     run_currency: &mut String,
 ) -> Result<(), BillingError> {
+    let claims = PlatformClient::service_claims(tenant_id);
     let email = format!("party-{}@tenant.internal", party.party_id);
     let ar_customer_id = ar_client
-        .find_or_create_customer(party.party_id, &email)
+        .find_or_create_customer(&claims, party.party_id, &email)
         .await?;
 
     let invoice = ar_client
         .create_invoice(
+            &claims,
             ar_customer_id,
             party.total_amount_minor,
             &party.currency,
@@ -272,7 +275,7 @@ async fn bill_party(
         )
         .await?;
 
-    let finalized = ar_client.finalize_invoice(invoice.id).await?;
+    let finalized = ar_client.finalize_invoice(&claims, invoice.id).await?;
 
     let ar_invoice_uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, finalized.id.to_string().as_bytes());
 
@@ -349,8 +352,8 @@ mod tests {
 
     #[test]
     fn derive_item_key_is_deterministic() {
-        let run_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let party_id = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        let run_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
+        let party_id = Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("valid uuid");
         let key1 = derive_item_key(run_id, party_id);
         let key2 = derive_item_key(run_id, party_id);
         assert_eq!(key1, key2, "key must be deterministic");
@@ -359,9 +362,9 @@ mod tests {
 
     #[test]
     fn derive_item_key_differs_by_party() {
-        let run_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let party_a = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let party_b = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
+        let run_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
+        let party_a = Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("valid uuid");
+        let party_b = Uuid::parse_str("00000000-0000-0000-0000-000000000003").expect("valid uuid");
         assert_ne!(
             derive_item_key(run_id, party_a),
             derive_item_key(run_id, party_b)
@@ -382,12 +385,12 @@ mod tests {
         use chrono::NaiveDate;
         use metering::{PriceTrace, TraceLineItem};
 
-        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
         let trace = PriceTrace {
             tenant_id,
             period: "2026-02".to_string(),
-            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
-            period_end: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date"),
+            period_end: NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date"),
             line_items: vec![
                 TraceLineItem {
                     dimension: "api_calls".to_string(),

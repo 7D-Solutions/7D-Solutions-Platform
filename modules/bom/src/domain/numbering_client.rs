@@ -1,4 +1,5 @@
 use platform_client_numbering as numbering_typed;
+use platform_sdk::{PlatformClient, VerifiedClaims};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -59,23 +60,22 @@ impl NumberingClient {
         tenant_id: &str,
         idempotency_key: &str,
         auth_header: Option<&str>,
+        claims: &VerifiedClaims,
     ) -> Result<String, BomError> {
         match &self.mode {
             Mode::Http {
                 base_url, client, ..
             } => {
                 let token = extract_bearer_token(auth_header)?;
-                let typed = numbering_typed::NumberingClient::new(
-                    client.clone(),
-                    base_url.as_str(),
-                    token,
-                );
+                let platform = PlatformClient::new(base_url.clone())
+                    .with_bearer_token(token.to_string());
+                let typed = numbering_typed::NumberingClient::new(platform);
                 let body = numbering_typed::AllocateRequest {
                     entity: "ECO".into(),
                     idempotency_key: idempotency_key.into(),
                     gap_free: None,
                 };
-                let alloc = typed.allocate(&body).await.map_err(|e| {
+                let alloc = typed.allocate(claims, &body).await.map_err(|e| {
                     GuardError::Validation(format!("Numbering service error: {e}"))
                 })?;
                 Ok(alloc
@@ -94,6 +94,7 @@ impl NumberingClient {
         &self,
         idempotency_key: &str,
         auth_header: Option<&str>,
+        claims: &VerifiedClaims,
     ) {
         if let Mode::Http {
             base_url, client, ..
@@ -104,16 +105,14 @@ impl NumberingClient {
             else {
                 return;
             };
-            let typed = numbering_typed::NumberingClient::new(
-                client.clone(),
-                base_url.as_str(),
-                token,
-            );
+            let platform = PlatformClient::new(base_url.clone())
+                .with_bearer_token(token.to_string());
+            let typed = numbering_typed::NumberingClient::new(platform);
             let body = numbering_typed::ConfirmRequest {
                 entity: "ECO".into(),
                 idempotency_key: idempotency_key.into(),
             };
-            if let Err(e) = typed.confirm(&body).await {
+            if let Err(e) = typed.confirm(claims, &body).await {
                 tracing::warn!("Numbering confirm call failed (non-fatal): {e}");
             }
         }

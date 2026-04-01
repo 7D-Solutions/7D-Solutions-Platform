@@ -156,12 +156,8 @@ pub async fn execute_bill_run(
 
     let ar_base_url =
         std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
-    let ar_http_client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .expect("failed to build reqwest client");
     let ar_client =
-        platform_client_ar::InvoicesClient::new(ar_http_client, &ar_base_url, "");
+        platform_client_ar::InvoicesClient::new(platform_sdk::PlatformClient::new(ar_base_url));
 
     for subscription in subscriptions {
         tracing::info!(

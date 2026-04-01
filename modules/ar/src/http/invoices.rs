@@ -100,7 +100,9 @@ pub async fn create_invoice(
     // Validate party_id exists in Party Master if provided
     if let Some(pid) = req.party_id {
         let url = crate::integrations::party_client::party_master_url();
-        crate::integrations::party_client::verify_party(&url, pid, &app_id)
+        let Extension(verified) = claims.as_ref()
+            .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
+        crate::integrations::party_client::verify_party(&url, pid, &app_id, verified)
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;

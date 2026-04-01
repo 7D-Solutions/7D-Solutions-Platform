@@ -12,7 +12,7 @@ use platform_client_ar::{
     CreateCustomerRequest, CreateInvoiceRequest, Customer, CustomersClient,
     FinalizeInvoiceRequest, Invoice, InvoicesClient,
 };
-use platform_sdk::ClientError;
+use platform_sdk::{ClientError, PlatformClient, VerifiedClaims};
 use uuid::Uuid;
 
 /// Error from the AR client.
@@ -61,8 +61,8 @@ impl ArClient {
             .expect("build reqwest client for AR");
         let base = base_url.into().trim_end_matches('/').to_string();
         Self {
-            customers: CustomersClient::new(http.clone(), &base, ""),
-            invoices: InvoicesClient::new(http.clone(), &base, ""),
+            customers: CustomersClient::new(PlatformClient::new(base.clone())),
+            invoices: InvoicesClient::new(PlatformClient::new(base.clone())),
             http,
             base_url: base,
         }
@@ -75,6 +75,7 @@ impl ArClient {
     /// then the generated `CustomersClient::create_customer` to create.
     pub async fn find_or_create_customer(
         &self,
+        claims: &VerifiedClaims,
         party_id: Uuid,
         email: &str,
     ) -> Result<i32, ArClientError> {
@@ -103,7 +104,7 @@ impl ArClient {
             metadata: None,
             party_id: Some(party_id),
         };
-        let customer = self.customers.create_customer(&body).await?;
+        let customer = self.customers.create_customer(claims, &body).await?;
         Ok(customer.id)
     }
 
@@ -113,6 +114,7 @@ impl ArClient {
     /// draft invoice with this correlation_id it will be returned unchanged.
     pub async fn create_invoice(
         &self,
+        claims: &VerifiedClaims,
         ar_customer_id: i32,
         amount_minor: i64,
         currency: &str,
@@ -134,14 +136,14 @@ impl ArClient {
             status: None,
             subscription_id: None,
         };
-        let invoice = self.invoices.create_invoice(&body).await?;
+        let invoice = self.invoices.create_invoice(claims, &body).await?;
         Ok(invoice.into())
     }
 
     /// Finalize an existing draft AR invoice (draft -> open).
-    pub async fn finalize_invoice(&self, invoice_id: i32) -> Result<ArInvoice, ArClientError> {
+    pub async fn finalize_invoice(&self, claims: &VerifiedClaims, invoice_id: i32) -> Result<ArInvoice, ArClientError> {
         let body = FinalizeInvoiceRequest { paid_at: None };
-        let invoice = self.invoices.finalize_invoice(invoice_id, &body).await?;
+        let invoice = self.invoices.finalize_invoice(claims, invoice_id, &body).await?;
         Ok(invoice.into())
     }
 }

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.15 | 2026-04-01 | bd-2gyqj | Update ArClient to pass &VerifiedClaims through find_or_create_customer, create_invoice, finalize_invoice. Constructor uses PlatformClient::new(). billing.rs uses PlatformClient::service_claims(tenant_id). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.1.14 | 2026-04-01 | bd-o3uhy | Replace hand-written AR and Tenant-Registry HTTP clients (~331 LOC) with thin adapters over platform-client-ar and platform-client-tenant-registry. Orchestration logic unchanged. | Typed client standardisation — all inter-module HTTP calls use generated clients for type safety and consistency. | No |
 | 2.1.13 | 2026-04-01 | bd-manm4 | Add utoipa dependency, ApiDoc struct in http/mod.rs, and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.1.12 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. Ops routes stripped from http::router(). | SDK batch conversion — eliminate two classes of modules. | No |

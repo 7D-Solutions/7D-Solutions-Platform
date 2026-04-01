@@ -15,7 +15,7 @@
 use platform_client_inventory::{
     IssueRequest, IssuesClient, ReceiptRequest, ReceiptsClient,
 };
-use platform_sdk::ClientError;
+use platform_sdk::{ClientError, PlatformClient};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -45,7 +45,6 @@ pub struct InventoryIntegration {
 enum Mode {
     Http {
         base_url: String,
-        client: reqwest::Client,
         token: String,
     },
     Deterministic,
@@ -57,7 +56,6 @@ impl InventoryIntegration {
         Self {
             mode: Mode::Http {
                 base_url: base_url.trim_end_matches('/').to_string(),
-                client: reqwest::Client::new(),
                 token: token.to_string(),
             },
         }
@@ -85,9 +83,11 @@ impl InventoryIntegration {
         let idem_key = make_idempotency_key(tenant_id, shipment_id, line_id, "receipt");
 
         match &self.mode {
-            Mode::Http { base_url, client, token } => {
+            Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
-                let receipts = ReceiptsClient::new(client.clone(), base_url, token);
+                let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
+                let receipts = ReceiptsClient::new(platform);
+                let claims = PlatformClient::service_claims(tenant_id);
                 let body = ReceiptRequest {
                     tenant_id: tenant_id.to_string(),
                     item_id,
@@ -105,7 +105,7 @@ impl InventoryIntegration {
                     source_type: None,
                     uom_id: None,
                 };
-                let result = receipts.post_receipt(&body).await?;
+                let result = receipts.post_receipt(&claims, &body).await?;
                 Ok(result.receipt_line_id)
             }
             Mode::Deterministic => Ok(derive_id(&idem_key)),
@@ -126,9 +126,11 @@ impl InventoryIntegration {
         let idem_key = make_idempotency_key(tenant_id, shipment_id, line_id, "issue");
 
         match &self.mode {
-            Mode::Http { base_url, client, token } => {
+            Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
-                let issues = IssuesClient::new(client.clone(), base_url, token);
+                let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
+                let issues = IssuesClient::new(platform);
+                let claims = PlatformClient::service_claims(tenant_id);
                 let body = IssueRequest {
                     tenant_id: tenant_id.to_string(),
                     item_id,
@@ -147,7 +149,7 @@ impl InventoryIntegration {
                     serial_codes: None,
                     uom_id: None,
                 };
-                let result = issues.post_issue(&body).await?;
+                let result = issues.post_issue(&claims, &body).await?;
                 Ok(result.issue_line_id)
             }
             Mode::Deterministic => Ok(derive_id(&idem_key)),

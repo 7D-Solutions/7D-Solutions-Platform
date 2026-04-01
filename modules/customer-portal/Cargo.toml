@@ -1,6 +1,6 @@
 [package]
 name = "customer-portal"
-version = "2.1.3"
+version = "2.1.4"
 edition = "2021"
 description = "External customer portal auth boundary service"
 

@@ -42,6 +42,8 @@ pub async fn post_eco(
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
+    let Extension(verified) = claims.as_ref()
+        .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
     let eco = eco_service::create_eco(
         &state.pool,
         &tenant_id,
@@ -50,6 +52,7 @@ pub async fn post_eco(
         auth_header.as_deref(),
         &correlation_id(),
         None,
+        verified,
     )
     .await
     .map_err(into_api_error)?;

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.4 | 2026-04-01 | bd-2gyqj | Update DistributionsClient to pass &VerifiedClaims via PlatformClient::service_claims(tenant_id). Constructor uses PlatformClient::new().with_bearer_token(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.1.3 | 2026-04-01 | bd-tfaon | Replace inline reqwest calls to Doc-Mgmt with platform-client-doc-mgmt typed client. Removes local DocMgmtDistributionList/DocMgmtDistribution structs. | Typed client consistency — eliminate raw HTTP in favour of generated clients. | No |
 | 2.1.2 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual startup boilerplate with SDK startup sequence. Health/middleware stripped from build_router(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.6 | 2026-04-01 | bd-2gyqj | Update InventoryIntegration to pass &VerifiedClaims via PlatformClient::service_claims(tenant_id). Remove reqwest::Client from Mode::Http. Constructor uses PlatformClient::new().with_bearer_token(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.2.5 | 2026-04-01 | bd-tbumc | Replace hand-rolled reqwest HTTP calls in inventory_client.rs with typed platform-client-inventory ReceiptsClient and IssuesClient. Remove local HTTP request/response types. | Typed client conversion — consistent with platform client generation pattern. | No |
 | 2.2.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder with SDK consumer adapters for po_approved and so_released. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.3 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |

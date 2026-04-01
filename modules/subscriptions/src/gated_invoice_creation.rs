@@ -10,7 +10,7 @@
 
 use chrono::NaiveDate;
 use platform_client_ar::{CreateInvoiceRequest, FinalizeInvoiceRequest, InvoicesClient};
-use platform_sdk::ClientError;
+use platform_sdk::{ClientError, PlatformClient};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -183,6 +183,11 @@ pub async fn create_gated_invoice(
     // - 15s per HTTP call (create + finalize)
     // - 30s total for invoice creation operation
     // - NO automatic retry (cycle gating enforces exactly-once)
+    let tenant_uuid: Uuid = tenant_id.parse().map_err(|_| InvoiceCreationError::GatingError {
+        message: format!("Invalid tenant_id: {}", tenant_id),
+    })?;
+    let claims = PlatformClient::service_claims(tenant_uuid);
+
     let create_req = CreateInvoiceRequest {
         ar_customer_id,
         amount_cents: price_minor as i32,
@@ -199,7 +204,7 @@ pub async fn create_gated_invoice(
         subscription_id: None,
     };
 
-    let invoice = match ar_client.create_invoice(&create_req).await {
+    let invoice = match ar_client.create_invoice(&claims, &create_req).await {
         Ok(inv) => inv,
         Err(e) => {
             let err = InvoiceCreationError::from(e);
@@ -224,7 +229,7 @@ pub async fn create_gated_invoice(
 
     let finalize_req = FinalizeInvoiceRequest { paid_at: None };
 
-    if let Err(e) = ar_client.finalize_invoice(invoice.id, &finalize_req).await {
+    if let Err(e) = ar_client.finalize_invoice(&claims, invoice.id, &finalize_req).await {
         let err = InvoiceCreationError::from(e);
         let (code, msg) = match &err {
             InvoiceCreationError::ArApiError { status, message } => {

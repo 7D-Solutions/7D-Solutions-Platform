@@ -1,3 +1,4 @@
+use platform_sdk::VerifiedClaims;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -18,6 +19,7 @@ pub async fn create_eco(
     auth_header: Option<&str>,
     correlation_id: &str,
     causation_id: Option<&str>,
+    claims: &VerifiedClaims,
 ) -> Result<Eco, BomError> {
     guard_non_empty(&req.title, "title")?;
     guard_non_empty(&req.created_by, "created_by")?;
@@ -31,7 +33,7 @@ pub async fn create_eco(
                     "eco_number required when numbering service is not configured".to_string(),
                 )
             })?;
-            nc.allocate_eco_number(tenant_id, correlation_id, auth_header)
+            nc.allocate_eco_number(tenant_id, correlation_id, auth_header, claims)
                 .await?
         }
     };
@@ -79,7 +81,7 @@ pub async fn create_eco(
 
     // Best-effort confirm after successful INSERT.
     if let Some(nc) = numbering {
-        nc.confirm_eco_number(correlation_id, auth_header).await;
+        nc.confirm_eco_number(correlation_id, auth_header, claims).await;
     }
 
     Ok(eco)

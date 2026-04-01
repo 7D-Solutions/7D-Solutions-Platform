@@ -3,6 +3,7 @@ use bom_rs::domain::eco_service;
 use bom_rs::domain::numbering_client::NumberingClient;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use platform_sdk::PlatformClient;
 use uuid::Uuid;
 
 async fn setup_bom_db() -> sqlx::PgPool {
@@ -72,6 +73,7 @@ async fn eco_auto_allocates_sequential_number() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco 1");
@@ -97,6 +99,7 @@ async fn eco_auto_allocates_sequential_number() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco 2");
@@ -130,6 +133,7 @@ async fn eco_numbering_tenant_isolation() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco tenant A");
@@ -147,6 +151,7 @@ async fn eco_numbering_tenant_isolation() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco tenant B");
@@ -182,6 +187,7 @@ async fn eco_numbering_idempotent() {
         None,
         &corr,
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco 1");
@@ -200,6 +206,7 @@ async fn eco_numbering_idempotent() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await
     .expect("create eco 2");
@@ -232,6 +239,7 @@ async fn eco_creation_fails_without_numbering() {
         None,
         &Uuid::new_v4().to_string(),
         None,
+        &PlatformClient::service_claims(Uuid::new_v4()),
     )
     .await;
 
