@@ -28,6 +28,20 @@
 //! min_version = "0.1.0"
 //! ```
 
+mod bus;
+mod database;
+mod events;
+mod module;
+mod sdk;
+mod server;
+
+pub use bus::BusSection;
+pub use database::DatabaseSection;
+pub use events::{EventsPublishSection, EventsSection};
+pub use module::ModuleSection;
+pub use sdk::SdkSection;
+pub use server::ServerSection;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -66,105 +80,6 @@ pub struct Manifest {
     pub sdk: Option<SdkSection>,
 
     /// Unknown top-level keys are captured here so we can warn without erroring.
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-/// `[module]` — identity and metadata.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ModuleSection {
-    pub name: String,
-    #[serde(default)]
-    pub version: Option<String>,
-    #[serde(default)]
-    pub description: Option<String>,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-/// `[server]` — HTTP listener defaults.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ServerSection {
-    #[serde(default = "default_host")]
-    pub host: String,
-    #[serde(default = "default_port")]
-    pub port: u16,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-impl Default for ServerSection {
-    fn default() -> Self {
-        Self {
-            host: default_host(),
-            port: default_port(),
-            extra: BTreeMap::new(),
-        }
-    }
-}
-
-fn default_host() -> String {
-    "0.0.0.0".to_string()
-}
-
-fn default_port() -> u16 {
-    8080
-}
-
-/// `[database]` — migration path and auto-migrate toggle.
-#[derive(Debug, Clone, Deserialize)]
-pub struct DatabaseSection {
-    pub migrations: String,
-    #[serde(default)]
-    pub auto_migrate: bool,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-/// `[bus]` — event bus configuration.
-#[derive(Debug, Clone, Deserialize)]
-pub struct BusSection {
-    #[serde(rename = "type", default = "default_bus_type")]
-    pub bus_type: String,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-fn default_bus_type() -> String {
-    "inmemory".to_string()
-}
-
-/// `[events]` — event publishing and consuming configuration.
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct EventsSection {
-    /// `[events.publish]` — outbox publisher settings.
-    #[serde(default)]
-    pub publish: Option<EventsPublishSection>,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-/// `[events.publish]` — outbox publisher configuration.
-#[derive(Debug, Clone, Deserialize)]
-pub struct EventsPublishSection {
-    /// Name of the outbox table to poll (e.g. `"events_outbox"`).
-    pub outbox_table: String,
-
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, toml::Value>,
-}
-
-/// `[sdk]` — SDK compatibility constraints.
-#[derive(Debug, Clone, Deserialize)]
-pub struct SdkSection {
-    #[serde(default)]
-    pub min_version: Option<String>,
-
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
