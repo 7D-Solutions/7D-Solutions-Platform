@@ -138,6 +138,10 @@ impl EventBus for InMemoryBus {
 
         Ok(stream.boxed())
     }
+
+    async fn health_check(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
@@ -274,6 +278,12 @@ mod tests {
         let result =
             tokio::time::timeout(std::time::Duration::from_millis(100), stream.next()).await;
         assert!(result.is_err(), "should timeout, no more messages");
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let bus = InMemoryBus::new();
+        assert!(bus.health_check().await);
     }
 
     #[tokio::test]

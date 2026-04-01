@@ -169,6 +169,13 @@ pub trait EventBus: Send + Sync {
     /// # }
     /// ```
     async fn subscribe(&self, subject: &str) -> BusResult<BoxStream<'static, BusMessage>>;
+
+    /// Check if the event bus connection is healthy
+    ///
+    /// # Returns
+    /// * `true` if the bus is connected and operational
+    /// * `false` if the bus is disconnected or degraded
+    async fn health_check(&self) -> bool;
 }
 
 impl fmt::Debug for dyn EventBus {

@@ -61,7 +61,7 @@ Shared crates used by services. Not independently deployed.
 | audit | audit | 1.0.0 | Append-only audit trail with field-level diffs and policy enforcement | [Revisions](platform/audit/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | config-validator | config-validator | 0.1.0 | Shared builder for environment config validation. |  |
 | doc-mgmt | doc_mgmt | 1.0.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) | [Revisions](platform/doc-mgmt/REVISIONS.md) |
-| event-bus | event-bus | 1.0.1 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
+| event-bus | event-bus | 2.0.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
 | event-consumer | event-consumer | 1.0.0 | Consumer-side event dispatch: handler registry, router, and context | [Revisions](platform/event-consumer/REVISIONS.md) |
 | health | health | 1.0.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
 | http-contracts | platform-http-contracts | 0.1.0 | Shared HTTP response types — pagination, error envelopes, field errors |  |
@@ -70,7 +70,7 @@ Shared crates used by services. Not independently deployed.
 | projections | projections | 1.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | security | security | 1.0.4 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
 | tax-core | tax-core | 1.0.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
-| tenant-registry | tenant-registry | 1.0.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
+| tenant-registry | tenant-registry | 1.1.0 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
 
 ## Tools
 

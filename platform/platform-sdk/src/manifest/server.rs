@@ -9,6 +9,10 @@ pub struct ServerSection {
     pub host: String,
     #[serde(default = "default_port")]
     pub port: u16,
+    #[serde(default = "default_body_limit")]
+    pub body_limit: String,
+    #[serde(default = "default_request_timeout")]
+    pub request_timeout: String,
 
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
@@ -19,6 +23,8 @@ impl Default for ServerSection {
         Self {
             host: default_host(),
             port: default_port(),
+            body_limit: default_body_limit(),
+            request_timeout: default_request_timeout(),
             extra: BTreeMap::new(),
         }
     }
@@ -30,4 +36,12 @@ fn default_host() -> String {
 
 fn default_port() -> u16 {
     8080
+}
+
+fn default_body_limit() -> String {
+    "2mb".to_string()
+}
+
+fn default_request_timeout() -> String {
+    "30s".to_string()
 }

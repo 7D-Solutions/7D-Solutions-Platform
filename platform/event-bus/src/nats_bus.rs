@@ -92,6 +92,10 @@ impl EventBus for NatsBus {
 
         Ok(stream.boxed())
     }
+
+    async fn health_check(&self) -> bool {
+        self.client.connection_state() == async_nats::connection::State::Connected
+    }
 }
 
 #[cfg(test)]
@@ -102,12 +106,27 @@ mod tests {
     // For CI, use InMemoryBus tests instead
     // For manual testing: docker run -p 4222:4222 nats:2.10-alpine
 
+    fn nats_url() -> String {
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string())
+    }
+
+    #[tokio::test]
+    #[ignore] // Requires NATS server
+    async fn test_nats_bus_health_check() {
+        let client = crate::connect_nats(&nats_url())
+            .await
+            .expect("NATS server must be reachable");
+
+        let bus = NatsBus::new(client);
+        assert!(bus.health_check().await);
+    }
+
     #[tokio::test]
     #[ignore] // Requires NATS server
     async fn test_nats_bus_publish_subscribe() {
-        let client = async_nats::connect("nats://localhost:4222")
+        let client = crate::connect_nats(&nats_url())
             .await
-            .expect("NATS server must be running on localhost:4222");
+            .expect("NATS server must be reachable");
 
         let bus = NatsBus::new(client);
 

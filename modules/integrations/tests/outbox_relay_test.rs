@@ -149,6 +149,10 @@ impl EventBus for FailingBus {
     ) -> BusResult<futures::stream::BoxStream<'static, BusMessage>> {
         Ok(stream::empty::<BusMessage>().boxed())
     }
+
+    async fn health_check(&self) -> bool {
+        true
+    }
 }
 
 #[tokio::test]

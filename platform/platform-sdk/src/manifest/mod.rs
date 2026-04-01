@@ -28,17 +28,25 @@
 //! min_version = "0.1.0"
 //! ```
 
+mod auth;
 mod bus;
+mod cors;
 mod database;
 mod events;
+mod health_section;
 mod module;
+mod rate_limit;
 mod sdk;
 mod server;
 
+pub use auth::AuthSection;
 pub use bus::BusSection;
+pub use cors::CorsSection;
 pub use database::DatabaseSection;
 pub use events::{EventsPublishSection, EventsSection};
+pub use health_section::{HealthSection, KNOWN_HEALTH_DEPS};
 pub use module::ModuleSection;
+pub use rate_limit::RateLimitSection;
 pub use sdk::SdkSection;
 pub use server::ServerSection;
 
@@ -78,6 +86,14 @@ pub struct Manifest {
     pub events: Option<EventsSection>,
     #[serde(default)]
     pub sdk: Option<SdkSection>,
+    #[serde(default)]
+    pub auth: Option<AuthSection>,
+    #[serde(default)]
+    pub cors: Option<CorsSection>,
+    #[serde(default)]
+    pub health: Option<HealthSection>,
+    #[serde(default)]
+    pub rate_limit: Option<RateLimitSection>,
 
     /// Unknown top-level keys are captured here so we can warn without erroring.
     #[serde(flatten)]
@@ -169,6 +185,48 @@ impl Manifest {
             }
         }
 
+        // Validate auth section.
+        if let Some(ref auth) = self.auth {
+            if auth.jwks_url.is_some() && !auth.enabled {
+                return Err(ManifestError::Validation(
+                    "auth.jwks_url is set but auth.enabled is false — \
+                     either remove jwks_url or set enabled = true"
+                        .into(),
+                ));
+            }
+        }
+
+        // Validate cors section.
+        if let Some(ref cors) = self.cors {
+            if cors.origins.is_some() && cors.origin_pattern.is_some() {
+                return Err(ManifestError::Validation(
+                    "cors.origins and cors.origin_pattern are mutually exclusive — pick one"
+                        .into(),
+                ));
+            }
+            if let Some(ref pattern) = cors.origin_pattern {
+                regex::Regex::new(pattern).map_err(|e| {
+                    ManifestError::Validation(format!(
+                        "cors.origin_pattern '{}' is not a valid regex: {}",
+                        pattern, e
+                    ))
+                })?;
+            }
+        }
+
+        // Validate health section.
+        if let Some(ref health) = self.health {
+            for dep in &health.dependencies {
+                if !KNOWN_HEALTH_DEPS.contains(&dep.as_str()) {
+                    return Err(ManifestError::Validation(format!(
+                        "health.dependencies contains unknown value '{}' — \
+                         known values: {:?}",
+                        dep, KNOWN_HEALTH_DEPS
+                    )));
+                }
+            }
+        }
+
         // SDK version compatibility check.
         if let Some(ref sdk) = self.sdk {
             if let Some(ref min_ver) = sdk.min_version {
@@ -209,6 +267,18 @@ impl Manifest {
         }
         if let Some(ref sdk) = self.sdk {
             warn_extra_keys("sdk", &sdk.extra);
+        }
+        if let Some(ref auth) = self.auth {
+            warn_extra_keys("auth", &auth.extra);
+        }
+        if let Some(ref cors) = self.cors {
+            warn_extra_keys("cors", &cors.extra);
+        }
+        if let Some(ref health) = self.health {
+            warn_extra_keys("health", &health.extra);
+        }
+        if let Some(ref rate_limit) = self.rate_limit {
+            warn_extra_keys("rate_limit", &rate_limit.extra);
         }
 
         Ok(())
