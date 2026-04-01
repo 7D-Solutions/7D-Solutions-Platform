@@ -121,15 +121,14 @@ impl ParsedSpec {
 }
 
 fn title_to_crate_name(title: &str) -> String {
-    let base = title
+    let module = title
         .to_lowercase()
         .replace("service", "")
         .trim()
-        .replace(' ', "-");
-    format!("{base}-client")
-        .replace("--", "-")
-        .trim_matches('-')
-        .to_string()
+        .replace(' ', "-")
+        .replace("--", "-");
+    let module = module.trim_matches('-');
+    format!("platform-client-{module}")
 }
 
 fn parse_type_def(name: &str, schema: &Value) -> Option<TypeDef> {
