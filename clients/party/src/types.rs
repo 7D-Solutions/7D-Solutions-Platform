@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
