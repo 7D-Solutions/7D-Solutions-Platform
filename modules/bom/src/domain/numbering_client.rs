@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use platform_client_numbering as numbering_typed;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -14,35 +14,13 @@ pub struct NumberingClient {
 }
 
 enum Mode {
-    /// Production: calls the Numbering service over HTTP.
+    /// Production: calls the Numbering service over HTTP via typed client.
     Http {
         base_url: String,
         client: reqwest::Client,
     },
     /// Test / direct: allocates directly against the Numbering database.
     Direct { pool: PgPool },
-}
-
-// ---------------------------------------------------------------------------
-// HTTP request / response shapes (match numbering service API)
-// ---------------------------------------------------------------------------
-
-#[derive(Serialize)]
-struct AllocateRequest {
-    entity: String,
-    idempotency_key: String,
-}
-
-#[derive(Deserialize)]
-struct AllocateResponse {
-    number_value: i64,
-    formatted_number: Option<String>,
-}
-
-#[derive(Serialize)]
-struct ConfirmRequest {
-    entity: String,
-    idempotency_key: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -86,7 +64,23 @@ impl NumberingClient {
             Mode::Http {
                 base_url, client, ..
             } => {
-                allocate_http(client, base_url, auth_header, idempotency_key).await
+                let token = extract_bearer_token(auth_header)?;
+                let typed = numbering_typed::NumberingClient::new(
+                    client.clone(),
+                    base_url.as_str(),
+                    token,
+                );
+                let body = numbering_typed::AllocateRequest {
+                    entity: "ECO".into(),
+                    idempotency_key: idempotency_key.into(),
+                    gap_free: None,
+                };
+                let alloc = typed.allocate(&body).await.map_err(|e| {
+                    GuardError::Validation(format!("Numbering service error: {e}"))
+                })?;
+                Ok(alloc
+                    .formatted_number
+                    .unwrap_or_else(|| format!("ECO-{:05}", alloc.number_value)))
             }
             Mode::Direct { pool } => {
                 allocate_direct(pool, tenant_id, idempotency_key).await
@@ -105,84 +99,40 @@ impl NumberingClient {
             base_url, client, ..
         } = &self.mode
         {
-            confirm_http(client, base_url, auth_header, idempotency_key).await;
+            let Some(token) = auth_header
+                .and_then(|h| h.strip_prefix("Bearer ").or(Some(h)))
+            else {
+                return;
+            };
+            let typed = numbering_typed::NumberingClient::new(
+                client.clone(),
+                base_url.as_str(),
+                token,
+            );
+            let body = numbering_typed::ConfirmRequest {
+                entity: "ECO".into(),
+                idempotency_key: idempotency_key.into(),
+            };
+            if let Err(e) = typed.confirm(&body).await {
+                tracing::warn!("Numbering confirm call failed (non-fatal): {e}");
+            }
         }
         // Direct mode uses standard allocation — already confirmed.
     }
 }
 
 // ---------------------------------------------------------------------------
-// HTTP implementation
+// Helpers
 // ---------------------------------------------------------------------------
 
-async fn allocate_http(
-    client: &reqwest::Client,
-    base_url: &str,
-    auth_header: Option<&str>,
-    idempotency_key: &str,
-) -> Result<String, BomError> {
-    let auth = auth_header.ok_or_else(|| {
+/// Extract the bare token from an `Authorization: Bearer <token>` header.
+fn extract_bearer_token(auth_header: Option<&str>) -> Result<&str, BomError> {
+    let header = auth_header.ok_or_else(|| {
         GuardError::Validation(
             "Authorization header required for numbering service".to_string(),
         )
     })?;
-
-    let url = format!("{}/allocate", base_url.trim_end_matches('/'));
-
-    let resp = client
-        .post(&url)
-        .header("Authorization", auth)
-        .json(&AllocateRequest {
-            entity: "ECO".into(),
-            idempotency_key: idempotency_key.into(),
-        })
-        .send()
-        .await
-        .map_err(|e| {
-            GuardError::Validation(format!("Numbering service unreachable: {}", e))
-        })?;
-
-    if !resp.status().is_success() {
-        let status = resp.status().as_u16();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(GuardError::Validation(format!(
-            "Numbering service returned {}: {}",
-            status, body
-        ))
-        .into());
-    }
-
-    let alloc: AllocateResponse = resp.json().await.map_err(|e| {
-        GuardError::Validation(format!("Numbering response parse error: {}", e))
-    })?;
-
-    Ok(alloc
-        .formatted_number
-        .unwrap_or_else(|| format!("ECO-{:05}", alloc.number_value)))
-}
-
-async fn confirm_http(
-    client: &reqwest::Client,
-    base_url: &str,
-    auth_header: Option<&str>,
-    idempotency_key: &str,
-) {
-    let Some(auth) = auth_header else { return };
-    let url = format!("{}/confirm", base_url.trim_end_matches('/'));
-
-    let result = client
-        .post(&url)
-        .header("Authorization", auth)
-        .json(&ConfirmRequest {
-            entity: "ECO".into(),
-            idempotency_key: idempotency_key.into(),
-        })
-        .send()
-        .await;
-
-    if let Err(e) = result {
-        tracing::warn!("Numbering confirm call failed (non-fatal): {}", e);
-    }
+    Ok(header.strip_prefix("Bearer ").unwrap_or(header))
 }
 
 // ---------------------------------------------------------------------------
