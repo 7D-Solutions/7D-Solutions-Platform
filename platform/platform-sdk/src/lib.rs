@@ -23,6 +23,7 @@
 //! ```
 
 pub mod builder;
+pub mod client_core;
 pub mod consumer;
 pub mod context;
 pub mod http_client;
@@ -32,6 +33,7 @@ pub mod startup;
 mod startup_helpers;
 
 pub use builder::ModuleBuilder;
+pub use client_core::{parse_empty, parse_response, build_query_url, ClientError};
 pub use consumer::ConsumerError;
 pub use context::{BusNotAvailable, ModuleContext};
 pub use http_client::PlatformClient;
