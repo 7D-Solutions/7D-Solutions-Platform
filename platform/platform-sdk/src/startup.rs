@@ -163,14 +163,35 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         }
     }
 
-    // Step 8: JWT verifier (optional — absent in dev)
-    let jwt_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
-    if jwt_verifier.is_some() {
-        tracing::info!(module = %manifest.module.name, "JWT verifier initialized");
+    // Step 8: JWT verifier — JWKS URL (manifest) or env var fallback
+    let jwt_verifier = if let Some(ref auth) = manifest.auth {
+        if !auth.enabled {
+            None
+        } else if let Some(ref jwks_url) = auth.jwks_url {
+            let interval = parse_duration_str(&auth.refresh_interval);
+            match JwtVerifier::from_jwks_url(jwks_url, interval, auth.fallback_to_env).await {
+                Ok(v) => {
+                    tracing::info!(
+                        module = %manifest.module.name,
+                        jwks_url = %jwks_url,
+                        "JWT verifier initialized from JWKS"
+                    );
+                    Some(Arc::new(v))
+                }
+                Err(e) => {
+                    return Err(StartupError::Config(format!("JWKS auth failed: {e}")));
+                }
+            }
+        } else {
+            JwtVerifier::from_env_with_overlap().map(Arc::new)
+        }
     } else {
+        JwtVerifier::from_env_with_overlap().map(Arc::new)
+    };
+    if jwt_verifier.is_none() {
         tracing::warn!(
             module = %manifest.module.name,
-            "no JWT_PUBLIC_KEY — running without token verification"
+            "running without JWT verification"
         );
     }
 
@@ -234,16 +255,37 @@ pub(crate) async fn phase_b(
     let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
     let shutdown_pool = phase_a.pool.clone();
 
+    // Determine which dependencies to probe from manifest [health] section.
+    let health_deps: Vec<String> = manifest
+        .health
+        .as_ref()
+        .map(|h| h.dependencies.clone())
+        .unwrap_or_default();
+    let probe_nats = health_deps.iter().any(|d| d == "nats");
+
+    // Warn if manifest declares nats dependency but no bus is configured.
+    if probe_nats && phase_a.bus.is_none() {
+        tracing::warn!(
+            module = %module_name,
+            "health.dependencies includes 'nats' but no event bus is configured — \
+             NATS will report as down in health checks"
+        );
+    }
+
     // Health routes
     let health_name = module_name.clone();
     let health_version = version.clone();
     let health_pool = phase_a.pool.clone();
+    let health_bus = if probe_nats { phase_a.bus.clone() } else { None };
 
     let health_routes = Router::new()
         .route("/healthz", get(health::healthz))
         .route(
             "/api/health",
             get(move || async move {
+                let mut checks = Vec::new();
+
+                // Postgres probe
                 let start = std::time::Instant::now();
                 let err = sqlx::query("SELECT 1")
                     .execute(&health_pool)
@@ -251,8 +293,17 @@ pub(crate) async fn phase_b(
                     .err()
                     .map(|e| e.to_string());
                 let latency = start.elapsed().as_millis() as u64;
-                let check = health::db_check(latency, err);
-                let resp = health::build_ready_response(&health_name, &health_version, vec![check]);
+                checks.push(health::db_check(latency, err));
+
+                // NATS probe (only if declared in health.dependencies)
+                if let Some(ref bus) = health_bus {
+                    let nats_start = std::time::Instant::now();
+                    let connected = bus.health_check().await;
+                    let nats_latency = nats_start.elapsed().as_millis() as u64;
+                    checks.push(health::nats_check(connected, nats_latency));
+                }
+
+                let resp = health::build_ready_response(&health_name, &health_version, checks);
                 health::ready_response_to_axum(resp)
             }),
         )
@@ -262,7 +313,11 @@ pub(crate) async fn phase_b(
                 let ready_name = module_name.clone();
                 let ready_version = version.clone();
                 let ready_pool = phase_a.pool.clone();
+                let ready_bus = if probe_nats { phase_a.bus.clone() } else { None };
                 move || async move {
+                    let mut checks = Vec::new();
+
+                    // Postgres probe
                     let start = std::time::Instant::now();
                     let err = sqlx::query("SELECT 1")
                         .execute(&ready_pool)
@@ -270,9 +325,18 @@ pub(crate) async fn phase_b(
                         .err()
                         .map(|e| e.to_string());
                     let latency = start.elapsed().as_millis() as u64;
-                    let check = health::db_check(latency, err);
+                    checks.push(health::db_check(latency, err));
+
+                    // NATS probe (only if declared in health.dependencies)
+                    if let Some(ref bus) = ready_bus {
+                        let nats_start = std::time::Instant::now();
+                        let connected = bus.health_check().await;
+                        let nats_latency = nats_start.elapsed().as_millis() as u64;
+                        checks.push(health::nats_check(connected, nats_latency));
+                    }
+
                     let resp =
-                        health::build_ready_response(&ready_name, &ready_version, vec![check]);
+                        health::build_ready_response(&ready_name, &ready_version, checks);
                     health::ready_response_to_axum(resp)
                 }
             }),
