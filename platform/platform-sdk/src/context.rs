@@ -92,7 +92,7 @@ impl ModuleContext {
     /// Returns `Some` when the bus type is NATS. Returns `None` for
     /// InMemoryBus or when no bus is configured. Use this for subjects
     /// that use bare JSON payloads instead of the platform EventEnvelope
-    /// format (e.g. `tenant.provisioned`).
+    /// format.
     pub fn raw_nats_client(&self) -> Option<&async_nats::Client> {
         self.nats_client.as_ref()
     }
