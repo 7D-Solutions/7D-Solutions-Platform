@@ -37,24 +37,29 @@ impl PlatformClient {
         self
     }
 
+    /// GET — retries on 429/503 (safe, idempotent).
     pub async fn get(&self, path: &str, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
         self.send_with_retry(self.client.get(self.url(path)), claims).await
     }
 
+    /// POST — no retry (mutations are not safe to retry).
     pub async fn post<T: Serialize>(&self, path: &str, body: &T, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
-        self.send_with_retry(self.client.post(self.url(path)).json(body), claims).await
+        self.send_once(self.client.post(self.url(path)).json(body), claims).await
     }
 
+    /// PUT — no retry (mutations are not safe to retry).
     pub async fn put<T: Serialize>(&self, path: &str, body: &T, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
-        self.send_with_retry(self.client.put(self.url(path)).json(body), claims).await
+        self.send_once(self.client.put(self.url(path)).json(body), claims).await
     }
 
+    /// PATCH — no retry (mutations are not safe to retry).
     pub async fn patch<T: Serialize>(&self, path: &str, body: &T, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
-        self.send_with_retry(self.client.patch(self.url(path)).json(body), claims).await
+        self.send_once(self.client.patch(self.url(path)).json(body), claims).await
     }
 
+    /// DELETE — no retry (mutations are not safe to retry).
     pub async fn delete(&self, path: &str, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
-        self.send_with_retry(self.client.delete(self.url(path)), claims).await
+        self.send_once(self.client.delete(self.url(path)), claims).await
     }
 
     fn url(&self, path: &str) -> String {
@@ -77,6 +82,18 @@ impl PlatformClient {
         req
     }
 
+    /// Send once without retry — for mutations (POST/PUT/PATCH/DELETE).
+    async fn send_once(
+        &self,
+        builder: reqwest::RequestBuilder,
+        claims: &VerifiedClaims,
+    ) -> Result<Response, reqwest::Error> {
+        let correlation_id = Uuid::new_v4();
+        let req = self.inject_headers(builder, claims, &correlation_id);
+        req.send().await
+    }
+
+    /// Send with retry on 429/503 — for reads (GET) only.
     async fn send_with_retry(
         &self,
         builder: reqwest::RequestBuilder,
