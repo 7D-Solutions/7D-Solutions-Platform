@@ -338,152 +338,155 @@ fn type_name<T>() -> &'static str {
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     use super::*;
 
-    const REQUIRE_KEY: &str = "CONFIG_VALIDATOR_REQUIRE_TEST";
-    const OPTIONAL_KEY: &str = "CONFIG_VALIDATOR_OPTIONAL_TEST";
-    const PARSE_KEY: &str = "CONFIG_VALIDATOR_PARSE_TEST";
-    const CONDITIONAL_KEY: &str = "CONFIG_VALIDATOR_CONDITIONAL_TEST";
+    // Each test gets unique env var names via atomic counter to prevent
+    // race conditions when tests run in parallel.
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
 
-    fn clear_vars() {
-        for key in [REQUIRE_KEY, OPTIONAL_KEY, PARSE_KEY, CONDITIONAL_KEY] {
-            env::remove_var(key);
-        }
+    fn unique_key(prefix: &str) -> &'static str {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let s = format!("CV_TEST_{prefix}_{id}");
+        Box::leak(s.into_boxed_str())
     }
 
     #[test]
     fn require_reports_missing_values() {
-        clear_vars();
+        let key = unique_key("REQ");
         let mut validator = ConfigValidator::new("require");
-        assert!(validator.require(REQUIRE_KEY).is_none());
+        assert!(validator.require(key).is_none());
 
         let err = validator.finish().unwrap_err();
-        assert!(err.to_string().contains(REQUIRE_KEY));
+        assert!(err.to_string().contains(&key));
     }
 
     #[test]
     fn optional_defaults_when_absent() {
-        clear_vars();
+        let key = unique_key("OPT");
         let mut validator = ConfigValidator::new("optional");
-        let value = validator.optional(OPTIONAL_KEY).or_default("42");
+        let value = validator.optional(key).or_default("42");
         assert_eq!(value, "42");
         assert!(validator.finish().is_ok());
     }
 
     #[test]
     fn require_parse_reports_errors_and_returns_default() {
-        clear_vars();
-        env::set_var(PARSE_KEY, "not-a-number");
+        let key = unique_key("PARSE");
+        unsafe { env::set_var(key, "not-a-number"); }
 
         let mut validator = ConfigValidator::new("parse");
-        let port = validator.require_parse::<u16>(PARSE_KEY).unwrap_or(8090);
+        let port = validator.require_parse::<u16>(key).unwrap_or(8090);
         assert_eq!(port, 8090);
 
         let err = validator.finish().unwrap_err();
         assert!(err.to_string().contains("u16"));
         assert!(err.to_string().contains("not-a-number"));
+
+        unsafe { env::remove_var(key); }
     }
 
     #[test]
     fn require_when_condition_true_and_missing_reports_error() {
-        clear_vars();
+        let key = unique_key("COND");
         let mut validator = ConfigValidator::new("conditional");
         let value = validator.require_when(
-            CONDITIONAL_KEY,
+            key,
             || true,
             "CONDITIONAL_TEST is required when the flag is true",
         );
         assert!(value.is_none());
 
         let err = validator.finish().unwrap_err();
-        assert!(err.to_string().contains("CONDITIONAL_TEST"));
+        assert!(err.to_string().contains(&key));
     }
 
     #[test]
     fn require_when_condition_false_does_not_error() {
-        clear_vars();
+        let key = unique_key("COND");
         let mut validator = ConfigValidator::new("conditional-false");
         let value = validator.require_when(
-            CONDITIONAL_KEY,
+            key,
             || false,
             "should not fire",
         );
-        assert!(value.is_none()); // absent but no error
+        assert!(value.is_none());
         assert!(validator.finish().is_ok());
     }
 
     #[test]
     fn require_reports_empty_value() {
-        clear_vars();
-        env::set_var(REQUIRE_KEY, "  ");
+        let key = unique_key("REQ");
+        unsafe { env::set_var(key, "  "); }
 
         let mut validator = ConfigValidator::new("empty");
-        assert!(validator.require(REQUIRE_KEY).is_none());
+        assert!(validator.require(key).is_none());
 
         let err = validator.finish().unwrap_err();
         assert!(
             err.to_string().contains("empty"),
             "Expected 'empty' in error, got: {err}"
         );
-        clear_vars();
+        unsafe { env::remove_var(key); }
     }
 
     #[test]
     fn finish_collects_multiple_errors() {
-        clear_vars();
+        let req_key = unique_key("REQ");
+        let parse_key = unique_key("PARSE");
         let mut validator = ConfigValidator::new("multi");
-        validator.require(REQUIRE_KEY);
-        validator.require_parse::<u16>(PARSE_KEY);
+        validator.require(req_key);
+        validator.require_parse::<u16>(parse_key);
 
         let err = validator.finish().unwrap_err();
         assert_eq!(err.errors().len(), 2, "Expected 2 errors, got: {err}");
-        assert!(err.to_string().contains(REQUIRE_KEY));
-        assert!(err.to_string().contains(PARSE_KEY));
+        assert!(err.to_string().contains(&req_key));
+        assert!(err.to_string().contains(&parse_key));
     }
 
     #[test]
     fn optional_parse_returns_value_when_valid() {
-        clear_vars();
-        env::set_var(PARSE_KEY, "8092");
+        let key = unique_key("PARSE");
+        unsafe { env::set_var(key, "8092"); }
 
         let mut validator = ConfigValidator::new("opt-parse-ok");
-        let port = validator.optional_parse::<u16>(PARSE_KEY).unwrap_or(9999);
+        let port = validator.optional_parse::<u16>(key).unwrap_or(9999);
         assert_eq!(port, 8092);
         assert!(validator.finish().is_ok());
 
-        clear_vars();
+        unsafe { env::remove_var(key); }
     }
 
     #[test]
     fn optional_parse_uses_default_when_absent() {
-        clear_vars();
+        let key = unique_key("PARSE");
         let mut validator = ConfigValidator::new("opt-parse-absent");
-        let port = validator.optional_parse::<u16>(PARSE_KEY).unwrap_or(8092);
+        let port = validator.optional_parse::<u16>(key).unwrap_or(8092);
         assert_eq!(port, 8092);
         assert!(validator.finish().is_ok());
     }
 
     #[test]
     fn optional_parse_reports_error_on_bad_value() {
-        clear_vars();
-        env::set_var(PARSE_KEY, "notanumber");
+        let key = unique_key("PARSE");
+        unsafe { env::set_var(key, "notanumber"); }
 
         let mut validator = ConfigValidator::new("opt-parse-bad");
-        let port = validator.optional_parse::<u16>(PARSE_KEY).unwrap_or(8092);
+        let port = validator.optional_parse::<u16>(key).unwrap_or(8092);
         assert_eq!(port, 8092);
 
         let err = validator.finish().unwrap_err();
         assert!(err.to_string().contains("notanumber"));
 
-        clear_vars();
+        unsafe { env::remove_var(key); }
     }
 
     #[test]
     fn pretty_table_format() {
-        clear_vars();
+        let key = unique_key("REQ");
         let mut validator = ConfigValidator::new("pretty");
-        validator.require(REQUIRE_KEY);
+        validator.require(key);
 
         let err = validator.finish().unwrap_err();
         let output = err.to_string();
