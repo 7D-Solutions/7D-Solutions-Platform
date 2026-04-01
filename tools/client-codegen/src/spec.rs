@@ -78,7 +78,9 @@ impl ParsedSpec {
                     continue;
                 }
                 // Skip well-known types we don't generate
-                if name == "ApiError" || name == "FieldError" || name == "PaginationMeta" {
+                if name == "ApiError" || name == "FieldError" || name == "PaginationMeta"
+                    || name == "BTreeMap" || name == "HashMap"
+                {
                     continue;
                 }
                 if let Some(td) = parse_type_def(name, schema) {
@@ -331,6 +333,10 @@ fn resolve_ref_type(r: &str) -> String {
     }
     if name == "PaginationMeta" || name == "ApiError" || name == "FieldError" {
         return name;
+    }
+    // Rust std collection types exposed via utoipa — map to serde_json::Value
+    if name == "BTreeMap" || name == "HashMap" {
+        return "serde_json::Value".to_string();
     }
     name
 }
