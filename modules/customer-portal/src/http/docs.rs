@@ -1,5 +1,6 @@
 use axum::{extract::State, Extension, Json};
 use event_bus::TracingContext;
+use platform_client_doc_mgmt::DistributionsClient;
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -8,18 +9,6 @@ use uuid::Uuid;
 
 use super::tenant::with_request_id;
 use crate::auth::PortalClaims;
-
-#[derive(Debug, Deserialize)]
-struct DocMgmtDistributionList {
-    distributions: Vec<DocMgmtDistribution>,
-}
-
-#[derive(Debug, Deserialize)]
-struct DocMgmtDistribution {
-    id: Uuid,
-    recipient_ref: String,
-    status: String,
-}
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PortalDocumentView {
@@ -132,39 +121,27 @@ async fn fetch_authorized_distribution(
     ctx: &Option<Extension<TracingContext>>,
     document_id: Uuid,
     user_email: &str,
-) -> Result<Option<DocMgmtDistribution>, ApiError> {
-    let url = format!(
-        "{}/api/documents/{}/distributions",
+) -> Result<Option<platform_client_doc_mgmt::DocumentDistribution>, ApiError> {
+    let token = state.config.doc_mgmt_bearer_token.as_deref().unwrap_or("");
+    let client = DistributionsClient::new(
+        reqwest::Client::new(),
         state.config.doc_mgmt_base_url.trim_end_matches('/'),
-        document_id
+        token,
     );
 
-    let client = reqwest::Client::new();
-    let mut req = client.get(url);
-
-    if let Some(token) = state.config.doc_mgmt_bearer_token.as_ref() {
-        req = req.bearer_auth(token);
-    }
-
-    let response = req.send().await.map_err(|e| {
-        tracing::error!(error = %e, "portal docs fetch failed");
-        with_request_id(
-            ApiError::new(503, "service_unavailable", "doc_mgmt_unavailable"),
-            ctx,
-        )
-    })?;
-
-    if !response.status().is_success() {
-        return Ok(None);
-    }
-
-    let payload: DocMgmtDistributionList = response.json().await.map_err(|e| {
-        tracing::error!(error = %e, "portal docs decode failed");
-        with_request_id(
-            ApiError::new(503, "service_unavailable", "doc_mgmt_unavailable"),
-            ctx,
-        )
-    })?;
+    let payload = match client.list_distributions(document_id).await {
+        Ok(resp) => resp,
+        Err(platform_sdk::ClientError::Api { .. } | platform_sdk::ClientError::Unexpected { .. }) => {
+            return Ok(None);
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "portal docs fetch failed");
+            return Err(with_request_id(
+                ApiError::new(503, "service_unavailable", "doc_mgmt_unavailable"),
+                ctx,
+            ));
+        }
+    };
 
     let authorized = payload
         .distributions
