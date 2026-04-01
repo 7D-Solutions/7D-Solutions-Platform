@@ -137,8 +137,9 @@ async fn main() {
             );
 
             let inventory_url = std::env::var("INVENTORY_URL").ok();
+            let inventory_token = std::env::var("INVENTORY_TOKEN").unwrap_or_default();
             let inventory = match &inventory_url {
-                Some(url) => shipping_receiving_rs::InventoryIntegration::http(url),
+                Some(url) => shipping_receiving_rs::InventoryIntegration::http(url, &inventory_token),
                 None => shipping_receiving_rs::InventoryIntegration::deterministic(),
             };
 

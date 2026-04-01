@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.5 | 2026-04-01 | bd-tbumc | Replace hand-rolled reqwest HTTP calls in inventory_client.rs with typed platform-client-inventory ReceiptsClient and IssuesClient. Remove local HTTP request/response types. | Typed client conversion — consistent with platform client generation pattern. | No |
 | 2.2.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder with SDK consumer adapters for po_approved and so_released. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.3 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
 | 2.2.1 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |

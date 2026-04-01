@@ -533,13 +533,14 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.2.2"
+version = "2.2.3"
 dependencies = [
  "axum",
  "chrono",
  "dotenvy",
  "event-bus",
  "health",
+ "platform-client-numbering",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
@@ -838,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.2.4"
+version = "2.2.5"
 dependencies = [
  "axum",
  "chrono",
@@ -846,6 +847,9 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "health",
+ "platform-client-ap",
+ "platform-client-ar",
+ "platform-client-gl",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -4721,7 +4725,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.4"
+version = "2.2.5"
 dependencies = [
  "async-nats",
  "axum",
@@ -4731,6 +4735,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "platform-client-inventory",
  "platform-http-contracts",
  "platform-sdk",
  "platform_contracts",
