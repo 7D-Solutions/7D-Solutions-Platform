@@ -1,6 +1,6 @@
 [package]
 name = "subscriptions-rs"
-version = "2.2.6"
+version = "2.2.7"
 edition = "2021"
 description = "Subscription lifecycle management, billing cycles, and usage gating"
 
@@ -31,6 +31,7 @@ async-nats = "0.38"
 prometheus = "0.13"
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+platform-client-ar = { path = "../../clients/ar" }
 
 [dev-dependencies]
 serial_test = "3.3.1"
