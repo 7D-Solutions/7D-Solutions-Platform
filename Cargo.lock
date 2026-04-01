@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -132,6 +132,7 @@ dependencies = [
  "health",
  "hex",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "security",
@@ -530,7 +531,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.2.1"
+version = "2.2.2"
 dependencies = [
  "axum",
  "chrono",
@@ -538,6 +539,7 @@ dependencies = [
  "event-bus",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "reqwest",
  "security",
@@ -826,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.2.3"
+version = "2.2.4"
 dependencies = [
  "axum",
  "chrono",
@@ -835,6 +837,7 @@ dependencies = [
  "event-bus",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -1096,7 +1099,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.1.1"
+version = "2.1.2"
 dependencies = [
  "argon2",
  "axum",
@@ -1110,6 +1113,7 @@ dependencies = [
  "jsonwebtoken",
  "password-hash",
  "platform-http-contracts",
+ "platform-sdk",
  "platform_contracts",
  "prometheus",
  "rand 0.8.5",
@@ -1548,7 +1552,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -1559,6 +1563,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "security",
@@ -1807,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "2.1.7"
+version = "2.1.8"
 dependencies = [
  "async-nats",
  "axum",
@@ -1819,6 +1824,7 @@ dependencies = [
  "health",
  "jsonwebtoken",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -2303,7 +2309,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.3.0"
+version = "2.3.1"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -2317,6 +2323,7 @@ dependencies = [
  "hex",
  "hmac",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -2348,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.4.6"
+version = "2.4.7"
 dependencies = [
  "axum",
  "chrono",
@@ -2357,6 +2364,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "security",
@@ -2611,7 +2619,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "maintenance-rs"
-version = "2.1.1"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -2622,6 +2630,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "rust_decimal",
  "security",
@@ -2791,7 +2800,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "2.1.2"
+version = "2.1.4"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -2805,6 +2814,7 @@ dependencies = [
  "health",
  "lazy_static",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -2945,7 +2955,7 @@ dependencies = [
 
 [[package]]
 name = "numbering"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -2958,6 +2968,7 @@ dependencies = [
  "http-body-util",
  "jsonwebtoken",
  "platform-http-contracts",
+ "platform-sdk",
  "platform_contracts",
  "prometheus",
  "rand 0.8.5",
@@ -3097,7 +3108,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "2.1.5"
+version = "2.1.7"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3112,6 +3123,7 @@ dependencies = [
  "hmac",
  "lazy_static",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "prometheus-client",
@@ -3135,7 +3147,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor-rs"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3153,6 +3165,7 @@ dependencies = [
  "lazy_static",
  "pdfium-render",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "regex",
  "security",
@@ -3304,6 +3317,7 @@ name = "platform-sdk"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "chrono",
  "config-validator",
  "dotenvy",
  "event-bus",
@@ -3313,6 +3327,7 @@ dependencies = [
  "platform-http-contracts",
  "platform_contracts",
  "prometheus",
+ "reqwest",
  "security",
  "semver",
  "serde",
@@ -3473,7 +3488,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "axum",
  "chrono",
@@ -3607,7 +3622,7 @@ dependencies = [
 
 [[package]]
 name = "quality-inspection-rs"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "axum",
  "chrono",
@@ -3617,6 +3632,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "security",
  "serde",
@@ -3871,7 +3887,7 @@ dependencies = [
 
 [[package]]
 name = "reporting"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3885,6 +3901,7 @@ dependencies = [
  "health",
  "http-body-util",
  "platform-http-contracts",
+ "platform-sdk",
  "printpdf",
  "projections",
  "prometheus",
@@ -4463,7 +4480,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.3"
+version = "2.2.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -4474,6 +4491,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "platform_contracts",
  "prometheus",
  "reqwest",
@@ -4877,7 +4895,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "2.2.5"
+version = "2.2.6"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -4889,6 +4907,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -5109,7 +5128,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeping"
-version = "2.1.4"
+version = "2.1.5"
 dependencies = [
  "async-nats",
  "axum",
@@ -5120,6 +5139,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "security",
@@ -5511,7 +5531,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.3"
+version = "2.1.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -5523,6 +5543,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "projections",
  "prometheus",
  "rust_decimal",
@@ -5565,7 +5586,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.11"
+version = "2.1.12"
 dependencies = [
  "async-nats",
  "axum",
@@ -5575,6 +5596,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "platform-sdk",
  "projections",
  "prometheus",
  "reqwest",
@@ -6403,7 +6425,7 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -6414,6 +6436,7 @@ dependencies = [
  "futures",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "platform_contracts",
  "prometheus",
  "security",
@@ -6433,7 +6456,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.1.4"
+version = "2.1.5"
 dependencies = [
  "axum",
  "chrono",
@@ -6442,6 +6465,7 @@ dependencies = [
  "event-bus",
  "health",
  "platform-http-contracts",
+ "platform-sdk",
  "prometheus",
  "security",
  "serde",

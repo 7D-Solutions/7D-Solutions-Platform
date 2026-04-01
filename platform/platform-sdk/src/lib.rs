@@ -25,6 +25,7 @@
 pub mod builder;
 pub mod consumer;
 pub mod context;
+pub mod http_client;
 pub mod manifest;
 pub mod publisher;
 pub mod startup;
@@ -32,6 +33,7 @@ pub mod startup;
 pub use builder::ModuleBuilder;
 pub use consumer::ConsumerError;
 pub use context::{BusNotAvailable, ModuleContext};
+pub use http_client::PlatformClient;
 pub use manifest::Manifest;
 pub use startup::StartupError;
 
