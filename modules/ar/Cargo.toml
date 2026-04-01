@@ -1,6 +1,6 @@
 [package]
 name = "ar-rs"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2021"
 description = "Invoicing, collections, payment application, dunning, and cash flow forecasting"
 
@@ -33,6 +33,7 @@ tax-core = { path = "../../platform/tax-core" }
 projections = { path = "../../platform/projections" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 platform-sdk = { path = "../../platform/platform-sdk" }
+platform-client-party = { path = "../../clients/party" }
 async-nats = "0.38"
 futures = "0.3"
 prometheus = "0.13"
