@@ -57,7 +57,7 @@ impl PaymentTermsClient {
     }
 
     /// POST `/api/ap/payment-terms`
-    pub async fn create_terms(&self, body: &CreatePaymentTermsRequest) -> Result<(), ClientError> {
+    pub async fn create_terms(&self, body: &CreatePaymentTermsRequest) -> Result<PaymentTerms, ClientError> {
         let path = format!("{}/api/ap/payment-terms", self.base_url);
         let url = path;
         let resp = self.client.post(&url)
@@ -66,11 +66,11 @@ impl PaymentTermsClient {
             .send()
             .await
             .map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 
     /// GET `/api/ap/payment-terms/{term_id}`
-    pub async fn get_terms(&self, term_id: uuid::Uuid) -> Result<(), ClientError> {
+    pub async fn get_terms(&self, term_id: uuid::Uuid) -> Result<PaymentTerms, ClientError> {
         let path = format!("{}/api/ap/payment-terms/{}", self.base_url, term_id);
         let url = path;
         let resp = self.client.get(&url)
@@ -78,11 +78,11 @@ impl PaymentTermsClient {
             .send()
             .await
             .map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 
     /// PUT `/api/ap/payment-terms/{term_id}`
-    pub async fn update_terms(&self, term_id: uuid::Uuid, body: &UpdatePaymentTermsRequest) -> Result<(), ClientError> {
+    pub async fn update_terms(&self, term_id: uuid::Uuid, body: &UpdatePaymentTermsRequest) -> Result<PaymentTerms, ClientError> {
         let path = format!("{}/api/ap/payment-terms/{}", self.base_url, term_id);
         let url = path;
         let resp = self.client.put(&url)
@@ -91,6 +91,6 @@ impl PaymentTermsClient {
             .send()
             .await
             .map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 }
