@@ -47,6 +47,7 @@ dotenvy = "0.15"
 thiserror = "2"
 semver = "1"
 regex = "1"
+chrono = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

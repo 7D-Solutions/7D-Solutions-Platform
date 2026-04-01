@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::time::Duration;
 use uuid::Uuid;
 
+use chrono::Utc;
 use security::claims::VerifiedClaims;
 
 /// HTTP client that injects platform headers and retries on 429/503.
@@ -35,6 +36,26 @@ impl PlatformClient {
     pub fn with_bearer_token(mut self, token: String) -> Self {
         self.bearer_token = Some(token);
         self
+    }
+
+    /// Create service-level claims for module-to-module calls that don't
+    /// originate from an HTTP request (e.g. event consumers, background tasks).
+    ///
+    /// Uses the provided tenant_id and the service's own identity. For HTTP
+    /// request handlers, pass the inbound `VerifiedClaims` directly instead.
+    pub fn service_claims(tenant_id: uuid::Uuid) -> VerifiedClaims {
+        VerifiedClaims {
+            user_id: uuid::Uuid::nil(),
+            tenant_id,
+            app_id: None,
+            roles: vec![],
+            perms: vec!["service.internal".to_string()],
+            actor_type: security::claims::ActorType::Service,
+            issued_at: Utc::now(),
+            expires_at: Utc::now() + chrono::TimeDelta::hours(1),
+            token_id: uuid::Uuid::new_v4(),
+            version: "1.0".to_string(),
+        }
     }
 
     /// GET — retries on 429/503 (safe, idempotent).
