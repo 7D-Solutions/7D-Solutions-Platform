@@ -1,20 +1,15 @@
-pub mod admin;
-pub mod admin_types;
-pub mod dlq;
-pub mod health;
-pub mod inbox;
-pub mod sends;
-pub mod templates;
-
 use utoipa::OpenApi;
 
 #[derive(OpenApi)]
 #[openapi(
     info(
-        title = "Notifications Service",
-        version = "2.1.5",
-        description = "Event-driven notification delivery with scheduled dispatch and retry.\n\n\
-                        **Authentication:** Bearer JWT. Tenant derived from JWT claims."
+        title = "Doc-Mgmt Service",
+        version = "1.0.1",
+        description = "Document management: core doc model, revision tracking, lifecycle \
+                        (draft → released), distribution control, retention policies, \
+                        legal holds, and template rendering.\n\n\
+                        **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
+                        Permissions: `doc_mgmt.read` for queries, `doc_mgmt.mutate` for writes."
     ),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),

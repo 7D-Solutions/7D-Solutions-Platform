@@ -1,6 +1,6 @@
 [package]
 name = "doc_mgmt"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Document management service: core doc model, revision tracking, and lifecycle (draft → released)"
 publish = ["7d-platform"]
@@ -30,6 +30,11 @@ event-bus = { path = "../event-bus" }
 platform_contracts = { path = "../platform-contracts" }
 security = { path = "../security" }
 health = { path = "../health" }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dev-dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

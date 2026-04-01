@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.5 | 2026-04-01 | bd-manm4 | Add ApiDoc struct in http/mod.rs and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6.5 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 3 consumer adapters (invoice.issued, payment.succeeded, payment.failed). Dispatch loop + orphan recovery spawn in routes closure. SLO metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | — | Bump for module.toml + Cargo.toml SDK prep. | SDK conversion prep. | No |
 | 2.1.2 | 2026-03-31 | bd-vnuvp.6 | Add tenant_id filter to 5 queries: close_calendar_reminders_sent lookup, escalation_sends idempotency checks (2x), mark_sent, reschedule_or_fail. Thread tenant_id parameter into mark_sent and reschedule_or_fail signatures. | Tenant isolation sweep — prevent cross-tenant data leakage in notification queries. | No |

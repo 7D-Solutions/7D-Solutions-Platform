@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-04-01 | bd-manm4 | Add utoipa dependency, openapi module with ApiDoc struct, and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 1.0.0 | 2026-03-28 | bd-2j13q | Initial proof. Document metadata storage, template rendering with deterministic hashing, document lifecycle management, tenant-scoped queries. 5 unit tests pass, clippy clean. | Document management module complete and proven. All gates pass. | No |
 
 ## How to read this table

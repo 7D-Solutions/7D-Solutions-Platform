@@ -8,8 +8,40 @@ use axum::{
 };
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 use crate::AppState;
+
+#[derive(OpenApi)]
+#[openapi(
+    info(
+        title = "TTP Service",
+        version = "2.1.13",
+        description = "Tenant-to-platform billing, metering, and service agreement management.\n\n\
+                        **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
+                        Permissions: `ttp.read` for queries, `ttp.mutate` for writes."
+    ),
+    security(("bearer" = [])),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        );
+    }
+}
 
 /// Build the TTP HTTP router with all endpoints.
 ///

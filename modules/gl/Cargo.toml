@@ -1,6 +1,6 @@
 [package]
 name = "gl-rs"
-version = "2.1.8"
+version = "2.1.9"
 edition = "2021"
 description = "Double-entry general ledger with journal engine, accruals, and revenue recognition"
 
@@ -36,6 +36,10 @@ serial_test = "3.3.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 jsonwebtoken = "9"
 dotenvy = "0.15"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [[bin]]
 name = "rebuild_balances"

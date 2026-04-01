@@ -1,6 +1,6 @@
 [package]
 name = "fixed-assets"
-version = "2.1.4"
+version = "2.1.5"
 edition = "2021"
 description = "Fixed asset lifecycle: capitalization, depreciation schedules, and disposals"
 
@@ -33,6 +33,10 @@ config-validator = { path = "../../platform/config-validator" }
 [dev-dependencies]
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [lints]
 workspace = true

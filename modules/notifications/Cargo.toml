@@ -1,6 +1,6 @@
 [package]
 name = "notifications-rs"
-version = "2.1.4"
+version = "2.1.5"
 edition = "2021"
 description = "Event-driven notification delivery with scheduled dispatch and retry"
 
@@ -36,6 +36,10 @@ config-validator = { path = "../../platform/config-validator" }
 
 [dev-dependencies]
 serial_test = "3.3.1"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [[bin]]
 name = "bench"

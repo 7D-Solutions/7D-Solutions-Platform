@@ -3,6 +3,7 @@ pub mod db;
 pub mod distribution;
 pub mod handlers;
 pub mod models;
+pub mod openapi;
 pub mod outbox_relay;
 pub mod render;
 pub mod retention;
