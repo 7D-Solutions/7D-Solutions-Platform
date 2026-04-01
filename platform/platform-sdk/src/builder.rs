@@ -243,6 +243,9 @@ impl ModuleBuilder {
             crate::consumer::ConsumerHandles::empty()
         };
 
+        // Clone context for phase_b before routes_fn consumes the original.
+        let phase_b_ctx = ctx.clone();
+
         // Build routes (or empty router if none provided)
         let module_routes = match self.routes_fn {
             Some(f) => f(ctx).await,
@@ -260,7 +263,7 @@ impl ModuleBuilder {
             startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles)
                 .await
         } else {
-            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles)
+            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
                 .await
         }
     }

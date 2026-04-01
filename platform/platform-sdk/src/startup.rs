@@ -136,15 +136,17 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         .and_then(|e| e.publish.as_ref())
         .map(|p| p.outbox_table.clone());
 
+    let mut outbox_handle: Option<tokio::task::JoinHandle<()>> = None;
+
     if let Some(ref table) = outbox_table {
         if let Some(ref bus) = bus {
             let pub_pool = pool.clone();
             let pub_bus = bus.clone();
             let pub_table = table.clone();
             let pub_module = manifest.module.name.clone();
-            tokio::spawn(async move {
+            outbox_handle = Some(tokio::spawn(async move {
                 publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, &pub_module).await;
-            });
+            }));
             tracing::info!(
                 module = %manifest.module.name,
                 outbox_table = %table,
@@ -195,7 +197,7 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         let window = std::time::Duration::from_secs(1);
         Arc::new(RateLimiter::with_configs(
             RateLimitConfig::new(rl.burst, window),
-            RateLimitConfig::new(rl.requests_per_second / 10, window),
+            RateLimitConfig::new((rl.requests_per_second / 10).max(1), window),
         ))
     } else {
         security::middleware::default_rate_limiter()
@@ -206,6 +208,7 @@ pub(crate) async fn phase_a(manifest: &Manifest) -> Result<PhaseAOutput, Startup
         bus,
         jwt_verifier,
         rate_limiter,
+        outbox_handle,
     })
 }
 
@@ -214,6 +217,7 @@ pub(crate) struct PhaseAOutput {
     pub bus: Option<Arc<dyn EventBus>>,
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub rate_limiter: Arc<security::ratelimit::RateLimiter>,
+    pub outbox_handle: Option<tokio::task::JoinHandle<()>>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
@@ -223,6 +227,7 @@ pub(crate) async fn phase_b(
     module_routes: Router,
     migrator: Option<&sqlx::migrate::Migrator>,
     consumer_handles: ConsumerHandles,
+    ctx: ModuleContext,
 ) -> Result<(), StartupError> {
     let module_name = &manifest.module.name;
     let version = manifest
@@ -247,7 +252,6 @@ pub(crate) async fn phase_b(
         }
     }
 
-    let ctx = ModuleContext::new(phase_a.pool.clone(), manifest.clone(), phase_a.bus.clone());
     let shutdown_pool = phase_a.pool.clone();
 
     // Determine which dependencies to probe from manifest [health] section.
@@ -428,7 +432,12 @@ pub(crate) async fn phase_b(
 
     tracing::info!(module = %module_name, "server stopped — draining consumers");
     consumer_handles.shutdown().await;
-    tracing::info!(module = %module_name, "consumers drained — closing resources");
+    if let Some(handle) = phase_a.outbox_handle {
+        tracing::info!(module = %module_name, "stopping outbox publisher");
+        handle.abort();
+        let _ = handle.await;
+    }
+    tracing::info!(module = %module_name, "closing resources");
     shutdown_pool.close().await;
     tracing::info!(module = %module_name, "shutdown complete");
 
@@ -492,7 +501,12 @@ pub(crate) async fn phase_b_raw(
 
     tracing::info!(module = %module_name, "server stopped — draining consumers");
     consumer_handles.shutdown().await;
-    tracing::info!(module = %module_name, "consumers drained — closing resources");
+    if let Some(handle) = phase_a.outbox_handle {
+        tracing::info!(module = %module_name, "stopping outbox publisher");
+        handle.abort();
+        let _ = handle.await;
+    }
+    tracing::info!(module = %module_name, "closing resources");
     shutdown_pool.close().await;
     tracing::info!(module = %module_name, "shutdown complete");
 

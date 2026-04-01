@@ -91,6 +91,20 @@ pub async fn wire_consumers(
         return Ok(ConsumerHandles::empty());
     }
 
+    // Warn on duplicate subjects — silently splitting messages between
+    // handlers is a common source of bugs.
+    {
+        let mut seen = std::collections::HashSet::new();
+        for def in &consumers {
+            if !seen.insert(&def.subject) {
+                tracing::warn!(
+                    subject = %def.subject,
+                    "duplicate consumer subject — messages will be split between handlers"
+                );
+            }
+        }
+    }
+
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let mut tasks = Vec::with_capacity(consumers.len());
     let retry_config = RetryConfig::default();

@@ -57,10 +57,10 @@ impl PlatformClient {
         format!("{}{}", self.base_url, path)
     }
 
-    fn inject_headers(&self, mut req: reqwest::RequestBuilder, claims: &VerifiedClaims) -> reqwest::RequestBuilder {
+    fn inject_headers(&self, mut req: reqwest::RequestBuilder, claims: &VerifiedClaims, correlation_id: &Uuid) -> reqwest::RequestBuilder {
         req = req
             .header("x-tenant-id", claims.tenant_id.to_string())
-            .header("x-correlation-id", Uuid::new_v4().to_string());
+            .header("x-correlation-id", correlation_id.to_string());
 
         if let Some(app_id) = &claims.app_id {
             req = req.header("x-app-id", app_id.to_string());
@@ -78,11 +78,12 @@ impl PlatformClient {
         builder: reqwest::RequestBuilder,
         claims: &VerifiedClaims,
     ) -> Result<Response, reqwest::Error> {
+        let correlation_id = Uuid::new_v4();
         let mut backoff = Duration::from_millis(INITIAL_BACKOFF_MS);
 
         for attempt in 0..=MAX_RETRIES {
             let req = builder.try_clone().expect("request must be cloneable");
-            let req = self.inject_headers(req, claims);
+            let req = self.inject_headers(req, claims, &correlation_id);
             let resp = req.send().await?;
 
             let status = resp.status();
