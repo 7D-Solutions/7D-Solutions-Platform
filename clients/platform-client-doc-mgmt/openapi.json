@@ -1,0 +1,800 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Platform Client Doc-Mgmt Service",
+    "version": "1.0.1",
+    "description": "Document management: core doc model, revision tracking, lifecycle, distribution, retention, holds, templates."
+  },
+  "paths": {
+    "/api/documents": {
+      "get": {
+        "operationId": "list_documents",
+        "tags": ["documents"],
+        "summary": "List all documents for the tenant",
+        "responses": {
+          "200": {
+            "description": "Document list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentListResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_document",
+        "tags": ["documents"],
+        "summary": "Create a new document with initial revision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDocumentRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentWithRevisionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}": {
+      "get": {
+        "operationId": "get_document",
+        "tags": ["documents"],
+        "summary": "Get a document by ID with latest revision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentWithRevisionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/release": {
+      "post": {
+        "operationId": "release_document",
+        "tags": ["documents"],
+        "summary": "Release a draft document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document released",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReleaseResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/supersede": {
+      "post": {
+        "operationId": "supersede_document",
+        "tags": ["documents"],
+        "summary": "Supersede a released document with a new draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SupersedeRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Document superseded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SupersedeResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/revisions": {
+      "post": {
+        "operationId": "create_revision",
+        "tags": ["revisions"],
+        "summary": "Add a new revision to a draft document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateRevisionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Revision created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RevisionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/distributions": {
+      "get": {
+        "operationId": "list_distributions",
+        "tags": ["distributions"],
+        "summary": "List distributions for a document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Distribution list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionListResponse" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_distribution",
+        "tags": ["distributions"],
+        "summary": "Create a distribution request for a document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDistributionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Distribution created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/distributions/{id}/status": {
+      "post": {
+        "operationId": "update_distribution_status",
+        "tags": ["distributions"],
+        "summary": "Update the status of a distribution",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DistributionStatusUpdateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Status updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DistributionResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retention-policies/{doc_type}": {
+      "get": {
+        "operationId": "get_retention_policy",
+        "tags": ["retention"],
+        "summary": "Get the retention policy for a document type",
+        "parameters": [
+          {
+            "name": "doc_type",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retention policy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RetentionPolicy" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/retention-policies": {
+      "post": {
+        "operationId": "set_retention_policy",
+        "tags": ["retention"],
+        "summary": "Set or update the retention policy for a document type",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SetRetentionPolicyRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy set",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RetentionPolicy" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/holds": {
+      "get": {
+        "operationId": "list_holds",
+        "tags": ["retention"],
+        "summary": "List legal holds on a document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hold list",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HoldListResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/holds/apply": {
+      "post": {
+        "operationId": "apply_hold",
+        "tags": ["retention"],
+        "summary": "Apply a legal hold to a document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ApplyHoldRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Hold applied",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LegalHold" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/holds/release": {
+      "post": {
+        "operationId": "release_hold",
+        "tags": ["retention"],
+        "summary": "Release a legal hold from a document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReleaseHoldRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold released",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LegalHold" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{id}/dispose": {
+      "post": {
+        "operationId": "dispose_document",
+        "tags": ["retention"],
+        "summary": "Dispose of a document after retention period",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Document disposed"
+          }
+        }
+      }
+    },
+    "/api/templates": {
+      "post": {
+        "operationId": "create_template",
+        "tags": ["templates"],
+        "summary": "Create a document template",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTemplateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocTemplate" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{id}": {
+      "get": {
+        "operationId": "get_template",
+        "tags": ["templates"],
+        "summary": "Get a template by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocTemplate" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{id}/render": {
+      "post": {
+        "operationId": "render_template",
+        "tags": ["templates"],
+        "summary": "Render a template with input data",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RenderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Render result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RenderArtifact" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifacts/{id}": {
+      "get": {
+        "operationId": "get_artifact",
+        "tags": ["templates"],
+        "summary": "Get a render artifact by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RenderArtifact" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Document": {
+        "type": "object",
+        "required": ["id", "tenant_id", "doc_number", "title", "doc_type", "status", "created_by", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "doc_number": { "type": "string" },
+          "title": { "type": "string" },
+          "doc_type": { "type": "string" },
+          "status": { "type": "string" },
+          "superseded_by": { "type": ["string", "null"], "format": "uuid" },
+          "created_by": { "type": "string", "format": "uuid" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Revision": {
+        "type": "object",
+        "required": ["id", "document_id", "tenant_id", "revision_number", "body", "change_summary", "status", "created_by", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "document_id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "revision_number": { "type": "integer", "format": "int32" },
+          "body": {},
+          "change_summary": { "type": "string" },
+          "status": { "type": "string" },
+          "created_by": { "type": "string", "format": "uuid" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateDocumentRequest": {
+        "type": "object",
+        "required": ["doc_number", "title", "doc_type"],
+        "properties": {
+          "doc_number": { "type": "string" },
+          "title": { "type": "string" },
+          "doc_type": { "type": "string" },
+          "body": {}
+        }
+      },
+      "CreateRevisionRequest": {
+        "type": "object",
+        "required": ["body", "change_summary"],
+        "properties": {
+          "body": {},
+          "change_summary": { "type": "string" }
+        }
+      },
+      "SupersedeRequest": {
+        "type": "object",
+        "required": ["new_doc_number"],
+        "properties": {
+          "new_doc_number": { "type": "string" },
+          "new_title": { "type": ["string", "null"] },
+          "change_summary": { "type": ["string", "null"] }
+        }
+      },
+      "DocumentListResponse": {
+        "type": "object",
+        "required": ["documents"],
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Document" }
+          }
+        }
+      },
+      "DocumentWithRevisionResponse": {
+        "type": "object",
+        "required": ["document"],
+        "properties": {
+          "document": { "$ref": "#/components/schemas/Document" },
+          "latest_revision": { "$ref": "#/components/schemas/Revision" }
+        }
+      },
+      "ReleaseResponse": {
+        "type": "object",
+        "required": ["document_id", "status", "revision_number", "released_at"],
+        "properties": {
+          "document_id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "revision_number": { "type": "integer", "format": "int32" },
+          "released_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SupersedeResponse": {
+        "type": "object",
+        "required": ["old_document_id", "old_doc_number", "old_status", "new_document", "new_revision"],
+        "properties": {
+          "old_document_id": { "type": "string", "format": "uuid" },
+          "old_doc_number": { "type": "string" },
+          "old_status": { "type": "string" },
+          "new_document": { "$ref": "#/components/schemas/Document" },
+          "new_revision": { "$ref": "#/components/schemas/Revision" }
+        }
+      },
+      "RevisionResponse": {
+        "type": "object",
+        "required": ["revision"],
+        "properties": {
+          "revision": { "$ref": "#/components/schemas/Revision" }
+        }
+      },
+      "CreateDistributionRequest": {
+        "type": "object",
+        "required": ["recipient_ref", "channel", "template_key"],
+        "properties": {
+          "recipient_ref": { "type": "string" },
+          "channel": { "type": "string" },
+          "template_key": { "type": "string" },
+          "payload_json": {}
+        }
+      },
+      "DistributionStatusUpdateRequest": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string" },
+          "provider_message_id": { "type": ["string", "null"] },
+          "failure_reason": { "type": ["string", "null"] },
+          "notification_event_id": { "type": ["string", "null"], "format": "uuid" },
+          "delivered_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "DocumentDistribution": {
+        "type": "object",
+        "required": ["id", "tenant_id", "document_id", "recipient_ref", "channel", "template_key", "payload_json", "status", "requested_by", "requested_at", "idempotency_key", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "document_id": { "type": "string", "format": "uuid" },
+          "revision_id": { "type": ["string", "null"], "format": "uuid" },
+          "recipient_ref": { "type": "string" },
+          "channel": { "type": "string" },
+          "template_key": { "type": "string" },
+          "payload_json": {},
+          "status": { "type": "string" },
+          "provider_message_id": { "type": ["string", "null"] },
+          "requested_by": { "type": "string", "format": "uuid" },
+          "requested_at": { "type": "string", "format": "date-time" },
+          "sent_at": { "type": ["string", "null"], "format": "date-time" },
+          "delivered_at": { "type": ["string", "null"], "format": "date-time" },
+          "failed_at": { "type": ["string", "null"], "format": "date-time" },
+          "failure_reason": { "type": ["string", "null"] },
+          "idempotency_key": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DistributionListResponse": {
+        "type": "object",
+        "required": ["distributions"],
+        "properties": {
+          "distributions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DocumentDistribution" }
+          }
+        }
+      },
+      "DistributionResponse": {
+        "type": "object",
+        "required": ["distribution"],
+        "properties": {
+          "distribution": { "$ref": "#/components/schemas/DocumentDistribution" }
+        }
+      },
+      "RetentionPolicy": {
+        "type": "object",
+        "required": ["id", "tenant_id", "doc_type", "retention_days", "created_by", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "doc_type": { "type": "string" },
+          "retention_days": { "type": "integer", "format": "int32" },
+          "created_by": { "type": "string", "format": "uuid" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SetRetentionPolicyRequest": {
+        "type": "object",
+        "required": ["doc_type", "retention_days"],
+        "properties": {
+          "doc_type": { "type": "string" },
+          "retention_days": { "type": "integer", "format": "int32" }
+        }
+      },
+      "LegalHold": {
+        "type": "object",
+        "required": ["id", "document_id", "tenant_id", "reason", "held_by", "held_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "document_id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "reason": { "type": "string" },
+          "held_by": { "type": "string", "format": "uuid" },
+          "held_at": { "type": "string", "format": "date-time" },
+          "released_by": { "type": ["string", "null"], "format": "uuid" },
+          "released_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "HoldListResponse": {
+        "type": "object",
+        "required": ["holds"],
+        "properties": {
+          "holds": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LegalHold" }
+          }
+        }
+      },
+      "ApplyHoldRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": { "type": "string" }
+        }
+      },
+      "ReleaseHoldRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": { "type": "string" }
+        }
+      },
+      "DocTemplate": {
+        "type": "object",
+        "required": ["id", "tenant_id", "name", "doc_type", "body_template", "version", "created_by", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "doc_type": { "type": "string" },
+          "body_template": {},
+          "version": { "type": "integer", "format": "int32" },
+          "created_by": { "type": "string", "format": "uuid" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateTemplateRequest": {
+        "type": "object",
+        "required": ["name", "doc_type", "body_template"],
+        "properties": {
+          "name": { "type": "string" },
+          "doc_type": { "type": "string" },
+          "body_template": {}
+        }
+      },
+      "RenderRequest": {
+        "type": "object",
+        "required": ["input_data"],
+        "properties": {
+          "input_data": {}
+        }
+      },
+      "RenderArtifact": {
+        "type": "object",
+        "required": ["id", "tenant_id", "template_id", "input_hash", "output_hash", "output", "rendered_by", "rendered_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "template_id": { "type": "string", "format": "uuid" },
+          "idempotency_key": { "type": ["string", "null"] },
+          "input_hash": { "type": "string" },
+          "output_hash": { "type": "string" },
+          "output": {},
+          "rendered_by": { "type": "string", "format": "uuid" },
+          "rendered_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

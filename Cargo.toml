@@ -48,6 +48,8 @@ members = [
   "tools/stabilization-gate",
   "tools/client-codegen",
   "clients/party",
+  "clients/platform-client-doc-mgmt",
+  "clients/platform-client-tenant-registry",
   "e2e-tests",
 ]
 
