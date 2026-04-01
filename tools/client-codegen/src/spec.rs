@@ -121,12 +121,15 @@ impl ParsedSpec {
 }
 
 fn title_to_crate_name(title: &str) -> String {
-    let module = title
+    let module: String = title
         .to_lowercase()
         .replace("service", "")
-        .trim()
-        .replace(' ', "-")
-        .replace("--", "-");
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { ' ' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-");
     let module = module.trim_matches('-');
     format!("platform-client-{module}")
 }
