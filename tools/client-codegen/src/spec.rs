@@ -421,11 +421,18 @@ fn find_success_response(detail: &Value) -> ResponseKind {
     // Prefer 200, then 201, then first 2xx
     for code in ["200", "201"] {
         if let Some(resp) = responses.get(code) {
-            if let Some(schema_ref) = resp["content"]["application/json"]["schema"]
-                .get("$ref")
-                .and_then(|r| r.as_str())
-            {
+            let schema = &resp["content"]["application/json"]["schema"];
+
+            // Direct $ref (e.g. { "$ref": "#/components/schemas/PartyView" })
+            if let Some(schema_ref) = schema.get("$ref").and_then(|r| r.as_str()) {
                 return ResponseKind::Json(resolve_ref_type(schema_ref));
+            }
+
+            // Inline schema — arrays, objects, primitives without $ref
+            // This catches list endpoints that return arrays or inline objects
+            if schema.is_object() && !schema.as_object().map_or(true, |o| o.is_empty()) {
+                let rust_type = schema_to_rust_type(schema);
+                return ResponseKind::Json(rust_type);
             }
         }
     }

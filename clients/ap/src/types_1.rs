@@ -189,7 +189,7 @@ pub struct CreatePaymentRunBody {
     pub run_id: Option<uuid::Uuid>,
     pub scheduled_date: chrono::DateTime<chrono::Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub vendor_ids: Option<Vec<uuid::Uuid>>,
+    pub vendor_ids: Option<serde_json::Value>,
 }
 
 /// Request body to create payment terms.

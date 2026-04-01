@@ -24,7 +24,7 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
     }
 
     // Build selective platform_sdk import
-    let mut sdk_imports = vec!["ClientError"];
+    let mut sdk_imports = vec!["ClientError", "PlatformClient", "VerifiedClaims"];
     if needs_query {
         sdk_imports.push("build_query_url");
     }
@@ -35,35 +35,20 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
         sdk_imports.push("parse_empty");
     }
     out.push_str(&format!(
-        "use platform_sdk::{{{}}};\n",
+        "use platform_sdk::{{{}}};\n\n",
         sdk_imports.join(", ")
     ));
-    out.push_str("use reqwest::Client;\n\n");
 
-    // Client struct
+    // Client struct — wraps PlatformClient which handles headers, retry, and auth
     out.push_str(&format!("/// Typed HTTP client for {tag} endpoints.\n"));
     out.push_str(&format!("pub struct {struct_name} {{\n"));
-    out.push_str("    client: Client,\n");
-    out.push_str("    base_url: String,\n");
-    out.push_str("    token: String,\n");
+    out.push_str("    client: PlatformClient,\n");
     out.push_str("}\n\n");
 
     // Constructor
     out.push_str(&format!("impl {struct_name} {{\n"));
-    out.push_str("    pub fn new(\n");
-    out.push_str("        client: Client,\n");
-    out.push_str("        base_url: impl Into<String>,\n");
-    out.push_str("        token: impl Into<String>,\n");
-    out.push_str("    ) -> Self {\n");
-    out.push_str("        Self {\n");
-    out.push_str("            client,\n");
-    out.push_str("            base_url: base_url.into(),\n");
-    out.push_str("            token: token.into(),\n");
-    out.push_str("        }\n");
-    out.push_str("    }\n\n");
-    out.push_str("    /// Replace the bearer token for subsequent requests.\n");
-    out.push_str("    pub fn set_token(&mut self, token: impl Into<String>) {\n");
-    out.push_str("        self.token = token.into();\n");
+    out.push_str("    pub fn new(client: PlatformClient) -> Self {\n");
+    out.push_str("        Self { client }\n");
     out.push_str("    }\n");
 
     // Methods
@@ -84,8 +69,8 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         ResponseKind::Empty => "Result<(), ClientError>".to_string(),
     };
 
-    // Build parameter list
-    let mut params = Vec::new();
+    // Build parameter list — claims is always first after &self
+    let mut params = vec!["claims: &VerifiedClaims".to_string()];
     for p in &ep.path_params {
         params.push(format!("{}: {}", sanitize_param(&p.name), param_arg_type(&p.rust_type)));
     }
@@ -103,11 +88,7 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         params.push(format!("body: &{body_type}"));
     }
 
-    let params_str = if params.is_empty() {
-        "&self".to_string()
-    } else {
-        format!("&self, {}", params.join(", "))
-    };
+    let params_str = format!("&self, {}", params.join(", "));
 
     // Method signature
     let method_name = match ep.method {
@@ -139,27 +120,36 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         out.push_str("        let url = path;\n");
     }
 
-    // Build request
-    let req_method = match ep.method {
-        HttpMethod::Get => "get",
-        HttpMethod::Post => "post",
-        HttpMethod::Put => "put",
-        HttpMethod::Patch => "patch",
-        HttpMethod::Delete => "delete",
-    };
-
-    out.push_str(&format!(
-        "        let resp = self.client.{req_method}(&url)\n"
-    ));
-    out.push_str("            .bearer_auth(&self.token)\n");
-
-    if ep.request_body.is_some() {
-        out.push_str("            .json(body)\n");
+    // Build request via PlatformClient (handles headers, retry, auth)
+    match ep.method {
+        HttpMethod::Get => {
+            out.push_str("        let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;\n");
+        }
+        HttpMethod::Delete => {
+            out.push_str("        let resp = self.client.delete(&url, claims).await.map_err(ClientError::Network)?;\n");
+        }
+        HttpMethod::Post => {
+            if ep.request_body.is_some() {
+                out.push_str("        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+            } else {
+                out.push_str("        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+            }
+        }
+        HttpMethod::Put => {
+            if ep.request_body.is_some() {
+                out.push_str("        let resp = self.client.put(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+            } else {
+                out.push_str("        let resp = self.client.put(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+            }
+        }
+        HttpMethod::Patch => {
+            if ep.request_body.is_some() {
+                out.push_str("        let resp = self.client.patch(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+            } else {
+                out.push_str("        let resp = self.client.patch(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+            }
+        }
     }
-
-    out.push_str("            .send()\n");
-    out.push_str("            .await\n");
-    out.push_str("            .map_err(ClientError::Network)?;\n");
 
     // Parse response
     match &ep.response {
@@ -224,10 +214,10 @@ fn query_owned_type(rust_type: &str) -> String {
 }
 
 fn build_url_expr(path: &str, path_params: &[Param]) -> String {
+    // PlatformClient prepends base_url — only emit the path portion
     if path_params.is_empty() {
-        return format!("format!(\"{{}}{path}\", self.base_url)");
+        return format!("format!(\"{path}\")");
     }
-    // Replace {param} with {} for format!
     let mut fmt_path = path.to_string();
     let mut format_args = Vec::new();
     for p in path_params {
@@ -236,7 +226,7 @@ fn build_url_expr(path: &str, path_params: &[Param]) -> String {
         format_args.push(sanitize_param(&p.name));
     }
     let args = format_args.join(", ");
-    format!("format!(\"{{}}{fmt_path}\", self.base_url, {args})")
+    format!("format!(\"{fmt_path}\", {args})")
 }
 
 fn param_arg_type(rust_type: &str) -> String {

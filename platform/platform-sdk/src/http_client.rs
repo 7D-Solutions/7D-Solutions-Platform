@@ -49,6 +49,10 @@ impl PlatformClient {
         self.send_with_retry(self.client.put(self.url(path)).json(body), claims).await
     }
 
+    pub async fn patch<T: Serialize>(&self, path: &str, body: &T, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
+        self.send_with_retry(self.client.patch(self.url(path)).json(body), claims).await
+    }
+
     pub async fn delete(&self, path: &str, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
         self.send_with_retry(self.client.delete(self.url(path)), claims).await
     }

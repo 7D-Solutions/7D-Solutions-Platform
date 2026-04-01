@@ -1,8 +1,8 @@
 [package]
-name = "platform-client-numbering"
+name = "platform-client-notifications"
 version = "0.1.0"
 edition = "2021"
-description = "Generated typed client for Numbering Service"
+description = "Generated typed client for Notifications Service"
 
 [dependencies]
 platform-sdk = { path = "../../platform/platform-sdk" }

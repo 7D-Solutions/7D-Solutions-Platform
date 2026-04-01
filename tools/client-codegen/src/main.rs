@@ -308,7 +308,6 @@ description = "Generated typed client for {title}"
 [dependencies]
 platform-sdk = {{ path = "{sdk_path}" }}
 platform-http-contracts = {{ path = "{contracts_path}" }}
-reqwest = {{ version = "0.12", default-features = false, features = ["json", "rustls-tls"] }}
 serde = {{ version = "1", features = ["derive"] }}
 serde_json = "1"
 uuid = {{ version = "1", features = ["v4", "serde"] }}
