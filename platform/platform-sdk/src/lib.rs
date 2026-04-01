@@ -29,6 +29,7 @@ pub mod http_client;
 pub mod manifest;
 pub mod publisher;
 pub mod startup;
+mod startup_helpers;
 
 pub use builder::ModuleBuilder;
 pub use consumer::ConsumerError;
