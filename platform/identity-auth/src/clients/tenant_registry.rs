@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
-use serde::Deserialize;
+use platform_client_tenant_registry::TenantsClient;
 use uuid::Uuid;
 
 use crate::metrics::Metrics;
@@ -73,20 +73,6 @@ impl std::fmt::Display for EntitlementUnavailable {
 }
 
 // ---------------------------------------------------------------------------
-// Response shapes (mirror tenant-registry API)
-// ---------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct EntitlementResponse {
-    concurrent_user_limit: i32,
-}
-
-#[derive(Deserialize)]
-struct StatusResponse {
-    status: String,
-}
-
-// ---------------------------------------------------------------------------
 // Cache entries
 // ---------------------------------------------------------------------------
 
@@ -106,8 +92,7 @@ struct CachedStatus {
 
 #[derive(Clone)]
 pub struct TenantRegistryClient {
-    http: reqwest::Client,
-    base_url: String,
+    inner: Arc<TenantsClient>,
     /// Per-tenant entitlement TTL cache.  Arc because Clone on DashMap would deep-copy.
     cache: Arc<DashMap<Uuid, CachedEntry>>,
     /// Per-tenant status TTL cache.
@@ -125,8 +110,7 @@ impl TenantRegistryClient {
             .expect("build reqwest client for tenant-registry");
 
         Self {
-            http,
-            base_url,
+            inner: Arc::new(TenantsClient::new(http, base_url, "")),
             cache: Arc::new(DashMap::new()),
             status_cache: Arc::new(DashMap::new()),
             ttl: Duration::from_secs(ttl_secs.max(1)),
@@ -156,59 +140,30 @@ impl TenantRegistryClient {
             }
         }
 
-        // --- 2. Fetch from tenant-registry ---
-        let url = format!("{}/api/tenants/{}/entitlements", self.base_url, tenant_id);
-
-        let fetch_result = self.http.get(&url).send().await;
-
-        match fetch_result {
-            Ok(resp) if resp.status().is_success() => {
-                match resp.json::<EntitlementResponse>().await {
-                    Ok(body) => {
-                        let limit = body.concurrent_user_limit as i64;
-                        self.cache.insert(
-                            tenant_id,
-                            CachedEntry {
-                                limit,
-                                cached_at: Instant::now(),
-                            },
-                        );
-                        metrics
-                            .auth_entitlement_fetch_total
-                            .with_label_values(&["ok"])
-                            .inc();
-                        tracing::info!(tenant_id = %tenant_id, limit, "entitlement.fetch_ok");
-                        Ok(limit)
-                    }
-                    Err(e) => {
-                        metrics
-                            .auth_entitlement_fetch_total
-                            .with_label_values(&["fail"])
-                            .inc();
-                        self.handle_fetch_failure(tenant_id, metrics, format!("json decode: {e}"))
-                    }
-                }
-            }
-
-            Ok(resp) => {
-                let status = resp.status();
+        // --- 2. Fetch via typed client ---
+        match self.inner.get_entitlements(tenant_id).await {
+            Ok(row) => {
+                let limit = row.concurrent_user_limit as i64;
+                self.cache.insert(
+                    tenant_id,
+                    CachedEntry {
+                        limit,
+                        cached_at: Instant::now(),
+                    },
+                );
                 metrics
                     .auth_entitlement_fetch_total
-                    .with_label_values(&["fail"])
+                    .with_label_values(&["ok"])
                     .inc();
-                self.handle_fetch_failure(
-                    tenant_id,
-                    metrics,
-                    format!("registry returned HTTP {status}"),
-                )
+                tracing::info!(tenant_id = %tenant_id, limit, "entitlement.fetch_ok");
+                Ok(limit)
             }
-
             Err(e) => {
                 metrics
                     .auth_entitlement_fetch_total
                     .with_label_values(&["fail"])
                     .inc();
-                self.handle_fetch_failure(tenant_id, metrics, format!("http error: {e}"))
+                self.handle_fetch_failure(tenant_id, metrics, e.to_string())
             }
         }
     }
@@ -241,59 +196,30 @@ impl TenantRegistryClient {
             }
         }
 
-        // --- 2. Fetch from tenant-registry ---
-        let url = format!("{}/api/tenants/{}/status", self.base_url, tenant_id);
-
-        let fetch_result = self.http.get(&url).send().await;
-
-        match fetch_result {
-            Ok(resp) if resp.status().is_success() => match resp.json::<StatusResponse>().await {
-                Ok(body) => {
-                    let status = body.status.clone();
-                    self.status_cache.insert(
-                        tenant_id,
-                        CachedStatus {
-                            status: status.clone(),
-                            cached_at: Instant::now(),
-                        },
-                    );
-                    metrics
-                        .auth_tenant_status_fetch_total
-                        .with_label_values(&["ok"])
-                        .inc();
-                    tracing::info!(tenant_id = %tenant_id, status = %status, "tenant_status.fetch_ok");
-                    Ok(gate_from_status(&status))
-                }
-                Err(e) => {
-                    metrics
-                        .auth_tenant_status_fetch_total
-                        .with_label_values(&["fail"])
-                        .inc();
-                    self.handle_status_fetch_failure(
-                        tenant_id,
-                        metrics,
-                        format!("json decode: {e}"),
-                    )
-                }
-            },
-            Ok(resp) => {
-                let status = resp.status();
+        // --- 2. Fetch via typed client ---
+        match self.inner.get_tenant_status(tenant_id).await {
+            Ok(row) => {
+                let status = row.status;
+                self.status_cache.insert(
+                    tenant_id,
+                    CachedStatus {
+                        status: status.clone(),
+                        cached_at: Instant::now(),
+                    },
+                );
                 metrics
                     .auth_tenant_status_fetch_total
-                    .with_label_values(&["fail"])
+                    .with_label_values(&["ok"])
                     .inc();
-                self.handle_status_fetch_failure(
-                    tenant_id,
-                    metrics,
-                    format!("registry returned HTTP {status}"),
-                )
+                tracing::info!(tenant_id = %tenant_id, status = %status, "tenant_status.fetch_ok");
+                Ok(gate_from_status(&status))
             }
             Err(e) => {
                 metrics
                     .auth_tenant_status_fetch_total
                     .with_label_values(&["fail"])
                     .inc();
-                self.handle_status_fetch_failure(tenant_id, metrics, format!("http error: {e}"))
+                self.handle_status_fetch_failure(tenant_id, metrics, e.to_string())
             }
         }
     }
@@ -615,9 +541,9 @@ mod tests {
 
         seed_status_cache(&client, tenant_id, "suspended", Duration::from_secs(0));
 
-        let result = client.get_tenant_gate(tenant_id, &metrics).await.unwrap();
+        let result = client.get_tenant_gate(tenant_id, &metrics).await;
         assert!(
-            matches!(result, TenantGate::Deny { .. }),
+            matches!(result, Ok(TenantGate::Deny { .. })),
             "suspended tenant must be denied"
         );
     }
@@ -630,9 +556,9 @@ mod tests {
 
         seed_status_cache(&client, tenant_id, "past_due", Duration::from_secs(0));
 
-        let result = client.get_tenant_gate(tenant_id, &metrics).await.unwrap();
+        let result = client.get_tenant_gate(tenant_id, &metrics).await;
         assert!(
-            matches!(result, TenantGate::DenyNewLogin { .. }),
+            matches!(result, Ok(TenantGate::DenyNewLogin { .. })),
             "past_due tenant must deny new logins only"
         );
     }
