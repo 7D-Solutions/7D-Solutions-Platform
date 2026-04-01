@@ -1,31 +1,13 @@
-//! GL HTTP client — fetches trial balance and period close data from the GL service.
+//! GL HTTP client adapter — wraps platform-client-gl with consolidation-specific methods.
 //!
-//! The consolidation module calls GL's existing APIs rather than directly
-//! accessing GL's database, preserving module boundaries.
+//! Uses raw reqwest with `platform_sdk` helpers for endpoints that need query parameters
+//! and typed response bodies not yet supported by the generated client skeleton.
+//! When the codegen adds typed responses, switch to `platform_client_gl` methods directly.
 
+use platform_sdk::{ClientError, parse_response};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use uuid::Uuid;
-
-#[derive(Debug, Error)]
-pub enum GlClientError {
-    #[error("GL API request failed: {0}")]
-    Http(#[from] reqwest::Error),
-
-    #[error("GL API returned {status}: {body}")]
-    Api { status: u16, body: String },
-
-    #[error("Period {0} is not closed for tenant {1}")]
-    PeriodNotClosed(Uuid, String),
-
-    #[error("Hash mismatch for entity {entity}: expected {expected}, got {actual}")]
-    HashMismatch {
-        entity: String,
-        expected: String,
-        actual: String,
-    },
-}
 
 /// Trial balance row as returned by GL's GET /api/gl/trial-balance
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,7 +65,25 @@ pub enum GlCloseStatus {
     },
 }
 
-/// HTTP client for the GL service.
+/// FX rate response from GL's GET /api/gl/fx-rates/latest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlFxRateResponse {
+    pub rate: f64,
+    pub base_currency: String,
+    pub quote_currency: String,
+}
+
+/// Response from GL journal entry creation endpoint.
+#[derive(Debug, Clone, Deserialize)]
+struct PostJournalResponse {
+    pub journal_entry_id: Uuid,
+}
+
+/// HTTP client adapter for the GL service.
+///
+/// Wraps `platform-client-gl` as the upstream dependency. Methods use raw reqwest
+/// with `parse_response` because the generated client skeleton does not yet support
+/// query parameters or typed responses for the endpoints consolidation needs.
 #[derive(Clone)]
 pub struct GlClient {
     client: Client,
@@ -104,7 +104,7 @@ impl GlClient {
         tenant_id: &str,
         period_id: Uuid,
         currency: &str,
-    ) -> Result<GlTrialBalanceResponse, GlClientError> {
+    ) -> Result<GlTrialBalanceResponse, ClientError> {
         let url = format!("{}/api/gl/trial-balance", self.base_url);
         let resp = self
             .client
@@ -115,15 +115,9 @@ impl GlClient {
                 ("currency", currency),
             ])
             .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(GlClientError::Api { status, body });
-        }
-
-        Ok(resp.json().await?)
+            .await
+            .map_err(ClientError::Network)?;
+        parse_response(resp).await
     }
 
     /// Fetch period close status to get the close_hash for verification.
@@ -131,7 +125,7 @@ impl GlClient {
         &self,
         tenant_id: &str,
         period_id: Uuid,
-    ) -> Result<GlCloseStatusResponse, GlClientError> {
+    ) -> Result<GlCloseStatusResponse, ClientError> {
         let url = format!(
             "{}/api/gl/periods/{}/close-status",
             self.base_url, period_id
@@ -141,15 +135,9 @@ impl GlClient {
             .get(&url)
             .query(&[("tenant_id", tenant_id)])
             .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(GlClientError::Api { status, body });
-        }
-
-        Ok(resp.json().await?)
+            .await
+            .map_err(ClientError::Network)?;
+        parse_response(resp).await
     }
 
     /// Fetch close hash for a period. Returns None if the period is not closed.
@@ -157,7 +145,7 @@ impl GlClient {
         &self,
         tenant_id: &str,
         period_id: Uuid,
-    ) -> Result<Option<String>, GlClientError> {
+    ) -> Result<Option<String>, ClientError> {
         let status = self.get_close_status(tenant_id, period_id).await?;
         match status.close_status {
             GlCloseStatus::Closed { close_hash, .. } => Ok(Some(close_hash)),
@@ -167,15 +155,14 @@ impl GlClient {
 
     /// Fetch the latest FX rate for a currency pair as-of a given date.
     ///
-    /// Calls GL's GET /api/gl/fx-rates/latest with base/quote currencies
-    /// and an as_of timestamp. Returns None if no rate is found (404).
+    /// Returns None if no rate is found (404).
     pub async fn get_fx_rate(
         &self,
         tenant_id: &str,
         base_currency: &str,
         quote_currency: &str,
         as_of: &str,
-    ) -> Result<Option<GlFxRateResponse>, GlClientError> {
+    ) -> Result<Option<GlFxRateResponse>, ClientError> {
         let url = format!("{}/api/gl/fx-rates/latest", self.base_url);
         let resp = self
             .client
@@ -187,26 +174,20 @@ impl GlClient {
                 ("as_of", as_of),
             ])
             .send()
-            .await?;
+            .await
+            .map_err(ClientError::Network)?;
 
         if resp.status().as_u16() == 404 {
             return Ok(None);
         }
 
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(GlClientError::Api { status, body });
-        }
-
-        Ok(Some(resp.json().await?))
+        parse_response(resp).await.map(Some)
     }
 
     /// Post an elimination journal entry to GL.
     ///
     /// Uses source_module = "consolidation-elimination" for audit trail.
     /// The source_doc_id acts as an idempotency reference within GL.
-    /// Returns the journal entry ID from GL.
     pub async fn post_elimination_journal(
         &self,
         tenant_id: &str,
@@ -217,7 +198,7 @@ impl GlClient {
         amount_minor: i64,
         description: &str,
         source_doc_id: &str,
-    ) -> Result<Uuid, GlClientError> {
+    ) -> Result<Uuid, ClientError> {
         let amount_major = amount_minor as f64 / 100.0;
 
         let body = serde_json::json!({
@@ -245,32 +226,14 @@ impl GlClient {
         });
 
         let url = format!("{}/api/gl/journal-entries", self.base_url);
-        let resp = self.client.post(&url).json(&body).send().await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body_text = resp.text().await.unwrap_or_default();
-            return Err(GlClientError::Api {
-                status,
-                body: body_text,
-            });
-        }
-
-        let result: PostJournalResponse = resp.json().await?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(ClientError::Network)?;
+        let result: PostJournalResponse = parse_response(resp).await?;
         Ok(result.journal_entry_id)
     }
-}
-
-/// FX rate response from GL's GET /api/gl/fx-rates/latest
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GlFxRateResponse {
-    pub rate: f64,
-    pub base_currency: String,
-    pub quote_currency: String,
-}
-
-/// Response from GL journal entry creation endpoint.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PostJournalResponse {
-    pub journal_entry_id: Uuid,
 }

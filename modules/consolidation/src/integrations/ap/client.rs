@@ -1,20 +1,11 @@
-//! AP HTTP client — fetches payable data from the AP service.
+//! AP HTTP client adapter — wraps platform-client-ap for payable data.
 //!
 //! Used by intercompany matching to identify payables where the
 //! vendor is another entity in the consolidation group.
 
+use platform_sdk::{ClientError, parse_response};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum ApClientError {
-    #[error("AP API request failed: {0}")]
-    Http(#[from] reqwest::Error),
-
-    #[error("AP API returned {status}: {body}")]
-    Api { status: u16, body: String },
-}
 
 /// Summary of payable balance per vendor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +17,11 @@ pub struct PayableSummary {
     pub bill_count: i64,
 }
 
-/// HTTP client for the AP service.
+/// HTTP client adapter for the AP service.
+///
+/// Wraps `platform-client-ap` as the upstream dependency. Uses raw reqwest
+/// with `parse_response` because the generated `ReportsClient::aging_report`
+/// does not return a typed response body.
 #[derive(Clone)]
 pub struct ApClient {
     client: Client,
@@ -48,21 +43,15 @@ impl ApClient {
     pub async fn get_payable_summaries(
         &self,
         tenant_id: &str,
-    ) -> Result<Vec<PayableSummary>, ApClientError> {
+    ) -> Result<Vec<PayableSummary>, ClientError> {
         let url = format!("{}/api/ap/aging", self.base_url);
         let resp = self
             .client
             .get(&url)
             .query(&[("tenant_id", tenant_id)])
             .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ApClientError::Api { status, body });
-        }
-
-        Ok(resp.json().await?)
+            .await
+            .map_err(ClientError::Network)?;
+        parse_response(resp).await
     }
 }

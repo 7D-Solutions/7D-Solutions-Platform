@@ -14,7 +14,7 @@ use uuid::Uuid;
 #[derive(Debug, Error)]
 pub enum EngineError {
     #[error("GL client error: {0}")]
-    GlClient(#[from] crate::integrations::gl::client::GlClientError),
+    GlClient(#[from] platform_sdk::ClientError),
 
     #[error("Period not closed for entity {0}")]
     PeriodNotClosed(String),

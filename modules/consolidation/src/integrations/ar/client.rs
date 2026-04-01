@@ -1,20 +1,11 @@
-//! AR HTTP client — fetches receivable data from the AR service.
+//! AR HTTP client adapter — wraps platform-client-ar for receivable data.
 //!
 //! Used by intercompany matching to identify receivables where the
 //! customer is another entity in the consolidation group.
 
+use platform_sdk::{ClientError, parse_response};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum ArClientError {
-    #[error("AR API request failed: {0}")]
-    Http(#[from] reqwest::Error),
-
-    #[error("AR API returned {status}: {body}")]
-    Api { status: u16, body: String },
-}
 
 /// Summary of receivable balance per customer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +17,11 @@ pub struct ReceivableSummary {
     pub invoice_count: i64,
 }
 
-/// HTTP client for the AR service.
+/// HTTP client adapter for the AR service.
+///
+/// Wraps `platform-client-ar` as the upstream dependency. Uses raw reqwest
+/// with `parse_response` because the generated `AgingClient::get_aging`
+/// does not return a typed response body.
 #[derive(Clone)]
 pub struct ArClient {
     client: Client,
@@ -48,21 +43,15 @@ impl ArClient {
     pub async fn get_receivable_summaries(
         &self,
         tenant_id: &str,
-    ) -> Result<Vec<ReceivableSummary>, ArClientError> {
+    ) -> Result<Vec<ReceivableSummary>, ClientError> {
         let url = format!("{}/api/ar/aging", self.base_url);
         let resp = self
             .client
             .get(&url)
             .query(&[("tenant_id", tenant_id)])
             .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ArClientError::Api { status, body });
-        }
-
-        Ok(resp.json().await?)
+            .await
+            .map_err(ClientError::Network)?;
+        parse_response(resp).await
     }
 }

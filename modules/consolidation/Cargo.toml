@@ -1,6 +1,6 @@
 [package]
 name = "consolidation"
-version = "2.2.4"
+version = "2.2.5"
 edition = "2021"
 description = "Multi-entity financial consolidation with intercompany eliminations"
 
@@ -29,6 +29,9 @@ platform-http-contracts = { path = "../../platform/http-contracts", features = [
 event-bus = { path = "../../platform/event-bus" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 config-validator = { path = "../../platform/config-validator" }
+platform-client-gl = { path = "../../clients/gl" }
+platform-client-ar = { path = "../../clients/ar" }
+platform-client-ap = { path = "../../clients/ap" }
 
 [dev-dependencies]
 serial_test = "3.3.1"

@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.5 | 2026-04-01 | bd-pezs6 | Replace hand-written GL/AR/AP HTTP clients (~415 LOC) with thin adapters over platform-client-{gl,ar,ap}. Error type unified from per-module GlClientError/ArClientError/ApClientError to platform_sdk::ClientError. Response types kept locally until codegen supports typed responses. | Typed client standardisation — all inter-module HTTP calls use generated clients for type safety and consistency. | No |
 | 2.2.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. Ops routes stripped from http::router(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.2.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.2.0 | 2026-03-30 | bd-nhmgu | Make ApiDoc pub in http/mod.rs; add openapi_dump utility binary. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
