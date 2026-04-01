@@ -1,6 +1,6 @@
 [package]
 name = "ttp-rs"
-version = "2.1.13"
+version = "2.1.14"
 edition = "2021"
 description = "Tenant-to-platform billing, metering, and service agreement management"
 
@@ -32,6 +32,8 @@ futures = "0.3"
 prometheus = "0.13"
 sha2 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+platform-client-ar = { path = "../../clients/ar" }
+platform-client-tenant-registry = { path = "../../clients/platform-client-tenant-registry" }
 config-validator = { path = "../../platform/config-validator" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 

@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "2.3.0"
+version = "2.3.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -169,6 +169,7 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
+ "platform-client-party",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -318,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.7.1"
+version = "1.7.2"
 dependencies = [
  "argon2",
  "async-nats",
@@ -335,6 +336,7 @@ dependencies = [
  "jsonschema",
  "jsonwebtoken",
  "once_cell",
+ "platform-client-tenant-registry",
  "prometheus",
  "rand 0.8.5",
  "reqwest",
@@ -768,6 +770,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
+name = "client-codegen"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1099,7 +1109,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "argon2",
  "axum",
@@ -1112,6 +1122,7 @@ dependencies = [
  "hex",
  "jsonwebtoken",
  "password-hash",
+ "platform-client-doc-mgmt",
  "platform-http-contracts",
  "platform-sdk",
  "platform_contracts",
@@ -1251,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "doc_mgmt"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -1272,6 +1283,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "utoipa",
  "uuid",
 ]
 
@@ -1436,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "event-bus"
-version = "1.0.1"
+version = "2.0.0"
 dependencies = [
  "async-nats",
  "async-stream",
@@ -1552,7 +1564,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.4"
+version = "2.1.5"
 dependencies = [
  "async-nats",
  "axum",
@@ -1657,9 +1669,9 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
 name = "futures"
-version = "0.3.32"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
+checksum = "65bc07b1a8bc7c85c5f2e110c476c7389b4554ba72af57d8445ea63a576b0876"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -1688,9 +1700,9 @@ checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.32"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baf29c38818342a3b26b5b923639e7b1f4a61fc5e76102d4b1981c6dc7a7579d"
+checksum = "1e28d1d997f585e54aebc3f97d39e72338912123a67330d723fdbb564d646c9f"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -1716,9 +1728,9 @@ checksum = "cecba35d7ad927e23624b22ad55235f2239cfa44fd10428eecbeba6d6a717718"
 
 [[package]]
 name = "futures-macro"
-version = "0.3.32"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
+checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1745,9 +1757,9 @@ checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
 
 [[package]]
 name = "futures-util"
-version = "0.3.32"
+version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
+checksum = "9fa08315bb612088cc391249efdc3bc77536f16c91f6cf495e6fbe85b20a4a81"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -1757,6 +1769,7 @@ dependencies = [
  "futures-task",
  "memchr",
  "pin-project-lite",
+ "pin-utils",
  "slab",
 ]
 
@@ -1812,7 +1825,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "2.1.8"
+version = "2.1.9"
 dependencies = [
  "async-nats",
  "axum",
@@ -2800,7 +2813,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "2.1.4"
+version = "2.1.5"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3300,6 +3313,58 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
+name = "platform-client-ar"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-doc-mgmt"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-party"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-tenant-registry"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-http-contracts"
 version = "0.1.0"
 dependencies = [
@@ -3316,6 +3381,7 @@ dependencies = [
 name = "platform-sdk"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "axum",
  "chrono",
  "config-validator",
@@ -3324,14 +3390,19 @@ dependencies = [
  "futures",
  "health",
  "http",
+ "jsonwebtoken",
  "platform-http-contracts",
  "platform_contracts",
  "prometheus",
+ "rand 0.8.5",
+ "regex",
  "reqwest",
+ "rsa",
  "security",
  "semver",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sqlx",
  "tempfile",
  "thiserror 2.0.18",
@@ -4241,7 +4312,7 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "security"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "axum",
  "base64",
@@ -4253,6 +4324,7 @@ dependencies = [
  "jsonwebtoken",
  "prometheus",
  "rand 0.8.5",
+ "reqwest",
  "rsa",
  "serde",
  "serde_json",
@@ -4895,7 +4967,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "2.2.6"
+version = "2.2.7"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -4906,6 +4978,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "platform-client-ar",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -5007,10 +5080,11 @@ dependencies = [
 
 [[package]]
 name = "tenant-registry"
-version = "1.0.3"
+version = "1.1.0"
 dependencies = [
  "axum",
  "chrono",
+ "event-bus",
  "futures",
  "http-body-util",
  "reqwest",
@@ -5586,7 +5660,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.12"
+version = "2.1.14"
 dependencies = [
  "async-nats",
  "axum",
@@ -5596,6 +5670,8 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "platform-client-ar",
+ "platform-client-tenant-registry",
  "platform-sdk",
  "projections",
  "prometheus",
@@ -5612,6 +5688,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "utoipa",
  "uuid",
 ]
 
