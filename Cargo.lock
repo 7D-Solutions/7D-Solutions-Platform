@@ -3313,7 +3313,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
+name = "platform-client-ap"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-ar"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-bom"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -3339,6 +3365,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-fixed-assets"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-gl"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-integrations"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-inventory"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-numbering"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-party"
 version = "0.1.0"
 dependencies = [
@@ -3352,7 +3443,85 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-payments"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-production"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-reporting"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-shipping-receiving"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-tenant-registry"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-treasury"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-workflow"
 version = "0.1.0"
 dependencies = [
  "chrono",

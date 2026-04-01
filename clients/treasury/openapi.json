@@ -1,0 +1,1823 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Treasury Service",
+    "description": "Bank account management, transaction import, reconciliation, and cash position reporting.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/treasury/accounts": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "GET /api/treasury/accounts — list accounts for tenant",
+        "operationId": "list_accounts",
+        "parameters": [
+          {
+            "name": "include_inactive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_TreasuryAccount"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/accounts/bank": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "POST /api/treasury/accounts/bank — create a bank account",
+        "operationId": "create_bank_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBankAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryAccount"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/accounts/credit-card": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "POST /api/treasury/accounts/credit-card — create a credit card account",
+        "operationId": "create_credit_card_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCreditCardAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryAccount"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/accounts/{id}": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "GET /api/treasury/accounts/:id — get a single account",
+        "operationId": "get_account",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryAccount"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "PUT /api/treasury/accounts/:id — update account fields",
+        "operationId": "update_account",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Account updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasuryAccount"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/accounts/{id}/deactivate": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "POST /api/treasury/accounts/:id/deactivate — soft-delete a bank account",
+        "operationId": "deactivate_account",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Account ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Account deactivated"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/cash-position": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/treasury/cash-position — real-time cash position by account and currency",
+        "operationId": "cash_position",
+        "responses": {
+          "200": {
+            "description": "Cash position report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPositionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/forecast": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/treasury/forecast — cash forecast from AR/AP aging + scheduled payments",
+        "operationId": "forecast",
+        "responses": {
+          "200": {
+            "description": "Cash forecast",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/auto-match": {
+      "post": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "POST /api/treasury/recon/auto-match — run auto-match for an account",
+        "operationId": "auto_match",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Auto-match result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoMatchResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/gl-link": {
+      "post": {
+        "tags": [
+          "GL Reconciliation"
+        ],
+        "summary": "POST /api/treasury/recon/gl-link — link a bank transaction to a GL entry",
+        "operationId": "link_to_gl",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkToGlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Link created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlLinkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/gl-unmatched-entries": {
+      "post": {
+        "tags": [
+          "GL Reconciliation"
+        ],
+        "summary": "POST /api/treasury/recon/gl-unmatched-entries — given GL entry IDs, return unlinked ones",
+        "operationId": "unmatched_gl_entries",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnmatchedGlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Unmatched GL entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmatchedGlResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/gl-unmatched-txns": {
+      "get": {
+        "tags": [
+          "GL Reconciliation"
+        ],
+        "summary": "GET /api/treasury/recon/gl-unmatched-txns?account_id=... — bank txns not linked to GL",
+        "operationId": "unmatched_bank_txns",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unmatched bank transactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmatchedBankTxnsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/manual-match": {
+      "post": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "POST /api/treasury/recon/manual-match — create a manual match",
+        "operationId": "manual_match",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Match created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReconMatch"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/matches": {
+      "get": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "GET /api/treasury/recon/matches?account_id=...&include_superseded=false",
+        "operationId": "list_matches",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "include_superseded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recon matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReconMatch"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/recon/unmatched": {
+      "get": {
+        "tags": [
+          "Reconciliation"
+        ],
+        "summary": "GET /api/treasury/recon/unmatched?account_id=...",
+        "operationId": "list_unmatched",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unmatched items"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/treasury/statements/import": {
+      "post": {
+        "tags": [
+          "Import"
+        ],
+        "summary": "POST /api/treasury/statements/import",
+        "operationId": "import_statement",
+        "responses": {
+          "201": {
+            "description": "Statement imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "TREASURY_MUTATE"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountPosition": {
+        "type": "object",
+        "description": "Position for a single account.",
+        "required": [
+          "account_id",
+          "account_name",
+          "currency",
+          "opening_balance_minor",
+          "transaction_total_minor",
+          "balance_minor"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_name": {
+            "type": "string"
+          },
+          "balance_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "opening_balance_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "transaction_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AccountStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "inactive",
+          "closed"
+        ]
+      },
+      "AccountType": {
+        "type": "string",
+        "enum": [
+          "bank",
+          "credit_card"
+        ]
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AutoMatchRequest": {
+        "type": "object",
+        "required": [
+          "account_id"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AutoMatchResult": {
+        "type": "object",
+        "required": [
+          "matches_created",
+          "unmatched_statement_lines",
+          "unmatched_transactions"
+        ],
+        "properties": {
+          "matches_created": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unmatched_statement_lines": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unmatched_transactions": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CashPositionResponse": {
+        "type": "object",
+        "description": "Full cash position response.",
+        "required": [
+          "as_of",
+          "bank_cash",
+          "credit_card_liability",
+          "summary"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bank_cash": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountPosition"
+            }
+          },
+          "credit_card_liability": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountPosition"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/CashPositionSummary"
+          }
+        }
+      },
+      "CashPositionSummary": {
+        "type": "object",
+        "description": "Aggregated summary across all accounts.",
+        "required": [
+          "total_bank_cash_minor",
+          "total_cc_liability_minor",
+          "net_position_minor",
+          "currencies"
+        ],
+        "properties": {
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "net_position_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_bank_cash_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_cc_liability_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateBankAccountRequest": {
+        "type": "object",
+        "description": "Request body to create a bank account.",
+        "required": [
+          "account_name",
+          "currency"
+        ],
+        "properties": {
+          "account_name": {
+            "type": "string"
+          },
+          "account_number_last4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last 4 digits only. Reject anything longer."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code — must be exactly 3 uppercase letters."
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "routing_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateCreditCardAccountRequest": {
+        "type": "object",
+        "description": "Request body to create a credit card account.",
+        "required": [
+          "account_name",
+          "currency"
+        ],
+        "properties": {
+          "account_name": {
+            "type": "string"
+          },
+          "account_number_last4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last 4 digits of card number."
+          },
+          "cc_network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Card network identifier (e.g. \"Visa\", \"Mastercard\", \"Amex\")."
+          },
+          "credit_limit_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Credit limit in minor units (e.g. 500_000 = $5,000.00 USD)."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code."
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "statement_closing_day": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Day of month (1–31) the billing cycle closes."
+          }
+        }
+      },
+      "CurrencyForecast": {
+        "type": "object",
+        "description": "Forecast for a single currency.",
+        "required": [
+          "currency",
+          "inflows",
+          "outflows",
+          "scheduled_outflows_minor",
+          "net_by_bucket",
+          "total_net_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "inflows": {
+            "$ref": "#/components/schemas/ForecastBuckets"
+          },
+          "net_by_bucket": {
+            "$ref": "#/components/schemas/ForecastBuckets"
+          },
+          "outflows": {
+            "$ref": "#/components/schemas/ForecastBuckets"
+          },
+          "scheduled_outflows_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_net_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ForecastAssumptions": {
+        "type": "object",
+        "description": "Assumed collection/payment rates per aging bucket.\n\nRates are expressed as fractions (0.0–1.0). A rate of 0.95 means\n95% of the bucket value is expected to convert to a cash flow.",
+        "required": [
+          "ar_current_rate",
+          "ar_1_30_rate",
+          "ar_31_60_rate",
+          "ar_61_90_rate",
+          "ar_over_90_rate",
+          "ap_current_rate",
+          "ap_1_30_rate",
+          "ap_31_60_rate",
+          "ap_61_90_rate",
+          "ap_over_90_rate",
+          "scheduled_payment_rate"
+        ],
+        "properties": {
+          "ap_1_30_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected payment rate for AP 1–30 days overdue."
+          },
+          "ap_31_60_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected payment rate for AP 31–60 days overdue."
+          },
+          "ap_61_90_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected payment rate for AP 61–90 days overdue."
+          },
+          "ap_current_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected payment rate for AP \"current\" (not yet due)."
+          },
+          "ap_over_90_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected payment rate for AP over 90 days overdue."
+          },
+          "ar_1_30_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected collection rate for AR 1–30 days overdue."
+          },
+          "ar_31_60_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected collection rate for AR 31–60 days overdue."
+          },
+          "ar_61_90_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected collection rate for AR 61–90 days overdue."
+          },
+          "ar_current_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected collection rate for AR \"current\" (not yet due)."
+          },
+          "ar_over_90_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Expected collection rate for AR over 90 days overdue."
+          },
+          "scheduled_payment_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Rate applied to scheduled (pending) payment runs."
+          }
+        }
+      },
+      "ForecastBuckets": {
+        "type": "object",
+        "description": "Amounts per aging time bucket, after applying assumption rates.",
+        "required": [
+          "current_minor",
+          "days_1_30_minor",
+          "days_31_60_minor",
+          "days_61_90_minor",
+          "over_90_minor",
+          "total_minor"
+        ],
+        "properties": {
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ForecastResponse": {
+        "type": "object",
+        "description": "Full forecast response.",
+        "required": [
+          "as_of",
+          "forecasts",
+          "assumptions",
+          "methodology",
+          "data_sources"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/ForecastAssumptions"
+          },
+          "data_sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "forecasts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyForecast"
+            }
+          },
+          "methodology": {
+            "type": "string"
+          }
+        }
+      },
+      "GlLinkResponse": {
+        "type": "object",
+        "description": "Response from the GL link endpoint.",
+        "required": [
+          "match_id",
+          "bank_transaction_id",
+          "status",
+          "match_type",
+          "matched_at"
+        ],
+        "properties": {
+          "bank_transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gl_entry_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "match_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "match_type": {
+            "$ref": "#/components/schemas/ReconMatchType"
+          },
+          "matched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReconMatchStatus"
+          }
+        }
+      },
+      "ImportResult": {
+        "type": "object",
+        "required": [
+          "statement_id",
+          "lines_imported",
+          "lines_skipped",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LineError"
+            }
+          },
+          "lines_imported": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines_skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "statement_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "LineError": {
+        "type": "object",
+        "required": [
+          "line",
+          "reason"
+        ],
+        "properties": {
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "LinkToGlRequest": {
+        "type": "object",
+        "required": [
+          "bank_transaction_id",
+          "gl_entry_id"
+        ],
+        "properties": {
+          "bank_transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gl_entry_id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ManualMatchRequest": {
+        "type": "object",
+        "required": [
+          "statement_line_id",
+          "bank_transaction_id"
+        ],
+        "properties": {
+          "bank_transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "statement_line_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PaginatedResponse_TreasuryAccount": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Full treasury account record as stored and returned.\nCovers both bank and credit card accounts; CC-specific fields are None\nfor bank accounts and vice-versa.",
+              "required": [
+                "id",
+                "app_id",
+                "account_name",
+                "account_type",
+                "currency",
+                "current_balance_minor",
+                "status",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "account_name": {
+                  "type": "string"
+                },
+                "account_number_last4": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last 4 digits only — no full account numbers stored."
+                },
+                "account_type": {
+                  "$ref": "#/components/schemas/AccountType"
+                },
+                "app_id": {
+                  "type": "string"
+                },
+                "cc_network": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Card network: Visa, Mastercard, Amex, Discover, etc."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "credit_limit_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code (e.g. \"USD\")"
+                },
+                "current_balance_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Informational balance in minor units; updated by statement import."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "institution": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "metadata": {},
+                "routing_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "statement_closing_day": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32",
+                  "description": "Day of month (1–31) on which CC statement closes."
+                },
+                "status": {
+                  "$ref": "#/components/schemas/AccountStatus"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReconMatch": {
+        "type": "object",
+        "required": [
+          "id",
+          "app_id",
+          "bank_transaction_id",
+          "match_type",
+          "status",
+          "matched_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "bank_transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "confidence_score": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "gl_entry_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "match_type": {
+            "$ref": "#/components/schemas/ReconMatchType"
+          },
+          "matched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "matched_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statement_line_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReconMatchStatus"
+          },
+          "superseded_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReconMatchStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "confirmed",
+          "rejected"
+        ]
+      },
+      "ReconMatchType": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "manual",
+          "suggested"
+        ]
+      },
+      "TreasuryAccount": {
+        "type": "object",
+        "description": "Full treasury account record as stored and returned.\nCovers both bank and credit card accounts; CC-specific fields are None\nfor bank accounts and vice-versa.",
+        "required": [
+          "id",
+          "app_id",
+          "account_name",
+          "account_type",
+          "currency",
+          "current_balance_minor",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "account_name": {
+            "type": "string"
+          },
+          "account_number_last4": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last 4 digits only — no full account numbers stored."
+          },
+          "account_type": {
+            "$ref": "#/components/schemas/AccountType"
+          },
+          "app_id": {
+            "type": "string"
+          },
+          "cc_network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Card network: Visa, Mastercard, Amex, Discover, etc."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "credit_limit_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (e.g. \"USD\")"
+          },
+          "current_balance_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Informational balance in minor units; updated by statement import."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "routing_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statement_closing_day": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Day of month (1–31) on which CC statement closes."
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UnmatchedBankTxnGl": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "transaction_date",
+          "amount_minor",
+          "currency",
+          "has_statement_match"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_statement_match": {
+            "type": "boolean",
+            "description": "If matched to a statement line but not yet linked to GL"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "UnmatchedBankTxnsResponse": {
+        "type": "object",
+        "description": "Unmatched bank txns response envelope",
+        "required": [
+          "count",
+          "unmatched_bank_transactions"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unmatched_bank_transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedBankTxnGl"
+            }
+          }
+        }
+      },
+      "UnmatchedGlRequest": {
+        "type": "object",
+        "required": [
+          "gl_entry_ids"
+        ],
+        "properties": {
+          "gl_entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "UnmatchedGlResult": {
+        "type": "object",
+        "required": [
+          "provided",
+          "linked",
+          "unmatched_gl_entry_ids"
+        ],
+        "properties": {
+          "linked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "provided": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unmatched_gl_entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "UpdateAccountRequest": {
+        "type": "object",
+        "description": "Request body for partial updates to a treasury account.",
+        "properties": {
+          "account_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "account_number_last4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cc_network": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credit_limit_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "institution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "routing_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "statement_closing_day": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

@@ -1,0 +1,930 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GL Service",
+    "description": "Double-entry general ledger with journal engine, accruals, and revenue recognition.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.0.2"
+  },
+  "paths": {
+    "/api/gl/accounts": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "operationId": "create_account",
+        "responses": {
+          "201": {
+            "description": "Account created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/accounts/{account_code}/activity": {
+      "get": {
+        "tags": [
+          "GL Detail"
+        ],
+        "operationId": "get_account_activity",
+        "parameters": [
+          {
+            "name": "account_code",
+            "in": "path",
+            "description": "Account code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account activity lines"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/accruals/create": {
+      "post": {
+        "tags": [
+          "Accruals"
+        ],
+        "operationId": "create_accrual_handler",
+        "responses": {
+          "201": {
+            "description": "Accrual instance created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/accruals/reversals/execute": {
+      "post": {
+        "tags": [
+          "Accruals"
+        ],
+        "operationId": "execute_reversals_handler",
+        "responses": {
+          "200": {
+            "description": "Auto-reversals executed"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/accruals/templates": {
+      "post": {
+        "tags": [
+          "Accruals"
+        ],
+        "operationId": "create_template_handler",
+        "responses": {
+          "201": {
+            "description": "Accrual template created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/balance-sheet": {
+      "get": {
+        "tags": [
+          "Financial Statements"
+        ],
+        "operationId": "get_balance_sheet",
+        "responses": {
+          "200": {
+            "description": "Balance sheet report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/cash-flow": {
+      "get": {
+        "tags": [
+          "Financial Statements"
+        ],
+        "operationId": "get_cash_flow",
+        "responses": {
+          "200": {
+            "description": "Cash flow statement"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/detail": {
+      "get": {
+        "tags": [
+          "GL Detail"
+        ],
+        "operationId": "get_gl_detail",
+        "responses": {
+          "200": {
+            "description": "GL detail report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/exports": {
+      "post": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "POST /api/gl/exports",
+        "operationId": "create_export",
+        "responses": {
+          "200": {
+            "description": "Export created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/fx-rates": {
+      "post": {
+        "tags": [
+          "FX Rates"
+        ],
+        "summary": "POST /api/gl/fx-rates",
+        "operationId": "create_fx_rate",
+        "responses": {
+          "200": {
+            "description": "FX rate created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/fx-rates/latest": {
+      "get": {
+        "tags": [
+          "FX Rates"
+        ],
+        "summary": "GET /api/gl/fx-rates/latest",
+        "operationId": "get_latest_rate",
+        "responses": {
+          "200": {
+            "description": "Latest FX rate"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/income-statement": {
+      "get": {
+        "tags": [
+          "Financial Statements"
+        ],
+        "operationId": "get_income_statement",
+        "responses": {
+          "200": {
+            "description": "Income statement report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/approvals": {
+      "get": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "GET /api/gl/periods/{period_id}/approvals",
+        "operationId": "get_approvals",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Approval list"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/approvals — record an approval signoff (idempotent)",
+        "operationId": "create_approval",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Approval recorded"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/checklist": {
+      "get": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "GET /api/gl/periods/{period_id}/checklist",
+        "operationId": "get_checklist_status",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checklist status"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/checklist — add a checklist item",
+        "operationId": "create_checklist_item",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Checklist item created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/checklist/{item_id}/complete": {
+      "post": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/checklist/{item_id}/complete",
+        "operationId": "complete_checklist_item",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Checklist item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checklist item completed"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/checklist/{item_id}/waive": {
+      "post": {
+        "tags": [
+          "Close Checklist"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/checklist/{item_id}/waive",
+        "operationId": "waive_checklist_item",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Checklist item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checklist item waived"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/close": {
+      "post": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "Handler for POST /api/gl/periods/{period_id}/close",
+        "description": "Atomically close an accounting period.\nIdempotent - if already closed, returns existing close status.\n\nSteps:\n1. Lock period row (FOR UPDATE)\n2. Check if already closed (idempotency)\n3. Run pre-close validation\n4. Create sealed snapshot with hash\n5. Update period with close fields\n\nReturns close status on success, validation report on failure.",
+        "operationId": "close_period_handler",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Period closed"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/close-status": {
+      "get": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "Handler for GET /api/gl/periods/{period_id}/close-status?tenant_id={tenant_id}",
+        "description": "Query the current close status of a period.\nReturns period date range and close lifecycle state.\n\nO(1) query - single row lookup, no unbounded reads.",
+        "operationId": "get_close_status",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Close status"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/reopen": {
+      "get": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "GET /api/gl/periods/{period_id}/reopen",
+        "operationId": "list_reopen_requests",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of reopen requests"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/reopen — request a controlled reopen",
+        "operationId": "request_reopen",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Reopen request created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/reopen/{request_id}/approve": {
+      "post": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/reopen/{request_id}/approve",
+        "operationId": "approve_reopen",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Reopen request ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reopen approved"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/reopen/{request_id}/reject": {
+      "post": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "POST /api/gl/periods/{period_id}/reopen/{request_id}/reject",
+        "operationId": "reject_reopen",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Reopen request ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reopen rejected"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/summary": {
+      "get": {
+        "tags": [
+          "Period Summary"
+        ],
+        "operationId": "get_period_summary",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Period summary report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/periods/{period_id}/validate-close": {
+      "post": {
+        "tags": [
+          "Period Close"
+        ],
+        "summary": "Handler for POST /api/gl/periods/{period_id}/validate-close",
+        "description": "Pre-flight validation to check if a period can be closed.\nDoes NOT modify period state.\n\nReturns validation report with errors/warnings.",
+        "operationId": "validate_close",
+        "parameters": [
+          {
+            "name": "period_id",
+            "in": "path",
+            "description": "Accounting period ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validation report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/reporting/balance-sheet": {
+      "get": {
+        "tags": [
+          "Reporting Currency"
+        ],
+        "operationId": "get_reporting_balance_sheet",
+        "responses": {
+          "200": {
+            "description": "Reporting-currency balance sheet"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/reporting/income-statement": {
+      "get": {
+        "tags": [
+          "Reporting Currency"
+        ],
+        "operationId": "get_reporting_income_statement",
+        "responses": {
+          "200": {
+            "description": "Reporting-currency income statement"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/reporting/trial-balance": {
+      "get": {
+        "tags": [
+          "Reporting Currency"
+        ],
+        "operationId": "get_reporting_trial_balance",
+        "responses": {
+          "200": {
+            "description": "Reporting-currency trial balance"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/revrec/amendments": {
+      "post": {
+        "tags": [
+          "Revenue Recognition"
+        ],
+        "summary": "POST /api/gl/revrec/amendments",
+        "description": "Record a contract modification. The body is a `ContractModifiedPayload`.\nReturns 201 on success, 409 if modification_id already exists.",
+        "operationId": "amend_contract",
+        "responses": {
+          "201": {
+            "description": "Contract amendment recorded"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/revrec/contracts": {
+      "post": {
+        "tags": [
+          "Revenue Recognition"
+        ],
+        "summary": "POST /api/gl/revrec/contracts",
+        "description": "Creates a revenue contract with performance obligations.\nAtomic: contract + obligations + outbox event in a single transaction.\nIdempotent: returns 409 CONFLICT if contract_id already exists.",
+        "operationId": "create_contract",
+        "responses": {
+          "201": {
+            "description": "Revenue contract created"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/revrec/recognition-runs": {
+      "post": {
+        "tags": [
+          "Revenue Recognition"
+        ],
+        "summary": "POST /api/gl/revrec/recognition-runs",
+        "description": "Executes a recognition run for a tenant and period.\nFinds all unrecognized schedule lines due for the period (from latest\nschedule versions), posts balanced journal entries, and emits outbox events.\n\nIdempotent: re-running for the same period skips already-recognized lines.",
+        "operationId": "run_recognition_handler",
+        "responses": {
+          "201": {
+            "description": "Recognition run executed"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/revrec/schedules": {
+      "post": {
+        "tags": [
+          "Revenue Recognition"
+        ],
+        "summary": "POST /api/gl/revrec/schedules",
+        "description": "Generates a recognition schedule for a performance obligation.\nFetches the obligation from DB, generates the schedule deterministically,\nand persists schedule + lines + outbox event atomically.\n\nVersioned: if an obligation already has a schedule, creates a new version\nlinked to the previous schedule.",
+        "operationId": "generate_schedule_handler",
+        "responses": {
+          "201": {
+            "description": "Recognition schedule generated"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/gl/trial-balance": {
+      "get": {
+        "tags": [
+          "Financial Statements"
+        ],
+        "summary": "Handler for GET /api/gl/trial-balance",
+        "description": "Returns trial balance for a tenant and period with optional currency filter.\nTenant identity is derived from JWT claims (VerifiedClaims).",
+        "operationId": "get_trial_balance",
+        "responses": {
+          "200": {
+            "description": "Trial balance report"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

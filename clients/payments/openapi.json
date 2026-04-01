@@ -1,0 +1,607 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Payments Service",
+    "description": "Payment processing: checkout sessions, payment retrieval, and Tilled webhooks.\n\n**Authentication:** Bearer JWT. Tenant identity derived from JWT claims.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.3"
+  },
+  "paths": {
+    "/api/payments/checkout-sessions": {
+      "post": {
+        "tags": [
+          "Checkout Sessions"
+        ],
+        "operationId": "create_checkout_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCheckoutSessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Payment processor error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "PAYMENTS_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/payments/checkout-sessions/{id}": {
+      "get": {
+        "tags": [
+          "Checkout Sessions"
+        ],
+        "operationId": "get_checkout_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Checkout session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutSessionStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "PAYMENTS_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/payments/checkout-sessions/{id}/present": {
+      "post": {
+        "tags": [
+          "Checkout Sessions"
+        ],
+        "operationId": "present_checkout_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Checkout session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session presented (or already in later state)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "PAYMENTS_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/payments/checkout-sessions/{id}/status": {
+      "get": {
+        "tags": [
+          "Checkout Sessions"
+        ],
+        "operationId": "poll_checkout_session_status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Checkout session ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatusPollResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "PAYMENTS_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/payments/payments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Handler for GET /api/payments/payments",
+        "description": "Demonstrates projection fallback pattern:\n1. Check if projection is stale (beyond threshold)\n2. If stale and circuit is closed, attempt HTTP fallback\n3. Otherwise, query projection normally\n\nThis prevents cascading failures when projections fall behind.",
+        "operationId": "get_payment",
+        "parameters": [
+          {
+            "name": "payment_id",
+            "in": "query",
+            "description": "Payment ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "PAYMENTS_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/payments/webhook/tilled": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "tilled_webhook",
+        "responses": {
+          "200": {
+            "description": "Webhook processed"
+          },
+          "400": {
+            "description": "Invalid JSON body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid signature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CheckoutSessionStatusResponse": {
+        "type": "object",
+        "description": "GET /api/payments/checkout-sessions/:id response",
+        "required": [
+          "session_id",
+          "status",
+          "payment_intent_id",
+          "invoice_id",
+          "tenant_id",
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancel_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to redirect after cancelled payment (stored at creation time)"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "payment_intent_id": {
+            "type": "string"
+          },
+          "return_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to redirect after successful payment (stored at creation time)"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateCheckoutSessionRequest": {
+        "type": "object",
+        "description": "POST /api/payments/checkout-sessions request body",
+        "required": [
+          "invoice_id",
+          "tenant_id",
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Amount in minor currency units (e.g. cents)"
+          },
+          "cancel_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to redirect after cancelled payment (optional)"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional idempotency key. If omitted, invoice_id is used as the\nnatural key — one checkout session per invoice per tenant."
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "return_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "URL to redirect after successful payment (optional)"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateCheckoutSessionResponse": {
+        "type": "object",
+        "description": "POST /api/payments/checkout-sessions response",
+        "required": [
+          "session_id",
+          "payment_intent_id",
+          "client_secret"
+        ],
+        "properties": {
+          "client_secret": {
+            "type": "string",
+            "description": "Tilled.js client secret — pass to tilled.js confirmPayment()"
+          },
+          "payment_intent_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DataSource": {
+        "type": "string",
+        "description": "Indicates where the data came from",
+        "enum": [
+          "projection",
+          "fallback"
+        ]
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PaymentResponse": {
+        "type": "object",
+        "description": "Payment response",
+        "required": [
+          "payment_id",
+          "tenant_id",
+          "amount",
+          "status",
+          "data_source"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "data_source": {
+            "$ref": "#/components/schemas/DataSource"
+          },
+          "payment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionStatusPollResponse": {
+        "type": "object",
+        "description": "GET /api/payments/checkout-sessions/:id/status response (no secrets)",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

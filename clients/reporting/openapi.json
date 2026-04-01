@@ -1,0 +1,1303 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Reporting Service",
+    "description": "Financial reporting: aging, KPIs, statements, cash flow forecasts, and probabilistic collection forecasting.\n\n**Authentication:** Bearer JWT. Tenant identity derived from JWT claims. Permissions: `REPORTING_READ` for queries, `REPORTING_MUTATE` for writes.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/reporting/ap-aging": {
+      "get": {
+        "tags": [
+          "Aging"
+        ],
+        "summary": "GET /api/reporting/ap-aging — AP aging report from reporting cache.",
+        "operationId": "get_ap_aging",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AP aging report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApAgingReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/ar-aging": {
+      "get": {
+        "tags": [
+          "Aging"
+        ],
+        "summary": "GET /api/reporting/ar-aging — AR aging buckets from the reporting cache.",
+        "operationId": "get_ar_aging",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AR aging summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArAgingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/balance-sheet": {
+      "get": {
+        "tags": [
+          "Statements"
+        ],
+        "summary": "GET /api/reporting/balance-sheet — Balance Sheet as of a given date.",
+        "operationId": "get_balance_sheet",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance sheet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceSheet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/cashflow": {
+      "get": {
+        "tags": [
+          "Statements"
+        ],
+        "summary": "GET /api/reporting/cashflow — Cash flow statement for a date range.",
+        "operationId": "get_cashflow",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cash flow statement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashflowStatement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/forecast": {
+      "get": {
+        "tags": [
+          "Forecast"
+        ],
+        "summary": "GET /api/reporting/forecast — probabilistic cash collection forecast.",
+        "operationId": "get_forecast",
+        "parameters": [
+          {
+            "name": "horizons",
+            "in": "query",
+            "description": "Comma-separated horizon days (e.g. \"7,14,30,60,90\").\nDefaults to \"7,14,30,60,90\" if omitted.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cash forecast",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashForecastResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/kpis": {
+      "get": {
+        "tags": [
+          "KPIs"
+        ],
+        "summary": "GET /api/reporting/kpis — unified KPI snapshot from reporting caches.",
+        "operationId": "get_kpis",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "KPI snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KpiSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/pl": {
+      "get": {
+        "tags": [
+          "Statements"
+        ],
+        "summary": "GET /api/reporting/pl — Profit & Loss statement for a date range.",
+        "operationId": "get_pl",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "P&L statement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlStatement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/reporting/rebuild": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "POST /api/reporting/rebuild — trigger a statement cache rebuild.",
+        "operationId": "rebuild",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RebuildRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Rebuild completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotRunResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "REPORTING_MUTATE"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApAgingReport": {
+        "type": "object",
+        "description": "Complete AP aging report from the reporting cache.",
+        "required": [
+          "as_of",
+          "vendors",
+          "summary_by_currency"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "summary_by_currency": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencySummary"
+            }
+          },
+          "vendors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorAgingRow"
+            }
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ArAgingResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "as_of",
+          "aging"
+        ],
+        "properties": {
+          "aging": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArAgingSummary"
+            }
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ArAgingRow": {
+        "type": "object",
+        "description": "A single aging bucket row from the reporting cache.",
+        "required": [
+          "tenant_id",
+          "as_of",
+          "customer_id",
+          "currency",
+          "current_minor",
+          "bucket_1_30_minor",
+          "bucket_31_60_minor",
+          "bucket_61_90_minor",
+          "bucket_over_90_minor",
+          "total_minor"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "bucket_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ArAgingSummary": {
+        "type": "object",
+        "description": "Aggregated aging summary across all customers for a tenant.",
+        "required": [
+          "tenant_id",
+          "as_of",
+          "currency",
+          "current_minor",
+          "bucket_1_30_minor",
+          "bucket_31_60_minor",
+          "bucket_61_90_minor",
+          "bucket_over_90_minor",
+          "total_minor"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "bucket_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AtRiskItem": {
+        "type": "object",
+        "description": "An open invoice flagged as at-risk (P(30) < 0.40).",
+        "required": [
+          "invoice_id",
+          "customer_id",
+          "currency",
+          "amount_cents",
+          "p30",
+          "age_days"
+        ],
+        "properties": {
+          "age_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "p30": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "BTreeMap": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "propertyNames": {
+          "type": "string"
+        }
+      },
+      "BalanceSheet": {
+        "type": "object",
+        "required": [
+          "as_of",
+          "sections"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BsSection"
+            },
+            "description": "Ordered: [\"assets\", \"liabilities\", \"equity\"]"
+          }
+        }
+      },
+      "BsAccountLine": {
+        "type": "object",
+        "required": [
+          "account_code",
+          "account_name",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Minor units. Positive = normal balance for this section's sign convention."
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "BsSection": {
+        "type": "object",
+        "required": [
+          "section",
+          "accounts",
+          "total_by_currency"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BsAccountLine"
+            }
+          },
+          "section": {
+            "type": "string"
+          },
+          "total_by_currency": {
+            "type": "object",
+            "description": "Total per currency across all accounts in this section.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CashForecastResponse": {
+        "type": "object",
+        "description": "Top-level forecast response.",
+        "required": [
+          "as_of",
+          "results"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyForecast"
+            }
+          }
+        }
+      },
+      "CashflowLine": {
+        "type": "object",
+        "required": [
+          "line_code",
+          "line_label",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signed minor units. Positive = cash inflow."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "line_code": {
+            "type": "string"
+          },
+          "line_label": {
+            "type": "string"
+          }
+        }
+      },
+      "CashflowSection": {
+        "type": "object",
+        "required": [
+          "activity_type",
+          "lines",
+          "total_by_currency"
+        ],
+        "properties": {
+          "activity_type": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashflowLine"
+            }
+          },
+          "total_by_currency": {
+            "type": "object",
+            "description": "Total per currency across all lines in this section.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CashflowStatement": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "sections",
+          "net_cash_change_by_currency"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "net_cash_change_by_currency": {
+            "type": "object",
+            "description": "Net cash change per currency (sum of all sections).",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashflowSection"
+            },
+            "description": "Ordered: [\"operating\", \"investing\", \"financing\"]"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "CurrencyForecast": {
+        "type": "object",
+        "description": "Currency-grouped forecast result.",
+        "required": [
+          "currency",
+          "horizons",
+          "at_risk"
+        ],
+        "properties": {
+          "at_risk": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AtRiskItem"
+            }
+          },
+          "currency": {
+            "type": "string"
+          },
+          "horizons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastHorizon"
+            }
+          }
+        }
+      },
+      "CurrencySummary": {
+        "type": "object",
+        "description": "Summary totals across all vendors for one currency.",
+        "required": [
+          "currency",
+          "current_minor",
+          "bucket_1_30_minor",
+          "bucket_31_60_minor",
+          "bucket_61_90_minor",
+          "bucket_over_90_minor",
+          "total_minor"
+        ],
+        "properties": {
+          "bucket_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ForecastHorizon": {
+        "type": "object",
+        "description": "Expected collection for a single forecast horizon.",
+        "required": [
+          "days",
+          "expected_cents",
+          "p25_cents",
+          "p75_cents"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "expected_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p25_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p75_cents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "KpiSnapshot": {
+        "type": "object",
+        "description": "Unified KPI snapshot for a tenant as-of a given date.",
+        "required": [
+          "as_of",
+          "ar_total_outstanding",
+          "ap_total_outstanding",
+          "cash_collected_ytd",
+          "burn_ytd",
+          "mrr",
+          "inventory_value"
+        ],
+        "properties": {
+          "ap_total_outstanding": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Total outstanding AP by currency (all aging buckets summed)."
+          },
+          "ar_total_outstanding": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Total outstanding AR by currency (all aging buckets summed)."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "burn_ytd": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Burn YTD: total expenses from trial balance (expense accounts 5xxx-6xxx)."
+          },
+          "cash_collected_ytd": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Cash collected YTD by currency (operating inflows from cashflow cache)."
+          },
+          "inventory_value": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Inventory valuation, if available from the KPI cache."
+          },
+          "mrr": {
+            "$ref": "#/components/schemas/BTreeMap",
+            "description": "Monthly Recurring Revenue, if available from the KPI cache."
+          }
+        }
+      },
+      "PlAccountLine": {
+        "type": "object",
+        "required": [
+          "account_code",
+          "account_name",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Signed minor units. Positive = revenue/expense amount as labelled."
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "PlSection": {
+        "type": "object",
+        "required": [
+          "section",
+          "accounts",
+          "total_by_currency"
+        ],
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlAccountLine"
+            }
+          },
+          "section": {
+            "type": "string"
+          },
+          "total_by_currency": {
+            "type": "object",
+            "description": "Total per currency across all accounts in this section.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PlStatement": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "sections",
+          "net_income_by_currency"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "net_income_by_currency": {
+            "type": "object",
+            "description": "Net income (revenue − cogs − expenses) per currency.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlSection"
+            },
+            "description": "Ordered: [\"revenue\", \"cogs\", \"expenses\"]"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "RebuildRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date",
+            "description": "Start of rebuild range (inclusive), YYYY-MM-DD."
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "description": "End of rebuild range (inclusive), YYYY-MM-DD."
+          }
+        }
+      },
+      "SnapshotRunResult": {
+        "type": "object",
+        "description": "Summary of a completed snapshot run.",
+        "required": [
+          "tenant_id",
+          "from",
+          "to",
+          "rows_upserted"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "rows_upserted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total rows upserted into rpt_statement_cache.",
+            "minimum": 0
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "VendorAgingRow": {
+        "type": "object",
+        "description": "A single vendor's aging buckets for one currency.",
+        "required": [
+          "vendor_id",
+          "currency",
+          "current_minor",
+          "bucket_1_30_minor",
+          "bucket_31_60_minor",
+          "bucket_61_90_minor",
+          "bucket_over_90_minor",
+          "total_minor"
+        ],
+        "properties": {
+          "bucket_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bucket_over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vendor_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}
