@@ -46,6 +46,7 @@ members = [
   "tools/compliance-export",
   "tools/demo-seed",
   "tools/stabilization-gate",
+  "tools/client-codegen",
   "e2e-tests",
 ]
 
