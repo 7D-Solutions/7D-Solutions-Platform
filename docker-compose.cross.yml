@@ -30,27 +30,39 @@ services:
 
   payments:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/payments-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/payments-rs:/usr/local/bin/payments-rs:ro
+      - ./modules/payments/module.toml:/app/module.toml:ro
+      - ./modules/payments/db/migrations:/app/db/migrations:ro
 
   notifications:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/notifications-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/notifications-rs:/usr/local/bin/notifications-rs:ro
+      - ./modules/notifications/module.toml:/app/module.toml:ro
+      - ./modules/notifications/db/migrations:/app/db/migrations:ro
 
   gl:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/gl-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/gl-rs:/usr/local/bin/gl-rs:ro
+      - ./modules/gl/module.toml:/app/module.toml:ro
+      - ./modules/gl/db/migrations:/app/db/migrations:ro
 
   inventory:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/inventory-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/inventory-rs:/usr/local/bin/inventory-rs:ro
+      - ./modules/inventory/module.toml:/app/module.toml:ro
+      - ./modules/inventory/db/migrations:/app/db/migrations:ro
 
   ap:
     image: 7d-runtime
@@ -135,9 +147,12 @@ services:
 
   maintenance:
     image: 7d-runtime
+    working_dir: /app
     command: ["/usr/local/bin/maintenance-rs"]
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/maintenance-rs:/usr/local/bin/maintenance-rs:ro
+      - ./modules/maintenance/module.toml:/app/module.toml:ro
+      - ./modules/maintenance/db/migrations:/app/db/migrations:ro
 
   shipping-receiving:
     image: 7d-runtime
