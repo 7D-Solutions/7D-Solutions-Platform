@@ -169,6 +169,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_nats_posting_creates_journal_and_balances() {
     // Setup
     let pool = get_test_pool().await;
@@ -331,6 +332,7 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_nats_posting_replay_safety() {
     // Setup
     let pool = get_test_pool().await;

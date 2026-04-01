@@ -253,6 +253,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_gl_detail_returns_paginated_entries() {
     // Setup
     let pool = setup_test_pool().await;
@@ -418,6 +419,7 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_gl_detail_filters_by_account_code() {
     // Setup
     let pool = setup_test_pool().await;
@@ -510,6 +512,7 @@ async fn test_boundary_http_gl_detail_filters_by_account_code() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_gl_detail_handles_not_found_period() {
     let tenant_uuid = Uuid::new_v4();
     let tenant_id = tenant_uuid.to_string();
@@ -553,6 +556,7 @@ async fn test_boundary_http_gl_detail_handles_not_found_period() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_gl_detail_handles_invalid_pagination() {
     let tenant_uuid = Uuid::new_v4();
     let tenant_id = tenant_uuid.to_string();

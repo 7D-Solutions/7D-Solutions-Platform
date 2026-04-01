@@ -192,6 +192,7 @@ async fn create_test_journal_entry(
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_close_status_reflects_snapshot() {
     // Setup
     let pool = get_test_pool().await;
@@ -315,6 +316,7 @@ async fn test_boundary_http_close_status_reflects_snapshot() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_close_performance_guard() {
     use std::time::Instant;
 

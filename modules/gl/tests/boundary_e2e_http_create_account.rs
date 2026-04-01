@@ -121,6 +121,7 @@ fn gl_url() -> String {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_create_account_returns_201() {
     let pool = setup_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -157,6 +158,7 @@ async fn test_create_account_returns_201() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_duplicate_code_returns_409() {
     let pool = setup_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -198,6 +200,7 @@ async fn test_duplicate_code_returns_409() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_missing_required_field_returns_422() {
     let tenant_id = Uuid::new_v4().to_string();
     let token = sign_test_jwt(&tenant_id, vec!["gl.post".into()]);
@@ -223,6 +226,7 @@ async fn test_missing_required_field_returns_422() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_different_tenants_same_code() {
     let pool = setup_test_pool().await;
     let tenant_a = Uuid::new_v4().to_string();

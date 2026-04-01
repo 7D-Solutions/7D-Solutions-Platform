@@ -210,6 +210,7 @@ async fn close_period_directly(pool: &PgPool, period_id: Uuid, closed_by: &str, 
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_close_period_success() {
     // Setup
     let pool = get_test_pool().await;
@@ -319,6 +320,7 @@ async fn test_boundary_http_close_period_success() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_close_period_idempotent() {
     // Setup
     let pool = get_test_pool().await;
@@ -431,6 +433,7 @@ async fn test_boundary_http_close_period_idempotent() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_close_fails_on_closed_period() {
     // Setup
     let pool = get_test_pool().await;

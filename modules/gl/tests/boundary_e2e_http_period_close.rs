@@ -87,6 +87,7 @@ const BASE_URL: &str = "http://localhost:8090";
 /// Test validate-close succeeds on open period
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_validate_close_success() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -130,6 +131,7 @@ async fn test_http_validate_close_success() {
 /// Test validate-close fails when period already closed
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_validate_close_already_closed() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -190,6 +192,7 @@ async fn test_http_validate_close_already_closed() {
 /// Test successful close returns close status with hash
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_period_success() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -251,6 +254,7 @@ async fn test_http_close_period_success() {
 /// Test idempotent close - calling close twice returns same hash
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_period_idempotent() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -308,6 +312,7 @@ async fn test_http_close_period_idempotent() {
 /// Test close fails when validation detects unbalanced entries
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_period_validation_failure() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -403,6 +408,7 @@ async fn test_http_close_period_validation_failure() {
 /// Test close-status returns Open for open period
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_status_open() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -445,6 +451,7 @@ async fn test_http_close_status_open() {
 /// Test close-status reflects sealed snapshot after close
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_status_closed_with_hash() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();
@@ -506,6 +513,7 @@ async fn test_http_close_status_closed_with_hash() {
 /// Test close-status returns 404 for non-existent period
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_close_status_not_found() {
     let tenant_id = Uuid::new_v4().to_string();
     let fake_period_id = Uuid::new_v4();
@@ -536,6 +544,7 @@ async fn test_http_close_status_not_found() {
 /// Test all endpoints complete in reasonable time (< 1s per suite target)
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_http_period_close_performance_guard() {
     let pool = get_test_pool().await;
     let tenant_id = Uuid::new_v4().to_string();

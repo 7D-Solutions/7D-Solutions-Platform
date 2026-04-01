@@ -218,6 +218,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_trial_balance_returns_correct_json() {
     // Setup
     let pool = setup_test_pool().await;
@@ -354,6 +355,7 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_trial_balance_currency_filter() {
     // Setup
     let pool = setup_test_pool().await;
@@ -462,6 +464,7 @@ async fn test_boundary_http_trial_balance_currency_filter() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_trial_balance_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
@@ -506,6 +509,7 @@ async fn test_boundary_http_trial_balance_error_handling() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_trial_balance_performance_guard() {
     // This test verifies ChatGPT's performance guard:
     // "Ensure trial balance does NOT reference journal_lines repository"

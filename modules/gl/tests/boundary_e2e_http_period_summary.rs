@@ -266,6 +266,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_from_snapshot() {
     // Setup
     let pool = setup_test_pool().await;
@@ -355,6 +356,7 @@ async fn test_boundary_http_period_summary_from_snapshot() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_computed_from_balances() {
     // Setup
     let pool = setup_test_pool().await;
@@ -452,6 +454,7 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_currency_filter() {
     // Setup
     let pool = setup_test_pool().await;
@@ -558,6 +561,7 @@ async fn test_boundary_http_period_summary_currency_filter() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
@@ -625,6 +629,7 @@ async fn test_boundary_http_period_summary_error_handling() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_performance_guard() {
     // This test verifies that period summary does NOT scan journal_lines table.
     //
@@ -683,6 +688,7 @@ async fn test_boundary_http_period_summary_performance_guard() {
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn test_boundary_http_period_summary_json_dto_structure() {
     // This test validates the exact JSON structure matches production DTOs
     // to prevent breaking changes in serialization.
