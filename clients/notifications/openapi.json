@@ -1,0 +1,1331 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Notifications Service",
+    "description": "Event-driven notification delivery with scheduled dispatch and retry.\n\n**Authentication:** Bearer JWT. Tenant derived from JWT claims.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.5"
+  },
+  "paths": {
+    "/api/deliveries": {
+      "get": {
+        "tags": [
+          "Sends"
+        ],
+        "operationId": "query_deliveries",
+        "responses": {
+          "200": {
+            "description": "Delivery receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/dlq": {
+      "get": {
+        "tags": [
+          "DLQ"
+        ],
+        "operationId": "list_dlq",
+        "responses": {
+          "200": {
+            "description": "Dead-lettered items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/dlq/{id}": {
+      "get": {
+        "tags": [
+          "DLQ"
+        ],
+        "operationId": "get_dlq_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "DLQ item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DLQ item detail with delivery attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/dlq/{id}/abandon": {
+      "post": {
+        "tags": [
+          "DLQ"
+        ],
+        "operationId": "abandon_dlq_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "DLQ item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item abandoned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/dlq/{id}/replay": {
+      "post": {
+        "tags": [
+          "DLQ"
+        ],
+        "operationId": "replay_dlq_item",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "DLQ item ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DlqActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox": {
+      "get": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "list_inbox",
+        "responses": {
+          "200": {
+            "description": "Inbox messages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox/{id}": {
+      "get": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "get_inbox_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Inbox message ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inbox message",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox/{id}/dismiss": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "dismiss_inbox_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Inbox message ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dismissed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox/{id}/read": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "read_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Inbox message ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox/{id}/undismiss": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "undismiss_inbox_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Inbox message ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Undismissed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/inbox/{id}/unread": {
+      "post": {
+        "tags": [
+          "Inbox"
+        ],
+        "operationId": "unread_message",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Inbox message ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Marked as unread",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/send": {
+      "post": {
+        "tags": [
+          "Sends"
+        ],
+        "operationId": "send_notification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Notification sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/notifications/{id}": {
+      "get": {
+        "tags": [
+          "Sends"
+        ],
+        "operationId": "get_send_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Send ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Send detail with receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/templates": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "operationId": "publish_template",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Template version published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/templates/{key}": {
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "operationId": "get_template",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Template key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template with version history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateTemplate": {
+        "type": "object",
+        "description": "Input for creating/publishing a new template version.",
+        "required": [
+          "template_key",
+          "channel",
+          "subject",
+          "body",
+          "required_vars"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "required_vars": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subject": {
+            "type": "string"
+          },
+          "template_key": {
+            "type": "string"
+          }
+        }
+      },
+      "DeliveryAttemptDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "attempt_no",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "attempt_no": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider_message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rendered_subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "DeliveryListResponse": {
+        "type": "object",
+        "required": [
+          "receipts"
+        ],
+        "properties": {
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryReceipt"
+            }
+          }
+        }
+      },
+      "DeliveryQuery": {
+        "type": "object",
+        "description": "Query parameters for GET /deliveries.",
+        "properties": {
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "recipient": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DeliveryReceipt": {
+        "type": "object",
+        "description": "A delivery receipt row.",
+        "required": [
+          "id",
+          "tenant_id",
+          "send_id",
+          "recipient",
+          "channel",
+          "status",
+          "attempt_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "attempt_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "provider_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recipient": {
+            "type": "string"
+          },
+          "send_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "succeeded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DlqActionResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "new_status"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "new_status": {
+            "type": "string"
+          }
+        }
+      },
+      "DlqDetailResponse": {
+        "type": "object",
+        "required": [
+          "item",
+          "delivery_attempts"
+        ],
+        "properties": {
+          "delivery_attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryAttemptDetail"
+            }
+          },
+          "item": {
+            "$ref": "#/components/schemas/DlqItem"
+          }
+        }
+      },
+      "DlqError": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DlqItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "recipient_ref",
+          "channel",
+          "template_key",
+          "payload_json",
+          "retry_count",
+          "created_at"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dead_lettered_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_json": {},
+          "recipient_ref": {
+            "type": "string"
+          },
+          "retry_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "template_key": {
+            "type": "string"
+          }
+        }
+      },
+      "DlqListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DlqItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "InboxActionResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "is_read",
+          "is_dismissed"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_dismissed": {
+            "type": "boolean"
+          },
+          "is_read": {
+            "type": "boolean"
+          }
+        }
+      },
+      "InboxError": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "InboxItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "notification_id",
+          "title",
+          "is_read",
+          "is_dismissed",
+          "created_at"
+        ],
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dismissed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_dismissed": {
+            "type": "boolean"
+          },
+          "is_read": {
+            "type": "boolean"
+          },
+          "notification_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "read_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "InboxListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SendDetailResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "template_key",
+          "template_version",
+          "channel",
+          "receipts",
+          "created_at"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryReceipt"
+            }
+          },
+          "rendered_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "template_key": {
+            "type": "string"
+          },
+          "template_version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SendRequest": {
+        "type": "object",
+        "description": "Input for POST /notifications/send.",
+        "required": [
+          "template_key",
+          "channel",
+          "recipients",
+          "payload_json"
+        ],
+        "properties": {
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "channel": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payload_json": {},
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "template_key": {
+            "type": "string"
+          }
+        }
+      },
+      "SendResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "template_key",
+          "template_version",
+          "channel",
+          "receipt_count"
+        ],
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rendered_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "template_key": {
+            "type": "string"
+          },
+          "template_version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "TemplateDetailResponse": {
+        "type": "object",
+        "required": [
+          "latest",
+          "versions"
+        ],
+        "properties": {
+          "latest": {
+            "$ref": "#/components/schemas/TemplateResponse"
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateVersionSummary"
+            }
+          }
+        }
+      },
+      "TemplateResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "template_key",
+          "version",
+          "channel",
+          "subject",
+          "body",
+          "required_vars",
+          "created_at"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required_vars": {},
+          "subject": {
+            "type": "string"
+          },
+          "template_key": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "TemplateVersionSummary": {
+        "type": "object",
+        "required": [
+          "version",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

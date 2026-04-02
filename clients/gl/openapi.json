@@ -6,7 +6,7 @@
     "license": {
       "name": ""
     },
-    "version": "2.0.2"
+    "version": "2.2.0"
   },
   "paths": {
     "/api/gl/accounts": {
@@ -15,9 +15,26 @@
           "Accounts"
         ],
         "operationId": "create_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Account created"
+            "description": "Account created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -46,7 +63,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Account activity lines"
+            "description": "Account activity lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountActivityResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -62,9 +86,26 @@
           "Accruals"
         ],
         "operationId": "create_accrual_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccrualRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Accrual instance created"
+            "description": "Accrual instance created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccrualResult"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -80,9 +121,26 @@
           "Accruals"
         ],
         "operationId": "execute_reversals_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteReversalsRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Auto-reversals executed"
+            "description": "Auto-reversals executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteReversalsResult"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -98,9 +156,26 @@
           "Accruals"
         ],
         "operationId": "create_template_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Accrual template created"
+            "description": "Accrual template created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateResult"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -118,7 +193,14 @@
         "operationId": "get_balance_sheet",
         "responses": {
           "200": {
-            "description": "Balance sheet report"
+            "description": "Balance sheet report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceSheetResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -136,7 +218,14 @@
         "operationId": "get_cash_flow",
         "responses": {
           "200": {
-            "description": "Cash flow statement"
+            "description": "Cash flow statement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashFlowResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -154,7 +243,14 @@
         "operationId": "get_gl_detail",
         "responses": {
           "200": {
-            "description": "GL detail report"
+            "description": "GL detail report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GLDetailResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -171,9 +267,26 @@
         ],
         "summary": "POST /api/gl/exports",
         "operationId": "create_export",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Export created"
+            "description": "Export created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -190,9 +303,26 @@
         ],
         "summary": "POST /api/gl/fx-rates",
         "operationId": "create_fx_rate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFxRateRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "FX rate created"
+            "description": "FX rate created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateFxRateResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -211,7 +341,14 @@
         "operationId": "get_latest_rate",
         "responses": {
           "200": {
-            "description": "Latest FX rate"
+            "description": "Latest FX rate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxRateResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -229,7 +366,14 @@
         "operationId": "get_income_statement",
         "responses": {
           "200": {
-            "description": "Income statement report"
+            "description": "Income statement report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeStatementResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -260,7 +404,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Approval list"
+            "description": "Approval list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalResponse"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -287,9 +441,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Approval recorded"
+            "description": "Approval recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -320,7 +491,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Checklist status"
+            "description": "Checklist status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChecklistItemResponse"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -347,9 +528,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChecklistItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Checklist item created"
+            "description": "Checklist item created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItemResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -388,9 +586,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteChecklistItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Checklist item completed"
+            "description": "Checklist item completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItemResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -429,9 +644,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WaiveChecklistItemRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Checklist item waived"
+            "description": "Checklist item waived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItemResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -461,9 +693,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Period closed"
+            "description": "Period closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosePeriodResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -495,7 +744,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Close status"
+            "description": "Close status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseStatusResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -553,6 +809,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenRequestPayload"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
             "description": "Reopen request created"
@@ -594,6 +860,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenApprovePayload"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Reopen approved"
@@ -635,6 +911,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenRejectPayload"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Reopen rejected"
@@ -667,7 +953,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Period summary report"
+            "description": "Period summary report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodSummaryResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -697,9 +990,26 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateCloseRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
-            "description": "Validation report"
+            "description": "Validation report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateCloseResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -717,7 +1027,14 @@
         "operationId": "get_reporting_balance_sheet",
         "responses": {
           "200": {
-            "description": "Reporting-currency balance sheet"
+            "description": "Reporting-currency balance sheet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingBalanceSheetResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -735,7 +1052,14 @@
         "operationId": "get_reporting_income_statement",
         "responses": {
           "200": {
-            "description": "Reporting-currency income statement"
+            "description": "Reporting-currency income statement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingIncomeStatementResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -753,7 +1077,14 @@
         "operationId": "get_reporting_trial_balance",
         "responses": {
           "200": {
-            "description": "Reporting-currency trial balance"
+            "description": "Reporting-currency trial balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingTrialBalanceResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -771,9 +1102,26 @@
         "summary": "POST /api/gl/revrec/amendments",
         "description": "Record a contract modification. The body is a `ContractModifiedPayload`.\nReturns 201 on success, 409 if modification_id already exists.",
         "operationId": "amend_contract",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractModifiedPayload"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Contract amendment recorded"
+            "description": "Contract amendment recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AmendContractResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -791,9 +1139,26 @@
         "summary": "POST /api/gl/revrec/contracts",
         "description": "Creates a revenue contract with performance obligations.\nAtomic: contract + obligations + outbox event in a single transaction.\nIdempotent: returns 409 CONFLICT if contract_id already exists.",
         "operationId": "create_contract",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContractRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Revenue contract created"
+            "description": "Revenue contract created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateContractResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -811,9 +1176,26 @@
         "summary": "POST /api/gl/revrec/recognition-runs",
         "description": "Executes a recognition run for a tenant and period.\nFinds all unrecognized schedule lines due for the period (from latest\nschedule versions), posts balanced journal entries, and emits outbox events.\n\nIdempotent: re-running for the same period skips already-recognized lines.",
         "operationId": "run_recognition_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecognitionRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Recognition run executed"
+            "description": "Recognition run executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecognitionRunResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -831,9 +1213,26 @@
         "summary": "POST /api/gl/revrec/schedules",
         "description": "Generates a recognition schedule for a performance obligation.\nFetches the obligation from DB, generates the schedule deterministically,\nand persists schedule + lines + outbox event atomically.\n\nVersioned: if an obligation already has a schedule, creates a new version\nlinked to the previous schedule.",
         "operationId": "generate_schedule_handler",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "201": {
-            "description": "Recognition schedule generated"
+            "description": "Recognition schedule generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateScheduleResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -853,7 +1252,14 @@
         "operationId": "get_trial_balance",
         "responses": {
           "200": {
-            "description": "Trial balance report"
+            "description": "Trial balance report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrialBalanceResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -866,6 +1272,226 @@
   },
   "components": {
     "schemas": {
+      "AccountActivityLine": {
+        "type": "object",
+        "description": "Account activity line (single transaction line)",
+        "required": [
+          "entry_id",
+          "posted_at",
+          "currency",
+          "debit_minor",
+          "credit_minor"
+        ],
+        "properties": {
+          "credit_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "debit_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entry_id": {
+            "type": "string"
+          },
+          "memo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "posted_at": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountActivityResponse": {
+        "type": "object",
+        "description": "Account activity response DTO",
+        "required": [
+          "tenant_id",
+          "account_code",
+          "period_start",
+          "period_end",
+          "lines",
+          "pagination"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountActivityLine"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          },
+          "period_end": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "code",
+          "name",
+          "account_type",
+          "normal_balance",
+          "is_active"
+        ],
+        "properties": {
+          "account_type": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normal_balance": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AccountType": {
+        "type": "string",
+        "description": "Account type enum matching database account_type",
+        "enum": [
+          "Asset",
+          "Liability",
+          "Equity",
+          "Revenue",
+          "Expense"
+        ]
+      },
+      "AccrualResult": {
+        "type": "object",
+        "required": [
+          "instance_id",
+          "accrual_id",
+          "template_id",
+          "period",
+          "journal_entry_id",
+          "amount_minor",
+          "currency",
+          "status",
+          "idempotent_hit"
+        ],
+        "properties": {
+          "accrual_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotent_hit": {
+            "type": "boolean"
+          },
+          "instance_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "journal_entry_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AllocationChange": {
+        "type": "object",
+        "description": "A reallocation of transaction price to a performance obligation on amendment.\n\nUsed in `ContractModifiedPayload` to capture how the contract modification\nredistributes value across obligations.",
+        "required": [
+          "obligation_id",
+          "previous_allocated_minor",
+          "new_allocated_minor"
+        ],
+        "properties": {
+          "new_allocated_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Allocated amount after the modification (minor currency units)"
+          },
+          "obligation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The obligation whose allocation changed"
+          },
+          "previous_allocated_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Allocated amount before the modification (minor currency units)"
+          }
+        }
+      },
+      "AmendContractResponse": {
+        "type": "object",
+        "required": [
+          "modification_id",
+          "contract_id",
+          "event_id"
+        ],
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "modification_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ApiError": {
         "type": "object",
         "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
@@ -897,6 +1523,964 @@
           }
         }
       },
+      "ApprovalResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "period_id",
+          "actor_id",
+          "approval_type",
+          "approved_at"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "approval_type": {
+            "type": "string"
+          },
+          "approved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "BalanceSheetResponse": {
+        "type": "object",
+        "description": "Balance sheet response with account balances and totals\n\n**Currency Policy**: Single-currency only (currency is required parameter).\n**Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.",
+        "required": [
+          "tenant_id",
+          "period_id",
+          "currency",
+          "rows",
+          "totals"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BalanceSheetRow"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/BalanceSheetTotals"
+          }
+        }
+      },
+      "BalanceSheetRow": {
+        "type": "object",
+        "description": "Balance Sheet Row\n\nRepresents a single account row in a balance sheet.\nContains asset, liability, or equity account data at a specific point in time.",
+        "required": [
+          "account_code",
+          "account_name",
+          "account_type",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string",
+            "description": "Account code (e.g., \"1000\", \"2000\", \"3000\")"
+          },
+          "account_name": {
+            "type": "string",
+            "description": "Account name (e.g., \"Cash\", \"Accounts Payable\", \"Retained Earnings\")"
+          },
+          "account_type": {
+            "type": "string",
+            "description": "Account type (asset, liability, or equity only)"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Account balance in minor units\nPositive for assets (debit balance), positive for liabilities/equity (credit balance)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (ISO 4217)"
+          }
+        }
+      },
+      "BalanceSheetTotals": {
+        "type": "object",
+        "description": "Balance sheet totals (Assets, Liabilities, Equity)\n\n**Accounting Equation**: Assets = Liabilities + Equity\n**Balance Guarantee**: is_balanced MUST be true or data is invalid.",
+        "required": [
+          "total_assets",
+          "total_liabilities",
+          "total_equity",
+          "is_balanced"
+        ],
+        "properties": {
+          "is_balanced": {
+            "type": "boolean",
+            "description": "Whether the accounting equation is satisfied (assets == liabilities + equity)"
+          },
+          "total_assets": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total assets in minor units (positive = debit balance)"
+          },
+          "total_equity": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total equity in minor units (positive = credit balance)"
+          },
+          "total_liabilities": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total liabilities in minor units (positive = credit balance)"
+          }
+        }
+      },
+      "CashFlowCategoryTotal": {
+        "type": "object",
+        "description": "Cash Flow Category Totals\n\nAggregated totals for a single cash flow category.",
+        "required": [
+          "category",
+          "total_minor"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "Category name: operating, investing, or financing"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total net cash flow for this category in minor units"
+          }
+        }
+      },
+      "CashFlowResponse": {
+        "type": "object",
+        "description": "Cash flow response with rows, category totals, and reconciliation.",
+        "required": [
+          "tenant_id",
+          "period_id",
+          "currency",
+          "rows",
+          "category_totals",
+          "net_cash_flow",
+          "cash_account_net_change",
+          "reconciles"
+        ],
+        "properties": {
+          "cash_account_net_change": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Net change in designated cash accounts (for reconciliation)"
+          },
+          "category_totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowCategoryTotal"
+            }
+          },
+          "currency": {
+            "type": "string"
+          },
+          "net_cash_flow": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all categories (should equal net change in cash accounts)"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reconciles": {
+            "type": "boolean",
+            "description": "Whether net_cash_flow == cash_account_net_change"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CashFlowRow"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CashFlowRow": {
+        "type": "object",
+        "description": "Cash Flow Row\n\nRepresents a single account's cash flow activity classified into\noperating, investing, or financing category.",
+        "required": [
+          "account_code",
+          "account_name",
+          "category",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string",
+            "description": "Account code (e.g., \"1000\", \"4000\")"
+          },
+          "account_name": {
+            "type": "string",
+            "description": "Account name (e.g., \"Cash\", \"Revenue\")"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Net cash flow amount in minor units (positive = inflow, negative = outflow)"
+          },
+          "category": {
+            "type": "string",
+            "description": "Cash flow category: operating, investing, or financing"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (ISO 4217)"
+          }
+        }
+      },
+      "ChecklistItemResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "period_id",
+          "label",
+          "status"
+        ],
+        "properties": {
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "waive_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ClosePeriodRequest": {
+        "type": "object",
+        "description": "Request to close an accounting period\n\nIdempotent operation - if already closed, returns existing close status.\nAtomically: validates, creates snapshot, computes hash, sets closed_at.",
+        "required": [
+          "tenant_id",
+          "closed_by"
+        ],
+        "properties": {
+          "close_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional reason/notes for closing the period (for audit trail)"
+          },
+          "closed_by": {
+            "type": "string",
+            "description": "User or system identifier performing the close"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant ID for multi-tenancy isolation"
+          }
+        }
+      },
+      "ClosePeriodResponse": {
+        "type": "object",
+        "description": "Response from close operation\n\nReturns close status including snapshot hash for audit verification.",
+        "required": [
+          "period_id",
+          "tenant_id",
+          "success",
+          "timestamp"
+        ],
+        "properties": {
+          "close_status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CloseStatus",
+                "description": "Close status details (if successful)"
+              }
+            ]
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period ID that was closed"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether close succeeded"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant ID"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of response"
+          },
+          "validation_report": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValidationReport",
+                "description": "Validation report (if close failed validation)"
+              }
+            ]
+          }
+        }
+      },
+      "CloseStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Period is open - can post and reverse transactions",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "OPEN"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Close has been requested but not yet completed",
+            "required": [
+              "requested_at",
+              "state"
+            ],
+            "properties": {
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When close was requested"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "CLOSE_REQUESTED"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Period is permanently closed",
+            "required": [
+              "closed_at",
+              "closed_by",
+              "close_hash",
+              "state"
+            ],
+            "properties": {
+              "close_hash": {
+                "type": "string",
+                "description": "SHA-256 hash of period snapshot for tamper detection"
+              },
+              "close_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional close reason"
+              },
+              "closed_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When period was closed"
+              },
+              "closed_by": {
+                "type": "string",
+                "description": "Who closed the period"
+              },
+              "requested_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "When close was initially requested (may be same as closed_at)"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "CLOSED"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Close workflow status\n\nRepresents the current state of a period in the close lifecycle."
+      },
+      "CloseStatusResponse": {
+        "type": "object",
+        "description": "Response with period close status\n\nReturns current state of period in close workflow.",
+        "required": [
+          "period_id",
+          "tenant_id",
+          "period_start",
+          "period_end",
+          "close_status",
+          "timestamp"
+        ],
+        "properties": {
+          "close_status": {
+            "$ref": "#/components/schemas/CloseStatus",
+            "description": "Close status details"
+          },
+          "period_end": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period ID"
+          },
+          "period_start": {
+            "type": "string",
+            "description": "Period date range"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant ID"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of response"
+          }
+        }
+      },
+      "CompleteChecklistItemRequest": {
+        "type": "object",
+        "required": [
+          "completed_by"
+        ],
+        "properties": {
+          "completed_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ContractModifiedPayload": {
+        "type": "object",
+        "description": "Payload for revrec.contract_modified\n\nEmitted when a contract is amended. Modifications may:\n- Change the transaction price (prospective or cumulative catch-up)\n- Add new performance obligations\n- Remove existing obligations\n- Extend the contract term\n\nDownstream schedules must be recomputed after a modification event.\nModification is append-only: the original contract event is never changed.\n\nIdempotency: caller MUST supply a deterministic event_id derived from modification_id.",
+        "required": [
+          "modification_id",
+          "contract_id",
+          "tenant_id",
+          "modification_type",
+          "effective_date",
+          "added_obligations",
+          "removed_obligation_ids",
+          "reallocated_amounts",
+          "reason",
+          "requires_cumulative_catchup",
+          "modified_at"
+        ],
+        "properties": {
+          "added_obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerformanceObligation"
+            },
+            "description": "New performance obligations added by this modification"
+          },
+          "contract_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The contract being amended"
+          },
+          "effective_date": {
+            "type": "string",
+            "description": "Date the modification takes effect (YYYY-MM-DD)"
+          },
+          "modification_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this modification (idempotency anchor)"
+          },
+          "modification_type": {
+            "$ref": "#/components/schemas/ModificationType",
+            "description": "Classification of the modification for audit and reporting"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "new_transaction_price_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "New total transaction price after modification, if changed (minor currency units)"
+          },
+          "reallocated_amounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllocationChange"
+            },
+            "description": "How the modification reallocated the transaction price across obligations"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable reason for the modification\n(e.g. \"contract_renewal\", \"scope_change\", \"price_adjustment\")"
+          },
+          "removed_obligation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "IDs of obligations removed by this modification"
+          },
+          "requires_cumulative_catchup": {
+            "type": "boolean",
+            "description": "Whether a cumulative catch-up adjustment is required.\n\nTrue when the modification is treated as a change to the existing contract\n(ASC 606-10-25-13(b)): recognized amount is adjusted in the current period.\nFalse when the modification is a separate new contract."
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateAccountRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "account_type",
+          "normal_balance"
+        ],
+        "properties": {
+          "account_type": {
+            "$ref": "#/components/schemas/AccountType"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normal_balance": {
+            "$ref": "#/components/schemas/NormalBalance"
+          }
+        }
+      },
+      "CreateAccrualRequest": {
+        "type": "object",
+        "required": [
+          "template_id",
+          "tenant_id",
+          "period",
+          "posting_date"
+        ],
+        "properties": {
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "period": {
+            "type": "string"
+          },
+          "posting_date": {
+            "type": "string"
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateApprovalRequest": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "approval_type"
+        ],
+        "properties": {
+          "actor_id": {
+            "type": "string"
+          },
+          "approval_type": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateChecklistItemRequest": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateContractRequest": {
+        "type": "object",
+        "required": [
+          "contract_id",
+          "customer_id",
+          "contract_name",
+          "contract_start",
+          "total_transaction_price_minor",
+          "currency",
+          "performance_obligations"
+        ],
+        "properties": {
+          "contract_end": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contract_name": {
+            "type": "string"
+          },
+          "contract_start": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "customer_id": {
+            "type": "string"
+          },
+          "external_contract_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "performance_obligations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PerformanceObligation"
+            }
+          },
+          "total_transaction_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateContractResponse": {
+        "type": "object",
+        "required": [
+          "contract_id",
+          "tenant_id",
+          "obligations_count",
+          "total_transaction_price_minor",
+          "created_at"
+        ],
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "obligations_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_transaction_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateExportRequest": {
+        "type": "object",
+        "required": [
+          "format",
+          "export_type",
+          "idempotency_key"
+        ],
+        "properties": {
+          "export_type": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateFxRateRequest": {
+        "type": "object",
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "rate",
+          "effective_at",
+          "source",
+          "idempotency_key"
+        ],
+        "properties": {
+          "base_currency": {
+            "type": "string"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "quote_currency": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateFxRateResponse": {
+        "type": "object",
+        "required": [
+          "rate_id",
+          "created"
+        ],
+        "properties": {
+          "created": {
+            "type": "boolean"
+          },
+          "rate_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateTemplateRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "name",
+          "debit_account",
+          "credit_account",
+          "amount_minor",
+          "currency"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cashflow_class": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credit_account": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "debit_account": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "reversal_policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReversalPolicy"
+              }
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecuteReversalsRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "target_period",
+          "reversal_date"
+        ],
+        "properties": {
+          "reversal_date": {
+            "type": "string"
+          },
+          "target_period": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecuteReversalsResult": {
+        "type": "object",
+        "required": [
+          "target_period",
+          "reversals_executed",
+          "reversals_skipped",
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReversalResult"
+            }
+          },
+          "reversals_executed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reversals_skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "target_period": {
+            "type": "string"
+          }
+        }
+      },
+      "ExportResponse": {
+        "type": "object",
+        "required": [
+          "export_id",
+          "format",
+          "export_type",
+          "output",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "export_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "export_type": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          }
+        }
+      },
       "FieldError": {
         "type": "object",
         "description": "A single field-level validation error.",
@@ -909,6 +2493,1045 @@
             "type": "string"
           },
           "message": {
+            "type": "string"
+          }
+        }
+      },
+      "FxRateResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "base_currency",
+          "quote_currency",
+          "rate",
+          "inverse_rate",
+          "effective_at",
+          "source",
+          "created_at"
+        ],
+        "properties": {
+          "base_currency": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inverse_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "quote_currency": {
+            "type": "string"
+          },
+          "rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GLDetailEntry": {
+        "type": "object",
+        "description": "GL detail entry (header + lines)",
+        "required": [
+          "id",
+          "posted_at",
+          "currency",
+          "source_module",
+          "lines"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GLDetailEntryLine"
+            }
+          },
+          "posted_at": {
+            "type": "string"
+          },
+          "source_module": {
+            "type": "string"
+          }
+        }
+      },
+      "GLDetailEntryLine": {
+        "type": "object",
+        "description": "GL detail line",
+        "required": [
+          "line_no",
+          "account_code",
+          "account_name",
+          "debit_minor",
+          "credit_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string"
+          },
+          "account_name": {
+            "type": "string"
+          },
+          "credit_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "debit_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "line_no": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "memo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "GLDetailResponse": {
+        "type": "object",
+        "description": "GL detail response DTO",
+        "required": [
+          "tenant_id",
+          "period_start",
+          "period_end",
+          "entries",
+          "pagination"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GLDetailEntry"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMetadata"
+          },
+          "period_end": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "GenerateScheduleRequest": {
+        "type": "object",
+        "required": [
+          "contract_id",
+          "obligation_id"
+        ],
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "obligation_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "GenerateScheduleResponse": {
+        "type": "object",
+        "required": [
+          "schedule_id",
+          "contract_id",
+          "obligation_id",
+          "version",
+          "lines_count",
+          "total_to_recognize_minor",
+          "first_period",
+          "last_period",
+          "created_at"
+        ],
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "first_period": {
+            "type": "string"
+          },
+          "last_period": {
+            "type": "string"
+          },
+          "lines_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "obligation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total_to_recognize_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "IncomeStatementResponse": {
+        "type": "object",
+        "description": "Income statement response with revenue/expense rows and calculated totals\n\n**Currency Policy**: Single-currency only (currency is required parameter).\n**Accounting Equation**: net_income MUST equal total_revenue - total_expenses.",
+        "required": [
+          "tenant_id",
+          "period_id",
+          "currency",
+          "rows",
+          "totals"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncomeStatementRow"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/IncomeStatementTotals"
+          }
+        }
+      },
+      "IncomeStatementRow": {
+        "type": "object",
+        "description": "Income Statement Row (P&L)\n\nRepresents a single account row in an income statement.\nContains revenue or expense account data for a specific period.",
+        "required": [
+          "account_code",
+          "account_name",
+          "account_type",
+          "currency",
+          "amount_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string",
+            "description": "Account code (e.g., \"4000\", \"5000\")"
+          },
+          "account_name": {
+            "type": "string",
+            "description": "Account name (e.g., \"Sales Revenue\", \"Salaries Expense\")"
+          },
+          "account_type": {
+            "type": "string",
+            "description": "Account type (revenue or expense only)"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Account balance in minor units\nPositive for revenue (credit balance), negative for expense (debit balance)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (ISO 4217)"
+          }
+        }
+      },
+      "IncomeStatementTotals": {
+        "type": "object",
+        "description": "Income statement totals with revenue, expenses, and net income\n\n**Accounting Equation**: net_income = total_revenue - total_expenses\n**Sign Convention**: Revenue is positive, expenses are negative, net_income is positive for profit.",
+        "required": [
+          "total_revenue",
+          "total_expenses",
+          "net_income"
+        ],
+        "properties": {
+          "net_income": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Net income = total_revenue - total_expenses\nPositive = profit, Negative = loss"
+          },
+          "total_expenses": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total expenses (debit balance accounts, negative amounts)"
+          },
+          "total_revenue": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total revenue (credit balance accounts, positive amounts)"
+          }
+        }
+      },
+      "ModificationType": {
+        "type": "string",
+        "description": "Classification of a contract modification for audit and reporting.",
+        "enum": [
+          "price_change",
+          "term_extension",
+          "obligation_added",
+          "obligation_removed",
+          "combined"
+        ]
+      },
+      "NormalBalance": {
+        "type": "string",
+        "description": "Normal balance enum matching database normal_balance",
+        "enum": [
+          "Debit",
+          "Credit"
+        ]
+      },
+      "PaginationMetadata": {
+        "type": "object",
+        "description": "Pagination metadata",
+        "required": [
+          "limit",
+          "offset",
+          "total_count",
+          "has_more"
+        ],
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PerformanceObligation": {
+        "type": "object",
+        "description": "A distinct, identifiable promise to transfer goods or services to a customer.\n\nEach obligation carries its own allocated transaction price and recognition\nschedule. Obligations are embedded in the contract event and referenced by\nschedule + recognition events.",
+        "required": [
+          "obligation_id",
+          "name",
+          "description",
+          "allocated_amount_minor",
+          "recognition_pattern",
+          "satisfaction_start"
+        ],
+        "properties": {
+          "allocated_amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Transaction price allocated to this obligation (minor currency units)\n\nSum of all obligation allocations must equal the contract's\ntotal_transaction_price_minor."
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of what is promised"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name (e.g. \"SaaS License\", \"Implementation Services\")"
+          },
+          "obligation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable business key for this obligation (idempotency anchor)"
+          },
+          "recognition_pattern": {
+            "$ref": "#/components/schemas/RecognitionPattern",
+            "description": "How and when revenue is recognized for this obligation"
+          },
+          "satisfaction_end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When satisfaction ends (YYYY-MM-DD), None for open-ended or point-in-time"
+          },
+          "satisfaction_start": {
+            "type": "string",
+            "description": "When satisfaction of this obligation begins (YYYY-MM-DD)"
+          }
+        }
+      },
+      "PeriodSummaryResponse": {
+        "type": "object",
+        "description": "Period summary response DTO",
+        "required": [
+          "tenant_id",
+          "period_id",
+          "currency",
+          "journal_count",
+          "line_count",
+          "total_debits_minor",
+          "total_credits_minor",
+          "is_balanced",
+          "data_source"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "data_source": {
+            "type": "string"
+          },
+          "is_balanced": {
+            "type": "boolean"
+          },
+          "journal_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "line_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "snapshot_created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_credits_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_debits_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RecognitionPattern": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Recognize ratably (straight-line) over the satisfaction period.\n\nRevenue per period = total_allocated / period_months.\nExample: 12-month SaaS license → 1/12 per month.",
+            "required": [
+              "period_months",
+              "type"
+            ],
+            "properties": {
+              "period_months": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Number of months over which to recognize (must be ≥ 1)",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ratable_over_time"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Recognize 100% at a single point in time when the obligation is satisfied.\n\nExample: delivery of a custom report, one-time implementation.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "point_in_time"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Recognize proportional to usage of a metric.\n\nRevenue per period = (period_usage / total_contracted_usage) * allocated_amount.\nExample: API call-based billing against a capacity commitment.",
+            "required": [
+              "metric",
+              "total_contracted_quantity",
+              "unit",
+              "type"
+            ],
+            "properties": {
+              "metric": {
+                "type": "string",
+                "description": "The usage metric driving recognition (e.g. \"api_calls\", \"gb_storage\")"
+              },
+              "total_contracted_quantity": {
+                "type": "number",
+                "format": "double",
+                "description": "Total contracted usage quantity the transaction price was priced on"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "usage_based"
+                ]
+              },
+              "unit": {
+                "type": "string",
+                "description": "Unit of the metric (e.g. \"calls\", \"GB\")"
+              }
+            }
+          }
+        ],
+        "description": "How a performance obligation's revenue is recognized over time.\n\nAligns with ASC 606-10-25-27: a performance obligation is satisfied either\nat a point in time or over time."
+      },
+      "RecognitionPostingResponse": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "schedule_id",
+          "contract_id",
+          "obligation_id",
+          "journal_entry_id",
+          "amount_minor",
+          "currency"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "journal_entry_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "obligation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RecognitionRunRequest": {
+        "type": "object",
+        "required": [
+          "period",
+          "posting_date"
+        ],
+        "properties": {
+          "period": {
+            "type": "string",
+            "description": "Target accounting period (YYYY-MM)"
+          },
+          "posting_date": {
+            "type": "string",
+            "description": "Posting date for GL journal entries (YYYY-MM-DD)"
+          }
+        }
+      },
+      "RecognitionRunResponse": {
+        "type": "object",
+        "required": [
+          "period",
+          "tenant_id",
+          "lines_recognized",
+          "lines_skipped",
+          "total_recognized_minor",
+          "postings"
+        ],
+        "properties": {
+          "lines_recognized": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lines_skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "period": {
+            "type": "string"
+          },
+          "postings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecognitionPostingResponse"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_recognized_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ReopenApprovePayload": {
+        "type": "object",
+        "description": "Reopen approve payload",
+        "required": [
+          "approved_by"
+        ],
+        "properties": {
+          "approved_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ReopenRejectPayload": {
+        "type": "object",
+        "description": "Reopen reject payload",
+        "required": [
+          "rejected_by",
+          "reject_reason"
+        ],
+        "properties": {
+          "reject_reason": {
+            "type": "string"
+          },
+          "rejected_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ReopenRequestPayload": {
+        "type": "object",
+        "description": "Reopen request payload",
+        "required": [
+          "requested_by",
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "requested_by": {
+            "type": "string"
+          }
+        }
+      },
+      "ReportingBalanceSheetResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BalanceSheetResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "reporting_currency",
+              "is_reporting_currency"
+            ],
+            "properties": {
+              "is_reporting_currency": {
+                "type": "boolean"
+              },
+              "reporting_currency": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ReportingIncomeStatementResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IncomeStatementResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "reporting_currency",
+              "is_reporting_currency"
+            ],
+            "properties": {
+              "is_reporting_currency": {
+                "type": "boolean"
+              },
+              "reporting_currency": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ReportingTrialBalanceResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TrialBalanceResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "reporting_currency",
+              "is_reporting_currency"
+            ],
+            "properties": {
+              "is_reporting_currency": {
+                "type": "boolean"
+              },
+              "reporting_currency": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ReversalPolicy": {
+        "type": "object",
+        "description": "Defines when and how an accrual entry should be reversed.\nLocked at accrual-creation time; referenced by the reversal scheduler.",
+        "required": [
+          "auto_reverse_next_period"
+        ],
+        "properties": {
+          "auto_reverse_next_period": {
+            "type": "boolean",
+            "description": "Auto-reverse in the next accounting period"
+          },
+          "reverse_on_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit reversal date (YYYY-MM-DD), required when auto_reverse is false"
+          }
+        }
+      },
+      "ReversalResult": {
+        "type": "object",
+        "required": [
+          "reversal_id",
+          "original_accrual_id",
+          "journal_entry_id",
+          "amount_minor",
+          "currency",
+          "idempotent_hit"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "idempotent_hit": {
+            "type": "boolean"
+          },
+          "journal_entry_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "original_accrual_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reversal_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "StatementTotals": {
+        "type": "object",
+        "description": "Statement Totals\n\nCommon totals structure used across all financial statements.\nProvides aggregated debit/credit totals and balance verification.",
+        "required": [
+          "total_debits",
+          "total_credits",
+          "is_balanced"
+        ],
+        "properties": {
+          "is_balanced": {
+            "type": "boolean",
+            "description": "Whether debits equal credits (accounting equation satisfied)"
+          },
+          "total_credits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total credits across all rows in minor units"
+          },
+          "total_debits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total debits across all rows in minor units"
+          }
+        }
+      },
+      "TemplateResult": {
+        "type": "object",
+        "required": [
+          "template_id",
+          "tenant_id",
+          "name",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "template_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TrialBalanceResponse": {
+        "type": "object",
+        "description": "Trial balance response with account balances and totals\n\n**Currency Policy**: Single-currency only (currency is required parameter).\n**Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.",
+        "required": [
+          "tenant_id",
+          "period_id",
+          "currency",
+          "rows",
+          "totals"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrialBalanceRow"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/StatementTotals"
+          }
+        }
+      },
+      "TrialBalanceRow": {
+        "type": "object",
+        "description": "Trial Balance Row\n\nRepresents a single account row in a trial balance statement.\nContains account metadata and debit/credit balances for a specific period.",
+        "required": [
+          "account_code",
+          "account_name",
+          "account_type",
+          "normal_balance",
+          "currency",
+          "debit_total_minor",
+          "credit_total_minor",
+          "net_balance_minor"
+        ],
+        "properties": {
+          "account_code": {
+            "type": "string",
+            "description": "Account code (e.g., \"1000\", \"4000\")"
+          },
+          "account_name": {
+            "type": "string",
+            "description": "Account name (e.g., \"Cash\", \"Revenue\")"
+          },
+          "account_type": {
+            "type": "string",
+            "description": "Account type (asset, liability, equity, revenue, expense)"
+          },
+          "credit_total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total credits in minor units (cents)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code (ISO 4217, e.g., \"USD\", \"EUR\")"
+          },
+          "debit_total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total debits in minor units (cents)"
+          },
+          "net_balance_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Net balance in minor units (debits - credits)"
+          },
+          "normal_balance": {
+            "type": "string",
+            "description": "Normal balance direction (debit or credit)"
+          }
+        }
+      },
+      "ValidateCloseRequest": {
+        "type": "object",
+        "description": "Request to validate if a period can be closed\n\nPre-flight check before actual close operation.\nDoes NOT modify period state.",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant ID for multi-tenancy isolation"
+          }
+        }
+      },
+      "ValidateCloseResponse": {
+        "type": "object",
+        "description": "Response from validate-close operation\n\nReturns structured validation report with errors/warnings.",
+        "required": [
+          "period_id",
+          "tenant_id",
+          "can_close",
+          "validation_report",
+          "validated_at"
+        ],
+        "properties": {
+          "can_close": {
+            "type": "boolean",
+            "description": "Overall validation result"
+          },
+          "period_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Period ID that was validated"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant ID"
+          },
+          "validated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when validation was performed"
+          },
+          "validation_report": {
+            "$ref": "#/components/schemas/ValidationReport",
+            "description": "Structured validation report (empty if can_close=true)"
+          }
+        }
+      },
+      "ValidationIssue": {
+        "type": "object",
+        "description": "Individual validation issue\n\nStructured error/warning with stable code for client handling.",
+        "required": [
+          "severity",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable error code for programmatic handling\nExamples: \"PERIOD_NOT_FOUND\", \"UNBALANCED_ENTRIES\", \"PENDING_TRANSACTIONS\""
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable message"
+          },
+          "metadata": {
+            "description": "Optional metadata for additional context"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/ValidationSeverity",
+            "description": "Severity level"
+          }
+        }
+      },
+      "ValidationReport": {
+        "type": "object",
+        "description": "Structured validation report\n\nMachine-readable validation results with severity levels.\nEmpty if validation passes (can_close=true).",
+        "required": [
+          "issues"
+        ],
+        "properties": {
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationIssue"
+            },
+            "description": "Validation issues grouped by severity"
+          }
+        }
+      },
+      "ValidationSeverity": {
+        "type": "string",
+        "description": "Validation issue severity levels",
+        "enum": [
+          "ERROR",
+          "WARNING",
+          "INFO"
+        ]
+      },
+      "WaiveChecklistItemRequest": {
+        "type": "object",
+        "required": [
+          "completed_by",
+          "waive_reason"
+        ],
+        "properties": {
+          "completed_by": {
+            "type": "string"
+          },
+          "waive_reason": {
             "type": "string"
           }
         }
