@@ -1,5 +1,5 @@
 [package]
-name = "platform-client-platform-client-tenant-registry"
+name = "platform-client-tenant-registry"
 version = "0.1.0"
 edition = "2021"
 description = "Generated typed client for Platform Client Tenant-Registry Service"
