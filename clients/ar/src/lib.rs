@@ -5,53 +5,50 @@
 pub mod types_1;
 pub mod types_2;
 pub mod aging;
-pub mod allocation;
 pub mod charges;
-pub mod creditmemos;
+pub mod credit_notes;
 pub mod customers;
 pub mod disputes;
 pub mod dunning;
 pub mod events;
 pub mod invoices;
-pub mod paymentmethods;
+pub mod payment_methods;
+pub mod payments;
 pub mod reconciliation;
 pub mod refunds;
 pub mod subscriptions;
-pub mod taxconfig;
-pub mod taxreports;
+pub mod tax;
+pub mod tax_config;
+pub mod tax_reports;
 pub mod usage;
 pub mod webhooks;
+pub mod write_offs;
 
 pub use types_1::*;
 pub use types_2::*;
 pub use aging::AgingClient;
-pub use allocation::AllocationClient;
 pub use charges::ChargesClient;
-pub use creditmemos::CreditmemosClient;
+pub use credit_notes::CreditNotesClient;
 pub use customers::CustomersClient;
 pub use disputes::DisputesClient;
 pub use dunning::DunningClient;
 pub use events::EventsClient;
 pub use invoices::InvoicesClient;
-pub use paymentmethods::PaymentmethodsClient;
+pub use payment_methods::PaymentMethodsClient;
+pub use payments::PaymentsClient;
 pub use reconciliation::ReconciliationClient;
 pub use refunds::RefundsClient;
 pub use subscriptions::SubscriptionsClient;
-pub use taxconfig::TaxconfigClient;
-pub use taxreports::TaxreportsClient;
+pub use tax::TaxClient;
+pub use tax_config::TaxConfigClient;
+pub use tax_reports::TaxReportsClient;
 pub use usage::UsageClient;
 pub use webhooks::WebhooksClient;
+pub use write_offs::WriteOffsClient;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for AgingClient {
-    const SERVICE_NAME: &'static str = "ar";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for AllocationClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -65,7 +62,7 @@ impl platform_sdk::PlatformService for ChargesClient {
     }
 }
 
-impl platform_sdk::PlatformService for CreditmemosClient {
+impl platform_sdk::PlatformService for CreditNotesClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -107,7 +104,14 @@ impl platform_sdk::PlatformService for InvoicesClient {
     }
 }
 
-impl platform_sdk::PlatformService for PaymentmethodsClient {
+impl platform_sdk::PlatformService for PaymentMethodsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PaymentsClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -135,14 +139,21 @@ impl platform_sdk::PlatformService for SubscriptionsClient {
     }
 }
 
-impl platform_sdk::PlatformService for TaxconfigClient {
+impl platform_sdk::PlatformService for TaxClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
-impl platform_sdk::PlatformService for TaxreportsClient {
+impl platform_sdk::PlatformService for TaxConfigClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TaxReportsClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -157,6 +168,13 @@ impl platform_sdk::PlatformService for UsageClient {
 }
 
 impl platform_sdk::PlatformService for WebhooksClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WriteOffsClient {
     const SERVICE_NAME: &'static str = "ar";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)

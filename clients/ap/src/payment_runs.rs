@@ -24,7 +24,7 @@ impl PaymentRunsClient {
     }
 
     /// GET `/api/ap/payment-runs/{run_id}`
-    pub async fn get_run(&self, claims: &VerifiedClaims, run_id: uuid::Uuid) -> Result<serde_json::Value, ClientError> {
+    pub async fn get_run(&self, claims: &VerifiedClaims, run_id: uuid::Uuid) -> Result<PaymentRun, ClientError> {
         let path = format!("/api/ap/payment-runs/{}", run_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

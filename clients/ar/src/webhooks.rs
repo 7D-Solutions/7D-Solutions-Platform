@@ -16,7 +16,7 @@ impl WebhooksClient {
     }
 
     /// GET `/api/ar/webhooks`
-    pub async fn list_webhooks(&self, claims: &VerifiedClaims, event_type: Option<&str>, status: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Webhook>, ClientError> {
+    pub async fn list_webhooks(&self, claims: &VerifiedClaims, event_type: Option<&str>, status: Option<&str>, limit: Option<i64>, offset: Option<i64>) -> Result<PaginatedResponse<Webhook>, ClientError> {
         let path = format!("/api/ar/webhooks");
         #[derive(serde::Serialize)]
         struct Query {
@@ -25,9 +25,9 @@ impl WebhooksClient {
             #[serde(skip_serializing_if = "Option::is_none")]
             status: Option<String>,
             #[serde(skip_serializing_if = "Option::is_none")]
-            limit: Option<i32>,
+            limit: Option<i64>,
             #[serde(skip_serializing_if = "Option::is_none")]
-            offset: Option<i32>,
+            offset: Option<i64>,
         }
         let query = Query {
             event_type: event_type.map(|s| s.to_string()),
@@ -40,8 +40,16 @@ impl WebhooksClient {
         parse_response(resp).await
     }
 
+    /// POST `/api/ar/webhooks/tilled`
+    pub async fn receive_tilled_webhook(&self, claims: &VerifiedClaims) -> Result<(), ClientError> {
+        let path = format!("/api/ar/webhooks/tilled");
+        let url = path;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        parse_empty(resp).await
+    }
+
     /// GET `/api/ar/webhooks/{id}`
-    pub async fn get_webhook(&self, claims: &VerifiedClaims, id: i32) -> Result<Webhook, ClientError> {
+    pub async fn get_webhook(&self, claims: &VerifiedClaims, id: i32) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ar/webhooks/{}", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
@@ -49,10 +57,10 @@ impl WebhooksClient {
     }
 
     /// POST `/api/ar/webhooks/{id}/replay`
-    pub async fn replay_webhook(&self, claims: &VerifiedClaims, id: i32, body: &ReplayWebhookRequest) -> Result<(), ClientError> {
+    pub async fn replay_webhook(&self, claims: &VerifiedClaims, id: i32) -> Result<(), ClientError> {
         let path = format!("/api/ar/webhooks/{}/replay", id);
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_empty(resp).await
     }
 }

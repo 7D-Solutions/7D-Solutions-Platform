@@ -32,10 +32,10 @@ impl AgingClient {
     }
 
     /// POST `/api/ar/aging/refresh`
-    pub async fn refresh_aging(&self, claims: &VerifiedClaims, body: &RefreshAgingRequest) -> Result<AgingSnapshot, ClientError> {
+    pub async fn refresh_aging_route(&self, claims: &VerifiedClaims) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ar/aging/refresh");
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

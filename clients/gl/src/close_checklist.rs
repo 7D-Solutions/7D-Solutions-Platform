@@ -16,7 +16,7 @@ impl CloseChecklistClient {
     }
 
     /// GET `/api/gl/periods/{period_id}/approvals`
-    pub async fn get_approvals(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<Vec<ApprovalResponse>, ClientError> {
+    pub async fn get_approvals(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<PaginatedResponse<ApprovalResponse>, ClientError> {
         let path = format!("/api/gl/periods/{}/approvals", period_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
@@ -32,7 +32,7 @@ impl CloseChecklistClient {
     }
 
     /// GET `/api/gl/periods/{period_id}/checklist`
-    pub async fn get_checklist_status(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<Vec<ChecklistItemResponse>, ClientError> {
+    pub async fn get_checklist_status(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<PaginatedResponse<ChecklistItemResponse>, ClientError> {
         let path = format!("/api/gl/periods/{}/checklist", period_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

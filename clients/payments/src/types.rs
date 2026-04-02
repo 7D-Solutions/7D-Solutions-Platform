@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
 
 /// Pagination metadata for list endpoints.
@@ -50,6 +51,19 @@ pub struct CheckoutSessionStatusResponse {
     pub tenant_id: String,
 }
 
+/// Consistency check result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsistencyCheckSchema {
+    pub checked_at: chrono::DateTime<chrono::Utc>,
+    pub digest: String,
+    pub digest_version: String,
+    pub order_by: String,
+    pub projection_name: String,
+    pub row_count: i64,
+    pub status: String,
+    pub table_exists: bool,
+}
+
 /// POST /api/payments/checkout-sessions request body
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateCheckoutSessionRequest {
@@ -78,6 +92,17 @@ pub struct CreateCheckoutSessionResponse {
     pub session_id: String,
 }
 
+/// Cursor status for a single projection/tenant pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CursorStatusSchema {
+    pub events_processed: i64,
+    pub last_event_id: String,
+    pub last_event_occurred_at: chrono::DateTime<chrono::Utc>,
+    pub projection_name: String,
+    pub tenant_id: String,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
 /// Indicates where the data came from
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DataSource {
@@ -95,6 +120,24 @@ pub struct PaymentResponse {
     pub payment_id: uuid::Uuid,
     pub status: String,
     pub tenant_id: String,
+}
+
+/// Projection status response (may contain multiple tenant cursors).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionStatusSchema {
+    pub cursors: Vec<CursorStatusSchema>,
+    pub projection_name: String,
+    pub status: String,
+}
+
+/// Summary of a single projection in the listing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionSummarySchema {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
+    pub projection_name: String,
+    pub tenant_count: i64,
+    pub total_events_processed: i64,
 }
 
 /// GET /api/payments/checkout-sessions/:id/status response (no secrets)

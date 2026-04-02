@@ -16,25 +16,20 @@ impl InvoicesClient {
     }
 
     /// GET `/api/ar/invoices`
-    pub async fn list_invoices(&self, claims: &VerifiedClaims, customer_id: Option<i32>, subscription_id: Option<i32>, status: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Invoice>, ClientError> {
+    pub async fn list_invoices(&self, claims: &VerifiedClaims, customer_id: Option<i32>, subscription_id: Option<i32>, status: Option<String>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Invoice>, ClientError> {
         let path = format!("/api/ar/invoices");
         #[derive(serde::Serialize)]
         struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
             customer_id: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             subscription_id: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             limit: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i32>,
         }
         let query = Query {
             customer_id,
             subscription_id,
-            status: status.map(|s| s.to_string()),
+            status,
             limit,
             offset,
         };
@@ -67,33 +62,9 @@ impl InvoicesClient {
         parse_response(resp).await
     }
 
-    /// POST `/api/ar/invoices/{id}/bill-usage`
-    pub async fn bill_usage(&self, claims: &VerifiedClaims, id: i32, body: &BillUsageHttpRequest) -> Result<serde_json::Value, ClientError> {
-        let path = format!("/api/ar/invoices/{}/bill-usage", id);
-        let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
-    /// POST `/api/ar/invoices/{id}/credit-notes`
-    pub async fn issue_credit_note(&self, claims: &VerifiedClaims, id: i32, body: &IssueCreditNoteRequest) -> Result<serde_json::Value, ClientError> {
-        let path = format!("/api/ar/invoices/{}/credit-notes", id);
-        let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
     /// POST `/api/ar/invoices/{id}/finalize`
     pub async fn finalize_invoice(&self, claims: &VerifiedClaims, id: i32, body: &FinalizeInvoiceRequest) -> Result<Invoice, ClientError> {
         let path = format!("/api/ar/invoices/{}/finalize", id);
-        let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
-    /// POST `/api/ar/invoices/{id}/write-off`
-    pub async fn write_off_invoice(&self, claims: &VerifiedClaims, id: i32, body: &WriteOffInvoiceRequest) -> Result<serde_json::Value, ClientError> {
-        let path = format!("/api/ar/invoices/{}/write-off", id);
         let url = path;
         let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await

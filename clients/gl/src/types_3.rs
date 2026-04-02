@@ -5,7 +5,161 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
+
+/// Source document types that can generate GL postings
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SourceDocType {
+    #[serde(rename = "AR_INVOICE")]
+    ARINVOICE,
+    #[serde(rename = "AR_PAYMENT")]
+    ARPAYMENT,
+    #[serde(rename = "AR_CREDIT_MEMO")]
+    ARCREDITMEMO,
+    #[serde(rename = "AR_ADJUSTMENT")]
+    ARADJUSTMENT,
+    #[serde(rename = "AP_BILL")]
+    APBILL,
+    #[serde(rename = "AP_PAYMENT")]
+    APPAYMENT,
+    #[serde(rename = "INVENTORY_RECEIPT")]
+    INVENTORYRECEIPT,
+    #[serde(rename = "INVENTORY_ISSUE")]
+    INVENTORYISSUE,
+    #[serde(rename = "PRODUCTION_ISSUE")]
+    PRODUCTIONISSUE,
+    #[serde(rename = "PRODUCTION_RECEIPT")]
+    PRODUCTIONRECEIPT,
+    #[serde(rename = "PAYROLL_RUN")]
+    PAYROLLRUN,
+    #[serde(rename = "LABOR_COST_ACCRUAL")]
+    LABORCOSTACCRUAL,
+    #[serde(rename = "GL_ACCRUAL")]
+    GLACCRUAL,
+    #[serde(rename = "FIXED_ASSET_DEPRECIATION")]
+    FIXEDASSETDEPRECIATION,
+}
+
+/// Statement Totals
+/// 
+/// Common totals structure used across all financial statements.
+/// Provides aggregated debit/credit totals and balance verification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatementTotals {
+    /// Whether debits equal credits (accounting equation satisfied)
+    pub is_balanced: bool,
+    /// Total credits across all rows in minor units
+    pub total_credits: i64,
+    /// Total debits across all rows in minor units
+    pub total_debits: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateResult {
+    pub active: bool,
+    pub name: String,
+    pub template_id: uuid::Uuid,
+    pub tenant_id: String,
+}
+
+/// Trial balance response with account balances and totals
+/// 
+/// **Currency Policy**: Single-currency only (currency is required parameter).
+/// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrialBalanceResponse {
+    pub currency: String,
+    pub period_id: uuid::Uuid,
+    pub rows: Vec<TrialBalanceRow>,
+    pub tenant_id: String,
+    pub totals: StatementTotals,
+}
+
+/// Trial Balance Row
+/// 
+/// Represents a single account row in a trial balance statement.
+/// Contains account metadata and debit/credit balances for a specific period.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrialBalanceRow {
+    /// Account code (e.g., "1000", "4000")
+    pub account_code: String,
+    /// Account name (e.g., "Cash", "Revenue")
+    pub account_name: String,
+    /// Account type (asset, liability, equity, revenue, expense)
+    pub account_type: String,
+    /// Total credits in minor units (cents)
+    pub credit_total_minor: i64,
+    /// Currency code (ISO 4217, e.g., "USD", "EUR")
+    pub currency: String,
+    /// Total debits in minor units (cents)
+    pub debit_total_minor: i64,
+    /// Net balance in minor units (debits - credits)
+    pub net_balance_minor: i64,
+    /// Normal balance direction (debit or credit)
+    pub normal_balance: String,
+}
+
+/// Request to validate if a period can be closed
+/// 
+/// Pre-flight check before actual close operation.
+/// Does NOT modify period state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateCloseRequest {
+    /// Tenant ID for multi-tenancy isolation
+    pub tenant_id: String,
+}
+
+/// Response from validate-close operation
+/// 
+/// Returns structured validation report with errors/warnings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidateCloseResponse {
+    /// Overall validation result
+    pub can_close: bool,
+    /// Period ID that was validated
+    pub period_id: uuid::Uuid,
+    /// Tenant ID
+    pub tenant_id: String,
+    /// Timestamp when validation was performed
+    pub validated_at: chrono::DateTime<chrono::Utc>,
+    /// Structured validation report (empty if can_close=true)
+    pub validation_report: ValidationReport,
+}
+
+/// Individual validation issue
+/// 
+/// Structured error/warning with stable code for client handling.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationIssue {
+    /// Stable error code for programmatic handling
+    pub code: String,
+    /// Human-readable message
+    pub message: String,
+    /// Optional metadata for additional context
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    /// Severity level
+    pub severity: ValidationSeverity,
+}
+
+/// Structured validation report
+/// 
+/// Machine-readable validation results with severity levels.
+/// Empty if validation passes (can_close=true).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationReport {
+    /// Validation issues grouped by severity
+    pub issues: Vec<ValidationIssue>,
+}
+
+/// Validation issue severity levels
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ValidationSeverity {
+    ERROR,
+    WARNING,
+    INFO,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaiveChecklistItemRequest {

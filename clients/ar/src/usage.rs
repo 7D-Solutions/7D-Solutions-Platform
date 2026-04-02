@@ -15,11 +15,19 @@ impl UsageClient {
         Self { client }
     }
 
+    /// POST `/api/ar/invoices/{id}/bill-usage`
+    pub async fn bill_usage_route(&self, claims: &VerifiedClaims, id: i32) -> Result<serde_json::Value, ClientError> {
+        let path = format!("/api/ar/invoices/{}/bill-usage", id);
+        let url = path;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        parse_response(resp).await
+    }
+
     /// POST `/api/ar/usage`
-    pub async fn capture_usage(&self, claims: &VerifiedClaims, body: &CaptureUsageRequest) -> Result<UsageRecord, ClientError> {
+    pub async fn capture_usage(&self, claims: &VerifiedClaims) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ar/usage");
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

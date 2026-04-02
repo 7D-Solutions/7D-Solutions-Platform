@@ -16,7 +16,7 @@ impl InboxClient {
     }
 
     /// GET `/api/inbox`
-    pub async fn list_inbox(&self, claims: &VerifiedClaims) -> Result<InboxListResponse, ClientError> {
+    pub async fn list_inbox(&self, claims: &VerifiedClaims) -> Result<PaginatedResponse<InboxItem>, ClientError> {
         let path = format!("/api/inbox");
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

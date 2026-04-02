@@ -16,7 +16,7 @@ impl DlqClient {
     }
 
     /// GET `/api/dlq`
-    pub async fn list_dlq(&self, claims: &VerifiedClaims) -> Result<DlqListResponse, ClientError> {
+    pub async fn list_dlq(&self, claims: &VerifiedClaims) -> Result<PaginatedResponse<DlqItem>, ClientError> {
         let path = format!("/api/dlq");
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

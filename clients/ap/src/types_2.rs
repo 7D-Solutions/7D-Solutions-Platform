@@ -5,7 +5,69 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
+
+/// Request to run the match engine for a vendor bill against a PO.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunMatchRequest {
+    /// Actor triggering the match (for audit trail)
+    pub matched_by: String,
+    /// PO to match this bill against
+    pub po_id: uuid::Uuid,
+    /// Price tolerance as a fraction (0.0–1.0). Default: 0.05 (5%).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price_tolerance_pct: Option<f64>,
+}
+
+/// Request body to update payment terms (partial update).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePaymentTermsRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub days_due: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_days: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_pct: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installment_schedule: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_active: Option<bool>,
+}
+
+/// Request body to replace all lines on a draft PO (idempotent full replacement).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePoLinesRequest {
+    /// Full replacement line set (at least one required)
+    pub lines: Vec<CreatePoLineRequest>,
+    /// Actor performing the update (for audit)
+    pub updated_by: String,
+}
+
+/// Request body to update an existing vendor. All fields are optional (partial update).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateVendorRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Optional link to a Party record in the party-master service.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub party_id: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_terms_days: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remittance_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_id: Option<String>,
+    /// Actor performing the update (for event attribution)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_by: Option<String>,
+}
 
 /// Full vendor record as stored and returned.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +127,20 @@ pub struct VendorBillWithLines {
     #[serde(flatten)]
     pub _base_vendorbill: VendorBill,
     pub lines: Vec<BillLineRecord>,
+}
+
+/// Aging bucket totals for a single vendor + currency combination.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VendorBucket {
+    pub currency: String,
+    pub current_minor: i64,
+    pub days_1_30_minor: i64,
+    pub days_31_60_minor: i64,
+    pub days_61_90_minor: i64,
+    pub over_90_minor: i64,
+    pub total_open_minor: i64,
+    pub vendor_id: uuid::Uuid,
+    pub vendor_name: String,
 }
 
 /// Request body to void a vendor bill.

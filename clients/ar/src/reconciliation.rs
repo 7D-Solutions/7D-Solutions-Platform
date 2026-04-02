@@ -16,26 +16,26 @@ impl ReconciliationClient {
     }
 
     /// POST `/api/ar/recon/poll`
-    pub async fn recon_poll(&self, claims: &VerifiedClaims, body: &ReconPollRequest) -> Result<serde_json::Value, ClientError> {
+    pub async fn recon_poll_route(&self, claims: &VerifiedClaims) -> Result<PaginatedResponse<ScheduledRunExecutionOutcome>, ClientError> {
         let path = format!("/api/ar/recon/poll");
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// POST `/api/ar/recon/run`
-    pub async fn recon_run(&self, claims: &VerifiedClaims, body: &ReconRunRequest) -> Result<ReconRunResult, ClientError> {
+    pub async fn recon_run_route(&self, claims: &VerifiedClaims) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ar/recon/run");
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// POST `/api/ar/recon/schedule`
-    pub async fn schedule_recon(&self, claims: &VerifiedClaims, body: &ScheduleReconRequest) -> Result<ScheduledRunResult, ClientError> {
+    pub async fn schedule_recon_route(&self, claims: &VerifiedClaims) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ar/recon/schedule");
         let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

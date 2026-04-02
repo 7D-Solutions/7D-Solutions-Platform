@@ -16,7 +16,7 @@ impl OperationsClient {
     }
 
     /// GET `/api/production/work-orders/{id}/operations`
-    pub async fn list_operations(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<Vec<OperationInstance>, ClientError> {
+    pub async fn list_operations(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<PaginatedResponse<OperationInstance>, ClientError> {
         let path = format!("/api/production/work-orders/{}/operations", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

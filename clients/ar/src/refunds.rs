@@ -16,25 +16,20 @@ impl RefundsClient {
     }
 
     /// GET `/api/ar/refunds`
-    pub async fn list_refunds(&self, claims: &VerifiedClaims, charge_id: Option<i32>, customer_id: Option<i32>, status: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Refund>, ClientError> {
+    pub async fn list_refunds(&self, claims: &VerifiedClaims, charge_id: Option<i32>, customer_id: Option<i32>, status: Option<String>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Refund>, ClientError> {
         let path = format!("/api/ar/refunds");
         #[derive(serde::Serialize)]
         struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
             charge_id: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             customer_id: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             limit: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i32>,
         }
         let query = Query {
             charge_id,
             customer_id,
-            status: status.map(|s| s.to_string()),
+            status,
             limit,
             offset,
         };

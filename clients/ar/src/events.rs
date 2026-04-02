@@ -16,34 +16,26 @@ impl EventsClient {
     }
 
     /// GET `/api/ar/events`
-    pub async fn list_events(&self, claims: &VerifiedClaims, entity_id: Option<&str>, entity_type: Option<&str>, event_type: Option<&str>, source: Option<&str>, start: Option<&str>, end: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Event>, ClientError> {
+    pub async fn list_events(&self, claims: &VerifiedClaims, entity_id: Option<String>, entity_type: Option<String>, event_type: Option<String>, source: Option<String>, start: Option<chrono::DateTime<chrono::Utc>>, end: Option<chrono::DateTime<chrono::Utc>>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Event>, ClientError> {
         let path = format!("/api/ar/events");
         #[derive(serde::Serialize)]
         struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
             entity_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             entity_type: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             event_type: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             source: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            start: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            end: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
+            start: Option<chrono::DateTime<chrono::Utc>>,
+            end: Option<chrono::DateTime<chrono::Utc>>,
             limit: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i32>,
         }
         let query = Query {
-            entity_id: entity_id.map(|s| s.to_string()),
-            entity_type: entity_type.map(|s| s.to_string()),
-            event_type: event_type.map(|s| s.to_string()),
-            source: source.map(|s| s.to_string()),
-            start: start.map(|s| s.to_string()),
-            end: end.map(|s| s.to_string()),
+            entity_id,
+            entity_type,
+            event_type,
+            source,
+            start,
+            end,
             limit,
             offset,
         };

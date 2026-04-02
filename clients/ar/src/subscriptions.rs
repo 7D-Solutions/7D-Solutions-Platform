@@ -16,22 +16,18 @@ impl SubscriptionsClient {
     }
 
     /// GET `/api/ar/subscriptions`
-    pub async fn list_subscriptions(&self, claims: &VerifiedClaims, customer_id: Option<i32>, status: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Subscription>, ClientError> {
+    pub async fn list_subscriptions(&self, claims: &VerifiedClaims, customer_id: Option<i32>, status: Option<SubscriptionStatus>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Subscription>, ClientError> {
         let path = format!("/api/ar/subscriptions");
         #[derive(serde::Serialize)]
         struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
             customer_id: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
+            status: Option<SubscriptionStatus>,
             limit: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i32>,
         }
         let query = Query {
             customer_id,
-            status: status.map(|s| s.to_string()),
+            status,
             limit,
             offset,
         };

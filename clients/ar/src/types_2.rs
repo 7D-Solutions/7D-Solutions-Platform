@@ -5,147 +5,10 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PaymentMethod {
-    pub app_id: String,
-    pub ar_customer_id: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bank_last4: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bank_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand: Option<String>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exp_month: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exp_year: Option<i32>,
-    pub id: i32,
-    pub is_default: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last4: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-    pub status: String,
-    pub tilled_payment_method_id: String,
-    pub r#type: String,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReconPollRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batch_size: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub worker_id: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReconRunRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub recon_run_id: Option<uuid::Uuid>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReconRunResult {
-    pub exception_count: i32,
-    pub invoice_count: i32,
-    pub match_count: i32,
-    pub payment_count: i32,
-    pub recon_run_id: uuid::Uuid,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RefreshAgingRequest {
-    pub customer_id: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Refund {
-    pub amount_cents: i32,
-    pub app_id: String,
-    pub ar_customer_id: i32,
-    pub charge_id: i32,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub currency: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub failure_message: Option<String>,
-    pub id: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub note: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    pub reference_id: String,
-    pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tilled_charge_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tilled_refund_id: Option<String>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReplayWebhookRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub force: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RuleResponse {
-    pub app_id: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub effective_from: chrono::NaiveDate,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_to: Option<chrono::NaiveDate>,
-    pub flat_amount_minor: i64,
-    pub id: uuid::Uuid,
-    pub is_exempt: bool,
-    pub jurisdiction_id: uuid::Uuid,
-    pub priority: i32,
-    pub rate: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tax_code: Option<String>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduleReconRequest {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scheduled_run_id: Option<uuid::Uuid>,
-    pub window_end: chrono::DateTime<chrono::Utc>,
-    pub window_start: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduledRunResult {
-    pub app_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exception_count: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub match_count: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub recon_run_id: Option<uuid::Uuid>,
-    pub scheduled_run_id: uuid::Uuid,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubmitDisputeEvidenceRequest {
-    pub evidence: serde_json::Value,
-}
-
+/// Subscription record from ar_subscriptions table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Subscription {
     pub app_id: String,
@@ -166,7 +29,8 @@ pub struct Subscription {
     pub interval_count: i32,
     pub interval_unit: SubscriptionInterval,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
+    /// Optional link to a Party record in the party-master service.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub party_id: Option<uuid::Uuid>,
     pub payment_method_id: String,
@@ -184,6 +48,7 @@ pub struct Subscription {
     pub updated_by: Option<String>,
 }
 
+/// Subscription interval enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SubscriptionInterval {
     #[serde(rename = "day")]
@@ -196,6 +61,7 @@ pub enum SubscriptionInterval {
     Year,
 }
 
+/// Subscription status enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SubscriptionStatus {
     #[serde(rename = "incomplete")]
@@ -220,28 +86,21 @@ pub enum SubscriptionStatus {
     Canceling,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaxReportResponse {
-    pub app_id: String,
-    pub from: String,
-    pub rows: Vec<serde_json::Value>,
-    pub to: String,
-    pub total_invoices: i64,
-    pub total_tax_minor: i64,
-}
-
+/// Request body for updating a customer
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCustomerRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// Optional link to a Party record in the party-master service.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub party_id: Option<uuid::Uuid>,
 }
 
+/// Request body for updating an invoice
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInvoiceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -249,45 +108,23 @@ pub struct UpdateInvoiceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateJurisdictionRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_active: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub jurisdiction_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tax_type: Option<String>,
-}
-
+/// Request body for updating a payment method
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePaymentMethodRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateRuleRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effective_to: Option<chrono::NaiveDate>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub flat_amount_minor: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_exempt: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub priority: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rate: Option<f64>,
-}
-
+/// Request body for updating a subscription
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateSubscriptionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
+    pub metadata: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plan_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -296,20 +133,7 @@ pub struct UpdateSubscriptionRequest {
     pub price_cents: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageRecord {
-    pub app_id: String,
-    pub customer_id: i32,
-    pub id: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency_key: Option<uuid::Uuid>,
-    pub metric_name: String,
-    pub quantity: f64,
-    pub unit: String,
-    pub unit_price_cents: i32,
-    pub usage_uuid: uuid::Uuid,
-}
-
+/// Webhook record from ar_webhooks table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Webhook {
     pub app_id: String,
@@ -328,13 +152,14 @@ pub struct Webhook {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_attempt_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<serde_json::Value>,
+    pub payload: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub received_at: chrono::DateTime<chrono::Utc>,
     pub status: WebhookStatus,
 }
 
+/// Webhook status enum (matches ar_webhooks_status in schema)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum WebhookStatus {
     #[serde(rename = "received")]
@@ -345,13 +170,5 @@ pub enum WebhookStatus {
     Processed,
     #[serde(rename = "failed")]
     Failed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WriteOffInvoiceRequest {
-    pub app_id: String,
-    pub customer_id: String,
-    pub invoice_id: i32,
-    pub write_off_id: uuid::Uuid,
 }
 

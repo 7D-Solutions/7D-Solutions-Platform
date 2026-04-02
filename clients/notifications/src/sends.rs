@@ -16,7 +16,7 @@ impl SendsClient {
     }
 
     /// GET `/api/deliveries`
-    pub async fn query_deliveries(&self, claims: &VerifiedClaims) -> Result<DeliveryListResponse, ClientError> {
+    pub async fn query_deliveries(&self, claims: &VerifiedClaims) -> Result<PaginatedResponse<DeliveryReceipt>, ClientError> {
         let path = format!("/api/deliveries");
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

@@ -43,7 +43,7 @@ impl RoutingsClient {
     }
 
     /// GET `/api/production/routings/by-item`
-    pub async fn find_routings_by_item(&self, claims: &VerifiedClaims, item_id: uuid::Uuid, effective_date: chrono::NaiveDate) -> Result<Vec<RoutingTemplate>, ClientError> {
+    pub async fn find_routings_by_item(&self, claims: &VerifiedClaims, item_id: uuid::Uuid, effective_date: chrono::NaiveDate) -> Result<PaginatedResponse<RoutingTemplate>, ClientError> {
         let path = format!("/api/production/routings/by-item");
         #[derive(serde::Serialize)]
         struct Query {
@@ -84,7 +84,7 @@ impl RoutingsClient {
     }
 
     /// GET `/api/production/routings/{id}/steps`
-    pub async fn list_routing_steps(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<Vec<RoutingStep>, ClientError> {
+    pub async fn list_routing_steps(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<PaginatedResponse<RoutingStep>, ClientError> {
         let path = format!("/api/production/routings/{}/steps", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

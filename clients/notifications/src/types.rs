@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
 
 /// Pagination metadata for list endpoints.
@@ -56,11 +57,6 @@ pub struct DeliveryAttemptDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rendered_subject: Option<String>,
     pub status: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeliveryListResponse {
-    pub receipts: Vec<DeliveryReceipt>,
 }
 
 /// Query parameters for GET /deliveries.
@@ -120,12 +116,6 @@ pub struct DlqDetailResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DlqError {
-    pub error: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DlqItem {
     pub channel: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -141,29 +131,11 @@ pub struct DlqItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DlqListResponse {
-    pub items: Vec<DlqItem>,
-    pub total: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxActionResponse {
     pub action: String,
     pub id: uuid::Uuid,
     pub is_dismissed: bool,
     pub is_read: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboxError {
-    pub error: String,
-    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,12 +154,6 @@ pub struct InboxItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_at: Option<chrono::DateTime<chrono::Utc>>,
     pub title: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InboxListResponse {
-    pub items: Vec<InboxItem>,
-    pub total: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

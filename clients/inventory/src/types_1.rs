@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
 
 /// Pagination metadata for list endpoints.
@@ -98,6 +99,22 @@ pub struct ApproveBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub correlation_id: Option<String>,
     pub idempotency_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchReceiptItemResult {
+    #[serde(flatten)]
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchReceiptRequest {
+    pub receipts: Vec<ReceiptRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchReceiptResponse {
+    pub results: Vec<BatchReceiptItemResult>,
 }
 
 /// One FIFO layer consumed during an issue.
@@ -374,6 +391,26 @@ pub struct InventoryLot {
     pub tenant_id: String,
 }
 
+/// A single serialised unit received into inventory.
+/// 
+/// Created one-per-serial-code when a serial-tracked receipt is processed.
+/// Each instance is tied to the receipt ledger entry and FIFO layer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InventorySerialInstance {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: uuid::Uuid,
+    pub item_id: uuid::Uuid,
+    /// The FIFO layer this unit occupies.
+    pub layer_id: uuid::Uuid,
+    /// The receipt ledger entry (`inventory_ledger.id`) that created this instance.
+    pub receipt_ledger_entry_id: i64,
+    /// The barcode, manufacturer serial number, or other unique identifier.
+    pub serial_code: String,
+    /// Current lifecycle state.
+    pub status: SerialStatus,
+    pub tenant_id: String,
+}
+
 /// Input for POST /api/inventory/issues
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueRequest {
@@ -405,28 +442,6 @@ pub struct IssueRequest {
     /// UoM id for the input `quantity`. When present, `quantity` is in this unit
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uom_id: Option<uuid::Uuid>,
-    pub warehouse_id: uuid::Uuid,
-}
-
-/// Result returned on successful or replayed issue
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IssueResult {
-    pub consumed_layers: Vec<ConsumedLayer>,
-    pub currency: String,
-    /// Event id used in outbox
-    pub event_id: uuid::Uuid,
-    /// Stable business key for this issue (= ledger entry_id)
-    pub issue_line_id: uuid::Uuid,
-    pub issued_at: chrono::DateTime<chrono::Utc>,
-    pub item_id: uuid::Uuid,
-    /// BIGSERIAL ledger row id
-    pub ledger_entry_id: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location_id: Option<uuid::Uuid>,
-    pub quantity: i64,
-    pub source_ref: SourceRef,
-    pub tenant_id: String,
-    pub total_cost_minor: i64,
     pub warehouse_id: uuid::Uuid,
 }
 

@@ -430,7 +430,11 @@ fn find_success_response(detail: &Value) -> ResponseKind {
 
             // Inline schema — arrays, objects, primitives without $ref
             // This catches list endpoints that return arrays or inline objects
-            if schema.is_object() && !schema.as_object().map_or(true, |o| o.is_empty()) {
+            if schema.is_object() {
+                if schema.as_object().map_or(true, |o| o.is_empty()) {
+                    // Empty schema but JSON content type → untyped JSON
+                    return ResponseKind::Json("serde_json::Value".to_string());
+                }
                 let rust_type = schema_to_rust_type(schema);
                 return ResponseKind::Json(rust_type);
             }

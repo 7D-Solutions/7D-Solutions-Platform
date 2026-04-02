@@ -40,7 +40,7 @@ impl TimeEntriesClient {
     }
 
     /// GET `/api/production/work-orders/{id}/time-entries`
-    pub async fn list_time_entries(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<Vec<TimeEntry>, ClientError> {
+    pub async fn list_time_entries(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<PaginatedResponse<TimeEntry>, ClientError> {
         let path = format!("/api/production/work-orders/{}/time-entries", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

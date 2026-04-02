@@ -5,7 +5,49 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
+
+/// Analytical dimensions for reporting and analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Dimensions {
+    /// Classification dimension
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class: Option<String>,
+    /// Customer identifier for AR-related postings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub customer_id: Option<String>,
+    /// Department code
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub department: Option<String>,
+    /// Job or project work order identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<String>,
+    /// Location or branch identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location_id: Option<String>,
+    /// Project identifier for project accounting
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
+    /// Vendor identifier for AP-related postings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vendor_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsRequest {
+    pub reversal_date: String,
+    pub target_period: String,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsResult {
+    pub results: Vec<ReversalResult>,
+    pub reversals_executed: i64,
+    pub reversals_skipped: i64,
+    pub target_period: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportResponse {
@@ -127,6 +169,22 @@ pub struct IncomeStatementTotals {
     pub total_revenue: i64,
 }
 
+/// A single line in a journal entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalLine {
+    /// Reference to account in the GL chart of accounts
+    pub account_ref: String,
+    /// Credit amount (must be >= 0)
+    pub credit: f64,
+    /// Debit amount (must be >= 0)
+    pub debit: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<Dimensions>,
+    /// Optional line-level memo (<= 500 chars)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
+
 /// Classification of a contract modification for audit and reporting.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ModificationType {
@@ -198,6 +256,29 @@ pub struct PeriodSummaryResponse {
     pub total_debits_minor: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostJournalEntryRequest {
+    /// ISO 4217 currency code
+    pub currency: String,
+    /// Human-readable description
+    pub description: String,
+    /// At least 2 balanced lines
+    pub lines: Vec<JournalLine>,
+    /// Accounting date (YYYY-MM-DD)
+    pub posting_date: String,
+    /// Unique ID of the source document (also used for idempotency)
+    pub source_doc_id: String,
+    /// Document type
+    pub source_doc_type: SourceDocType,
+    /// Originating module (e.g. "consolidation-elimination")
+    pub source_module: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostJournalEntryResponse {
+    pub journal_entry_id: uuid::Uuid,
+}
+
 /// How a performance obligation's revenue is recognized over time.
 /// 
 /// Aligns with ASC 606-10-25-27: a performance obligation is satisfied either
@@ -257,6 +338,29 @@ pub struct ReopenRequestPayload {
     pub requested_by: String,
 }
 
+/// Response type for reopen request list entries
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReopenRequestResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approved_by: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: uuid::Uuid,
+    pub period_id: uuid::Uuid,
+    pub prior_close_hash: String,
+    pub reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reject_reason: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejected_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rejected_by: Option<String>,
+    pub requested_by: String,
+    pub status: String,
+    pub tenant_id: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportingBalanceSheetResponse {
     #[serde(flatten)]
@@ -300,125 +404,5 @@ pub struct ReversalResult {
     pub journal_entry_id: uuid::Uuid,
     pub original_accrual_id: uuid::Uuid,
     pub reversal_id: uuid::Uuid,
-}
-
-/// Statement Totals
-/// 
-/// Common totals structure used across all financial statements.
-/// Provides aggregated debit/credit totals and balance verification.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatementTotals {
-    /// Whether debits equal credits (accounting equation satisfied)
-    pub is_balanced: bool,
-    /// Total credits across all rows in minor units
-    pub total_credits: i64,
-    /// Total debits across all rows in minor units
-    pub total_debits: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TemplateResult {
-    pub active: bool,
-    pub name: String,
-    pub template_id: uuid::Uuid,
-    pub tenant_id: String,
-}
-
-/// Trial balance response with account balances and totals
-/// 
-/// **Currency Policy**: Single-currency only (currency is required parameter).
-/// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrialBalanceResponse {
-    pub currency: String,
-    pub period_id: uuid::Uuid,
-    pub rows: Vec<TrialBalanceRow>,
-    pub tenant_id: String,
-    pub totals: StatementTotals,
-}
-
-/// Trial Balance Row
-/// 
-/// Represents a single account row in a trial balance statement.
-/// Contains account metadata and debit/credit balances for a specific period.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TrialBalanceRow {
-    /// Account code (e.g., "1000", "4000")
-    pub account_code: String,
-    /// Account name (e.g., "Cash", "Revenue")
-    pub account_name: String,
-    /// Account type (asset, liability, equity, revenue, expense)
-    pub account_type: String,
-    /// Total credits in minor units (cents)
-    pub credit_total_minor: i64,
-    /// Currency code (ISO 4217, e.g., "USD", "EUR")
-    pub currency: String,
-    /// Total debits in minor units (cents)
-    pub debit_total_minor: i64,
-    /// Net balance in minor units (debits - credits)
-    pub net_balance_minor: i64,
-    /// Normal balance direction (debit or credit)
-    pub normal_balance: String,
-}
-
-/// Request to validate if a period can be closed
-/// 
-/// Pre-flight check before actual close operation.
-/// Does NOT modify period state.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateCloseRequest {
-    /// Tenant ID for multi-tenancy isolation
-    pub tenant_id: String,
-}
-
-/// Response from validate-close operation
-/// 
-/// Returns structured validation report with errors/warnings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidateCloseResponse {
-    /// Overall validation result
-    pub can_close: bool,
-    /// Period ID that was validated
-    pub period_id: uuid::Uuid,
-    /// Tenant ID
-    pub tenant_id: String,
-    /// Timestamp when validation was performed
-    pub validated_at: chrono::DateTime<chrono::Utc>,
-    /// Structured validation report (empty if can_close=true)
-    pub validation_report: ValidationReport,
-}
-
-/// Individual validation issue
-/// 
-/// Structured error/warning with stable code for client handling.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationIssue {
-    /// Stable error code for programmatic handling
-    pub code: String,
-    /// Human-readable message
-    pub message: String,
-    /// Optional metadata for additional context
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-    /// Severity level
-    pub severity: ValidationSeverity,
-}
-
-/// Structured validation report
-/// 
-/// Machine-readable validation results with severity levels.
-/// Empty if validation passes (can_close=true).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationReport {
-    /// Validation issues grouped by severity
-    pub issues: Vec<ValidationIssue>,
-}
-
-/// Validation issue severity levels
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ValidationSeverity {
-    ERROR,
-    WARNING,
-    INFO,
 }
 

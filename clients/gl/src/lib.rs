@@ -7,11 +7,14 @@ pub mod types_2;
 pub mod types_3;
 pub mod accounts;
 pub mod accruals;
+pub mod admin;
 pub mod close_checklist;
 pub mod exports;
 pub mod fx_rates;
 pub mod financial_statements;
 pub mod gl_detail;
+pub mod health;
+pub mod journal_entries;
 pub mod period_close;
 pub mod period_summary;
 pub mod reporting_currency;
@@ -22,11 +25,14 @@ pub use types_2::*;
 pub use types_3::*;
 pub use accounts::AccountsClient;
 pub use accruals::AccrualsClient;
+pub use admin::AdminClient;
 pub use close_checklist::CloseChecklistClient;
 pub use exports::ExportsClient;
 pub use fx_rates::FxRatesClient;
 pub use financial_statements::FinancialStatementsClient;
 pub use gl_detail::GlDetailClient;
+pub use health::HealthClient;
+pub use journal_entries::JournalEntriesClient;
 pub use period_close::PeriodCloseClient;
 pub use period_summary::PeriodSummaryClient;
 pub use reporting_currency::ReportingCurrencyClient;
@@ -42,6 +48,13 @@ impl platform_sdk::PlatformService for AccountsClient {
 }
 
 impl platform_sdk::PlatformService for AccrualsClient {
+    const SERVICE_NAME: &'static str = "gl";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for AdminClient {
     const SERVICE_NAME: &'static str = "gl";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -77,6 +90,20 @@ impl platform_sdk::PlatformService for FinancialStatementsClient {
 }
 
 impl platform_sdk::PlatformService for GlDetailClient {
+    const SERVICE_NAME: &'static str = "gl";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for HealthClient {
+    const SERVICE_NAME: &'static str = "gl";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for JournalEntriesClient {
     const SERVICE_NAME: &'static str = "gl";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)

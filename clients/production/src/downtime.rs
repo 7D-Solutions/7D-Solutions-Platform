@@ -43,7 +43,7 @@ impl DowntimeClient {
     }
 
     /// GET `/api/production/workcenters/{id}/downtime`
-    pub async fn list_workcenter_downtime(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<Vec<WorkcenterDowntime>, ClientError> {
+    pub async fn list_workcenter_downtime(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<PaginatedResponse<WorkcenterDowntime>, ClientError> {
         let path = format!("/api/production/workcenters/{}/downtime", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

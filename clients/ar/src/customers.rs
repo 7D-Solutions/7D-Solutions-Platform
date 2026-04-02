@@ -16,19 +16,16 @@ impl CustomersClient {
     }
 
     /// GET `/api/ar/customers`
-    pub async fn list_customers(&self, claims: &VerifiedClaims, external_customer_id: Option<&str>, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Customer>, ClientError> {
+    pub async fn list_customers(&self, claims: &VerifiedClaims, external_customer_id: Option<String>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Customer>, ClientError> {
         let path = format!("/api/ar/customers");
         #[derive(serde::Serialize)]
         struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
             external_customer_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             limit: Option<i32>,
-            #[serde(skip_serializing_if = "Option::is_none")]
             offset: Option<i32>,
         }
         let query = Query {
-            external_customer_id: external_customer_id.map(|s| s.to_string()),
+            external_customer_id,
             limit,
             offset,
         };
