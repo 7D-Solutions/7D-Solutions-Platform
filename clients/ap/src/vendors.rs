@@ -24,27 +24,27 @@ impl VendorsClient {
     }
 
     /// POST `/api/ap/vendors`
-    pub async fn create_vendor(&self, claims: &VerifiedClaims, body: &CreateVendorRequest) -> Result<(), ClientError> {
+    pub async fn create_vendor(&self, claims: &VerifiedClaims, body: &CreateVendorRequest) -> Result<Vendor, ClientError> {
         let path = format!("/api/ap/vendors");
         let url = path;
         let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 
     /// GET `/api/ap/vendors/{vendor_id}`
-    pub async fn get_vendor(&self, claims: &VerifiedClaims, vendor_id: uuid::Uuid) -> Result<(), ClientError> {
+    pub async fn get_vendor(&self, claims: &VerifiedClaims, vendor_id: uuid::Uuid) -> Result<Vendor, ClientError> {
         let path = format!("/api/ap/vendors/{}", vendor_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 
     /// PUT `/api/ap/vendors/{vendor_id}`
-    pub async fn update_vendor(&self, claims: &VerifiedClaims, vendor_id: uuid::Uuid, body: &UpdateVendorRequest) -> Result<(), ClientError> {
+    pub async fn update_vendor(&self, claims: &VerifiedClaims, vendor_id: uuid::Uuid, body: &UpdateVendorRequest) -> Result<Vendor, ClientError> {
         let path = format!("/api/ap/vendors/{}", vendor_id);
         let url = path;
         let resp = self.client.put(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_empty(resp).await
+        parse_response(resp).await
     }
 
     /// POST `/api/ap/vendors/{vendor_id}/deactivate`

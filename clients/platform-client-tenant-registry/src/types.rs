@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +17,9 @@ pub struct PaginationMeta {
 }
 
 /// Generic paginated response envelope.
+///
+/// Local definition without `ToSchema` bound — client crates don't need
+/// OpenAPI schema derivation. Wire-compatible with `platform_http_contracts::PaginatedResponse`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,

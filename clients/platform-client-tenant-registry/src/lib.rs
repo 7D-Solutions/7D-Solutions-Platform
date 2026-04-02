@@ -15,21 +15,21 @@ pub use tenants::TenantsClient;
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for ControlClient {
-    const SERVICE_NAME: &'static str = "tenant-registry";
+    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for PlansClient {
-    const SERVICE_NAME: &'static str = "tenant-registry";
+    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for TenantsClient {
-    const SERVICE_NAME: &'static str = "tenant-registry";
+    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }

@@ -142,7 +142,10 @@
             "description": "Idempotency replay",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -150,7 +153,10 @@
             "description": "Count approved and adjustments applied",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -205,7 +211,10 @@
             "description": "Idempotency replay",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -213,7 +222,10 @@
             "description": "Count submitted",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -379,7 +391,7 @@
           {
             "name": "active",
             "in": "query",
-            "description": "`None` or omitted → active-only (default). `true` → active. `false` → inactive.",
+            "description": "`None` or omitted \u2192 active-only (default). `true` \u2192 active. `false` \u2192 inactive.",
             "required": false,
             "schema": {
               "type": "boolean"
@@ -830,7 +842,10 @@
             "description": "Movement history",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -1013,7 +1028,10 @@
             "description": "Lot traceability movements",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -1397,7 +1415,9 @@
             "description": "Serial instances for item",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_InventorySerialInstance"
+                }
               }
             }
           }
@@ -1441,7 +1461,10 @@
             "description": "Serial traceability movements",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -1837,7 +1860,10 @@
             "description": "Child genealogy edges",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -1929,7 +1955,10 @@
             "description": "Parent genealogy edges",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           }
@@ -2684,7 +2713,10 @@
             "description": "Snapshot with lines",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
               }
             }
           },
@@ -2834,7 +2866,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the adjustment is location-agnostic — existing behavior."
+            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the adjustment is location-agnostic \u2014 existing behavior."
           },
           "quantity_delta": {
             "type": "integer",
@@ -2982,7 +3014,7 @@
           "extended_cost_minor": {
             "type": "integer",
             "format": "int64",
-            "description": "Precomputed: quantity × unit_cost_minor"
+            "description": "Precomputed: quantity \u00d7 unit_cost_minor"
           },
           "layer_id": {
             "type": "string",
@@ -3942,7 +3974,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "FK into `uoms` catalog — the item's canonical stock unit.\nNone until assigned via the UoM catalog."
+            "description": "FK into `uoms` catalog \u2014 the item's canonical stock unit.\nNone until assigned via the UoM catalog."
           },
           "cogs_account_ref": {
             "type": "string"
@@ -4105,7 +4137,7 @@
       },
       "ItemUomConversion": {
         "type": "object",
-        "description": "A directional conversion factor between two UoMs for a specific item.\n\nSemantics: `quantity_in_from_uom * factor = quantity_in_to_uom`\nExample: 1 box = 12 ea → from=box, to=ea, factor=12.0",
+        "description": "A directional conversion factor between two UoMs for a specific item.\n\nSemantics: `quantity_in_from_uom * factor = quantity_in_to_uom`\nExample: 1 box = 12 ea \u2192 from=box, to=ea, factor=12.0",
         "required": [
           "id",
           "tenant_id",
@@ -4213,7 +4245,7 @@
               "boolean",
               "null"
             ],
-            "description": "`None` or omitted → active-only (default). `true` → active. `false` → inactive."
+            "description": "`None` or omitted \u2192 active-only (default). `true` \u2192 active. `false` \u2192 inactive."
           },
           "make_buy": {
             "type": [
@@ -4658,7 +4690,7 @@
                     "null"
                   ],
                   "format": "uuid",
-                  "description": "FK into `uoms` catalog — the item's canonical stock unit.\nNone until assigned via the UoM catalog."
+                  "description": "FK into `uoms` catalog \u2014 the item's canonical stock unit.\nNone until assigned via the UoM catalog."
                 },
                 "cogs_account_ref": {
                   "type": "string"
@@ -5202,7 +5234,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the receipt is location-agnostic — existing behavior."
+            "description": "Optional storage location within the warehouse (bin, shelf, zone).\nWhen absent, the receipt is location-agnostic \u2014 existing behavior."
           },
           "lot_code": {
             "type": [
@@ -6321,7 +6353,7 @@
       },
       "ValuationLine": {
         "type": "object",
-        "description": "One line under a `ValuationSnapshot` — value for a single item/location.\n\n`total_value_minor = quantity_on_hand * unit_cost_minor` (pre-computed).\n`unit_cost_minor` is the weighted-average unit cost of remaining FIFO layers.",
+        "description": "One line under a `ValuationSnapshot` \u2014 value for a single item/location.\n\n`total_value_minor = quantity_on_hand * unit_cost_minor` (pre-computed).\n`unit_cost_minor` is the weighted-average unit cost of remaining FIFO layers.",
         "required": [
           "id",
           "snapshot_id",

@@ -14,7 +14,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "GET /api/treasury/accounts — list accounts for tenant",
+        "summary": "GET /api/treasury/accounts \u2014 list accounts for tenant",
         "operationId": "list_accounts",
         "parameters": [
           {
@@ -68,7 +68,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "POST /api/treasury/accounts/bank — create a bank account",
+        "summary": "POST /api/treasury/accounts/bank \u2014 create a bank account",
         "operationId": "create_bank_account",
         "requestBody": {
           "content": {
@@ -116,7 +116,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "POST /api/treasury/accounts/credit-card — create a credit card account",
+        "summary": "POST /api/treasury/accounts/credit-card \u2014 create a credit card account",
         "operationId": "create_credit_card_account",
         "requestBody": {
           "content": {
@@ -164,7 +164,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "GET /api/treasury/accounts/:id — get a single account",
+        "summary": "GET /api/treasury/accounts/:id \u2014 get a single account",
         "operationId": "get_account",
         "parameters": [
           {
@@ -210,7 +210,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "PUT /api/treasury/accounts/:id — update account fields",
+        "summary": "PUT /api/treasury/accounts/:id \u2014 update account fields",
         "operationId": "update_account",
         "parameters": [
           {
@@ -280,7 +280,7 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "POST /api/treasury/accounts/:id/deactivate — soft-delete a bank account",
+        "summary": "POST /api/treasury/accounts/:id/deactivate \u2014 soft-delete a bank account",
         "operationId": "deactivate_account",
         "parameters": [
           {
@@ -323,7 +323,7 @@
         "tags": [
           "Reports"
         ],
-        "summary": "GET /api/treasury/cash-position — real-time cash position by account and currency",
+        "summary": "GET /api/treasury/cash-position \u2014 real-time cash position by account and currency",
         "operationId": "cash_position",
         "responses": {
           "200": {
@@ -349,7 +349,7 @@
         "tags": [
           "Reports"
         ],
-        "summary": "GET /api/treasury/forecast — cash forecast from AR/AP aging + scheduled payments",
+        "summary": "GET /api/treasury/forecast \u2014 cash forecast from AR/AP aging + scheduled payments",
         "operationId": "forecast",
         "responses": {
           "200": {
@@ -375,7 +375,7 @@
         "tags": [
           "Reconciliation"
         ],
-        "summary": "POST /api/treasury/recon/auto-match — run auto-match for an account",
+        "summary": "POST /api/treasury/recon/auto-match \u2014 run auto-match for an account",
         "operationId": "auto_match",
         "requestBody": {
           "content": {
@@ -423,7 +423,7 @@
         "tags": [
           "GL Reconciliation"
         ],
-        "summary": "POST /api/treasury/recon/gl-link — link a bank transaction to a GL entry",
+        "summary": "POST /api/treasury/recon/gl-link \u2014 link a bank transaction to a GL entry",
         "operationId": "link_to_gl",
         "requestBody": {
           "content": {
@@ -471,7 +471,7 @@
         "tags": [
           "GL Reconciliation"
         ],
-        "summary": "POST /api/treasury/recon/gl-unmatched-entries — given GL entry IDs, return unlinked ones",
+        "summary": "POST /api/treasury/recon/gl-unmatched-entries \u2014 given GL entry IDs, return unlinked ones",
         "operationId": "unmatched_gl_entries",
         "requestBody": {
           "content": {
@@ -509,7 +509,7 @@
         "tags": [
           "GL Reconciliation"
         ],
-        "summary": "GET /api/treasury/recon/gl-unmatched-txns?account_id=... — bank txns not linked to GL",
+        "summary": "GET /api/treasury/recon/gl-unmatched-txns?account_id=... \u2014 bank txns not linked to GL",
         "operationId": "unmatched_bank_txns",
         "parameters": [
           {
@@ -546,7 +546,7 @@
         "tags": [
           "Reconciliation"
         ],
-        "summary": "POST /api/treasury/recon/manual-match — create a manual match",
+        "summary": "POST /api/treasury/recon/manual-match \u2014 create a manual match",
         "operationId": "manual_match",
         "requestBody": {
           "content": {
@@ -667,7 +667,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Unmatched items"
+            "description": "Unmatched items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -941,7 +949,7 @@
           },
           "currency": {
             "type": "string",
-            "description": "ISO 4217 currency code — must be exactly 3 uppercase letters."
+            "description": "ISO 4217 currency code \u2014 must be exactly 3 uppercase letters."
           },
           "institution": {
             "type": [
@@ -1008,7 +1016,7 @@
               "null"
             ],
             "format": "int32",
-            "description": "Day of month (1–31) the billing cycle closes."
+            "description": "Day of month (1\u201331) the billing cycle closes."
           }
         }
       },
@@ -1064,7 +1072,7 @@
       },
       "ForecastAssumptions": {
         "type": "object",
-        "description": "Assumed collection/payment rates per aging bucket.\n\nRates are expressed as fractions (0.0–1.0). A rate of 0.95 means\n95% of the bucket value is expected to convert to a cash flow.",
+        "description": "Assumed collection/payment rates per aging bucket.\n\nRates are expressed as fractions (0.0\u20131.0). A rate of 0.95 means\n95% of the bucket value is expected to convert to a cash flow.",
         "required": [
           "ar_current_rate",
           "ar_1_30_rate",
@@ -1082,17 +1090,17 @@
           "ap_1_30_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected payment rate for AP 1–30 days overdue."
+            "description": "Expected payment rate for AP 1\u201330 days overdue."
           },
           "ap_31_60_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected payment rate for AP 31–60 days overdue."
+            "description": "Expected payment rate for AP 31\u201360 days overdue."
           },
           "ap_61_90_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected payment rate for AP 61–90 days overdue."
+            "description": "Expected payment rate for AP 61\u201390 days overdue."
           },
           "ap_current_rate": {
             "type": "number",
@@ -1107,17 +1115,17 @@
           "ar_1_30_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected collection rate for AR 1–30 days overdue."
+            "description": "Expected collection rate for AR 1\u201330 days overdue."
           },
           "ar_31_60_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected collection rate for AR 31–60 days overdue."
+            "description": "Expected collection rate for AR 31\u201360 days overdue."
           },
           "ar_61_90_rate": {
             "type": "number",
             "format": "double",
-            "description": "Expected collection rate for AR 61–90 days overdue."
+            "description": "Expected collection rate for AR 61\u201390 days overdue."
           },
           "ar_current_rate": {
             "type": "number",
@@ -1359,7 +1367,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "Last 4 digits only — no full account numbers stored."
+                  "description": "Last 4 digits only \u2014 no full account numbers stored."
                 },
                 "account_type": {
                   "$ref": "#/components/schemas/AccountType"
@@ -1417,7 +1425,7 @@
                     "null"
                   ],
                   "format": "int32",
-                  "description": "Day of month (1–31) on which CC statement closes."
+                  "description": "Day of month (1\u201331) on which CC statement closes."
                 },
                 "status": {
                   "$ref": "#/components/schemas/AccountStatus"
@@ -1578,7 +1586,7 @@
               "string",
               "null"
             ],
-            "description": "Last 4 digits only — no full account numbers stored."
+            "description": "Last 4 digits only \u2014 no full account numbers stored."
           },
           "account_type": {
             "$ref": "#/components/schemas/AccountType"
@@ -1636,7 +1644,7 @@
               "null"
             ],
             "format": "int32",
-            "description": "Day of month (1–31) on which CC statement closes."
+            "description": "Day of month (1\u201331) on which CC statement closes."
           },
           "status": {
             "$ref": "#/components/schemas/AccountStatus"

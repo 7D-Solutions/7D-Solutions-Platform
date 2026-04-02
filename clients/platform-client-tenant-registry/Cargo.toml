@@ -1,13 +1,12 @@
 [package]
-name = "platform-client-tenant-registry"
+name = "platform-client-platform-client-tenant-registry"
 version = "0.1.0"
 edition = "2021"
-description = "Generated typed client for the Tenant-Registry service"
+description = "Generated typed client for Platform Client Tenant-Registry Service"
 
 [dependencies]
 platform-sdk = { path = "../../platform/platform-sdk" }
 platform-http-contracts = { path = "../../platform/http-contracts" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }

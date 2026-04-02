@@ -32,3 +32,227 @@ pub struct DataResponse<T> {
     pub data: Vec<T>,
 }
 
+/// Input for creating/publishing a new template version.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateTemplate {
+    pub body: String,
+    pub channel: String,
+    pub required_vars: Vec<String>,
+    pub subject: String,
+    pub template_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryAttemptDetail {
+    pub attempt_no: i32,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    pub id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_subject: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryListResponse {
+    pub receipts: Vec<DeliveryReceipt>,
+}
+
+/// Query parameters for GET /deliveries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recipient: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// A delivery receipt row.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryReceipt {
+    pub attempt_count: i32,
+    pub channel: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_attempt_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    pub recipient: String,
+    pub send_id: uuid::Uuid,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub succeeded_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub tenant_id: String,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqActionResponse {
+    pub action: String,
+    pub id: uuid::Uuid,
+    pub new_status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqDetailResponse {
+    pub delivery_attempts: Vec<DeliveryAttemptDetail>,
+    pub item: DlqItem,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqError {
+    pub error: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqItem {
+    pub channel: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dead_lettered_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+    pub payload_json: serde_json::Value,
+    pub recipient_ref: String,
+    pub retry_count: i32,
+    pub template_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqListResponse {
+    pub items: Vec<DlqItem>,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxActionResponse {
+    pub action: String,
+    pub id: uuid::Uuid,
+    pub is_dismissed: bool,
+    pub is_read: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxError {
+    pub error: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dismissed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub id: uuid::Uuid,
+    pub is_dismissed: bool,
+    pub is_read: bool,
+    pub notification_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxListResponse {
+    pub items: Vec<InboxItem>,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendDetailResponse {
+    pub channel: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: uuid::Uuid,
+    pub receipts: Vec<DeliveryReceipt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_hash: Option<String>,
+    pub status: String,
+    pub template_key: String,
+    pub template_version: i32,
+}
+
+/// Input for POST /notifications/send.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causation_id: Option<String>,
+    pub channel: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    pub payload_json: serde_json::Value,
+    pub recipients: Vec<String>,
+    pub template_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendResponse {
+    pub channel: String,
+    pub id: uuid::Uuid,
+    pub receipt_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_hash: Option<String>,
+    pub status: String,
+    pub template_key: String,
+    pub template_version: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateDetailResponse {
+    pub latest: TemplateResponse,
+    pub versions: Vec<TemplateVersionSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateResponse {
+    pub body: String,
+    pub channel: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: uuid::Uuid,
+    pub required_vars: serde_json::Value,
+    pub subject: String,
+    pub template_key: String,
+    pub version: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateVersionSummary {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_by: Option<String>,
+    pub version: i32,
+}
+

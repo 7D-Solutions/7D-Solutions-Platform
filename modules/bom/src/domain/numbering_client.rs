@@ -16,10 +16,7 @@ pub struct NumberingClient {
 
 enum Mode {
     /// Production: calls the Numbering service over HTTP via typed client.
-    Http {
-        base_url: String,
-        client: reqwest::Client,
-    },
+    Http { base_url: String },
     /// Test / direct: allocates directly against the Numbering database.
     Direct { pool: PgPool },
 }
@@ -32,10 +29,7 @@ impl NumberingClient {
     /// Build a client that calls the Numbering HTTP service.
     pub fn http(base_url: String) -> Self {
         Self {
-            mode: Mode::Http {
-                base_url,
-                client: reqwest::Client::new(),
-            },
+            mode: Mode::Http { base_url },
         }
     }
 
@@ -63,9 +57,7 @@ impl NumberingClient {
         claims: &VerifiedClaims,
     ) -> Result<String, BomError> {
         match &self.mode {
-            Mode::Http {
-                base_url, client, ..
-            } => {
+            Mode::Http { base_url } => {
                 let token = extract_bearer_token(auth_header)?;
                 let platform = PlatformClient::new(base_url.clone())
                     .with_bearer_token(token.to_string());
@@ -96,9 +88,7 @@ impl NumberingClient {
         auth_header: Option<&str>,
         claims: &VerifiedClaims,
     ) {
-        if let Mode::Http {
-            base_url, client, ..
-        } = &self.mode
+        if let Mode::Http { base_url } = &self.mode
         {
             let Some(token) = auth_header
                 .and_then(|h| h.strip_prefix("Bearer ").or(Some(h)))

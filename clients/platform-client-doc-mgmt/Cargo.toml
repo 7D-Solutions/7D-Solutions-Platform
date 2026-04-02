@@ -1,5 +1,5 @@
 [package]
-name = "platform-client-doc-mgmt"
+name = "platform-client-platform-client-doc-mgmt"
 version = "0.1.0"
 edition = "2021"
 description = "Generated typed client for Platform Client Doc-Mgmt Service"

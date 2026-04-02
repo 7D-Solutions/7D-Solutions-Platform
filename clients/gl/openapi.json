@@ -427,7 +427,7 @@
         "tags": [
           "Close Checklist"
         ],
-        "summary": "POST /api/gl/periods/{period_id}/approvals — record an approval signoff (idempotent)",
+        "summary": "POST /api/gl/periods/{period_id}/approvals \u2014 record an approval signoff (idempotent)",
         "operationId": "create_approval",
         "parameters": [
           {
@@ -514,7 +514,7 @@
         "tags": [
           "Close Checklist"
         ],
-        "summary": "POST /api/gl/periods/{period_id}/checklist — add a checklist item",
+        "summary": "POST /api/gl/periods/{period_id}/checklist \u2014 add a checklist item",
         "operationId": "create_checklist_item",
         "parameters": [
           {
@@ -782,7 +782,14 @@
         ],
         "responses": {
           "200": {
-            "description": "List of reopen requests"
+            "description": "List of reopen requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ReopenRequestResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -795,7 +802,7 @@
         "tags": [
           "Period Close"
         ],
-        "summary": "POST /api/gl/periods/{period_id}/reopen — request a controlled reopen",
+        "summary": "POST /api/gl/periods/{period_id}/reopen \u2014 request a controlled reopen",
         "operationId": "request_reopen",
         "parameters": [
           {
@@ -821,7 +828,15 @@
         },
         "responses": {
           "201": {
-            "description": "Reopen request created"
+            "description": "Reopen request created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -872,7 +887,15 @@
         },
         "responses": {
           "200": {
-            "description": "Reopen approved"
+            "description": "Reopen approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -923,7 +946,15 @@
         },
         "responses": {
           "200": {
-            "description": "Reopen rejected"
+            "description": "Reopen rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2961,7 +2992,7 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Recognize ratably (straight-line) over the satisfaction period.\n\nRevenue per period = total_allocated / period_months.\nExample: 12-month SaaS license → 1/12 per month.",
+            "description": "Recognize ratably (straight-line) over the satisfaction period.\n\nRevenue per period = total_allocated / period_months.\nExample: 12-month SaaS license \u2192 1/12 per month.",
             "required": [
               "period_months",
               "type"
@@ -2970,7 +3001,7 @@
               "period_months": {
                 "type": "integer",
                 "format": "int32",
-                "description": "Number of months over which to recognize (must be ≥ 1)",
+                "description": "Number of months over which to recognize (must be \u2265 1)",
                 "minimum": 0
               },
               "type": {

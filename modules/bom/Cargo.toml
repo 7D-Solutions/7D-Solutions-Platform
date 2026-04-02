@@ -1,6 +1,6 @@
 [package]
 name = "bom-rs"
-version = "2.2.5"
+version = "2.2.7"
 edition = "2021"
 description = "Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used"
 
@@ -23,7 +23,6 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 platform-client-numbering = { path = "../../clients/numbering" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }

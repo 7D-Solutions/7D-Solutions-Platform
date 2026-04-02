@@ -40,7 +40,14 @@
         ],
         "responses": {
           "200": {
-            "description": "AP aging report"
+            "description": "AP aging report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgingReport"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -91,7 +98,14 @@
         },
         "responses": {
           "201": {
-            "description": "Bill created"
+            "description": "Bill created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBillWithLines"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -120,7 +134,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Bill details"
+            "description": "Bill details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBillWithLines"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -151,7 +172,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Allocation list"
+            "description": "Allocation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_AllocationRecord"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -190,7 +218,15 @@
         },
         "responses": {
           "200": {
-            "description": "Allocation applied"
+            "description": "Allocation applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -229,7 +265,14 @@
         },
         "responses": {
           "200": {
-            "description": "Bill approved"
+            "description": "Bill approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBill"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -268,7 +311,15 @@
         },
         "responses": {
           "200": {
-            "description": "Terms assigned"
+            "description": "Terms assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -299,7 +350,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Bill balance"
+            "description": "Bill balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillBalanceSummary"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -374,7 +432,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Tax quote"
+            "description": "Tax quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApTaxSnapshot"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -389,7 +454,7 @@
         "tags": [
           "Bills"
         ],
-        "summary": "POST /api/ap/bills/:bill_id/void — void a bill (requires reason)",
+        "summary": "POST /api/ap/bills/:bill_id/void \u2014 void a bill (requires reason)",
         "operationId": "void_bill",
         "parameters": [
           {
@@ -414,7 +479,14 @@
         },
         "responses": {
           "200": {
-            "description": "Bill voided"
+            "description": "Bill voided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBill"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -444,7 +516,15 @@
         },
         "responses": {
           "201": {
-            "description": "Run created"
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -475,7 +555,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Run details"
+            "description": "Run details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRun"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -506,7 +593,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Run executed"
+            "description": "Run executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -557,7 +652,14 @@
         },
         "responses": {
           "201": {
-            "description": "Terms created"
+            "description": "Terms created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -586,7 +688,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Terms details"
+            "description": "Terms details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -623,7 +732,14 @@
         },
         "responses": {
           "200": {
-            "description": "Terms updated"
+            "description": "Terms updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -674,7 +790,14 @@
         },
         "responses": {
           "201": {
-            "description": "PO created"
+            "description": "PO created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -703,7 +826,14 @@
         ],
         "responses": {
           "200": {
-            "description": "PO details"
+            "description": "PO details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -718,8 +848,8 @@
         "tags": [
           "Purchase Orders"
         ],
-        "summary": "POST /api/ap/pos/:po_id/approve — approve a draft PO (idempotent)",
-        "description": "Transitions the PO from draft → approved and emits ap.po_approved.\nIf the PO is already approved, returns 200 with the current state (no re-emit).",
+        "summary": "POST /api/ap/pos/:po_id/approve \u2014 approve a draft PO (idempotent)",
+        "description": "Transitions the PO from draft \u2192 approved and emits ap.po_approved.\nIf the PO is already approved, returns 200 with the current state (no re-emit).",
         "operationId": "approve_po",
         "parameters": [
           {
@@ -744,7 +874,14 @@
         },
         "responses": {
           "200": {
-            "description": "PO approved"
+            "description": "PO approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrder"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -783,7 +920,14 @@
         },
         "responses": {
           "200": {
-            "description": "Lines replaced"
+            "description": "Lines replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -829,7 +973,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Tax report export (JSON or CSV)"
+            "description": "Tax report export (JSON or CSV)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApTaxReportResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid date range",
@@ -945,7 +1096,14 @@
         },
         "responses": {
           "201": {
-            "description": "Vendor created"
+            "description": "Vendor created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -985,7 +1143,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Vendor details"
+            "description": "Vendor details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -1033,7 +1198,14 @@
         },
         "responses": {
           "200": {
-            "description": "Vendor updated"
+            "description": "Vendor updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -1396,7 +1568,7 @@
           "allocation_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Caller-generated stable UUID — used for idempotency.\nDuplicate submissions with the same allocation_id return the existing record."
+            "description": "Caller-generated stable UUID \u2014 used for idempotency.\nDuplicate submissions with the same allocation_id return the existing record."
           },
           "amount_minor": {
             "type": "integer",
@@ -1445,7 +1617,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional item reference — informational only, not persisted in this bead"
+            "description": "Optional item reference \u2014 informational only, not persisted in this bead"
           },
           "po_line_id": {
             "type": [
@@ -1499,7 +1671,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "GL fx_rates UUID — supply when bill currency != tenant functional currency.\nReuses GL FX infrastructure; do not pass a raw rate value here."
+            "description": "GL fx_rates UUID \u2014 supply when bill currency != tenant functional currency.\nReuses GL FX infrastructure; do not pass a raw rate value here."
           },
           "invoice_date": {
             "type": "string",
@@ -1821,7 +1993,7 @@
           "price_variance_minor": {
             "type": "integer",
             "format": "int64",
-            "description": "(bill_price - po_price) × matched_qty (minor currency units; signed)"
+            "description": "(bill_price - po_price) \u00d7 matched_qty (minor currency units; signed)"
           },
           "qty_variance": {
             "type": "number",
@@ -2173,7 +2345,7 @@
                     "null"
                   ],
                   "format": "uuid",
-                  "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
+                  "description": "GL fx_rates UUID \u2014 NULL when bill currency == functional currency (no FX needed)"
                 },
                 "invoice_date": {
                   "type": "string",
@@ -2455,7 +2627,7 @@
           "price_tolerance_pct": {
             "type": "number",
             "format": "double",
-            "description": "Price tolerance as a fraction (0.0–1.0). Default: 0.05 (5%).\nVariance ≤ po_price × matched_qty × tolerance is within tolerance."
+            "description": "Price tolerance as a fraction (0.0\u20131.0). Default: 0.05 (5%).\nVariance \u2264 po_price \u00d7 matched_qty \u00d7 tolerance is within tolerance."
           }
         }
       },
@@ -2694,7 +2866,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
+            "description": "GL fx_rates UUID \u2014 NULL when bill currency == functional currency (no FX needed)"
           },
           "invoice_date": {
             "type": "string",

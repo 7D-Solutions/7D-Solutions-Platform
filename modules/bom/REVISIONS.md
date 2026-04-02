@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.2.6 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.7 | 2026-04-02 | bd-5d6ae | Remove unused reqwest::Client field from NumberingClient Mode::Http. Drop reqwest dependency. All HTTP calls already use PlatformClient via generated numbering client. | Dead code hygiene — reqwest was stored but never used after typed client conversion (bd-8ls7t). | No |
 | 2.2.5 | 2026-04-01 | bd-g4gk7 | Add #[utoipa::path] annotations to health(), ready(), and version() handlers. Register all 3 in OpenAPI path lists (main.rs and openapi_dump.rs). All 28 handler functions now annotated. | 3 of 28 BOM handlers lacked utoipa annotations, leaving health endpoints out of the OpenAPI spec. | No |
 | 2.2.4 | 2026-04-01 | bd-2gyqj | Update NumberingClient to pass &VerifiedClaims through allocate_eco_number and confirm_eco_number. Constructor uses PlatformClient::new().with_bearer_token(). eco_service::create_eco threads claims from handler. Tests use PlatformClient::service_claims(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.2.3 | 2026-04-01 | bd-8ls7t | Replace hand-rolled reqwest HTTP in numbering_client.rs with platform-client-numbering typed client. Removes local AllocateRequest/AllocateResponse/ConfirmRequest structs and ~50 LOC of manual HTTP handling. Direct-DB branch unchanged. | Typed client conversion — eliminate hand-rolled HTTP in favor of generated client for consistency and maintainability. | No |

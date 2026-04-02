@@ -50,7 +50,14 @@
         },
         "responses": {
           "201": {
-            "description": "Asset created"
+            "description": "Asset created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -90,7 +97,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Asset details"
+            "description": "Asset details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -138,7 +152,14 @@
         },
         "responses": {
           "200": {
-            "description": "Asset updated"
+            "description": "Asset updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -176,7 +197,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Asset deactivated"
+            "description": "Asset deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -237,7 +265,14 @@
         },
         "responses": {
           "201": {
-            "description": "Category created"
+            "description": "Category created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -277,7 +312,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Category details"
+            "description": "Category details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -325,7 +367,14 @@
         },
         "responses": {
           "200": {
-            "description": "Category updated"
+            "description": "Category updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -363,7 +412,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Category deactivated"
+            "description": "Category deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -424,7 +480,14 @@
         },
         "responses": {
           "201": {
-            "description": "Run created"
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationRun"
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -464,7 +527,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Run details"
+            "description": "Run details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationRun"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
@@ -502,7 +572,17 @@
         },
         "responses": {
           "201": {
-            "description": "Schedule generated"
+            "description": "Schedule generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DepreciationSchedule"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -563,7 +643,14 @@
         },
         "responses": {
           "201": {
-            "description": "Disposal created"
+            "description": "Disposal created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Disposal"
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -603,7 +690,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Disposal details"
+            "description": "Disposal details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Disposal"
+                }
+              }
+            }
           },
           "404": {
             "description": "",
