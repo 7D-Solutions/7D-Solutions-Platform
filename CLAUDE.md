@@ -14,11 +14,12 @@ Never bypass or disable hooks. If blocked, create a bead first.
 **Agents do NOT commit.** BrightHill (orchestrator) handles all git operations.
 - Do NOT run: `git add`, `git commit`, `git stash`, `git reset`, `git push`
 - DO run: `git diff`, `git status` (read-only)
-- When done, mail BrightHill:
+- When done: mail BrightHill, close your bead, claim the next one. Don't wait.
 ```bash
 ./scripts/agent-mail-helper.sh send BrightHill "bd-xxx done" "Files changed: X, Y, Z. What I did: ..."
+br close bd-xxx
+./scripts/bv-claim.sh
 ```
-Do NOT close your bead — wait for BrightHill to confirm.
 
 ### 3. Cargo (MANDATORY)
 Never call `cargo` directly. Use the slot system:
