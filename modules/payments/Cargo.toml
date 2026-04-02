@@ -44,5 +44,9 @@ hex = "0.4"
 hmac = "0.12"
 sha2 = "0.10"
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lints]
 workspace = true

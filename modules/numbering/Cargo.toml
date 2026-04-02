@@ -54,5 +54,9 @@ rand = "0.8"
 http = "1"
 http-body-util = "0.1"
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lints]
 workspace = true

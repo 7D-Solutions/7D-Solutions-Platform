@@ -43,5 +43,9 @@ path = "src/bin/bench.rs"
 name = "dlq_replay_drill"
 path = "src/bin/dlq_replay_drill.rs"
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lints]
 workspace = true

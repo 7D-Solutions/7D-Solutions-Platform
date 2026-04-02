@@ -52,5 +52,9 @@ config-validator = { path = "../../platform/config-validator" }
 serial_test = "3.3.1"
 platform_contracts = { path = "../../platform/platform-contracts" }
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lints]
 workspace = true

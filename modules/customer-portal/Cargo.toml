@@ -49,5 +49,9 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 serial_test = "3.3.1"
 rsa = "0.9"
 
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
+
 [lints]
 workspace = true
