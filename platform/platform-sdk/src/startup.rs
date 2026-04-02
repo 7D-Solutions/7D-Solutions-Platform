@@ -137,13 +137,15 @@ pub(crate) async fn phase_a(
     };
 
     // Step 7: outbox publisher / undeclared outbox detection
-    let outbox_table = manifest
+    let publish_section = manifest
         .events
         .as_ref()
-        .and_then(|e| e.publish.as_ref())
-        .map(|p| p.outbox_table.clone());
+        .and_then(|e| e.publish.as_ref());
+    let outbox_table = publish_section.map(|p| p.outbox_table.clone());
+    let subject_prefix = publish_section.and_then(|p| p.subject_prefix.clone());
 
     let mut outbox_handle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut outbox_shutdown_tx: Option<tokio::sync::watch::Sender<bool>> = None;
 
     if let Some(ref table) = outbox_table {
         if skip_outbox {
@@ -153,15 +155,20 @@ pub(crate) async fn phase_a(
                 "outbox publisher skipped — module manages its own publishing"
             );
         } else if let Some(ref bus) = bus {
+            let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+            outbox_shutdown_tx = Some(shutdown_tx);
+
             if let Some(ref resolver) = pool_resolver {
                 // Multi-tenant: publish from every tenant database
                 let pub_resolver = resolver.clone();
                 let pub_bus = bus.clone();
                 let pub_table = table.clone();
                 let pub_module = manifest.module.name.clone();
+                let pub_prefix = subject_prefix.clone();
                 outbox_handle = Some(tokio::spawn(async move {
                     publisher::run_multi_tenant_outbox_publisher(
                         pub_resolver, pub_bus, &pub_table, &pub_module,
+                        pub_prefix.as_deref(), shutdown_rx,
                     )
                     .await;
                 }));
@@ -176,9 +183,13 @@ pub(crate) async fn phase_a(
                 let pub_bus = bus.clone();
                 let pub_table = table.clone();
                 let pub_module = manifest.module.name.clone();
+                let pub_prefix = subject_prefix.clone();
                 outbox_handle = Some(tokio::spawn(async move {
-                    publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, &pub_module)
-                        .await;
+                    publisher::run_outbox_publisher(
+                        pub_pool, pub_bus, &pub_table, &pub_module,
+                        pub_prefix.as_deref(), shutdown_rx,
+                    )
+                    .await;
                 }));
                 tracing::info!(
                     module = %manifest.module.name,
@@ -244,6 +255,7 @@ pub(crate) async fn phase_a(
         jwt_verifier,
         rate_limiter,
         outbox_handle,
+        outbox_shutdown_tx,
     })
 }
 
@@ -254,6 +266,8 @@ pub(crate) struct PhaseAOutput {
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
     pub rate_limiter: Arc<security::ratelimit::RateLimiter>,
     pub outbox_handle: Option<tokio::task::JoinHandle<()>>,
+    /// Shutdown sender for the outbox publisher. Send `true` to request stop.
+    pub outbox_shutdown_tx: Option<tokio::sync::watch::Sender<bool>>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
@@ -363,7 +377,9 @@ pub(crate) async fn phase_b(
     consumer_handles.shutdown().await;
     if let Some(handle) = phase_a.outbox_handle {
         tracing::info!(module = %module_name, "stopping outbox publisher");
-        handle.abort();
+        if let Some(tx) = phase_a.outbox_shutdown_tx {
+            let _ = tx.send(true);
+        }
         let _ = handle.await;
     }
     tracing::info!(module = %module_name, "closing resources");
@@ -384,6 +400,7 @@ pub(crate) async fn phase_b_raw(
     module_routes: Router,
     migrator: Option<&sqlx::migrate::Migrator>,
     consumer_handles: ConsumerHandles,
+    ctx: ModuleContext,
 ) -> Result<(), StartupError> {
     let module_name = &manifest.module.name;
 
@@ -434,6 +451,7 @@ pub(crate) async fn phase_b_raw(
 
     let app = module_routes
         .merge(obs_routes)
+        .layer(Extension(ctx))
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", host, port)
@@ -455,7 +473,9 @@ pub(crate) async fn phase_b_raw(
     consumer_handles.shutdown().await;
     if let Some(handle) = phase_a.outbox_handle {
         tracing::info!(module = %module_name, "stopping outbox publisher");
-        handle.abort();
+        if let Some(tx) = phase_a.outbox_shutdown_tx {
+            let _ = tx.send(true);
+        }
         let _ = handle.await;
     }
     tracing::info!(module = %module_name, "closing resources");

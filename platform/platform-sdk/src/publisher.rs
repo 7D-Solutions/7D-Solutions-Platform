@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use event_bus::EventBus;
 use sqlx::Row;
+use tokio::sync::watch;
 
 use crate::startup::StartupError;
 
@@ -40,14 +41,20 @@ pub async fn detect_outbox_table(
 ///
 /// Spawned automatically when a [`TenantPoolResolver`] is registered
 /// and the manifest declares `[events.publish].outbox_table`.
+///
+/// The `shutdown_rx` watch channel is checked after each interval tick.
+/// When `true` is received the current batch completes and the loop exits.
 pub async fn run_multi_tenant_outbox_publisher(
     resolver: Arc<dyn crate::context::TenantPoolResolver>,
     bus: Arc<dyn EventBus>,
     outbox_table: &str,
     module_name: &str,
+    subject_prefix: Option<&str>,
+    mut shutdown_rx: watch::Receiver<bool>,
 ) {
     tracing::info!(
         module = %module_name, table = %outbox_table,
+        subject_prefix = ?subject_prefix,
         "multi-tenant outbox publisher started"
     );
 
@@ -55,7 +62,16 @@ pub async fn run_multi_tenant_outbox_publisher(
     let mut tick: u64 = 0;
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            biased;
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    break;
+                }
+            }
+            _ = interval.tick() => {}
+        }
+
         tick += 1;
 
         let pools = match resolver.all_pools().await {
@@ -70,7 +86,7 @@ pub async fn run_multi_tenant_outbox_publisher(
         };
 
         for (tenant_id, pool) in &pools {
-            match publish_batch(pool, &bus, outbox_table).await {
+            match publish_batch(pool, &bus, outbox_table, subject_prefix).await {
                 Ok(n) if n > 0 => {
                     tracing::info!(
                         module = %module_name, tick, published = n,
@@ -97,6 +113,8 @@ pub async fn run_multi_tenant_outbox_publisher(
             );
         }
     }
+
+    tracing::info!(module = %module_name, "multi-tenant outbox publisher stopped");
 }
 
 /// Generic outbox publisher loop — polls the declared outbox table and
@@ -105,22 +123,40 @@ pub async fn run_multi_tenant_outbox_publisher(
 /// This is the centralized publisher that modules no longer need to
 /// implement individually. The SDK spawns it automatically when
 /// `[events.publish].outbox_table` is declared in the manifest.
+///
+/// The `shutdown_rx` watch channel is checked after each interval tick.
+/// When `true` is received the current batch completes and the loop exits.
 pub async fn run_outbox_publisher(
     pool: sqlx::PgPool,
     bus: Arc<dyn EventBus>,
     outbox_table: &str,
     module_name: &str,
+    subject_prefix: Option<&str>,
+    mut shutdown_rx: watch::Receiver<bool>,
 ) {
-    tracing::info!(module = %module_name, table = %outbox_table, "outbox publisher started");
+    tracing::info!(
+        module = %module_name, table = %outbox_table,
+        subject_prefix = ?subject_prefix,
+        "outbox publisher started"
+    );
 
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     let mut tick: u64 = 0;
 
     loop {
-        interval.tick().await;
+        tokio::select! {
+            biased;
+            _ = shutdown_rx.changed() => {
+                if *shutdown_rx.borrow() {
+                    break;
+                }
+            }
+            _ = interval.tick() => {}
+        }
+
         tick += 1;
 
-        match publish_batch(&pool, &bus, outbox_table).await {
+        match publish_batch(&pool, &bus, outbox_table, subject_prefix).await {
             Ok(n) if n > 0 => {
                 tracing::info!(
                     module = %module_name, tick, published = n,
@@ -143,12 +179,15 @@ pub async fn run_outbox_publisher(
             }
         }
     }
+
+    tracing::info!(module = %module_name, "outbox publisher stopped");
 }
 
 async fn publish_batch(
     pool: &sqlx::PgPool,
     bus: &Arc<dyn EventBus>,
     outbox_table: &str,
+    subject_prefix: Option<&str>,
 ) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
     let select = format!(
         "SELECT event_id, event_type, payload FROM \"{}\" \
@@ -164,8 +203,13 @@ async fn publish_batch(
         let event_type: String = row.get("event_type");
         let payload: serde_json::Value = row.get("payload");
 
+        let subject = match subject_prefix {
+            Some(prefix) => format!("{}.{}", prefix, event_type),
+            None => event_type.clone(),
+        };
+
         let bytes = serde_json::to_vec(&payload)?;
-        bus.publish(&event_type, bytes).await.map_err(|e| {
+        bus.publish(&subject, bytes).await.map_err(|e| {
             tracing::error!(
                 event_id = %event_id, event_type = %event_type, error = %e,
                 "publish failed"
@@ -179,7 +223,7 @@ async fn publish_batch(
         );
         sqlx::query(&update).bind(event_id).execute(pool).await?;
 
-        tracing::debug!(event_id = %event_id, event_type = %event_type, "event published");
+        tracing::debug!(event_id = %event_id, subject = %subject, "event published");
     }
 
     Ok(count)
