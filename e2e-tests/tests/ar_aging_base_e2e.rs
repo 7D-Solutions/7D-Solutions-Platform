@@ -40,7 +40,7 @@ async fn make_invoice(
     pool: &PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     due_offset_days: i64,
 ) -> Result<i32> {
     // Positive offset = future (not yet due), negative = past (overdue)
@@ -76,7 +76,7 @@ async fn make_payment(
     tenant_id: &str,
     invoice_id: i32,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<()> {
     sqlx::query(
         r#"

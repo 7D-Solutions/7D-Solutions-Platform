@@ -60,7 +60,7 @@ async fn make_invoice(
     pool: &PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     due_offset_days: i64,
 ) -> Result<i32> {
     let due_at_expr = if due_offset_days >= 0 {
@@ -95,7 +95,7 @@ async fn make_payment(
     tenant_id: &str,
     invoice_id: i32,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<()> {
     sqlx::query(
         r#"
@@ -567,7 +567,7 @@ async fn insert_usage_for_billing(
     customer_id: i32,
     metric_name: &str,
     quantity: f64,
-    unit_price_cents: i32,
+    unit_price_cents: i64,
     period_start: chrono::DateTime<Utc>,
     period_end: chrono::DateTime<Utc>,
 ) -> Result<i32> {

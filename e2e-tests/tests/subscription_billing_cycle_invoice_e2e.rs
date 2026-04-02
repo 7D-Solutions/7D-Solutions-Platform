@@ -145,7 +145,7 @@ async fn run_billing_cycle(
     let due_at: NaiveDateTime = (billing_date + Duration::days(30))
         .and_hms_opt(0, 0, 0)
         .unwrap();
-    let amount_cents = price_minor as i32;
+    let amount_cents = price_minor as i64;
     let tilled_invoice_id = format!("inv-{}", Uuid::new_v4());
 
     let invoice_id: i32 = sqlx::query_scalar(
@@ -283,7 +283,7 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
     // ── Step 4: Verify invoice fields ──────────────────────────────────────
     let (inv_ar_customer, inv_amount, inv_currency, inv_status, inv_period_start, inv_period_end): (
         i32,
-        i32,
+        i64,
         String,
         String,
         Option<NaiveDateTime>,
@@ -303,7 +303,7 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
         "invoice ar_customer_id must match the customer we created"
     );
     assert_eq!(
-        inv_amount, price_minor as i32,
+        inv_amount, price_minor as i64,
         "invoice amount_cents must equal subscription price_minor"
     );
     assert_eq!(

@@ -169,7 +169,7 @@ async fn trigger_billing_cycle(
     };
 
     let ar_customer_id: i32 = ar_customer_id_str.parse()?;
-    let amount_cents = (price_minor / 10) as i32; // minor → cents
+    let amount_cents = (price_minor / 10) as i64; // minor → cents
     let tilled_invoice_id = format!("inv-{}", Uuid::new_v4());
     let due_at = (execution_date + chrono::Duration::days(30))
         .and_hms_opt(0, 0, 0)
@@ -205,7 +205,7 @@ async fn apply_payment(
     ar_pool: &PgPool,
     tenant_id: &str,
     invoice_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<Uuid> {
     let payment_id = Uuid::new_v4();
 
@@ -336,7 +336,7 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     let invoice_id = invoice_id.unwrap();
 
     // Verify invoice details
-    let (inv_amount, inv_currency, inv_customer, inv_status): (i32, String, i32, String) =
+    let (inv_amount, inv_currency, inv_customer, inv_status): (i64, String, i32, String) =
         sqlx::query_as(
             "SELECT amount_cents, currency, ar_customer_id, status
              FROM ar_invoices WHERE id = $1 AND app_id = $2",
@@ -597,7 +597,7 @@ async fn test_payment_records_match_invoice() -> Result<()> {
     .expect("billing must create invoice");
 
     // Fetch invoice amount
-    let inv_amount: i32 = sqlx::query_scalar("SELECT amount_cents FROM ar_invoices WHERE id = $1")
+    let inv_amount: i64 = sqlx::query_scalar("SELECT amount_cents FROM ar_invoices WHERE id = $1")
         .bind(invoice_id)
         .fetch_one(&ar_pool)
         .await?;

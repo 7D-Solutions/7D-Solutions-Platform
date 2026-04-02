@@ -146,7 +146,7 @@ async fn trigger_billing_cycle(
     };
 
     let ar_customer_id: i32 = ar_customer_id_str.parse()?;
-    let amount_cents = (price_minor / 10) as i32;
+    let amount_cents = (price_minor / 10) as i64;
     let tilled_invoice_id = format!("inv-{}", Uuid::new_v4());
     let due_at = (execution_date + chrono::Duration::days(30))
         .and_hms_opt(0, 0, 0)

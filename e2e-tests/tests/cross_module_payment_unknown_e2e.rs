@@ -36,7 +36,7 @@ async fn create_test_invoice(
     pool: &PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     due_at: NaiveDate,
 ) -> Result<i32, sqlx::Error> {
     let tilled_invoice_id = format!("inv-{}", Uuid::new_v4());

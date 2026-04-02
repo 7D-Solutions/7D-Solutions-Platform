@@ -77,7 +77,7 @@ async fn create_invoice(
     pool: &sqlx::PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     currency: &str,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
@@ -105,7 +105,7 @@ async fn create_charge(
     pool: &sqlx::PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     currency: &str,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(

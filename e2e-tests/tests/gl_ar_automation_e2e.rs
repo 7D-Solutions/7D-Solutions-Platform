@@ -95,7 +95,7 @@ async fn create_ar_invoice(
     pool: &PgPool,
     app_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<i32> {
     let id: i32 = sqlx::query_scalar(
         "INSERT INTO ar_invoices
@@ -118,7 +118,7 @@ async fn create_ar_invoice(
 /// Converts `amount_cents` (minor units) → major units for the GL V1 contract,
 /// which expects amounts as f64 dollars (e.g. 500.0 = $500.00).
 /// GL then stores `debit_minor = debit_dollars * 100`, so debit_minor == amount_cents.
-fn build_gl_posting_request(invoice_id: i32, amount_cents: i32) -> GlPostingRequestV1 {
+fn build_gl_posting_request(invoice_id: i32, amount_cents: i64) -> GlPostingRequestV1 {
     let amount_dollars = amount_cents as f64 / 100.0;
     GlPostingRequestV1 {
         posting_date: "2026-02-20".to_string(),
@@ -234,7 +234,7 @@ async fn test_ar_invoice_creates_gl_journal_entry() -> Result<()> {
 
     // Create AR customer + invoice (amount_cents = 50000 = $500.00)
     let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
-    let amount_cents = 50_000i32;
+    let amount_cents = 50_000i64;
     let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, amount_cents).await?;
 
     // Simulate the GL posting request that the AR outbox publisher would emit.
@@ -313,7 +313,7 @@ async fn test_ar_invoice_gl_entry_is_balanced() -> Result<()> {
     setup_accounting_period(&gl_pool, &tenant_id).await?;
 
     let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
-    let amount_cents = 123_456i32; // $1,234.56
+    let amount_cents = 123_456i64; // $1,234.56
     let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, amount_cents).await?;
 
     let event_id = Uuid::new_v4();
@@ -467,7 +467,7 @@ async fn test_ar_invoice_gl_entry_metadata() -> Result<()> {
     setup_accounting_period(&gl_pool, &tenant_id).await?;
 
     let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
-    let amount_cents = 75_000i32; // $750.00
+    let amount_cents = 75_000i64; // $750.00
     let invoice_id = create_ar_invoice(&ar_pool, &tenant_id, customer_id, amount_cents).await?;
 
     let event_id = Uuid::new_v4();

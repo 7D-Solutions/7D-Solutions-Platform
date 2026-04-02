@@ -50,7 +50,7 @@ async fn create_draft_invoice(
     pool: &PgPool,
     tenant_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<i32> {
     let invoice_id: i32 = sqlx::query_scalar(
         r#"

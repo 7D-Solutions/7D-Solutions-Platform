@@ -25,7 +25,7 @@ use uuid::Uuid;
 async fn create_customer_and_invoice(
     pool: &sqlx::PgPool,
     tenant_id: &str,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<(i32, i32)> {
     let customer_id: i32 = sqlx::query_scalar(
         "INSERT INTO ar_customers (app_id, email, name, status, retry_attempt_count, created_at, updated_at)

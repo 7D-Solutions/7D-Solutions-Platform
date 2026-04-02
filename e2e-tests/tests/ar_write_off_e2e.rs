@@ -76,7 +76,7 @@ async fn setup_accounting_period(pool: &PgPool, tenant_id: &str) -> Result<()> {
 async fn create_overdue_invoice(
     pool: &PgPool,
     tenant_id: &str,
-    amount_cents: i32,
+    amount_cents: i64,
     days_ago: u32,
 ) -> Result<(i32, i32)> {
     let customer_id: i32 = sqlx::query_scalar(
@@ -152,7 +152,7 @@ async fn test_write_off_nats_event_and_gl_entry() -> Result<()> {
     let ar_pool = get_ar_pool().await;
     let gl_pool = get_gl_pool().await;
     let tenant_id = generate_test_tenant();
-    const AMOUNT: i32 = 50_000; // $500.00
+    const AMOUNT: i64 = 50_000; // $500.00
 
     cleanup_ar(&ar_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;

@@ -44,7 +44,7 @@ fn compute_expected_digest(
                 seed,
                 customer_idx * 100 + invoice_idx
             );
-            let amount_cents: i32 = rng.gen_range(1000..=50000);
+            let amount_cents: i64 = rng.gen_range(1000..=50000);
             let _due_days: u32 = rng.gen_range(14..=60);
             entries.push(serde_json::json!({
                 "type": "invoice",

@@ -155,7 +155,7 @@ async fn insert_ar_invoice(
     .bind(app_id)
     .bind(&tilled_invoice_id)
     .bind(ar_customer_id)
-    .bind(amount_cents as i32)
+    .bind(amount_cents)
     .bind(&line_item_details)
     .fetch_one(pool)
     .await?;
@@ -352,7 +352,7 @@ async fn test_timekeeping_billing_rate_to_ar_invoice() -> Result<()> {
     set_invoice_id(&tk_pool, result.run.id, ar_invoice_id).await?;
 
     // -- Step 6: Verify AR invoice --------------------------------------------
-    let invoice: (i32, i32, String, serde_json::Value) = sqlx::query_as(
+    let invoice: (i32, i64, String, serde_json::Value) = sqlx::query_as(
         r#"
         SELECT id, amount_cents, status, line_item_details
         FROM ar_invoices
@@ -368,7 +368,7 @@ async fn test_timekeeping_billing_rate_to_ar_invoice() -> Result<()> {
 
     assert_eq!(inv_id, ar_invoice_id);
     assert_eq!(
-        inv_amount, EXPECTED_AMOUNT_CENTS as i32,
+        inv_amount, EXPECTED_AMOUNT_CENTS,
         "Invoice amount_cents must be 45000"
     );
     assert_eq!(inv_status, "open");

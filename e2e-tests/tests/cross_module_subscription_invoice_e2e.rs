@@ -198,7 +198,7 @@ async fn trigger_bill_run(
     let ar_customer_id: i32 = ar_customer_id_str.parse().expect("Invalid customer ID");
 
     // Convert minor units (e.g., 2999 cents = $29.99)
-    let amount_cents = (price_minor / 10) as i32;
+    let amount_cents = (price_minor / 10) as i64;
 
     // Create invoice in AR database
     let tilled_invoice_id = format!("inv-{}", Uuid::new_v4());

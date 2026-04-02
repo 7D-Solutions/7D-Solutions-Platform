@@ -36,8 +36,8 @@ fn generate_test_tenant() -> String {
 }
 
 const CONCURRENCY: usize = 50;
-const INVOICE_AMOUNT_CENTS: i32 = 100_000; // $1,000.00
-const ALLOCATION_AMOUNT_CENTS: i32 = 5_000; // $50.00 per attempt
+const INVOICE_AMOUNT_CENTS: i64 = 100_000; // $1,000.00
+const ALLOCATION_AMOUNT_CENTS: i64 = 5_000; // $50.00 per attempt
 
 /// Insert a test customer and return its ID.
 async fn create_customer(pool: &PgPool, tenant_id: &str) -> i32 {
@@ -56,7 +56,7 @@ async fn create_customer(pool: &PgPool, tenant_id: &str) -> i32 {
 }
 
 /// Insert a test invoice and return its ID.
-async fn create_invoice(pool: &PgPool, tenant_id: &str, customer_id: i32, amount_cents: i32) -> i32 {
+async fn create_invoice(pool: &PgPool, tenant_id: &str, customer_id: i32, amount_cents: i64) -> i32 {
     sqlx::query_scalar::<_, i32>(
         r#"
         INSERT INTO ar_invoices (
@@ -113,7 +113,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
 
 #[derive(Debug)]
 struct AllocationOutcome {
-    allocated_cents: i32,
+    allocated_cents: i64,
     is_error: bool,
     error_msg: Option<String>,
 }
@@ -142,7 +142,7 @@ async fn financial_double_spend_allocation_e2e() {
         "\n--- {} concurrent allocations of ${:.2} (total attempted: ${:.2}) ---",
         CONCURRENCY,
         ALLOCATION_AMOUNT_CENTS as f64 / 100.0,
-        (CONCURRENCY as i32 * ALLOCATION_AMOUNT_CENTS) as f64 / 100.0
+        (CONCURRENCY as i64 * ALLOCATION_AMOUNT_CENTS) as f64 / 100.0
     );
 
     let pool = Arc::new(pool);

@@ -27,7 +27,7 @@ use uuid::Uuid;
 async fn create_test_invoice(
     pool: &sqlx::PgPool,
     tenant_id: &str,
-    amount_cents: i32,
+    amount_cents: i64,
 ) -> Result<(i32, i32)> {
     let customer_id: i32 = sqlx::query_scalar(
         r#"
