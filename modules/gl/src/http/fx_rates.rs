@@ -5,13 +5,14 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
 use crate::services::fx_rate_service;
 use crate::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateFxRateRequest {
     pub base_currency: String,
     pub quote_currency: String,
@@ -21,7 +22,7 @@ pub struct CreateFxRateRequest {
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CreateFxRateResponse {
     pub rate_id: Uuid,
     pub created: bool,
@@ -34,7 +35,7 @@ pub struct LatestRateQuery {
     pub as_of: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct FxRateResponse {
     pub id: Uuid,
     pub tenant_id: String,
@@ -49,7 +50,8 @@ pub struct FxRateResponse {
 
 /// POST /api/gl/fx-rates
 #[utoipa::path(post, path = "/api/gl/fx-rates", tag = "FX Rates",
-    responses((status = 200, description = "FX rate created")),
+    request_body = CreateFxRateRequest,
+    responses((status = 200, description = "FX rate created", body = CreateFxRateResponse)),
     security(("bearer" = [])))]
 pub async fn create_fx_rate(
     State(app_state): State<Arc<AppState>>,
@@ -81,7 +83,7 @@ pub async fn create_fx_rate(
 
 /// GET /api/gl/fx-rates/latest
 #[utoipa::path(get, path = "/api/gl/fx-rates/latest", tag = "FX Rates",
-    responses((status = 200, description = "Latest FX rate")),
+    responses((status = 200, description = "Latest FX rate", body = FxRateResponse)),
     security(("bearer" = [])))]
 pub async fn get_latest_rate(
     State(app_state): State<Arc<AppState>>,

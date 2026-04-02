@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::statements::IncomeStatementRow;
@@ -19,7 +20,7 @@ use crate::repos::statement_repo::{self, StatementError};
 ///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Accounting Equation**: net_income MUST equal total_revenue - total_expenses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct IncomeStatementResponse {
     pub tenant_id: String,
     pub period_id: Uuid,
@@ -32,7 +33,7 @@ pub struct IncomeStatementResponse {
 ///
 /// **Accounting Equation**: net_income = total_revenue - total_expenses
 /// **Sign Convention**: Revenue is positive, expenses are negative, net_income is positive for profit.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct IncomeStatementTotals {
     /// Total revenue (credit balance accounts, positive amounts)
     pub total_revenue: i64,
@@ -201,7 +202,7 @@ mod tests {
             },
         ];
 
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 500000);
         assert_eq!(totals.total_expenses, -300000);
         assert_eq!(totals.net_income, 200000); // 500000 + (-300000) = 200000 profit
@@ -226,7 +227,7 @@ mod tests {
             },
         ];
 
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 100000);
         assert_eq!(totals.total_expenses, -300000);
         assert_eq!(totals.net_income, -200000); // 100000 + (-300000) = -200000 loss
@@ -235,7 +236,7 @@ mod tests {
     #[test]
     fn test_calculate_totals_zero() {
         let rows: Vec<IncomeStatementRow> = vec![];
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 0);
         assert_eq!(totals.total_expenses, 0);
         assert_eq!(totals.net_income, 0);
@@ -251,7 +252,7 @@ mod tests {
             amount_minor: 500000,
         }];
 
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 500000);
         assert_eq!(totals.total_expenses, 0);
         assert_eq!(totals.net_income, 500000);
@@ -267,7 +268,7 @@ mod tests {
             amount_minor: -300000,
         }];
 
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 0);
         assert_eq!(totals.total_expenses, -300000);
         assert_eq!(totals.net_income, -300000);
@@ -308,7 +309,7 @@ mod tests {
             },
         ];
 
-        let totals = calculate_totals(&rows).unwrap();
+        let totals = calculate_totals(&rows).expect("serialize");
         assert_eq!(totals.total_revenue, 700000); // 500000 + 200000
         assert_eq!(totals.total_expenses, -400000); // -300000 + -100000
         assert_eq!(totals.net_income, 300000); // 700000 - 400000
@@ -352,8 +353,8 @@ mod tests {
             },
         ];
 
-        let totals1 = calculate_totals(&rows1).unwrap();
-        let totals2 = calculate_totals(&rows2).unwrap();
+        let totals1 = calculate_totals(&rows1).expect("serialize");
+        let totals2 = calculate_totals(&rows2).expect("serialize");
 
         assert_eq!(totals1.total_revenue, totals2.total_revenue);
         assert_eq!(totals1.total_expenses, totals2.total_expenses);
@@ -369,7 +370,7 @@ mod tests {
     fn test_comprehensive_snapshot_serialization() {
         let response = IncomeStatementResponse {
             tenant_id: "tenant_123".to_string(),
-            period_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            period_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("serialize"),
             currency: "USD".to_string(),
             rows: vec![
                 IncomeStatementRow {
@@ -394,17 +395,17 @@ mod tests {
             },
         };
 
-        let json = serde_json::to_value(&response).unwrap();
+        let json = serde_json::to_value(&response).expect("serialize");
         assert_eq!(json["tenant_id"], "tenant_123");
         assert_eq!(json["period_id"], "550e8400-e29b-41d4-a716-446655440000");
         assert_eq!(json["currency"], "USD");
-        assert_eq!(json["rows"].as_array().unwrap().len(), 2);
+        assert_eq!(json["rows"].as_array().expect("serialize").len(), 2);
         assert_eq!(json["totals"]["total_revenue"], 500000);
         assert_eq!(json["totals"]["total_expenses"], -300000);
         assert_eq!(json["totals"]["net_income"], 200000);
 
         // Verify round-trip serialization
-        let roundtrip: IncomeStatementResponse = serde_json::from_value(json).unwrap();
+        let roundtrip: IncomeStatementResponse = serde_json::from_value(json).expect("serialize");
         assert_eq!(response.tenant_id, roundtrip.tenant_id);
         assert_eq!(response.period_id, roundtrip.period_id);
         assert_eq!(response.currency, roundtrip.currency);

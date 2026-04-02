@@ -14,6 +14,7 @@ use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
@@ -54,7 +55,8 @@ fn map_error(error: PeriodCloseError) -> ApiError {
 /// Returns validation report with errors/warnings.
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/validate-close", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Validation report")),
+    request_body = ValidateCloseRequest,
+    responses((status = 200, description = "Validation report", body = ValidateCloseResponse)),
     security(("bearer" = [])))]
 pub async fn validate_close(
     State(app_state): State<Arc<AppState>>,
@@ -113,7 +115,8 @@ pub async fn validate_close(
 /// Returns close status on success, validation report on failure.
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/close", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Period closed")),
+    request_body = ClosePeriodRequest,
+    responses((status = 200, description = "Period closed", body = ClosePeriodResponse)),
     security(("bearer" = [])))]
 pub async fn close_period_handler(
     State(app_state): State<Arc<AppState>>,
@@ -173,7 +176,7 @@ struct PeriodCloseStatusData {
 /// O(1) query - single row lookup, no unbounded reads.
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/close-status", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Close status")),
+    responses((status = 200, description = "Close status", body = CloseStatusResponse)),
     security(("bearer" = [])))]
 pub async fn get_close_status(
     State(app_state): State<Arc<AppState>>,
@@ -237,20 +240,20 @@ pub async fn get_close_status(
 // ============================================================
 
 /// Reopen request payload
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct ReopenRequestPayload {
     pub requested_by: String,
     pub reason: String,
 }
 
 /// Reopen approve payload
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct ReopenApprovePayload {
     pub approved_by: String,
 }
 
 /// Reopen reject payload
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, ToSchema)]
 pub struct ReopenRejectPayload {
     pub rejected_by: String,
     pub reject_reason: String,
@@ -259,6 +262,7 @@ pub struct ReopenRejectPayload {
 /// POST /api/gl/periods/{period_id}/reopen — request a controlled reopen
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
+    request_body = ReopenRequestPayload,
     responses((status = 201, description = "Reopen request created")),
     security(("bearer" = [])))]
 pub async fn request_reopen(
@@ -291,6 +295,7 @@ pub async fn request_reopen(
         ("period_id" = Uuid, Path, description = "Accounting period ID"),
         ("request_id" = Uuid, Path, description = "Reopen request ID"),
     ),
+    request_body = ReopenApprovePayload,
     responses((status = 200, description = "Reopen approved")),
     security(("bearer" = [])))]
 pub async fn approve_reopen(
@@ -323,6 +328,7 @@ pub async fn approve_reopen(
         ("period_id" = Uuid, Path, description = "Accounting period ID"),
         ("request_id" = Uuid, Path, description = "Reopen request ID"),
     ),
+    request_body = ReopenRejectPayload,
     responses((status = 200, description = "Reopen rejected")),
     security(("bearer" = [])))]
 pub async fn reject_reopen(

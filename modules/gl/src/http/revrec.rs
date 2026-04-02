@@ -15,6 +15,7 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
@@ -30,7 +31,7 @@ use crate::AppState;
 // Request / Response types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateContractRequest {
     pub contract_id: Uuid,
     pub customer_id: String,
@@ -43,7 +44,7 @@ pub struct CreateContractRequest {
     pub external_contract_ref: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CreateContractResponse {
     pub contract_id: Uuid,
     pub tenant_id: String,
@@ -102,7 +103,8 @@ fn map_schedule_build_error(err: ScheduleBuildError) -> ApiError {
 /// Atomic: contract + obligations + outbox event in a single transaction.
 /// Idempotent: returns 409 CONFLICT if contract_id already exists.
 #[utoipa::path(post, path = "/api/gl/revrec/contracts", tag = "Revenue Recognition",
-    responses((status = 201, description = "Revenue contract created")),
+    request_body = CreateContractRequest,
+    responses((status = 201, description = "Revenue contract created", body = CreateContractResponse)),
     security(("bearer" = [])))]
 pub async fn create_contract(
     State(app_state): State<Arc<AppState>>,
@@ -151,13 +153,13 @@ pub async fn create_contract(
 // Schedule Generation
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct GenerateScheduleRequest {
     pub contract_id: Uuid,
     pub obligation_id: Uuid,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct GenerateScheduleResponse {
     pub schedule_id: Uuid,
     pub contract_id: Uuid,
@@ -179,7 +181,8 @@ pub struct GenerateScheduleResponse {
 /// Versioned: if an obligation already has a schedule, creates a new version
 /// linked to the previous schedule.
 #[utoipa::path(post, path = "/api/gl/revrec/schedules", tag = "Revenue Recognition",
-    responses((status = 201, description = "Recognition schedule generated")),
+    request_body = GenerateScheduleRequest,
+    responses((status = 201, description = "Recognition schedule generated", body = GenerateScheduleResponse)),
     security(("bearer" = [])))]
 pub async fn generate_schedule_handler(
     State(app_state): State<Arc<AppState>>,
@@ -292,7 +295,7 @@ pub async fn generate_schedule_handler(
 // Recognition Run
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RecognitionRunRequest {
     /// Target accounting period (YYYY-MM)
     pub period: String,
@@ -300,7 +303,7 @@ pub struct RecognitionRunRequest {
     pub posting_date: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RecognitionRunResponse {
     pub period: String,
     pub tenant_id: String,
@@ -310,7 +313,7 @@ pub struct RecognitionRunResponse {
     pub postings: Vec<RecognitionPostingResponse>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RecognitionPostingResponse {
     pub run_id: Uuid,
     pub schedule_id: Uuid,
@@ -340,7 +343,8 @@ fn map_recognition_run_error(err: RecognitionRunError) -> ApiError {
 ///
 /// Idempotent: re-running for the same period skips already-recognized lines.
 #[utoipa::path(post, path = "/api/gl/revrec/recognition-runs", tag = "Revenue Recognition",
-    responses((status = 201, description = "Recognition run executed")),
+    request_body = RecognitionRunRequest,
+    responses((status = 201, description = "Recognition run executed", body = RecognitionRunResponse)),
     security(("bearer" = [])))]
 pub async fn run_recognition_handler(
     State(app_state): State<Arc<AppState>>,
@@ -396,7 +400,7 @@ pub async fn run_recognition_handler(
 // Amendment handler
 // ============================================================================
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AmendContractResponse {
     pub modification_id: Uuid,
     pub contract_id: Uuid,
@@ -408,7 +412,8 @@ pub struct AmendContractResponse {
 /// Record a contract modification. The body is a `ContractModifiedPayload`.
 /// Returns 201 on success, 409 if modification_id already exists.
 #[utoipa::path(post, path = "/api/gl/revrec/amendments", tag = "Revenue Recognition",
-    responses((status = 201, description = "Contract amendment recorded")),
+    request_body = crate::revrec::ContractModifiedPayload,
+    responses((status = 201, description = "Contract amendment recorded", body = AmendContractResponse)),
     security(("bearer" = [])))]
 pub async fn amend_contract(
     State(app_state): State<Arc<AppState>>,

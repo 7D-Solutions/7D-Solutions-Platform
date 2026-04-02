@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::statements::BalanceSheetRow;
@@ -21,7 +22,7 @@ use crate::services::normal_balance;
 ///
 /// **Accounting Equation**: Assets = Liabilities + Equity
 /// **Balance Guarantee**: is_balanced MUST be true or data is invalid.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct BalanceSheetTotals {
     /// Total assets in minor units (positive = debit balance)
     pub total_assets: i64,
@@ -40,7 +41,7 @@ pub struct BalanceSheetTotals {
 ///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct BalanceSheetResponse {
     pub tenant_id: String,
     pub period_id: Uuid,
@@ -466,8 +467,8 @@ mod tests {
             is_balanced: true,
         };
 
-        let json = serde_json::to_string(&totals).unwrap();
-        let deserialized: BalanceSheetTotals = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&totals).expect("serialize");
+        let deserialized: BalanceSheetTotals = serde_json::from_str(&json).expect("serialize");
         assert_eq!(totals, deserialized);
     }
 
@@ -486,8 +487,8 @@ mod tests {
             },
         };
 
-        let json = serde_json::to_string(&response).unwrap();
-        let deserialized: BalanceSheetResponse = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&response).expect("serialize");
+        let deserialized: BalanceSheetResponse = serde_json::from_str(&json).expect("serialize");
         assert_eq!(response.tenant_id, deserialized.tenant_id);
         assert_eq!(response.period_id, deserialized.period_id);
         assert_eq!(response.currency, deserialized.currency);

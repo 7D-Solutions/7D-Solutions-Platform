@@ -21,7 +21,7 @@ pub struct IncomeStatementQuery {
 }
 
 #[utoipa::path(get, path = "/api/gl/income-statement", tag = "Financial Statements",
-    responses((status = 200, description = "Income statement report")),
+    responses((status = 200, description = "Income statement report", body = IncomeStatementResponse)),
     security(("bearer" = [])))]
 pub async fn get_income_statement(
     State(app_state): State<Arc<AppState>>,

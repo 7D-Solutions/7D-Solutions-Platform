@@ -21,7 +21,7 @@ pub struct PeriodSummaryQuery {
 
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/summary", tag = "Period Summary",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Period summary report")),
+    responses((status = 200, description = "Period summary report", body = PeriodSummaryResponse)),
     security(("bearer" = [])))]
 pub async fn get_period_summary(
     State(app_state): State<Arc<AppState>>,

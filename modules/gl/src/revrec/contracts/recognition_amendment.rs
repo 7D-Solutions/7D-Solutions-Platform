@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::envelope::{create_gl_envelope, EventEnvelope};
@@ -111,7 +112,7 @@ pub fn build_recognition_posted_envelope(
 /// Modification is append-only: the original contract event is never changed.
 ///
 /// Idempotency: caller MUST supply a deterministic event_id derived from modification_id.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ContractModifiedPayload {
     /// Stable business key for this modification (idempotency anchor)
     pub modification_id: Uuid,

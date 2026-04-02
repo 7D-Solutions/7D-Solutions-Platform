@@ -8,11 +8,12 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateExportRequest {
     pub format: String,
     pub export_type: String,
@@ -20,7 +21,7 @@ pub struct CreateExportRequest {
     pub period_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExportResponse {
     pub export_id: Uuid,
     pub format: String,
@@ -31,7 +32,8 @@ pub struct ExportResponse {
 
 /// POST /api/gl/exports
 #[utoipa::path(post, path = "/api/gl/exports", tag = "Exports",
-    responses((status = 200, description = "Export created")),
+    request_body = CreateExportRequest,
+    responses((status = 200, description = "Export created", body = ExportResponse)),
     security(("bearer" = [])))]
 pub async fn create_export(
     State(app_state): State<Arc<AppState>>,

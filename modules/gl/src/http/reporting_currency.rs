@@ -9,6 +9,7 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
@@ -23,7 +24,7 @@ pub struct ReportingCurrencyQuery {
     pub reporting_currency: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReportingTrialBalanceResponse {
     pub reporting_currency: String,
     pub is_reporting_currency: bool,
@@ -31,7 +32,7 @@ pub struct ReportingTrialBalanceResponse {
     pub statement: TrialBalanceResponse,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReportingIncomeStatementResponse {
     pub reporting_currency: String,
     pub is_reporting_currency: bool,
@@ -39,7 +40,7 @@ pub struct ReportingIncomeStatementResponse {
     pub statement: IncomeStatementResponse,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReportingBalanceSheetResponse {
     pub reporting_currency: String,
     pub is_reporting_currency: bool,
@@ -61,7 +62,7 @@ fn validate_reporting_currency(currency: &str, ctx: &Option<Extension<TracingCon
 }
 
 #[utoipa::path(get, path = "/api/gl/reporting/trial-balance", tag = "Reporting Currency",
-    responses((status = 200, description = "Reporting-currency trial balance")),
+    responses((status = 200, description = "Reporting-currency trial balance", body = ReportingTrialBalanceResponse)),
     security(("bearer" = [])))]
 pub async fn get_reporting_trial_balance(
     State(app_state): State<Arc<AppState>>,
@@ -97,7 +98,7 @@ pub async fn get_reporting_trial_balance(
 }
 
 #[utoipa::path(get, path = "/api/gl/reporting/income-statement", tag = "Reporting Currency",
-    responses((status = 200, description = "Reporting-currency income statement")),
+    responses((status = 200, description = "Reporting-currency income statement", body = ReportingIncomeStatementResponse)),
     security(("bearer" = [])))]
 pub async fn get_reporting_income_statement(
     State(app_state): State<Arc<AppState>>,
@@ -133,7 +134,7 @@ pub async fn get_reporting_income_statement(
 }
 
 #[utoipa::path(get, path = "/api/gl/reporting/balance-sheet", tag = "Reporting Currency",
-    responses((status = 200, description = "Reporting-currency balance sheet")),
+    responses((status = 200, description = "Reporting-currency balance sheet", body = ReportingBalanceSheetResponse)),
     security(("bearer" = [])))]
 pub async fn get_reporting_balance_sheet(
     State(app_state): State<Arc<AppState>>,

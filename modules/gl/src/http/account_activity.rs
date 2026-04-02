@@ -34,7 +34,7 @@ fn default_limit() -> i64 {
 
 #[utoipa::path(get, path = "/api/gl/accounts/{account_code}/activity", tag = "GL Detail",
     params(("account_code" = String, Path, description = "Account code")),
-    responses((status = 200, description = "Account activity lines")),
+    responses((status = 200, description = "Account activity lines", body = AccountActivityResponse)),
     security(("bearer" = [])))]
 pub async fn get_account_activity(
     State(app_state): State<Arc<AppState>>,

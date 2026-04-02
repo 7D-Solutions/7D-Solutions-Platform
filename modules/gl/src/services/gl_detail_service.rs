@@ -8,13 +8,14 @@ use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::repos::period_repo;
 use crate::repos::report_query_repo::{self, ReportQueryError};
 
 /// GL detail response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GLDetailResponse {
     pub tenant_id: String,
     pub period_start: String, // ISO 8601 timestamp
@@ -24,7 +25,7 @@ pub struct GLDetailResponse {
 }
 
 /// GL detail entry (header + lines)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GLDetailEntry {
     pub id: String,        // UUID as string
     pub posted_at: String, // ISO 8601 timestamp
@@ -35,7 +36,7 @@ pub struct GLDetailEntry {
 }
 
 /// GL detail line
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GLDetailEntryLine {
     pub line_no: i32,
     pub account_code: String,
@@ -46,7 +47,7 @@ pub struct GLDetailEntryLine {
 }
 
 /// Pagination metadata
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PaginationMetadata {
     pub limit: i64,
     pub offset: i64,
@@ -138,11 +139,11 @@ pub async fn get_gl_detail(
     // Convert NaiveDate to DateTime<Utc> (start of day and end of day)
     let period_start = period
         .period_start
-        .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+        .and_time(NaiveTime::from_hms_opt(0, 0, 0).expect("valid time"))
         .and_utc();
     let period_end = period
         .period_end
-        .and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap())
+        .and_time(NaiveTime::from_hms_opt(23, 59, 59).expect("valid time"))
         .and_utc();
 
     // Query entry IDs based on filters

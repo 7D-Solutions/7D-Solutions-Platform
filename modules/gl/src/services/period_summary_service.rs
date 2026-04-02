@@ -6,12 +6,13 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::repos::period_summary_repo::{self, PeriodSummaryError as RepoError};
 
 /// Period summary response DTO
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PeriodSummaryResponse {
     pub tenant_id: String,
     pub period_id: Uuid,

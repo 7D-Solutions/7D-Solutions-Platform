@@ -17,6 +17,7 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
@@ -26,12 +27,12 @@ use crate::AppState;
 // CHECKLIST TYPES
 // ============================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateChecklistItemRequest {
     pub label: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ChecklistItemResponse {
     pub id: Uuid,
     pub tenant_id: String,
@@ -55,12 +56,12 @@ struct ChecklistItemRow {
     waive_reason: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CompleteChecklistItemRequest {
     pub completed_by: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct WaiveChecklistItemRequest {
     pub completed_by: String,
     pub waive_reason: String,
@@ -73,7 +74,8 @@ pub struct WaiveChecklistItemRequest {
 /// POST /api/gl/periods/{period_id}/checklist — add a checklist item
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/checklist", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 201, description = "Checklist item created")),
+    request_body = CreateChecklistItemRequest,
+    responses((status = 201, description = "Checklist item created", body = ChecklistItemResponse)),
     security(("bearer" = [])))]
 pub async fn create_checklist_item(
     State(app_state): State<Arc<AppState>>,
@@ -107,7 +109,8 @@ pub async fn create_checklist_item(
         ("period_id" = Uuid, Path, description = "Accounting period ID"),
         ("item_id" = Uuid, Path, description = "Checklist item ID"),
     ),
-    responses((status = 200, description = "Checklist item completed")),
+    request_body = CompleteChecklistItemRequest,
+    responses((status = 200, description = "Checklist item completed", body = ChecklistItemResponse)),
     security(("bearer" = [])))]
 pub async fn complete_checklist_item(
     State(app_state): State<Arc<AppState>>,
@@ -149,7 +152,8 @@ pub async fn complete_checklist_item(
         ("period_id" = Uuid, Path, description = "Accounting period ID"),
         ("item_id" = Uuid, Path, description = "Checklist item ID"),
     ),
-    responses((status = 200, description = "Checklist item waived")),
+    request_body = WaiveChecklistItemRequest,
+    responses((status = 200, description = "Checklist item waived", body = ChecklistItemResponse)),
     security(("bearer" = [])))]
 pub async fn waive_checklist_item(
     State(app_state): State<Arc<AppState>>,
@@ -190,7 +194,7 @@ pub async fn waive_checklist_item(
 /// GET /api/gl/periods/{period_id}/checklist
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/checklist", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Checklist status")),
+    responses((status = 200, description = "Checklist status", body = Vec<ChecklistItemResponse>)),
     security(("bearer" = [])))]
 pub async fn get_checklist_status(
     State(app_state): State<Arc<AppState>>,
@@ -237,14 +241,14 @@ fn to_checklist_response(row: ChecklistItemRow) -> ChecklistItemResponse {
 // APPROVAL TYPES
 // ============================================================
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CreateApprovalRequest {
     pub actor_id: String,
     pub approval_type: String,
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ApprovalResponse {
     pub id: Uuid,
     pub tenant_id: String,
@@ -273,7 +277,8 @@ struct ApprovalRow {
 /// POST /api/gl/periods/{period_id}/approvals — record an approval signoff (idempotent)
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/approvals", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 201, description = "Approval recorded")),
+    request_body = CreateApprovalRequest,
+    responses((status = 201, description = "Approval recorded", body = ApprovalResponse)),
     security(("bearer" = [])))]
 pub async fn create_approval(
     State(app_state): State<Arc<AppState>>,
@@ -319,7 +324,7 @@ pub async fn create_approval(
 /// GET /api/gl/periods/{period_id}/approvals
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/approvals", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Approval list")),
+    responses((status = 200, description = "Approval list", body = Vec<ApprovalResponse>)),
     security(("bearer" = [])))]
 pub async fn get_approvals(
     State(app_state): State<Arc<AppState>>,

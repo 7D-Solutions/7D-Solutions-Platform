@@ -22,7 +22,7 @@ pub struct BalanceSheetQuery {
 }
 
 #[utoipa::path(get, path = "/api/gl/balance-sheet", tag = "Financial Statements",
-    responses((status = 200, description = "Balance sheet report")),
+    responses((status = 200, description = "Balance sheet report", body = BalanceSheetResponse)),
     security(("bearer" = [])))]
 pub async fn get_balance_sheet(
     State(app_state): State<Arc<AppState>>,

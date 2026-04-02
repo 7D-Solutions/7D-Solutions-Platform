@@ -5,12 +5,13 @@
 //! Used by statement services (trial balance, income statement, balance sheet).
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Trial Balance Row
 ///
 /// Represents a single account row in a trial balance statement.
 /// Contains account metadata and debit/credit balances for a specific period.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct TrialBalanceRow {
     /// Account code (e.g., "1000", "4000")
     pub account_code: String,
@@ -41,7 +42,7 @@ pub struct TrialBalanceRow {
 ///
 /// Represents a single account row in an income statement.
 /// Contains revenue or expense account data for a specific period.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct IncomeStatementRow {
     /// Account code (e.g., "4000", "5000")
     pub account_code: String,
@@ -64,7 +65,7 @@ pub struct IncomeStatementRow {
 ///
 /// Represents a single account row in a balance sheet.
 /// Contains asset, liability, or equity account data at a specific point in time.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct BalanceSheetRow {
     /// Account code (e.g., "1000", "2000", "3000")
     pub account_code: String,
@@ -87,7 +88,7 @@ pub struct BalanceSheetRow {
 ///
 /// Common totals structure used across all financial statements.
 /// Provides aggregated debit/credit totals and balance verification.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct StatementTotals {
     /// Total debits across all rows in minor units
     pub total_debits: i64,
@@ -102,7 +103,7 @@ pub struct StatementTotals {
 /// Per-Currency Totals
 ///
 /// Aggregated totals for a specific currency in multi-currency statements.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct CurrencyTotals {
     /// Currency code (ISO 4217)
     pub currency: String,
@@ -121,7 +122,7 @@ pub struct CurrencyTotals {
 ///
 /// Represents a single account's cash flow activity classified into
 /// operating, investing, or financing category.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct CashFlowRow {
     /// Account code (e.g., "1000", "4000")
     pub account_code: String,
@@ -142,7 +143,7 @@ pub struct CashFlowRow {
 /// Cash Flow Category Totals
 ///
 /// Aggregated totals for a single cash flow category.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct CashFlowCategoryTotal {
     /// Category name: operating, investing, or financing
     pub category: String,
@@ -168,8 +169,8 @@ mod tests {
             net_balance_minor: 100000,
         };
 
-        let json = serde_json::to_string(&row).unwrap();
-        let deserialized: TrialBalanceRow = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&row).expect("serialize");
+        let deserialized: TrialBalanceRow = serde_json::from_str(&json).expect("serialize");
         assert_eq!(row, deserialized);
     }
 
@@ -183,8 +184,8 @@ mod tests {
             amount_minor: 500000,
         };
 
-        let json = serde_json::to_string(&row).unwrap();
-        let deserialized: IncomeStatementRow = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&row).expect("serialize");
+        let deserialized: IncomeStatementRow = serde_json::from_str(&json).expect("serialize");
         assert_eq!(row, deserialized);
     }
 
@@ -198,8 +199,8 @@ mod tests {
             amount_minor: 250000,
         };
 
-        let json = serde_json::to_string(&row).unwrap();
-        let deserialized: BalanceSheetRow = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&row).expect("serialize");
+        let deserialized: BalanceSheetRow = serde_json::from_str(&json).expect("serialize");
         assert_eq!(row, deserialized);
     }
 
@@ -211,8 +212,8 @@ mod tests {
             is_balanced: true,
         };
 
-        let json = serde_json::to_string(&totals).unwrap();
-        let deserialized: StatementTotals = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&totals).expect("serialize");
+        let deserialized: StatementTotals = serde_json::from_str(&json).expect("serialize");
         assert_eq!(totals, deserialized);
     }
 
@@ -225,8 +226,8 @@ mod tests {
             is_balanced: true,
         };
 
-        let json = serde_json::to_string(&totals).unwrap();
-        let deserialized: CurrencyTotals = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&totals).expect("serialize");
+        let deserialized: CurrencyTotals = serde_json::from_str(&json).expect("serialize");
         assert_eq!(totals, deserialized);
     }
 
@@ -269,7 +270,7 @@ mod tests {
             net_balance_minor: 75000,
         };
 
-        let tb_json = serde_json::to_value(&tb_row).unwrap();
+        let tb_json = serde_json::to_value(&tb_row).expect("serialize");
         assert_eq!(tb_json["account_code"], "1000");
         assert_eq!(tb_json["account_name"], "Cash");
         assert_eq!(tb_json["account_type"], "asset");
@@ -288,7 +289,7 @@ mod tests {
             amount_minor: 500000,
         };
 
-        let is_json = serde_json::to_value(&is_row).unwrap();
+        let is_json = serde_json::to_value(&is_row).expect("serialize");
         assert_eq!(is_json["account_code"], "4000");
         assert_eq!(is_json["account_name"], "Sales Revenue");
         assert_eq!(is_json["account_type"], "revenue");
@@ -304,7 +305,7 @@ mod tests {
             amount_minor: 150000,
         };
 
-        let bs_json = serde_json::to_value(&bs_row).unwrap();
+        let bs_json = serde_json::to_value(&bs_row).expect("serialize");
         assert_eq!(bs_json["account_code"], "2000");
         assert_eq!(bs_json["account_name"], "Accounts Payable");
         assert_eq!(bs_json["account_type"], "liability");
@@ -318,7 +319,7 @@ mod tests {
             is_balanced: true,
         };
 
-        let totals_json = serde_json::to_value(&totals).unwrap();
+        let totals_json = serde_json::to_value(&totals).expect("serialize");
         assert_eq!(totals_json["total_debits"], 100000);
         assert_eq!(totals_json["total_credits"], 100000);
         assert_eq!(totals_json["is_balanced"], true);
@@ -331,26 +332,26 @@ mod tests {
             is_balanced: true,
         };
 
-        let ct_json = serde_json::to_value(&currency_totals).unwrap();
+        let ct_json = serde_json::to_value(&currency_totals).expect("serialize");
         assert_eq!(ct_json["currency"], "EUR");
         assert_eq!(ct_json["total_debits"], 50000);
         assert_eq!(ct_json["total_credits"], 50000);
         assert_eq!(ct_json["is_balanced"], true);
 
         // Verify round-trip serialization for all types
-        let tb_roundtrip: TrialBalanceRow = serde_json::from_value(tb_json).unwrap();
+        let tb_roundtrip: TrialBalanceRow = serde_json::from_value(tb_json).expect("serialize");
         assert_eq!(tb_row, tb_roundtrip);
 
-        let is_roundtrip: IncomeStatementRow = serde_json::from_value(is_json).unwrap();
+        let is_roundtrip: IncomeStatementRow = serde_json::from_value(is_json).expect("serialize");
         assert_eq!(is_row, is_roundtrip);
 
-        let bs_roundtrip: BalanceSheetRow = serde_json::from_value(bs_json).unwrap();
+        let bs_roundtrip: BalanceSheetRow = serde_json::from_value(bs_json).expect("serialize");
         assert_eq!(bs_row, bs_roundtrip);
 
-        let totals_roundtrip: StatementTotals = serde_json::from_value(totals_json).unwrap();
+        let totals_roundtrip: StatementTotals = serde_json::from_value(totals_json).expect("serialize");
         assert_eq!(totals, totals_roundtrip);
 
-        let ct_roundtrip: CurrencyTotals = serde_json::from_value(ct_json).unwrap();
+        let ct_roundtrip: CurrencyTotals = serde_json::from_value(ct_json).expect("serialize");
         assert_eq!(currency_totals, ct_roundtrip);
     }
 }

@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.0 | 2026-04-01 | bd-0gdw3 | Add ToSchema derives and typed response/request bodies to all 34 OpenAPI handler annotations. Register 70+ schema types in ApiDoc components. Every endpoint now has fully typed request and response schemas in the spec. | GL openapi.json had 31 paths but only 2 schemas — endpoints compiled but responses were untyped (serde_json::Value in spec). Typed clients need real schemas for codegen. | No |
 | 2.1.9 | 2026-04-01 | bd-manm4 | Add openapi_dump binary for standalone OpenAPI spec generation to stdout. | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.1.8 | 2026-03-31 | bd-5vmu6.2 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 11 consumers started via bus_arc() in routes closure (retain existing retry/DLQ). SLO metrics registered with global registry. Created module.toml. Added platform-sdk dep. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.7 | 2026-03-31 | bd-68y44 | `create_amendment` now sets `supersedes_event_id` on the `revrec.contract_modified` outbox event, linking it to the most recent prior event for the same contract. | E2E test correctly expected supersession linkage but the repo never looked up the prior event. | No |

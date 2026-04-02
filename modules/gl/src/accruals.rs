@@ -13,6 +13,7 @@
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::contracts::{
@@ -25,7 +26,7 @@ use crate::repos::outbox_repo;
 // Request / Response types
 // ============================================================================
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateTemplateRequest {
     pub tenant_id: String,
     pub name: String,
@@ -38,7 +39,7 @@ pub struct CreateTemplateRequest {
     pub cashflow_class: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct TemplateResult {
     pub template_id: Uuid,
     pub tenant_id: String,
@@ -46,7 +47,7 @@ pub struct TemplateResult {
     pub active: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateAccrualRequest {
     pub template_id: Uuid,
     pub tenant_id: String,
@@ -55,7 +56,7 @@ pub struct CreateAccrualRequest {
     pub correlation_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct AccrualResult {
     pub instance_id: Uuid,
     pub accrual_id: Uuid,
@@ -68,14 +69,14 @@ pub struct AccrualResult {
     pub idempotent_hit: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ExecuteReversalsRequest {
     pub tenant_id: String,
     pub target_period: String,
     pub reversal_date: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ReversalResult {
     pub reversal_id: Uuid,
     pub original_accrual_id: Uuid,
@@ -85,7 +86,7 @@ pub struct ReversalResult {
     pub idempotent_hit: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ExecuteReversalsResult {
     pub target_period: String,
     pub reversals_executed: usize,

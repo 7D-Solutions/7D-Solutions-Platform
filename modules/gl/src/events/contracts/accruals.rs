@@ -8,6 +8,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::events::envelope::{create_gl_envelope, EventEnvelope};
@@ -68,7 +69,7 @@ pub struct CashFlowClassification {
 
 /// Defines when and how an accrual entry should be reversed.
 /// Locked at accrual-creation time; referenced by the reversal scheduler.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReversalPolicy {
     /// Auto-reverse in the next accounting period
     pub auto_reverse_next_period: bool,
@@ -297,7 +298,7 @@ mod tests {
     #[test]
     fn accrual_created_cashflow_class_serializes_as_snake_case() {
         let payload = sample_accrual_created(); // Operating
-        let json = serde_json::to_string(&payload).unwrap();
+        let json = serde_json::to_string(&payload).expect("serialize");
         assert!(json.contains("\"operating\""));
     }
 
@@ -356,19 +357,19 @@ mod tests {
     #[test]
     fn cashflow_class_variants_serialize_as_snake_case() {
         assert_eq!(
-            serde_json::to_string(&CashFlowClass::Operating).unwrap(),
+            serde_json::to_string(&CashFlowClass::Operating).expect("serialize"),
             "\"operating\""
         );
         assert_eq!(
-            serde_json::to_string(&CashFlowClass::Investing).unwrap(),
+            serde_json::to_string(&CashFlowClass::Investing).expect("serialize"),
             "\"investing\""
         );
         assert_eq!(
-            serde_json::to_string(&CashFlowClass::Financing).unwrap(),
+            serde_json::to_string(&CashFlowClass::Financing).expect("serialize"),
             "\"financing\""
         );
         assert_eq!(
-            serde_json::to_string(&CashFlowClass::NonCash).unwrap(),
+            serde_json::to_string(&CashFlowClass::NonCash).expect("serialize"),
             "\"non_cash\""
         );
     }
@@ -381,7 +382,7 @@ mod tests {
             label: "Accounts Receivable (decrease = cash inflow)".to_string(),
             increase_is_outflow: true,
         };
-        let json = serde_json::to_string(&classification).unwrap();
+        let json = serde_json::to_string(&classification).expect("serialize");
         assert!(json.contains("account_ref"));
         assert!(json.contains("\"AR\""));
         assert!(json.contains("\"operating\""));
@@ -396,7 +397,7 @@ mod tests {
             auto_reverse_next_period: true,
             reverse_on_date: None,
         };
-        let json = serde_json::to_string(&policy).unwrap();
+        let json = serde_json::to_string(&policy).expect("serialize");
         assert!(json.contains("auto_reverse_next_period"));
         assert!(json.contains("true"));
     }
@@ -407,7 +408,7 @@ mod tests {
             auto_reverse_next_period: false,
             reverse_on_date: Some("2026-03-15".to_string()),
         };
-        let json = serde_json::to_string(&policy).unwrap();
+        let json = serde_json::to_string(&policy).expect("serialize");
         assert!(json.contains("2026-03-15"));
     }
 
@@ -431,7 +432,7 @@ mod tests {
         ];
 
         for (account, class) in classifications {
-            let json = serde_json::to_string(&class).unwrap();
+            let json = serde_json::to_string(&class).expect("serialize");
             // Verify each class serializes to a known snake_case string
             assert!(
                 json.contains("operating")

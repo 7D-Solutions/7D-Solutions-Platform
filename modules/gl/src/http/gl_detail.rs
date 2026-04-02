@@ -31,7 +31,7 @@ fn default_limit() -> i64 {
 }
 
 #[utoipa::path(get, path = "/api/gl/detail", tag = "GL Detail",
-    responses((status = 200, description = "GL detail report")),
+    responses((status = 200, description = "GL detail report", body = GLDetailResponse)),
     security(("bearer" = [])))]
 pub async fn get_gl_detail(
     State(app_state): State<Arc<AppState>>,

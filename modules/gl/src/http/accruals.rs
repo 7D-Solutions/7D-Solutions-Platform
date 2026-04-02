@@ -15,7 +15,8 @@ use crate::accruals;
 use crate::AppState;
 
 #[utoipa::path(post, path = "/api/gl/accruals/templates", tag = "Accruals",
-    responses((status = 201, description = "Accrual template created")),
+    request_body = crate::accruals::CreateTemplateRequest,
+    responses((status = 201, description = "Accrual template created", body = crate::accruals::TemplateResult)),
     security(("bearer" = [])))]
 pub async fn create_template_handler(
     State(app_state): State<Arc<AppState>>,
@@ -40,7 +41,8 @@ pub async fn create_template_handler(
 }
 
 #[utoipa::path(post, path = "/api/gl/accruals/create", tag = "Accruals",
-    responses((status = 201, description = "Accrual instance created")),
+    request_body = crate::accruals::CreateAccrualRequest,
+    responses((status = 201, description = "Accrual instance created", body = crate::accruals::AccrualResult)),
     security(("bearer" = [])))]
 pub async fn create_accrual_handler(
     State(app_state): State<Arc<AppState>>,
@@ -72,7 +74,8 @@ pub async fn create_accrual_handler(
 }
 
 #[utoipa::path(post, path = "/api/gl/accruals/reversals/execute", tag = "Accruals",
-    responses((status = 200, description = "Auto-reversals executed")),
+    request_body = crate::accruals::ExecuteReversalsRequest,
+    responses((status = 200, description = "Auto-reversals executed", body = crate::accruals::ExecuteReversalsResult)),
     security(("bearer" = [])))]
 pub async fn execute_reversals_handler(
     State(app_state): State<Arc<AppState>>,

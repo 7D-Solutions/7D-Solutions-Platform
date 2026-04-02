@@ -2,10 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Account type enum matching database account_type
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, ToSchema)]
 #[sqlx(type_name = "account_type", rename_all = "lowercase")]
 pub enum AccountType {
     Asset,
@@ -16,7 +17,7 @@ pub enum AccountType {
 }
 
 /// Normal balance enum matching database normal_balance
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, ToSchema)]
 #[sqlx(type_name = "normal_balance", rename_all = "lowercase")]
 pub enum NormalBalance {
     Debit,

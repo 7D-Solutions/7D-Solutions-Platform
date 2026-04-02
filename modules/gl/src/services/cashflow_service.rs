@@ -12,12 +12,13 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::statements::{CashFlowCategoryTotal, CashFlowRow};
 
 /// Cash flow response with rows, category totals, and reconciliation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CashFlowResponse {
     pub tenant_id: String,
     pub period_id: Uuid,

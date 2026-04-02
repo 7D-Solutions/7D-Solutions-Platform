@@ -9,6 +9,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // ============================================================
@@ -19,7 +20,7 @@ use uuid::Uuid;
 ///
 /// Pre-flight check before actual close operation.
 /// Does NOT modify period state.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ValidateCloseRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
@@ -28,7 +29,7 @@ pub struct ValidateCloseRequest {
 /// Response from validate-close operation
 ///
 /// Returns structured validation report with errors/warnings.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ValidateCloseResponse {
     /// Period ID that was validated
     pub period_id: Uuid,
@@ -54,7 +55,7 @@ pub struct ValidateCloseResponse {
 ///
 /// Idempotent operation - if already closed, returns existing close status.
 /// Atomically: validates, creates snapshot, computes hash, sets closed_at.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ClosePeriodRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
@@ -70,7 +71,7 @@ pub struct ClosePeriodRequest {
 /// Response from close operation
 ///
 /// Returns close status including snapshot hash for audit verification.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ClosePeriodResponse {
     /// Period ID that was closed
     pub period_id: Uuid,
@@ -100,7 +101,7 @@ pub struct ClosePeriodResponse {
 /// Request to query period close status
 ///
 /// Read-only query for current close workflow state.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct CloseStatusRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
@@ -109,7 +110,7 @@ pub struct CloseStatusRequest {
 /// Response with period close status
 ///
 /// Returns current state of period in close workflow.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct CloseStatusResponse {
     /// Period ID
     pub period_id: Uuid,
@@ -135,7 +136,7 @@ pub struct CloseStatusResponse {
 /// Close workflow status
 ///
 /// Represents the current state of a period in the close lifecycle.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "state", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CloseStatus {
     /// Period is open - can post and reverse transactions
@@ -172,7 +173,7 @@ pub enum CloseStatus {
 ///
 /// Machine-readable validation results with severity levels.
 /// Empty if validation passes (can_close=true).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
 pub struct ValidationReport {
     /// Validation issues grouped by severity
     pub issues: Vec<ValidationIssue>,
@@ -181,7 +182,7 @@ pub struct ValidationReport {
 /// Individual validation issue
 ///
 /// Structured error/warning with stable code for client handling.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct ValidationIssue {
     /// Severity level
     pub severity: ValidationSeverity,
@@ -199,7 +200,7 @@ pub struct ValidationIssue {
 }
 
 /// Validation issue severity levels
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ValidationSeverity {
     /// Blocks close operation
@@ -238,7 +239,7 @@ mod tests {
             requested_at: None,
         };
 
-        let json = serde_json::to_string(&status).unwrap();
+        let json = serde_json::to_string(&status).expect("serialize");
         assert!(json.contains("CLOSED"));
         assert!(json.contains("admin"));
     }

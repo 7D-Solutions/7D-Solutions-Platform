@@ -40,6 +40,7 @@ pub mod contract_schedule;
 pub mod recognition_amendment;
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // Re-export everything from submodules for backwards compatibility
@@ -90,7 +91,7 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 ///
 /// Aligns with ASC 606-10-25-27: a performance obligation is satisfied either
 /// at a point in time or over time.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RecognitionPattern {
     /// Recognize ratably (straight-line) over the satisfaction period.
@@ -130,7 +131,7 @@ pub enum RecognitionPattern {
 /// Each obligation carries its own allocated transaction price and recognition
 /// schedule. Obligations are embedded in the contract event and referenced by
 /// schedule + recognition events.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PerformanceObligation {
     /// Stable business key for this obligation (idempotency anchor)
     pub obligation_id: Uuid,
@@ -189,7 +190,7 @@ pub struct ScheduleLine {
 ///
 /// Used in `ContractModifiedPayload` to capture how the contract modification
 /// redistributes value across obligations.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AllocationChange {
     /// The obligation whose allocation changed
     pub obligation_id: Uuid,
@@ -206,7 +207,7 @@ pub struct AllocationChange {
 // ============================================================================
 
 /// Classification of a contract modification for audit and reporting.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ModificationType {
     /// Transaction price changed without adding/removing obligations
@@ -251,7 +252,7 @@ mod tests {
     #[test]
     fn recognition_pattern_ratable_serializes() {
         let pattern = RecognitionPattern::RatableOverTime { period_months: 12 };
-        let json = serde_json::to_string(&pattern).unwrap();
+        let json = serde_json::to_string(&pattern).expect("serialize");
         assert!(json.contains("ratable_over_time"));
         assert!(json.contains("period_months"));
         assert!(json.contains("12"));
@@ -260,7 +261,7 @@ mod tests {
     #[test]
     fn recognition_pattern_point_in_time_serializes() {
         let pattern = RecognitionPattern::PointInTime;
-        let json = serde_json::to_string(&pattern).unwrap();
+        let json = serde_json::to_string(&pattern).expect("serialize");
         assert!(json.contains("point_in_time"));
     }
 
@@ -271,7 +272,7 @@ mod tests {
             total_contracted_quantity: 1_000_000.0,
             unit: "calls".to_string(),
         };
-        let json = serde_json::to_string(&pattern).unwrap();
+        let json = serde_json::to_string(&pattern).expect("serialize");
         assert!(json.contains("usage_based"));
         assert!(json.contains("api_calls"));
         assert!(json.contains("total_contracted_quantity"));
@@ -282,23 +283,23 @@ mod tests {
     #[test]
     fn modification_type_serializes_as_snake_case() {
         assert_eq!(
-            serde_json::to_string(&ModificationType::PriceChange).unwrap(),
+            serde_json::to_string(&ModificationType::PriceChange).expect("serialize"),
             "\"price_change\""
         );
         assert_eq!(
-            serde_json::to_string(&ModificationType::TermExtension).unwrap(),
+            serde_json::to_string(&ModificationType::TermExtension).expect("serialize"),
             "\"term_extension\""
         );
         assert_eq!(
-            serde_json::to_string(&ModificationType::ObligationAdded).unwrap(),
+            serde_json::to_string(&ModificationType::ObligationAdded).expect("serialize"),
             "\"obligation_added\""
         );
         assert_eq!(
-            serde_json::to_string(&ModificationType::ObligationRemoved).unwrap(),
+            serde_json::to_string(&ModificationType::ObligationRemoved).expect("serialize"),
             "\"obligation_removed\""
         );
         assert_eq!(
-            serde_json::to_string(&ModificationType::Combined).unwrap(),
+            serde_json::to_string(&ModificationType::Combined).expect("serialize"),
             "\"combined\""
         );
     }

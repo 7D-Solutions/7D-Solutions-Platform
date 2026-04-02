@@ -4,13 +4,14 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::auth::{extract_tenant, with_request_id};
 use crate::repos::account_repo::{self, AccountError, AccountType, NormalBalance};
 use crate::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateAccountRequest {
     pub code: String,
     pub name: String,
@@ -18,7 +19,7 @@ pub struct CreateAccountRequest {
     pub normal_balance: NormalBalance,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AccountResponse {
     pub id: Uuid,
     pub tenant_id: String,
@@ -30,7 +31,8 @@ pub struct AccountResponse {
 }
 
 #[utoipa::path(post, path = "/api/gl/accounts", tag = "Accounts",
-    responses((status = 201, description = "Account created")),
+    request_body = CreateAccountRequest,
+    responses((status = 201, description = "Account created", body = AccountResponse)),
     security(("bearer" = [])))]
 pub async fn create_account(
     State(app_state): State<Arc<AppState>>,

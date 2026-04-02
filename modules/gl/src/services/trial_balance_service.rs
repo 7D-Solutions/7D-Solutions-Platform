@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::statements::{StatementTotals, TrialBalanceRow};
@@ -19,7 +20,7 @@ use crate::repos::statement_repo::{self, StatementError};
 ///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TrialBalanceResponse {
     pub tenant_id: String,
     pub period_id: Uuid,
