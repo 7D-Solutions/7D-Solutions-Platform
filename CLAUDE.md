@@ -10,11 +10,7 @@ All work must be tracked with a bead. Edits are blocked until you have one.
 ```
 Never bypass or disable hooks. If blocked, create a bead first.
 
-### 2. Git (MANDATORY)
-**Agents do NOT commit.** BrightHill (orchestrator) handles all git operations.
-- Do NOT run: `git add`, `git commit`, `git stash`, `git reset`, `git push`
-- DO run: `git diff`, `git status` (read-only)
-- When done: mail BrightHill, close your bead, claim the next one. Don't wait.
+### 2. Git — mail BrightHill (see global rules)
 ```bash
 ./scripts/agent-mail-helper.sh send BrightHill "bd-xxx done" "Files changed: X, Y, Z. What I did: ..."
 br close bd-xxx
@@ -39,8 +35,6 @@ Do NOT run docker commands (hook blocks it). The cross-watcher handles compilati
 ```
 
 ## Standards
-
-**Separation of concerns:** Each file has one responsibility. Split when a file mixes concerns (e.g., HTTP handlers + SQL queries + business logic in one file), not at an arbitrary line count. A focused 700-line file is fine. A 300-line file doing three unrelated things is not.
 
 **Versioning:** Proven modules (>= 1.0.0) require version bumps. PATCH for fixes, MINOR for features, MAJOR for breaking. Add REVISIONS.md entry. See [docs/VERSIONING.md](./docs/VERSIONING.md).
 
