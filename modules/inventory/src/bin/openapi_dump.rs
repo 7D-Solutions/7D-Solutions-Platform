@@ -42,6 +42,7 @@ use inventory_rs::domain::{
     },
 };
 use inventory_rs::events::contracts::{ConsumedLayer, SourceRef};
+use inventory_rs::http::batch_receipts::{BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult};
 use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 
@@ -114,6 +115,10 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         inventory_rs::http::trace::trace_serial_handler,
         inventory_rs::http::history::get_movement_history,
         inventory_rs::http::status::post_status_transfer,
+        inventory_rs::http::admin::projection_status,
+        inventory_rs::http::admin::consistency_check,
+        inventory_rs::http::admin::list_projections,
+        inventory_rs::http::batch_receipts::post_batch_receipts,
     ),
     components(schemas(
         Item, TrackingMode, CreateItemRequest, UpdateItemRequest, ListItemsQuery,
@@ -140,6 +145,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         InventoryLot,
         MovementEntry,
         InvItemStatus, StatusTransferRequest, StatusTransferResult,
+        BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult,
         ApiError, PaginatedResponse<Item>, PaginatedResponse<Location>,
         PaginatedResponse<Label>, PaginatedResponse<InventoryLot>,
         PaginatedResponse<ReorderPolicy>, PaginatedResponse<ItemRevision>,

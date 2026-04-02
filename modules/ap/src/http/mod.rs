@@ -104,6 +104,7 @@ use utoipa::OpenApi;
         platform_http_contracts::PaginatedResponse<crate::domain::bills::VendorBill>,
         platform_http_contracts::PaginatedResponse<crate::domain::po::PurchaseOrder>,
         platform_http_contracts::PaginatedResponse<crate::domain::payment_terms::PaymentTerms>,
+        platform_http_contracts::PaginatedResponse<crate::domain::allocations::AllocationRecord>,
     )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),

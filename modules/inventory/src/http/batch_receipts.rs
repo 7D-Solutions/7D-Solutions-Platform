@@ -1,5 +1,6 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
@@ -7,17 +8,17 @@ use crate::{
     AppState,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BatchReceiptRequest {
     pub receipts: Vec<ReceiptRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct BatchReceiptResponse {
     pub results: Vec<BatchReceiptItemResult>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 #[serde(untagged)] // Allows for different types in the same Vec
 pub enum BatchReceiptItemResult {
     Success(Box<ReceiptResult>),
@@ -34,6 +35,16 @@ pub enum BatchReceiptItemResult {
 /// This endpoint allows submitting multiple stock receipt requests in a single call.
 /// Each individual receipt will be processed independently, and the response will
 /// contain a list of results (success or error) for each submitted receipt.
+#[utoipa::path(
+    post,
+    path = "/api/inventory/batch-receipts",
+    tag = "Receipts",
+    request_body = BatchReceiptRequest,
+    responses(
+        (status = 200, description = "Batch receipt results", body = BatchReceiptResponse),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn post_batch_receipts(
     State(app_state): State<AppState>,
     Json(req): Json<BatchReceiptRequest>,

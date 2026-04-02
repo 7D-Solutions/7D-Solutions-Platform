@@ -81,6 +81,7 @@ use inventory_rs::{
     metrics::InventoryMetrics,
 };
 use inventory_rs::domain::items::ListItemsQuery;
+use inventory_rs::http::batch_receipts::{BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult};
 use inventory_rs::domain::genealogy::GenealogyEdge;
 use inventory_rs::domain::status::models::InvItemStatus;
 use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
@@ -157,6 +158,10 @@ use security::{permissions, RequirePermissionsLayer};
         inventory_rs::http::trace::trace_serial_handler,
         inventory_rs::http::history::get_movement_history,
         inventory_rs::http::status::post_status_transfer,
+        inventory_rs::http::admin::projection_status,
+        inventory_rs::http::admin::consistency_check,
+        inventory_rs::http::admin::list_projections,
+        inventory_rs::http::batch_receipts::post_batch_receipts,
     ),
     components(schemas(
         Item, TrackingMode, CreateItemRequest, UpdateItemRequest, ListItemsQuery,
@@ -183,6 +188,7 @@ use security::{permissions, RequirePermissionsLayer};
         InventoryLot,
         MovementEntry,
         InvItemStatus, StatusTransferRequest, StatusTransferResult,
+        BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult,
         ApiError, PaginatedResponse<Item>, PaginatedResponse<Location>,
         PaginatedResponse<Label>, PaginatedResponse<InventoryLot>,
         PaginatedResponse<ReorderPolicy>, PaginatedResponse<ItemRevision>,

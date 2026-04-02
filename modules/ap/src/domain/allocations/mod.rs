@@ -88,7 +88,7 @@ impl From<AllocationError> for platform_http_contracts::ApiError {
 // ============================================================================
 
 /// A single allocation record as stored in ap_allocations.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct AllocationRecord {
     /// BIGSERIAL primary key (internal ordering)
     pub id: i64,

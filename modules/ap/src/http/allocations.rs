@@ -10,7 +10,7 @@ use axum::{
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
@@ -62,7 +62,8 @@ pub async fn create_allocation(
 ///
 /// List all allocations for a bill in insertion order.
 #[utoipa::path(get, path = "/api/ap/bills/{bill_id}/allocations", tag = "Allocations",
-    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Allocation list")),
+    params(("bill_id" = Uuid, Path)),
+    responses((status = 200, description = "Allocation list", body = PaginatedResponse<crate::domain::allocations::AllocationRecord>)),
     security(("bearer" = [])))]
 pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
@@ -76,7 +77,11 @@ pub async fn list_allocations(
     };
 
     match service::get_allocations(&state.pool, &tenant_id, bill_id).await {
-        Ok(records) => Json(json!({ "allocations": records })).into_response(),
+        Ok(records) => {
+            let total = records.len() as i64;
+            let resp = PaginatedResponse::new(records, 1, total, total);
+            Json(resp).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
