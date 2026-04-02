@@ -11,6 +11,7 @@ pub use types::*;
 pub use addresses::AddressesClient;
 pub use contacts::ContactsClient;
 pub use parties::PartiesClient;
+pub use parties::SearchPartiesQuery;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 

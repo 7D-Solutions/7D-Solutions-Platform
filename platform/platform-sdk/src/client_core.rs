@@ -301,6 +301,48 @@ mod tests {
         assert!(!err.is_conflict());
     }
 
+    // ── ensure ───────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn ensure_returns_get_result_when_found() {
+        let result = ensure(
+            async { Ok::<_, ClientError>(42u32) },
+            || async { Ok(99u32) },
+        )
+        .await;
+        assert_eq!(result.unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn ensure_creates_on_404() {
+        let result = ensure(
+            async {
+                Err::<u32, _>(ClientError::Unexpected {
+                    status: 404,
+                    body: "not found".into(),
+                })
+            },
+            || async { Ok(99u32) },
+        )
+        .await;
+        assert_eq!(result.unwrap(), 99);
+    }
+
+    #[tokio::test]
+    async fn ensure_propagates_non_404_errors() {
+        let result = ensure(
+            async {
+                Err::<u32, _>(ClientError::Unexpected {
+                    status: 500,
+                    body: "server error".into(),
+                })
+            },
+            || async { Ok(99u32) },
+        )
+        .await;
+        assert!(result.unwrap_err().is_status(500));
+    }
+
     #[test]
     fn is_status_returns_false_for_deserialize_errors() {
         let err = ClientError::Deserialize(
