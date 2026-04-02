@@ -76,10 +76,10 @@ pub async fn verify_party(
         _ => PartyClientError::ServiceUnavailable(e.to_string()),
     })?;
 
-    if view._base_party.app_id != app_id {
+    if view.party.app_id != app_id {
         return Err(PartyClientError::TenantMismatch {
             expected: app_id.to_string(),
-            got: view._base_party.app_id,
+            got: view.party.app_id,
         });
     }
 

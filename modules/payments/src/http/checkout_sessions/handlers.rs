@@ -282,7 +282,7 @@ pub async fn get_checkout_session(
         processor_payment_id: String,
         invoice_id: String,
         tenant_id: String,
-        amount_minor: i32,
+        amount_minor: i64,
         currency: String,
         return_url: Option<String>,
         cancel_url: Option<String>,

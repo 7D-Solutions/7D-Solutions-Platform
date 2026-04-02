@@ -13,7 +13,7 @@ pub struct Refund {
     pub tilled_refund_id: Option<String>,
     pub tilled_charge_id: Option<String>,
     pub status: String,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: String,
     pub reason: Option<String>,
     pub reference_id: String,
@@ -29,7 +29,7 @@ pub struct Refund {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateRefundRequest {
     pub charge_id: i32,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: Option<String>,
     pub reason: Option<String>,
     pub reference_id: String,

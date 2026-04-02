@@ -3,6 +3,8 @@
 //! Every generated client calls [`parse_response`] or [`parse_empty`] — if
 //! these have a bug, **all** clients break. Handle edge cases defensively.
 
+use std::future::Future;
+
 use platform_http_contracts::ApiError;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
@@ -32,7 +34,51 @@ pub enum ClientError {
     QueryEncode(#[source] serde_urlencoded::ser::Error),
 }
 
+impl ClientError {
+    /// Check whether this error carries a specific HTTP status code.
+    pub fn is_status(&self, code: u16) -> bool {
+        match self {
+            Self::Api { status, .. } | Self::Unexpected { status, .. } => *status == code,
+            _ => false,
+        }
+    }
+
+    /// Shorthand for `is_status(409)`.
+    pub fn is_conflict(&self) -> bool {
+        self.is_status(409)
+    }
+
+    /// Shorthand for `is_status(404)`.
+    pub fn is_not_found(&self) -> bool {
+        self.is_status(404)
+    }
+}
+
 // ── Public helpers ────────────────────────────────────────────────────
+
+/// Get-or-create: try `get` first; if it returns 404, call `create`.
+///
+/// ```rust,ignore
+/// let party = ensure(
+///     parties.get_party(&claims, party_id),
+///     || parties.create_party(&claims, &body),
+/// ).await?;
+/// ```
+pub async fn ensure<T, GetFut, CreateFn, CreateFut>(
+    get: GetFut,
+    create: CreateFn,
+) -> Result<T, ClientError>
+where
+    GetFut: Future<Output = Result<T, ClientError>>,
+    CreateFn: FnOnce() -> CreateFut,
+    CreateFut: Future<Output = Result<T, ClientError>>,
+{
+    match get.await {
+        Ok(val) => Ok(val),
+        Err(e) if e.is_not_found() => create().await,
+        Err(e) => Err(e),
+    }
+}
 
 /// Deserialize a successful JSON response or return a typed error.
 ///
@@ -228,5 +274,40 @@ mod tests {
         let resp = make_response(200, "not json at all");
         let err = parse_response::<serde_json::Value>(resp).await.unwrap_err();
         assert!(matches!(err, ClientError::Deserialize(_)));
+    }
+
+    // ── is_status / is_conflict / is_not_found ──────────────────────────
+
+    #[test]
+    fn is_status_matches_api_error() {
+        let err = ClientError::Api {
+            status: 409,
+            error: ApiError::new(409, "conflict", "duplicate"),
+        };
+        assert!(err.is_status(409));
+        assert!(err.is_conflict());
+        assert!(!err.is_not_found());
+        assert!(!err.is_status(500));
+    }
+
+    #[test]
+    fn is_status_matches_unexpected_error() {
+        let err = ClientError::Unexpected {
+            status: 404,
+            body: "not found".into(),
+        };
+        assert!(err.is_status(404));
+        assert!(err.is_not_found());
+        assert!(!err.is_conflict());
+    }
+
+    #[test]
+    fn is_status_returns_false_for_deserialize_errors() {
+        let err = ClientError::Deserialize(
+            serde_json::from_str::<serde_json::Value>("not json").unwrap_err(),
+        );
+        assert!(!err.is_status(500));
+        assert!(!err.is_conflict());
+        assert!(!err.is_not_found());
     }
 }

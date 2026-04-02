@@ -1,6 +1,6 @@
 [package]
 name = "payments-rs"
-version = "4.0.0"
+version = "5.0.0"
 edition = "2021"
 description = "Payment processing, reconciliation, and Tilled gateway integration"
 

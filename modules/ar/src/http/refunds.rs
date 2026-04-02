@@ -7,7 +7,6 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{ApiError, Charge, CreateRefundRequest, ListRefundsQuery, PaginatedResponse, Refund};
-use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
 
 /// POST /api/ar/refunds - Create a refund for a charge
@@ -116,7 +115,7 @@ pub async fn create_refund(
         ApiError::internal("Internal database error")
     })?;
 
-    let total_refunded = total_refunded.unwrap_or(0) as i32;
+    let total_refunded = total_refunded.unwrap_or(0);
     let remaining_refundable = charge.amount_cents - total_refunded;
 
     if req.amount_cents > remaining_refundable {
@@ -167,7 +166,7 @@ pub async fn create_refund(
         ApiError::internal("Internal database error")
     })?;
 
-    let amount_i64 = checked_i32_to_i64(req.amount_cents);
+    let amount_i64 = req.amount_cents;
     let tilled_metadata = req.metadata.as_ref().and_then(|m| {
         serde_json::from_value::<std::collections::HashMap<String, String>>(m.clone()).ok()
     });

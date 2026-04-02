@@ -172,7 +172,7 @@ mod tests {
     fn make_payment(
         id: i32,
         customer: i32,
-        amount: i32,
+        amount: i64,
         currency: &str,
         ref_id: Option<&str>,
     ) -> UnmatchedPayment {
@@ -188,7 +188,7 @@ mod tests {
     fn make_invoice(
         id: i32,
         customer: i32,
-        amount: i32,
+        amount: i64,
         currency: &str,
         tilled_id: &str,
     ) -> OpenInvoice {

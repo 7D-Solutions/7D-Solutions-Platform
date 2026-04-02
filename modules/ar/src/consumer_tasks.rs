@@ -199,7 +199,7 @@ pub async fn handle_payment_succeeded(
     if let Some(row) = row {
         let app_id: String = row.get("app_id");
         let customer_id: i32 = row.get("ar_customer_id");
-        let amount_cents: i32 = row.get("amount_cents");
+        let amount_cents: i64 = row.get("amount_cents");
         let currency: String = row.get("currency");
         let created_at = row.get("created_at");
         let due_at = row.get("due_at");

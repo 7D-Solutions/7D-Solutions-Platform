@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub struct PaymentCollectionRequestedPayload {
     pub invoice_id: String,
     pub customer_id: String,
-    pub amount_minor: i32,
+    pub amount_minor: i64,
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_method_id: Option<String>,
@@ -20,7 +20,7 @@ pub struct PaymentSucceededPayload {
     pub payment_id: String,
     pub invoice_id: String,
     pub ar_customer_id: String,
-    pub amount_minor: i32,
+    pub amount_minor: i64,
     pub currency: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub processor_payment_id: Option<String>,
@@ -43,8 +43,8 @@ pub struct GlPostingRequestPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlPostingLine {
     pub account_ref: String,
-    pub debit: i32,
-    pub credit: i32,
+    pub debit: i64,
+    pub credit: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
 }

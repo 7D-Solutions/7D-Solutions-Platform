@@ -104,7 +104,7 @@ impl From<sqlx::Error> for ReconError {
 pub(crate) struct UnmatchedPayment {
     pub(crate) charge_id: i32,
     pub(crate) ar_customer_id: i32,
-    pub(crate) amount_cents: i32,
+    pub(crate) amount_cents: i64,
     pub(crate) currency: String,
     pub(crate) reference_id: Option<String>,
 }
@@ -114,7 +114,7 @@ pub(crate) struct UnmatchedPayment {
 pub(crate) struct OpenInvoice {
     pub(crate) invoice_id: i32,
     pub(crate) ar_customer_id: i32,
-    pub(crate) amount_cents: i32,
+    pub(crate) amount_cents: i64,
     pub(crate) currency: String,
     pub(crate) tilled_invoice_id: String,
 }

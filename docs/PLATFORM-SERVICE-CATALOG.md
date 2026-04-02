@@ -18,7 +18,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 3.0.2 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| ar | ar-rs | 5.0.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ar | ar-rs | 6.0.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | bom | bom-rs | 2.2.8 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 2.2.8 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.3.0 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
@@ -32,7 +32,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | notifications | notifications-rs | 3.0.1 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry | [Revisions](modules/notifications/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | numbering | numbering | 2.2.0 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [Revisions](modules/numbering/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | party | party-rs | 3.0.2 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [Revisions](modules/party/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| payments | payments-rs | 4.0.0 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| payments | payments-rs | 5.0.0 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 2.2.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | production | production-rs | 3.0.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | quality-inspection | quality-inspection-rs | 2.1.0 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [Revisions](modules/quality-inspection/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |

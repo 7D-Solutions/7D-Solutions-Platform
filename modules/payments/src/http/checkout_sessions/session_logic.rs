@@ -13,7 +13,7 @@ pub struct CreateCheckoutSessionRequest {
     pub invoice_id: String,
     pub tenant_id: String,
     /// Amount in minor currency units (e.g. cents)
-    pub amount: i32,
+    pub amount: i64,
     pub currency: String,
     /// URL to redirect after successful payment (optional)
     pub return_url: Option<String>,
@@ -42,7 +42,7 @@ pub struct CheckoutSessionStatusResponse {
     pub payment_intent_id: String,
     pub invoice_id: String,
     pub tenant_id: String,
-    pub amount: i32,
+    pub amount: i64,
     pub currency: String,
     /// URL to redirect after successful payment (stored at creation time)
     pub return_url: Option<String>,
@@ -86,7 +86,7 @@ pub fn validate_https_url(url: &str) -> bool {
 pub async fn create_tilled_payment_intent(
     api_key: &str,
     account_id: &str,
-    amount: i32,
+    amount: i64,
     currency: &str,
 ) -> anyhow::Result<(String, String)> {
     let client = reqwest::Client::new();

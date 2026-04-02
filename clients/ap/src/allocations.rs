@@ -16,7 +16,7 @@ impl AllocationsClient {
     }
 
     /// GET `/api/ap/bills/{bill_id}/allocations`
-    pub async fn list_allocations(&self, claims: &VerifiedClaims, bill_id: uuid::Uuid) -> Result<PaginatedResponse<AllocationRecord>, ClientError> {
+    pub async fn list_allocations(&self, claims: &VerifiedClaims, bill_id: uuid::Uuid) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ap/bills/{}/allocations", bill_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
@@ -32,7 +32,7 @@ impl AllocationsClient {
     }
 
     /// GET `/api/ap/bills/{bill_id}/balance`
-    pub async fn get_balance(&self, claims: &VerifiedClaims, bill_id: uuid::Uuid) -> Result<BillBalanceSummary, ClientError> {
+    pub async fn get_balance(&self, claims: &VerifiedClaims, bill_id: uuid::Uuid) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ap/bills/{}/balance", bill_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

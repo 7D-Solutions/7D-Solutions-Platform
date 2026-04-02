@@ -40,7 +40,7 @@ impl AddressesClient {
     }
 
     /// GET `/api/party/parties/{party_id}/addresses`
-    pub async fn list_addresses(&self, claims: &VerifiedClaims, party_id: uuid::Uuid) -> Result<PaginatedResponse<Address>, ClientError> {
+    pub async fn list_addresses(&self, claims: &VerifiedClaims, party_id: uuid::Uuid) -> Result<DataResponse<Address>, ClientError> {
         let path = format!("/api/party/parties/{}/addresses", party_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

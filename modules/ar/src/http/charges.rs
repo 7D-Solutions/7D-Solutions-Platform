@@ -10,7 +10,6 @@ use crate::models::{
     ApiError, CaptureChargeRequest, Charge, CreateChargeRequest, Customer, ListChargesQuery,
     PaginatedResponse,
 };
-use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
 
 /// POST /api/ar/charges - Create a new charge
@@ -367,7 +366,7 @@ pub async fn capture_charge(
         ApiError::internal("Internal database error")
     })?;
 
-    let capture_amount_i64 = checked_i32_to_i64(capture_amount);
+    let capture_amount_i64 = capture_amount;
 
     match client
         .capture_payment_intent(tilled_charge_id, Some(capture_amount_i64))

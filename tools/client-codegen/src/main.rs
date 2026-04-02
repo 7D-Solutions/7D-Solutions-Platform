@@ -234,8 +234,19 @@ fn emit_lib(parsed: &ParsedSpec, mod_names: &[String], type_mod_names: &[String]
             .iter()
             .find(|m| m == &&mod_name || m.starts_with(&format!("{mod_name}_")))
             .cloned()
-            .unwrap_or(mod_name);
+            .unwrap_or(mod_name.clone());
         out.push_str(&format!("pub use {actual_mod}::{struct_name};\n"));
+
+        // Re-export public query structs from this tag's module
+        let tag_eps: Vec<&spec::Endpoint> = parsed.endpoints.iter()
+            .filter(|ep| ep.tag == *tag)
+            .collect();
+        for ep in tag_eps {
+            if ep.query_params.len() >= emit_client::QUERY_STRUCT_THRESHOLD {
+                let query_name = emit_client::op_id_to_query_struct(&ep.operation_id);
+                out.push_str(&format!("pub use {actual_mod}::{query_name};\n"));
+            }
+        }
     }
 
     // Emit PlatformService trait impls so verticals can use

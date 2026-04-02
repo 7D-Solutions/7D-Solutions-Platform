@@ -433,3 +433,18 @@ pub struct CreateTemplateRequest {
     pub tenant_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsRequest {
+    pub reversal_date: String,
+    pub target_period: String,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecuteReversalsResult {
+    pub results: Vec<ReversalResult>,
+    pub reversals_executed: i64,
+    pub reversals_skipped: i64,
+    pub target_period: String,
+}
+

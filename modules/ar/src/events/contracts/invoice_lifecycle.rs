@@ -35,7 +35,7 @@ pub struct InvoiceLifecyclePayload {
     pub invoice_id: String,
     pub customer_id: String,
     pub app_id: String,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: String,
     pub created_at: NaiveDateTime,
     pub due_at: Option<NaiveDateTime>,

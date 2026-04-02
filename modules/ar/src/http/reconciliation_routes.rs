@@ -60,7 +60,6 @@ pub async fn recon_run_route(
 #[derive(Debug, serde::Deserialize)]
 pub struct ScheduleReconRequest {
     pub scheduled_run_id: Option<uuid::Uuid>,
-    pub app_id: String,
     pub window_start: chrono::NaiveDateTime,
     pub window_end: chrono::NaiveDateTime,
 }
@@ -72,15 +71,17 @@ pub struct ScheduleReconRequest {
 /// POST /api/ar/recon/schedule — create a scheduled reconciliation run
 pub async fn schedule_recon_route(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ScheduleReconRequest>,
 ) -> Result<Json<crate::recon_scheduler::ScheduledRunResult>, ApiError> {
+    let app_id = super::tenant::extract_tenant(&claims)?;
     let scheduled_run_id = req.scheduled_run_id.unwrap_or_else(uuid::Uuid::new_v4);
 
     let result = crate::recon_scheduler::create_scheduled_run(
         &db,
         crate::recon_scheduler::CreateScheduledRunRequest {
             scheduled_run_id,
-            app_id: req.app_id,
+            app_id,
             window_start: req.window_start,
             window_end: req.window_end,
             correlation_id: uuid::Uuid::new_v4().to_string(),
@@ -102,7 +103,6 @@ pub async fn schedule_recon_route(
 #[derive(Debug, serde::Deserialize)]
 pub struct ReconPollRequest {
     pub worker_id: Option<String>,
-    pub app_id: Option<String>,
     pub batch_size: Option<usize>,
 }
 
@@ -113,8 +113,10 @@ pub struct ReconPollRequest {
 /// POST /api/ar/recon/poll — claim and execute pending scheduled runs
 pub async fn recon_poll_route(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ReconPollRequest>,
 ) -> Result<Json<PaginatedResponse<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError> {
+    let app_id = super::tenant::extract_tenant(&claims)?;
     let worker_id = req.worker_id.unwrap_or_else(|| "api-worker".to_string());
     let batch_size = req.batch_size.unwrap_or(10);
     let correlation_id = uuid::Uuid::new_v4().to_string();
@@ -124,7 +126,7 @@ pub async fn recon_poll_route(
         batch_size,
         &worker_id,
         &correlation_id,
-        req.app_id.as_deref(),
+        Some(&app_id),
     )
     .await;
 

@@ -227,7 +227,7 @@ pub async fn insert_invoice<'e>(
     ar_customer_id: i32,
     subscription_id: Option<i32>,
     status: &str,
-    amount_cents: i32,
+    amount_cents: i64,
     currency: &str,
     due_at: Option<NaiveDateTime>,
     metadata: Option<JsonValue>,
@@ -279,7 +279,7 @@ pub async fn update_invoice_fields<'e>(
     executor: impl PgExecutor<'e>,
     id: i32,
     status: &str,
-    amount_cents: i32,
+    amount_cents: i64,
     due_at: Option<NaiveDateTime>,
     metadata: Option<JsonValue>,
 ) -> Result<Invoice, sqlx::Error> {

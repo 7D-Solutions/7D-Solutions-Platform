@@ -434,7 +434,7 @@ async fn seed_invoice(
     pool: &sqlx::PgPool,
     app_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     status: &str,
 ) -> i32 {
     use uuid::Uuid;

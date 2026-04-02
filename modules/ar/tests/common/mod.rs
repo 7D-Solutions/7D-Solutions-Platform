@@ -148,7 +148,7 @@ pub async fn seed_charge(
     pool: &PgPool,
     app_id: &str,
     customer_id: i32,
-    amount_cents: i32,
+    amount_cents: i64,
     status: &str,
 ) -> i32 {
     let reference_id = unique_reference_id();

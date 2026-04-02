@@ -159,12 +159,15 @@ fn parse_type_def(name: &str, schema: &Value) -> Option<TypeDef> {
         for sub in all_of {
             if let Some(r) = sub.get("$ref").and_then(|r| r.as_str()) {
                 // Flatten referenced schema — we can't resolve it here,
-                // so emit a flattened serde field
+                // so emit a flattened serde field.
+                // Use snake_case of the type name to match source module conventions
+                // (e.g. Party → party, VendorBill → vendor_bill).
                 let ref_name = ref_to_type(r);
+                let field_name = camel_to_snake(&ref_name);
                 fields.insert(
-                    format!("_base_{}", ref_name.to_lowercase()),
+                    field_name.clone(),
                     Field {
-                        name: format!("_base_{}", ref_name.to_lowercase()),
+                        name: field_name,
                         rust_type: format!("#[serde(flatten)] {ref_name}"),
                         required: true,
                         doc: None,
@@ -190,9 +193,9 @@ fn parse_type_def(name: &str, schema: &Value) -> Option<TypeDef> {
                 }
             }
         }
-        // Mark optional fields
+        // Mark optional fields (flatten fields are always required)
         for f in fields.values_mut() {
-            if !f.name.starts_with("_base_") {
+            if !f.rust_type.starts_with("#[serde(flatten)]") {
                 f.required = required.contains(&f.name);
             }
         }
@@ -316,6 +319,21 @@ fn primitive_type(t: &str, schema: &Value) -> String {
         ("boolean", _) => "bool".to_string(),
         _ => "serde_json::Value".to_string(),
     }
+}
+
+fn camel_to_snake(s: &str) -> String {
+    let mut result = String::with_capacity(s.len() + 4);
+    for (i, c) in s.chars().enumerate() {
+        if c.is_uppercase() {
+            if i > 0 {
+                result.push('_');
+            }
+            result.extend(c.to_lowercase());
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }
 
 fn ref_to_type(r: &str) -> String {

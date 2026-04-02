@@ -312,8 +312,6 @@ pub struct PartyIndividual {
 /// Full party view with typed extension, external refs, contacts, and addresses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PartyView {
-    #[serde(flatten)]
-    pub _base_party: Party,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<Address>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -323,6 +321,8 @@ pub struct PartyView {
     pub external_refs: Vec<ExternalRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub individual: Option<PartyIndividual>,
+    #[serde(flatten)]
+    pub party: Party,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

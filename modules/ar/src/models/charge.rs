@@ -27,7 +27,7 @@ pub struct Charge {
     pub ar_customer_id: i32,
     pub subscription_id: Option<i32>,
     pub status: String,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: String,
     pub charge_type: String,
     pub reason: Option<String>,
@@ -50,7 +50,7 @@ pub struct Charge {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateChargeRequest {
     pub ar_customer_id: i32,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: Option<String>,
     pub charge_type: Option<String>,
     pub reason: String,
@@ -63,7 +63,7 @@ pub struct CreateChargeRequest {
 /// Request body for capturing an authorized charge
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CaptureChargeRequest {
-    pub amount_cents: Option<i32>,
+    pub amount_cents: Option<i64>,
 }
 
 /// Query parameters for listing charges

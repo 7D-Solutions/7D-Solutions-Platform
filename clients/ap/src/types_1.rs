@@ -33,39 +33,6 @@ pub struct DataResponse<T> {
     pub data: Vec<T>,
 }
 
-/// Complete aging report response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AgingReport {
-    /// The date used as the aging reference point.
-    pub as_of: chrono::NaiveDate,
-    /// Bucket totals grouped by currency.
-    pub buckets_by_currency: Vec<CurrencyBucket>,
-    /// Per-vendor breakdown — present only when `by_vendor=true` was requested.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub vendor_breakdown: Option<serde_json::Value>,
-}
-
-/// A single allocation record as stored in ap_allocations.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AllocationRecord {
-    /// Stable external idempotency anchor — caller-generated UUID.
-    pub allocation_id: uuid::Uuid,
-    /// "partial" or "full" — derived from remaining bill balance at allocation time.
-    pub allocation_type: String,
-    /// Amount applied in minor currency units (always > 0).
-    pub amount_minor: i64,
-    pub bill_id: uuid::Uuid,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    /// ISO 4217 currency code.
-    pub currency: String,
-    /// BIGSERIAL primary key (internal ordering)
-    pub id: i64,
-    /// Set when this allocation is claimed by a payment run.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payment_run_id: Option<uuid::Uuid>,
-    pub tenant_id: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApTaxReportResponse {
     pub from: String,
@@ -140,16 +107,6 @@ pub struct ApprovePoRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssignTermsRequest {
     pub term_id: uuid::Uuid,
-}
-
-/// Summary of remaining open balance on a bill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BillBalanceSummary {
-    pub allocated_minor: i64,
-    pub bill_id: uuid::Uuid,
-    pub open_balance_minor: i64,
-    pub status: String,
-    pub total_minor: i64,
 }
 
 /// A single line on a vendor bill as returned from the DB.
@@ -317,25 +274,6 @@ pub struct CreateVendorRequest {
     pub tax_id: Option<String>,
 }
 
-/// Aging bucket totals for a single currency.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CurrencyBucket {
-    /// ISO 4217 currency code.
-    pub currency: String,
-    /// Open balance in the current bucket (not yet overdue), in minor units.
-    pub current_minor: i64,
-    /// Open balance 1–30 days past due, in minor units.
-    pub days_1_30_minor: i64,
-    /// Open balance 31–60 days past due, in minor units.
-    pub days_31_60_minor: i64,
-    /// Open balance 61–90 days past due, in minor units.
-    pub days_61_90_minor: i64,
-    /// Open balance more than 90 days past due, in minor units.
-    pub over_90_minor: i64,
-    /// Sum of all buckets = total outstanding for this currency.
-    pub total_open_minor: i64,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchLineResult {
     pub bill_line_id: uuid::Uuid,
@@ -368,22 +306,6 @@ pub struct MatchOutcome {
     pub matched_at: chrono::DateTime<chrono::Utc>,
     pub matched_by: String,
     pub po_id: uuid::Uuid,
-}
-
-/// Payment run header row from `payment_runs`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PaymentRun {
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub created_by: String,
-    pub currency: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub executed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub payment_method: String,
-    pub run_id: uuid::Uuid,
-    pub scheduled_date: chrono::DateTime<chrono::Utc>,
-    pub status: String,
-    pub tenant_id: String,
-    pub total_minor: i64,
 }
 
 /// Payment terms record as stored in the database.
@@ -442,8 +364,69 @@ pub struct PurchaseOrder {
 /// PO with its line items (for GET and POST 201 responses).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PurchaseOrderWithLines {
-    #[serde(flatten)]
-    pub _base_purchaseorder: PurchaseOrder,
     pub lines: Vec<PoLineRecord>,
+    #[serde(flatten)]
+    pub purchase_order: PurchaseOrder,
+}
+
+/// Request to run the match engine for a vendor bill against a PO.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunMatchRequest {
+    /// Actor triggering the match (for audit trail)
+    pub matched_by: String,
+    /// PO to match this bill against
+    pub po_id: uuid::Uuid,
+    /// Price tolerance as a fraction (0.0–1.0). Default: 0.05 (5%).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price_tolerance_pct: Option<f64>,
+}
+
+/// Request body to update payment terms (partial update).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePaymentTermsRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub days_due: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_days: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub discount_pct: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installment_schedule: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_active: Option<bool>,
+}
+
+/// Request body to replace all lines on a draft PO (idempotent full replacement).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePoLinesRequest {
+    /// Full replacement line set (at least one required)
+    pub lines: Vec<CreatePoLineRequest>,
+    /// Actor performing the update (for audit)
+    pub updated_by: String,
+}
+
+/// Request body to update an existing vendor. All fields are optional (partial update).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateVendorRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Optional link to a Party record in the party-master service.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub party_id: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_terms_days: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remittance_email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tax_id: Option<String>,
+    /// Actor performing the update (for event attribution)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_by: Option<String>,
 }
 

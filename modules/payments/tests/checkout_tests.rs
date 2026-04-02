@@ -375,7 +375,7 @@ async fn test_get_checkout_session_by_id() {
 
     let invoice_id = format!("test_inv_{}", Uuid::new_v4().simple());
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
-    let amount = 7500_i32;
+    let amount = 7500_i64;
     let currency = "usd";
 
     let idem_key = format!("idem_{}", Uuid::new_v4().simple());
@@ -402,7 +402,7 @@ async fn test_get_checkout_session_by_id() {
         status: String,
         processor_payment_id: String,
         invoice_id: String,
-        amount_minor: i32,
+        amount_minor: i64,
         currency: String,
     }
 

@@ -2,6 +2,10 @@
 
 use crate::spec::{Endpoint, HttpMethod, ParsedSpec, Param, ResponseKind};
 
+/// Methods with this many query params or more get a public query struct
+/// instead of individual parameters.
+pub const QUERY_STRUCT_THRESHOLD: usize = 5;
+
 pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
     let struct_name = tag_to_client_name(tag);
     // Determine which imports are needed
@@ -39,6 +43,14 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
         sdk_imports.join(", ")
     ));
 
+    // Emit public query structs for methods with many query params
+    for &idx in indices {
+        let ep = &parsed.endpoints[idx];
+        if ep.query_params.len() >= QUERY_STRUCT_THRESHOLD {
+            emit_public_query_struct(&mut out, ep);
+        }
+    }
+
     // Client struct — wraps PlatformClient which handles headers, retry, and auth
     out.push_str(&format!("/// Typed HTTP client for {tag} endpoints.\n"));
     out.push_str(&format!("pub struct {struct_name} {{\n"));
@@ -74,14 +86,19 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
     for p in &ep.path_params {
         params.push(format!("{}: {}", sanitize_param(&p.name), param_arg_type(&p.rust_type)));
     }
-    // Query params that aren't path params
-    for p in &ep.query_params {
-        let ty = if p.required {
-            param_arg_type(&p.rust_type)
-        } else {
-            format!("Option<{}>", param_arg_type(&p.rust_type))
-        };
-        params.push(format!("{}: {ty}", sanitize_param(&p.name)));
+    let use_public_query = ep.query_params.len() >= QUERY_STRUCT_THRESHOLD;
+    if use_public_query {
+        let query_struct = op_id_to_query_struct(&ep.operation_id);
+        params.push(format!("query: &{query_struct}"));
+    } else {
+        for p in &ep.query_params {
+            let ty = if p.required {
+                param_arg_type(&p.rust_type)
+            } else {
+                format!("Option<{}>", param_arg_type(&p.rust_type))
+            };
+            params.push(format!("{}: {ty}", sanitize_param(&p.name)));
+        }
     }
     // Request body
     if let Some(body_type) = &ep.request_body {
@@ -114,8 +131,13 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
     // Query params
     let has_query = !ep.query_params.is_empty();
     if has_query {
-        emit_query_struct(out, &ep.query_params);
-        out.push_str("        let url = build_query_url(&path, &query)?;\n");
+        if use_public_query {
+            // query is already passed as a parameter — use it directly
+            out.push_str("        let url = build_query_url(&path, query)?;\n");
+        } else {
+            emit_inline_query_struct(out, &ep.query_params);
+            out.push_str("        let url = build_query_url(&path, &query)?;\n");
+        }
     } else {
         out.push_str("        let url = path;\n");
     }
@@ -164,7 +186,7 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
     out.push_str("    }\n");
 }
 
-fn emit_query_struct(out: &mut String, params: &[Param]) {
+fn emit_inline_query_struct(out: &mut String, params: &[Param]) {
     out.push_str("        #[derive(serde::Serialize)]\n");
     out.push_str("        struct Query {\n");
     for p in params {
@@ -248,6 +270,49 @@ fn sanitize_param(name: &str) -> String {
         }
         _ => s,
     }
+}
+
+/// Emit a public query struct for methods with many query params.
+/// Placed at module level so callers can construct and pass it.
+fn emit_public_query_struct(out: &mut String, ep: &Endpoint) {
+    let struct_name = op_id_to_query_struct(&ep.operation_id);
+    out.push_str(&format!("/// Query parameters for [`{}`].\n", ep.operation_id));
+    out.push_str("#[derive(Debug, Clone, Default, serde::Serialize)]\n");
+    out.push_str(&format!("pub struct {struct_name} {{\n"));
+    for p in &ep.query_params {
+        let owned_type = query_owned_type(&p.rust_type);
+        if !p.required {
+            out.push_str(
+                "    #[serde(skip_serializing_if = \"Option::is_none\")]\n",
+            );
+            out.push_str(&format!(
+                "    pub {}: Option<{owned_type}>,\n",
+                sanitize_param(&p.name),
+            ));
+        } else {
+            out.push_str(&format!(
+                "    pub {}: {owned_type},\n",
+                sanitize_param(&p.name),
+            ));
+        }
+    }
+    out.push_str("}\n\n");
+}
+
+/// Convert an operation_id like "search_parties" to "SearchPartiesQuery".
+pub fn op_id_to_query_struct(operation_id: &str) -> String {
+    let pascal: String = operation_id
+        .split('_')
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().to_string() + c.as_str(),
+            }
+        })
+        .collect();
+    format!("{pascal}Query")
 }
 
 fn tag_to_client_name(tag: &str) -> String {

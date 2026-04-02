@@ -5,6 +5,25 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response, parse_empty};
 
+/// Query parameters for [`search_parties`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct SearchPartiesQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub party_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<i64>,
+}
+
 /// Typed HTTP client for Parties endpoints.
 pub struct PartiesClient {
     client: PlatformClient,
@@ -54,35 +73,9 @@ impl PartiesClient {
     }
 
     /// GET `/api/party/parties/search`
-    pub async fn search_parties(&self, claims: &VerifiedClaims, name: Option<&str>, party_type: Option<&str>, status: Option<&str>, external_system: Option<&str>, external_id: Option<&str>, limit: Option<i64>, offset: Option<i64>) -> Result<PaginatedResponse<Party>, ClientError> {
+    pub async fn search_parties(&self, claims: &VerifiedClaims, query: &SearchPartiesQuery) -> Result<PaginatedResponse<Party>, ClientError> {
         let path = format!("/api/party/parties/search");
-        #[derive(serde::Serialize)]
-        struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
-            name: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            party_type: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            external_system: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            external_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            limit: Option<i64>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            offset: Option<i64>,
-        }
-        let query = Query {
-            name: name.map(|s| s.to_string()),
-            party_type: party_type.map(|s| s.to_string()),
-            status: status.map(|s| s.to_string()),
-            external_system: external_system.map(|s| s.to_string()),
-            external_id: external_id.map(|s| s.to_string()),
-            limit,
-            offset,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

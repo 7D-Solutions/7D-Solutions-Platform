@@ -27,7 +27,7 @@ use crate::events::outbox::enqueue_event_tx;
 pub struct AllocatePaymentRequest {
     pub payment_id: String,
     pub customer_id: i32,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub currency: String,
     pub idempotency_key: String,
 }
@@ -35,8 +35,8 @@ pub struct AllocatePaymentRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AllocationResult {
     pub payment_id: String,
-    pub allocated_amount_cents: i32,
-    pub unallocated_amount_cents: i32,
+    pub allocated_amount_cents: i64,
+    pub unallocated_amount_cents: i64,
     pub strategy: String,
     pub allocations: Vec<AllocationRow>,
 }
@@ -45,7 +45,7 @@ pub struct AllocationResult {
 pub struct AllocationRow {
     pub id: i32,
     pub invoice_id: i32,
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub strategy: String,
 }
 
@@ -82,7 +82,7 @@ pub async fn allocate_payment_fifo(
     .map_err(AllocationError::Database)?;
 
     if !existing.is_empty() {
-        let allocated: i32 = existing.iter().map(|r| r.amount_cents).sum();
+        let allocated: i64 = existing.iter().map(|r| r.amount_cents).sum();
         return Ok(AllocationResult {
             payment_id: req.payment_id.clone(),
             allocated_amount_cents: allocated,
@@ -110,7 +110,7 @@ pub async fn allocate_payment_fifo(
                COALESCE(
                    (SELECT SUM(a.amount_cents) FROM ar_payment_allocations a WHERE a.invoice_id = i.id),
                    0
-               )::INTEGER AS already_allocated
+               )::BIGINT AS already_allocated
         FROM ar_invoices i
         WHERE i.app_id = $1
           AND i.ar_customer_id = $2
@@ -135,8 +135,8 @@ pub async fn allocate_payment_fifo(
         }
 
         let invoice_id: i32 = row.get("id");
-        let invoice_amount: i32 = row.get("amount_cents");
-        let already_allocated: i32 = row.get("already_allocated");
+        let invoice_amount: i64 = row.get("amount_cents");
+        let already_allocated: i64 = row.get("already_allocated");
         let invoice_remaining = invoice_amount - already_allocated;
 
         if invoice_remaining <= 0 {
@@ -174,13 +174,13 @@ pub async fn allocate_payment_fifo(
             allocation_rows.push(alloc_row);
             event_lines.push(AllocationLine {
                 invoice_id: invoice_id.to_string(),
-                allocated_minor: alloc_amount as i64,
-                remaining_after_minor: remaining_after as i64,
+                allocated_minor: alloc_amount,
+                remaining_after_minor: remaining_after,
             });
         }
     }
 
-    let allocated_total: i32 = allocation_rows.iter().map(|r| r.amount_cents).sum();
+    let allocated_total: i64 = allocation_rows.iter().map(|r| r.amount_cents).sum();
     let unallocated = req.amount_cents - allocated_total;
 
     // Emit ar.payment_allocated outbox event atomically
@@ -194,9 +194,9 @@ pub async fn allocate_payment_fifo(
             tenant_id: app_id.to_string(),
             payment_id: req.payment_id.clone(),
             customer_id: req.customer_id.to_string(),
-            payment_amount_minor: req.amount_cents as i64,
-            allocated_amount_minor: allocated_total as i64,
-            unallocated_amount_minor: unallocated as i64,
+            payment_amount_minor: req.amount_cents,
+            allocated_amount_minor: allocated_total,
+            unallocated_amount_minor: unallocated,
             currency: req.currency.clone(),
             allocation_strategy: "fifo".to_string(),
             allocations: event_lines,

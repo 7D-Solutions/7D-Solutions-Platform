@@ -648,7 +648,7 @@ async fn test_capture_charge_partial_amount_reaches_provider() {
     );
 
     // Verify charge amount was NOT changed (failure safety)
-    let amount: i32 = sqlx::query_scalar("SELECT amount_cents FROM ar_charges WHERE id = $1")
+    let amount: i64 = sqlx::query_scalar("SELECT amount_cents FROM ar_charges WHERE id = $1")
         .bind(charge_id)
         .fetch_one(&pool)
         .await

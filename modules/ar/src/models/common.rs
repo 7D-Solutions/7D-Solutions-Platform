@@ -67,7 +67,7 @@ pub struct Dispute {
     pub tilled_charge_id: Option<String>,
     pub charge_id: Option<i32>,
     pub status: String,
-    pub amount_cents: Option<i32>,
+    pub amount_cents: Option<i64>,
     pub currency: Option<String>,
     pub reason: Option<String>,
     pub reason_code: Option<String>,

@@ -16,7 +16,7 @@ impl ReportsClient {
     }
 
     /// GET `/api/ap/aging`
-    pub async fn aging_report(&self, claims: &VerifiedClaims, as_of: Option<chrono::NaiveDate>, by_vendor: Option<bool>) -> Result<AgingReport, ClientError> {
+    pub async fn aging_report(&self, claims: &VerifiedClaims, as_of: Option<chrono::NaiveDate>, by_vendor: Option<bool>) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/ap/aging");
         #[derive(serde::Serialize)]
         struct Query {

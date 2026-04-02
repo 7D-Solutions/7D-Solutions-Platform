@@ -122,7 +122,7 @@ pub async fn bill_usage_for_invoice(
 
     for row in &unbilled {
         let qty: f64 = row.quantity.parse().unwrap_or(0.0);
-        let amount_cents = (qty * row.unit_price_cents as f64).round() as i32;
+        let amount_cents = (qty * row.unit_price_cents as f64).round() as i64;
         total_amount_minor += amount_cents as i64;
 
         // Step 2a: Insert invoice line item
