@@ -9,8 +9,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
-use event_bus::{EventBus, EventEnvelope};
+use event_bus::{EventBus, EventEnvelope, TracingContext};
 use futures::StreamExt;
+use tracing::Instrument;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
@@ -150,6 +151,16 @@ pub async fn wire_consumers(
                             };
 
                         let event_id = envelope.event_id;
+                        let tracing_ctx = TracingContext::from_envelope(&envelope);
+
+                        let span = tracing::info_span!(
+                            "event_consumer",
+                            subject = %subject,
+                            event_id = %event_id,
+                            correlation_id = tracing_ctx.correlation_id.as_deref().unwrap_or(""),
+                            trace_id = tracing_ctx.trace_id.as_deref().unwrap_or(""),
+                            causation_id = tracing_ctx.causation_id.as_deref().unwrap_or(""),
+                        );
 
                         let result = retry_with_backoff(
                             || {
@@ -161,6 +172,7 @@ pub async fn wire_consumers(
                             &retry_cfg,
                             &context_label,
                         )
+                        .instrument(span)
                         .await;
 
                         if let Err(e) = result {
