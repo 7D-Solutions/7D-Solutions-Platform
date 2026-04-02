@@ -218,6 +218,17 @@ jobs:
           chmod +x tools/ci/lint-event-metadata-present.sh
           ./tools/ci/lint-event-metadata-present.sh
 
+  workspace-members-check:
+    name: "Workspace Members: clients/* coverage"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify all clients/* crates are in workspace members
+        run: |
+          chmod +x scripts/ci/check-workspace-members.sh
+          scripts/ci/check-workspace-members.sh
+
   build-auth:
     name: Build AUTH Module
     runs-on: ubuntu-latest

@@ -69,6 +69,7 @@ members = [
   "clients/identity-auth",
   "clients/smoke-test",
   "clients/notifications",
+  "clients/consolidation",
   "modules/vertical-proof",
   "e2e-tests",
 ]
