@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |
 | 2.0.3 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Dual DB pool created in routes closure. Consumer bridges spawn via bus_arc(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.0.2 | 2026-03-30 | bd-nhmgu | Add openapi_dump utility binary for offline spec generation. | OpenAPI spec validation: offline dump needed for spec extraction and validation. | No |
 | 1.0.0 | 2026-03-28 | bd-183if | Initial proof. Receiving inspection and in-process inspection workflows, inspection plan configuration, acceptance criteria management, disposition handling, admin endpoints. Builds and clippy clean. Integration tests advisory (DB connectivity). | Quality inspection module code complete. All gates pass. | No |

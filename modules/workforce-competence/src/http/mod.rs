@@ -1,5 +1,4 @@
 pub mod handlers;
-pub mod health;
 pub mod tenant;
 
 use utoipa::OpenApi;
