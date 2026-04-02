@@ -1,0 +1,25 @@
+[module]
+name = "smoke-test"
+version = "0.1.0"
+description = "Minimal greenfield module — proves plug-and-play SDK works from scratch"
+
+[server]
+host = "0.0.0.0"
+port = 8199
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[events.subscribe]
+subjects = ["smoke_test.item_created"]
+consumer_name = "smoke-test-echo"
+
+[sdk]
+min_version = "0.1.0"

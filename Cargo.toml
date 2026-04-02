@@ -40,6 +40,7 @@ members = [
   "modules/bom",
   "modules/production",
   "modules/quality-inspection",
+  "modules/smoke-test",
   "tools/contract-tests",
   "tools/simulation",
   "tools/tenantctl",
@@ -66,6 +67,7 @@ members = [
   "clients/bom",
   "clients/inventory",
   "clients/identity-auth",
+  "clients/smoke-test",
   "e2e-tests",
 ]
 

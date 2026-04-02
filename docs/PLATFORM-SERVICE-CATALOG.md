@@ -51,6 +51,7 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
+| smoke-test | smoke-test-rs | 0.1.0 |  |  | Minimal greenfield module — proves plug-and-play SDK works from scratch |  |
 
 ## Platform Libraries
 
