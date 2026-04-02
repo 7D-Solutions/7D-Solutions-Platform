@@ -26,7 +26,16 @@ fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
     })
 }
 
-async fn projection_status(
+#[utoipa::path(
+    post,
+    path = "/api/gl/admin/projection-status",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Projection cursor status for the requested projection"),
+        (status = 403, description = "Invalid or missing admin token"),
+    ),
+)]
+pub async fn projection_status(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
@@ -39,7 +48,16 @@ async fn projection_status(
     Ok(Json(resp))
 }
 
-async fn consistency_check(
+#[utoipa::path(
+    post,
+    path = "/api/gl/admin/consistency-check",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Consistency digest for the requested projection table"),
+        (status = 403, description = "Invalid or missing admin token"),
+    ),
+)]
+pub async fn consistency_check(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
@@ -52,7 +70,16 @@ async fn consistency_check(
     Ok(Json(resp))
 }
 
-async fn list_projections(
+#[utoipa::path(
+    get,
+    path = "/api/gl/admin/projections",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "List of all known projections with cursor summaries"),
+        (status = 403, description = "Invalid or missing admin token"),
+    ),
+)]
+pub async fn list_projections(
     State(pool): State<PgPool>,
     headers: HeaderMap,
 ) -> Result<Json<admin::ProjectionListResponse>, ApiError> {

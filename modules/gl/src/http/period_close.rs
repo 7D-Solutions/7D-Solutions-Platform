@@ -11,13 +11,16 @@ use axum::{
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use chrono::{DateTime, Utc};
+use platform_http_contracts::{ApiError, PaginatedResponse};
+use serde::Serialize;
 use security::VerifiedClaims;
 use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::config::DEFAULT_REPORTING_CURRENCY;
 use crate::contracts::period_close_v1::{
     ClosePeriodRequest, ClosePeriodResponse, CloseStatus, CloseStatusResponse,
@@ -259,6 +262,24 @@ pub struct ReopenRejectPayload {
     pub reject_reason: String,
 }
 
+/// Response type for reopen request list entries
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ReopenRequestResponse {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub period_id: Uuid,
+    pub requested_by: String,
+    pub reason: String,
+    pub prior_close_hash: String,
+    pub status: String,
+    pub approved_by: Option<String>,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub rejected_by: Option<String>,
+    pub rejected_at: Option<DateTime<Utc>>,
+    pub reject_reason: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 /// POST /api/gl/periods/{period_id}/reopen — request a controlled reopen
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
@@ -359,21 +380,38 @@ pub async fn reject_reopen(
 /// GET /api/gl/periods/{period_id}/reopen
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "List of reopen requests")),
+    responses((status = 200, description = "List of reopen requests", body = PaginatedResponse<ReopenRequestResponse>)),
     security(("bearer" = [])))]
 pub async fn list_reopen_requests(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Json<PaginatedResponse<ReopenRequestResponse>>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = period_reopen_service::list_reopen_requests(&app_state.pool, &tenant_id, period_id)
         .await
         .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(rows)
-        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
-    Ok(Json(json_val))
+    let items: Vec<ReopenRequestResponse> = rows
+        .into_iter()
+        .map(|r| ReopenRequestResponse {
+            id: r.id,
+            tenant_id: r.tenant_id,
+            period_id: r.period_id,
+            requested_by: r.requested_by,
+            reason: r.reason,
+            prior_close_hash: r.prior_close_hash,
+            status: r.status,
+            approved_by: r.approved_by,
+            approved_at: r.approved_at,
+            rejected_by: r.rejected_by,
+            rejected_at: r.rejected_at,
+            reject_reason: r.reject_reason,
+            created_at: r.created_at,
+        })
+        .collect();
+    let total = items.len() as i64;
+    Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }

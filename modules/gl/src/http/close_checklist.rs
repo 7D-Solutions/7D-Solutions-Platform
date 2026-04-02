@@ -13,14 +13,15 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::AppState;
 
 // ============================================================
@@ -194,14 +195,14 @@ pub async fn waive_checklist_item(
 /// GET /api/gl/periods/{period_id}/checklist
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/checklist", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Checklist status", body = Vec<ChecklistItemResponse>)),
+    responses((status = 200, description = "Checklist status", body = PaginatedResponse<ChecklistItemResponse>)),
     security(("bearer" = [])))]
 pub async fn get_checklist_status(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<Vec<ChecklistItemResponse>>, ApiError> {
+) -> Result<Json<PaginatedResponse<ChecklistItemResponse>>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = sqlx::query_as::<_, ChecklistItemRow>(
@@ -221,7 +222,9 @@ pub async fn get_checklist_status(
         with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?;
 
-    Ok(Json(rows.into_iter().map(to_checklist_response).collect()))
+    let items: Vec<ChecklistItemResponse> = rows.into_iter().map(to_checklist_response).collect();
+    let total = items.len() as i64;
+    Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }
 
 fn to_checklist_response(row: ChecklistItemRow) -> ChecklistItemResponse {
@@ -324,14 +327,14 @@ pub async fn create_approval(
 /// GET /api/gl/periods/{period_id}/approvals
 #[utoipa::path(get, path = "/api/gl/periods/{period_id}/approvals", tag = "Close Checklist",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
-    responses((status = 200, description = "Approval list", body = Vec<ApprovalResponse>)),
+    responses((status = 200, description = "Approval list", body = PaginatedResponse<ApprovalResponse>)),
     security(("bearer" = [])))]
 pub async fn get_approvals(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-) -> Result<Json<Vec<ApprovalResponse>>, ApiError> {
+) -> Result<Json<PaginatedResponse<ApprovalResponse>>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let rows = sqlx::query_as::<_, ApprovalRow>(
@@ -351,17 +354,18 @@ pub async fn get_approvals(
         with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?;
 
-    Ok(Json(
-        rows.into_iter()
-            .map(|r| ApprovalResponse {
-                id: r.id,
-                tenant_id: r.tenant_id,
-                period_id: r.period_id,
-                actor_id: r.actor_id,
-                approval_type: r.approval_type,
-                notes: r.notes,
-                approved_at: r.approved_at,
-            })
-            .collect(),
-    ))
+    let items: Vec<ApprovalResponse> = rows
+        .into_iter()
+        .map(|r| ApprovalResponse {
+            id: r.id,
+            tenant_id: r.tenant_id,
+            period_id: r.period_id,
+            actor_id: r.actor_id,
+            approval_type: r.approval_type,
+            notes: r.notes,
+            approved_at: r.approved_at,
+        })
+        .collect();
+    let total = items.len() as i64;
+    Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }
