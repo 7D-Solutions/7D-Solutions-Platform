@@ -133,7 +133,7 @@ pub async fn list_active_downtime(
     tag = "Downtime",
     params(("id" = Uuid, Path, description = "Workcenter ID")),
     responses(
-        (status = 200, description = "Downtime records for workcenter", body = Vec<WorkcenterDowntime>),
+        (status = 200, description = "Downtime records for workcenter", body = PaginatedResponse<WorkcenterDowntime>),
     ),
     security(("bearer" = [])),
 )]
@@ -149,7 +149,9 @@ pub async fn list_workcenter_downtime(
     };
     match DowntimeRepo::list_for_workcenter(&state.pool, workcenter_id, &tenant_id).await {
         Ok(list) => {
-            (StatusCode::OK, Json(serde_json::json!({ "data": list }))).into_response()
+            let total = list.len() as i64;
+            let resp = PaginatedResponse::new(list, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();

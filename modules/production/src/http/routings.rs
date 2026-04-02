@@ -142,7 +142,7 @@ pub async fn list_routings(
     tag = "Routings",
     params(ItemDateQuery),
     responses(
-        (status = 200, description = "Routings matching item and date", body = Vec<RoutingTemplate>),
+        (status = 200, description = "Routings matching item and date", body = PaginatedResponse<RoutingTemplate>),
     ),
     security(("bearer" = [])),
 )]
@@ -165,7 +165,9 @@ pub async fn find_routings_by_item(
     .await
     {
         Ok(rts) => {
-            (StatusCode::OK, Json(serde_json::json!({ "data": rts }))).into_response()
+            let total = rts.len() as i64;
+            let resp = PaginatedResponse::new(rts, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();
@@ -288,7 +290,7 @@ pub async fn add_routing_step(
     tag = "Routings",
     params(("id" = Uuid, Path, description = "Routing template ID")),
     responses(
-        (status = 200, description = "Routing steps", body = Vec<RoutingStep>),
+        (status = 200, description = "Routing steps", body = PaginatedResponse<RoutingStep>),
         (status = 404, description = "Routing not found", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -305,7 +307,9 @@ pub async fn list_routing_steps(
     };
     match RoutingRepo::list_steps(&state.pool, id, &tenant_id).await {
         Ok(steps) => {
-            (StatusCode::OK, Json(serde_json::json!({ "data": steps }))).into_response()
+            let total = steps.len() as i64;
+            let resp = PaginatedResponse::new(steps, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();
