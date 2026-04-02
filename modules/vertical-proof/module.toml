@@ -1,0 +1,32 @@
+[module]
+name = "vertical-proof"
+version = "0.1.0"
+description = "Proof vertical — proves a vertical can call 5 platform modules via SDK"
+
+[server]
+host = "0.0.0.0"
+port = 8200
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[events.subscribe]
+subjects = ["ar.events.invoice.opened"]
+consumer_name = "vertical-proof-ar-listener"
+
+[platform.services]
+party         = { enabled = true, default_url = "http://localhost:8098" }
+ar            = { enabled = true, default_url = "http://localhost:8086" }
+inventory     = { enabled = true, default_url = "http://localhost:8092" }
+production    = { enabled = true, default_url = "http://localhost:8108" }
+notifications = { enabled = true, default_url = "http://localhost:8089" }
+
+[sdk]
+min_version = "0.1.0"

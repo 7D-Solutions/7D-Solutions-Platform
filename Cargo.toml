@@ -68,6 +68,8 @@ members = [
   "clients/inventory",
   "clients/identity-auth",
   "clients/smoke-test",
+  "clients/notifications",
+  "modules/vertical-proof",
   "e2e-tests",
 ]
 

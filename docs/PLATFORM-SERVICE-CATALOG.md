@@ -52,6 +52,7 @@ No version bump discipline required yet.
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | smoke-test | smoke-test-rs | 0.1.0 |  |  | Minimal greenfield module — proves plug-and-play SDK works from scratch |  |
+| vertical-proof | vertical-proof | 0.1.0 |  |  | Proof vertical — proves a vertical can call 5 platform modules via SDK |  |
 
 ## Platform Libraries
 
