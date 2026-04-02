@@ -78,15 +78,15 @@ async fn test_list_events_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 events for this customer"
     );
 
     // Verify events belong to correct customer
-    for event in json.as_array().unwrap() {
+    for event in json["data"].as_array().unwrap() {
         assert_eq!(event["entity_id"], customer_id.to_string());
     }
 
@@ -163,15 +163,15 @@ async fn test_list_events_by_type() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 payment.succeeded events"
     );
 
     // Verify all returned events have correct event_type
-    for event in json.as_array().unwrap() {
+    for event in json["data"].as_array().unwrap() {
         assert_eq!(event["event_type"], "payment.succeeded");
     }
 
@@ -223,9 +223,9 @@ async fn test_list_events_pagination() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         5,
         "Should return only 5 events"
     );
@@ -374,15 +374,15 @@ async fn test_list_events_by_source() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 webhook events"
     );
 
     // Verify all returned events have correct source
-    for event in json.as_array().unwrap() {
+    for event in json["data"].as_array().unwrap() {
         assert_eq!(event["source"], "webhook");
     }
 
@@ -449,15 +449,15 @@ async fn test_list_events_by_entity_type() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 subscription events"
     );
 
     // Verify all returned events have correct entity_type
-    for event in json.as_array().unwrap() {
+    for event in json["data"].as_array().unwrap() {
         assert_eq!(event["entity_type"], "subscription");
     }
 
@@ -525,15 +525,15 @@ async fn test_list_events_combined_filters() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         1,
         "Should have 1 event matching both filters"
     );
 
     // Verify the returned event matches both filters
-    let event = &json[0];
+    let event = &json["data"][0];
     assert_eq!(event["event_type"], "payment.succeeded");
     assert_eq!(event["source"], "webhook");
 

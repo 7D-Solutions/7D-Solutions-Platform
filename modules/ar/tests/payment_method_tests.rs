@@ -128,16 +128,16 @@ async fn test_list_payment_methods_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 payment methods"
     );
 
     // Verify default payment method is listed first
-    assert_eq!(json[0]["id"], pm1_id);
-    assert_eq!(json[0]["is_default"], true);
+    assert_eq!(json["data"][0]["id"], pm1_id);
+    assert_eq!(json["data"][0]["is_default"], true);
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -435,9 +435,9 @@ async fn test_list_payment_methods_with_pagination() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 payment methods with limit"
     );
@@ -489,14 +489,14 @@ async fn test_list_payment_methods_by_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         1,
         "Should have 1 active payment method"
     );
-    assert_eq!(json[0]["id"], pm_id);
-    assert_eq!(json[0]["status"], "active");
+    assert_eq!(json["data"][0]["id"], pm_id);
+    assert_eq!(json["data"][0]["status"], "active");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;

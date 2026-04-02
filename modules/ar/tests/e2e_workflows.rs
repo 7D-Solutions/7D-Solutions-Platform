@@ -116,8 +116,8 @@ async fn test_customer_lifecycle_workflow() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let list = common::body_json(response).await;
-    assert!(list.is_array());
-    let found = list
+    assert!(list["data"].is_array());
+    let found = list["data"]
         .as_array()
         .unwrap()
         .iter()
@@ -655,8 +655,8 @@ async fn test_multi_tenant_isolation() {
 
     assert_eq!(response.status(), StatusCode::OK);
     let customers = common::body_json(response).await;
-    assert!(customers.is_array());
-    assert!(customers.as_array().unwrap().len() >= 2);
+    assert!(customers["data"].is_array());
+    assert!(customers["data"].as_array().unwrap().len() >= 2);
 
     common::cleanup_customers(&pool, &[customer1_id, customer2_id]).await;
     common::teardown_pool(pool).await;

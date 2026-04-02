@@ -220,11 +220,12 @@ async fn test_list_customers_with_pagination() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert!(
-        json.as_array().unwrap().len() >= 2,
+        json["data"].as_array().unwrap().len() >= 2,
         "Should have at least 2 customers"
     );
+    assert!(json["pagination"].is_object(), "Response should have pagination");
 
     common::cleanup_customers(&pool, &[customer1_id, customer2_id, customer3_id]).await;
     common::teardown_pool(pool).await;
@@ -303,14 +304,14 @@ async fn test_list_customers_by_external_id() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         1,
         "Should find exactly 1 customer"
     );
-    assert_eq!(json[0]["id"], customer_id);
-    assert_eq!(json[0]["external_customer_id"], external_id);
+    assert_eq!(json["data"][0]["id"], customer_id);
+    assert_eq!(json["data"][0]["external_customer_id"], external_id);
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;

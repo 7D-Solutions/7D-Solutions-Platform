@@ -245,9 +245,9 @@ async fn test_list_subscriptions_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         2,
         "Should have 2 subscriptions"
     );
@@ -285,14 +285,14 @@ async fn test_list_subscriptions_by_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        json["data"].as_array().unwrap().len(),
         1,
         "Should have 1 active subscription"
     );
-    assert_eq!(json[0]["id"], active_sub_id);
-    assert_eq!(json[0]["status"], "active");
+    assert_eq!(json["data"][0]["id"], active_sub_id);
+    assert_eq!(json["data"][0]["status"], "active");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;

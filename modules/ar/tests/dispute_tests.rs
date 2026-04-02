@@ -37,8 +37,8 @@ async fn test_list_disputes_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
-    let disputes = json.as_array().unwrap();
+    assert!(json["data"].is_array(), "Response.data should be array");
+    let disputes = json["data"].as_array().unwrap();
 
     // Should find at least our 2 disputes for this customer
     assert!(disputes.len() >= 2, "Should have at least 2 disputes");
@@ -87,8 +87,8 @@ async fn test_list_disputes_by_charge() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
-    let disputes = json.as_array().unwrap();
+    assert!(json["data"].is_array(), "Response.data should be array");
+    let disputes = json["data"].as_array().unwrap();
 
     // Should only find dispute for charge1
     assert_eq!(
@@ -135,10 +135,10 @@ async fn test_list_disputes_by_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
 
     // Should find at least 1 dispute with status "open"
-    let open_disputes: Vec<_> = json
+    let open_disputes: Vec<_> = json["data"]
         .as_array()
         .unwrap()
         .iter()
@@ -399,11 +399,11 @@ async fn test_list_disputes_with_pagination() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    assert!(json["data"].is_array(), "Response.data should be array");
 
     // Should have at least 2 disputes (may have more from other tests)
     assert!(
-        json.as_array().unwrap().len() >= 2,
+        json["data"].as_array().unwrap().len() >= 2,
         "Should have at least 2 disputes"
     );
 

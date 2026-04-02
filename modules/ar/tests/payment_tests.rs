@@ -192,8 +192,8 @@ async fn test_list_charges_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 2, "Should have 2 charges");
+    assert!(json["data"].is_array(), "Response.data should be array");
+    assert_eq!(json["data"].as_array().unwrap().len(), 2, "Should have 2 charges");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -435,8 +435,8 @@ async fn test_list_refunds_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 3, "Should have 3 refunds");
+    assert!(json["data"].is_array(), "Response.data should be array");
+    assert_eq!(json["data"].as_array().unwrap().len(), 3, "Should have 3 refunds");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -481,9 +481,9 @@ async fn test_list_refunds_by_charge() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 1, "Should have 1 refund");
-    assert_eq!(json[0]["charge_id"], charge_id);
+    assert!(json["data"].is_array(), "Response.data should be array");
+    assert_eq!(json["data"].as_array().unwrap().len(), 1, "Should have 1 refund");
+    assert_eq!(json["data"][0]["charge_id"], charge_id);
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
