@@ -53,9 +53,9 @@ produces a subject that matches the subscription string.
 
 | # | Consumer Module | Subscribes To | Expected Publisher | Actual Published Subject | Status |
 |---|----------------|---------------|-------------------|-------------------------|--------|
-| 1 | notifications | `ar.events.invoice.issued` | AR | **No matching event exists** | **MISMATCH** |
-| 2 | shipping-receiving | `ap.po.approved` | AP | `ap.events.ap.po_approved` | **MISMATCH** |
-| 3 | shipping-receiving | `sales.so.released` | (none) | **No sales module exists** | **MISMATCH** |
+| 1 | notifications | `ar.events.ar.invoice_opened` | AR | `ar.events.ar.invoice_opened` | **FIXED** (bd-thx8s) |
+| 2 | shipping-receiving | `ap.events.ap.po_approved` | AP | `ap.events.ap.po_approved` | **FIXED** (bd-thx8s) |
+| 3 | shipping-receiving | `sales.so.released` | (none) | **No sales module exists** | **FIXED** (bd-thx8s) — consumer removed |
 
 #### Mismatch 1: notifications → `ar.events.invoice.issued`
 

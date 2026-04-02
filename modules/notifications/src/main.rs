@@ -24,7 +24,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .consumer("ar.events.invoice.issued", on_invoice_issued)
+        .consumer("ar.events.ar.invoice_opened", on_invoice_issued)
         .consumer(
             "payments.events.payment.succeeded",
             on_payment_succeeded,
@@ -180,7 +180,7 @@ async fn main() {
         .expect("notifications module failed");
 }
 
-/// SDK consumer adapter for ar.events.invoice.issued.
+/// SDK consumer adapter for ar.events.ar.invoice_opened.
 async fn on_invoice_issued(
     ctx: ModuleContext,
     envelope: EventEnvelope<serde_json::Value>,
@@ -194,7 +194,7 @@ async fn on_invoice_issued(
         .await
         .map_err(|e| ConsumerError::Processing(e.to_string()))?
     {
-        tracing::info!(event_id = %event_id, "Duplicate invoice.issued event ignored");
+        tracing::info!(event_id = %event_id, "Duplicate invoice_opened event ignored");
         return Ok(());
     }
 
@@ -215,7 +215,7 @@ async fn on_invoice_issued(
     consumer
         .mark_processed(
             event_id,
-            "ar.events.invoice.issued",
+            "ar.events.ar.invoice_opened",
             &envelope.tenant_id,
             &envelope.source_module,
         )

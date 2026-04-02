@@ -37,10 +37,13 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
     let tenant_id = Uuid::new_v4().to_string();
     let customer_id = Uuid::new_v4().to_string();
     let invoice_id = Uuid::new_v4().to_string();
-    // Use a due_date 30 days out so handle_invoice_issued inserts a reminder row.
-    let due_date = (Utc::now() + chrono::Duration::days(30))
-        .format("%Y-%m-%d")
-        .to_string();
+    // Use a due_at 30 days out so handle_invoice_issued inserts a reminder row.
+    let due_at = (Utc::now() + chrono::Duration::days(30))
+        .naive_utc()
+        .date()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+    let due_at_str = due_at.format("%Y-%m-%dT%H:%M:%S").to_string();
 
     // Build a minimal but valid event envelope.
     let envelope_bytes = serde_json::to_vec(&serde_json::json!({
@@ -52,14 +55,14 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
         "payload": {
             "invoice_id": &invoice_id,
             "customer_id": &customer_id,
-            "amount_due_minor": 5000,
+            "amount_cents": 5000,
             "currency": "USD",
-            "due_date": &due_date,
+            "due_at": &due_at_str,
         }
     }))
     .unwrap();
 
-    let msg = BusMessage::new("ar.events.invoice.issued".to_string(), envelope_bytes);
+    let msg = BusMessage::new("ar.events.ar.invoice_opened".to_string(), envelope_bytes);
     let consumer = EventConsumer::new(pool.clone());
 
     // First call: handler runs, inserts 1 scheduled_notifications row.

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.6 | 2026-04-01 | bd-thx8s | Fix event subject mismatch: subscribe to ar.events.ar.invoice_opened (was ar.events.invoice.issued). Align InvoiceIssuedPayload fields (amount_cents, due_at) with AR's InvoiceLifecyclePayload. | Consumer never received events — subject and payload schema both wrong. | No |
 | 2.1.5 | 2026-04-01 | bd-manm4 | Add ApiDoc struct in http/mod.rs and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6.5 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 3 consumer adapters (invoice.issued, payment.succeeded, payment.failed). Dispatch loop + orphan recovery spawn in routes closure. SLO metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | — | Bump for module.toml + Cargo.toml SDK prep. | SDK conversion prep. | No |

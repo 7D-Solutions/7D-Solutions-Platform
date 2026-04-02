@@ -20,15 +20,15 @@ pub struct LowStockTriggeredPayload {
     pub triggered_at: DateTime<Utc>,
 }
 
-/// Payload for ar.invoice.issued event
+/// Payload for ar.invoice_opened event (from AR module's InvoiceLifecyclePayload)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvoiceIssuedPayload {
     pub invoice_id: String,
     pub customer_id: String,
-    pub amount_due_minor: i32,
+    pub amount_cents: i32,
     pub currency: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub due_date: Option<String>,
+    #[serde(default)]
+    pub due_at: Option<chrono::NaiveDateTime>,
 }
 
 /// Payload for payments.payment.succeeded event

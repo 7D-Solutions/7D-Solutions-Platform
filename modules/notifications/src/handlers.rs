@@ -8,7 +8,7 @@ use crate::models::{
     NotificationDeliverySucceededPayload, PaymentFailedPayload, PaymentSucceededPayload,
 };
 
-/// Handle ar.invoice.issued event
+/// Handle ar.invoice_opened event
 ///
 /// Schedules an `invoice_due_soon` reminder 3 days before the invoice due date.
 /// Replay safety is enforced upstream by the `processed_events` idempotency gate.
@@ -20,33 +20,29 @@ pub async fn handle_invoice_issued(
     tracing::info!(
         invoice_id = %payload.invoice_id,
         customer_id = %payload.customer_id,
-        amount = payload.amount_due_minor,
-        "Handling invoice issued notification"
+        amount = payload.amount_cents,
+        "Handling invoice opened notification"
     );
 
-    let due_date_str = match &payload.due_date {
-        Some(d) => d.clone(),
+    let due_at_ndt = match payload.due_at {
+        Some(dt) => dt,
         None => {
             tracing::debug!(
                 invoice_id = %payload.invoice_id,
-                "No due_date in payload, skipping reminder scheduling"
+                "No due_at in payload, skipping reminder scheduling"
             );
             return Ok(());
         }
     };
 
-    let naive_date = chrono::NaiveDate::parse_from_str(&due_date_str, "%Y-%m-%d")
-        .map_err(|e| format!("Failed to parse due_date '{}': {}", due_date_str, e))?;
-    let due_at = naive_date
-        .and_hms_opt(0, 0, 0)
-        .ok_or("Invalid due_date time")?
-        .and_utc();
+    let due_at = due_at_ndt.and_utc();
     let deliver_at = due_at - chrono::Duration::days(3);
+    let due_date_str = due_at_ndt.date().format("%Y-%m-%d").to_string();
 
     let recipient_ref = format!("{}:{}", metadata.tenant_id, payload.customer_id);
     let payload_json = serde_json::json!({
         "invoice_id": payload.invoice_id,
-        "amount": payload.amount_due_minor,
+        "amount": payload.amount_cents,
         "due_date": due_date_str,
     });
 

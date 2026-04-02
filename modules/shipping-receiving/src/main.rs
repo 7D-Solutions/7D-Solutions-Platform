@@ -80,7 +80,7 @@ async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())
 }
 
-/// SDK consumer adapter for ap.po.approved events.
+/// SDK consumer adapter for ap.events.ap.po_approved events.
 async fn on_po_approved(
     ctx: ModuleContext,
     envelope: EventEnvelope<serde_json::Value>,
@@ -92,30 +92,9 @@ async fn on_po_approved(
         serde_json::from_value(envelope.payload.clone())
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    tracing::info!(event_id = %event_id, "Processing ap.po.approved");
+    tracing::info!(event_id = %event_id, "Processing ap.events.ap.po_approved");
 
     consumers::po_approved::handle_po_approved(pool, event_id, &payload)
-        .await
-        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
-
-    Ok(())
-}
-
-/// SDK consumer adapter for sales.so.released events.
-async fn on_so_released(
-    ctx: ModuleContext,
-    envelope: EventEnvelope<serde_json::Value>,
-) -> Result<(), ConsumerError> {
-    let pool = ctx.pool();
-    let event_id = envelope.event_id;
-
-    let payload: consumers::so_released::SoReleasedPayload =
-        serde_json::from_value(envelope.payload.clone())
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
-
-    tracing::info!(event_id = %event_id, "Processing sales.so.released");
-
-    consumers::so_released::handle_so_released(pool, event_id, &payload)
         .await
         .map_err(|e| ConsumerError::Processing(e.to_string()))?;
 
@@ -128,8 +107,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .consumer("ap.po.approved", on_po_approved)
-        .consumer("sales.so.released", on_so_released)
+        .consumer("ap.events.ap.po_approved", on_po_approved)
         .routes(|ctx| {
             let sr_metrics = Arc::new(
                 metrics::ShippingReceivingMetrics::new()

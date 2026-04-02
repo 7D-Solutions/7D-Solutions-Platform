@@ -14,14 +14,14 @@ use crate::models::{
     EnvelopeMetadata, InvoiceIssuedPayload, PaymentFailedPayload, PaymentSucceededPayload,
 };
 
-/// Start consumer task for ar.invoice.issued events
+/// Start consumer task for ar.invoice_opened events
 pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     record_consumer_lag("notifications_invoice_issued_consumer", 0);
     tokio::spawn(async move {
-        tracing::info!("Starting invoice issued consumer");
+        tracing::info!("Starting invoice opened consumer");
 
-        // Subscribe to AR invoice issued events
-        let subject = "ar.events.invoice.issued";
+        // Subscribe to AR invoice opened events
+        let subject = "ar.events.ar.invoice_opened";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

@@ -51,16 +51,18 @@ async fn test_invoice_issued_inserts_due_soon_row() {
     let customer_id = Uuid::new_v4().to_string();
     let invoice_id = Uuid::new_v4().to_string();
 
-    // due 30 days from now
-    let due_date_dt = Utc::now() + Duration::days(30);
-    let due_date = due_date_dt.format("%Y-%m-%d").to_string();
+    // due 30 days from now (midnight UTC for deterministic assertions)
+    let due_at_ndt = (Utc::now() + Duration::days(30))
+        .date_naive()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
 
     let payload = InvoiceIssuedPayload {
         invoice_id: invoice_id.clone(),
         customer_id: customer_id.clone(),
-        amount_due_minor: 5000,
+        amount_cents: 5000,
         currency: "USD".to_string(),
-        due_date: Some(due_date.clone()),
+        due_at: Some(due_at_ndt),
     };
     let metadata = EnvelopeMetadata {
         event_id: Uuid::new_v4(),
@@ -91,13 +93,9 @@ async fn test_invoice_issued_inserts_due_soon_row() {
     assert_eq!(row.channel, "email");
     assert_eq!(row.recipient_ref, recipient_ref);
 
-    // deliver_at = due_date midnight UTC - 3 days
-    let expected = chrono::NaiveDate::parse_from_str(&due_date, "%Y-%m-%d")
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-        .and_utc()
-        - Duration::days(3);
+    // deliver_at = due_at - 3 days
+    let due_date = due_at_ndt.date().format("%Y-%m-%d").to_string();
+    let expected = due_at_ndt.and_utc() - Duration::days(3);
     let delta = (row.deliver_at - expected).num_seconds().abs();
     assert!(
         delta < 5,
@@ -132,9 +130,9 @@ async fn test_invoice_issued_no_due_date_skips_insert() {
     let payload = InvoiceIssuedPayload {
         invoice_id: invoice_id.clone(),
         customer_id: customer_id.clone(),
-        amount_due_minor: 1000,
+        amount_cents: 1000,
         currency: "USD".to_string(),
-        due_date: None,
+        due_at: None,
     };
     let metadata = EnvelopeMetadata {
         event_id: Uuid::new_v4(),

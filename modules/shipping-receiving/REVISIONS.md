@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.7 | 2026-04-01 | bd-thx8s | Fix PO approved consumer subject to ap.events.ap.po_approved (was ap.po.approved). Remove dead sales.so.released consumer — no sales module exists. | Consumer never received PO approved events; dead consumer wasted a NATS subscription. | No |
 | 2.2.6 | 2026-04-01 | bd-2gyqj | Update InventoryIntegration to pass &VerifiedClaims via PlatformClient::service_claims(tenant_id). Remove reqwest::Client from Mode::Http. Constructor uses PlatformClient::new().with_bearer_token(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.2.5 | 2026-04-01 | bd-tbumc | Replace hand-rolled reqwest HTTP calls in inventory_client.rs with typed platform-client-inventory ReceiptsClient and IssuesClient. Remove local HTTP request/response types. | Typed client conversion — consistent with platform client generation pattern. | No |
 | 2.2.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder with SDK consumer adapters for po_approved and so_released. | SDK batch conversion — eliminate two classes of modules. | No |
