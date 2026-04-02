@@ -11,3 +11,26 @@ pub use types::*;
 pub use addresses::AddressesClient;
 pub use contacts::ContactsClient;
 pub use parties::PartiesClient;
+
+// -- PlatformService trait impls (connect generated clients to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for PartiesClient {
+    const SERVICE_NAME: &'static str = "party";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ContactsClient {
+    const SERVICE_NAME: &'static str = "party";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for AddressesClient {
+    const SERVICE_NAME: &'static str = "party";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
