@@ -35,6 +35,70 @@ pub async fn detect_outbox_table(
     Ok(row.map(|r| r.get::<String, _>("table_name")))
 }
 
+/// Multi-tenant outbox publisher loop — iterates all tenant pools and
+/// publishes pending events from each tenant's outbox table.
+///
+/// Spawned automatically when a [`TenantPoolResolver`] is registered
+/// and the manifest declares `[events.publish].outbox_table`.
+pub async fn run_multi_tenant_outbox_publisher(
+    resolver: Arc<dyn crate::context::TenantPoolResolver>,
+    bus: Arc<dyn EventBus>,
+    outbox_table: &str,
+    module_name: &str,
+) {
+    tracing::info!(
+        module = %module_name, table = %outbox_table,
+        "multi-tenant outbox publisher started"
+    );
+
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut tick: u64 = 0;
+
+    loop {
+        interval.tick().await;
+        tick += 1;
+
+        let pools = match resolver.all_pools().await {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!(
+                    module = %module_name, tick, error = %e,
+                    "multi-tenant outbox publisher: failed to list tenant pools"
+                );
+                continue;
+            }
+        };
+
+        for (tenant_id, pool) in &pools {
+            match publish_batch(pool, &bus, outbox_table).await {
+                Ok(n) if n > 0 => {
+                    tracing::info!(
+                        module = %module_name, tick, published = n,
+                        tenant = %tenant_id,
+                        "multi-tenant outbox publisher: events published"
+                    );
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::error!(
+                        module = %module_name, tick, error = %e,
+                        tenant = %tenant_id,
+                        "multi-tenant outbox publisher: error"
+                    );
+                }
+            }
+        }
+
+        if tick <= 3 || tick % 60 == 0 {
+            tracing::debug!(
+                module = %module_name, tick,
+                tenant_count = pools.len(),
+                "multi-tenant outbox publisher: poll cycle complete"
+            );
+        }
+    }
+}
+
 /// Generic outbox publisher loop — polls the declared outbox table and
 /// publishes pending events to the bus.
 ///

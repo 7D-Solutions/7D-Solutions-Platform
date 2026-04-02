@@ -7,11 +7,44 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use event_bus::EventBus;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::manifest::Manifest;
 use crate::platform_services::{PlatformService, PlatformServices};
+
+/// Error returned when a tenant pool cannot be resolved.
+#[derive(Debug, thiserror::Error)]
+pub enum TenantPoolError {
+    #[error("unknown tenant: {0}")]
+    UnknownTenant(Uuid),
+
+    #[error("pool error: {0}")]
+    Pool(String),
+}
+
+/// Resolves tenant-specific database pools for database-per-tenant architectures.
+///
+/// Modules that use a separate PostgreSQL database per tenant implement this
+/// trait and register it via [`ModuleBuilder::tenant_pool_resolver`]. The SDK
+/// uses it for `ctx.pool_for(tenant_id)` and the multi-tenant outbox publisher.
+///
+/// Modules using the default single-database pattern do not need this — the
+/// SDK's `pool_for()` falls back to the default pool when no resolver is
+/// registered.
+#[async_trait]
+pub trait TenantPoolResolver: Send + Sync {
+    /// Get the database pool for a specific tenant.
+    async fn pool_for(&self, tenant_id: Uuid) -> Result<PgPool, TenantPoolError>;
+
+    /// List all known tenant pools.
+    ///
+    /// Used by the multi-tenant outbox publisher to iterate every tenant
+    /// database and publish pending events.
+    async fn all_pools(&self) -> Result<Vec<(Uuid, PgPool)>, TenantPoolError>;
+}
 
 /// Type-erased storage for module-specific state.
 type Extensions = Arc<HashMap<TypeId, Box<dyn Any + Send + Sync>>>;
@@ -25,6 +58,7 @@ pub struct ModuleContext {
     manifest: Arc<Manifest>,
     bus: Option<Arc<dyn EventBus>>,
     nats_client: Option<async_nats::Client>,
+    pool_resolver: Option<Arc<dyn TenantPoolResolver>>,
     extensions: Extensions,
 }
 
@@ -35,6 +69,7 @@ impl std::fmt::Debug for ModuleContext {
             .field("manifest", &self.manifest)
             .field("bus", &self.bus.as_ref().map(|_| "<EventBus>"))
             .field("nats_client", &self.nats_client.as_ref().map(|_| "<NatsClient>"))
+            .field("pool_resolver", &self.pool_resolver.as_ref().map(|_| "<TenantPoolResolver>"))
             .field("extensions", &format!("{} entries", self.extensions.len()))
             .finish()
     }
@@ -48,6 +83,7 @@ impl ModuleContext {
             manifest: Arc::new(manifest),
             bus,
             nats_client: None,
+            pool_resolver: None,
             extensions: Arc::new(HashMap::new()),
         }
     }
@@ -58,6 +94,7 @@ impl ModuleContext {
         manifest: Manifest,
         bus: Option<Arc<dyn EventBus>>,
         nats_client: Option<async_nats::Client>,
+        pool_resolver: Option<Arc<dyn TenantPoolResolver>>,
         extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     ) -> Self {
         Self {
@@ -65,13 +102,34 @@ impl ModuleContext {
             manifest: Arc::new(manifest),
             bus,
             nats_client,
+            pool_resolver,
             extensions: Arc::new(extensions),
         }
     }
 
-    /// Database connection pool.
+    /// Database connection pool (the default/management pool).
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Get the database pool for a specific tenant.
+    ///
+    /// If a [`TenantPoolResolver`] is registered (database-per-tenant),
+    /// delegates to the resolver. Otherwise returns the default pool
+    /// (single-database with tenant_id column).
+    ///
+    /// This is the preferred way to obtain a pool in handlers that need
+    /// to work across both single-DB and multi-DB architectures.
+    pub async fn pool_for(&self, tenant_id: Uuid) -> Result<PgPool, TenantPoolError> {
+        match &self.pool_resolver {
+            Some(resolver) => resolver.pool_for(tenant_id).await,
+            None => Ok(self.pool.clone()),
+        }
+    }
+
+    /// Access the tenant pool resolver, if registered.
+    pub fn tenant_pool_resolver(&self) -> Option<&dyn TenantPoolResolver> {
+        self.pool_resolver.as_deref()
     }
 
     /// The parsed module manifest.

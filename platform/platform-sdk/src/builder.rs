@@ -34,7 +34,7 @@ use axum::Router;
 use event_bus::EventEnvelope;
 
 use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
-use crate::context::ModuleContext;
+use crate::context::{ModuleContext, TenantPoolResolver};
 use crate::manifest::{Manifest, ManifestError};
 use crate::platform_services::PlatformServices;
 use crate::startup::{self, StartupError};
@@ -72,6 +72,7 @@ pub struct ModuleBuilder {
     extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     startup_fns: Vec<StartupFn>,
     provisioning_handler: Option<ProvisioningHandler>,
+    pool_resolver: Option<Arc<dyn TenantPoolResolver>>,
     skip_default_middleware: bool,
     skip_outbox_publisher: bool,
 }
@@ -97,6 +98,7 @@ impl ModuleBuilder {
             extensions: HashMap::new(),
             startup_fns: Vec::new(),
             provisioning_handler: None,
+            pool_resolver: None,
             skip_default_middleware: false,
             skip_outbox_publisher: false,
         }
@@ -234,8 +236,25 @@ impl ModuleBuilder {
     /// databases rather than the management database. The manifest can
     /// still declare `[events.publish].outbox_table` for documentation
     /// and validation without the SDK spawning a publisher for it.
+    ///
+    /// **Note:** If you use [`tenant_pool_resolver`](ModuleBuilder::tenant_pool_resolver),
+    /// you do not need to call this — the SDK automatically uses the
+    /// multi-tenant outbox publisher instead.
     pub fn skip_outbox_publisher(mut self) -> Self {
         self.skip_outbox_publisher = true;
+        self
+    }
+
+    /// Register a tenant pool resolver for database-per-tenant architectures.
+    ///
+    /// When registered, `ctx.pool_for(tenant_id)` resolves to the correct
+    /// tenant database and the SDK spawns a multi-tenant outbox publisher
+    /// that iterates all tenant pools.
+    ///
+    /// Single-database modules do not need this — `pool_for()` returns the
+    /// default pool when no resolver is registered.
+    pub fn tenant_pool_resolver<R: TenantPoolResolver + 'static>(mut self, resolver: R) -> Self {
+        self.pool_resolver = Some(Arc::new(resolver));
         self
     }
 
@@ -247,7 +266,12 @@ impl ModuleBuilder {
         let manifest = self.manifest?;
 
         // Phase A: infrastructure
-        let phase_a = startup::phase_a(&manifest, self.skip_outbox_publisher).await?;
+        let phase_a = startup::phase_a(
+            &manifest,
+            self.skip_outbox_publisher,
+            self.pool_resolver.clone(),
+        )
+        .await?;
 
         // Build platform service clients from [platform.services] manifest section.
         let platform_services = PlatformServices::from_manifest(
@@ -279,6 +303,7 @@ impl ModuleBuilder {
             manifest.clone(),
             phase_a.bus.clone(),
             phase_a.nats_client.clone(),
+            self.pool_resolver.clone(),
             extensions,
         );
 

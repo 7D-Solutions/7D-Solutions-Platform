@@ -60,7 +60,11 @@ pub enum StartupError {
 /// 7. Detect undeclared outbox tables / spawn outbox publisher
 /// 8. Build JWT verifier (optional)
 /// 9. Build rate limiter
-pub(crate) async fn phase_a(manifest: &Manifest, skip_outbox: bool) -> Result<PhaseAOutput, StartupError> {
+pub(crate) async fn phase_a(
+    manifest: &Manifest,
+    skip_outbox: bool,
+    pool_resolver: Option<Arc<dyn crate::context::TenantPoolResolver>>,
+) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
     dotenvy::dotenv().ok();
 
@@ -149,18 +153,39 @@ pub(crate) async fn phase_a(manifest: &Manifest, skip_outbox: bool) -> Result<Ph
                 "outbox publisher skipped — module manages its own publishing"
             );
         } else if let Some(ref bus) = bus {
-            let pub_pool = pool.clone();
-            let pub_bus = bus.clone();
-            let pub_table = table.clone();
-            let pub_module = manifest.module.name.clone();
-            outbox_handle = Some(tokio::spawn(async move {
-                publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, &pub_module).await;
-            }));
-            tracing::info!(
-                module = %manifest.module.name,
-                outbox_table = %table,
-                "outbox publisher task spawned"
-            );
+            if let Some(ref resolver) = pool_resolver {
+                // Multi-tenant: publish from every tenant database
+                let pub_resolver = resolver.clone();
+                let pub_bus = bus.clone();
+                let pub_table = table.clone();
+                let pub_module = manifest.module.name.clone();
+                outbox_handle = Some(tokio::spawn(async move {
+                    publisher::run_multi_tenant_outbox_publisher(
+                        pub_resolver, pub_bus, &pub_table, &pub_module,
+                    )
+                    .await;
+                }));
+                tracing::info!(
+                    module = %manifest.module.name,
+                    outbox_table = %table,
+                    "multi-tenant outbox publisher task spawned"
+                );
+            } else {
+                // Single-DB: publish from the default pool
+                let pub_pool = pool.clone();
+                let pub_bus = bus.clone();
+                let pub_table = table.clone();
+                let pub_module = manifest.module.name.clone();
+                outbox_handle = Some(tokio::spawn(async move {
+                    publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, &pub_module)
+                        .await;
+                }));
+                tracing::info!(
+                    module = %manifest.module.name,
+                    outbox_table = %table,
+                    "outbox publisher task spawned"
+                );
+            }
         }
     } else if bus.is_some() {
         // No outbox_table declared — check if DB secretly has one.
