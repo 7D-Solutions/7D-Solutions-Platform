@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 
 use dashmap::DashMap;
 use platform_client_tenant_registry::TenantsClient;
+use platform_sdk::PlatformClient;
 use uuid::Uuid;
 
 use crate::metrics::Metrics;
@@ -104,13 +105,8 @@ pub struct TenantRegistryClient {
 
 impl TenantRegistryClient {
     pub fn new(base_url: String, ttl_secs: u64) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("build reqwest client for tenant-registry");
-
         Self {
-            inner: Arc::new(TenantsClient::new(http, base_url, "")),
+            inner: Arc::new(TenantsClient::new(platform_sdk::PlatformClient::new(base_url))),
             cache: Arc::new(DashMap::new()),
             status_cache: Arc::new(DashMap::new()),
             ttl: Duration::from_secs(ttl_secs.max(1)),
@@ -141,7 +137,8 @@ impl TenantRegistryClient {
         }
 
         // --- 2. Fetch via typed client ---
-        match self.inner.get_entitlements(tenant_id).await {
+        let svc_claims = PlatformClient::service_claims(tenant_id);
+        match self.inner.get_entitlements(&svc_claims, tenant_id).await {
             Ok(row) => {
                 let limit = row.concurrent_user_limit as i64;
                 self.cache.insert(
@@ -197,7 +194,8 @@ impl TenantRegistryClient {
         }
 
         // --- 2. Fetch via typed client ---
-        match self.inner.get_tenant_status(tenant_id).await {
+        let svc_claims = PlatformClient::service_claims(tenant_id);
+        match self.inner.get_tenant_status(&svc_claims, tenant_id).await {
             Ok(row) => {
                 let status = row.status;
                 self.status_cache.insert(
