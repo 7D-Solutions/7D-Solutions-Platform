@@ -1,8 +1,8 @@
 [package]
-name = "platform-client-doc-mgmt"
+name = "platform-client-identity-auth"
 version = "0.1.0"
 edition = "2021"
-description = "Generated typed client for Platform Client Doc-Mgmt Service"
+description = "Generated typed client for Identity & Auth Service"
 
 [dependencies]
 platform-sdk = { path = "../../platform/platform-sdk" }

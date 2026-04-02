@@ -65,6 +65,7 @@ members = [
   "clients/reporting",
   "clients/bom",
   "clients/inventory",
+  "clients/identity-auth",
   "e2e-tests",
 ]
 
