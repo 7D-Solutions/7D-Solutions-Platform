@@ -159,6 +159,60 @@ impl ModuleBuilder {
         self
     }
 
+    /// Register a tenant-aware consumer that auto-resolves the tenant pool.
+    ///
+    /// Eliminates the boilerplate of parsing `tenant_id` from the envelope,
+    /// resolving the pool via `ctx.pool_for()`, and deserializing the payload.
+    /// The handler receives `(PgPool, Uuid, T)` — the tenant database pool,
+    /// tenant ID, and typed payload.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// .tenant_consumer("ar.events.invoice.opened", |pool, tenant_id, payload: InvoiceOpened| async move {
+    ///     // pool is already resolved for this tenant
+    ///     // payload is deserialized from the envelope
+    ///     Ok(())
+    /// })
+    /// ```
+    pub fn tenant_consumer<T, F, Fut>(mut self, subject: impl Into<String>, handler: F) -> Self
+    where
+        T: serde::de::DeserializeOwned + Send + 'static,
+        F: Fn(sqlx::PgPool, uuid::Uuid, T) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(), ConsumerError>> + Send + 'static,
+    {
+        let handler = Arc::new(handler);
+        self.consumers.push(ConsumerDef {
+            subject: subject.into(),
+            handler: Arc::new(move |ctx, env| {
+                let handler = handler.clone();
+                Box::pin(async move {
+                    let tenant_id: uuid::Uuid = env.tenant_id.parse().map_err(|e| {
+                        ConsumerError::Processing(format!(
+                            "invalid tenant_id '{}': {e}",
+                            env.tenant_id
+                        ))
+                    })?;
+
+                    let pool = ctx.pool_for(tenant_id).await.map_err(|e| {
+                        ConsumerError::Processing(format!(
+                            "pool_for({tenant_id}) failed: {e}"
+                        ))
+                    })?;
+
+                    let payload: T = serde_json::from_value(env.payload).map_err(|e| {
+                        ConsumerError::Processing(format!(
+                            "payload deserialization failed: {e}"
+                        ))
+                    })?;
+
+                    handler(pool, tenant_id, payload).await
+                })
+            }),
+        });
+        self
+    }
+
     /// Register a callback invoked when a new tenant completes provisioning.
     ///
     /// The SDK subscribes to `tenant.provisioned` on the event bus and
@@ -357,7 +411,7 @@ impl ModuleBuilder {
 
         // Phase B: HTTP stack + serve
         if self.skip_default_middleware {
-            startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles)
+            startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
                 .await
         } else {
             startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
