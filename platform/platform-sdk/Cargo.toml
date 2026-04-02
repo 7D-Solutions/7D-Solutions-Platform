@@ -51,6 +51,7 @@ regex = "1"
 chrono = "0.4"
 
 [dev-dependencies]
+async-trait = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tempfile = "3"
 event-bus = { path = "../event-bus" }

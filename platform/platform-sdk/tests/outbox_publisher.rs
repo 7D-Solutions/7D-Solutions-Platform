@@ -4,10 +4,13 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use event_bus::{EventBus, InMemoryBus};
 use futures::StreamExt;
 use platform_sdk::publisher;
+use platform_sdk::{TenantPoolError, TenantPoolResolver};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 /// Connect to the test database or skip.
 async fn test_pool() -> Option<PgPool> {
@@ -231,4 +234,162 @@ outbox_table = "events_outbox"
         .publish
         .expect("publish section");
     assert_eq!(publish.outbox_table, "events_outbox");
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 5: pool_for() falls back to default pool without resolver
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn pool_for_returns_default_without_resolver() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let manifest = platform_sdk::Manifest::from_str(
+        r#"[module]
+name = "test""#,
+        None,
+    )
+    .unwrap();
+
+    let ctx = platform_sdk::ModuleContext::new(pool.clone(), manifest, None);
+
+    let tenant = Uuid::new_v4();
+    let resolved = ctx.pool_for(tenant).await.expect("pool_for should succeed");
+
+    // Verify the resolved pool works by running a query
+    let row: (i64,) = sqlx::query_as("SELECT 1")
+        .fetch_one(&resolved)
+        .await
+        .expect("query on resolved pool should succeed");
+    assert_eq!(row.0, 1);
+
+    // No resolver registered
+    assert!(ctx.tenant_pool_resolver().is_none());
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 6: Multi-tenant outbox publisher drains events via resolver
+// ──────────────────────────────────────────────────────────────────
+
+struct TestResolver {
+    tenant_a: Uuid,
+    tenant_b: Uuid,
+    pool: PgPool,
+}
+
+#[async_trait]
+impl TenantPoolResolver for TestResolver {
+    async fn pool_for(&self, tenant_id: Uuid) -> Result<PgPool, TenantPoolError> {
+        if tenant_id == self.tenant_a || tenant_id == self.tenant_b {
+            Ok(self.pool.clone())
+        } else {
+            Err(TenantPoolError::UnknownTenant(tenant_id))
+        }
+    }
+
+    async fn all_pools(&self) -> Result<Vec<(Uuid, PgPool)>, TenantPoolError> {
+        Ok(vec![
+            (self.tenant_a, self.pool.clone()),
+            (self.tenant_b, self.pool.clone()),
+        ])
+    }
+}
+
+#[tokio::test]
+async fn multi_tenant_publisher_drains_outbox() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let table = "sdk_test_mt_outbox";
+    drop_table(&pool, table).await;
+    create_outbox_table(&pool, table).await;
+
+    // Insert events — different event_types to prove both "tenants" are polled
+    insert_event(&pool, table, "tenant_a.order.created").await;
+    insert_event(&pool, table, "tenant_b.invoice.created").await;
+    assert_eq!(count_unpublished(&pool, table).await, 2);
+
+    let bus = Arc::new(InMemoryBus::new());
+    let mut stream = bus.subscribe("tenant_*.>").await.expect("subscribe");
+
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    let resolver: Arc<dyn TenantPoolResolver> = Arc::new(TestResolver {
+        tenant_a,
+        tenant_b,
+        pool: pool.clone(),
+    });
+
+    let pub_bus: Arc<dyn EventBus> = bus.clone();
+    let pub_table = table.to_string();
+    let pub_resolver = resolver.clone();
+    let handle = tokio::spawn(async move {
+        publisher::run_multi_tenant_outbox_publisher(pub_resolver, pub_bus, &pub_table, "test")
+            .await;
+    });
+
+    // Wait for events to be published
+    let mut received = 0;
+    for _ in 0..5 {
+        match tokio::time::timeout(std::time::Duration::from_secs(2), stream.next()).await {
+            Ok(Some(_)) => received += 1,
+            _ => break,
+        }
+        if received == 2 {
+            break;
+        }
+    }
+
+    assert_eq!(received, 2, "expected 2 events to be published via multi-tenant publisher");
+    assert_eq!(
+        count_unpublished(&pool, table).await,
+        0,
+        "all events should be marked published"
+    );
+
+    handle.abort();
+    drop_table(&pool, table).await;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 7: TenantPoolResolver trait works correctly
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn tenant_pool_resolver_resolves_known_and_rejects_unknown() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    let unknown = Uuid::new_v4();
+
+    let resolver = TestResolver {
+        tenant_a,
+        tenant_b,
+        pool: pool.clone(),
+    };
+
+    // Known tenant resolves to a working pool
+    let resolved = resolver.pool_for(tenant_a).await.expect("known tenant should resolve");
+    let row: (i64,) = sqlx::query_as("SELECT 1")
+        .fetch_one(&resolved)
+        .await
+        .expect("query should work");
+    assert_eq!(row.0, 1);
+
+    // Unknown tenant returns error
+    let err = resolver.pool_for(unknown).await;
+    assert!(err.is_err(), "unknown tenant should return error");
+
+    // all_pools returns both tenants
+    let pools = resolver.all_pools().await.expect("all_pools should work");
+    assert_eq!(pools.len(), 2);
 }
