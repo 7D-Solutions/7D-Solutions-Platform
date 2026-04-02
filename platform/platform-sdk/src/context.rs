@@ -224,6 +224,14 @@ impl ModuleContext {
         T::from_platform_client(client.clone())
     }
 
+    /// Build service-level claims for module-to-module calls that don't
+    /// originate from an HTTP request (e.g. event consumers, background tasks).
+    ///
+    /// Delegates to [`PlatformClient::service_claims`](crate::http_client::PlatformClient::service_claims).
+    pub fn service_claims(&self, tenant_id: Uuid) -> security::claims::VerifiedClaims {
+        crate::http_client::PlatformClient::service_claims(tenant_id)
+    }
+
     /// Check that the caller has the given permission.
     ///
     /// Delegates to `security::rbac::check_permissions`. This is a
