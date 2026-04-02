@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 3.0.1 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 4.0.0 | 2026-04-02 | bd-owpvo | Refactor bill_run.rs into handler + service + repo layers. Handler (bill_run.rs) extracts HTTP concerns only. Service (bill_run_service.rs) contains business logic, orchestration, and event emission. Repo (bill_run_repo.rs) contains all SQL operations. No behavior change. | Separation of concerns: bill_run.rs mixed HTTP extraction, SQL queries, business logic, and event emission in a single 329-LOC function. Refactoring into layers improves testability and follows the pattern established in AR invoices. | YES: Internal module structure changed. `http::bill_run_repo` and `http::bill_run_service` are new public modules. No runtime API behavior changes — same endpoint, same request/response shapes, same transaction boundaries. |
 | 3.0.0 | 2026-04-01 | bd-6y3bn | Add utoipa::path annotations to all admin endpoints (projection-status, consistency-check, list-projections). Register admin paths in OpenAPI spec. All handlers now have complete OpenAPI coverage. | Subscriptions response standardization: admin endpoints were missing from OpenAPI spec, blocking spec-driven tooling and documentation. | YES: OpenAPI spec now includes admin endpoints under the "Admin" tag. Consumers parsing the spec will see new paths. No runtime API behavior changes. |
 | 2.2.8 | 2026-04-01 | bd-2gyqj | Update gated_invoice_creation to pass &VerifiedClaims via PlatformClient::service_claims(tenant_id). bill_run uses PlatformClient::new() constructor (no bearer token for service-to-service). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.2.7 | 2026-04-01 | bd-aw020 | Replace inline reqwest HTTP calls in gated_invoice_creation.rs with platform-client-ar InvoicesClient. Remove local AR API model duplicates (CreateInvoiceRequest, FinalizeInvoiceRequest, Invoice) from models.rs. | Typed client conversion: eliminates manual HTTP wiring and duplicate type definitions, uses generated client for type safety. | No |
