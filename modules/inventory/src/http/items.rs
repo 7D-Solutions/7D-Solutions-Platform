@@ -17,11 +17,11 @@ use axum::{
 };
 use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
-use security::VerifiedClaims;
+use platform_sdk::TenantId;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use super::tenant::with_request_id;
 use crate::{
     domain::items::{CreateItemRequest, Item, ItemRepo, ListItemsQuery, UpdateItemRequest},
     AppState,
@@ -45,15 +45,11 @@ use crate::{
 )]
 pub async fn create_item(
     State(state): State<Arc<AppState>>,
-    claims: Option<Extension<VerifiedClaims>>,
+    TenantId(tenant_id): TenantId,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateItemRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
-    };
-    req.tenant_id = tenant_id;
+    req.tenant_id = tenant_id.to_string();
     match ItemRepo::create(&state.pool, &req).await {
         Ok(item) => (StatusCode::CREATED, Json(item)).into_response(),
         Err(e) => {
@@ -77,14 +73,10 @@ pub async fn create_item(
 pub async fn get_item(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    claims: Option<Extension<VerifiedClaims>>,
+    TenantId(tenant_id): TenantId,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
-    };
-
+    let tenant_id = tenant_id.to_string();
     match ItemRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(item)) => (StatusCode::OK, Json(item)).into_response(),
         Ok(None) => {
@@ -112,16 +104,12 @@ pub async fn get_item(
 )]
 pub async fn update_item(
     State(state): State<Arc<AppState>>,
-    claims: Option<Extension<VerifiedClaims>>,
+    TenantId(tenant_id): TenantId,
     Path(id): Path<Uuid>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<UpdateItemRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
-    };
-    req.tenant_id = tenant_id;
+    req.tenant_id = tenant_id.to_string();
     match ItemRepo::update(&state.pool, id, &req).await {
         Ok(item) => (StatusCode::OK, Json(item)).into_response(),
         Err(e) => {
@@ -143,15 +131,11 @@ pub async fn update_item(
 )]
 pub async fn list_items(
     State(state): State<Arc<AppState>>,
-    claims: Option<Extension<VerifiedClaims>>,
+    TenantId(tenant_id): TenantId,
     Query(query): Query<ListItemsQuery>,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
-    };
-
+    let tenant_id = tenant_id.to_string();
     match ItemRepo::list(&state.pool, &tenant_id, &query).await {
         Ok((items, total)) => {
             let page_size = query.page_size.clamp(1, 200) as i64;
@@ -179,15 +163,11 @@ pub async fn list_items(
 )]
 pub async fn deactivate_item(
     State(state): State<Arc<AppState>>,
-    claims: Option<Extension<VerifiedClaims>>,
+    TenantId(tenant_id): TenantId,
     Path(id): Path<Uuid>,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
-        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
-    };
-
+    let tenant_id = tenant_id.to_string();
     match ItemRepo::deactivate(&state.pool, id, &tenant_id).await {
         Ok(item) => (StatusCode::OK, Json(item)).into_response(),
         Err(e) => {

@@ -14,7 +14,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::domain::eliminations::{self, service as elim_service};
 use crate::domain::intercompany::{self, service as ic_service};
 use crate::AppState;

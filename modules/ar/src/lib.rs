@@ -3,6 +3,7 @@ pub mod config;
 pub mod consumer_tasks;
 pub mod credit_notes;
 pub mod db;
+pub mod domain;
 pub mod dunning;
 pub mod dunning_scheduler;
 pub mod envelope_validation;

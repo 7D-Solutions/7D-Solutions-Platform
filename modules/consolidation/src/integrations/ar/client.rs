@@ -3,9 +3,9 @@
 //! Used by intercompany matching to identify receivables where the
 //! customer is another entity in the consolidation group.
 
-use platform_sdk::{ClientError, parse_response};
-use reqwest::Client;
+use platform_sdk::{ClientError, PlatformClient, parse_response};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Summary of receivable balance per customer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,20 +19,18 @@ pub struct ReceivableSummary {
 
 /// HTTP client adapter for the AR service.
 ///
-/// Wraps `platform-client-ar` as the upstream dependency. Uses raw reqwest
-/// with `parse_response` because the generated `AgingClient::get_aging`
-/// does not return a typed response body.
-#[derive(Clone)]
+/// Uses `PlatformClient` from `platform-sdk` for tenant header injection,
+/// correlation IDs, and automatic retry on 429/503 for GET requests.
 pub struct ArClient {
-    client: Client,
-    base_url: String,
+    client: PlatformClient,
 }
 
 impl ArClient {
     pub fn new(base_url: &str) -> Self {
         Self {
-            client: Client::new(),
-            base_url: base_url.trim_end_matches('/').to_string(),
+            client: PlatformClient::new(
+                base_url.trim_end_matches('/').to_string(),
+            ),
         }
     }
 
@@ -44,14 +42,11 @@ impl ArClient {
         &self,
         tenant_id: &str,
     ) -> Result<Vec<ReceivableSummary>, ClientError> {
-        let url = format!("{}/api/ar/aging", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[("tenant_id", tenant_id)])
-            .send()
-            .await
-            .map_err(ClientError::Network)?;
+        let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|e| {
+            ClientError::Unexpected { status: 0, body: format!("invalid tenant_id: {e}") }
+        })?;
+        let claims = PlatformClient::service_claims(tenant_uuid);
+        let resp = self.client.get("/api/ar/aging", &claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

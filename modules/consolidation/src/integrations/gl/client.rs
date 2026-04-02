@@ -1,11 +1,10 @@
 //! GL HTTP client adapter — wraps platform-client-gl with consolidation-specific methods.
 //!
-//! Uses raw reqwest with `platform_sdk` helpers for endpoints that need query parameters
-//! and typed response bodies not yet supported by the generated client skeleton.
-//! When the codegen adds typed responses, switch to `platform_client_gl` methods directly.
+//! Uses `PlatformClient` for tenant header injection, correlation IDs, and
+//! retry on 429/503.  Response types are defined here until the generated
+//! client skeleton supports typed responses for these endpoints.
 
-use platform_sdk::{ClientError, parse_response};
-use reqwest::Client;
+use platform_sdk::{ClientError, PlatformClient, build_query_url, parse_response};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -79,23 +78,44 @@ struct PostJournalResponse {
     pub journal_entry_id: Uuid,
 }
 
+// ── Query parameter structs ─────────────────────────────────────
+
+#[derive(Serialize)]
+struct TrialBalanceQuery<'a> {
+    period_id: Uuid,
+    currency: &'a str,
+}
+
+#[derive(Serialize)]
+struct FxRateQuery<'a> {
+    base_currency: &'a str,
+    quote_currency: &'a str,
+    as_of: &'a str,
+}
+
 /// HTTP client adapter for the GL service.
 ///
-/// Wraps `platform-client-gl` as the upstream dependency. Methods use raw reqwest
-/// with `parse_response` because the generated client skeleton does not yet support
-/// query parameters or typed responses for the endpoints consolidation needs.
-#[derive(Clone)]
+/// Uses `PlatformClient` from `platform-sdk` for tenant header injection,
+/// correlation IDs, and automatic retry on 429/503 for GET requests.
 pub struct GlClient {
-    client: Client,
-    base_url: String,
+    client: PlatformClient,
 }
 
 impl GlClient {
     pub fn new(base_url: &str) -> Self {
         Self {
-            client: Client::new(),
-            base_url: base_url.trim_end_matches('/').to_string(),
+            client: PlatformClient::new(
+                base_url.trim_end_matches('/').to_string(),
+            ),
         }
+    }
+
+    /// Parse a tenant ID string into a UUID for service claims.
+    fn parse_tenant(tenant_id: &str) -> Result<Uuid, ClientError> {
+        Uuid::parse_str(tenant_id).map_err(|e| ClientError::Unexpected {
+            status: 0,
+            body: format!("invalid tenant_id: {e}"),
+        })
     }
 
     /// Fetch trial balance for an entity (tenant) + period + currency.
@@ -105,18 +125,12 @@ impl GlClient {
         period_id: Uuid,
         currency: &str,
     ) -> Result<GlTrialBalanceResponse, ClientError> {
-        let url = format!("{}/api/gl/trial-balance", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[
-                ("tenant_id", tenant_id),
-                ("period_id", &period_id.to_string()),
-                ("currency", currency),
-            ])
-            .send()
-            .await
-            .map_err(ClientError::Network)?;
+        let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
+        let path = build_query_url(
+            "/api/gl/trial-balance",
+            &TrialBalanceQuery { period_id, currency },
+        )?;
+        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -126,17 +140,9 @@ impl GlClient {
         tenant_id: &str,
         period_id: Uuid,
     ) -> Result<GlCloseStatusResponse, ClientError> {
-        let url = format!(
-            "{}/api/gl/periods/{}/close-status",
-            self.base_url, period_id
-        );
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[("tenant_id", tenant_id)])
-            .send()
-            .await
-            .map_err(ClientError::Network)?;
+        let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
+        let path = format!("/api/gl/periods/{}/close-status", period_id);
+        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -163,19 +169,12 @@ impl GlClient {
         quote_currency: &str,
         as_of: &str,
     ) -> Result<Option<GlFxRateResponse>, ClientError> {
-        let url = format!("{}/api/gl/fx-rates/latest", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[
-                ("tenant_id", tenant_id),
-                ("base_currency", base_currency),
-                ("quote_currency", quote_currency),
-                ("as_of", as_of),
-            ])
-            .send()
-            .await
-            .map_err(ClientError::Network)?;
+        let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
+        let path = build_query_url(
+            "/api/gl/fx-rates/latest",
+            &FxRateQuery { base_currency, quote_currency, as_of },
+        )?;
+        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
 
         if resp.status().as_u16() == 404 {
             return Ok(None);
@@ -199,6 +198,7 @@ impl GlClient {
         description: &str,
         source_doc_id: &str,
     ) -> Result<Uuid, ClientError> {
+        let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
         let amount_major = amount_minor as f64 / 100.0;
 
         let body = serde_json::json!({
@@ -225,12 +225,9 @@ impl GlClient {
             ]
         });
 
-        let url = format!("{}/api/gl/journal-entries", self.base_url);
         let resp = self
             .client
-            .post(&url)
-            .json(&body)
-            .send()
+            .post("/api/gl/journal-entries", &body, &claims)
             .await
             .map_err(ClientError::Network)?;
         let result: PostJournalResponse = parse_response(resp).await?;

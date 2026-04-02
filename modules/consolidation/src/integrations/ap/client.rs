@@ -3,9 +3,9 @@
 //! Used by intercompany matching to identify payables where the
 //! vendor is another entity in the consolidation group.
 
-use platform_sdk::{ClientError, parse_response};
-use reqwest::Client;
+use platform_sdk::{ClientError, PlatformClient, parse_response};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Summary of payable balance per vendor.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,20 +19,18 @@ pub struct PayableSummary {
 
 /// HTTP client adapter for the AP service.
 ///
-/// Wraps `platform-client-ap` as the upstream dependency. Uses raw reqwest
-/// with `parse_response` because the generated `ReportsClient::aging_report`
-/// does not return a typed response body.
-#[derive(Clone)]
+/// Uses `PlatformClient` from `platform-sdk` for tenant header injection,
+/// correlation IDs, and automatic retry on 429/503 for GET requests.
 pub struct ApClient {
-    client: Client,
-    base_url: String,
+    client: PlatformClient,
 }
 
 impl ApClient {
     pub fn new(base_url: &str) -> Self {
         Self {
-            client: Client::new(),
-            base_url: base_url.trim_end_matches('/').to_string(),
+            client: PlatformClient::new(
+                base_url.trim_end_matches('/').to_string(),
+            ),
         }
     }
 
@@ -44,14 +42,11 @@ impl ApClient {
         &self,
         tenant_id: &str,
     ) -> Result<Vec<PayableSummary>, ClientError> {
-        let url = format!("{}/api/ap/aging", self.base_url);
-        let resp = self
-            .client
-            .get(&url)
-            .query(&[("tenant_id", tenant_id)])
-            .send()
-            .await
-            .map_err(ClientError::Network)?;
+        let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|e| {
+            ClientError::Unexpected { status: 0, body: format!("invalid tenant_id: {e}") }
+        })?;
+        let claims = PlatformClient::service_claims(tenant_uuid);
+        let resp = self.client.get("/api/ap/aging", &claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.4.9 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.10 | 2026-04-02 | bd-p9n1w | Replace `extract_tenant` + match boilerplate with `TenantId` Axum extractor in all 5 item handlers (create, get, update, list, deactivate). Pilot for platform-wide tenant context middleware. | Manual `extract_tenant` in every handler is error-prone — a missed call leaks cross-tenant data. `TenantId` extractor makes tenant extraction automatic and returns 401 before the handler runs. | No |
 | 2.4.8 | 2026-04-01 | bd-9c1mo | Add `#[utoipa::path]` to 4 missing handlers: `projection_status`, `consistency_check`, `list_projections` (admin), `post_batch_receipts` (batch receipts). Made admin handlers pub. Added `ToSchema` derives to batch receipt types. Registered all 4 paths in ApiDoc. | OpenAPI spec was missing 4 routed endpoints, breaking spec-to-router parity. | No |
 | 2.4.7 | 2026-03-31 | bd-5vmu6.3 | Convert main.rs to platform-sdk ModuleBuilder. Replace bus supervisor with SDK bus init. SDK handles DB, bus, outbox (inv_outbox), CORS, JWT, health, metrics. Consumers started via bus_arc(). Created module.toml. Added platform-sdk dep. SLO metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.4.6 | 2026-03-31 | bd-vnuvp.9 | Add tenant_id filter to inventory_reservations reversal-existence check in fulfill_service. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
