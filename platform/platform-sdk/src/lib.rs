@@ -35,7 +35,7 @@ mod startup_helpers;
 pub mod tenant;
 
 pub use builder::ModuleBuilder;
-pub use client_core::{parse_empty, parse_response, build_query_url, ClientError};
+pub use client_core::{ensure, parse_empty, parse_response, build_query_url, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext, TenantPoolError, TenantPoolResolver};
 pub use http_client::{PlatformClient, TimeoutConfig};
