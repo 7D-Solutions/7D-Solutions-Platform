@@ -45,6 +45,10 @@ use platform_sdk::ModuleBuilder;
                         for automatic ECO number allocation.",
     ),
     paths(
+        // Health
+        bom_rs::http::health::health,
+        bom_rs::http::health::ready,
+        bom_rs::http::health::version,
         // BOM Header
         bom_rs::http::bom_routes::list_boms,
         bom_rs::http::bom_routes::post_bom,
