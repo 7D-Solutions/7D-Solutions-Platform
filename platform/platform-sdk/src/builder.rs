@@ -75,6 +75,9 @@ pub struct ModuleBuilder {
     pool_resolver: Option<Arc<dyn TenantPoolResolver>>,
     skip_default_middleware: bool,
     skip_outbox_publisher: bool,
+    skip_cors: bool,
+    skip_rate_limit: bool,
+    skip_auth: bool,
 }
 
 impl ModuleBuilder {
@@ -101,6 +104,9 @@ impl ModuleBuilder {
             pool_resolver: None,
             skip_default_middleware: false,
             skip_outbox_publisher: false,
+            skip_cors: false,
+            skip_rate_limit: false,
+            skip_auth: false,
         }
     }
 
@@ -299,6 +305,44 @@ impl ModuleBuilder {
         self
     }
 
+    /// Disable the SDK's CORS middleware layer.
+    ///
+    /// Use this when the module provides its own CORS configuration —
+    /// for example a vertical that runs behind a reverse proxy that
+    /// already adds CORS headers. Prevents double-header issues that
+    /// break browsers.
+    ///
+    /// All other SDK middleware (JWT, rate limiting, timeout, health
+    /// endpoints) continue to operate normally.
+    pub fn skip_cors(mut self) -> Self {
+        self.skip_cors = true;
+        self
+    }
+
+    /// Disable the SDK's rate-limiting middleware layer.
+    ///
+    /// Use this when the module manages its own request throttling or
+    /// when rate limiting is handled upstream (e.g. API gateway, ingress).
+    ///
+    /// All other SDK middleware (CORS, JWT, timeout, health endpoints)
+    /// continue to operate normally.
+    pub fn skip_rate_limit(mut self) -> Self {
+        self.skip_rate_limit = true;
+        self
+    }
+
+    /// Disable the SDK's JWT authentication middleware layer.
+    ///
+    /// Use this when the module provides its own auth logic or serves
+    /// only internal/machine traffic that does not carry bearer tokens.
+    ///
+    /// All other SDK middleware (CORS, rate limiting, timeout, health
+    /// endpoints) continue to operate normally.
+    pub fn skip_auth(mut self) -> Self {
+        self.skip_auth = true;
+        self
+    }
+
     /// Register a tenant pool resolver for database-per-tenant architectures.
     ///
     /// When registered, `ctx.pool_for(tenant_id)` resolves to the correct
@@ -414,7 +458,12 @@ impl ModuleBuilder {
             startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
                 .await
         } else {
-            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
+            let flags = startup::MiddlewareFlags {
+                skip_cors: self.skip_cors,
+                skip_rate_limit: self.skip_rate_limit,
+                skip_auth: self.skip_auth,
+            };
+            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
                 .await
         }
     }

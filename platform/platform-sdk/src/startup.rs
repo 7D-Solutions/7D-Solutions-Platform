@@ -270,6 +270,20 @@ pub(crate) struct PhaseAOutput {
     pub outbox_shutdown_tx: Option<tokio::sync::watch::Sender<bool>>,
 }
 
+/// Granular middleware opt-out flags for [`phase_b`].
+///
+/// Each flag disables one layer of the SDK's default middleware stack
+/// without touching the others. The zero-value (all `false`) is
+/// equivalent to the full default stack.
+pub(crate) struct MiddlewareFlags {
+    /// Skip the CORS layer (e.g. reverse proxy already adds headers).
+    pub skip_cors: bool,
+    /// Skip the rate-limiting layer (e.g. throttling is at the gateway).
+    pub skip_rate_limit: bool,
+    /// Skip the JWT authentication layer (e.g. internal-only traffic).
+    pub skip_auth: bool,
+}
+
 /// Phase B: HTTP stack assembly and server start.
 pub(crate) async fn phase_b(
     manifest: &Manifest,
@@ -278,6 +292,7 @@ pub(crate) async fn phase_b(
     migrator: Option<&sqlx::migrate::Migrator>,
     consumer_handles: ConsumerHandles,
     ctx: ModuleContext,
+    flags: MiddlewareFlags,
 ) -> Result<(), StartupError> {
     let module_name = &manifest.module.name;
     let version = manifest
@@ -335,7 +350,9 @@ pub(crate) async fn phase_b(
     // Request timeout from manifest [server] section (default: "30s")
     let request_timeout = parse_duration_str(&manifest.server.request_timeout);
 
-    // Assemble the full app: module routes + observability + middleware
+    // Assemble the full app: module routes + observability + middleware.
+    // Layers are applied unconditionally first (tracing, timeout, body limit),
+    // then each optional layer is applied only when its flag is not set.
     let app = module_routes
         .merge(obs_routes)
         .layer(Extension(ctx))
@@ -348,15 +365,34 @@ pub(crate) async fn phase_b(
                 Ok(response) => response,
                 Err(_) => (StatusCode::REQUEST_TIMEOUT, "Request timeout\n").into_response(),
             }
-        }))
-        .layer(axum::middleware::from_fn(rate_limit_middleware))
-        .layer(Extension(phase_a.rate_limiter))
-        .layer(axum::middleware::from_fn_with_state(
+        }));
+
+    let app = if !flags.skip_rate_limit {
+        app.layer(axum::middleware::from_fn(rate_limit_middleware))
+            .layer(Extension(phase_a.rate_limiter))
+    } else {
+        tracing::info!(module = %module_name, "rate-limit middleware disabled");
+        app
+    };
+
+    let app = if !flags.skip_auth {
+        app.layer(axum::middleware::from_fn_with_state(
             phase_a.jwt_verifier,
             optional_claims_mw,
         ))
-        .layer(cors)
-        .into_make_service_with_connect_info::<SocketAddr>();
+    } else {
+        tracing::info!(module = %module_name, "auth middleware disabled");
+        app
+    };
+
+    let app = if !flags.skip_cors {
+        app.layer(cors)
+    } else {
+        tracing::info!(module = %module_name, "CORS middleware disabled");
+        app
+    };
+
+    let app = app.into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", host, port)
         .parse()
