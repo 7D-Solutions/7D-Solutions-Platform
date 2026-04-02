@@ -66,6 +66,30 @@ impl PlatformServices {
             None => return Ok(Self { clients }),
         };
 
+        // Obtain a service token for service-to-service auth.
+        // When SERVICE_AUTH_SECRET is not set (e.g. local dev without identity
+        // services), proceed without bearer tokens — the receiving service's
+        // permissive ClaimsLayer will pass unauthenticated requests through on
+        // unprotected routes, and RequirePermissionsLayer will 401 on protected
+        // routes (which is the correct dev-mode signal).
+        let service_token = match security::get_service_token() {
+            Ok(token) => {
+                tracing::debug!(
+                    module = %module_name,
+                    "service token acquired — platform clients will authenticate"
+                );
+                Some(token)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    module = %module_name,
+                    error = %e,
+                    "no service token available — platform clients will be unauthenticated"
+                );
+                None
+            }
+        };
+
         for (name, entry) in services {
             if !entry.enabled {
                 tracing::debug!(
@@ -110,6 +134,10 @@ impl PlatformServices {
             };
 
             let client = PlatformClient::with_timeout(base_url.clone(), timeout);
+            let client = match &service_token {
+                Some(token) => client.with_bearer_token(token.clone()),
+                None => client,
+            };
 
             tracing::info!(
                 module = %module_name,

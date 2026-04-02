@@ -198,6 +198,13 @@ impl Manifest {
                         .into(),
                 ));
             }
+            if auth.required && !auth.enabled {
+                return Err(ManifestError::Validation(
+                    "auth.required is true but auth.enabled is false — \
+                     either set required = false or enabled = true"
+                        .into(),
+                ));
+            }
         }
 
         // Validate cors section.

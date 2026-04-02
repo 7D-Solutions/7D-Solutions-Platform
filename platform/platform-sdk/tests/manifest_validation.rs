@@ -364,6 +364,68 @@ enabled = false
 }
 
 #[test]
+fn auth_required_defaults_to_true() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = write_manifest(
+        &dir,
+        r#"
+[module]
+name = "auth-required-default"
+
+[auth]
+"#,
+    );
+
+    let manifest = Manifest::from_file(&path).expect("auth section should parse");
+    let auth = manifest.auth.expect("auth section");
+    assert!(auth.required, "auth.required should default to true");
+}
+
+#[test]
+fn auth_required_false_parses() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = write_manifest(
+        &dir,
+        r#"
+[module]
+name = "auth-optional"
+
+[auth]
+required = false
+enabled = false
+"#,
+    );
+
+    let manifest = Manifest::from_file(&path).expect("auth required=false should parse");
+    let auth = manifest.auth.expect("auth section");
+    assert!(!auth.required);
+}
+
+#[test]
+fn auth_required_true_with_enabled_false_fails() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = write_manifest(
+        &dir,
+        r#"
+[module]
+name = "auth-contradiction"
+
+[auth]
+required = true
+enabled = false
+"#,
+    );
+
+    let err = Manifest::from_file(&path).expect_err("required+disabled should fail");
+    let msg = err.to_string();
+    assert!(
+        msg.contains("required") && msg.contains("enabled"),
+        "expected auth contradiction error, got: {}",
+        msg
+    );
+}
+
+#[test]
 fn missing_auth_section_uses_none() {
     let dir = TempDir::new().expect("tempdir");
     let path = write_manifest(

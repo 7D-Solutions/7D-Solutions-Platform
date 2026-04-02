@@ -1,10 +1,11 @@
 //! Integration tests for PlatformClient — real HTTP against a local test server.
 
 use axum::{extract::Request, http::StatusCode, routing::get, Router};
-use platform_sdk::PlatformClient;
+use platform_sdk::{PlatformClient, TimeoutConfig};
 use security::claims::{ActorType, VerifiedClaims};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
@@ -167,4 +168,84 @@ async fn post_sends_json_body() {
     let resp = client.post("/api/create", &payload, &test_claims()).await.unwrap();
     let body = resp.text().await.unwrap();
     assert_eq!(body, "Acme Corp");
+}
+
+#[tokio::test]
+async fn retries_on_connection_refused() {
+    // Bind a port, get its address, then drop the listener so nothing is listening.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+
+    let client = PlatformClient::with_timeout(
+        format!("http://{addr}"),
+        TimeoutConfig {
+            request_timeout: Duration::from_secs(2),
+            connect_timeout: Duration::from_secs(1),
+        },
+    );
+
+    let start = std::time::Instant::now();
+    let err = client.get("/api/test", &test_claims()).await.unwrap_err();
+    let elapsed = start.elapsed();
+
+    // Must be a connect error (connection refused).
+    assert!(err.is_connect(), "expected connect error, got: {err}");
+    // Elapsed time proves retries happened (3 retries × 100ms minimum backoff).
+    assert!(elapsed >= Duration::from_millis(300), "expected retries, elapsed: {elapsed:?}");
+}
+
+#[tokio::test]
+async fn no_retry_on_dns_failure() {
+    let client = PlatformClient::with_timeout(
+        "http://this-host-does-not-exist.invalid".to_string(),
+        TimeoutConfig {
+            request_timeout: Duration::from_secs(5),
+            connect_timeout: Duration::from_secs(2),
+        },
+    );
+
+    let start = std::time::Instant::now();
+    let err = client.get("/api/test", &test_claims()).await.unwrap_err();
+    let elapsed = start.elapsed();
+
+    // Must be a connect error from DNS failure.
+    assert!(err.is_connect(), "expected connect error, got: {err}");
+    // DNS failure should NOT retry — elapsed should be well under retry backoff sum.
+    assert!(elapsed < Duration::from_secs(3), "DNS failure retried unexpectedly, elapsed: {elapsed:?}");
+}
+
+#[tokio::test]
+async fn retries_on_request_timeout() {
+    let call_count = Arc::new(AtomicU32::new(0));
+    let counter = call_count.clone();
+
+    let app = Router::new().route(
+        "/api/slow",
+        get(move || {
+            let counter = counter.clone();
+            async move {
+                let n = counter.fetch_add(1, Ordering::SeqCst);
+                if n < 2 {
+                    // Sleep longer than request_timeout to trigger a timeout.
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+                StatusCode::OK
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = PlatformClient::with_timeout(
+        base,
+        TimeoutConfig {
+            request_timeout: Duration::from_millis(200),
+            connect_timeout: Duration::from_secs(1),
+        },
+    );
+
+    let resp = client.get("/api/slow", &test_claims()).await.unwrap();
+    assert_eq!(resp.status(), 200);
+    // First 2 attempts timed out, third succeeded.
+    assert_eq!(call_count.load(Ordering::SeqCst), 3);
 }

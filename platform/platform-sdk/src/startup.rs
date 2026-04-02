@@ -60,9 +60,11 @@ pub enum StartupError {
 /// 7. Detect undeclared outbox tables / spawn outbox publisher
 /// 8. Build JWT verifier (optional)
 /// 9. Build rate limiter
+/// 10. Enforce auth-required (fail-closed unless explicitly opted out)
 pub(crate) async fn phase_a(
     manifest: &Manifest,
     skip_outbox: bool,
+    skip_auth: bool,
     pool_resolver: Option<Arc<dyn crate::context::TenantPoolResolver>>,
 ) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
@@ -235,6 +237,22 @@ pub(crate) async fn phase_a(
             module = %manifest.module.name,
             "running without JWT verification"
         );
+    }
+
+    // Step 10: enforce auth-required (fail-closed by default).
+    //
+    // When [auth] is absent, required defaults to true — modules must
+    // explicitly opt out with `[auth] required = false`.  The builder's
+    // `.skip_auth()` / `.skip_default_middleware()` also bypasses this
+    // check (the module handles its own authentication).
+    let auth_required = manifest.auth.as_ref().map_or(true, |a| a.required);
+    if auth_required && !skip_auth && jwt_verifier.is_none() {
+        return Err(StartupError::Config(
+            "authentication is required but no JWT verifier could be created — \
+             set auth.jwks_url or the JWT_PUBLIC_KEY env var, \
+             or add [auth] required = false to module.toml"
+                .into(),
+        ));
     }
 
     // Step 9: rate limiter — from manifest [rate_limit] section or platform defaults

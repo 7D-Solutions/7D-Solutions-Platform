@@ -153,7 +153,10 @@ impl PlatformClient {
         req.send().await
     }
 
-    /// Send with retry on 429/503 — for reads (GET) only.
+    /// Send with retry on 429/503 and transient transport errors — for reads (GET) only.
+    ///
+    /// Retries on: HTTP 429, HTTP 503, connection refused, timeouts.
+    /// Does NOT retry on: DNS failures (permanent), TLS errors (permanent).
     async fn send_with_retry(
         &self,
         builder: reqwest::RequestBuilder,
@@ -161,22 +164,55 @@ impl PlatformClient {
     ) -> Result<Response, reqwest::Error> {
         let correlation_id = Uuid::new_v4();
         let mut backoff = Duration::from_millis(INITIAL_BACKOFF_MS);
+        let mut last_err: Option<reqwest::Error> = None;
 
         for attempt in 0..=MAX_RETRIES {
             let req = builder.try_clone().expect("request must be cloneable");
             let req = self.inject_headers(req, claims, &correlation_id);
-            let resp = req.send().await?;
 
-            let status = resp.status();
-            if attempt < MAX_RETRIES && (status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::SERVICE_UNAVAILABLE) {
-                tokio::time::sleep(backoff).await;
-                backoff *= 2;
-                continue;
+            match req.send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if attempt < MAX_RETRIES && (status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::SERVICE_UNAVAILABLE) {
+                        tracing::warn!(attempt, status = %status, "retrying after HTTP status");
+                        tokio::time::sleep(backoff).await;
+                        backoff *= 2;
+                        continue;
+                    }
+                    return Ok(resp);
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES && is_transient_transport_error(&e) {
+                        tracing::warn!(attempt, error = %e, "retrying after transient transport error");
+                        tokio::time::sleep(backoff).await;
+                        backoff *= 2;
+                        last_err = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
             }
-
-            return Ok(resp);
         }
 
-        unreachable!("loop always returns")
+        Err(last_err.expect("loop must have set last_err before exhausting retries"))
     }
+}
+
+/// Returns true for transient transport errors worth retrying (connection refused, timeout).
+/// Returns false for permanent errors (DNS resolution, TLS certificate issues).
+fn is_transient_transport_error(err: &reqwest::Error) -> bool {
+    if err.is_timeout() {
+        return true;
+    }
+    if err.is_connect() {
+        // DNS failures are permanent — do not retry.
+        // reqwest wraps hyper errors; DNS failures contain "dns error" in the chain.
+        let msg = err.to_string();
+        if msg.contains("dns error") || msg.contains("failed to lookup address") {
+            return false;
+        }
+        // Connection refused, reset, etc. are transient.
+        return true;
+    }
+    false
 }

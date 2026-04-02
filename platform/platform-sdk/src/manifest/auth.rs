@@ -13,6 +13,11 @@ pub struct AuthSection {
     pub fallback_to_env: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    /// When `true` (the default), startup fails if no JWT verifier can be
+    /// created (JWKS unreachable and no `JWT_PUBLIC_KEY` env var).  Modules
+    /// that intentionally run without authentication must set this to `false`.
+    #[serde(default = "default_true")]
+    pub required: bool,
 
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
@@ -25,6 +30,7 @@ impl Default for AuthSection {
             refresh_interval: default_refresh_interval(),
             fallback_to_env: true,
             enabled: true,
+            required: true,
             extra: BTreeMap::new(),
         }
     }

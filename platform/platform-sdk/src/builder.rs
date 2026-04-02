@@ -367,6 +367,7 @@ impl ModuleBuilder {
         let phase_a = startup::phase_a(
             &manifest,
             self.skip_outbox_publisher,
+            self.skip_auth || self.skip_default_middleware,
             self.pool_resolver.clone(),
         )
         .await?;
