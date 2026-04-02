@@ -82,7 +82,7 @@ pub(super) fn err_retry_after(
     (code, headers, msg.into())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RegisterReq {
     pub tenant_id: Uuid,
     pub user_id: Uuid,
@@ -90,14 +90,14 @@ pub struct RegisterReq {
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct LoginReq {
     pub tenant_id: Uuid,
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenResponse {
     pub token_type: &'static str,
     pub access_token: String,
@@ -105,12 +105,12 @@ pub struct TokenResponse {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct OkResponse {
     pub ok: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AccessReviewReq {
     pub tenant_id: Uuid,
     pub user_id: Uuid,
@@ -122,7 +122,7 @@ pub struct AccessReviewReq {
     pub causation_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SodPolicyUpsertReq {
     pub tenant_id: Uuid,
     pub action_key: String,
@@ -135,7 +135,7 @@ pub struct SodPolicyUpsertReq {
     pub causation_id: Option<Uuid>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct SodEvaluateReq {
     pub tenant_id: Uuid,
     pub action_key: String,
@@ -147,6 +147,14 @@ pub struct SodEvaluateReq {
     pub causation_id: Option<Uuid>,
 }
 
+#[utoipa::path(post, path = "/api/auth/access-review", tag = "Lifecycle",
+    request_body = AccessReviewReq,
+    responses(
+        (status = 200, description = "Access review recorded", body = OkResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn record_access_review(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,
@@ -199,6 +207,14 @@ pub async fn record_access_review(
     Ok((StatusCode::OK, Json(OkResponse { ok: true })))
 }
 
+#[utoipa::path(post, path = "/api/auth/sod/policies", tag = "SoD",
+    request_body = SodPolicyUpsertReq,
+    responses(
+        (status = 200, description = "Policy upserted", body = crate::db::sod::SodPolicyUpsertResult),
+        (status = 400, description = "Invalid request"),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn upsert_sod_policy(
     State(state): State<Arc<AuthState>>,
     headers: HeaderMap,
@@ -258,6 +274,14 @@ pub async fn upsert_sod_policy(
     Ok((StatusCode::OK, Json(result)))
 }
 
+#[utoipa::path(post, path = "/api/auth/sod/evaluate", tag = "SoD",
+    request_body = SodEvaluateReq,
+    responses(
+        (status = 200, description = "SoD evaluation result", body = crate::db::sod::SodDecisionResult),
+        (status = 400, description = "Invalid request"),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn evaluate_sod(
     State(state): State<Arc<AuthState>>,
     headers: HeaderMap,
@@ -321,6 +345,16 @@ pub async fn evaluate_sod(
     Ok((StatusCode::OK, Json(result)))
 }
 
+#[utoipa::path(get, path = "/api/auth/sod/policies/{tenant_id}/by-action/{action_key}", tag = "SoD",
+    params(
+        ("tenant_id" = Uuid, Path, description = "Tenant ID"),
+        ("action_key" = String, Path, description = "Action key to list policies for"),
+    ),
+    responses(
+        (status = 200, description = "SoD policies for action", body = Vec<crate::db::sod::SodPolicy>),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_sod_policies(
     State(state): State<Arc<AuthState>>,
     Path((tenant_id, action_key)): Path<(Uuid, String)>,
@@ -331,6 +365,17 @@ pub async fn list_sod_policies(
     Ok((StatusCode::OK, Json(policies)))
 }
 
+#[utoipa::path(delete, path = "/api/auth/sod/policies/{tenant_id}/{rule_id}", tag = "SoD",
+    params(
+        ("tenant_id" = Uuid, Path, description = "Tenant ID"),
+        ("rule_id" = Uuid, Path, description = "Policy rule ID to delete"),
+    ),
+    responses(
+        (status = 200, description = "Policy deleted"),
+        (status = 404, description = "Policy not found"),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn delete_sod_policy(
     State(state): State<Arc<AuthState>>,
     headers: HeaderMap,
@@ -374,6 +419,16 @@ pub async fn delete_sod_policy(
     }
 }
 
+#[utoipa::path(get, path = "/api/auth/lifecycle/{tenant_id}/{user_id}", tag = "Lifecycle",
+    params(
+        ("tenant_id" = Uuid, Path, description = "Tenant ID"),
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    responses(
+        (status = 200, description = "User lifecycle timeline", body = Vec<crate::db::user_lifecycle_audit::LifecycleTimelineEntry>),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_user_lifecycle_timeline(
     State(state): State<Arc<AuthState>>,
     Path((tenant_id, user_id)): Path<(Uuid, Uuid)>,
@@ -392,6 +447,15 @@ pub async fn get_user_lifecycle_timeline(
     Ok((StatusCode::OK, Json(timeline)))
 }
 
+#[utoipa::path(post, path = "/api/auth/register", tag = "Auth",
+    request_body = RegisterReq,
+    responses(
+        (status = 200, description = "User registered", body = OkResponse),
+        (status = 400, description = "Invalid email or weak password"),
+        (status = 409, description = "Credential already exists"),
+        (status = 429, description = "Rate limited"),
+        (status = 503, description = "Service busy"),
+    ))]
 pub async fn register(
     State(state): State<Arc<AuthState>>,
     headers: HeaderMap,
@@ -604,6 +668,16 @@ pub async fn register(
     }
 }
 
+#[utoipa::path(post, path = "/api/auth/login", tag = "Auth",
+    request_body = LoginReq,
+    responses(
+        (status = 200, description = "Login successful", body = TokenResponse),
+        (status = 400, description = "Invalid email"),
+        (status = 401, description = "Invalid credentials"),
+        (status = 403, description = "Account inactive, locked, or tenant suspended"),
+        (status = 429, description = "Rate limited"),
+        (status = 503, description = "Service busy or seat limit reached"),
+    ))]
 pub async fn login(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,
@@ -1096,13 +1170,13 @@ pub async fn login(
 // GET /api/auth/users — lookup user by email + tenant_id
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct UserLookupQuery {
     pub email: String,
     pub tenant_id: Uuid,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UserLookupResponse {
     pub id: Uuid,
     pub email: String,
@@ -1110,6 +1184,14 @@ pub struct UserLookupResponse {
     pub created_at: chrono::DateTime<Utc>,
 }
 
+#[utoipa::path(get, path = "/api/auth/users", tag = "Users",
+    params(UserLookupQuery),
+    responses(
+        (status = 200, description = "User found", body = UserLookupResponse),
+        (status = 400, description = "Email is required"),
+        (status = 404, description = "User not found"),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_user_by_email(
     State(state): State<Arc<AuthState>>,
     axum::extract::Query(q): axum::extract::Query<UserLookupQuery>,
@@ -1146,11 +1228,18 @@ pub async fn get_user_by_email(
 
 // RBAC — Roles & Permissions
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListRolesQuery {
     pub tenant_id: Uuid,
 }
 
+#[utoipa::path(get, path = "/api/auth/roles", tag = "RBAC",
+    params(ListRolesQuery),
+    responses(
+        (status = 200, description = "List of roles for tenant", body = Vec<crate::db::rbac::Role>),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_roles(
     State(state): State<Arc<AuthState>>,
     axum::extract::Query(q): axum::extract::Query<ListRolesQuery>,
@@ -1161,6 +1250,12 @@ pub async fn list_roles(
     Ok((StatusCode::OK, Json(roles)))
 }
 
+#[utoipa::path(get, path = "/api/auth/permissions", tag = "RBAC",
+    responses(
+        (status = 200, description = "List of all permissions", body = Vec<crate::db::rbac::Permission>),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_permissions(
     State(state): State<Arc<AuthState>>,
 ) -> Result<impl IntoResponse, ApiErr> {

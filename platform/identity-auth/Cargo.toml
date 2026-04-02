@@ -1,6 +1,6 @@
 [package]
 name = "auth-rs"
-version = "1.7.2"
+version = "1.8.0"
 edition = "2021"
 description = "JWT authentication, session management, password reset, and rate limiting"
 publish = ["7d-platform"]
@@ -8,6 +8,10 @@ publish = ["7d-platform"]
 [[bin]]
 name = "identity-auth"
 path = "src/main.rs"
+
+[[bin]]
+name = "openapi_dump"
+path = "src/bin/openapi_dump.rs"
 
 [dependencies]
 axum = "0.8"
@@ -52,6 +56,7 @@ prometheus = "0.13"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 platform-client-tenant-registry = { path = "../../clients/platform-client-tenant-registry" }
 health = { path = "../health" }
+utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 futures = "0.3"

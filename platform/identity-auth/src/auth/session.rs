@@ -18,18 +18,27 @@ use uuid::Uuid;
 use super::handlers::{err, err_retry_after, ApiErr, AuthState, OkResponse, TokenResponse};
 use super::refresh::{generate_refresh_token, hash_refresh_token};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RefreshReq {
     pub tenant_id: Uuid,
     pub refresh_token: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct LogoutReq {
     pub tenant_id: Uuid,
     pub refresh_token: String,
 }
 
+#[utoipa::path(post, path = "/api/auth/refresh", tag = "Auth",
+    request_body = RefreshReq,
+    responses(
+        (status = 200, description = "Tokens refreshed", body = TokenResponse),
+        (status = 401, description = "Invalid or expired refresh token"),
+        (status = 403, description = "Tenant suspended"),
+        (status = 429, description = "Rate limited"),
+        (status = 503, description = "Service busy or seat limit reached"),
+    ))]
 pub async fn refresh(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,
@@ -368,6 +377,12 @@ pub async fn refresh(
     ))
 }
 
+#[utoipa::path(post, path = "/api/auth/logout", tag = "Auth",
+    request_body = LogoutReq,
+    responses(
+        (status = 200, description = "Logged out", body = OkResponse),
+        (status = 500, description = "Internal error"),
+    ))]
 pub async fn logout(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,

@@ -23,16 +23,22 @@ use uuid::Uuid;
 
 const FORGOT_PWD_MSG: &str = "If an account exists, a reset email has been sent.";
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ForgotPasswordRequest {
     pub email: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct GenericOkResponse {
     pub message: &'static str,
 }
 
+#[utoipa::path(post, path = "/api/auth/forgot-password", tag = "Password Reset",
+    request_body = ForgotPasswordRequest,
+    responses(
+        (status = 200, description = "If account exists, reset email sent", body = GenericOkResponse),
+        (status = 429, description = "Rate limited"),
+    ))]
 pub async fn forgot_password(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,
@@ -162,12 +168,19 @@ pub async fn forgot_password(
 // POST /api/auth/reset-password
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ResetPasswordRequest {
     pub token: String,
     pub new_password: String,
 }
 
+#[utoipa::path(post, path = "/api/auth/reset-password", tag = "Password Reset",
+    request_body = ResetPasswordRequest,
+    responses(
+        (status = 200, description = "Password reset successful", body = crate::auth::handlers::OkResponse),
+        (status = 400, description = "Invalid/expired token or weak password"),
+        (status = 429, description = "Rate limited"),
+    ))]
 pub async fn reset_password(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,

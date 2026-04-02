@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 // ── Row types ──────────────────────────────────────────────
 
-#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize, utoipa::ToSchema)]
 pub struct Permission {
     pub id: Uuid,
     pub key: String,
@@ -13,7 +13,7 @@ pub struct Permission {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize)]
+#[derive(Debug, Clone, sqlx::FromRow, serde::Serialize, utoipa::ToSchema)]
 pub struct Role {
     pub id: Uuid,
     pub tenant_id: Uuid,

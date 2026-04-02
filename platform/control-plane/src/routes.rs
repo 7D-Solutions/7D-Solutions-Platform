@@ -11,6 +11,7 @@
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
 ///   GET  /api/tenants                                 — Paginated tenant list (BFF-compatible)
 ///   GET  /api/tenants/:tenant_id                      — Tenant detail with derived name and seat_limit
+///   GET  /api/service-catalog                          — Module-to-URL service catalog
 use axum::{
     extract::State,
     http::StatusCode,
@@ -82,6 +83,7 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
             "/api/control/tenants/{tenant_id}/retry",
             post(handlers::retry_provisioning),
         )
+        .route("/api/service-catalog", get(handlers::service_catalog))
         .with_state(state)
         .merge(summary_router(summary_state.clone()))
         .merge(entitlements_router(summary_state.clone()))

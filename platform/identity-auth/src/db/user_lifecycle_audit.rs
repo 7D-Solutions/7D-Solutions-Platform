@@ -50,7 +50,7 @@ pub struct LifecycleAuditContext {
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct LifecycleTimelineEntry {
     pub id: Uuid,
     pub tenant_id: Uuid,

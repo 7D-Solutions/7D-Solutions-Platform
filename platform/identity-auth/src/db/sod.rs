@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SodPolicy {
     pub id: Uuid,
     pub tenant_id: Uuid,
@@ -33,7 +33,7 @@ pub struct SodPolicyUpsert {
     pub producer: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SodPolicyUpsertResult {
     pub policy: SodPolicy,
     pub idempotent_replay: bool,
@@ -53,7 +53,7 @@ pub struct SodDecisionRequest {
     pub producer: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct SodDecisionResult {
     pub decision: String,
     pub reason: String,
