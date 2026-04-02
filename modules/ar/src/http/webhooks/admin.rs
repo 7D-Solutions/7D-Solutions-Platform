@@ -8,8 +8,8 @@ use sqlx::PgPool;
 use security::VerifiedClaims;
 
 use crate::models::{
-    ApiError, ListWebhooksQuery, ReplayWebhookRequest, TilledWebhookEvent, Webhook,
-    WebhookStatus,
+    ApiError, ListWebhooksQuery, PaginatedResponse, ReplayWebhookRequest, TilledWebhookEvent,
+    Webhook, WebhookStatus,
 };
 
 use super::process_webhook_event;
@@ -21,19 +21,51 @@ use super::process_webhook_event;
         ("limit" = Option<i64>, Query, description = "Page size (max 100)"),
         ("offset" = Option<i64>, Query, description = "Offset"),
     ),
-    responses((status = 200, description = "List of webhooks", body = serde_json::Value)),
+    responses((status = 200, description = "Paginated list of webhooks", body = PaginatedResponse<Webhook>)),
     security(("bearer" = [])))]
 /// GET /api/ar/webhooks - List webhooks (admin)
 pub async fn list_webhooks(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListWebhooksQuery>,
-) -> Result<Json<Vec<Webhook>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Webhook>>, ApiError> {
     let app_id = super::super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
+    let page = if limit > 0 { offset / limit + 1 } else { 1 };
 
+    // Count total matching rows
+    let mut count_sql = String::from(
+        "SELECT COUNT(*) as total FROM ar_webhooks WHERE app_id = $1",
+    );
+    let mut count_param = 1;
+
+    if query.event_type.is_some() {
+        count_param += 1;
+        count_sql.push_str(&format!(" AND event_type = ${}", count_param));
+    }
+    if query.status.is_some() {
+        count_param += 1;
+        count_sql.push_str(&format!(
+            " AND status = ${}::ar_webhooks_status",
+            count_param
+        ));
+    }
+
+    let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
+    if let Some(event_type) = &query.event_type {
+        count_query = count_query.bind(event_type);
+    }
+    if let Some(status) = &query.status {
+        count_query = count_query.bind(status);
+    }
+    let total_items = count_query.fetch_one(&db).await.map_err(|e| {
+        tracing::error!("Failed to count webhooks: {:?}", e);
+        ApiError::internal("Failed to count webhooks")
+    })?;
+
+    // Fetch page of results
     let mut sql = String::from(
         r#"
         SELECT
@@ -84,7 +116,7 @@ pub async fn list_webhooks(
         ApiError::internal("Failed to list webhooks")
     })?;
 
-    Ok(Json(webhooks))
+    Ok(Json(PaginatedResponse::new(webhooks, page.into(), limit.into(), total_items)))
 }
 
 #[utoipa::path(get, path = "/api/ar/webhooks/{id}", tag = "Webhooks",

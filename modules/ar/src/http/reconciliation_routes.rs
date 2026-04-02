@@ -2,7 +2,7 @@ use axum::{extract::State, Extension, Json};
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::ApiError;
+use crate::models::{ApiError, PaginatedResponse};
 
 // ============================================================================
 // Reconciliation Matching (bd-2cn)
@@ -108,13 +108,13 @@ pub struct ReconPollRequest {
 
 #[utoipa::path(post, path = "/api/ar/recon/poll", tag = "Reconciliation",
     request_body = serde_json::Value,
-    responses((status = 200, description = "Scheduled run execution outcomes", body = serde_json::Value)),
+    responses((status = 200, description = "Scheduled run execution outcomes", body = PaginatedResponse<crate::recon_scheduler::ScheduledRunExecutionOutcome>)),
     security(("bearer" = [])))]
 /// POST /api/ar/recon/poll — claim and execute pending scheduled runs
 pub async fn recon_poll_route(
     State(db): State<PgPool>,
     Json(req): Json<ReconPollRequest>,
-) -> Result<Json<Vec<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError> {
+) -> Result<Json<PaginatedResponse<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError> {
     let worker_id = req.worker_id.unwrap_or_else(|| "api-worker".to_string());
     let batch_size = req.batch_size.unwrap_or(10);
     let correlation_id = uuid::Uuid::new_v4().to_string();
@@ -128,5 +128,6 @@ pub async fn recon_poll_route(
     )
     .await;
 
-    Ok(Json(outcomes))
+    let total = outcomes.len() as i64;
+    Ok(Json(PaginatedResponse::new(outcomes, 1, total, total)))
 }

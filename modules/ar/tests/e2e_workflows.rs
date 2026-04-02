@@ -526,7 +526,8 @@ async fn test_webhook_workflow() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    let webhooks = common::body_json(response).await;
+    let body = common::body_json(response).await;
+    let webhooks = &body["data"];
     assert!(webhooks.is_array());
     assert!(webhooks.as_array().unwrap().len() > 0);
 

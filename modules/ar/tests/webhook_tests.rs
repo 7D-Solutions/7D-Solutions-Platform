@@ -276,9 +276,10 @@ async fn test_list_webhooks_by_event_type() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    let data = &json["data"];
+    assert!(data.is_array(), "Response data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        data.as_array().unwrap().len(),
         2,
         "Should have 2 webhooks with event type"
     );
@@ -340,13 +341,14 @@ async fn test_list_webhooks_by_status() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    assert!(json.is_array(), "Response should be array");
+    let data = &json["data"];
+    assert!(data.is_array(), "Response data should be array");
     assert_eq!(
-        json.as_array().unwrap().len(),
+        data.as_array().unwrap().len(),
         1,
         "Should have 1 failed webhook"
     );
-    assert_eq!(json[0]["id"], webhook2_id);
+    assert_eq!(data[0]["id"], webhook2_id);
 
     common::cleanup_webhooks(&pool, &[webhook1_id, webhook2_id, webhook3_id]).await;
     common::teardown_pool(pool).await;

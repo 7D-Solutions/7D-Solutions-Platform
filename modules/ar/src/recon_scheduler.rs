@@ -45,7 +45,7 @@ pub struct CreateScheduledRunRequest {
 }
 
 /// Result of a scheduled run operation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ScheduledRunResult {
     pub scheduled_run_id: Uuid,
     pub app_id: String,
@@ -65,7 +65,7 @@ pub enum CreateScheduledRunOutcome {
 }
 
 /// Outcome of claiming and executing a scheduled run.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub enum ScheduledRunExecutionOutcome {
     /// Run completed successfully.
     Completed(ScheduledRunResult),
