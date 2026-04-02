@@ -14,6 +14,7 @@ platform-http-contracts = { path = "../http-contracts", features = ["axum"] }
 config-validator = { path = "../config-validator" }
 
 # Async runtime
+async-trait = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "signal", "macros", "net", "sync"] }
 futures = "0.3"
 async-nats = "0.38"
@@ -61,7 +62,11 @@ chrono = "0.4"
 jsonwebtoken = "9"
 rsa = "0.9"
 rand = "0.8"
+base64 = "0.22"
 axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+http = "1"
+http-body-util = "0.1"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "json"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 health = { path = "../health" }
