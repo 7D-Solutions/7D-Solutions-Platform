@@ -7,7 +7,7 @@ use uuid::Uuid;
 // Subscription Plan
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct SubscriptionPlan {
     pub id: Uuid,
     pub tenant_id: String,
@@ -21,7 +21,7 @@ pub struct SubscriptionPlan {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateSubscriptionPlanRequest {
     pub tenant_id: String,
     pub name: String,
@@ -37,7 +37,7 @@ pub struct CreateSubscriptionPlanRequest {
 // Subscription
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct Subscription {
     pub id: Uuid,
     pub tenant_id: String,
@@ -55,7 +55,7 @@ pub struct Subscription {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateSubscriptionRequest {
     pub tenant_id: String,
     pub ar_customer_id: String,
@@ -66,12 +66,12 @@ pub struct CreateSubscriptionRequest {
     pub currency: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PauseSubscriptionRequest {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CancelSubscriptionRequest {
     pub reason: Option<String>,
     #[serde(default)]
@@ -82,7 +82,7 @@ pub struct CancelSubscriptionRequest {
 // Bill Run
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct BillRun {
     pub id: Uuid,
     pub tenant_id: String,

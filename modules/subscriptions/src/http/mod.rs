@@ -14,7 +14,7 @@ pub use health::{health, ready, version};
 #[openapi(
     info(
         title = "Subscriptions Service",
-        version = "3.0.0",
+        version = "5.0.0",
         description = "Subscription lifecycle management, billing cycles, and usage gating.",
     ),
     paths(
@@ -24,6 +24,13 @@ pub use health::{health, ready, version};
         crate::admin::list_projections,
     ),
     components(schemas(
+        crate::models::SubscriptionPlan,
+        crate::models::CreateSubscriptionPlanRequest,
+        crate::models::Subscription,
+        crate::models::CreateSubscriptionRequest,
+        crate::models::PauseSubscriptionRequest,
+        crate::models::CancelSubscriptionRequest,
+        crate::models::BillRun,
         crate::models::ExecuteBillRunRequest,
         crate::models::BillRunResult,
         platform_http_contracts::ApiError,
