@@ -495,6 +495,88 @@ async fn provisioning_hook_skips_bad_payload() {
 // Test 9: Correlation ID propagated into active span during handler
 // ──────────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────────
+// Test: Malformed envelope goes to DLQ instead of silent skip
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn malformed_envelope_routed_to_dlq() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
+    let manifest = test_manifest();
+    let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
+
+    let handler_count = Arc::new(AtomicUsize::new(0));
+    let hc = handler_count.clone();
+
+    let consumers = vec![ConsumerDef::new("test.dlq.check", move |_ctx, _env| {
+        let count = hc.clone();
+        async move {
+            count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    })];
+
+    // Subscribe to the DLQ subject before wiring consumers
+    let mut dlq_stream = bus
+        .subscribe("dlq.test.dlq.check")
+        .await
+        .expect("subscribe to DLQ subject");
+
+    let handles = platform_sdk::consumer::wire_consumers(consumers, &bus, &ctx)
+        .await
+        .expect("wire_consumers should succeed");
+
+    // Publish a raw payload that is NOT a valid EventEnvelope
+    bus.publish("test.dlq.check", b"this is not json".to_vec())
+        .await
+        .unwrap();
+
+    // Publish a valid event after the malformed one
+    let envelope = test_envelope("test.dlq.check");
+    bus.publish(
+        "test.dlq.check",
+        serde_json::to_vec(&envelope).unwrap(),
+    )
+    .await
+    .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+    // The handler should only have processed the valid event
+    assert_eq!(
+        handler_count.load(Ordering::SeqCst),
+        1,
+        "handler should be called once (malformed message DLQ'd, valid message processed)"
+    );
+
+    // The DLQ should have received one message for the malformed event
+    let dlq_msg = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        async {
+            use futures::StreamExt;
+            dlq_stream.next().await
+        },
+    )
+    .await
+    .expect("DLQ message should arrive within timeout")
+    .expect("DLQ stream should produce a message");
+
+    // Verify the DLQ payload contains the expected fields
+    let dlq_value: serde_json::Value = serde_json::from_slice(&dlq_msg.payload)
+        .expect("DLQ payload should be valid JSON");
+    assert_eq!(dlq_value["original_subject"], "test.dlq.check");
+    assert!(dlq_value["error"].is_string(), "DLQ payload must include error");
+    assert!(dlq_value["failed_at"].is_string(), "DLQ payload must include failed_at");
+    assert!(dlq_value["raw_payload"].is_array(), "DLQ payload must include raw_payload bytes");
+
+    handles.shutdown().await;
+}
+
 #[tokio::test]
 async fn consumer_span_carries_correlation_id() {
     let pool = match test_pool().await {

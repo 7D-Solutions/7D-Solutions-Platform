@@ -121,6 +121,57 @@ impl ConsumerHandles {
     }
 }
 
+/// NATS subject prefix for dead-letter messages.
+///
+/// Malformed events that cannot be deserialized are published here so
+/// operators can inspect them without losing the raw payload.
+/// Subject pattern: `dlq.{original_subject}`.
+const DLQ_PREFIX: &str = "dlq";
+
+/// Publish a malformed event to the dead-letter queue.
+///
+/// The DLQ payload is a JSON object with:
+/// - `original_subject` — where the event arrived
+/// - `error` — the deserialization error message
+/// - `failed_at` — RFC 3339 timestamp
+/// - `raw_payload` — original bytes as a JSON byte array
+///
+/// If the DLQ publish itself fails, logs a warning and continues.
+async fn publish_to_dlq(bus: &Arc<dyn EventBus>, subject: &str, raw: &[u8], error: &str) {
+    let dlq_subject = format!("{DLQ_PREFIX}.{subject}");
+    let envelope = serde_json::json!({
+        "original_subject": subject,
+        "error": error,
+        "failed_at": chrono::Utc::now().to_rfc3339(),
+        "raw_payload": raw,
+    });
+    match serde_json::to_vec(&envelope) {
+        Ok(bytes) => {
+            if let Err(e) = bus.publish(&dlq_subject, bytes).await {
+                tracing::warn!(
+                    subject = %subject,
+                    dlq = %dlq_subject,
+                    error = %e,
+                    "failed to publish malformed event to DLQ"
+                );
+            } else {
+                tracing::warn!(
+                    subject = %subject,
+                    dlq = %dlq_subject,
+                    "malformed event sent to DLQ"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                subject = %subject,
+                error = %e,
+                "failed to serialize DLQ envelope — raw payload lost"
+            );
+        }
+    }
+}
+
 /// Subscribe and spawn a task for each consumer definition.
 pub async fn wire_consumers(
     consumers: Vec<ConsumerDef>,
@@ -161,6 +212,7 @@ pub async fn wire_consumers(
         let subject = def.subject;
         let mut rx = shutdown_rx.clone();
         let retry_cfg = retry_config.clone();
+        let bus_clone = Arc::clone(bus);
 
         let handle = tokio::spawn(async move {
             let context_label = format!("consumer:{subject}");
@@ -183,8 +235,9 @@ pub async fn wire_consumers(
                                 Err(e) => {
                                     tracing::error!(
                                         subject = %subject, error = %e,
-                                        "envelope deserialization failed — skipping"
+                                        "envelope deserialization failed — routing to DLQ"
                                     );
+                                    publish_to_dlq(&bus_clone, &subject, &msg.payload, &e.to_string()).await;
                                     continue;
                                 }
                             };
@@ -259,6 +312,7 @@ pub async fn wire_provisioning_hook(
     let ctx = ctx.clone();
     let mut rx = shutdown_rx;
     let retry_config = RetryConfig::default();
+    let bus_clone = Arc::clone(bus);
 
     let handle = tokio::spawn(async move {
         tracing::info!(subject = TENANT_PROVISIONED_SUBJECT, "provisioning hook listening");
@@ -280,8 +334,15 @@ pub async fn wire_provisioning_hook(
                             Err(e) => {
                                 tracing::error!(
                                     error = %e,
-                                    "provisioning hook: failed to parse event — skipping"
+                                    "provisioning hook: failed to parse event — routing to DLQ"
                                 );
+                                publish_to_dlq(
+                                    &bus_clone,
+                                    TENANT_PROVISIONED_SUBJECT,
+                                    &msg.payload,
+                                    &e.to_string(),
+                                )
+                                .await;
                                 continue;
                             }
                         };
