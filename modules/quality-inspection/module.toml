@@ -14,5 +14,8 @@ auto_migrate = true
 [bus]
 type = "nats"
 
+[events.publish]
+outbox_table = "quality_inspection_outbox"
+
 [sdk]
 min_version = "0.1.0"
