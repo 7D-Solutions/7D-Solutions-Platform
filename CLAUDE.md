@@ -40,7 +40,7 @@ Do NOT run docker commands (hook blocks it). The cross-watcher handles compilati
 
 ## Standards
 
-**File size:** Under 500 LOC per source file. Split if exceeded.
+**Separation of concerns:** Each file has one responsibility. Split when a file mixes concerns (e.g., HTTP handlers + SQL queries + business logic in one file), not at an arbitrary line count. A focused 700-line file is fine. A 300-line file doing three unrelated things is not.
 
 **Versioning:** Proven modules (>= 1.0.0) require version bumps. PATCH for fixes, MINOR for features, MAJOR for breaking. Add REVISIONS.md entry. See [docs/VERSIONING.md](./docs/VERSIONING.md).
 
