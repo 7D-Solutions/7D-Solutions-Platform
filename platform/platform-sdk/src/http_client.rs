@@ -8,6 +8,24 @@ use uuid::Uuid;
 use chrono::Utc;
 use security::claims::VerifiedClaims;
 
+/// Timeout configuration for outbound HTTP requests.
+#[derive(Debug, Clone)]
+pub struct TimeoutConfig {
+    /// Maximum time for the entire request (default: 30s).
+    pub request_timeout: Duration,
+    /// Maximum time to establish a connection (default: 5s).
+    pub connect_timeout: Duration,
+}
+
+impl Default for TimeoutConfig {
+    fn default() -> Self {
+        Self {
+            request_timeout: Duration::from_secs(30),
+            connect_timeout: Duration::from_secs(5),
+        }
+    }
+}
+
 /// HTTP client that injects platform headers and retries on 429/503.
 ///
 /// ```rust,ignore
@@ -25,8 +43,18 @@ const INITIAL_BACKOFF_MS: u64 = 100;
 
 impl PlatformClient {
     pub fn new(base_url: String) -> Self {
+        Self::with_timeout(base_url, TimeoutConfig::default())
+    }
+
+    /// Create a client with custom timeout configuration.
+    pub fn with_timeout(base_url: String, timeout: TimeoutConfig) -> Self {
+        let client = Client::builder()
+            .timeout(timeout.request_timeout)
+            .connect_timeout(timeout.connect_timeout)
+            .build()
+            .expect("failed to build HTTP client");
         Self {
-            client: Client::new(),
+            client,
             base_url,
             bearer_token: None,
         }
@@ -90,7 +118,8 @@ impl PlatformClient {
     fn inject_headers(&self, mut req: reqwest::RequestBuilder, claims: &VerifiedClaims, correlation_id: &Uuid) -> reqwest::RequestBuilder {
         req = req
             .header("x-tenant-id", claims.tenant_id.to_string())
-            .header("x-correlation-id", correlation_id.to_string());
+            .header("x-correlation-id", correlation_id.to_string())
+            .header("x-actor-id", claims.user_id.to_string());
 
         if let Some(app_id) = &claims.app_id {
             req = req.header("x-app-id", app_id.to_string());

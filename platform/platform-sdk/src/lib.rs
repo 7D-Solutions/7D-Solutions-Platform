@@ -37,7 +37,7 @@ pub use builder::ModuleBuilder;
 pub use client_core::{parse_empty, parse_response, build_query_url, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext};
-pub use http_client::PlatformClient;
+pub use http_client::{PlatformClient, TimeoutConfig};
 pub use manifest::Manifest;
 pub use startup::StartupError;
 pub use tenant::TenantId;
