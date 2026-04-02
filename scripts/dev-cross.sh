@@ -129,7 +129,9 @@ fi
 
 cross_build_and_restart() {
   echo "Cross-compiling $SVC (crate: $CRATE, target: $TARGET)..."
-  cargo build --target "$TARGET" -p "$CRATE" --bin "$BIN_NAME"
+  # Use cargo-slot.sh to avoid build lock contention with agents.
+  # Raw cargo would write to target/ (the symlink), colliding with whoever holds that slot.
+  "$PROJECT_ROOT/scripts/cargo-slot.sh" build --target "$TARGET" -p "$CRATE" --bin "$BIN_NAME"
 
   # Handle comma-separated container lists (e.g. auth-1,auth-2)
   IFS=',' read -ra _CONTAINERS <<< "$CONTAINER"
@@ -163,7 +165,7 @@ echo ""
 if [ "$MODE" = "--watch" ]; then
   echo "Watching for changes (Ctrl+C to stop)..."
   echo ""
-  cargo watch -s "cargo build --target $TARGET -p $CRATE --bin $BIN_NAME && for c in ${CONTAINER//,/ }; do docker restart \$c; done"
+  cargo watch -s "$PROJECT_ROOT/scripts/cargo-slot.sh build --target $TARGET -p $CRATE --bin $BIN_NAME && for c in ${CONTAINER//,/ }; do docker restart \$c; done"
 else
   cross_build_and_restart
 fi
