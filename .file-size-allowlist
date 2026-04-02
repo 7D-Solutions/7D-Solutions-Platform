@@ -12,14 +12,9 @@ modules/gl/src/services/balance_sheet_service.rs  # 510 LOC — single cohesive 
 
 # AR module — cohesive concerns per directive (bd-wwgiq)
 modules/ar/src/credit_notes.rs            # 822 LOC — credit note issuance domain (append-only, compensating entry)
-modules/ar/src/http/invoices.rs           # 793 LOC — invoice HTTP handlers (single resource)
-modules/ar/src/http/payment_methods.rs    # 780 LOC — payment method HTTP handlers (single resource)
 modules/ar/src/finalization.rs            # 737 LOC — exactly-once invoice finalization gating
 modules/ar/src/tilled/types.rs            # 595 LOC — Tilled API types (single provider concern)
-modules/ar/src/http/credit_notes.rs       # 582 LOC — credit note HTTP handlers (single resource)
-modules/ar/src/http/subscriptions.rs      # 576 LOC — subscription HTTP handlers (single resource)
 modules/ar/src/progress_billing.rs        # 557 LOC — milestone invoicing domain (guard→mutation→outbox)
-modules/ar/src/http/charges.rs            # 531 LOC — charge HTTP handlers (single resource)
 modules/inventory/src/domain/issue_service.rs       # 530 LOC — issue service (refactor in future bead)
 modules/inventory/src/domain/receipt_service.rs     # 724 LOC — receipt service + production path (refactor in future bead)
 modules/inventory/src/domain/adjust_service.rs      # 580 LOC — adjustment service (refactor in future bead)

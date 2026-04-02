@@ -23,7 +23,17 @@ fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
     })
 }
 
-async fn projection_status(
+#[utoipa::path(
+    post,
+    path = "/api/subscriptions/admin/projection-status",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Projection status returned"),
+        (status = 403, description = "Forbidden — invalid or missing admin token"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
+pub async fn projection_status(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
@@ -36,7 +46,17 @@ async fn projection_status(
     Ok(Json(resp))
 }
 
-async fn consistency_check(
+#[utoipa::path(
+    post,
+    path = "/api/subscriptions/admin/consistency-check",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Consistency check result"),
+        (status = 403, description = "Forbidden — invalid or missing admin token"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
+pub async fn consistency_check(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
@@ -49,7 +69,17 @@ async fn consistency_check(
     Ok(Json(resp))
 }
 
-async fn list_projections(
+#[utoipa::path(
+    get,
+    path = "/api/subscriptions/admin/projections",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "List of all known projections"),
+        (status = 403, description = "Forbidden — invalid or missing admin token"),
+        (status = 500, description = "Internal server error"),
+    ),
+)]
+pub async fn list_projections(
     State(pool): State<PgPool>,
     headers: HeaderMap,
 ) -> Result<Json<admin::ProjectionListResponse>, ApiError> {

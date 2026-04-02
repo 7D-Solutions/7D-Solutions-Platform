@@ -8,10 +8,19 @@ use sqlx::PgPool;
 
 use crate::idempotency::log_event_async;
 use crate::models::{
-    ApiError, CreateCustomerRequest, Customer, ListCustomersQuery, UpdateCustomerRequest,
+    ApiError, CreateCustomerRequest, Customer, ListCustomersQuery, PaginatedResponse,
+    UpdateCustomerRequest,
 };
 
 /// POST /api/ar/customers - Create a new customer
+#[utoipa::path(post, path = "/api/ar/customers", tag = "Customers",
+    request_body = CreateCustomerRequest,
+    responses(
+        (status = 201, description = "Customer created", body = Customer),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+        (status = 409, description = "Duplicate email", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn create_customer(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -97,6 +106,13 @@ pub async fn create_customer(
 }
 
 /// GET /api/ar/customers/:id - Get customer by ID
+#[utoipa::path(get, path = "/api/ar/customers/{id}", tag = "Customers",
+    params(("id" = i32, Path, description = "Customer ID")),
+    responses(
+        (status = 200, description = "Customer found", body = Customer),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_customer(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -132,18 +148,37 @@ pub async fn get_customer(
 }
 
 /// GET /api/ar/customers - List customers (with optional filtering)
+#[utoipa::path(get, path = "/api/ar/customers", tag = "Customers",
+    params(ListCustomersQuery),
+    responses(
+        (status = 200, description = "Paginated customers", body = PaginatedResponse<Customer>),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_customers(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListCustomersQuery>,
-) -> Result<Json<Vec<Customer>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Customer>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
+    let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
 
+    // Count total matching rows
+    let mut count_sql = String::from("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1");
+    if query.external_customer_id.is_some() {
+        count_sql.push_str(" AND external_customer_id = $2");
+    }
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
+    if let Some(ref ext_id) = query.external_customer_id {
+        count_q = count_q.bind(ext_id);
+    }
+    let total_items = count_q.fetch_one(&db).await.map_err(|e| {
+        tracing::error!("Database error counting customers: {:?}", e);
+        ApiError::internal("Internal database error")
+    })?;
+
     let customers = if let Some(external_id) = query.external_customer_id {
-        // Filter by external_customer_id
         sqlx::query_as::<_, Customer>(
             r#"
             SELECT
@@ -165,7 +200,6 @@ pub async fn list_customers(
         .fetch_all(&db)
         .await
     } else {
-        // List all customers for app
         sqlx::query_as::<_, Customer>(
             r#"
             SELECT
@@ -191,10 +225,19 @@ pub async fn list_customers(
         ApiError::internal("Internal database error")
     })?;
 
-    Ok(Json(customers))
+    let page = (offset as i64 / limit as i64) + 1;
+    Ok(Json(PaginatedResponse::new(customers, page, limit as i64, total_items)))
 }
 
 /// PUT /api/ar/customers/:id - Update customer
+#[utoipa::path(put, path = "/api/ar/customers/{id}", tag = "Customers",
+    params(("id" = i32, Path, description = "Customer ID")),
+    request_body = UpdateCustomerRequest,
+    responses(
+        (status = 200, description = "Customer updated", body = Customer),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn update_customer(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,

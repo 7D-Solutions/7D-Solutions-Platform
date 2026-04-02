@@ -12,11 +12,14 @@ pub use health::{health, ready, version};
 #[openapi(
     info(
         title = "Subscriptions Service",
-        version = "2.1.0",
+        version = "3.0.0",
         description = "Subscription lifecycle management, billing cycles, and usage gating.",
     ),
     paths(
         bill_run::execute_bill_run,
+        crate::admin::projection_status,
+        crate::admin::consistency_check,
+        crate::admin::list_projections,
     ),
     components(schemas(
         crate::models::ExecuteBillRunRequest,

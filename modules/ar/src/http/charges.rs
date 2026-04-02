@@ -8,11 +8,19 @@ use sqlx::PgPool;
 
 use crate::models::{
     ApiError, CaptureChargeRequest, Charge, CreateChargeRequest, Customer, ListChargesQuery,
+    PaginatedResponse,
 };
 use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
 
 /// POST /api/ar/charges - Create a new charge
+#[utoipa::path(post, path = "/api/ar/charges", tag = "Charges",
+    request_body = CreateChargeRequest,
+    responses(
+        (status = 201, description = "Charge created", body = Charge),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn create_charge(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -146,6 +154,13 @@ pub async fn create_charge(
 }
 
 /// GET /api/ar/charges/:id - Get charge by ID
+#[utoipa::path(get, path = "/api/ar/charges/{id}", tag = "Charges",
+    params(("id" = i32, Path, description = "Charge ID")),
+    responses(
+        (status = 200, description = "Charge found", body = Charge),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_charge(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -182,143 +197,119 @@ pub async fn get_charge(
 }
 
 /// GET /api/ar/charges - List charges (with optional filtering)
+#[utoipa::path(get, path = "/api/ar/charges", tag = "Charges",
+    params(ListChargesQuery),
+    responses(
+        (status = 200, description = "Paginated charges", body = PaginatedResponse<Charge>),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_charges(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListChargesQuery>,
-) -> Result<Json<Vec<Charge>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Charge>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
 
-    // Build query based on filters
-    let charges = match (query.customer_id, query.invoice_id, query.status) {
-        (Some(customer_id), _, Some(ref status)) => {
-            sqlx::query_as::<_, Charge>(
-                r#"
-                SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
-                    ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
-                    ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
-                    ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
-                    ch.created_at, ch.updated_at
-                FROM ar_charges ch
-                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.ar_customer_id = $2 AND ch.status = $3
-                ORDER BY ch.created_at DESC
-                LIMIT $4 OFFSET $5
-                "#,
-            )
-            .bind(&app_id)
-            .bind(customer_id)
-            .bind(status)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&db)
-            .await
-        }
-        (Some(customer_id), _, None) => {
-            sqlx::query_as::<_, Charge>(
-                r#"
-                SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
-                    ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
-                    ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
-                    ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
-                    ch.created_at, ch.updated_at
-                FROM ar_charges ch
-                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.ar_customer_id = $2
-                ORDER BY ch.created_at DESC
-                LIMIT $3 OFFSET $4
-                "#,
-            )
-            .bind(&app_id)
-            .bind(customer_id)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&db)
-            .await
-        }
-        (None, Some(invoice_id), _) => {
-            sqlx::query_as::<_, Charge>(
-                r#"
-                SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
-                    ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
-                    ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
-                    ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
-                    ch.created_at, ch.updated_at
-                FROM ar_charges ch
-                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.invoice_id = $2
-                ORDER BY ch.created_at DESC
-                LIMIT $3 OFFSET $4
-                "#,
-            )
-            .bind(&app_id)
-            .bind(invoice_id)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&db)
-            .await
-        }
-        (None, None, Some(ref status)) => {
-            sqlx::query_as::<_, Charge>(
-                r#"
-                SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
-                    ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
-                    ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
-                    ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
-                    ch.created_at, ch.updated_at
-                FROM ar_charges ch
-                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.status = $2
-                ORDER BY ch.created_at DESC
-                LIMIT $3 OFFSET $4
-                "#,
-            )
-            .bind(&app_id)
-            .bind(status)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&db)
-            .await
-        }
-        (None, None, None) => {
-            sqlx::query_as::<_, Charge>(
-                r#"
-                SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
-                    ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
-                    ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
-                    ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
-                    ch.created_at, ch.updated_at
-                FROM ar_charges ch
-                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
-                WHERE c.app_id = $1
-                ORDER BY ch.created_at DESC
-                LIMIT $2 OFFSET $3
-                "#,
-            )
-            .bind(&app_id)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&db)
-            .await
-        }
+    // Count total matching rows
+    let mut count_sql = String::from(
+        "SELECT COUNT(*) FROM ar_charges ch \
+         INNER JOIN ar_customers c ON ch.ar_customer_id = c.id \
+         WHERE c.app_id = $1",
+    );
+    let mut bind_idx = 2;
+    if query.customer_id.is_some() {
+        count_sql.push_str(&format!(" AND ch.ar_customer_id = ${bind_idx}"));
+        bind_idx += 1;
     }
-    .map_err(|e| {
-        tracing::error!("Database error listing charges: {:?}", e);
+    if query.invoice_id.is_some() {
+        count_sql.push_str(&format!(" AND ch.invoice_id = ${bind_idx}"));
+        bind_idx += 1;
+    }
+    if query.status.is_some() {
+        count_sql.push_str(&format!(" AND ch.status = ${bind_idx}"));
+    }
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
+    if let Some(cid) = query.customer_id {
+        count_q = count_q.bind(cid);
+    }
+    if let Some(iid) = query.invoice_id {
+        count_q = count_q.bind(iid);
+    }
+    if let Some(ref st) = query.status {
+        count_q = count_q.bind(st);
+    }
+    let total_items = count_q.fetch_one(&db).await.map_err(|e| {
+        tracing::error!("Database error counting charges: {:?}", e);
         ApiError::internal("Internal database error")
     })?;
 
-    Ok(Json(charges))
+    // Fetch data with dynamic SQL
+    let mut data_sql = String::from(
+        r#"SELECT
+            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
+            ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
+            ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
+            ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
+            ch.created_at, ch.updated_at
+        FROM ar_charges ch
+        INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
+        WHERE c.app_id = $1"#,
+    );
+    let mut data_idx = 2;
+    if query.customer_id.is_some() {
+        data_sql.push_str(&format!(" AND ch.ar_customer_id = ${data_idx}"));
+        data_idx += 1;
+    }
+    if query.invoice_id.is_some() {
+        data_sql.push_str(&format!(" AND ch.invoice_id = ${data_idx}"));
+        data_idx += 1;
+    }
+    if query.status.is_some() {
+        data_sql.push_str(&format!(" AND ch.status = ${data_idx}"));
+        data_idx += 1;
+    }
+    data_sql.push_str(&format!(
+        " ORDER BY ch.created_at DESC LIMIT ${data_idx} OFFSET ${}",
+        data_idx + 1
+    ));
+
+    let mut data_q = sqlx::query_as::<_, Charge>(&data_sql).bind(&app_id);
+    if let Some(cid) = query.customer_id {
+        data_q = data_q.bind(cid);
+    }
+    if let Some(iid) = query.invoice_id {
+        data_q = data_q.bind(iid);
+    }
+    if let Some(ref st) = query.status {
+        data_q = data_q.bind(st);
+    }
+    let charges = data_q
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&db)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error listing charges: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
+
+    let page = (offset as i64 / limit as i64) + 1;
+    Ok(Json(PaginatedResponse::new(charges, page, limit as i64, total_items)))
 }
 
 /// POST /api/ar/charges/:id/capture - Capture an authorized charge
+#[utoipa::path(post, path = "/api/ar/charges/{id}/capture", tag = "Charges",
+    params(("id" = i32, Path, description = "Charge ID")),
+    request_body = CaptureChargeRequest,
+    responses(
+        (status = 200, description = "Charge captured", body = Charge),
+        (status = 400, description = "Invalid charge state", body = platform_http_contracts::ApiError),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn capture_charge(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,

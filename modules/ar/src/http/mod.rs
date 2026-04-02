@@ -8,11 +8,14 @@ pub mod disputes;
 pub mod dunning_routes;
 pub mod events;
 pub mod health;
-pub mod invoices;
-pub mod payment_methods;
+pub mod invoice_mutations;
+pub mod invoice_queries;
+pub mod payment_method_mutations;
+pub mod payment_method_queries;
 pub mod reconciliation_routes;
 pub mod refunds;
-pub mod subscriptions;
+pub mod subscription_mutations;
+pub mod subscription_queries;
 pub mod tax;
 pub mod tax_config;
 pub mod tax_config_rules;
@@ -39,13 +42,89 @@ use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
 #[openapi(
     info(
         title = "AR Service",
-        version = "2.3.1",
+        version = "3.0.0",
         description = "Invoicing, collections, payment application, dunning, and cash flow forecasting.\n\n\
                         **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
                         Permissions: `ar.read` for queries, `ar.mutate` for writes."
     ),
+    paths(
+        // Customers
+        customers::create_customer,
+        customers::get_customer,
+        customers::list_customers,
+        customers::update_customer,
+        // Subscriptions
+        subscription_mutations::create_subscription,
+        subscription_queries::get_subscription,
+        subscription_queries::list_subscriptions,
+        subscription_mutations::update_subscription,
+        subscription_mutations::cancel_subscription,
+        // Invoices
+        invoice_mutations::create_invoice,
+        invoice_queries::get_invoice,
+        invoice_queries::list_invoices,
+        invoice_mutations::update_invoice,
+        invoice_mutations::finalize_invoice,
+        // Charges
+        charges::create_charge,
+        charges::get_charge,
+        charges::list_charges,
+        charges::capture_charge,
+        // Refunds
+        refunds::create_refund,
+        refunds::get_refund,
+        refunds::list_refunds,
+        // Disputes
+        disputes::list_disputes,
+        disputes::get_dispute,
+        disputes::submit_dispute_evidence,
+        // Payment Methods
+        payment_method_mutations::add_payment_method,
+        payment_method_queries::get_payment_method,
+        payment_method_queries::list_payment_methods,
+        payment_method_mutations::update_payment_method,
+        payment_method_mutations::delete_payment_method,
+        payment_method_mutations::set_default_payment_method,
+        // Events
+        events::list_events,
+        events::get_event,
+    ),
     components(schemas(
+        crate::models::Customer,
+        crate::models::CreateCustomerRequest,
+        crate::models::UpdateCustomerRequest,
+        crate::models::Subscription,
+        crate::models::CreateSubscriptionRequest,
+        crate::models::UpdateSubscriptionRequest,
+        crate::models::CancelSubscriptionRequest,
+        crate::models::SubscriptionStatus,
+        crate::models::SubscriptionInterval,
+        crate::models::Invoice,
+        crate::models::CreateInvoiceRequest,
+        crate::models::UpdateInvoiceRequest,
+        crate::models::FinalizeInvoiceRequest,
+        crate::models::Charge,
+        crate::models::CreateChargeRequest,
+        crate::models::CaptureChargeRequest,
+        crate::models::Refund,
+        crate::models::CreateRefundRequest,
+        crate::models::Dispute,
+        crate::models::SubmitDisputeEvidenceRequest,
+        crate::models::PaymentMethod,
+        crate::models::AddPaymentMethodRequest,
+        crate::models::UpdatePaymentMethodRequest,
+        crate::models::Event,
+        crate::models::ErrorResponse,
         platform_http_contracts::ApiError,
+        platform_http_contracts::PaginatedResponse<crate::models::Invoice>,
+        platform_http_contracts::PaginatedResponse<crate::models::Subscription>,
+        platform_http_contracts::PaginatedResponse<crate::models::PaymentMethod>,
+        platform_http_contracts::PaginatedResponse<crate::models::Customer>,
+        platform_http_contracts::PaginatedResponse<crate::models::Charge>,
+        platform_http_contracts::PaginatedResponse<crate::models::Refund>,
+        platform_http_contracts::PaginatedResponse<crate::models::Dispute>,
+        platform_http_contracts::PaginatedResponse<crate::models::Event>,
+        platform_http_contracts::PaginationMeta,
     )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),
@@ -108,22 +187,25 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Subscriptions — write
         .route(
             "/api/ar/subscriptions",
-            post(subscriptions::create_subscription),
+            post(subscription_mutations::create_subscription),
         )
         .route(
             "/api/ar/subscriptions/{id}",
-            put(subscriptions::update_subscription),
+            put(subscription_mutations::update_subscription),
         )
         .route(
             "/api/ar/subscriptions/{id}/cancel",
-            post(subscriptions::cancel_subscription),
+            post(subscription_mutations::cancel_subscription),
         )
         // Invoices — write
-        .route("/api/ar/invoices", post(invoices::create_invoice))
-        .route("/api/ar/invoices/{id}", put(invoices::update_invoice))
+        .route("/api/ar/invoices", post(invoice_mutations::create_invoice))
+        .route(
+            "/api/ar/invoices/{id}",
+            put(invoice_mutations::update_invoice),
+        )
         .route(
             "/api/ar/invoices/{id}/finalize",
-            post(invoices::finalize_invoice),
+            post(invoice_mutations::finalize_invoice),
         )
         .route(
             "/api/ar/invoices/{id}/bill-usage",
@@ -165,16 +247,16 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Payment methods — write
         .route(
             "/api/ar/payment-methods",
-            post(payment_methods::add_payment_method),
+            post(payment_method_mutations::add_payment_method),
         )
         .route(
             "/api/ar/payment-methods/{id}",
-            put(payment_methods::update_payment_method)
-                .delete(payment_methods::delete_payment_method),
+            put(payment_method_mutations::update_payment_method)
+                .delete(payment_method_mutations::delete_payment_method),
         )
         .route(
             "/api/ar/payment-methods/{id}/set-default",
-            post(payment_methods::set_default_payment_method),
+            post(payment_method_mutations::set_default_payment_method),
         )
         // Webhook management — write
         .route(
@@ -242,15 +324,15 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Subscriptions — read
         .route(
             "/api/ar/subscriptions",
-            get(subscriptions::list_subscriptions),
+            get(subscription_queries::list_subscriptions),
         )
         .route(
             "/api/ar/subscriptions/{id}",
-            get(subscriptions::get_subscription),
+            get(subscription_queries::get_subscription),
         )
         // Invoices — read
-        .route("/api/ar/invoices", get(invoices::list_invoices))
-        .route("/api/ar/invoices/{id}", get(invoices::get_invoice))
+        .route("/api/ar/invoices", get(invoice_queries::list_invoices))
+        .route("/api/ar/invoices/{id}", get(invoice_queries::get_invoice))
         // Charges — read
         .route("/api/ar/charges", get(charges::list_charges))
         .route("/api/ar/charges/{id}", get(charges::get_charge))
@@ -263,11 +345,11 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Payment methods — read
         .route(
             "/api/ar/payment-methods",
-            get(payment_methods::list_payment_methods),
+            get(payment_method_queries::list_payment_methods),
         )
         .route(
             "/api/ar/payment-methods/{id}",
-            get(payment_methods::get_payment_method),
+            get(payment_method_queries::get_payment_method),
         )
         // Webhook management — read
         .route("/api/ar/webhooks", get(webhooks::list_webhooks))

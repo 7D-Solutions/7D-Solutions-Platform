@@ -5,14 +5,20 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{ApiError, Event, ListEventsQuery};
+use crate::models::{ApiError, Event, ListEventsQuery, PaginatedResponse};
 
 /// GET /api/ar/events - List events with filtering
+#[utoipa::path(get, path = "/api/ar/events", tag = "Events",
+    params(ListEventsQuery),
+    responses(
+        (status = 200, description = "Paginated events", body = PaginatedResponse<Event>),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_events(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListEventsQuery>,
-) -> Result<Json<Vec<Event>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Event>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(1000);
@@ -88,10 +94,25 @@ pub async fn list_events(
         ApiError::internal("Failed to list events")
     })?;
 
-    Ok(Json(events))
+    // Simple count for events (base tenant filter)
+    let total_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_events WHERE app_id = $1")
+        .bind(&app_id)
+        .fetch_one(&db)
+        .await
+        .unwrap_or(events.len() as i64);
+
+    let page = (offset as i64 / limit as i64) + 1;
+    Ok(Json(PaginatedResponse::new(events, page, limit as i64, total_items)))
 }
 
 /// GET /api/ar/events/{id} - Get a single event by ID
+#[utoipa::path(get, path = "/api/ar/events/{id}", tag = "Events",
+    params(("id" = i32, Path, description = "Event ID")),
+    responses(
+        (status = 200, description = "Event found", body = Event),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_event(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,

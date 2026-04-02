@@ -6,11 +6,18 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{ApiError, Charge, CreateRefundRequest, ListRefundsQuery, Refund};
+use crate::models::{ApiError, Charge, CreateRefundRequest, ListRefundsQuery, PaginatedResponse, Refund};
 use crate::tilled::types::checked_i32_to_i64;
 use crate::tilled::TilledClient;
 
 /// POST /api/ar/refunds - Create a refund for a charge
+#[utoipa::path(post, path = "/api/ar/refunds", tag = "Refunds",
+    request_body = CreateRefundRequest,
+    responses(
+        (status = 201, description = "Refund created", body = Refund),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn create_refund(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -220,6 +227,13 @@ pub async fn create_refund(
 }
 
 /// GET /api/ar/refunds/{id} - Get a specific refund
+#[utoipa::path(get, path = "/api/ar/refunds/{id}", tag = "Refunds",
+    params(("id" = i32, Path, description = "Refund ID")),
+    responses(
+        (status = 200, description = "Refund found", body = Refund),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_refund(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -253,11 +267,17 @@ pub async fn get_refund(
 }
 
 /// GET /api/ar/refunds - List refunds with optional filters
+#[utoipa::path(get, path = "/api/ar/refunds", tag = "Refunds",
+    params(ListRefundsQuery),
+    responses(
+        (status = 200, description = "Paginated refunds", body = PaginatedResponse<Refund>),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_refunds(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListRefundsQuery>,
-) -> Result<Json<Vec<Refund>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Refund>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
@@ -303,7 +323,7 @@ pub async fn list_refunds(
     if let Some(customer_id) = query.customer_id {
         query_builder = query_builder.bind(customer_id);
     }
-    if let Some(status) = query.status {
+    if let Some(ref status) = query.status {
         query_builder = query_builder.bind(status);
     }
 
@@ -317,5 +337,35 @@ pub async fn list_refunds(
             ApiError::internal("Internal database error")
         })?;
 
-    Ok(Json(refunds))
+    // Count total matching rows (same dynamic filters)
+    let mut count_sql = String::from("SELECT COUNT(*) FROM ar_refunds WHERE app_id = $1");
+    let mut count_idx = 2;
+    if query.charge_id.is_some() {
+        count_sql.push_str(&format!(" AND charge_id = ${count_idx}"));
+        count_idx += 1;
+    }
+    if query.customer_id.is_some() {
+        count_sql.push_str(&format!(" AND ar_customer_id = ${count_idx}"));
+        count_idx += 1;
+    }
+    if query.status.is_some() {
+        count_sql.push_str(&format!(" AND status = ${count_idx}"));
+    }
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
+    if let Some(cid) = query.charge_id {
+        count_q = count_q.bind(cid);
+    }
+    if let Some(cust_id) = query.customer_id {
+        count_q = count_q.bind(cust_id);
+    }
+    if let Some(ref st) = query.status {
+        count_q = count_q.bind(st);
+    }
+    let total_items = count_q.fetch_one(&db).await.map_err(|e| {
+        tracing::error!("Database error counting refunds: {:?}", e);
+        ApiError::internal("Internal database error")
+    })?;
+
+    let page = (offset as i64 / limit as i64) + 1;
+    Ok(Json(PaginatedResponse::new(refunds, page, limit as i64, total_items)))
 }

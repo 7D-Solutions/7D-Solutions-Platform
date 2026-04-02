@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.0.0 | 2026-04-02 | bd-lk9kg | Response standardization: all handlers annotated with utoipa::path, all list endpoints return PaginatedResponse, oversized files split (invoices/payment_methods/subscriptions → queries + mutations). OpenAPI spec is now complete. | Generated client codegen requires typed path annotations and consistent pagination envelope. | Yes — list endpoints now return `{ data, pagination }` instead of bare arrays |
 | 2.3.3 | 2026-04-01 | bd-2gyqj | Update party_client to pass &VerifiedClaims through verify_party. Constructor uses PlatformClient::new().with_bearer_token(). HTTP handlers extract claims from request extensions. | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.3.2 | 2026-04-01 | bd-ik3o3 | Replace hand-rolled party_client.rs HTTP with platform-client-party typed client. Use PartiesClient::get_party() + service token auth. Same PartyClientError contract, no call-site changes. ~53 LOC removed. | Typed client consistency — all cross-module HTTP should use generated clients, not hand-rolled reqwest. | No |
 | 2.3.1 | 2026-04-01 | bd-manm4 | Add ApiDoc struct in http/mod.rs and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |

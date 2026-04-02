@@ -5,16 +5,22 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::models::{ApiError, Dispute, ListDisputesQuery, SubmitDisputeEvidenceRequest};
+use crate::models::{ApiError, Dispute, ListDisputesQuery, PaginatedResponse, SubmitDisputeEvidenceRequest};
 use crate::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
 use crate::tilled::TilledClient;
 
 /// GET /api/ar/disputes - List disputes with optional filters
+#[utoipa::path(get, path = "/api/ar/disputes", tag = "Disputes",
+    params(ListDisputesQuery),
+    responses(
+        (status = 200, description = "Paginated disputes", body = PaginatedResponse<Dispute>),
+    ),
+    security(("bearer" = [])))]
 pub async fn list_disputes(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListDisputesQuery>,
-) -> Result<Json<Vec<Dispute>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Dispute>>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
@@ -52,7 +58,7 @@ pub async fn list_disputes(
     if let Some(charge_id) = query.charge_id {
         query_builder = query_builder.bind(charge_id);
     }
-    if let Some(status) = query.status {
+    if let Some(ref status) = query.status {
         query_builder = query_builder.bind(status);
     }
 
@@ -66,10 +72,40 @@ pub async fn list_disputes(
             ApiError::internal("Failed to list disputes")
         })?;
 
-    Ok(Json(disputes))
+    // Count total matching rows
+    let mut count_sql = String::from("SELECT COUNT(*) FROM ar_disputes WHERE app_id = $1");
+    let mut count_idx = 2;
+    if query.charge_id.is_some() {
+        count_sql.push_str(&format!(" AND charge_id = ${count_idx}"));
+        count_idx += 1;
+    }
+    if query.status.is_some() {
+        count_sql.push_str(&format!(" AND status = ${count_idx}"));
+    }
+    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
+    if let Some(cid) = query.charge_id {
+        count_q = count_q.bind(cid);
+    }
+    if let Some(ref st) = query.status {
+        count_q = count_q.bind(st);
+    }
+    let total_items = count_q.fetch_one(&db).await.map_err(|e| {
+        tracing::error!("Database error counting disputes: {:?}", e);
+        ApiError::internal("Failed to count disputes")
+    })?;
+
+    let page = (offset as i64 / limit as i64) + 1;
+    Ok(Json(PaginatedResponse::new(disputes, page, limit as i64, total_items)))
 }
 
 /// GET /api/ar/disputes/{id} - Get a specific dispute
+#[utoipa::path(get, path = "/api/ar/disputes/{id}", tag = "Disputes",
+    params(("id" = i32, Path, description = "Dispute ID")),
+    responses(
+        (status = 200, description = "Dispute found", body = Dispute),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn get_dispute(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -101,6 +137,15 @@ pub async fn get_dispute(
 }
 
 /// POST /api/ar/disputes/{id}/evidence - Submit evidence for a dispute
+#[utoipa::path(post, path = "/api/ar/disputes/{id}/evidence", tag = "Disputes",
+    params(("id" = i32, Path, description = "Dispute ID")),
+    request_body = SubmitDisputeEvidenceRequest,
+    responses(
+        (status = 200, description = "Evidence submitted", body = Dispute),
+        (status = 400, description = "Invalid state", body = platform_http_contracts::ApiError),
+        (status = 404, description = "Not found", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn submit_dispute_evidence(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,

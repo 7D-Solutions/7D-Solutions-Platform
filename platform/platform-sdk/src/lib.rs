@@ -46,3 +46,17 @@ pub use async_nats::Client as NatsClient;
 pub use event_bus::{EventBus, EventEnvelope};
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;
+
+/// Extract the tenant ID string from verified JWT claims in request extensions.
+///
+/// Returns `Err(ApiError::unauthorized)` if no claims are present.
+pub fn extract_tenant(
+    claims: &Option<axum::Extension<VerifiedClaims>>,
+) -> Result<String, platform_http_contracts::ApiError> {
+    match claims {
+        Some(axum::Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(platform_http_contracts::ApiError::unauthorized(
+            "Missing or invalid authentication",
+        )),
+    }
+}
