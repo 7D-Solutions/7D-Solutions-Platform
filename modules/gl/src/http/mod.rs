@@ -10,6 +10,7 @@ pub mod exports;
 pub mod fx_rates;
 pub mod gl_detail;
 pub mod health;
+pub mod journal_entries;
 pub mod income_statement;
 pub mod period_close;
 pub mod period_summary;
@@ -23,7 +24,7 @@ use utoipa::OpenApi;
 #[openapi(
     info(
         title = "GL Service",
-        version = "3.0.1",
+        version = "3.1.0",
         description = "Double-entry general ledger with journal engine, accruals, and revenue recognition.",
     ),
     paths(
@@ -72,6 +73,8 @@ use utoipa::OpenApi;
         close_checklist::get_checklist_status,
         close_checklist::create_approval,
         close_checklist::get_approvals,
+        // Journal Entries
+        journal_entries::create_journal_entry,
         // Revenue recognition
         revrec::create_contract,
         revrec::generate_schedule_handler,
@@ -103,6 +106,11 @@ use utoipa::OpenApi;
         crate::services::gl_detail_service::GLDetailResponse,
         crate::services::gl_detail_service::GLDetailEntry,
         crate::services::gl_detail_service::GLDetailEntryLine,
+        // Journal Entries
+        journal_entries::PostJournalEntryRequest,
+        journal_entries::PostJournalEntryResponse,
+        crate::contracts::gl_posting_request_v1::SourceDocType,
+        crate::contracts::gl_posting_request_v1::JournalLine,
         // Domain types
         crate::domain::statements::TrialBalanceRow,
         crate::domain::statements::BalanceSheetRow,

@@ -7,11 +7,12 @@
 //! Do not add validations beyond what's in the schema.
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 /// Payload for GL posting request event
 ///
 /// This is the payload type used with `EventEnvelope<GlPostingRequestV1>`
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct GlPostingRequestV1 {
     /// Accounting date for the journal entry (YYYY-MM-DD)
     pub posting_date: String,
@@ -33,7 +34,7 @@ pub struct GlPostingRequestV1 {
 }
 
 /// Source document types that can generate GL postings
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SourceDocType {
     ArInvoice,
@@ -53,7 +54,7 @@ pub enum SourceDocType {
 }
 
 /// A single line in a journal entry
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct JournalLine {
     /// Reference to account in the GL chart of accounts
     pub account_ref: String,
@@ -74,7 +75,7 @@ pub struct JournalLine {
 }
 
 /// Analytical dimensions for reporting and analysis
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ToSchema)]
 pub struct Dimensions {
     /// Customer identifier for AR-related postings
     #[serde(skip_serializing_if = "Option::is_none")]

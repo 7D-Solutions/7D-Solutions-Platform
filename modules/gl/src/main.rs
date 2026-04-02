@@ -30,6 +30,7 @@ use gl_rs::{
     http::exports::create_export,
     http::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
     http::gl_detail::get_gl_detail,
+    http::journal_entries::create_journal_entry,
     http::income_statement::get_income_statement,
     http::period_close::{
         approve_reopen, close_period_handler, get_close_status, list_reopen_requests,
@@ -148,6 +149,7 @@ async fn main() {
                 )
                 .route("/api/gl/exports", post(create_export))
                 .route("/api/gl/accounts", post(create_account))
+                .route("/api/gl/journal-entries", post(create_journal_entry))
                 .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
                 .with_state(app_state.clone());
 
