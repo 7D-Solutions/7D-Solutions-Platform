@@ -82,6 +82,24 @@ fn sign_token(enc: &EncodingKey, perms: Vec<String>) -> String {
     jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, enc).expect("sign token")
 }
 
+fn sign_expired_token(enc: &EncodingKey, perms: Vec<String>) -> String {
+    let now = Utc::now();
+    let claims = TestClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: (now - chrono::Duration::minutes(20)).timestamp(),
+        exp: (now - chrono::Duration::minutes(5)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: Uuid::new_v4().to_string(),
+        roles: vec!["operator".into()],
+        perms,
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, enc).expect("sign token")
+}
+
 /// Build a router that mimics how a vertical would wire SDK auth.
 fn build_test_router(verifier: Option<Arc<JwtVerifier>>) -> Router {
     // Protected mutation route — requires "vertical.mutate" permission
@@ -291,4 +309,68 @@ async fn jwks_endpoint_to_protected_route_e2e() {
 
     let resp = tower::ServiceExt::oneshot(app, req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
+/// Expired JWT on protected route -> 401 Unauthorized.
+/// optional_claims_mw silently drops expired tokens (permissive mode),
+/// so RequirePermissionsLayer sees no claims and returns 401.
+#[tokio::test]
+async fn expired_jwt_on_protected_route_gets_401() {
+    let (enc, pub_pem, _) = make_keys();
+    let verifier = Arc::new(JwtVerifier::from_public_pem(&pub_pem).expect("verifier"));
+    let app = build_test_router(Some(verifier));
+
+    let token = sign_expired_token(&enc, vec!["vertical.mutate".into()]);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/orders")
+        .header("authorization", format!("Bearer {token}"))
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let resp = tower::ServiceExt::oneshot(app, req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Expired JWT via JWKS path -> 401 Unauthorized.
+/// Full chain: JWKS fetch -> expired token -> rejected.
+#[tokio::test]
+async fn jwks_expired_jwt_gets_401() {
+    let (enc, _pub_pem, priv_key) = make_keys();
+    let jwks_json = rsa_to_jwks_json(&priv_key);
+
+    let jwks_app = Router::new().route(
+        "/.well-known/jwks.json",
+        get(move || {
+            let body = jwks_json.clone();
+            async move { (StatusCode::OK, [("content-type", "application/json")], body) }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("local addr");
+    tokio::spawn(async move {
+        axum::serve(listener, jwks_app).await.ok();
+    });
+
+    let jwks_url = format!("http://{}/.well-known/jwks.json", addr);
+    let verifier = Arc::new(
+        JwtVerifier::from_jwks_url(&jwks_url, std::time::Duration::from_secs(300), false)
+            .await
+            .expect("verifier from JWKS"),
+    );
+
+    let app = build_test_router(Some(verifier));
+
+    let token = sign_expired_token(&enc, vec!["vertical.mutate".into()]);
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/orders")
+        .header("authorization", format!("Bearer {token}"))
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let resp = tower::ServiceExt::oneshot(app, req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
