@@ -4,6 +4,15 @@ use serde_json::Value as JsonValue;
 use utoipa::ToSchema;
 pub use uuid::Uuid;
 
+/// A single line item on an invoice.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct InvoiceLineItem {
+    pub description: String,
+    pub amount_cents: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<i64>,
+}
+
 /// Invoice status enum
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(transparent)]
@@ -57,7 +66,7 @@ pub struct CreateInvoiceRequest {
     pub metadata: Option<JsonValue>,
     pub billing_period_start: Option<NaiveDateTime>,
     pub billing_period_end: Option<NaiveDateTime>,
-    pub line_item_details: Option<JsonValue>,
+    pub line_item_details: Option<Vec<InvoiceLineItem>>,
     pub compliance_codes: Option<JsonValue>,
     pub correlation_id: Option<String>,
     /// Optional link to a Party record in the party-master service.

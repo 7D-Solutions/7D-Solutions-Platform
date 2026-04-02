@@ -8,6 +8,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::*;
 
+/// A single line item on an invoice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceLineItem {
+    pub description: String,
+    pub amount_cents: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<i64>,
+}
+
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginationMeta {
@@ -151,7 +160,7 @@ pub struct CreateInvoiceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_item_details: Option<Value>,
+    pub line_item_details: Option<Vec<InvoiceLineItem>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
     /// Optional link to a Party record in the party-master service.
@@ -316,7 +325,7 @@ pub struct Invoice {
     pub hosted_url: Option<String>,
     pub id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_item_details: Option<Value>,
+    pub line_item_details: Option<Vec<InvoiceLineItem>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

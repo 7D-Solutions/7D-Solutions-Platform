@@ -158,7 +158,8 @@ pub async fn create_invoice(
         req.metadata,
         req.billing_period_start,
         req.billing_period_end,
-        req.line_item_details,
+        req.line_item_details
+            .map(|items| serde_json::to_value(items).expect("Vec<InvoiceLineItem> always serializes")),
         req.compliance_codes,
         req.correlation_id,
         req.party_id,
