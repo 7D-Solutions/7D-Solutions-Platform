@@ -10,6 +10,7 @@
 /// When NATS_URL is set, spawns an outbox relay that publishes provisioning events.
 use axum::extract::DefaultBodyLimit;
 use control_plane::outbox_relay;
+use control_plane::provisioning;
 use control_plane::routes;
 use control_plane::state;
 use event_bus::{EventBus, NatsBus};
@@ -73,13 +74,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // NATS outbox relay (optional — skipped if NATS_URL is not set)
+    // NATS outbox relay + provisioning consumer (optional — skipped if NATS_URL is not set)
     if let Ok(nats_url) = std::env::var("NATS_URL") {
         match event_bus::connect_nats(&nats_url).await {
             Ok(nats_client) => {
                 let bus: Arc<dyn EventBus> = Arc::new(NatsBus::new(nats_client));
                 tracing::info!(url = %nats_url, "connected to NATS");
-                tokio::spawn(outbox_relay::start_outbox_relay(pool.clone(), bus));
+
+                // Outbox relay
+                tokio::spawn(outbox_relay::start_outbox_relay(pool.clone(), bus.clone()));
+
+                // Provisioning orchestrator
+                match provisioning::load_registry_from_db(&pool).await {
+                    Ok(registry) => {
+                        tokio::spawn(provisioning::start_provisioning_consumer(
+                            pool.clone(),
+                            bus,
+                            registry,
+                        ));
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "failed to load module registry — provisioning consumer disabled"
+                        );
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!(

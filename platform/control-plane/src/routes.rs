@@ -74,6 +74,14 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
             "/api/control/platform-billing-runs",
             post(handlers::platform_billing_run),
         )
+        .route(
+            "/api/control/tenants/{tenant_id}/provisioning",
+            get(handlers::provisioning_status),
+        )
+        .route(
+            "/api/control/tenants/{tenant_id}/retry",
+            post(handlers::retry_provisioning),
+        )
         .with_state(state)
         .merge(summary_router(summary_state.clone()))
         .merge(entitlements_router(summary_state.clone()))
