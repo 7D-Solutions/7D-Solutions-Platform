@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.0.0 | 2026-04-02 | bd-gy0uy | list_tasks endpoint now returns PaginatedResponse<Task> instead of DataWrapper<Task>. Response shape changed from `{data:[]}` to `{data:[], pagination:{page, page_size, total_items, total_pages}}`. Updated utoipa annotation. | Consistent paginated envelopes across all list endpoints — list_tasks was the last holdout using DataWrapper. | YES: Consumers of GET /api/timekeeping/projects/{id}/tasks must parse `{data:[], pagination:{…}}` instead of `{data:[]}`. |
 | 2.1.5 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. Ops routes stripped from http::router(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.4 | 2026-03-31 | bd-vnuvp.9 | Add app_id filter to tk_billing_run_entries query via tk_billing_runs subquery. load_run_entries now takes app_id parameter. | P0 tenant isolation sweep: queries must filter by tenant_id to prevent cross-tenant data leakage. | No |
 | 2.1.2 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |

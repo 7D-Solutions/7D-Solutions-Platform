@@ -221,7 +221,7 @@ pub async fn create_task(
     path = "/api/timekeeping/projects/{project_id}/tasks",
     params(("project_id" = Uuid, Path, description = "Parent project UUID")),
     responses(
-        (status = 200, description = "Task list for project", body = Vec<Task>),
+        (status = 200, description = "Task list for project", body = PaginatedResponse<Task>),
         (status = 401, description = "Unauthorized", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -231,12 +231,13 @@ pub async fn list_tasks(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(project_id): Path<Uuid>,
-) -> Result<Json<DataWrapper<Task>>, ApiError> {
+) -> Result<Json<PaginatedResponse<Task>>, ApiError> {
     let app_id = extract_tenant(&claims)?;
     let tasks = TaskRepo::list_for_project(&state.pool, project_id, &app_id, true)
         .await
         .map_err(map_task_error)?;
-    Ok(Json(DataWrapper { data: tasks }))
+    let total = tasks.len() as i64;
+    Ok(Json(PaginatedResponse::new(tasks, 1, total, total)))
 }
 
 #[utoipa::path(
