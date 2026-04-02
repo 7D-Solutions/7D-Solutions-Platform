@@ -11,6 +11,7 @@ use event_bus::EventBus;
 use sqlx::PgPool;
 
 use crate::manifest::Manifest;
+use crate::platform_services::{PlatformService, PlatformServices};
 
 /// Type-erased storage for module-specific state.
 type Extensions = Arc<HashMap<TypeId, Box<dyn Any + Send + Sync>>>;
@@ -128,6 +129,41 @@ impl ModuleContext {
         self.extensions
             .get(&TypeId::of::<T>())
             .and_then(|boxed| boxed.downcast_ref::<T>())
+    }
+
+    /// Construct a typed platform service client.
+    ///
+    /// The service must be declared in `[platform.services]` in `module.toml`.
+    /// The typed client `T` must implement [`PlatformService`] — generated
+    /// clients do this automatically.
+    ///
+    /// ```rust,ignore
+    /// let party = ctx.platform_client::<PartiesClient>();
+    /// let customer = party.get_party(&claims, id).await?;
+    /// ```
+    ///
+    /// Each call constructs a new `T` from a cloned `PlatformClient`.
+    /// This is cheap: `reqwest::Client` is internally Arc-wrapped.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `PlatformServices` was not registered (module has no
+    /// `[platform]` section) or if the requested service is not declared.
+    pub fn platform_client<T: PlatformService>(&self) -> T {
+        let services = self.try_state::<PlatformServices>().unwrap_or_else(|| {
+            panic!(
+                "platform_client::<{}> called but no [platform.services] section in manifest",
+                std::any::type_name::<T>()
+            )
+        });
+        let client = services.get(T::SERVICE_NAME).unwrap_or_else(|| {
+            panic!(
+                "platform service '{}' not declared in [platform.services] — \
+                 add it to module.toml",
+                T::SERVICE_NAME
+            )
+        });
+        T::from_platform_client(client.clone())
     }
 
     /// Check that the caller has the given permission.

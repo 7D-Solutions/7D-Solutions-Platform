@@ -32,10 +32,20 @@ impl Default for TimeoutConfig {
 /// let party = PlatformClient::new(env::var("PARTY_BASE_URL")?);
 /// let resp = party.get("/api/parties/123", &claims).await?;
 /// ```
+#[derive(Clone)]
 pub struct PlatformClient {
     client: Client,
     base_url: String,
     bearer_token: Option<String>,
+}
+
+impl std::fmt::Debug for PlatformClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PlatformClient")
+            .field("base_url", &self.base_url)
+            .field("bearer_token", &self.bearer_token.as_ref().map(|_| "***"))
+            .finish()
+    }
 }
 
 const MAX_RETRIES: u32 = 3;

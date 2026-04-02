@@ -28,6 +28,7 @@ pub mod consumer;
 pub mod context;
 pub mod http_client;
 pub mod manifest;
+pub mod platform_services;
 pub mod publisher;
 pub mod startup;
 mod startup_helpers;
@@ -39,6 +40,7 @@ pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext};
 pub use http_client::{PlatformClient, TimeoutConfig};
 pub use manifest::Manifest;
+pub use platform_services::PlatformService;
 pub use startup::StartupError;
 pub use tenant::TenantId;
 

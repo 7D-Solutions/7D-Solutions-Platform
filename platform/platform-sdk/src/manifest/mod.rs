@@ -35,6 +35,7 @@ mod database;
 mod events;
 mod health_section;
 mod module;
+mod platform_services;
 mod rate_limit;
 mod sdk;
 mod server;
@@ -46,6 +47,7 @@ pub use database::DatabaseSection;
 pub use events::{EventsPublishSection, EventsSection};
 pub use health_section::{HealthSection, KNOWN_HEALTH_DEPS};
 pub use module::ModuleSection;
+pub use platform_services::{PlatformSection, ServiceEntry};
 pub use rate_limit::RateLimitSection;
 pub use sdk::SdkSection;
 pub use server::ServerSection;
@@ -94,6 +96,8 @@ pub struct Manifest {
     pub health: Option<HealthSection>,
     #[serde(default)]
     pub rate_limit: Option<RateLimitSection>,
+    #[serde(default)]
+    pub platform: Option<PlatformSection>,
 
     /// Unknown top-level keys are captured here so we can warn without erroring.
     #[serde(flatten)]
@@ -279,6 +283,12 @@ impl Manifest {
         }
         if let Some(ref rate_limit) = self.rate_limit {
             warn_extra_keys("rate_limit", &rate_limit.extra);
+        }
+        if let Some(ref platform) = self.platform {
+            warn_extra_keys("platform", &platform.extra);
+            for (name, entry) in &platform.services {
+                warn_extra_keys(&format!("platform.services.{name}"), &entry.extra);
+            }
         }
 
         Ok(())

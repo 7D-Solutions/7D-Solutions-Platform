@@ -36,6 +36,7 @@ use event_bus::EventEnvelope;
 use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
 use crate::context::ModuleContext;
 use crate::manifest::{Manifest, ManifestError};
+use crate::platform_services::PlatformServices;
 use crate::startup::{self, StartupError};
 
 /// Type-erased async startup callback.
@@ -248,8 +249,25 @@ impl ModuleBuilder {
         // Phase A: infrastructure
         let phase_a = startup::phase_a(&manifest, self.skip_outbox_publisher).await?;
 
+        // Build platform service clients from [platform.services] manifest section.
+        let platform_services = PlatformServices::from_manifest(
+            manifest.platform.as_ref(),
+            &manifest.module.name,
+        )?;
+        if !platform_services.is_empty() {
+            tracing::info!(
+                module = %manifest.module.name,
+                count = platform_services.len(),
+                "platform service clients ready"
+            );
+        }
+
         // Run startup callbacks — each returns a typed value to store.
         let mut extensions = self.extensions;
+        extensions.insert(
+            TypeId::of::<PlatformServices>(),
+            Box::new(platform_services),
+        );
         for startup_fn in self.startup_fns {
             let (type_id, val) = startup_fn(phase_a.pool.clone()).await?;
             extensions.insert(type_id, val);
