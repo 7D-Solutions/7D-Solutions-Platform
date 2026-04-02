@@ -72,7 +72,11 @@ fn emit_struct(out: &mut String, name: &str, fields: &[Field], doc: Option<&str>
             out.push_str(&format!("/// {line}\n"));
         }
     }
-    out.push_str("#[derive(Debug, Clone, Serialize, Deserialize)]\n");
+    if name.starts_with("Create") && name.ends_with("Request") {
+        out.push_str("#[derive(Debug, Clone, Default, Serialize, Deserialize)]\n");
+    } else {
+        out.push_str("#[derive(Debug, Clone, Serialize, Deserialize)]\n");
+    }
     out.push_str(&format!("pub struct {name} {{\n"));
 
     for f in fields {
