@@ -44,8 +44,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/AgingReport"
                 }
               }
             }
@@ -64,6 +63,27 @@
           "Bills"
         ],
         "operationId": "list_bills",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "query",
+            "description": "Filter to a specific vendor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "include_voided",
+            "in": "query",
+            "description": "Include voided bills (default: false)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Bill list",
@@ -177,8 +197,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/PaginatedResponse_AllocationRecord"
                 }
               }
             }
@@ -223,10 +242,7 @@
             "description": "Allocation applied",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "schema": {}
               }
             }
           }
@@ -316,10 +332,7 @@
             "description": "Terms assigned",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "schema": {}
               }
             }
           }
@@ -356,8 +369,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/BillBalanceSummary"
                 }
               }
             }
@@ -457,7 +469,7 @@
         "tags": [
           "Bills"
         ],
-        "summary": "POST /api/ap/bills/:bill_id/void \u2014 void a bill (requires reason)",
+        "summary": "POST /api/ap/bills/:bill_id/void — void a bill (requires reason)",
         "operationId": "void_bill",
         "parameters": [
           {
@@ -522,10 +534,7 @@
             "description": "Run created",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "schema": {}
               }
             }
           }
@@ -562,8 +571,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true
+                  "$ref": "#/components/schemas/PaymentRun"
                 }
               }
             }
@@ -600,10 +608,7 @@
             "description": "Run executed",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
+                "schema": {}
               }
             }
           }
@@ -852,8 +857,8 @@
         "tags": [
           "Purchase Orders"
         ],
-        "summary": "POST /api/ap/pos/:po_id/approve \u2014 approve a draft PO (idempotent)",
-        "description": "Transitions the PO from draft \u2192 approved and emits ap.po_approved.\nIf the PO is already approved, returns 200 with the current state (no re-emit).",
+        "summary": "POST /api/ap/pos/:po_id/approve — approve a draft PO (idempotent)",
+        "description": "Transitions the PO from draft → approved and emits ap.po_approved.\nIf the PO is already approved, returns 200 with the current state (no re-emit).",
         "operationId": "approve_po",
         "parameters": [
           {
@@ -1272,6 +1277,96 @@
   },
   "components": {
     "schemas": {
+      "AgingReport": {
+        "type": "object",
+        "description": "Complete aging report response.",
+        "required": [
+          "as_of",
+          "buckets_by_currency"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "description": "The date used as the aging reference point."
+          },
+          "buckets_by_currency": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyBucket"
+            },
+            "description": "Bucket totals grouped by currency."
+          },
+          "vendor_breakdown": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/VendorBucket"
+            },
+            "description": "Per-vendor breakdown — present only when `by_vendor=true` was requested."
+          }
+        }
+      },
+      "AllocationRecord": {
+        "type": "object",
+        "description": "A single allocation record as stored in ap_allocations.",
+        "required": [
+          "id",
+          "allocation_id",
+          "bill_id",
+          "tenant_id",
+          "amount_minor",
+          "currency",
+          "allocation_type",
+          "created_at"
+        ],
+        "properties": {
+          "allocation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable external idempotency anchor — caller-generated UUID."
+          },
+          "allocation_type": {
+            "type": "string",
+            "description": "\"partial\" or \"full\" — derived from remaining bill balance at allocation time."
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount applied in minor currency units (always > 0)."
+          },
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "BIGSERIAL primary key (internal ordering)"
+          },
+          "payment_run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Set when this allocation is claimed by a payment run."
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
       "ApTaxReportResponse": {
         "type": "object",
         "required": [
@@ -1506,6 +1601,38 @@
           }
         }
       },
+      "BillBalanceSummary": {
+        "type": "object",
+        "description": "Summary of remaining open balance on a bill.",
+        "required": [
+          "bill_id",
+          "total_minor",
+          "allocated_minor",
+          "open_balance_minor",
+          "status"
+        ],
+        "properties": {
+          "allocated_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "open_balance_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "BillLineRecord": {
         "type": "object",
         "description": "A single line on a vendor bill as returned from the DB.",
@@ -1572,7 +1699,7 @@
           "allocation_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Caller-generated stable UUID \u2014 used for idempotency.\nDuplicate submissions with the same allocation_id return the existing record."
+            "description": "Caller-generated stable UUID — used for idempotency.\nDuplicate submissions with the same allocation_id return the existing record."
           },
           "amount_minor": {
             "type": "integer",
@@ -1621,7 +1748,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Optional item reference \u2014 informational only, not persisted in this bead"
+            "description": "Optional item reference — informational only, not persisted in this bead"
           },
           "po_line_id": {
             "type": [
@@ -1675,7 +1802,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "GL fx_rates UUID \u2014 supply when bill currency != tenant functional currency.\nReuses GL FX infrastructure; do not pass a raw rate value here."
+            "description": "GL fx_rates UUID — supply when bill currency != tenant functional currency.\nReuses GL FX infrastructure; do not pass a raw rate value here."
           },
           "invoice_date": {
             "type": "string",
@@ -1936,6 +2063,55 @@
           }
         }
       },
+      "CurrencyBucket": {
+        "type": "object",
+        "description": "Aging bucket totals for a single currency.",
+        "required": [
+          "currency",
+          "current_minor",
+          "days_1_30_minor",
+          "days_31_60_minor",
+          "days_61_90_minor",
+          "over_90_minor",
+          "total_open_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code."
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance in the current bucket (not yet overdue), in minor units."
+          },
+          "days_1_30_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 1–30 days past due, in minor units."
+          },
+          "days_31_60_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 31–60 days past due, in minor units."
+          },
+          "days_61_90_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 61–90 days past due, in minor units."
+          },
+          "over_90_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance more than 90 days past due, in minor units."
+          },
+          "total_open_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all buckets = total outstanding for this currency."
+          }
+        }
+      },
       "FieldError": {
         "type": "object",
         "description": "A single field-level validation error.",
@@ -1997,7 +2173,7 @@
           "price_variance_minor": {
             "type": "integer",
             "format": "int64",
-            "description": "(bill_price - po_price) \u00d7 matched_qty (minor currency units; signed)"
+            "description": "(bill_price - po_price) × matched_qty (minor currency units; signed)"
           },
           "qty_variance": {
             "type": "number",
@@ -2052,6 +2228,80 @@
           "po_id": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "PaginatedResponse_AllocationRecord": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A single allocation record as stored in ap_allocations.",
+              "required": [
+                "id",
+                "allocation_id",
+                "bill_id",
+                "tenant_id",
+                "amount_minor",
+                "currency",
+                "allocation_type",
+                "created_at"
+              ],
+              "properties": {
+                "allocation_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Stable external idempotency anchor — caller-generated UUID."
+                },
+                "allocation_type": {
+                  "type": "string",
+                  "description": "\"partial\" or \"full\" — derived from remaining bill balance at allocation time."
+                },
+                "amount_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Amount applied in minor currency units (always > 0)."
+                },
+                "bill_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code."
+                },
+                "id": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "BIGSERIAL primary key (internal ordering)"
+                },
+                "payment_run_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "Set when this allocation is claimed by a payment run."
+                },
+                "tenant_id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
           }
         }
       },
@@ -2349,7 +2599,7 @@
                     "null"
                   ],
                   "format": "uuid",
-                  "description": "GL fx_rates UUID \u2014 NULL when bill currency == functional currency (no FX needed)"
+                  "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
                 },
                 "invoice_date": {
                   "type": "string",
@@ -2414,6 +2664,61 @@
             "format": "int64"
           },
           "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PaymentRun": {
+        "type": "object",
+        "description": "Payment run header row from `payment_runs`.",
+        "required": [
+          "run_id",
+          "tenant_id",
+          "total_minor",
+          "currency",
+          "scheduled_date",
+          "payment_method",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "executed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
             "type": "integer",
             "format": "int64"
           }
@@ -2631,7 +2936,7 @@
           "price_tolerance_pct": {
             "type": "number",
             "format": "double",
-            "description": "Price tolerance as a fraction (0.0\u20131.0). Default: 0.05 (5%).\nVariance \u2264 po_price \u00d7 matched_qty \u00d7 tolerance is within tolerance."
+            "description": "Price tolerance as a fraction (0.0–1.0). Default: 0.05 (5%).\nVariance ≤ po_price × matched_qty × tolerance is within tolerance."
           }
         }
       },
@@ -2870,7 +3175,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "GL fx_rates UUID \u2014 NULL when bill currency == functional currency (no FX needed)"
+            "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
           },
           "invoice_date": {
             "type": "string",
@@ -2927,6 +3232,57 @@
           }
         ],
         "description": "A vendor bill with its line items (for GET responses and POST 201)."
+      },
+      "VendorBucket": {
+        "type": "object",
+        "description": "Aging bucket totals for a single vendor + currency combination.",
+        "required": [
+          "vendor_id",
+          "vendor_name",
+          "currency",
+          "current_minor",
+          "days_1_30_minor",
+          "days_31_60_minor",
+          "days_61_90_minor",
+          "over_90_minor",
+          "total_open_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_open_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor_name": {
+            "type": "string"
+          }
+        }
       },
       "VoidBillRequest": {
         "type": "object",

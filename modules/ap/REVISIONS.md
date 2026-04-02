@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.1.0 | 2026-04-02 | bd-i28hj | Add IntoParams to ListBillsQuery — codegen now picks up vendor_id and include_voided query params | Generated client was missing query params | No |
 | 3.0.2 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 3.0.1 | 2026-04-02 | bd-5d6ae | Remove dead run_publisher_task and publish_batch from outbox/mod.rs. SDK publisher (ModuleBuilder) handles event publishing; this custom loop was never called and contained a double-prefix bug (ap.events.ap.*). | Dead code hygiene — eliminates confusing unused publisher that would publish to wrong NATS subjects if ever wired up. | No |
 | 3.0.0 | 2026-04-02 | bd-u2io9 | Refactor match engine into repo + service + service_tests layers. `engine.rs` (718 LOC) replaced by `repo.rs` (DB queries/writes), `service.rs` (orchestration + pure matching logic), `service_tests.rs` (integration tests). All files under 500 LOC. | Single-file monolith mixed guard queries, matching computation, persistence, and outbox emission. SoC refactor separates DB access from business logic. | YES: Internal import path changed from `domain::match::engine::run_match` to `domain::match::service::run_match`. No HTTP API or event contract changes. |

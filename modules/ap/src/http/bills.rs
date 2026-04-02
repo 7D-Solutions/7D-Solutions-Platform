@@ -18,6 +18,7 @@ use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
+use utoipa::IntoParams;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -46,7 +47,8 @@ fn correlation_from_headers(headers: &HeaderMap) -> String {
 // Query params
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListBillsQuery {
     /// Filter to a specific vendor
     pub vendor_id: Option<Uuid>,
@@ -107,6 +109,7 @@ pub async fn get_bill(
 }
 
 #[utoipa::path(get, path = "/api/ap/bills", tag = "Bills",
+    params(ListBillsQuery),
     responses((status = 200, description = "Bill list", body = PaginatedResponse<crate::domain::bills::VendorBill>)),
     security(("bearer" = [])))]
 pub async fn list_bills(
