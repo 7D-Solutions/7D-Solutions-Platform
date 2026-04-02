@@ -44,7 +44,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AgingReport"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }
@@ -176,7 +177,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_AllocationRecord"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }
@@ -354,7 +356,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BillBalanceSummary"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }
@@ -559,7 +562,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaymentRun"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }

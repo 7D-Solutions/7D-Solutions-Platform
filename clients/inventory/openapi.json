@@ -1416,7 +1416,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_InventorySerialInstance"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }

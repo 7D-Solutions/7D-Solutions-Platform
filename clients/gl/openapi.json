@@ -786,7 +786,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PaginatedResponse_ReopenRequestResponse"
+                  "type": "object",
+                  "additionalProperties": true
                 }
               }
             }

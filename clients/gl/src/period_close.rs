@@ -32,7 +32,7 @@ impl PeriodCloseClient {
     }
 
     /// GET `/api/gl/periods/{period_id}/reopen`
-    pub async fn list_reopen_requests(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<PaginatedResponse<ReopenRequestResponse>, ClientError> {
+    pub async fn list_reopen_requests(&self, claims: &VerifiedClaims, period_id: uuid::Uuid) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/gl/periods/{}/reopen", period_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
