@@ -1,4 +1,5 @@
 use chrono::Utc;
+use platform_sdk::PlatformClient;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
 use serial_test::serial;
@@ -87,6 +88,12 @@ async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_
     wc_service::assign_competence(wc_pool, &assign_req)
         .await
         .expect("assign quality_inspection competence");
+}
+
+fn wc_client() -> PlatformClient {
+    let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    PlatformClient::new(url)
 }
 
 fn unique_tenant() -> String {
@@ -401,6 +408,7 @@ async fn events_emitted_to_outbox() {
 async fn disposition_hold_then_accept() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -431,7 +439,7 @@ async fn disposition_hold_then_accept() {
     // Hold
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -446,7 +454,7 @@ async fn disposition_hold_then_accept() {
     // Accept from held
     let accepted = service::accept_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -468,6 +476,7 @@ async fn disposition_hold_then_accept() {
 async fn disposition_hold_then_reject() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -495,7 +504,7 @@ async fn disposition_hold_then_reject() {
 
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -509,7 +518,7 @@ async fn disposition_hold_then_reject() {
 
     let rejected = service::reject_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -531,6 +540,7 @@ async fn disposition_hold_then_reject() {
 async fn disposition_hold_then_release() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -558,7 +568,7 @@ async fn disposition_hold_then_release() {
 
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -572,7 +582,7 @@ async fn disposition_hold_then_release() {
 
     let released = service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -594,6 +604,7 @@ async fn disposition_hold_then_release() {
 async fn disposition_rejects_illegal_transitions() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -622,7 +633,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Cannot accept directly from pending (must hold first)
     let err = service::accept_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -637,7 +648,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Cannot reject directly from pending
     let err = service::reject_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -651,7 +662,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Cannot release directly from pending
     let err = service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -665,7 +676,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Hold it
     service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -679,7 +690,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Cannot hold again
     let err = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -693,7 +704,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Accept it
     service::accept_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -707,7 +718,7 @@ async fn disposition_rejects_illegal_transitions() {
     // Cannot transition from accepted
     let err = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -719,7 +730,7 @@ async fn disposition_rejects_illegal_transitions() {
     assert!(err.is_err());
     let err = service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -740,6 +751,7 @@ async fn disposition_rejects_illegal_transitions() {
 async fn disposition_events_emitted() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -768,7 +780,7 @@ async fn disposition_events_emitted() {
     // Hold then release
     service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -781,7 +793,7 @@ async fn disposition_events_emitted() {
 
     service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -873,7 +885,8 @@ async fn tenant_isolation() {
 #[serial]
 async fn disposition_requires_inspector_id() {
     let pool = setup_db().await;
-    let wc_pool = setup_wc_db().await;
+    let _wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
 
@@ -897,7 +910,7 @@ async fn disposition_requires_inspector_id() {
     .unwrap();
 
     let err = service::hold_inspection(
-        &pool, &wc_pool, &tenant, inspection.id, None, None, &corr, None,
+        &pool, &wc, &tenant, inspection.id, None, None, &corr, None,
     )
     .await;
     assert!(err.is_err());
@@ -916,7 +929,8 @@ async fn disposition_requires_inspector_id() {
 #[serial]
 async fn disposition_rejects_unauthorized_inspector() {
     let pool = setup_db().await;
-    let wc_pool = setup_wc_db().await;
+    let _wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let unauthorized_inspector = Uuid::new_v4(); // not authorized in WC
@@ -942,7 +956,7 @@ async fn disposition_rejects_unauthorized_inspector() {
 
     let err = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(unauthorized_inspector),

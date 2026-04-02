@@ -11,6 +11,7 @@
 //! Each test uses a unique tenant_id to avoid cross-test interference.
 
 use chrono::Utc;
+use platform_sdk::PlatformClient;
 use quality_inspection_rs::consumers::production_event_bridge::{
     process_fg_receipt_requested, process_operation_completed, FgReceiptRequestedPayload,
     OperationCompletedPayload,
@@ -105,6 +106,12 @@ async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_
         .expect("assign quality_inspection competence");
 }
 
+fn wc_client() -> PlatformClient {
+    let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    PlatformClient::new(url)
+}
+
 fn unique_tenant() -> String {
     format!("test-tenant-{}", Uuid::new_v4())
 }
@@ -120,6 +127,7 @@ fn unique_tenant() -> String {
 async fn e2e_receiving_hold_release_in_process_final() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let part_id = Uuid::new_v4();
@@ -172,7 +180,7 @@ async fn e2e_receiving_hold_release_in_process_final() {
 
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_insp_id,
         Some(inspector_id),
@@ -188,7 +196,7 @@ async fn e2e_receiving_hold_release_in_process_final() {
 
     let released = service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_insp_id,
         Some(inspector_id),
@@ -331,7 +339,7 @@ async fn e2e_receiving_hold_release_in_process_final() {
 
     service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         final_insp_id,
         Some(inspector_id),
@@ -344,7 +352,7 @@ async fn e2e_receiving_hold_release_in_process_final() {
 
     let accepted = service::accept_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         final_insp_id,
         Some(inspector_id),
@@ -463,6 +471,7 @@ async fn e2e_receiving_hold_release_in_process_final() {
 async fn e2e_inspector_authorization_gate() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let unauthorized_inspector = Uuid::new_v4();
@@ -500,7 +509,7 @@ async fn e2e_inspector_authorization_gate() {
 
     let hold_err = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_insp_id,
         Some(unauthorized_inspector),
@@ -538,7 +547,7 @@ async fn e2e_inspector_authorization_gate() {
 
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_insp_id,
         Some(authorized_inspector),
@@ -554,7 +563,7 @@ async fn e2e_inspector_authorization_gate() {
 
     let released = service::release_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_insp_id,
         Some(authorized_inspector),
@@ -621,6 +630,7 @@ async fn e2e_inspector_authorization_gate() {
 async fn e2e_quarantine_round_trip_reject() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector_id = Uuid::new_v4();
@@ -657,7 +667,7 @@ async fn e2e_quarantine_round_trip_reject() {
     // Hold — material quarantined
     service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_id,
         Some(inspector_id),
@@ -671,7 +681,7 @@ async fn e2e_quarantine_round_trip_reject() {
     // Reject — material fails inspection
     let rejected = service::reject_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         recv_id,
         Some(inspector_id),

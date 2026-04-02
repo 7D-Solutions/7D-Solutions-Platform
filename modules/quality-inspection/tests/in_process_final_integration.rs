@@ -1,4 +1,5 @@
 use chrono::Utc;
+use platform_sdk::PlatformClient;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
 use serial_test::serial;
@@ -85,6 +86,12 @@ async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_
     wc_service::assign_competence(wc_pool, &assign_req)
         .await
         .expect("assign quality_inspection competence");
+}
+
+fn wc_client() -> PlatformClient {
+    let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    PlatformClient::new(url)
 }
 
 fn unique_tenant() -> String {
@@ -476,6 +483,7 @@ async fn events_emitted_for_in_process_and_final() {
 async fn disposition_works_on_in_process_inspection() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -507,7 +515,7 @@ async fn disposition_works_on_in_process_inspection() {
     // Hold
     let held = service::hold_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -522,7 +530,7 @@ async fn disposition_works_on_in_process_inspection() {
     // Reject
     let rejected = service::reject_inspection(
         &pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),

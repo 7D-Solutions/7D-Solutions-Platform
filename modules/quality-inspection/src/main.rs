@@ -27,18 +27,9 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
-            // Second DB pool for workforce-competence cross-queries
-            let wc_db_url = std::env::var("WORKFORCE_COMPETENCE_DATABASE_URL")
-                .unwrap_or_else(|_| std::env::var("DATABASE_URL").unwrap_or_default());
-            let wc_pool = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    sqlx::postgres::PgPoolOptions::new()
-                        .max_connections(5)
-                        .connect(&wc_db_url)
-                        .await
-                        .expect("QI: failed to connect to workforce-competence DB")
-                })
-            });
+            let wc_base_url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:8121".to_string());
+            let wc_client = platform_sdk::PlatformClient::new(wc_base_url);
 
             // Spawn consumers using the SDK's bus
             if let Ok(bus) = ctx.bus_arc() {
@@ -55,7 +46,7 @@ async fn main() {
             );
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
-                wc_pool,
+                wc_client,
                 metrics,
             });
 

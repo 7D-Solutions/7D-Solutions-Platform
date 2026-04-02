@@ -28,7 +28,7 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub bus_type: BusType,
     pub nats_url: Option<String>,
-    pub workforce_competence_database_url: String,
+    pub workforce_competence_base_url: String,
 }
 
 impl Config {
@@ -67,9 +67,9 @@ impl Config {
             "required when BUS_TYPE=nats",
         );
 
-        let workforce_competence_database_url = v
-            .require("WORKFORCE_COMPETENCE_DATABASE_URL")
-            .unwrap_or_default();
+        let workforce_competence_base_url = v
+            .optional("WORKFORCE_COMPETENCE_BASE_URL")
+            .or_default("http://localhost:8121");
 
         if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
             return Err(
@@ -90,7 +90,7 @@ impl Config {
             cors_origins,
             bus_type,
             nats_url,
-            workforce_competence_database_url,
+            workforce_competence_base_url,
         })
     }
 }

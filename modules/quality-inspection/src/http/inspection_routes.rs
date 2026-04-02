@@ -224,7 +224,7 @@ pub async fn post_hold_inspection(
     };
     match service::hold_inspection(
         &state.pool,
-        &state.wc_pool,
+        &state.wc_client,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -267,7 +267,7 @@ pub async fn post_release_inspection(
     };
     match service::release_inspection(
         &state.pool,
-        &state.wc_pool,
+        &state.wc_client,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -310,7 +310,7 @@ pub async fn post_accept_inspection(
     };
     match service::accept_inspection(
         &state.pool,
-        &state.wc_pool,
+        &state.wc_client,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -353,7 +353,7 @@ pub async fn post_reject_inspection(
     };
     match service::reject_inspection(
         &state.pool,
-        &state.wc_pool,
+        &state.wc_client,
         &tenant_id,
         inspection_id,
         req.inspector_id,

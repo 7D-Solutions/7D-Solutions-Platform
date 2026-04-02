@@ -1,6 +1,6 @@
 [package]
 name = "quality-inspection-rs"
-version = "2.1.0"
+version = "3.0.0"
 edition = "2021"
 description = "Quality Inspection: receiving inspection, in-process inspection, disposition tracking"
 
@@ -31,6 +31,7 @@ reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"
+workforce-competence-rs = { path = "../workforce-competence" }
 
 [[bin]]
 name = "openapi_dump"

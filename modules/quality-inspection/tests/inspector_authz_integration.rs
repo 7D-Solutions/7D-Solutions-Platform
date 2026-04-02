@@ -1,4 +1,5 @@
 use chrono::Utc;
+use platform_sdk::PlatformClient;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
 use serial_test::serial;
@@ -50,6 +51,12 @@ async fn setup_wc_db() -> sqlx::PgPool {
         .expect("Failed to run workforce-competence migrations");
 
     pool
+}
+
+fn wc_client() -> PlatformClient {
+    let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    PlatformClient::new(url)
 }
 
 fn unique_tenant() -> String {
@@ -114,6 +121,7 @@ fn create_pending_inspection_req() -> CreateReceivingInspectionRequest {
 async fn authorize_then_dispose_flow() {
     let qi_pool = setup_qi_db().await;
     let wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
@@ -132,7 +140,7 @@ async fn authorize_then_dispose_flow() {
     // Attempt hold WITHOUT authorization → should fail
     let err = service::hold_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -155,7 +163,7 @@ async fn authorize_then_dispose_flow() {
     // Now hold should succeed
     let held = service::hold_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -170,7 +178,7 @@ async fn authorize_then_dispose_flow() {
     // Accept should also succeed
     let accepted = service::accept_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(inspector),
@@ -191,7 +199,8 @@ async fn authorize_then_dispose_flow() {
 #[serial]
 async fn disposition_without_inspector_id_returns_validation_error() {
     let qi_pool = setup_qi_db().await;
-    let wc_pool = setup_wc_db().await;
+    let _wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
 
@@ -206,7 +215,7 @@ async fn disposition_without_inspector_id_returns_validation_error() {
     .unwrap();
 
     let err = service::hold_inspection(
-        &qi_pool, &wc_pool, &tenant, inspection.id, None, None, &corr, None,
+        &qi_pool, &wc, &tenant, inspection.id, None, None, &corr, None,
     )
     .await;
     assert!(err.is_err());
@@ -258,7 +267,8 @@ async fn create_inspection_without_inspector_succeeds() {
 #[serial]
 async fn all_disposition_actions_enforce_authorization() {
     let qi_pool = setup_qi_db().await;
-    let wc_pool = setup_wc_db().await;
+    let _wc_pool = setup_wc_db().await;
+    let wc = wc_client();
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
     let unauthorized = Uuid::new_v4();
@@ -276,7 +286,7 @@ async fn all_disposition_actions_enforce_authorization() {
     // Hold: unauthorized
     let err = service::hold_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(unauthorized),
@@ -290,7 +300,7 @@ async fn all_disposition_actions_enforce_authorization() {
     // Accept: unauthorized
     let err = service::accept_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(unauthorized),
@@ -304,7 +314,7 @@ async fn all_disposition_actions_enforce_authorization() {
     // Reject: unauthorized
     let err = service::reject_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(unauthorized),
@@ -318,7 +328,7 @@ async fn all_disposition_actions_enforce_authorization() {
     // Release: unauthorized
     let err = service::release_inspection(
         &qi_pool,
-        &wc_pool,
+        &wc,
         &tenant,
         inspection.id,
         Some(unauthorized),
