@@ -16,10 +16,14 @@ use utoipa::OpenApi;
 #[openapi(
     info(
         title = "Shipping & Receiving Service",
-        version = "2.1.0",
+        version = "3.0.0",
         description = "Inbound and outbound shipment tracking with inventory integration.",
     ),
     paths(
+        shipping_receiving_rs::http::health::healthz,
+        shipping_receiving_rs::http::health::health,
+        shipping_receiving_rs::http::health::ready,
+        shipping_receiving_rs::http::health::version,
         shipping_receiving_rs::http::shipments::create_shipment,
         shipping_receiving_rs::http::shipments::get_shipment,
         shipping_receiving_rs::http::shipments::list_shipments,
@@ -43,7 +47,7 @@ use utoipa::OpenApi;
         AddLineRequest, ReceiveLineRequest, ShipLineQtyRequest,
         ShipmentLineRow,
         RouteLineRequest, InspectionRoutingRow,
-        ApiError, PaginatedResponse<Shipment>, PaginationMeta,
+        ApiError, PaginatedResponse<Shipment>, PaginatedResponse<InspectionRoutingRow>, PaginationMeta,
     )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),

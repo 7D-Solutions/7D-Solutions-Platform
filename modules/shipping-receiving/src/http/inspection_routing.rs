@@ -7,11 +7,12 @@ use axum::{
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::db::inspection_routing_repo::InspectionRoutingRow;
 use crate::domain::inspection_routing::{InspectionRoutingService, RouteLineRequest};
 use crate::AppState;
 
@@ -76,7 +77,7 @@ pub async fn route_line(
     tag = "Inspection Routing",
     params(("id" = Uuid, Path, description = "Shipment ID")),
     responses(
-        (status = 200, description = "Routings for shipment", body = Vec<crate::db::inspection_routing_repo::InspectionRoutingRow>),
+        (status = 200, description = "Paginated routings for shipment", body = PaginatedResponse<InspectionRoutingRow>),
     ),
     security(("bearer" = [])),
 )]
@@ -92,7 +93,11 @@ pub async fn list_routings(
     };
 
     match InspectionRoutingService::list_for_shipment(&state.pool, shipment_id, tenant_id).await {
-        Ok(routings) => (StatusCode::OK, Json(serde_json::json!(routings))).into_response(),
+        Ok(routings) => {
+            let total = routings.len() as i64;
+            let resp = PaginatedResponse::new(routings, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
