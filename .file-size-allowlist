@@ -39,7 +39,6 @@ modules/notifications/tests/real_e2e.rs                # ~647 LOC — notificati
 modules/inventory/tests/genealogy_integration.rs       # ~637 LOC — lot genealogy split/merge E2E tests
 
 # AP module — cohesive concerns per directive (bd-ctx1n)
-modules/ap/src/domain/match/engine.rs                  # 711 LOC — 3-way match algorithm (single concern)
 modules/ap/src/domain/bills/service.rs                 # 691 LOC — bill CRUD service (reads+writes+tests)
 modules/ap/src/domain/vendors/service.rs               # 632 LOC — vendor CRUD service (reads+writes+tests)
 modules/ap/src/domain/tax/service.rs                   # 618 LOC — tax lifecycle (quote/commit/void)

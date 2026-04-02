@@ -14,7 +14,11 @@
 //!   price: 5% of PO unit_price × matched_qty (configurable per request)
 //!   qty:   exact match (0 tolerance)
 
-pub mod engine;
+pub mod repo;
+pub mod service;
+
+#[cfg(test)]
+mod service_tests;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

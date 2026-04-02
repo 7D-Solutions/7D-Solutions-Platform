@@ -24,7 +24,7 @@ use uuid::Uuid;
 use crate::domain::bills::{
     approve, service, void, ApproveBillRequest, CreateBillRequest, VoidBillRequest,
 };
-use crate::domain::r#match::{engine, RunMatchRequest};
+use crate::domain::r#match::{service as match_service, RunMatchRequest};
 use crate::domain::tax::{self, ZeroTaxProvider};
 use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
@@ -305,7 +305,7 @@ pub async fn match_bill(
     };
     let correlation_id = correlation_from_headers(&headers);
 
-    match engine::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id).await {
+    match match_service::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id).await {
         Ok(outcome) => (StatusCode::OK, Json(outcome)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
