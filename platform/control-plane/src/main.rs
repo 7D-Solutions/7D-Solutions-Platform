@@ -7,9 +7,12 @@
 ///
 /// Connects to the tenant-registry database (required) and the AR database (optional).
 /// Runs SQLx migrations on startup.
+/// When NATS_URL is set, spawns an outbox relay that publishes provisioning events.
 use axum::extract::DefaultBodyLimit;
+use control_plane::outbox_relay;
 use control_plane::routes;
 use control_plane::state;
+use event_bus::{EventBus, NatsBus};
 
 use sqlx::postgres::PgPoolOptions;
 
@@ -69,6 +72,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             None
         }
     };
+
+    // NATS outbox relay (optional — skipped if NATS_URL is not set)
+    if let Ok(nats_url) = std::env::var("NATS_URL") {
+        match event_bus::connect_nats(&nats_url).await {
+            Ok(nats_client) => {
+                let bus: Arc<dyn EventBus> = Arc::new(NatsBus::new(nats_client));
+                tracing::info!(url = %nats_url, "connected to NATS");
+                tokio::spawn(outbox_relay::start_outbox_relay(pool.clone(), bus));
+            }
+            Err(e) => {
+                tracing::warn!(
+                    url = %nats_url,
+                    error = %e,
+                    "NATS connection failed — provisioning outbox relay disabled"
+                );
+            }
+        }
+    } else {
+        tracing::info!("NATS_URL not set — provisioning outbox relay disabled");
+    }
 
     let app_state = Arc::new(state::AppState::new(pool.clone(), ar_pool));
     let summary_state = Arc::new(SummaryState::new_local(pool));

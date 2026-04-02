@@ -4,5 +4,6 @@
 pub mod clients;
 pub mod handlers;
 pub mod models;
+pub mod outbox_relay;
 pub mod routes;
 pub mod state;
