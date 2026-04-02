@@ -50,7 +50,7 @@ pub struct Asset {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateAssetRequest {
     pub tenant_id: String,
     pub asset_tag: String,
@@ -67,7 +67,7 @@ pub struct CreateAssetRequest {
     pub idempotency_key: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateAssetRequest {
     pub name: Option<String>,
     pub description: Option<String>,

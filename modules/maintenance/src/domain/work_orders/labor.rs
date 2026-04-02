@@ -29,7 +29,7 @@ pub struct WoLabor {
 
 // ── Request types ─────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AddLaborRequest {
     pub tenant_id: String,
     pub technician_ref: String,

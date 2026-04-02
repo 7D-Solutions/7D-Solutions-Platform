@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.1.4 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.0 | 2026-04-02 | bd-29n3k | Add utoipa::path annotations to all 33 HTTP handlers. openapi_dump now produces complete spec (33 paths, 26 schemas). ToSchema added to all request types, IntoParams to query param structs. | Machine-readable OpenAPI spec enables client code generation. | No |
 | 2.1.3 | 2026-03-31 | bd-5vmu6.6 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 5 consumer adapters (workcenter created/updated/deactivated, downtime started/ended). Scheduler spawns in routes closure. Metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.2 | 2026-03-31 | — | Bump for module.toml + Cargo.toml SDK prep. | SDK conversion prep. | No |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |

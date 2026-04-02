@@ -81,7 +81,7 @@ impl TryFrom<String> for Priority {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreatePlanRequest {
     pub tenant_id: String,
     pub name: String,
@@ -97,7 +97,7 @@ pub struct CreatePlanRequest {
     pub task_checklist: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdatePlanRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -116,7 +116,7 @@ pub struct ListPlansQuery {
     pub offset: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AssignPlanRequest {
     pub tenant_id: String,
     pub asset_id: Uuid,

@@ -29,7 +29,7 @@ pub struct WoPart {
 
 // ── Request types ─────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AddPartRequest {
     pub tenant_id: String,
     pub part_description: String,

@@ -8,6 +8,10 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// GET /api/health — liveness probe (legacy, kept for compatibility)
+#[utoipa::path(
+    get, path = "/api/health", tag = "Health",
+    responses((status = 200, description = "Service is alive", body = serde_json::Value)),
+)]
 pub async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
@@ -17,6 +21,13 @@ pub async fn health() -> Json<serde_json::Value> {
 }
 
 /// GET /api/ready — readiness probe (verifies DB connectivity)
+#[utoipa::path(
+    get, path = "/api/ready", tag = "Health",
+    responses(
+        (status = 200, description = "Service is ready", body = serde_json::Value),
+        (status = 503, description = "Service is not ready", body = serde_json::Value),
+    ),
+)]
 pub async fn ready(
     State(state): State<Arc<crate::AppState>>,
 ) -> Result<Json<ReadyResponse>, (StatusCode, Json<ReadyResponse>)> {
@@ -46,6 +57,10 @@ pub async fn ready(
 }
 
 /// GET /api/version — module identity and schema version
+#[utoipa::path(
+    get, path = "/api/version", tag = "Health",
+    responses((status = 200, description = "Module version info", body = serde_json::Value)),
+)]
 pub async fn version() -> Json<serde_json::Value> {
     const SCHEMA_VERSION: &str = "20260224000001";
 

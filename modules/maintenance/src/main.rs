@@ -20,12 +20,84 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 #[openapi(
     info(
         title = "Maintenance Service",
-        version = "2.1.0",
+        version = "2.2.0",
         description = "Maintenance management: work orders, preventive plans, meters, calibration, \
                         downtime tracking, and labor management.\n\n\
                         **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
                         Permissions: MAINTENANCE_READ for queries, MAINTENANCE_MUTATE for writes."
     ),
+    paths(
+        // Assets
+        http::assets::create_asset,
+        http::assets::list_assets,
+        http::assets::get_asset,
+        http::assets::update_asset,
+        // Calibration
+        http::calibration_events::record_calibration_event,
+        http::calibration_events::get_calibration_status,
+        // Downtime
+        http::downtime::create_downtime,
+        http::downtime::list_downtime,
+        http::downtime::get_downtime,
+        http::downtime::list_asset_downtime,
+        // Health
+        http::health::health,
+        http::health::ready,
+        http::health::version,
+        // Meters
+        http::meters::create_meter_type,
+        http::meters::list_meter_types,
+        http::meters::record_reading,
+        http::meters::list_readings,
+        // Plans
+        http::plans::create_plan,
+        http::plans::list_plans,
+        http::plans::get_plan,
+        http::plans::update_plan,
+        http::plans::assign_plan,
+        http::plans::list_assignments,
+        // Work Orders
+        http::work_orders::create_work_order,
+        http::work_orders::list_work_orders,
+        http::work_orders::get_work_order,
+        http::work_orders::transition_work_order,
+        // Work Order Labor
+        http::work_order_labor::add_labor,
+        http::work_order_labor::list_labor,
+        http::work_order_labor::remove_labor,
+        // Work Order Parts
+        http::work_order_parts::add_part,
+        http::work_order_parts::list_parts,
+        http::work_order_parts::remove_part,
+    ),
+    components(schemas(
+        maintenance_rs::domain::assets::Asset,
+        maintenance_rs::domain::assets::CreateAssetRequest,
+        maintenance_rs::domain::assets::UpdateAssetRequest,
+        maintenance_rs::domain::calibration_events::CalibrationEvent,
+        maintenance_rs::domain::calibration_events::CalibrationStatus,
+        maintenance_rs::domain::calibration_events::CalibrationStatusResponse,
+        maintenance_rs::domain::calibration_events::RecordCalibrationRequest,
+        maintenance_rs::domain::downtime::DowntimeEvent,
+        maintenance_rs::domain::downtime::CreateDowntimeRequest,
+        maintenance_rs::domain::meters::MeterType,
+        maintenance_rs::domain::meters::MeterReading,
+        maintenance_rs::domain::meters::CreateMeterTypeRequest,
+        maintenance_rs::domain::meters::RecordReadingRequest,
+        maintenance_rs::domain::plans::MaintenancePlan,
+        maintenance_rs::domain::plans::PlanAssignment,
+        maintenance_rs::domain::plans::CreatePlanRequest,
+        maintenance_rs::domain::plans::UpdatePlanRequest,
+        maintenance_rs::domain::plans::AssignPlanRequest,
+        maintenance_rs::domain::work_orders::WorkOrder,
+        maintenance_rs::domain::work_orders::CreateWorkOrderRequest,
+        maintenance_rs::domain::work_orders::TransitionRequest,
+        maintenance_rs::domain::work_orders::WoLabor,
+        maintenance_rs::domain::work_orders::AddLaborRequest,
+        maintenance_rs::domain::work_orders::WoPart,
+        maintenance_rs::domain::work_orders::AddPartRequest,
+        platform_http_contracts::ApiError,
+    )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),
 )]

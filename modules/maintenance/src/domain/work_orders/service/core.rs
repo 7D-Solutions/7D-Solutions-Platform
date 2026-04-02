@@ -48,7 +48,7 @@ pub struct WorkOrder {
 
 // ── Request / query types ─────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateWorkOrderRequest {
     pub tenant_id: String,
     pub asset_id: Uuid,
@@ -63,7 +63,7 @@ pub struct CreateWorkOrderRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct TransitionRequest {
     pub tenant_id: String,
     pub status: String,

@@ -8,11 +8,12 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
-use crate::domain::assets::{AssetError, AssetRepo, CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
+use crate::domain::assets::{Asset, AssetError, AssetRepo, CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest};
 use crate::AppState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListAssetsParams {
     pub asset_type: Option<String>,
     pub status: Option<String>,
@@ -20,6 +21,16 @@ pub struct ListAssetsParams {
     pub page_size: Option<i64>,
 }
 
+#[utoipa::path(
+    post, path = "/api/maintenance/assets", tag = "Assets",
+    request_body = CreateAssetRequest,
+    responses(
+        (status = 201, description = "Asset created", body = Asset),
+        (status = 200, description = "Idempotent duplicate", body = Asset),
+        (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_asset(State(state): State<Arc<AppState>>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>, Json(mut req): Json<CreateAssetRequest>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     req.tenant_id = tenant_id;
@@ -30,6 +41,15 @@ pub async fn create_asset(State(state): State<Arc<AppState>>, claims: Option<Ext
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/maintenance/assets", tag = "Assets",
+    params(ListAssetsParams),
+    responses(
+        (status = 200, description = "Paginated list of assets", body = PaginatedResponse<Asset>),
+        (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_assets(State(state): State<Arc<AppState>>, claims: Option<Extension<VerifiedClaims>>, Query(params): Query<ListAssetsParams>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     let page = params.page.unwrap_or(1).max(1);
@@ -42,6 +62,15 @@ pub async fn list_assets(State(state): State<Arc<AppState>>, claims: Option<Exte
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/maintenance/assets/{asset_id}", tag = "Assets",
+    params(("asset_id" = Uuid, Path, description = "Asset ID")),
+    responses(
+        (status = 200, description = "Asset details", body = Asset),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_asset(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     match AssetRepo::find_by_id(&state.pool, id, &tenant_id).await {
@@ -51,6 +80,16 @@ pub async fn get_asset(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>,
     }
 }
 
+#[utoipa::path(
+    patch, path = "/api/maintenance/assets/{asset_id}", tag = "Assets",
+    params(("asset_id" = Uuid, Path, description = "Asset ID")),
+    request_body = UpdateAssetRequest,
+    responses(
+        (status = 200, description = "Asset updated", body = Asset),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn update_asset(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>, Json(req): Json<UpdateAssetRequest>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     match AssetRepo::update(&state.pool, id, &tenant_id, &req).await {

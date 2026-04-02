@@ -67,7 +67,7 @@ pub struct CalibrationStatusResponse {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RecordCalibrationRequest {
     pub tenant_id: String,
     pub performed_at: DateTime<Utc>,

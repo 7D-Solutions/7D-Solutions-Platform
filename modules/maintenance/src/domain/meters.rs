@@ -43,7 +43,7 @@ pub struct MeterReading {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateMeterTypeRequest {
     pub tenant_id: String,
     pub name: String,
@@ -51,7 +51,7 @@ pub struct CreateMeterTypeRequest {
     pub rollover_value: Option<i64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RecordReadingRequest {
     pub tenant_id: String,
     pub meter_type_id: Uuid,

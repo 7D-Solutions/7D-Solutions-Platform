@@ -60,7 +60,7 @@ fn validate_impact(s: &str) -> Result<(), DowntimeError> {
 // Request types
 // ============================================================================
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateDowntimeRequest {
     pub tenant_id: String,
     pub asset_id: Option<Uuid>,

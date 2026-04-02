@@ -5,13 +5,28 @@ use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
-use super::tenant::{extract_tenant, with_request_id};
-use crate::domain::work_orders::{CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WorkOrderRepo};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
+use crate::domain::work_orders::{CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WorkOrder, WorkOrderRepo};
 use crate::AppState;
 
-#[derive(Debug, Deserialize)]
-pub struct ListWorkOrdersParams { pub asset_id: Option<Uuid>, pub status: Option<String>, pub page: Option<i64>, pub page_size: Option<i64> }
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+pub struct ListWorkOrdersParams {
+    pub asset_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
 
+#[utoipa::path(
+    post, path = "/api/maintenance/work-orders", tag = "Work Orders",
+    request_body = CreateWorkOrderRequest,
+    responses(
+        (status = 201, description = "Work order created", body = WorkOrder),
+        (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_work_order(State(state): State<Arc<AppState>>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>, Json(mut req): Json<CreateWorkOrderRequest>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     req.tenant_id = tenant_id;
@@ -21,6 +36,15 @@ pub async fn create_work_order(State(state): State<Arc<AppState>>, claims: Optio
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/maintenance/work-orders", tag = "Work Orders",
+    params(ListWorkOrdersParams),
+    responses(
+        (status = 200, description = "Paginated work orders", body = PaginatedResponse<WorkOrder>),
+        (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_work_orders(State(state): State<Arc<AppState>>, claims: Option<Extension<VerifiedClaims>>, Query(params): Query<ListWorkOrdersParams>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     let page = params.page.unwrap_or(1).max(1);
@@ -34,6 +58,15 @@ pub async fn list_work_orders(State(state): State<Arc<AppState>>, claims: Option
     }
 }
 
+#[utoipa::path(
+    get, path = "/api/maintenance/work-orders/{wo_id}", tag = "Work Orders",
+    params(("wo_id" = Uuid, Path, description = "Work order ID")),
+    responses(
+        (status = 200, description = "Work order details", body = WorkOrder),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_work_order(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     match WorkOrderRepo::find_by_id(&state.pool, id, &tenant_id).await {
@@ -43,6 +76,16 @@ pub async fn get_work_order(State(state): State<Arc<AppState>>, Path(id): Path<U
     }
 }
 
+#[utoipa::path(
+    patch, path = "/api/maintenance/work-orders/{wo_id}/transition", tag = "Work Orders",
+    params(("wo_id" = Uuid, Path, description = "Work order ID")),
+    request_body = TransitionRequest,
+    responses(
+        (status = 200, description = "Work order transitioned", body = WorkOrder),
+        (status = 400, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn transition_work_order(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>, claims: Option<Extension<VerifiedClaims>>, tracing_ctx: Option<Extension<TracingContext>>, Json(mut req): Json<TransitionRequest>) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) { Ok(t) => t, Err(e) => return with_request_id(e, &tracing_ctx).into_response() };
     req.tenant_id = tenant_id;
