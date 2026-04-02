@@ -23,7 +23,7 @@ use utoipa::OpenApi;
 #[openapi(
     info(
         title = "GL Service",
-        version = "3.0.0",
+        version = "3.0.1",
         description = "Double-entry general ledger with journal engine, accruals, and revenue recognition.",
     ),
     paths(
