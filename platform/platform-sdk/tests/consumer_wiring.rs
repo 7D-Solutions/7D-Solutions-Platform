@@ -9,6 +9,7 @@ use std::sync::Arc;
 use event_bus::{EventBus, EventEnvelope, InMemoryBus};
 use platform_sdk::consumer::ConsumerDef;
 use platform_sdk::{ConsumerError, Manifest, ModuleContext};
+use tokio::sync::Mutex;
 
 /// Connect to the test database or skip.
 async fn test_pool() -> Option<sqlx::PgPool> {
@@ -488,4 +489,86 @@ async fn provisioning_hook_skips_bad_payload() {
 
     let _ = shutdown_tx.send(true);
     let _ = handle.await;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 9: Correlation ID propagated into active span during handler
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn consumer_span_carries_correlation_id() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
+    let manifest = test_manifest();
+    let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
+
+    let captured_span_name = Arc::new(Mutex::new(None::<String>));
+    let captured_fields = Arc::new(Mutex::new(Vec::<String>::new()));
+    let name_clone = captured_span_name.clone();
+    let fields_clone = captured_fields.clone();
+
+    let consumers = vec![ConsumerDef::new("test.tracing", move |_ctx, _env| {
+        let name = name_clone.clone();
+        let fields = fields_clone.clone();
+        async move {
+            let span = tracing::Span::current();
+            if let Some(meta) = span.metadata() {
+                *name.lock().await = Some(meta.name().to_string());
+                *fields.lock().await =
+                    meta.fields().iter().map(|f| f.name().to_string()).collect();
+            }
+            Ok(())
+        }
+    })];
+
+    let handles = platform_sdk::consumer::wire_consumers(consumers, &bus, &ctx)
+        .await
+        .expect("wire_consumers should succeed");
+
+    // Build an envelope WITH correlation_id set
+    let envelope = EventEnvelope::new(
+        "tenant-test".into(),
+        "test-module".into(),
+        "test.tracing".into(),
+        serde_json::json!({"key": "value"}),
+    )
+    .with_correlation_id(Some("corr-test-123".into()))
+    .with_trace_id(Some("trace-test-456".into()));
+
+    let payload = serde_json::to_vec(&envelope).unwrap();
+    bus.publish("test.tracing", payload).await.unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    // The handler must have run inside the "event_consumer" span
+    let span_name = captured_span_name.lock().await;
+    assert_eq!(
+        span_name.as_deref(),
+        Some("event_consumer"),
+        "handler should run inside the event_consumer span"
+    );
+
+    // The span must include correlation_id, trace_id, causation_id fields
+    let fields = captured_fields.lock().await;
+    assert!(
+        fields.contains(&"correlation_id".to_string()),
+        "span must have correlation_id field, got: {:?}",
+        *fields
+    );
+    assert!(
+        fields.contains(&"trace_id".to_string()),
+        "span must have trace_id field, got: {:?}",
+        *fields
+    );
+    assert!(
+        fields.contains(&"causation_id".to_string()),
+        "span must have causation_id field, got: {:?}",
+        *fields
+    );
+
+    handles.shutdown().await;
 }
