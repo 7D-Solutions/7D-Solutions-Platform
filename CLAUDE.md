@@ -91,12 +91,23 @@ All work MUST be tracked with a bead. Edits are blocked until you have an active
 ./scripts/bv-claim.sh                          # Claim recommended bead
 ```
 
-**Commits:** Always prefix with bead ID:
-```bash
-git commit -m "[bd-xxx] Your commit message"
-```
+## Git Commit Protocol (MANDATORY)
 
-**End of work:** Close your bead:
+**Agents do NOT commit.** The orchestrator (BrightHill) handles all git operations.
+
+**What agents must NOT do:**
+- `git add`, `git commit`, `git stash`, `git reset`, or any git write operation
+- Stage files, create commits, or push
+
+**What agents DO:**
+1. Write code for your bead
+2. When done, mail BrightHill with: bead ID, list of files changed, what you did
+3. BrightHill reviews, stages, and commits in clean batches
+4. You can still run `git diff` and `git status` to check your work
+
+**Why:** Multiple agents sharing one working tree causes cross-contamination when staging and committing simultaneously. Pre-commit hooks scan all staged files, not just yours. Stashes collide. Centralized commits prevent all of this.
+
+**End of work:** Do NOT close your bead — mail BrightHill and wait for confirmation.
 ```bash
-br close bd-xxx
+./scripts/agent-mail-helper.sh send BrightHill "bd-xxx done" "Files changed: X, Y, Z. What I did: ..."
 ```
