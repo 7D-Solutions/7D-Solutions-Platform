@@ -19,7 +19,9 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::party::{extract_tenant, with_request_id, DataResponse};
+use platform_http_contracts::PaginatedResponse;
+
+use super::party::{extract_tenant, with_request_id};
 use crate::domain::address::{Address, CreateAddressRequest, UpdateAddressRequest};
 use crate::domain::address_service;
 use crate::AppState;
@@ -60,7 +62,7 @@ pub async fn create_address(
     tag = "Addresses",
     params(("party_id" = Uuid, Path, description = "Party ID")),
     responses(
-        (status = 200, description = "Address list", body = DataResponse<Address>),
+        (status = 200, description = "Address list", body = PaginatedResponse<Address>),
     ),
     security(("bearer" = [])),
 )]
@@ -76,7 +78,10 @@ pub async fn list_addresses(
     };
 
     match address_service::list_addresses(&state.pool, &app_id, party_id).await {
-        Ok(addresses) => Json(DataResponse { data: addresses }).into_response(),
+        Ok(addresses) => {
+            let total = addresses.len() as i64;
+            Json(PaginatedResponse::new(addresses, 1, total, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

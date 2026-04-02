@@ -21,6 +21,8 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use platform_http_contracts::PaginatedResponse;
+
 use super::party::{extract_tenant, with_request_id, DataResponse};
 use crate::domain::contact::{
     Contact, CreateContactRequest, PrimaryContactEntry, SetPrimaryRequest, UpdateContactRequest,
@@ -76,7 +78,7 @@ pub async fn create_contact(
     tag = "Contacts",
     params(("party_id" = Uuid, Path, description = "Party ID")),
     responses(
-        (status = 200, description = "Contact list", body = DataResponse<Contact>),
+        (status = 200, description = "Contact list", body = PaginatedResponse<Contact>),
     ),
     security(("bearer" = [])),
 )]
@@ -92,7 +94,10 @@ pub async fn list_contacts(
     };
 
     match contact_service::list_contacts(&state.pool, &app_id, party_id).await {
-        Ok(contacts) => Json(DataResponse { data: contacts }).into_response(),
+        Ok(contacts) => {
+            let total = contacts.len() as i64;
+            Json(PaginatedResponse::new(contacts, 1, total, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
