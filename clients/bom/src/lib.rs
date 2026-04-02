@@ -19,3 +19,55 @@ pub use bom_revisions::BomRevisionsClient;
 pub use eco::EcoClient;
 pub use eco_lifecycle::EcoLifecycleClient;
 pub use eco_links::EcoLinksClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for BomClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for BomExplosionClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for BomLinesClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for BomRevisionsClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for EcoClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for EcoLifecycleClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for EcoLinksClient {
+    const SERVICE_NAME: &'static str = "bom";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

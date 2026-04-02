@@ -23,3 +23,62 @@ pub use purchase_orders::PurchaseOrdersClient;
 pub use reports::ReportsClient;
 pub use tax_reports::TaxReportsClient;
 pub use vendors::VendorsClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AllocationsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for BillsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PaymentRunsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PaymentTermsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PurchaseOrdersClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReportsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TaxReportsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for VendorsClient {
+    const SERVICE_NAME: &'static str = "ap";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

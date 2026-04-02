@@ -15,3 +15,41 @@ pub use aging::AgingClient;
 pub use forecast::ForecastClient;
 pub use kpis::KpisClient;
 pub use statements::StatementsClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AdminClient {
+    const SERVICE_NAME: &'static str = "reporting";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for AgingClient {
+    const SERVICE_NAME: &'static str = "reporting";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ForecastClient {
+    const SERVICE_NAME: &'static str = "reporting";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for KpisClient {
+    const SERVICE_NAME: &'static str = "reporting";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for StatementsClient {
+    const SERVICE_NAME: &'static str = "reporting";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

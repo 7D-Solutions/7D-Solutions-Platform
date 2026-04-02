@@ -237,6 +237,30 @@ fn emit_lib(parsed: &ParsedSpec, mod_names: &[String], type_mod_names: &[String]
             .unwrap_or(mod_name);
         out.push_str(&format!("pub use {actual_mod}::{struct_name};\n"));
     }
+
+    // Emit PlatformService trait impls so verticals can use
+    // ctx.platform_client::<T>() from the SDK's VerticalBuilder.
+    let service_name = parsed
+        .crate_name
+        .strip_prefix("platform-client-")
+        .unwrap_or(&parsed.crate_name);
+    out.push_str("\n// -- PlatformService trait impls (connects to SDK VerticalBuilder) --\n\n");
+    for tag in &tags {
+        let struct_name = tag_to_client_name(tag);
+        out.push_str(&format!(
+            "impl platform_sdk::PlatformService for {struct_name} {{\n"
+        ));
+        out.push_str(&format!(
+            "    const SERVICE_NAME: &'static str = \"{service_name}\";\n"
+        ));
+        out.push_str(
+            "    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {\n",
+        );
+        out.push_str("        Self::new(client)\n");
+        out.push_str("    }\n");
+        out.push_str("}\n\n");
+    }
+
     out
 }
 

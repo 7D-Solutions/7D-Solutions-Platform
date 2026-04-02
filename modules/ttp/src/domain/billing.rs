@@ -17,7 +17,7 @@
 ///   4. Finalize the AR invoice (draft → open).
 ///   5. Mark one-time charges as billed with ar_invoice_id.
 ///   6. Upsert a billing run item with status = invoiced.
-use platform_sdk::PlatformClient;
+use platform_sdk::{PlatformClient, VerifiedClaims};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
@@ -84,6 +84,7 @@ pub async fn run_billing(
     pool: &PgPool,
     registry_client: &TenantRegistryClient,
     ar_client: &ArClient,
+    claims: &VerifiedClaims,
     tenant_id: Uuid,
     billing_period: &str,
     idempotency_key: &str,
@@ -121,7 +122,7 @@ pub async fn run_billing(
     }
 
     // 2. Resolve tenant_id → app_id (fail-closed: abort if registry is unreachable)
-    let _app_id = registry_client.get_app_id(tenant_id).await?;
+    let _app_id = registry_client.get_app_id(claims, tenant_id).await?;
 
     // 3. Create the billing run record (UNIQUE on tenant+period prevents races)
     let run_id = Uuid::new_v4();
@@ -458,11 +459,12 @@ mod tests {
 
         let registry = TenantRegistryClient::new(registry_url);
         let ar = ArClient::new(ar_url);
+        let claims = PlatformClient::service_claims(tenant_id);
 
-        let summary1 = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "key-001")
+        let summary1 = run_billing(&pool, &registry, &ar, &claims, tenant_id, "2026-02", "key-001")
             .await
             .expect("first billing run");
-        let summary2 = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "key-001")
+        let summary2 = run_billing(&pool, &registry, &ar, &claims, tenant_id, "2026-02", "key-001")
             .await
             .expect("second billing run (idempotent)");
 

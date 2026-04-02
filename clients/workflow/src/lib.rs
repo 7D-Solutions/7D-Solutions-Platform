@@ -9,3 +9,20 @@ pub mod instances;
 pub use types::*;
 pub use definitions::DefinitionsClient;
 pub use instances::InstancesClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for DefinitionsClient {
+    const SERVICE_NAME: &'static str = "workflow";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for InstancesClient {
+    const SERVICE_NAME: &'static str = "workflow";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

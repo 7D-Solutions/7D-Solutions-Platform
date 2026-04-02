@@ -11,3 +11,27 @@ pub use types::*;
 pub use checkout_sessions::CheckoutSessionsClient;
 pub use payments::PaymentsClient;
 pub use webhooks::WebhooksClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for CheckoutSessionsClient {
+    const SERVICE_NAME: &'static str = "payments";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PaymentsClient {
+    const SERVICE_NAME: &'static str = "payments";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WebhooksClient {
+    const SERVICE_NAME: &'static str = "payments";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

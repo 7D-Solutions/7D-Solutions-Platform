@@ -41,3 +41,125 @@ pub use taxconfig::TaxconfigClient;
 pub use taxreports::TaxreportsClient;
 pub use usage::UsageClient;
 pub use webhooks::WebhooksClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AgingClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for AllocationClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ChargesClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for CreditmemosClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for CustomersClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for DisputesClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for DunningClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for EventsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for InvoicesClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PaymentmethodsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReconciliationClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for RefundsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for SubscriptionsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TaxconfigClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TaxreportsClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for UsageClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WebhooksClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

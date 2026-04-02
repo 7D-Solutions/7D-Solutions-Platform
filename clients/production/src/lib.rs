@@ -21,3 +21,62 @@ pub use routings::RoutingsClient;
 pub use time_entries::TimeEntriesClient;
 pub use work_orders::WorkOrdersClient;
 pub use workcenters::WorkcentersClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for ComponentIssuesClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for DowntimeClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for FgReceiptsClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for OperationsClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for RoutingsClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TimeEntriesClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WorkOrdersClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WorkcentersClient {
+    const SERVICE_NAME: &'static str = "production";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

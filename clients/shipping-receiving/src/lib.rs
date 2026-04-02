@@ -13,3 +13,34 @@ pub use inspection_routing::InspectionRoutingClient;
 pub use refs::RefsClient;
 pub use shipment_lines::ShipmentLinesClient;
 pub use shipments::ShipmentsClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for InspectionRoutingClient {
+    const SERVICE_NAME: &'static str = "shipping-receiving";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for RefsClient {
+    const SERVICE_NAME: &'static str = "shipping-receiving";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ShipmentLinesClient {
+    const SERVICE_NAME: &'static str = "shipping-receiving";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ShipmentsClient {
+    const SERVICE_NAME: &'static str = "shipping-receiving";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

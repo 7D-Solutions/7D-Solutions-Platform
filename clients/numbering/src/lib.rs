@@ -9,3 +9,20 @@ pub mod policies;
 pub use types::*;
 pub use numbering::NumberingClient;
 pub use policies::PoliciesClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for NumberingClient {
+    const SERVICE_NAME: &'static str = "numbering";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for PoliciesClient {
+    const SERVICE_NAME: &'static str = "numbering";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

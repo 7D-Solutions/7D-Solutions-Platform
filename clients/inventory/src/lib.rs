@@ -47,3 +47,139 @@ pub use traceability::TraceabilityClient;
 pub use transfers::TransfersClient;
 pub use uom::UomClient;
 pub use valuation::ValuationClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AdjustmentsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for CycleCountsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ExpiryClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for HistoryClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for IssuesClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ItemsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for LabelsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for LocationsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for LotGenealogyClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for LotsSerialsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReceiptsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReorderPoliciesClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReservationsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for RevisionsClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for StatusTransfersClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TraceabilityClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for TransfersClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for UomClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ValuationClient {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

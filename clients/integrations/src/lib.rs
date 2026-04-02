@@ -15,3 +15,41 @@ pub use external_refs::ExternalRefsClient;
 pub use oauth::OauthClient;
 pub use qbo_invoice::QboInvoiceClient;
 pub use webhooks::WebhooksClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for ConnectorsClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ExternalRefsClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for OauthClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for QboInvoiceClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for WebhooksClient {
+    const SERVICE_NAME: &'static str = "integrations";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

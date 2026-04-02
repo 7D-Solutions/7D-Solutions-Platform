@@ -13,3 +13,34 @@ pub use assets::AssetsClient;
 pub use categories::CategoriesClient;
 pub use depreciation::DepreciationClient;
 pub use disposals::DisposalsClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AssetsClient {
+    const SERVICE_NAME: &'static str = "fixed-assets";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for CategoriesClient {
+    const SERVICE_NAME: &'static str = "fixed-assets";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for DepreciationClient {
+    const SERVICE_NAME: &'static str = "fixed-assets";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for DisposalsClient {
+    const SERVICE_NAME: &'static str = "fixed-assets";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

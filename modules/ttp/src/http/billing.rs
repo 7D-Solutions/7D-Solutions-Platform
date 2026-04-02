@@ -85,7 +85,8 @@ pub async fn create_billing_run(
     Json(req): Json<BillingRunRequest>,
 ) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)> {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
-    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
+    let verified_claims = claims.map(|Extension(c)| c);
+    let tenant_id = verified_claims.as_ref().map(|c| c.tenant_id).ok_or_else(|| {
         (
             StatusCode::UNAUTHORIZED,
             Json(ErrorBody {
@@ -118,10 +119,20 @@ pub async fn create_billing_run(
 
     let correlation_id = req.idempotency_key.clone();
 
+    let claims_ref = verified_claims.as_ref().ok_or_else(|| {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "Missing claims for service call".to_string(),
+                code: "unauthorized".to_string(),
+            }),
+        )
+    })?;
     match run_billing(
         &state.pool,
         &state.registry_client,
         &state.ar_client,
+        claims_ref,
         tenant_id,
         &req.billing_period,
         &req.idempotency_key,

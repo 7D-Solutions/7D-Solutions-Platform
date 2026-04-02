@@ -7,7 +7,7 @@
 ///
 /// Fail-closed: billing run aborts if app_id cannot be resolved.
 use platform_client_tenant_registry::TenantsClient;
-use platform_sdk::ClientError;
+use platform_sdk::{ClientError, PlatformClient, VerifiedClaims};
 use uuid::Uuid;
 
 /// Error from the tenant-registry client.
@@ -32,13 +32,8 @@ pub struct TenantRegistryClient {
 
 impl TenantRegistryClient {
     pub fn new(base_url: impl Into<String>) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .expect("build reqwest client for tenant-registry");
-
         Self {
-            inner: TenantsClient::new(http, base_url, ""),
+            inner: TenantsClient::new(PlatformClient::new(base_url.into())),
         }
     }
 
@@ -47,8 +42,8 @@ impl TenantRegistryClient {
     /// Returns `Ok(app_id)` on success.
     /// Returns `Err(TenantRegistryError::TenantNotFound)` if tenant is unknown.
     /// Returns `Err(TenantRegistryError::NoAppId)` if app_id is not yet assigned.
-    pub async fn get_app_id(&self, tenant_id: Uuid) -> Result<String, TenantRegistryError> {
-        match self.inner.get_app_id(tenant_id).await {
+    pub async fn get_app_id(&self, claims: &VerifiedClaims, tenant_id: Uuid) -> Result<String, TenantRegistryError> {
+        match self.inner.get_app_id(claims, tenant_id).await {
             Ok(row) => Ok(row.app_id),
             Err(ClientError::Api { status: 404, .. })
             | Err(ClientError::Unexpected { status: 404, .. }) => {
@@ -70,10 +65,5 @@ mod tests {
     #[test]
     fn client_constructs_without_panic() {
         let _client = TenantRegistryClient::new("http://localhost:8092");
-    }
-
-    #[test]
-    fn client_accepts_trailing_slash() {
-        let _client = TenantRegistryClient::new("http://localhost:8092/");
     }
 }

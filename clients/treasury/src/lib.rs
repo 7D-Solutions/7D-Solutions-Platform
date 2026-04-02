@@ -15,3 +15,41 @@ pub use gl_reconciliation::GlReconciliationClient;
 pub use import::ImportClient;
 pub use reconciliation::ReconciliationClient;
 pub use reports::ReportsClient;
+
+// -- PlatformService trait impls (connects to SDK VerticalBuilder) --
+
+impl platform_sdk::PlatformService for AccountsClient {
+    const SERVICE_NAME: &'static str = "treasury";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for GlReconciliationClient {
+    const SERVICE_NAME: &'static str = "treasury";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ImportClient {
+    const SERVICE_NAME: &'static str = "treasury";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReconciliationClient {
+    const SERVICE_NAME: &'static str = "treasury";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for ReportsClient {
+    const SERVICE_NAME: &'static str = "treasury";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
