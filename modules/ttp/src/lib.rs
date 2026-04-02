@@ -13,4 +13,6 @@ pub use config::Config;
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub metrics: std::sync::Arc<metrics::TtpMetrics>,
+    pub registry_client: clients::tenant_registry::TenantRegistryClient,
+    pub ar_client: clients::ar::ArClient,
 }

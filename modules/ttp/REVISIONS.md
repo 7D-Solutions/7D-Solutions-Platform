@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.16 | 2026-04-02 | bd-oy9jj | Move TENANT_REGISTRY_URL and AR_BASE_URL env var reads from per-request in HTTP handler to startup in AppState. Clients now constructed once and shared via state. | Config anti-pattern: reading env vars per-request allows inconsistent behaviour if vars change mid-flight. Startup resolution ensures invariant URLs for the entire process lifetime. | No |
 | 2.1.15 | 2026-04-01 | bd-2gyqj | Update ArClient to pass &VerifiedClaims through find_or_create_customer, create_invoice, finalize_invoice. Constructor uses PlatformClient::new(). billing.rs uses PlatformClient::service_claims(tenant_id). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.1.14 | 2026-04-01 | bd-o3uhy | Replace hand-written AR and Tenant-Registry HTTP clients (~331 LOC) with thin adapters over platform-client-ar and platform-client-tenant-registry. Orchestration logic unchanged. | Typed client standardisation — all inter-module HTTP calls use generated clients for type safety and consistency. | No |
 | 2.1.13 | 2026-04-01 | bd-manm4 | Add utoipa dependency, ApiDoc struct in http/mod.rs, and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |

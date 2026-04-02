@@ -12,6 +12,8 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use ttp_rs::clients::ar::ArClient;
+use ttp_rs::clients::tenant_registry::TenantRegistryClient;
 use ttp_rs::http::service_agreements::list_service_agreements;
 use ttp_rs::metrics::TtpMetrics;
 use ttp_rs::AppState;
@@ -64,7 +66,12 @@ fn fake_claims(tenant_id: Uuid) -> VerifiedClaims {
 /// Build the HTTP app with claims injected as an Extension.
 fn build_app(pool: PgPool, claims: VerifiedClaims) -> axum::Router {
     let metrics = Arc::new(TtpMetrics::new().unwrap());
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        registry_client: TenantRegistryClient::new("http://localhost:8092"),
+        ar_client: ArClient::new("http://localhost:8086"),
+    });
     axum::Router::new()
         .route(
             "/api/ttp/service-agreements",
@@ -258,7 +265,12 @@ async fn missing_claims_returns_401() {
     .expect("lazy pool");
 
     let metrics = Arc::new(TtpMetrics::new().unwrap());
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        registry_client: TenantRegistryClient::new("http://localhost:8092"),
+        ar_client: ArClient::new("http://localhost:8086"),
+    });
     let app = axum::Router::new()
         .route(
             "/api/ttp/service-agreements",

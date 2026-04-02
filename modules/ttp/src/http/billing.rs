@@ -38,8 +38,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::clients::ar::ArClient;
-use crate::clients::tenant_registry::{TenantRegistryClient, TenantRegistryError};
+use crate::clients::tenant_registry::TenantRegistryError;
 use crate::domain::billing::{run_billing, BillingError};
 use crate::events::{
     create_ttp_envelope, BillingRunCompleted, BillingRunFailed, BILLING_RUN_COMPLETED,
@@ -95,16 +94,6 @@ pub async fn create_billing_run(
             }),
         )
     })?;
-    // Build clients from env — base URLs are resolved at request time from env so
-    // they can be overridden in test environments.
-    let registry_url = std::env::var("TENANT_REGISTRY_URL")
-        .unwrap_or_else(|_| "http://localhost:8092".to_string());
-    let ar_url =
-        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
-
-    let registry = TenantRegistryClient::new(registry_url);
-    let ar = ArClient::new(ar_url);
-
     // Validate billing_period format ("YYYY-MM")
     if !is_valid_billing_period(&req.billing_period) {
         return Err((
@@ -131,8 +120,8 @@ pub async fn create_billing_run(
 
     match run_billing(
         &state.pool,
-        &registry,
-        &ar,
+        &state.registry_client,
+        &state.ar_client,
         tenant_id,
         &req.billing_period,
         &req.idempotency_key,
@@ -304,9 +293,20 @@ mod tests {
 
     /// Build the HTTP app for testing, injecting VerifiedClaims via Extension.
     fn build_app(pool: sqlx::PgPool, claims: VerifiedClaims) -> axum::Router {
+        use crate::clients::ar::ArClient;
+        use crate::clients::tenant_registry::TenantRegistryClient;
         use crate::metrics::TtpMetrics;
-        let metrics = Arc::new(TtpMetrics::new().unwrap());
-        let state = Arc::new(crate::AppState { pool, metrics });
+        let metrics = Arc::new(TtpMetrics::new().expect("create test metrics"));
+        let registry_url = std::env::var("TENANT_REGISTRY_URL")
+            .unwrap_or_else(|_| "http://localhost:8092".to_string());
+        let ar_url = std::env::var("AR_BASE_URL")
+            .unwrap_or_else(|_| "http://localhost:8086".to_string());
+        let state = Arc::new(crate::AppState {
+            pool,
+            metrics,
+            registry_client: TenantRegistryClient::new(registry_url),
+            ar_client: ArClient::new(ar_url),
+        });
         axum::Router::new()
             .route(
                 "/api/ttp/billing-runs",
@@ -318,11 +318,15 @@ mod tests {
 
     #[tokio::test]
     async fn missing_claims_returns_401() {
+        use crate::clients::ar::ArClient;
+        use crate::clients::tenant_registry::TenantRegistryClient;
         use crate::metrics::TtpMetrics;
-        let metrics = Arc::new(TtpMetrics::new().unwrap());
+        let metrics = Arc::new(TtpMetrics::new().expect("create test metrics"));
         let state = Arc::new(crate::AppState {
             pool: lazy_pool(),
             metrics,
+            registry_client: TenantRegistryClient::new("http://localhost:8092"),
+            ar_client: ArClient::new("http://localhost:8086"),
         });
         let app = axum::Router::new()
             .route(
@@ -342,11 +346,11 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                    .unwrap(),
+                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .expect("build request"),
             )
             .await
-            .unwrap();
+            .expect("oneshot response");
 
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
@@ -367,11 +371,11 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                    .unwrap(),
+                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .expect("build request"),
             )
             .await
-            .unwrap();
+            .expect("oneshot response");
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
@@ -392,11 +396,11 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                    .unwrap(),
+                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .expect("build request"),
             )
             .await
-            .unwrap();
+            .expect("oneshot response");
 
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
@@ -422,11 +426,11 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
-                    .unwrap(),
+                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .expect("build request"),
             )
             .await
-            .unwrap();
+            .expect("oneshot response");
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
