@@ -1,0 +1,1 @@
+/Users/james/Projects/AgentCore/scripts/lint-soc.sh
