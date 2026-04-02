@@ -7,8 +7,10 @@
 ## Contents
 
 1. [NATS Event Bus](#nats-event-bus) — subject naming, EventEnvelope (17 fields), creating envelopes, MerchantContext, idempotency, known subjects, evolution rules
-2. [Outbox Pattern — Copy This](#outbox-pattern--copy-this) — SQL migration, `enqueue_event_tx()`, background publisher
+2. [Outbox Pattern — Copy This](#outbox-pattern--copy-this) — SQL migration, `enqueue_event_tx()`, SDK auto-publisher
 3. [Integrations Module](#integrations-module) — inbound webhooks, external ID mapping
+4. [module.toml — Complete Template](#moduletoml--complete-template) — all supported sections with examples
+5. [Gotchas](#gotchas) — common pitfalls with event_type, publishers, and module.toml
 
 ---
 
@@ -18,6 +20,7 @@
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. NATS subjects, EventEnvelope, MerchantContext, outbox migration + enqueue + background publisher, Integrations module. |
 | 2.0 | 2026-03-04 | MaroonHarbor | Added all Phase 57+67 event subjects: party contacts/tags, maintenance (17 subjects), auth SoD, notifications (templates, delivery, inbox, DLQ, broadcast). |
+| 3.0 | 2026-04-02 | CopperRiver | Fix event_type format to match SDK publisher (full NATS subject). Add complete module.toml template. Add gotchas section. Reference event catalog. |
 
 ---
 
@@ -29,22 +32,26 @@ Platform uses **NATS JetStream** for async events.
 
 ### Subject Naming Convention
 
-**Pattern:** `{module}.events.{event-type}`
+**Pattern:** `{module}.{event_name}` — the `event_type` field stored in the outbox IS the full NATS subject.
 
 ```
-ar.events.invoice.created
-ar.events.payment.collection.requested
+ar.invoice_opened
+ar.invoice_paid
+ar.invoice_suspended
+shipping_receiving.shipment_created
+shipping_receiving.shipment_status_changed
 auth.user_registered
 auth.user_logged_in
-gl.events.journal.posted
-yourapp.events.order.created      ← your events
-yourapp.events.order.completed      ← your events
+yourapp.order_created              ← your events
+yourapp.order_completed            ← your events
 ```
 
-Source: AR publisher at `modules/ar/src/events/publisher.rs` line 56: `format!("ar.events.{}", event.event_type)`.
-Source: identity-auth at `platform/identity-auth/src/auth/handlers.rs`: publishes to `"auth.user_registered"`, `"auth.user_logged_in"`.
+Source: SDK publisher at `platform/platform-sdk/src/publisher.rs` line 168: `bus.publish(&event_type, bytes)` — uses event_type directly as the NATS subject.
+Source: AR event constants at `modules/ar/src/events/contracts/invoice_lifecycle.rs`: `EVENT_TYPE_INVOICE_OPENED = "ar.invoice_opened"`.
 
-**Note:** Some older subjects may exist in flat format (e.g. `invoice.issued`). When subscribing, use the exact subject strings. When publishing new events, always use the namespaced `{module}.events.{type}` format.
+**The event_type you store in the outbox IS the NATS subject.** The SDK publisher does not add any prefix. Whatever string you put in the `event_type` column is exactly what gets published as the NATS subject.
+
+> **Canonical reference:** See [event-catalog.md](../event-catalog.md) for the complete list of all event subjects across all modules.
 
 ### EventEnvelope — Canonical Structure (17 Fields)
 
@@ -55,7 +62,7 @@ This is the platform-wide event envelope. **Use the `event-bus` crate — do not
 ```rust
 pub struct EventEnvelope<T> {
     pub event_id: Uuid,                           // Auto-generated. Idempotency key.
-    pub event_type: String,                        // e.g. "order.created"
+    pub event_type: String,                        // Full NATS subject, e.g. "yourapp.order_created"
     pub occurred_at: DateTime<Utc>,                // Auto-generated.
     pub tenant_id: String,                         // Multi-tenant isolation.
     pub source_module: String,                     // e.g. "trashtech"
@@ -81,16 +88,16 @@ pub struct EventEnvelope<T> {
 ```rust
 use event_bus::{EventEnvelope, MerchantContext};
 
-// Basic construction
+// Basic construction — event_type is the full NATS subject
 let envelope = EventEnvelope::new(
-    tenant_id.to_string(),       // tenant_id
-    "your-app".to_string(),     // source_module
-    "order.created".to_string(), // event_type
-    payload,                     // your struct implementing Serialize
+    tenant_id.to_string(),              // tenant_id
+    "your-app".to_string(),            // source_module
+    "yourapp.order_created".to_string(), // event_type = full NATS subject
+    payload,                            // your struct implementing Serialize
 );
 
 // With builder methods
-let envelope = EventEnvelope::new(tenant_id, "your-app".into(), "order.created".into(), payload)
+let envelope = EventEnvelope::new(tenant_id, "your-app".into(), "yourapp.order_created".into(), payload)
     .with_source_version(env!("CARGO_PKG_VERSION").to_string())
     .with_correlation_id(Some(correlation_id))
     .with_causation_id(Some(causation_id))
@@ -163,15 +170,22 @@ All events are deduplicated by `event_id`. Your consumer must check and skip alr
 
 | Subject | Trigger |
 |---------|---------|
-| `ar.events.invoice.created` | Invoice created |
-| `ar.events.payment.collection.requested` | Collection triggered |
-| `gl.events.journal.posted` | GL posting (cross-module) |
+| `ar.invoice_opened` | Invoice opened |
+| `ar.invoice_paid` | Invoice fully paid |
+| `ar.invoice_suspended` | Invoice suspended (dunning) |
+| `ar.invoice_written_off` | Invoice written off |
+| `ar.invoice_settled_fx` | Invoice FX settlement |
+| `ar.credit_note_issued` | Credit note issued |
+| `ar.payment_allocated` | Payment allocated to invoice |
+| `ar.usage_captured` | Usage data captured |
+| `ar.usage_invoiced` | Usage invoiced |
 
 #### Payments
 
 | Subject | Trigger |
 |---------|---------|
-| `payments.events.payment.succeeded` | Payment gateway success |
+| `payment.succeeded` | Payment gateway success |
+| `payment.failed` | Payment gateway failure |
 
 #### Party Master
 
@@ -329,7 +343,7 @@ use event_bus::outbox::validate_and_serialize_envelope;
 
 pub async fn enqueue_event_tx<T: Serialize>(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    event_type: &str,          // e.g. "order.created"
+    event_type: &str,          // Full NATS subject, e.g. "yourapp.order_created"
     aggregate_type: &str,      // e.g. "order"
     aggregate_id: &str,        // e.g. order UUID
     envelope: &EventEnvelope<T>,
@@ -375,30 +389,17 @@ pub async fn enqueue_event_tx<T: Serialize>(
 
 ### Background Publisher
 
-Source: `modules/ar/src/events/publisher.rs` → `run_publisher_task()`
+**The SDK handles this automatically.** When your `module.toml` declares `[events.publish].outbox_table`, the SDK spawns a background publisher that polls the outbox table every 1 second. You do not need to write publisher code.
 
-Polls `events_outbox` every 1 second. For each unpublished event:
-1. Build NATS subject: `format!("{module}.events.{event_type}")`
-2. Serialize payload to bytes
-3. Publish via `event_bus::EventBus` trait
-4. Mark as published (`UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1`)
+Source: `platform/platform-sdk/src/publisher.rs` → `run_outbox_publisher()`
 
-**Who starts it:** `main.rs` spawns it as a background `tokio::spawn` before starting the HTTP server:
+For each unpublished event:
+1. Read `event_type` from outbox row — this IS the NATS subject
+2. Serialize `payload` column to bytes
+3. Publish via `event_bus::EventBus` trait to subject = `event_type`
+4. Mark as published (`UPDATE {outbox_table} SET published_at = NOW() WHERE event_id = $1`)
 
-```rust
-// In your main.rs — copy from modules/ar/src/main.rs
-tokio::spawn(async move {
-    run_publisher_task(publisher_db, publisher_bus).await;
-});
-tracing::info!("Event publisher task started");
-```
-
-Without this background task running, `enqueue_event_tx()` rows accumulate in the DB but **nothing publishes to NATS**. The outbox will not drain on its own. Both the publisher task AND the HTTP server must be running.
-
-Copy this pattern for TrashTech. Subject routing:
-```rust
-let subject = format!("yourapp.events.{}", event.event_type);
-```
+**You do NOT need to write a publisher or spawn a background task.** The SDK does this for you based on the `[events.publish]` section in module.toml. If this section is missing, no publisher runs and outbox rows accumulate forever.
 
 To debug stuck events: `SELECT * FROM events_outbox WHERE published_at IS NULL ORDER BY created_at;`
 
@@ -481,6 +482,132 @@ Response (`ExternalRef`):
   "updated_at": "2026-02-19T00:00:00Z"
 }
 ```
+
+---
+
+---
+
+## module.toml — Complete Template
+
+Every SDK module declares a `module.toml` at its crate root. The SDK reads this at startup.
+
+Source: `platform/platform-sdk/src/manifest/mod.rs`
+
+```toml
+# ── Required ─────────────────────────────────────────────────
+[module]
+name = "yourapp"                          # Module identifier
+version = "1.0.0"                         # Cargo.toml version
+description = "Your vertical application" # Human-readable
+
+[server]
+host = "0.0.0.0"
+port = 8200                               # Pick an unused port
+
+# ── Database (omit if stateless) ─────────────────────────────
+[database]
+migrations = "./db/migrations"            # Path relative to module.toml
+auto_migrate = true                       # Run migrations on startup
+
+# ── Event bus ────────────────────────────────────────────────
+[bus]
+type = "nats"                             # "nats" | "inmemory" | "none"
+
+# ── Outbox publisher (SDK auto-spawns background publisher) ──
+[events.publish]
+outbox_table = "events_outbox"            # Must match your migration
+
+# ── Auth / JWT (defaults work for most modules) ─────────────
+[auth]
+enabled = true                            # Default: true
+jwks_url = "http://7d-auth-lb:8080/.well-known/jwks.json"  # Optional
+refresh_interval = "5m"                   # JWKS refresh interval
+fallback_to_env = true                    # Fall back to JWKS_URL env var
+
+# ── Platform service dependencies ────────────────────────────
+[platform.services]
+party     = { enabled = true }                                    # PARTY_BASE_URL env var
+inventory = { enabled = true, timeout_secs = 60 }                # INVENTORY_BASE_URL
+bom       = { enabled = true, default_url = "http://localhost:8107" }  # Fallback URL
+
+# ── SDK compatibility ────────────────────────────────────────
+[sdk]
+min_version = "0.1.0"                     # Minimum SDK version required
+```
+
+**Supported sections:** `[module]` (required), `[server]`, `[database]`, `[bus]`, `[events.publish]`, `[auth]`, `[cors]`, `[health]`, `[rate_limit]`, `[platform.services]`, `[sdk]`.
+
+**Minimal viable module.toml** (stateless service, no events):
+```toml
+[module]
+name = "yourapp"
+version = "1.0.0"
+
+[server]
+port = 8200
+
+[sdk]
+min_version = "0.1.0"
+```
+
+**Typical vertical app module.toml** (DB + NATS + outbox):
+```toml
+[module]
+name = "yourapp"
+version = "1.0.0"
+description = "Your vertical application"
+
+[server]
+host = "0.0.0.0"
+port = 8200
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+
+[bus]
+type = "nats"
+
+[events.publish]
+outbox_table = "events_outbox"
+
+[sdk]
+min_version = "0.1.0"
+```
+
+---
+
+## Gotchas
+
+Things that have tripped up agents and developers.
+
+### event_type IS the NATS subject
+
+The SDK publisher uses the `event_type` column from the outbox directly as the NATS subject. No prefix is added. If you store `"order.created"` in event_type, the NATS subject will be `"order.created"` — not `"yourapp.events.order.created"`. Store the full subject: `"yourapp.order_created"`.
+
+### The SDK publisher replaces per-module publishers
+
+Older modules had hand-written publisher tasks that formatted subjects with `format!("{module}.events.{event_type}")`. The SDK publisher does NOT do this — it uses event_type as-is. If you copy old AR publisher code instead of using the SDK, your subjects will be wrong.
+
+### outbox_table must match your migration
+
+The table name in `[events.publish].outbox_table` must exactly match the table name in your SQL migration. If they differ, the SDK publisher silently publishes nothing.
+
+### enqueue_event_tx vs enqueue_event
+
+`enqueue_event()` (no `_tx` suffix) is deprecated. It does NOT run in the same transaction as your domain mutation. Use `enqueue_event_tx()` which takes a `&mut Transaction` — this guarantees atomicity.
+
+### Consumer idempotency is your responsibility
+
+The SDK publishes events but does not deduplicate on the consumer side. Your consumer must check `processed_events` by `event_id` and skip duplicates. NATS JetStream delivers at-least-once.
+
+### Missing [events.publish] = no publisher
+
+If you forget the `[events.publish]` section in module.toml, the SDK will NOT start the outbox publisher. Events pile up in the outbox table unpublished. Check with: `SELECT COUNT(*) FROM events_outbox WHERE published_at IS NULL;`
+
+### [platform.services] env vars
+
+Each entry in `[platform.services]` expects an env var: `{SERVICE_NAME}_BASE_URL` (uppercase, hyphens become underscores). Example: `shipping-receiving` → `SHIPPING_RECEIVING_BASE_URL`. If the env var is missing and no `default_url` is set, startup fails.
 
 ---
 

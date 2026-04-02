@@ -44,7 +44,7 @@
 | Understand MerchantContext | [CG-EVENTS.md → MerchantContext](./CG-EVENTS.md#merchantcontext) |
 | Copy the outbox SQL migration | [CG-EVENTS.md → Migration: Create Outbox Tables](./CG-EVENTS.md#migration-create-outbox-tables) |
 | Copy the outbox enqueue function | [CG-EVENTS.md → Outbox Enqueue (Transactional)](./CG-EVENTS.md#outbox-enqueue-transactional) |
-| Wire the background publisher | [CG-EVENTS.md → Background Publisher](./CG-EVENTS.md#background-publisher) |
+| Understand the SDK auto-publisher | [CG-EVENTS.md → Background Publisher](./CG-EVENTS.md#background-publisher) |
 | Receive external webhooks / GPS events | [CG-EVENTS.md → Integrations Module](./CG-EVENTS.md#integrations-module) |
 | Map internal IDs to external system IDs | [CG-EVENTS.md → External ID Mapping](./CG-EVENTS.md#external-id-mapping) |
 | Check tenant provisioning status | [CG-TENANCY.md → Tenant Provisioning](./CG-TENANCY.md#tenant-provisioning) |
@@ -59,6 +59,8 @@
 | Add platform crates to Cargo.toml | [CG-REFERENCE.md → Cargo.toml Path Dependencies](./CG-REFERENCE.md#cargotoml-path-dependencies) |
 | Run platform services locally | [CG-REFERENCE.md → Local Development](./CG-REFERENCE.md#local-development) |
 | Find a reference E2E test to copy | [CG-REFERENCE.md → Reference E2E Tests](./CG-REFERENCE.md#reference-e2e-tests) |
+| Write a module.toml for my service | [CG-EVENTS.md → module.toml Template](./CG-EVENTS.md#moduletoml--complete-template) |
+| Avoid common event/publisher mistakes | [CG-EVENTS.md → Gotchas](./CG-EVENTS.md#gotchas) |
 | Find the source file for a specific topic | [CG-REFERENCE.md → Source File Index](./CG-REFERENCE.md#source-file-index) |
 
 ---
