@@ -4,7 +4,7 @@
 //!   Idempotency: if run is already completed or failed, return existing state.
 //!   Guard:    Run must be in 'pending' or 'executing' status (supports retry).
 //!   Mutation (per item, in a single transaction):
-//!     - Submit payment via integrations::payments (deterministic payment_id).
+//!     - Assign deterministic payment_id via integrations::payments (in-process).
 //!     - INSERT payment_run_executions (UNIQUE on run_id + item_id → no duplicates).
 //!     - For each bill in the item: INSERT allocation (payment_run_id set).
 //!     - UPDATE vendor_bills.status → 'paid' (full open balance allocated).

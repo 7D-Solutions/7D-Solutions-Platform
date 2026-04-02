@@ -48,7 +48,7 @@ Agents should **re-run Pass 1** after their edits (commands in §7).
 | **M3** | Add missing `[[bin]] openapi_dump` when `src/bin/openapi_dump.rs` exists. |
 | **M4** | Remove peer **`path` dependencies**; use `clients/*` + HTTP. |
 | **M5** | Delete/shrink peer HTTP **adapters** once OpenAPI + `tools/client-codegen` emit usable types (no `Result<(), _>` for real GET bodies). |
-| **M6** | Replace **stubs** (e.g. AP → Payments) with real `platform-client-*` or a documented **event** API. |
+| **M6** | Replace **stubs** that were meant to call a peer module but never wired (rare) with real `platform-client-*` or a documented **event** API. **Not** applicable where the product is intentionally in-process (see AP payment runs note below). |
 
 Use **—** when a row does not apply (leaf service, events-only, or external-only HTTP).
 
@@ -60,7 +60,7 @@ Use **—** when a row does not apply (leaf service, events-only, or external-on
 
 | Module | Clients (peers) | M1 | M2 | openapi bin | M4 | M5 / notes | M6 |
 |--------|-----------------|----|----|-------------|----|------------|-----|
-| ap | — | | | **N** | Y | — | **payments** stub |
+| ap | — | | | **N** | Y | — | **—** (payment runs are **self-contained**; deterministic `payment_id` is assigned **inside AP**, not via the Payments module) |
 | ar | party | | | Y | Y | `integrations/party_client.rs`, `PARTY_MASTER_URL` | — |
 | bom | numbering | | | **N** | Y | `NUMBERING_URL` in main, `domain/numbering_client.rs` | — |
 | consolidation | gl, ar, ap | | | **N** | Y | `GL_BASE_URL`, `integrations/{gl,ar,ap}` | — |
@@ -94,8 +94,7 @@ Use **—** when a row does not apply (leaf service, events-only, or external-on
 1. **M4 / quality-inspection:** Remove `workforce-competence-rs` path dep; define HTTP/OpenAPI client or alternate contract.  
 2. **M3:** Add `[[bin]] openapi_dump` for the **13** modules where the file exists but bin is missing (quick win for codegen/CI).  
 3. **M1 + M2 + M5 (peer HTTP):** consolidation, ttp, shipping-receiving, bom, subscriptions, customer-portal, ar — in dependency order if needed.  
-4. **M6:** AP disbursement → `platform-client-payments` (or explicit event spec).  
-5. **OpenAPI/codegen:** Eliminate GET/list methods that codegen maps to `()` (see `tools/client-codegen/src/spec.rs` `find_success_response`) so **M5** adapters can be deleted.
+4. **OpenAPI/codegen:** Eliminate GET/list methods that codegen maps to `()` (see `tools/client-codegen/src/spec.rs` `find_success_response`) so **M5** adapters can be deleted.
 
 ---
 
@@ -144,8 +143,13 @@ rg 'path = "\.\./[^.]' modules/*/Cargo.toml
 
 ---
 
+## Corrections
+
+- **AP ↔ Payments:** Earlier audits flagged `integrations/payments` as a “stub” for calling the **Payments** module. **Product intent:** AP **payment runs are self-contained**; `submit_payment` supplies a **deterministic in-process** `payment_id` for idempotent execution and allocation — **no** `platform-client-payments` / HTTP to the Payments service is required for that flow.
+
 ## Revision history
 
 | Date | Change |
 |------|--------|
 | 2026-04-02 | Initial handoff from multi-pass plug-and-play audit (bd-wys43). |
+| 2026-04-02 | Removed false positive: AP payment runs do not call Payments module; M6 row + priority updated. |

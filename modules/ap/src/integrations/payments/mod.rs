@@ -1,11 +1,12 @@
-//! Payments disbursement integration layer.
+//! Payment run execution — stable payment identity for AP.
 //!
-//! This module is the seam between AP payment runs and the underlying
-//! disbursement service (ACH, wire, check processor).
+//! AP payment runs are **self-contained**: execution assigns a deterministic
+//! `payment_id` used for idempotent allocation recording and reconciliation
+//! **within AP**. This is **not** an HTTP integration with the Payments module.
 //!
-//! In production this would make an HTTP call to the Payments module.
-//! The integration is synchronous from AP's perspective: AP submits an
-//! instruction and gets back a stable `payment_id` for reconciliation.
+//! The API is synchronous: given a [`PaymentInstruction`], returns a
+//! [`PaymentResult`] with the same `payment_id` for the same run + vendor
+//! (UUID v5), so retries do not double-book.
 //!
 //! ## Idempotency
 //!
@@ -53,18 +54,12 @@ pub struct PaymentResult {
 // Public API
 // ============================================================================
 
-/// Submit a payment instruction to the disbursement module.
+/// Assign a deterministic `payment_id` for this payment instruction.
 ///
-/// Returns a `PaymentResult` with a deterministic `payment_id`.
-///
-/// **Integration note:** Replace the body of this function with an HTTP call
-/// to the Payments disbursement service when that service is available.
-/// The UUID v5 derivation here ensures the same `payment_id` is returned on
-/// retries, which is critical for idempotent allocation recording.
+/// Used by payment run execution so re-execution yields the same idempotency
+/// key (run + vendor). **Does not** call the Payments module or any external PSP.
 pub fn submit_payment(instruction: &PaymentInstruction) -> PaymentResult {
-    // Derive a stable payment_id from run_id + vendor_id.
-    // This is the integration seam: a real implementation would call the
-    // Payments disbursement API here and return its assigned payment_id.
+    // Stable id for allocation rows and outbox correlation (AP-internal).
     let key = format!("{}:{}", instruction.run_id, instruction.vendor_id);
     let payment_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, key.as_bytes());
 
