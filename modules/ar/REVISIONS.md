@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 4.0.1 | 2026-04-02 | bd-qrlw9 | Add module-level doc to `domain/mod.rs`. | Attribution fix — SoC refactor committed under wrong bead in 4c929499. | No |
 | 4.0.0 | 2026-04-02 | bd-qrlw9 | SoC refactor: extract invoice SQL into `domain/invoices/repo.rs`, business logic into `domain/invoices/service.rs`. HTTP handlers in `http/invoice_mutations.rs` and `http/invoice_queries.rs` are now thin axum wrappers. Same API, same responses, same events. | Separation of concerns for testability — SQL, business logic, and HTTP handling are now independent layers. | Yes — internal module structure changed (new `domain::invoices` module), no API changes |
 | 3.0.2 | 2026-04-02 | bd-9v3vx | Add utoipa annotations to get_aging and tax_report_export endpoints. Register in ApiDoc paths. | OpenAPI spec was missing these endpoints, causing codegen to emit Result<(), ClientError>. | No |
 | 3.0.0 | 2026-04-02 | bd-lk9kg | Response standardization: all handlers annotated with utoipa::path, all list endpoints return PaginatedResponse, oversized files split (invoices/payment_methods/subscriptions → queries + mutations). OpenAPI spec is now complete. | Generated client codegen requires typed path annotations and consistent pagination envelope. | Yes — list endpoints now return `{ data, pagination }` instead of bare arrays |
