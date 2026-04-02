@@ -33,7 +33,7 @@ use std::sync::Arc;
 use axum::Router;
 use event_bus::EventEnvelope;
 
-use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError};
+use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
 use crate::context::ModuleContext;
 use crate::manifest::{Manifest, ManifestError};
 use crate::startup::{self, StartupError};
@@ -70,6 +70,7 @@ pub struct ModuleBuilder {
     consumers: Vec<ConsumerDef>,
     extensions: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
     startup_fns: Vec<StartupFn>,
+    provisioning_handler: Option<ProvisioningHandler>,
     skip_default_middleware: bool,
     skip_outbox_publisher: bool,
 }
@@ -94,6 +95,7 @@ impl ModuleBuilder {
             consumers: Vec::new(),
             extensions: HashMap::new(),
             startup_fns: Vec::new(),
+            provisioning_handler: None,
             skip_default_middleware: false,
             skip_outbox_publisher: false,
         }
@@ -151,6 +153,25 @@ impl ModuleBuilder {
             subject: subject.into(),
             handler,
         });
+        self
+    }
+
+    /// Register a callback invoked when a new tenant completes provisioning.
+    ///
+    /// The SDK subscribes to `tenant.provisioned` on the event bus and
+    /// calls the handler with the module context and tenant ID. Use this
+    /// for module-specific setup — seed data, default configuration, etc.
+    /// Infrastructure (database creation, migrations) is handled by the
+    /// provisioning orchestrator before this hook fires.
+    ///
+    /// Requires an event bus (`bus.type` in module.toml).
+    pub fn on_tenant_provisioned<F, Fut>(mut self, handler: F) -> Self
+    where
+        F: Fn(ModuleContext, TenantProvisionedEvent) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<(), ConsumerError>> + Send + 'static,
+    {
+        self.provisioning_handler =
+            Some(Arc::new(move |ctx, event| Box::pin(handler(ctx, event))));
         self
     }
 
@@ -244,7 +265,7 @@ impl ModuleBuilder {
         );
 
         // Phase A step 8: wire consumers (after EventBus in step 6)
-        let consumer_handles = if !self.consumers.is_empty() {
+        let mut consumer_handles = if !self.consumers.is_empty() {
             let bus = phase_a.bus.as_ref().ok_or_else(|| {
                 StartupError::Config("consumers registered but no event bus configured".into())
             })?;
@@ -257,6 +278,24 @@ impl ModuleBuilder {
         } else {
             crate::consumer::ConsumerHandles::empty()
         };
+
+        // Wire provisioning hook (shares shutdown signal with consumers)
+        if let Some(handler) = self.provisioning_handler {
+            let bus = phase_a.bus.as_ref().ok_or_else(|| {
+                StartupError::Config(
+                    "on_tenant_provisioned requires an event bus (set bus.type in module.toml)"
+                        .into(),
+                )
+            })?;
+            let handle = crate::consumer::wire_provisioning_hook(
+                handler,
+                bus,
+                &ctx,
+                consumer_handles.shutdown_rx(),
+            )
+            .await?;
+            consumer_handles.add_task(handle);
+        }
 
         // Clone context for phase_b before routes_fn consumes the original.
         let phase_b_ctx = ctx.clone();
