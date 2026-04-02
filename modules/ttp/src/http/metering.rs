@@ -4,10 +4,10 @@
 /// GET  /api/metering/trace   — deterministic price trace
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -17,100 +17,75 @@ use crate::domain::metering::{self, MeteringEventInput, PriceTrace};
 use crate::AppState;
 
 // ---------------------------------------------------------------------------
-// Shared error body
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    error: String,
-    code: String,
-}
-
-// ---------------------------------------------------------------------------
 // POST /api/metering/events
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct IngestEventRequest {
     pub events: Vec<EventItem>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct EventItem {
     pub dimension: String,
     pub quantity: i64,
     pub occurred_at: DateTime<Utc>,
     pub idempotency_key: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_ref: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct IngestEventResponse {
     pub ingested: u32,
     pub duplicates: u32,
     pub results: Vec<IngestResultItem>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct IngestResultItem {
     pub idempotency_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub event_id: Option<Uuid>,
     pub was_duplicate: bool,
 }
 
+#[utoipa::path(
+    post, path = "/api/metering/events", tag = "Metering",
+    request_body = IngestEventRequest,
+    responses(
+        (status = 200, description = "Events ingested", body = IngestEventResponse),
+        (status = 400, description = "Validation error", body = ApiError),
+        (status = 401, description = "Missing or invalid authentication", body = ApiError),
+        (status = 500, description = "Ingestion failed", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn ingest_events(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<IngestEventRequest>,
-) -> Result<Json<IngestEventResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "Missing or invalid authentication".to_string(),
-                code: "unauthorized".to_string(),
-            }),
-        )
-    })?;
+) -> Result<Json<IngestEventResponse>, ApiError> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
 
     if req.events.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "events array must not be empty".to_string(),
-                code: "validation_error".to_string(),
-            }),
-        ));
+        return Err(ApiError::bad_request("events array must not be empty"));
     }
 
     // Validate all events before ingesting any
     for item in &req.events {
         if item.dimension.trim().is_empty() {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: "dimension must not be empty".to_string(),
-                    code: "validation_error".to_string(),
-                }),
-            ));
+            return Err(ApiError::bad_request("dimension must not be empty"));
         }
         if item.quantity <= 0 {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: "quantity must be positive".to_string(),
-                    code: "validation_error".to_string(),
-                }),
-            ));
+            return Err(ApiError::bad_request("quantity must be positive"));
         }
         if item.idempotency_key.trim().is_empty() {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: "idempotency_key must not be empty".to_string(),
-                    code: "validation_error".to_string(),
-                }),
+            return Err(ApiError::bad_request(
+                "idempotency_key must not be empty",
             ));
         }
     }
@@ -132,13 +107,7 @@ pub async fn ingest_events(
         .await
         .map_err(|e| {
             tracing::error!("Metering ingestion error: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                    code: "ingestion_failed".to_string(),
-                }),
-            )
+            ApiError::internal(e.to_string())
         })?;
 
     let mut ingested = 0u32;
@@ -171,45 +140,40 @@ pub async fn ingest_events(
 // GET /api/metering/trace
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct TraceQuery {
     pub period: String,
 }
 
+#[utoipa::path(
+    get, path = "/api/metering/trace", tag = "Metering",
+    params(TraceQuery),
+    responses(
+        (status = 200, description = "Price trace for period", body = PriceTrace),
+        (status = 400, description = "Invalid period format", body = ApiError),
+        (status = 401, description = "Missing or invalid authentication", body = ApiError),
+        (status = 500, description = "Trace failed", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn get_trace(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<TraceQuery>,
-) -> Result<Json<PriceTrace>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "Missing or invalid authentication".to_string(),
-                code: "unauthorized".to_string(),
-            }),
-        )
-    })?;
+) -> Result<Json<PriceTrace>, ApiError> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
 
     let trace = metering::compute_price_trace(&state.pool, tenant_id, &query.period)
         .await
         .map_err(|e| match &e {
-            metering::MeteringError::InvalidPeriod(_) => (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                    code: "validation_error".to_string(),
-                }),
-            ),
+            metering::MeteringError::InvalidPeriod(_) => {
+                ApiError::bad_request(e.to_string())
+            }
             _ => {
                 tracing::error!("Metering trace error: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody {
-                        error: e.to_string(),
-                        code: "trace_failed".to_string(),
-                    }),
-                )
+                ApiError::internal(e.to_string())
             }
         })?;
 

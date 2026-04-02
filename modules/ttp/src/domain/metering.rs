@@ -68,7 +68,7 @@ pub struct DimensionAggregate {
 }
 
 /// A single line in the price trace.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct TraceLineItem {
     pub dimension: String,
     pub total_quantity: i64,
@@ -79,7 +79,7 @@ pub struct TraceLineItem {
 }
 
 /// Full price trace for a billing period.
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct PriceTrace {
     pub tenant_id: Uuid,
     pub period: String,

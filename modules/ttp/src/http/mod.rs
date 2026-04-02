@@ -16,11 +16,29 @@ use crate::AppState;
 #[openapi(
     info(
         title = "TTP Service",
-        version = "2.1.13",
+        version = "3.0.0",
         description = "Tenant-to-platform billing, metering, and service agreement management.\n\n\
                         **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
                         Permissions: `ttp.read` for queries, `ttp.mutate` for writes."
     ),
+    paths(
+        billing::create_billing_run,
+        metering::ingest_events,
+        metering::get_trace,
+        service_agreements::list_service_agreements,
+    ),
+    components(schemas(
+        billing::BillingRunRequest,
+        billing::BillingRunResponse,
+        metering::IngestEventRequest,
+        metering::EventItem,
+        metering::IngestEventResponse,
+        metering::IngestResultItem,
+        crate::domain::metering::PriceTrace,
+        crate::domain::metering::TraceLineItem,
+        service_agreements::ServiceAgreementItem,
+        service_agreements::ListServiceAgreementsResponse,
+    )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),
 )]

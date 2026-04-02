@@ -32,10 +32,10 @@
 /// ```
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     Extension, Json,
 };
 use chrono::NaiveDate;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -48,7 +48,7 @@ use crate::AppState;
 // Request / response types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
 pub struct ListQuery {
     /// Filter by status (default: "active"). Pass "all" to see every status.
     #[serde(default = "default_status")]
@@ -59,7 +59,7 @@ fn default_status() -> String {
     "active".to_string()
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ServiceAgreementItem {
     pub agreement_id: Uuid,
     pub party_id: Uuid,
@@ -69,20 +69,15 @@ pub struct ServiceAgreementItem {
     pub billing_cycle: String,
     pub status: String,
     pub effective_from: NaiveDate,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_to: Option<NaiveDate>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ListServiceAgreementsResponse {
     pub tenant_id: Uuid,
     pub items: Vec<ServiceAgreementItem>,
     pub count: usize,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub code: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -90,35 +85,34 @@ pub struct ErrorBody {
 // ---------------------------------------------------------------------------
 
 /// GET /api/ttp/service-agreements
+#[utoipa::path(
+    get, path = "/api/ttp/service-agreements", tag = "Service Agreements",
+    params(ListQuery),
+    responses(
+        (status = 200, description = "Service agreements list", body = ListServiceAgreementsResponse),
+        (status = 400, description = "Invalid status filter", body = ApiError),
+        (status = 401, description = "Missing or invalid authentication", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn list_service_agreements(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<ListServiceAgreementsResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "Missing or invalid authentication".to_string(),
-                code: "unauthorized".to_string(),
-            }),
-        )
-    })?;
+) -> Result<Json<ListServiceAgreementsResponse>, ApiError> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
 
     // Validate status value
     let status_filter = query.status.as_str();
     let valid_statuses = ["active", "suspended", "cancelled", "all"];
     if !valid_statuses.contains(&status_filter) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: format!(
-                    "status must be one of: active, suspended, cancelled, all; got '{}'",
-                    status_filter
-                ),
-                code: "validation_error".to_string(),
-            }),
-        ));
+        return Err(ApiError::bad_request(format!(
+            "status must be one of: active, suspended, cancelled, all; got '{}'",
+            status_filter
+        )));
     }
 
     let rows = if status_filter == "all" {
@@ -152,13 +146,7 @@ pub async fn list_service_agreements(
     }
     .map_err(|e| {
         tracing::error!("service-agreements list error: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: e.to_string(),
-                code: "db_error".to_string(),
-            }),
-        )
+        ApiError::internal(e.to_string())
     })?;
 
     let items: Result<Vec<ServiceAgreementItem>, _> = rows
@@ -180,13 +168,7 @@ pub async fn list_service_agreements(
 
     let items = items.map_err(|e: sqlx::Error| {
         tracing::error!("service-agreements row mapping error: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: e.to_string(),
-                code: "db_error".to_string(),
-            }),
-        )
+        ApiError::internal(e.to_string())
     })?;
 
     let count = items.len();

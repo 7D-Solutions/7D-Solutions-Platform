@@ -31,8 +31,9 @@
 ///   "was_noop": false
 /// }
 /// ```
-use axum::{extract::State, http::StatusCode, Extension, Json};
+use axum::{extract::State, Extension, Json};
 use event_bus::TracingContext;
+use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -50,13 +51,13 @@ use crate::AppState;
 // Request / response types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct BillingRunRequest {
     pub billing_period: String,
     pub idempotency_key: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct BillingRunResponse {
     pub run_id: Uuid,
     pub tenant_id: Uuid,
@@ -67,67 +68,57 @@ pub struct BillingRunResponse {
     pub was_noop: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    error: String,
-    code: String,
-}
-
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
 /// POST /api/ttp/billing-runs
+#[utoipa::path(
+    post, path = "/api/ttp/billing-runs", tag = "Billing",
+    request_body = BillingRunRequest,
+    responses(
+        (status = 200, description = "Billing run completed", body = BillingRunResponse),
+        (status = 400, description = "Invalid billing period or empty idempotency key", body = ApiError),
+        (status = 401, description = "Missing or invalid authentication", body = ApiError),
+        (status = 404, description = "Tenant not found", body = ApiError),
+        (status = 422, description = "Tenant has no app_id", body = ApiError),
+        (status = 500, description = "Billing run failed", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
 pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<BillingRunRequest>,
-) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<BillingRunResponse>, ApiError> {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let verified_claims = claims.map(|Extension(c)| c);
-    let tenant_id = verified_claims.as_ref().map(|c| c.tenant_id).ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "Missing or invalid authentication".to_string(),
-                code: "unauthorized".to_string(),
-            }),
-        )
-    })?;
+    let tenant_id = verified_claims
+        .as_ref()
+        .map(|c| c.tenant_id)
+        .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
+
     // Validate billing_period format ("YYYY-MM")
     if !is_valid_billing_period(&req.billing_period) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "billing_period must be in YYYY-MM format".to_string(),
-                code: "validation_error".to_string(),
-            }),
+        return Err(ApiError::bad_request(
+            "billing_period must be in YYYY-MM format",
         ));
     }
 
     // Validate idempotency_key is non-empty
     if req.idempotency_key.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "idempotency_key must not be empty".to_string(),
-                code: "validation_error".to_string(),
-            }),
+        return Err(ApiError::bad_request(
+            "idempotency_key must not be empty",
         ));
     }
 
     let correlation_id = req.idempotency_key.clone();
 
-    let claims_ref = verified_claims.as_ref().ok_or_else(|| {
-        (
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "Missing claims for service call".to_string(),
-                code: "unauthorized".to_string(),
-            }),
-        )
-    })?;
+    let claims_ref = verified_claims
+        .as_ref()
+        .ok_or_else(|| ApiError::unauthorized("Missing claims for service call"))?;
+
     match run_billing(
         &state.pool,
         &state.registry_client,
@@ -159,9 +150,6 @@ pub async fn create_billing_run(
                     payload,
                 )
                 .with_tracing_context(&tracing_ctx);
-                // NOTE: Event bus publishing is wired in the full service start; for now
-                // the envelope is created (and merchant_context validated) but not published.
-                // bd-2hdr (E2E proof) will verify end-to-end event delivery.
             }
 
             Ok(Json(BillingRunResponse {
@@ -176,22 +164,17 @@ pub async fn create_billing_run(
         }
         Err(BillingError::Registry(TenantRegistryError::TenantNotFound(tid))) => {
             tracing::warn!("Billing run failed: tenant {} not found", tid);
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody {
-                    error: format!("Tenant {} not found in registry", tid),
-                    code: "tenant_not_found".to_string(),
-                }),
-            ))
+            Err(ApiError::not_found(format!(
+                "Tenant {} not found in registry",
+                tid
+            )))
         }
         Err(BillingError::Registry(TenantRegistryError::NoAppId(tid))) => {
             tracing::warn!("Billing run failed: tenant {} has no app_id", tid);
-            Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorBody {
-                    error: format!("Tenant {} has no app_id assigned", tid),
-                    code: "no_app_id".to_string(),
-                }),
+            Err(ApiError::new(
+                422,
+                "no_app_id",
+                format!("Tenant {} has no app_id assigned", tid),
             ))
         }
         Err(e) => {
@@ -212,13 +195,7 @@ pub async fn create_billing_run(
             )
             .with_tracing_context(&tracing_ctx);
 
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: e.to_string(),
-                    code: "billing_run_failed".to_string(),
-                }),
-            ))
+            Err(ApiError::internal(e.to_string()))
         }
     }
 }

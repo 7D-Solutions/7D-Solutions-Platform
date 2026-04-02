@@ -1,6 +1,6 @@
 [package]
 name = "ttp-rs"
-version = "2.1.17"
+version = "3.0.0"
 edition = "2021"
 description = "Tenant-to-platform billing, metering, and service agreement management"
 
@@ -35,6 +35,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 platform-client-ar = { path = "../../clients/ar" }
 platform-client-tenant-registry = { path = "../../clients/platform-client-tenant-registry" }
 config-validator = { path = "../../platform/config-validator" }
+platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [[bin]]
