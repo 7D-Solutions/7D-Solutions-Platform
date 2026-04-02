@@ -25,7 +25,7 @@ use uuid::Uuid;
 // ============================================================================
 
 /// Aging bucket totals for a single currency.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct CurrencyBucket {
     /// ISO 4217 currency code.
     pub currency: String,
@@ -44,7 +44,7 @@ pub struct CurrencyBucket {
 }
 
 /// Aging bucket totals for a single vendor + currency combination.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
 pub struct VendorBucket {
     pub vendor_id: Uuid,
     pub vendor_name: String,
@@ -58,7 +58,7 @@ pub struct VendorBucket {
 }
 
 /// Complete aging report response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AgingReport {
     /// The date used as the aging reference point.
     pub as_of: NaiveDate,

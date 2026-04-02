@@ -91,7 +91,7 @@ pub async fn list_allocations(
 ///
 /// Return remaining open balance for a bill.
 #[utoipa::path(get, path = "/api/ap/bills/{bill_id}/balance", tag = "Allocations",
-    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill balance", body = serde_json::Value)),
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill balance", body = crate::domain::allocations::BillBalanceSummary)),
     security(("bearer" = [])))]
 pub async fn get_balance(
     State(state): State<Arc<AppState>>,

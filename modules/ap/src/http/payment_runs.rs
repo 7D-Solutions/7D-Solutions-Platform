@@ -112,7 +112,7 @@ pub async fn create_run(
 ///
 /// Fetch a payment run and its items.
 #[utoipa::path(get, path = "/api/ap/payment-runs/{run_id}", tag = "Payment Runs",
-    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details", body = serde_json::Value)),
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details", body = crate::domain::payment_runs::PaymentRun)),
     security(("bearer" = [])))]
 pub async fn get_run(
     State(state): State<Arc<AppState>>,

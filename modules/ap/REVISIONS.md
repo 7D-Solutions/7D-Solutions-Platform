@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.7 | 2026-04-02 | bd-9v3vx | Add ToSchema to AgingReport, CurrencyBucket, VendorBucket, BillBalanceSummary, PaymentRun. Replace serde_json::Value body types with typed schemas on 3 GET endpoints (aging, balance, get_run). | serde_json::Value generates empty schema {} which codegen treats as Empty. | No |
 | 2.1.6 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotations on 23 AP endpoints (vendors, bills, allocations, payment_runs, payment_terms, purchase_orders, reports, tax_reports). | OpenAPI specs were missing response schemas, causing codegen to emit Result<(), ClientError> instead of typed responses. | No |
 | 2.1.5 | 2026-04-01 | bd-14qer | Migrate list_allocations to PaginatedResponse. Add ToSchema to AllocationRecord. Register PaginatedResponse<AllocationRecord> in OpenAPI schema. | All 5 AP list endpoints now return consistent PaginatedResponse shape. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/bus/outbox/middleware/health/shutdown boilerplate with SDK startup sequence. Bus and outbox publisher now configured via module.toml. | SDK batch conversion — eliminate two classes of modules. | No |

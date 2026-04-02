@@ -108,7 +108,7 @@ pub struct AllocationRecord {
 }
 
 /// Summary of remaining open balance on a bill.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct BillBalanceSummary {
     pub bill_id: Uuid,
     pub total_minor: i64,

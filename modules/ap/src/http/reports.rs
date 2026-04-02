@@ -50,7 +50,7 @@ pub struct AgingQuery {
     tag = "Reports",
     params(AgingQuery),
     responses(
-        (status = 200, description = "AP aging report", body = serde_json::Value),
+        (status = 200, description = "AP aging report", body = crate::domain::reports::aging::AgingReport),
     ),
     security(("bearer" = [])),
 )]
