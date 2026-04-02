@@ -12,6 +12,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::{BillRunResult, ExecuteBillRunRequest};
+use platform_client_ar::InvoicesClient;
 use platform_sdk::extract_tenant;
 
 use super::bill_run_service;
@@ -43,6 +44,7 @@ pub async fn execute_bill_run(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
+    Extension(ar_client): Extension<std::sync::Arc<InvoicesClient>>,
     Json(req): Json<ExecuteBillRunRequest>,
 ) -> Result<(StatusCode, Json<BillRunResult>), ApiError> {
     let raw_ctx = tracing_ctx
@@ -65,6 +67,7 @@ pub async fn execute_bill_run(
         &bill_run_id,
         execution_date,
         &raw_ctx,
+        &ar_client,
     )
     .await
     .map_err(|e| with_request_id(e, &tracing_ctx))?;

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 2.2.8 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 2.2.7 | 2026-04-02 | bd-5d6ae | Remove unused reqwest::Client field from NumberingClient Mode::Http. Drop reqwest dependency. All HTTP calls already use PlatformClient via generated numbering client. | Dead code hygiene — reqwest was stored but never used after typed client conversion (bd-8ls7t). | No |
 | 2.2.5 | 2026-04-01 | bd-g4gk7 | Add #[utoipa::path] annotations to health(), ready(), and version() handlers. Register all 3 in OpenAPI path lists (main.rs and openapi_dump.rs). All 28 handler functions now annotated. | 3 of 28 BOM handlers lacked utoipa annotations, leaving health endpoints out of the OpenAPI spec. | No |

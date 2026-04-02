@@ -17,5 +17,8 @@ type = "nats"
 [events.publish]
 outbox_table = "events_outbox"
 
+[platform.services]
+inventory = { enabled = true, default_url = "http://localhost:8092" }
+
 [sdk]
 min_version = "0.1.0"

@@ -75,6 +75,7 @@ pub async fn create_invoice(
     claims: Option<&VerifiedClaims>,
     tracing_ctx: TracingContext,
     req: CreateInvoiceRequest,
+    party_client: &platform_client_party::PartiesClient,
 ) -> Result<Invoice, ApiError> {
     // Validate required fields
     if req.amount_cents < 0 {
@@ -119,10 +120,9 @@ pub async fn create_invoice(
 
     // Guard: party_id must exist in Party Master if provided
     if let Some(pid) = req.party_id {
-        let url = crate::integrations::party_client::party_master_url();
         let verified = claims
             .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
-        crate::integrations::party_client::verify_party(&url, pid, app_id, verified)
+        crate::integrations::party_client::verify_party(party_client, pid, app_id, verified)
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;

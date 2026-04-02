@@ -15,7 +15,9 @@ pub struct NumberingClient {
 }
 
 enum Mode {
-    /// Production: calls the Numbering service over HTTP via typed client.
+    /// Production: calls the Numbering service via SDK-wired platform client.
+    Platform { client: PlatformClient },
+    /// Legacy: calls the Numbering service over HTTP via typed client (manual URL).
     Http { base_url: String },
     /// Test / direct: allocates directly against the Numbering database.
     Direct { pool: PgPool },
@@ -24,6 +26,15 @@ enum Mode {
 // ---------------------------------------------------------------------------
 // Construction
 // ---------------------------------------------------------------------------
+
+impl platform_sdk::PlatformService for NumberingClient {
+    const SERVICE_NAME: &'static str = "numbering";
+    fn from_platform_client(client: PlatformClient) -> Self {
+        Self {
+            mode: Mode::Platform { client },
+        }
+    }
+}
 
 impl NumberingClient {
     /// Build a client that calls the Numbering HTTP service.
@@ -57,6 +68,20 @@ impl NumberingClient {
         claims: &VerifiedClaims,
     ) -> Result<String, BomError> {
         match &self.mode {
+            Mode::Platform { client } => {
+                let typed = numbering_typed::NumberingClient::new(client.clone());
+                let body = numbering_typed::AllocateRequest {
+                    entity: "ECO".into(),
+                    idempotency_key: idempotency_key.into(),
+                    gap_free: None,
+                };
+                let alloc = typed.allocate(claims, &body).await.map_err(|e| {
+                    GuardError::Validation(format!("Numbering service error: {e}"))
+                })?;
+                Ok(alloc
+                    .formatted_number
+                    .unwrap_or_else(|| format!("ECO-{:05}", alloc.number_value)))
+            }
             Mode::Http { base_url } => {
                 let token = extract_bearer_token(auth_header)?;
                 let platform = PlatformClient::new(base_url.clone())
@@ -88,16 +113,21 @@ impl NumberingClient {
         auth_header: Option<&str>,
         claims: &VerifiedClaims,
     ) {
-        if let Mode::Http { base_url } = &self.mode
-        {
-            let Some(token) = auth_header
-                .and_then(|h| h.strip_prefix("Bearer ").or(Some(h)))
-            else {
-                return;
-            };
-            let platform = PlatformClient::new(base_url.clone())
-                .with_bearer_token(token.to_string());
-            let typed = numbering_typed::NumberingClient::new(platform);
+        let typed_client = match &self.mode {
+            Mode::Platform { client } => Some(numbering_typed::NumberingClient::new(client.clone())),
+            Mode::Http { base_url } => {
+                let token = auth_header
+                    .and_then(|h| h.strip_prefix("Bearer ").or(Some(h)));
+                token.map(|t| {
+                    let platform = PlatformClient::new(base_url.clone())
+                        .with_bearer_token(t.to_string());
+                    numbering_typed::NumberingClient::new(platform)
+                })
+            }
+            Mode::Direct { .. } => None,
+        };
+
+        if let Some(typed) = typed_client {
             let body = numbering_typed::ConfirmRequest {
                 entity: "ECO".into(),
                 idempotency_key: idempotency_key.into(),

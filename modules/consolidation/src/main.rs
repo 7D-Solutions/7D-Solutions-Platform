@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use consolidation::{http, metrics, AppState};
+use consolidation::integrations::gl::client::GlClient;
 use platform_sdk::ModuleBuilder;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
@@ -14,12 +15,11 @@ async fn main() {
                 metrics::ConsolidationMetrics::new()
                     .expect("Consolidation: failed to create metrics"),
             );
-            let gl_base_url = std::env::var("GL_BASE_URL")
-                .unwrap_or_else(|_| "http://localhost:8090".to_string());
+            let gl_client = ctx.platform_client::<GlClient>();
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: consolidation_metrics,
-                gl_base_url,
+                gl_client,
             });
 
             http::router()

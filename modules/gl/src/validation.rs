@@ -85,9 +85,11 @@ pub fn validate_gl_posting_request(payload: &GlPostingRequestV1) -> Result<(), V
     }
 
     // Validate balanced entry (debits == credits)
-    // Use epsilon comparison for floating point equality
-    const EPSILON: f64 = 0.01; // Penny precision
-    if (total_debits - total_credits).abs() > EPSILON {
+    // Compare in minor units (cents) after rounding to match storage conversion
+    // in journal_service.rs: (amount * 100.0).round() as i64
+    let total_debits_minor = (total_debits * 100.0).round() as i64;
+    let total_credits_minor = (total_credits * 100.0).round() as i64;
+    if total_debits_minor != total_credits_minor {
         return Err(ValidationError::UnbalancedEntry(
             total_debits,
             total_credits,

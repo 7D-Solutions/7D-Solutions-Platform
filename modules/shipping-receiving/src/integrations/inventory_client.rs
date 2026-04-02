@@ -43,11 +43,22 @@ pub struct InventoryIntegration {
 
 #[derive(Debug, Clone)]
 enum Mode {
+    /// SDK-wired platform client with service token.
+    Platform { client: PlatformClient },
     Http {
         base_url: String,
         token: String,
     },
     Deterministic,
+}
+
+impl platform_sdk::PlatformService for InventoryIntegration {
+    const SERVICE_NAME: &'static str = "inventory";
+    fn from_platform_client(client: PlatformClient) -> Self {
+        Self {
+            mode: Mode::Platform { client },
+        }
+    }
 }
 
 impl InventoryIntegration {
@@ -83,6 +94,30 @@ impl InventoryIntegration {
         let idem_key = make_idempotency_key(tenant_id, shipment_id, line_id, "receipt");
 
         match &self.mode {
+            Mode::Platform { client } => {
+                let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
+                let receipts = ReceiptsClient::new(client.clone());
+                let claims = PlatformClient::service_claims(tenant_id);
+                let body = ReceiptRequest {
+                    tenant_id: tenant_id.to_string(),
+                    item_id,
+                    warehouse_id,
+                    quantity,
+                    unit_cost_minor: 1,
+                    currency: currency.to_string(),
+                    idempotency_key: idem_key,
+                    causation_id: None,
+                    correlation_id: None,
+                    location_id: None,
+                    lot_code: None,
+                    purchase_order_id: None,
+                    serial_codes: None,
+                    source_type: None,
+                    uom_id: None,
+                };
+                let result = receipts.post_receipt(&claims, &body).await?;
+                Ok(result.receipt_line_id)
+            }
             Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
                 let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
@@ -93,7 +128,7 @@ impl InventoryIntegration {
                     item_id,
                     warehouse_id,
                     quantity,
-                    unit_cost_minor: 1, // placeholder — cost reconciliation via AP/PO
+                    unit_cost_minor: 1,
                     currency: currency.to_string(),
                     idempotency_key: idem_key,
                     causation_id: None,
@@ -126,6 +161,31 @@ impl InventoryIntegration {
         let idem_key = make_idempotency_key(tenant_id, shipment_id, line_id, "issue");
 
         match &self.mode {
+            Mode::Platform { client } => {
+                let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
+                let issues = IssuesClient::new(client.clone());
+                let claims = PlatformClient::service_claims(tenant_id);
+                let body = IssueRequest {
+                    tenant_id: tenant_id.to_string(),
+                    item_id,
+                    warehouse_id,
+                    quantity,
+                    currency: currency.to_string(),
+                    source_module: "shipping-receiving".to_string(),
+                    source_type: "shipment".to_string(),
+                    source_id: shipment_id.to_string(),
+                    source_line_id: Some(line_id.to_string()),
+                    idempotency_key: idem_key,
+                    causation_id: None,
+                    correlation_id: None,
+                    location_id: None,
+                    lot_code: None,
+                    serial_codes: None,
+                    uom_id: None,
+                };
+                let result = issues.post_issue(&claims, &body).await?;
+                Ok(result.issue_line_id)
+            }
             Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
                 let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());

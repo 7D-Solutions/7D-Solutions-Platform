@@ -118,12 +118,7 @@ async fn main() {
                     .expect("Failed to create metrics registry"),
             );
 
-            let inventory_url = std::env::var("INVENTORY_URL").ok();
-            let inventory_token = std::env::var("INVENTORY_TOKEN").unwrap_or_default();
-            let inventory = match &inventory_url {
-                Some(url) => shipping_receiving_rs::InventoryIntegration::http(url, &inventory_token),
-                None => shipping_receiving_rs::InventoryIntegration::deterministic(),
-            };
+            let inventory = ctx.platform_client::<shipping_receiving_rs::InventoryIntegration>();
 
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),

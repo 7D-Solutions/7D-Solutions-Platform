@@ -30,6 +30,15 @@ pub struct TenantRegistryClient {
     inner: TenantsClient,
 }
 
+impl platform_sdk::PlatformService for TenantRegistryClient {
+    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
+    fn from_platform_client(client: PlatformClient) -> Self {
+        Self {
+            inner: TenantsClient::new(client),
+        }
+    }
+}
+
 impl TenantRegistryClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {

@@ -1,4 +1,6 @@
 use ar_rs::{consumer_tasks, events, http, metrics, models::PaymentSucceededPayload};
+use axum::Extension;
+use std::sync::Arc;
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
@@ -18,9 +20,14 @@ async fn main() {
             let _ar_metrics =
                 metrics::ArMetrics::new().expect("AR: failed to create metrics");
 
+            let party_client = Arc::new(
+                ctx.platform_client::<platform_client_party::PartiesClient>(),
+            );
+
             http::ar_router(ctx.pool().clone())
                 .merge(http::tax::tax_router(ctx.pool().clone()))
                 .merge(http::admin::admin_router(ctx.pool().clone()))
+                .layer(Extension(party_client))
         })
         .run()
         .await

@@ -11,5 +11,9 @@ port = 8100
 migrations = "./db/migrations"
 auto_migrate = true
 
+[platform.services]
+ar = { enabled = true, default_url = "http://localhost:8086" }
+platform-client-tenant-registry = { enabled = true, default_url = "http://localhost:8092" }
+
 [sdk]
 min_version = "0.1.0"

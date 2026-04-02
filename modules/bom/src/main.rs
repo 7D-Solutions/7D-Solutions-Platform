@@ -129,10 +129,8 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
-            let numbering_url = std::env::var("NUMBERING_URL")
-                .unwrap_or_else(|_| "http://localhost:8096".to_string());
             let metrics = Arc::new(BomMetrics::new().expect("Failed to create metrics registry"));
-            let numbering = NumberingClient::http(numbering_url);
+            let numbering = ctx.platform_client::<NumberingClient>();
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics,

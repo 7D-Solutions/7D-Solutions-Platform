@@ -44,27 +44,35 @@ impl From<Invoice> for ArInvoice {
 /// HTTP client for AR invoice operations.
 ///
 /// Uses generated typed clients from `platform-client-ar` for create/finalize.
-/// The `find_or_create_customer` search step uses a raw HTTP call because the
-/// generated `list_customers` endpoint does not return parsed response bodies.
+/// The `find_or_create_customer` search step uses the underlying `PlatformClient`
+/// because the generated `list_customers` endpoint does not return parsed response
+/// bodies.
 pub struct ArClient {
     customers: CustomersClient,
     invoices: InvoicesClient,
-    http: reqwest::Client,
-    base_url: String,
+    client: PlatformClient,
+}
+
+impl platform_sdk::PlatformService for ArClient {
+    const SERVICE_NAME: &'static str = "ar";
+    fn from_platform_client(client: PlatformClient) -> Self {
+        Self {
+            customers: CustomersClient::new(client.clone()),
+            invoices: InvoicesClient::new(client.clone()),
+            client,
+        }
+    }
 }
 
 impl ArClient {
     pub fn new(base_url: impl Into<String>) -> Self {
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .expect("build reqwest client for AR");
-        let base = base_url.into().trim_end_matches('/').to_string();
+        let client = PlatformClient::new(
+            base_url.into().trim_end_matches('/').to_string(),
+        );
         Self {
-            customers: CustomersClient::new(PlatformClient::new(base.clone())),
-            invoices: InvoicesClient::new(PlatformClient::new(base.clone())),
-            http,
-            base_url: base,
+            customers: CustomersClient::new(client.clone()),
+            invoices: InvoicesClient::new(client.clone()),
+            client,
         }
     }
 
@@ -80,11 +88,11 @@ impl ArClient {
         email: &str,
     ) -> Result<i32, ArClientError> {
         // Search by external_customer_id
-        let search_url = format!(
-            "{}/api/ar/customers?external_customer_id={}",
-            self.base_url, party_id
+        let search_path = format!(
+            "/api/ar/customers?external_customer_id={}",
+            party_id
         );
-        let resp = self.http.get(&search_url).send().await?;
+        let resp = self.client.get(&search_path, claims).await?;
 
         if resp.status().as_u16() == 200 {
             let customers: Vec<Customer> = resp.json().await?;
@@ -153,8 +161,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn client_strips_trailing_slash() {
-        let client = ArClient::new("http://localhost:8086/");
-        assert_eq!(client.base_url, "http://localhost:8086");
+    fn client_constructs_without_panic() {
+        let _client = ArClient::new("http://localhost:8086/");
     }
 }

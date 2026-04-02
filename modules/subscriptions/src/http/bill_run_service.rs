@@ -24,6 +24,7 @@ pub async fn execute_bill_run(
     bill_run_id: &str,
     execution_date: NaiveDate,
     tracing_ctx: &TracingContext,
+    ar_client: &platform_client_ar::InvoicesClient,
 ) -> Result<BillRunResult, ApiError> {
     // Idempotency check
     let existing = repo::fetch_existing_bill_run(db, bill_run_id, tenant_id)
@@ -63,11 +64,6 @@ pub async fn execute_bill_run(
     let subscriptions_processed = subscriptions.len() as i32;
     let mut invoices_created = 0;
     let mut failures = 0;
-
-    let ar_base_url =
-        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
-    let ar_client =
-        platform_client_ar::InvoicesClient::new(platform_sdk::PlatformClient::new(ar_base_url));
 
     for subscription in subscriptions {
         tracing::info!(

@@ -49,6 +49,7 @@ pub async fn list_documents(
     State(state): State<Arc<crate::AppState>>,
     PortalClaims(claims): PortalClaims,
     ctx: Option<Extension<TracingContext>>,
+    Extension(doc_mgmt_client): Extension<Arc<DistributionsClient>>,
     axum::extract::Query(query): axum::extract::Query<DocsQuery>,
 ) -> Result<Json<PaginatedResponse<PortalDocumentView>>, ApiError> {
     if !claims
@@ -95,7 +96,7 @@ pub async fn list_documents(
     let mut visible = Vec::new();
     for link in links {
         if let Some(dist) =
-            fetch_authorized_distribution(&state, &ctx, tenant_id, link.document_id, &user_email.email)
+            fetch_authorized_distribution(&doc_mgmt_client, &ctx, tenant_id, link.document_id, &user_email.email)
                 .await?
         {
             visible.push(PortalDocumentView {
@@ -117,18 +118,12 @@ pub async fn list_documents(
 }
 
 async fn fetch_authorized_distribution(
-    state: &crate::AppState,
+    client: &DistributionsClient,
     ctx: &Option<Extension<TracingContext>>,
     tenant_id: Uuid,
     document_id: Uuid,
     user_email: &str,
 ) -> Result<Option<platform_client_doc_mgmt::DocumentDistribution>, ApiError> {
-    let token = state.config.doc_mgmt_bearer_token.as_deref().unwrap_or("");
-    let platform = platform_sdk::PlatformClient::new(
-        state.config.doc_mgmt_base_url.trim_end_matches('/').to_string(),
-    ).with_bearer_token(token.to_string());
-    let client = DistributionsClient::new(platform);
-
     let claims = platform_sdk::PlatformClient::service_claims(tenant_id);
     let payload = match client.list_distributions(&claims, document_id).await {
         Ok(resp) => resp,

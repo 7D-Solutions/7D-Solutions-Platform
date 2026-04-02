@@ -11,5 +11,10 @@ port = 8105
 migrations = "./db/migrations"
 auto_migrate = true
 
+[platform.services]
+gl = { enabled = true, default_url = "http://localhost:8090" }
+ar = { enabled = true, default_url = "http://localhost:8086" }
+ap = { enabled = true, default_url = "http://localhost:8093" }
+
 [sdk]
 min_version = "0.1.0"

@@ -17,5 +17,8 @@ type = "nats"
 [events.publish]
 outbox_table = "events_outbox"
 
+[platform.services]
+party = { enabled = true, default_url = "http://7d-party:8098" }
+
 [sdk]
 min_version = "0.1.0"

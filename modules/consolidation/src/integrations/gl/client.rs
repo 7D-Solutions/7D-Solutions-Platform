@@ -97,8 +97,16 @@ struct FxRateQuery<'a> {
 ///
 /// Uses `PlatformClient` from `platform-sdk` for tenant header injection,
 /// correlation IDs, and automatic retry on 429/503 for GET requests.
+#[derive(Clone)]
 pub struct GlClient {
     client: PlatformClient,
+}
+
+impl platform_sdk::PlatformService for GlClient {
+    const SERVICE_NAME: &'static str = "gl";
+    fn from_platform_client(client: PlatformClient) -> Self {
+        Self { client }
+    }
 }
 
 impl GlClient {

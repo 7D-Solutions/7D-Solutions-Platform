@@ -14,12 +14,12 @@ use integrations::gl::client::GlClient;
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub metrics: std::sync::Arc<metrics::ConsolidationMetrics>,
-    pub gl_base_url: String,
+    pub gl_client: GlClient,
 }
 
 impl AppState {
-    /// Build a GL HTTP client from the configured base URL.
+    /// Build a GL HTTP client from the stored platform client.
     pub fn gl_client(&self) -> GlClient {
-        GlClient::new(&self.gl_base_url)
+        self.gl_client.clone()
     }
 }

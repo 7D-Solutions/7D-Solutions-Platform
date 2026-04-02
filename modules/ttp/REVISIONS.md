@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 3.0.1 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |
 | 3.0.0 | 2026-04-02 | bd-6afz7 | Add utoipa::path annotations to all 4 HTTP handlers (create_billing_run, ingest_events, get_trace, list_service_agreements). Add ToSchema to all request/response types including PriceTrace and TraceLineItem. Replace local ErrorBody with platform ApiError. Register all paths and schemas in ApiDoc. | OpenAPI spec was info-only (no handler annotations). Error responses used custom ErrorBody instead of platform-standard ApiError. | YES: Error response shape changes from `{error, code}` to `{error, message, request_id?, details?}`. Consumers parsing error responses must update to the ApiError shape. |
 | 2.1.17 | 2026-04-02 | bd-k27ri | Migrate TenantRegistryClient from old reqwest API to PlatformClient. Thread VerifiedClaims through run_billing to get_app_id. Fixes compile error from codegen PlatformClient migration. | Generated client crates switched to PlatformClient API (bd-8mqlf) but TTP callers were not updated. | No — internal signature change, HTTP API unchanged |

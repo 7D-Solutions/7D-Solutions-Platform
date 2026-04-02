@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 2.2.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |
 | 2.1.4 | 2026-04-01 | bd-2gyqj | Update DistributionsClient to pass &VerifiedClaims via PlatformClient::service_claims(tenant_id). Constructor uses PlatformClient::new().with_bearer_token(). | New typed client API requires per-request &VerifiedClaims for tenant-scoped auth. | No |
 | 2.1.3 | 2026-04-01 | bd-tfaon | Replace inline reqwest calls to Doc-Mgmt with platform-client-doc-mgmt typed client. Removes local DocMgmtDistributionList/DocMgmtDistribution structs. | Typed client consistency — eliminate raw HTTP in favour of generated clients. | No |

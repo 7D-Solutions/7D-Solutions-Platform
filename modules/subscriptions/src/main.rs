@@ -1,4 +1,4 @@
-use axum::{routing::get, Json, Router};
+use axum::{routing::get, Extension, Json, Router};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
@@ -55,6 +55,10 @@ async fn main() {
             let subs_metrics =
                 Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
 
+            let ar_client = Arc::new(
+                ctx.platform_client::<platform_client_ar::InvoicesClient>(),
+            );
+
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: subs_metrics,
@@ -69,6 +73,7 @@ async fn main() {
                         ])),
                 )
                 .merge(admin::admin_router(ctx.pool().clone()))
+                .layer(Extension(ar_client))
         })
         .run()
         .await
