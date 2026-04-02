@@ -6,6 +6,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 /// Health check endpoint - returns basic service status (legacy, kept for compat)
+#[utoipa::path(
+    get,
+    path = "/healthz",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Liveness check — service process is up"),
+    ),
+)]
 pub async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
@@ -15,6 +23,15 @@ pub async fn health() -> Json<serde_json::Value> {
 }
 
 /// GET /api/ready — readiness probe (verifies DB connectivity)
+#[utoipa::path(
+    get,
+    path = "/api/ready",
+    tag = "Health",
+    responses(
+        (status = 200, description = "All dependency checks passed — service is ready"),
+        (status = 503, description = "One or more dependency checks failed"),
+    ),
+)]
 pub async fn ready(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<Json<ReadyResponse>, (StatusCode, Json<ReadyResponse>)> {
@@ -54,6 +71,14 @@ pub async fn ready(
 /// - Deployment verification
 /// - Troubleshooting version mismatches
 /// - Migration status checks
+#[utoipa::path(
+    get,
+    path = "/api/version",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Module name, version, and schema version"),
+    ),
+)]
 pub async fn version() -> Json<serde_json::Value> {
     // Schema version derived from latest migration timestamp
     // Format: YYYYMMDDNNNNNN (e.g., 20260216000002)

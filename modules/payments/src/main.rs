@@ -13,7 +13,7 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 #[openapi(
     info(
         title = "Payments Service",
-        version = "2.1.3",
+        version = "3.0.0",
         description = "Payment processing: checkout sessions, payment retrieval, and Tilled webhooks.\n\n\
                         **Authentication:** Bearer JWT. Tenant identity derived from JWT claims.",
     ),
@@ -24,6 +24,12 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
         payments_rs::http::checkout_sessions::poll_checkout_session_status,
         payments_rs::http::checkout_sessions::tilled_webhook,
         payments_rs::http::payments::get_payment,
+        payments_rs::http::health::health,
+        payments_rs::http::health::ready,
+        payments_rs::http::health::version,
+        payments_rs::http::admin::projection_status,
+        payments_rs::http::admin::consistency_check,
+        payments_rs::http::admin::list_projections,
     ),
     components(schemas(
         payments_rs::http::checkout_sessions::CreateCheckoutSessionRequest,

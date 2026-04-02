@@ -27,7 +27,17 @@ fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
     })
 }
 
-async fn projection_status(
+#[utoipa::path(
+    post,
+    path = "/api/payments/admin/projection-status",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Projection cursor status"),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn projection_status(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
@@ -43,7 +53,17 @@ async fn projection_status(
     Ok(Json(resp))
 }
 
-async fn consistency_check(
+#[utoipa::path(
+    post,
+    path = "/api/payments/admin/consistency-check",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Consistency check result"),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn consistency_check(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
@@ -59,7 +79,17 @@ async fn consistency_check(
     Ok(Json(resp))
 }
 
-async fn list_projections(
+#[utoipa::path(
+    get,
+    path = "/api/payments/admin/projections",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "List of all known projections"),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn list_projections(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<admin::ProjectionListResponse>, ApiError> {

@@ -25,6 +25,7 @@ use uuid::Uuid;
 
 use crate::webhook_signature::{validate_webhook_signature, WebhookSource};
 
+use platform_sdk::extract_tenant;
 use super::session_logic::{
     create_tilled_payment_intent, poll_tilled_intent_status, validate_https_url,
     CheckoutSessionStatusResponse, CreateCheckoutSessionRequest, CreateCheckoutSessionResponse,
@@ -34,13 +35,6 @@ use super::session_logic::{
 // ============================================================================
 // Helpers
 // ============================================================================
-
-pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
-    }
-}
 
 fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
     match ctx {
