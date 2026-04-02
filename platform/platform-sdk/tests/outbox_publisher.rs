@@ -9,6 +9,7 @@ use event_bus::{EventBus, InMemoryBus};
 use futures::StreamExt;
 use platform_sdk::publisher;
 use platform_sdk::{TenantPoolError, TenantPoolResolver};
+use tokio::sync::watch;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -112,8 +113,9 @@ async fn publisher_drains_outbox() {
     let pub_pool = pool.clone();
     let pub_bus: Arc<dyn EventBus> = bus.clone();
     let pub_table = table.to_string();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
-        publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, "test").await;
+        publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx).await;
     });
 
     // Wait for events to be published (up to 5 seconds)
@@ -135,7 +137,8 @@ async fn publisher_drains_outbox() {
         "all events should be marked published"
     );
 
-    handle.abort();
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
     drop_table(&pool, table).await;
 }
 
@@ -237,6 +240,109 @@ outbox_table = "events_outbox"
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Test 4b: subject_prefix in manifest
+// ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn manifest_with_subject_prefix() {
+    let toml_str = r#"
+[module]
+name = "prefixed-module"
+
+[bus]
+type = "inmemory"
+
+[events.publish]
+outbox_table = "events_outbox"
+subject_prefix = "trashtech.events"
+"#;
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
+        .expect("manifest with subject_prefix should parse");
+
+    let publish = manifest
+        .events
+        .expect("events section")
+        .publish
+        .expect("publish section");
+    assert_eq!(publish.outbox_table, "events_outbox");
+    assert_eq!(publish.subject_prefix.as_deref(), Some("trashtech.events"));
+}
+
+#[test]
+fn manifest_without_subject_prefix() {
+    let toml_str = r#"
+[module]
+name = "no-prefix-module"
+
+[bus]
+type = "inmemory"
+
+[events.publish]
+outbox_table = "events_outbox"
+"#;
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
+        .expect("manifest without subject_prefix should parse");
+
+    let publish = manifest
+        .events
+        .expect("events section")
+        .publish
+        .expect("publish section");
+    assert!(publish.subject_prefix.is_none());
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 4c: Publisher prepends subject_prefix
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn publisher_prepends_subject_prefix() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let table = "sdk_test_outbox_prefix";
+    drop_table(&pool, table).await;
+    create_outbox_table(&pool, table).await;
+
+    insert_event(&pool, table, "stop.started").await;
+    assert_eq!(count_unpublished(&pool, table).await, 1);
+
+    let bus = Arc::new(InMemoryBus::new());
+    // Subscribe to the prefixed subject
+    let mut stream = bus.subscribe("trashtech.events.>").await.expect("subscribe");
+
+    let pub_pool = pool.clone();
+    let pub_bus: Arc<dyn EventBus> = bus.clone();
+    let pub_table = table.to_string();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let handle = tokio::spawn(async move {
+        publisher::run_outbox_publisher(
+            pub_pool, pub_bus, &pub_table, "test",
+            Some("trashtech.events"), shutdown_rx,
+        )
+        .await;
+    });
+
+    // The event should arrive on the prefixed subject
+    let received = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+        .await
+        .expect("should receive within timeout");
+    assert!(received.is_some(), "expected prefixed event to be published");
+
+    assert_eq!(
+        count_unpublished(&pool, table).await,
+        0,
+        "event should be marked published"
+    );
+
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
+    drop_table(&pool, table).await;
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Test 5: pool_for() falls back to default pool without resolver
 // ──────────────────────────────────────────────────────────────────
 
@@ -328,9 +434,12 @@ async fn multi_tenant_publisher_drains_outbox() {
     let pub_bus: Arc<dyn EventBus> = bus.clone();
     let pub_table = table.to_string();
     let pub_resolver = resolver.clone();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
-        publisher::run_multi_tenant_outbox_publisher(pub_resolver, pub_bus, &pub_table, "test")
-            .await;
+        publisher::run_multi_tenant_outbox_publisher(
+            pub_resolver, pub_bus, &pub_table, "test", None, shutdown_rx,
+        )
+        .await;
     });
 
     // Wait for events to be published
@@ -352,7 +461,8 @@ async fn multi_tenant_publisher_drains_outbox() {
         "all events should be marked published"
     );
 
-    handle.abort();
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
     drop_table(&pool, table).await;
 }
 
