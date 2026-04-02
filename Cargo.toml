@@ -13,6 +13,7 @@ members = [
   "platform/platform-contracts",
   "platform/http-contracts",
   "platform/platform-sdk",
+  "platform/auth-kit",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

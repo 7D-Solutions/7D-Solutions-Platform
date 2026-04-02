@@ -59,6 +59,7 @@ Shared crates used by services. Not independently deployed.
 | Library | Crate | Version | Description | Docs |
 |---------|-------|---------|-------------|------|
 | audit | audit | 1.0.0 | Append-only audit trail with field-level diffs and policy enforcement | [Revisions](platform/audit/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| auth-kit | auth-kit | 0.1.0 | Reusable auth package for vertical apps — login proxy, JWKS verification, claims middleware |  |
 | config-validator | config-validator | 0.1.0 | Shared builder for environment config validation. |  |
 | doc-mgmt | doc_mgmt | 1.0.1 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) | [Revisions](platform/doc-mgmt/REVISIONS.md) |
 | event-bus | event-bus | 2.0.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
