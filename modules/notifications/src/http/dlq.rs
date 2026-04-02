@@ -8,21 +8,22 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     routing::{get, post},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::event_bus::{create_notifications_envelope, enqueue_event};
 
 // ── Response types ──────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DlqItem {
     pub id: Uuid,
     pub recipient_ref: String,
@@ -35,13 +36,7 @@ pub struct DlqItem {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct DlqListResponse {
-    pub items: Vec<DlqItem>,
-    pub total: i64,
-}
-
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DeliveryAttemptDetail {
     pub id: Uuid,
     pub attempt_no: i32,
@@ -53,28 +48,22 @@ pub struct DeliveryAttemptDetail {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DlqDetailResponse {
     pub item: DlqItem,
     pub delivery_attempts: Vec<DeliveryAttemptDetail>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DlqActionResponse {
     pub id: Uuid,
     pub action: String,
     pub new_status: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct DlqError {
-    pub error: String,
-    pub message: String,
-}
-
 // ── Query params ────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DlqListParams {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -116,11 +105,16 @@ struct StatusOnly {
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-async fn list_dlq(
+#[utoipa::path(get, path = "/api/dlq", tag = "DLQ",
+    responses(
+        (status = 200, description = "Dead-lettered items", body = PaginatedResponse<DlqItem>),
+    ),
+    security(("bearer" = [])))]
+pub async fn list_dlq(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<DlqListParams>,
-) -> Result<Json<DlqListResponse>, (StatusCode, Json<DlqError>)> {
+) -> Result<Json<PaginatedResponse<DlqItem>>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
@@ -132,7 +126,7 @@ async fn list_dlq(
     .bind(&tenant_id)
     .fetch_one(&pool)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // tenant_id is always $1
     let mut bind_idx = 1u32;
@@ -170,9 +164,9 @@ async fn list_dlq(
     let rows = q
         .fetch_all(&pool)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    let items = rows
+    let items: Vec<DlqItem> = rows
         .into_iter()
         .map(|r| DlqItem {
             id: r.id,
@@ -187,17 +181,22 @@ async fn list_dlq(
         })
         .collect();
 
-    Ok(Json(DlqListResponse {
-        items,
-        total: count,
-    }))
+    let page = if limit > 0 { offset / limit + 1 } else { 1 };
+    Ok(Json(PaginatedResponse::new(items, page, limit, count)))
 }
 
-async fn get_dlq_item(
+#[utoipa::path(get, path = "/api/dlq/{id}", tag = "DLQ",
+    params(("id" = Uuid, Path, description = "DLQ item ID")),
+    responses(
+        (status = 200, description = "DLQ item detail with delivery attempts", body = DlqDetailResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn get_dlq_item(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DlqDetailResponse>, (StatusCode, Json<DlqError>)> {
+) -> Result<Json<DlqDetailResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
     let row = sqlx::query_as::<_, DlqRow>(
         "SELECT id, recipient_ref, channel, template_key, payload_json, \
@@ -209,8 +208,8 @@ async fn get_dlq_item(
     .bind(&tenant_id)
     .fetch_optional(&pool)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?
-    .ok_or_else(|| not_found("DLQ item not found or not in dead_lettered status"))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?
+    .ok_or_else(|| ApiError::not_found("DLQ item not found or not in dead_lettered status"))?;
 
     let attempts = sqlx::query_as::<_, AttemptRow>(
         "SELECT id, attempt_no, status, provider_message_id, error_class, \
@@ -221,7 +220,7 @@ async fn get_dlq_item(
     .bind(id)
     .fetch_all(&pool)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok(Json(DlqDetailResponse {
         item: DlqItem {
@@ -251,16 +250,23 @@ async fn get_dlq_item(
     }))
 }
 
-async fn replay_dlq_item(
+#[utoipa::path(post, path = "/api/dlq/{id}/replay", tag = "DLQ",
+    params(("id" = Uuid, Path, description = "DLQ item ID")),
+    responses(
+        (status = 200, description = "Item replayed", body = DlqActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn replay_dlq_item(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DlqActionResponse>, (StatusCode, Json<DlqError>)> {
+) -> Result<Json<DlqActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
     let mut tx = pool
         .begin()
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Guard: only replay if currently dead_lettered AND belongs to caller's tenant
     let current = sqlx::query_as::<_, StatusOnly>(
@@ -271,14 +277,14 @@ async fn replay_dlq_item(
     .bind(&tenant_id)
     .fetch_optional(&mut *tx)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?
-    .ok_or_else(|| not_found("Notification not found"))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?
+    .ok_or_else(|| ApiError::not_found("Notification not found"))?;
 
     if current.status != "dead_lettered" {
         // Idempotent: if already replayed (pending/attempting/sent) or abandoned, return current state
         tx.commit()
             .await
-            .map_err(|e| internal_error(&e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
         return Ok(Json(DlqActionResponse {
             id,
             action: "replay".to_string(),
@@ -302,7 +308,7 @@ async fn replay_dlq_item(
     .bind(id)
     .execute(&mut *tx)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Outbox: emit dlq.replayed event
     let envelope = create_notifications_envelope(
@@ -321,11 +327,11 @@ async fn replay_dlq_item(
     );
     enqueue_event(&mut tx, "notifications.events.dlq.replayed", &envelope)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     tx.commit()
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     tracing::info!(notification_id = %id, "DLQ item replayed — reset to pending");
 
@@ -336,16 +342,23 @@ async fn replay_dlq_item(
     }))
 }
 
-async fn abandon_dlq_item(
+#[utoipa::path(post, path = "/api/dlq/{id}/abandon", tag = "DLQ",
+    params(("id" = Uuid, Path, description = "DLQ item ID")),
+    responses(
+        (status = 200, description = "Item abandoned", body = DlqActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn abandon_dlq_item(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<DlqActionResponse>, (StatusCode, Json<DlqError>)> {
+) -> Result<Json<DlqActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
     let mut tx = pool
         .begin()
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Guard: only abandon if currently dead_lettered AND belongs to caller's tenant
     let current = sqlx::query_as::<_, StatusOnly>(
@@ -356,14 +369,14 @@ async fn abandon_dlq_item(
     .bind(&tenant_id)
     .fetch_optional(&mut *tx)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?
-    .ok_or_else(|| not_found("Notification not found"))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?
+    .ok_or_else(|| ApiError::not_found("Notification not found"))?;
 
     if current.status != "dead_lettered" {
         // Idempotent: if already abandoned or in another state, return current
         tx.commit()
             .await
-            .map_err(|e| internal_error(&e.to_string()))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?;
         return Ok(Json(DlqActionResponse {
             id,
             action: "abandon".to_string(),
@@ -381,7 +394,7 @@ async fn abandon_dlq_item(
     .bind(id)
     .execute(&mut *tx)
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Outbox: emit dlq.abandoned event
     let envelope = create_notifications_envelope(
@@ -400,11 +413,11 @@ async fn abandon_dlq_item(
     );
     enqueue_event(&mut tx, "notifications.events.dlq.abandoned", &envelope)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     tx.commit()
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     tracing::info!(notification_id = %id, "DLQ item abandoned by operator");
 
@@ -417,43 +430,11 @@ async fn abandon_dlq_item(
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-fn require_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<DlqError>)> {
+fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(unauthorized("Missing or invalid authentication")),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
-}
-
-fn unauthorized(msg: &str) -> (StatusCode, Json<DlqError>) {
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(DlqError {
-            error: "unauthorized".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn internal_error(msg: &str) -> (StatusCode, Json<DlqError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(DlqError {
-            error: "internal_error".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn not_found(msg: &str) -> (StatusCode, Json<DlqError>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(DlqError {
-            error: "not_found".to_string(),
-            message: msg.to_string(),
-        }),
-    )
 }
 
 // ── Router ──────────────────────────────────────────────────────────

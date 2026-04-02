@@ -10,9 +10,11 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Serialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use uuid::Uuid;
@@ -23,7 +25,7 @@ use crate::template_store;
 
 // ── Response types ──────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SendResponse {
     pub id: Uuid,
     pub status: String,
@@ -34,7 +36,7 @@ pub struct SendResponse {
     pub receipt_count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SendDetailResponse {
     pub id: Uuid,
     pub status: String,
@@ -47,46 +49,33 @@ pub struct SendDetailResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct DeliveryListResponse {
-    pub receipts: Vec<models::DeliveryReceipt>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-}
-
 // ── Handlers ────────────────────────────────────────────────────────
 
-async fn send_notification(
+#[utoipa::path(post, path = "/api/notifications/send", tag = "Sends",
+    request_body = crate::sends::models::SendRequest,
+    responses(
+        (status = 201, description = "Notification sent", body = SendResponse),
+        (status = 400, description = "Bad request", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn send_notification(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(input): Json<models::SendRequest>,
-) -> Result<(StatusCode, Json<SendResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(StatusCode, Json<SendResponse>), ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     // Resolve template (latest version)
     let template =
         template_store::repo::get_latest(&pool, &tenant_id, &input.template_key)
             .await
-            .map_err(|e| internal_error(&e.to_string()))?
-            .ok_or_else(|| bad_request("Template not found"))?;
+            .map_err(|e| ApiError::internal(e.to_string()))?
+            .ok_or_else(|| ApiError::bad_request("Template not found"))?;
 
     // Validate required_vars
     let (rendered_subject, rendered_body) =
         template_store::repo::render_template(&template, &input.payload_json)
-            .map_err(|e| {
-                // Emit delivery.failed for validation errors — fire-and-forget
-                (
-                    StatusCode::UNPROCESSABLE_ENTITY,
-                    Json(ErrorResponse {
-                        error: "validation_failed".to_string(),
-                        message: e,
-                    }),
-                )
-            })?;
+            .map_err(|e| ApiError::new(422, "validation_failed", e))?;
 
     // Compute rendered hash for compliance proof
     let rendered_hash = compute_hash(&rendered_subject, &rendered_body);
@@ -105,7 +94,7 @@ async fn send_notification(
         Some(&rendered_hash),
     )
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Create delivery receipts per recipient and emit events
     let mut receipt_count = 0;
@@ -127,10 +116,10 @@ async fn send_notification(
             None,
         )
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         // Emit delivery.attempted + delivery.succeeded events
-        let mut tx = pool.begin().await.map_err(|e| internal_error(&e.to_string()))?;
+        let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
 
         let attempted_payload = serde_json::json!({
             "send_id": send.id,
@@ -155,7 +144,7 @@ async fn send_notification(
             &attempted_envelope,
         )
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let succeeded_payload = serde_json::json!({
             "send_id": send.id,
@@ -182,9 +171,9 @@ async fn send_notification(
             &succeeded_envelope,
         )
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
-        tx.commit().await.map_err(|e| internal_error(&e.to_string()))?;
+        tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
 
         receipt_count += 1;
         any_succeeded = true;
@@ -194,7 +183,7 @@ async fn send_notification(
     let final_status = if any_succeeded { "delivered" } else { "failed" };
     repo::update_send_status(&pool, send.id, final_status)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok((
         StatusCode::CREATED,
@@ -210,21 +199,28 @@ async fn send_notification(
     ))
 }
 
-async fn get_send_detail(
+#[utoipa::path(get, path = "/api/notifications/{id}", tag = "Sends",
+    params(("id" = Uuid, Path, description = "Send ID")),
+    responses(
+        (status = 200, description = "Send detail with receipts", body = SendDetailResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn get_send_detail(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-) -> Result<Json<SendDetailResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<SendDetailResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let send = repo::get_send(&pool, &tenant_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Notification send not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Notification send not found"))?;
 
     let receipts = repo::get_receipts_for_send(&pool, &tenant_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok(Json(SendDetailResponse {
         id: send.id,
@@ -239,14 +235,30 @@ async fn get_send_detail(
     }))
 }
 
-async fn query_deliveries(
+#[utoipa::path(get, path = "/api/deliveries", tag = "Sends",
+    responses(
+        (status = 200, description = "Delivery receipts", body = PaginatedResponse<crate::sends::models::DeliveryReceipt>),
+    ),
+    security(("bearer" = [])))]
+pub async fn query_deliveries(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<models::DeliveryQuery>,
-) -> Result<Json<DeliveryListResponse>, (StatusCode, Json<ErrorResponse>)> {
+) -> Result<Json<PaginatedResponse<models::DeliveryReceipt>>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
+
+    let total = repo::count_receipts(
+        &pool,
+        &tenant_id,
+        params.correlation_id.as_deref(),
+        params.recipient.as_deref(),
+        params.from,
+        params.to,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let receipts = repo::query_receipts(
         &pool,
@@ -259,9 +271,10 @@ async fn query_deliveries(
         offset,
     )
     .await
-    .map_err(|e| internal_error(&e.to_string()))?;
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    Ok(Json(DeliveryListResponse { receipts }))
+    let page = if limit > 0 { offset / limit + 1 } else { 1 };
+    Ok(Json(PaginatedResponse::new(receipts, page, limit, total)))
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -273,53 +286,11 @@ fn compute_hash(subject: &str, body: &str) -> String {
     format!("{:016x}", hasher.finish())
 }
 
-fn require_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<ErrorResponse>)> {
+fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(unauthorized("Missing or invalid authentication")),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
-}
-
-fn unauthorized(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(ErrorResponse {
-            error: "unauthorized".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn internal_error(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: "internal_error".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn bad_request(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ErrorResponse {
-            error: "bad_request".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn not_found(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ErrorResponse {
-            error: "not_found".to_string(),
-            message: msg.to_string(),
-        }),
-    )
 }
 
 // ── Routers ─────────────────────────────────────────────────────────

@@ -10,21 +10,22 @@
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     routing::{get, post},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::inbox;
 
 // ── Response types ──────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct InboxItem {
     pub id: Uuid,
     pub notification_id: Uuid,
@@ -38,13 +39,7 @@ pub struct InboxItem {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct InboxListResponse {
-    pub items: Vec<InboxItem>,
-    pub total: i64,
-}
-
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct InboxActionResponse {
     pub id: Uuid,
     pub action: String,
@@ -52,15 +47,9 @@ pub struct InboxActionResponse {
     pub is_dismissed: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct InboxError {
-    pub error: String,
-    pub message: String,
-}
-
 // ── Query params ────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct InboxListQuery {
     pub user_id: String,
     pub unread_only: Option<bool>,
@@ -72,12 +61,19 @@ pub struct InboxListQuery {
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-async fn list_inbox(
+#[utoipa::path(get, path = "/api/inbox", tag = "Inbox",
+    responses(
+        (status = 200, description = "Inbox messages", body = PaginatedResponse<InboxItem>),
+    ),
+    security(("bearer" = [])))]
+pub async fn list_inbox(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<InboxListQuery>,
-) -> Result<Json<InboxListResponse>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<PaginatedResponse<InboxItem>>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
+    let page_size = params.page_size.unwrap_or(25).min(200);
+    let offset = params.offset.unwrap_or(0);
 
     let list_params = inbox::InboxListParams {
         tenant_id,
@@ -85,30 +81,38 @@ async fn list_inbox(
         unread_only: params.unread_only.unwrap_or(false),
         include_dismissed: params.include_dismissed.unwrap_or(false),
         category: params.category,
-        limit: params.page_size.unwrap_or(25).min(200),
-        offset: params.offset.unwrap_or(0),
+        limit: page_size,
+        offset,
     };
 
     let (messages, total) = inbox::list_messages(&pool, &list_params)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
-    let items = messages.into_iter().map(to_inbox_item).collect();
-    Ok(Json(InboxListResponse { items, total }))
+    let items: Vec<InboxItem> = messages.into_iter().map(to_inbox_item).collect();
+    let page = if page_size > 0 { offset / page_size + 1 } else { 1 };
+    Ok(Json(PaginatedResponse::new(items, page, page_size, total)))
 }
 
-async fn get_inbox_message(
+#[utoipa::path(get, path = "/api/inbox/{id}", tag = "Inbox",
+    params(("id" = Uuid, Path, description = "Inbox message ID")),
+    responses(
+        (status = 200, description = "Inbox message", body = InboxItem),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn get_inbox_message(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Query(params): Query<UserIdQuery>,
-) -> Result<Json<InboxItem>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<InboxItem>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let msg = inbox::get_message(&pool, &tenant_id, &params.user_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Inbox message not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Inbox message not found"))?;
 
     Ok(Json(to_inbox_item(msg)))
 }
@@ -118,18 +122,25 @@ pub struct UserIdQuery {
     pub user_id: String,
 }
 
-async fn read_message(
+#[utoipa::path(post, path = "/api/inbox/{id}/read", tag = "Inbox",
+    params(("id" = Uuid, Path, description = "Inbox message ID")),
+    responses(
+        (status = 200, description = "Marked as read", body = InboxActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn read_message(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Query(params): Query<UserIdQuery>,
-) -> Result<Json<InboxActionResponse>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<InboxActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let msg = inbox::mark_read(&pool, &tenant_id, &params.user_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Inbox message not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Inbox message not found"))?;
 
     Ok(Json(InboxActionResponse {
         id: msg.id,
@@ -139,18 +150,25 @@ async fn read_message(
     }))
 }
 
-async fn unread_message(
+#[utoipa::path(post, path = "/api/inbox/{id}/unread", tag = "Inbox",
+    params(("id" = Uuid, Path, description = "Inbox message ID")),
+    responses(
+        (status = 200, description = "Marked as unread", body = InboxActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn unread_message(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Query(params): Query<UserIdQuery>,
-) -> Result<Json<InboxActionResponse>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<InboxActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let msg = inbox::mark_unread(&pool, &tenant_id, &params.user_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Inbox message not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Inbox message not found"))?;
 
     Ok(Json(InboxActionResponse {
         id: msg.id,
@@ -160,18 +178,25 @@ async fn unread_message(
     }))
 }
 
-async fn dismiss_inbox_message(
+#[utoipa::path(post, path = "/api/inbox/{id}/dismiss", tag = "Inbox",
+    params(("id" = Uuid, Path, description = "Inbox message ID")),
+    responses(
+        (status = 200, description = "Dismissed", body = InboxActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn dismiss_inbox_message(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Query(params): Query<UserIdQuery>,
-) -> Result<Json<InboxActionResponse>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<InboxActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let msg = inbox::dismiss_message(&pool, &tenant_id, &params.user_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Inbox message not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Inbox message not found"))?;
 
     Ok(Json(InboxActionResponse {
         id: msg.id,
@@ -181,18 +206,25 @@ async fn dismiss_inbox_message(
     }))
 }
 
-async fn undismiss_inbox_message(
+#[utoipa::path(post, path = "/api/inbox/{id}/undismiss", tag = "Inbox",
+    params(("id" = Uuid, Path, description = "Inbox message ID")),
+    responses(
+        (status = 200, description = "Undismissed", body = InboxActionResponse),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])))]
+pub async fn undismiss_inbox_message(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Query(params): Query<UserIdQuery>,
-) -> Result<Json<InboxActionResponse>, (StatusCode, Json<InboxError>)> {
+) -> Result<Json<InboxActionResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
     let msg = inbox::undismiss_message(&pool, &tenant_id, &params.user_id, id)
         .await
-        .map_err(|e| internal_error(&e.to_string()))?
-        .ok_or_else(|| not_found("Inbox message not found"))?;
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Inbox message not found"))?;
 
     Ok(Json(InboxActionResponse {
         id: msg.id,
@@ -219,43 +251,11 @@ fn to_inbox_item(m: inbox::InboxMessage) -> InboxItem {
     }
 }
 
-fn require_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<InboxError>)> {
+fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(unauthorized("Missing or invalid authentication")),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
-}
-
-fn unauthorized(msg: &str) -> (StatusCode, Json<InboxError>) {
-    (
-        StatusCode::UNAUTHORIZED,
-        Json(InboxError {
-            error: "unauthorized".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn internal_error(msg: &str) -> (StatusCode, Json<InboxError>) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(InboxError {
-            error: "internal_error".to_string(),
-            message: msg.to_string(),
-        }),
-    )
-}
-
-fn not_found(msg: &str) -> (StatusCode, Json<InboxError>) {
-    (
-        StatusCode::NOT_FOUND,
-        Json(InboxError {
-            error: "not_found".to_string(),
-            message: msg.to_string(),
-        }),
-    )
 }
 
 // ── Routers ─────────────────────────────────────────────────────────
