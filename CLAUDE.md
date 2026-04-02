@@ -10,9 +10,9 @@ All work must be tracked with a bead. Edits are blocked until you have one.
 ```
 Never bypass or disable hooks. If blocked, create a bead first.
 
-### 2. Git — mail BrightHill (see global rules)
+### 2. Git — mail the orchestrator (see global rules)
 ```bash
-./scripts/agent-mail-helper.sh send BrightHill "bd-xxx done" "Files changed: X, Y, Z. What I did: ..."
+./scripts/agent-mail-helper.sh send <orchestrator> "bd-xxx done" "Files changed: X, Y, Z. What I did: ..."
 br close bd-xxx
 ./scripts/bv-claim.sh
 ```
