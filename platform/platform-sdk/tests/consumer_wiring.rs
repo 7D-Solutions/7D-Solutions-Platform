@@ -293,3 +293,199 @@ async fn multiple_consumers_independent() {
 
     handles.shutdown().await;
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Test 6: Provisioning hook receives tenant.provisioned event
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn provisioning_hook_receives_event() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
+    let manifest = test_manifest();
+    let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
+
+    let call_count = Arc::new(AtomicUsize::new(0));
+    let count_clone = call_count.clone();
+
+    let received_id = Arc::new(tokio::sync::Mutex::new(None));
+    let id_clone = received_id.clone();
+
+    let handler: platform_sdk::consumer::ProvisioningHandler = Arc::new(move |_ctx, event| {
+        let count = count_clone.clone();
+        let id = id_clone.clone();
+        Box::pin(async move {
+            count.fetch_add(1, Ordering::SeqCst);
+            *id.lock().await = Some(event.tenant_id);
+            Ok(())
+        })
+    });
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
+    let handle = platform_sdk::consumer::wire_provisioning_hook(
+        handler,
+        &bus,
+        &ctx,
+        shutdown_rx,
+    )
+    .await
+    .expect("wire_provisioning_hook should succeed");
+
+    // Publish a raw JSON payload (matching what the provisioning outbox relay sends)
+    let tenant_id = uuid::Uuid::new_v4();
+    let payload = serde_json::json!({
+        "tenant_id": tenant_id.to_string(),
+        "activated_at": "2026-04-01T12:00:00Z",
+    });
+    let bytes = serde_json::to_vec(&payload).unwrap();
+    bus.publish("tenant.provisioned", bytes).await.unwrap();
+
+    // Wait for processing
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    assert_eq!(
+        call_count.load(Ordering::SeqCst),
+        1,
+        "provisioning hook should be called once"
+    );
+    assert_eq!(
+        *received_id.lock().await,
+        Some(tenant_id),
+        "hook should receive the correct tenant_id"
+    );
+
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 7: Provisioning hook retries on failure
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn provisioning_hook_retries() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
+    let manifest = test_manifest();
+    let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
+
+    let attempt_count = Arc::new(AtomicUsize::new(0));
+    let count_clone = attempt_count.clone();
+
+    let handler: platform_sdk::consumer::ProvisioningHandler = Arc::new(move |_ctx, _event| {
+        let count = count_clone.clone();
+        Box::pin(async move {
+            let attempt = count.fetch_add(1, Ordering::SeqCst) + 1;
+            if attempt < 3 {
+                Err(ConsumerError::Processing(format!(
+                    "transient error attempt {attempt}"
+                )))
+            } else {
+                Ok(())
+            }
+        })
+    });
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
+    let handle = platform_sdk::consumer::wire_provisioning_hook(
+        handler,
+        &bus,
+        &ctx,
+        shutdown_rx,
+    )
+    .await
+    .expect("wire_provisioning_hook should succeed");
+
+    let payload = serde_json::json!({
+        "tenant_id": uuid::Uuid::new_v4().to_string(),
+    });
+    bus.publish("tenant.provisioned", serde_json::to_vec(&payload).unwrap())
+        .await
+        .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+
+    assert_eq!(
+        attempt_count.load(Ordering::SeqCst),
+        3,
+        "hook should retry 3 times (2 failures + 1 success)"
+    );
+
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 8: Provisioning hook skips malformed payload
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn provisioning_hook_skips_bad_payload() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
+    let manifest = test_manifest();
+    let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
+
+    let call_count = Arc::new(AtomicUsize::new(0));
+    let count_clone = call_count.clone();
+
+    let handler: platform_sdk::consumer::ProvisioningHandler = Arc::new(move |_ctx, _event| {
+        let count = count_clone.clone();
+        Box::pin(async move {
+            count.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    });
+
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+
+    let handle = platform_sdk::consumer::wire_provisioning_hook(
+        handler,
+        &bus,
+        &ctx,
+        shutdown_rx,
+    )
+    .await
+    .expect("wire_provisioning_hook should succeed");
+
+    // Publish malformed payload (missing tenant_id)
+    bus.publish(
+        "tenant.provisioned",
+        serde_json::to_vec(&serde_json::json!({"bad": "data"})).unwrap(),
+    )
+    .await
+    .unwrap();
+
+    // Then publish a valid one
+    let payload = serde_json::json!({
+        "tenant_id": uuid::Uuid::new_v4().to_string(),
+    });
+    bus.publish("tenant.provisioned", serde_json::to_vec(&payload).unwrap())
+        .await
+        .unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+
+    assert_eq!(
+        call_count.load(Ordering::SeqCst),
+        1,
+        "handler should be called once (bad message skipped, good message processed)"
+    );
+
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
+}

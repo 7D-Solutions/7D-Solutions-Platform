@@ -15,8 +15,16 @@ use tracing::Instrument;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
+use uuid::Uuid;
+
 use crate::context::ModuleContext;
 use crate::startup::StartupError;
+
+/// NATS subject for the tenant.provisioned event.
+///
+/// Matches `tenant_registry::event_types::TENANT_PROVISIONED` without
+/// coupling the SDK to the control-plane's tenant-registry crate.
+pub(crate) const TENANT_PROVISIONED_SUBJECT: &str = "tenant.provisioned";
 
 /// Error returned by a consumer handler.
 #[derive(Debug, thiserror::Error)]
@@ -30,6 +38,27 @@ pub(crate) type BoxedHandler = Arc<
     dyn Fn(
             ModuleContext,
             EventEnvelope<serde_json::Value>,
+        ) -> Pin<Box<dyn Future<Output = Result<(), ConsumerError>> + Send>>
+        + Send
+        + Sync,
+>;
+
+/// Event payload received by the [`ModuleBuilder::on_tenant_provisioned`] hook.
+///
+/// Contains the tenant ID whose provisioning just completed. The module's
+/// database has been created and migrated by the orchestrator — use this
+/// hook for module-specific setup (seed data, default config).
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TenantProvisionedEvent {
+    /// The newly provisioned tenant.
+    pub tenant_id: Uuid,
+}
+
+/// Type-erased async handler for the provisioning hook.
+pub type ProvisioningHandler = Arc<
+    dyn Fn(
+            ModuleContext,
+            TenantProvisionedEvent,
         ) -> Pin<Box<dyn Future<Output = Result<(), ConsumerError>> + Send>>
         + Send
         + Sync,
@@ -68,6 +97,16 @@ impl ConsumerHandles {
             shutdown_tx: tx,
             tasks: vec![],
         }
+    }
+
+    /// Add a task handle to be drained on shutdown.
+    pub(crate) fn add_task(&mut self, handle: JoinHandle<()>) {
+        self.tasks.push(handle);
+    }
+
+    /// Get a shutdown receiver for sharing with additional tasks.
+    pub(crate) fn shutdown_rx(&self) -> watch::Receiver<bool> {
+        self.shutdown_tx.subscribe()
     }
 
     /// Signal all consumers to stop, then wait for in-flight work to finish.
@@ -192,4 +231,93 @@ pub async fn wire_consumers(
     }
 
     Ok(ConsumerHandles { shutdown_tx, tasks })
+}
+
+/// Subscribe to `tenant.provisioned` via the event bus and run the hook.
+///
+/// The provisioning outbox relay publishes raw JSON payloads (not
+/// EventEnvelope), so this function deserializes directly into
+/// [`TenantProvisionedEvent`].
+pub async fn wire_provisioning_hook(
+    handler: ProvisioningHandler,
+    bus: &Arc<dyn EventBus>,
+    ctx: &ModuleContext,
+    shutdown_rx: watch::Receiver<bool>,
+) -> Result<JoinHandle<()>, StartupError> {
+    let mut stream = bus.subscribe(TENANT_PROVISIONED_SUBJECT).await.map_err(|e| {
+        StartupError::Config(format!(
+            "failed to subscribe to '{}': {e}",
+            TENANT_PROVISIONED_SUBJECT
+        ))
+    })?;
+
+    tracing::info!(
+        subject = TENANT_PROVISIONED_SUBJECT,
+        "provisioning hook subscribed"
+    );
+
+    let ctx = ctx.clone();
+    let mut rx = shutdown_rx;
+    let retry_config = RetryConfig::default();
+
+    let handle = tokio::spawn(async move {
+        tracing::info!(subject = TENANT_PROVISIONED_SUBJECT, "provisioning hook listening");
+
+        loop {
+            tokio::select! {
+                biased;
+                _ = rx.changed() => {
+                    if *rx.borrow() {
+                        break;
+                    }
+                }
+                msg = stream.next() => {
+                    let Some(msg) = msg else { break; };
+
+                    let event: TenantProvisionedEvent =
+                        match serde_json::from_slice(&msg.payload) {
+                            Ok(e) => e,
+                            Err(e) => {
+                                tracing::error!(
+                                    error = %e,
+                                    "provisioning hook: failed to parse event — skipping"
+                                );
+                                continue;
+                            }
+                        };
+
+                    let tenant_id = event.tenant_id;
+                    let span = tracing::info_span!(
+                        "provisioning_hook",
+                        tenant_id = %tenant_id,
+                    );
+
+                    let result = retry_with_backoff(
+                        || {
+                            let h = handler.clone();
+                            let c = ctx.clone();
+                            let ev = event.clone();
+                            async move { h(c, ev).await.map_err(|e| e.to_string()) }
+                        },
+                        &retry_config,
+                        "provisioning_hook",
+                    )
+                    .instrument(span)
+                    .await;
+
+                    if let Err(e) = result {
+                        tracing::error!(
+                            tenant_id = %tenant_id,
+                            error = %e,
+                            "provisioning hook exhausted retries"
+                        );
+                    }
+                }
+            }
+        }
+
+        tracing::info!("provisioning hook stopped");
+    });
+
+    Ok(handle)
 }

@@ -31,14 +31,16 @@ pub mod manifest;
 pub mod publisher;
 pub mod startup;
 mod startup_helpers;
+pub mod tenant;
 
 pub use builder::ModuleBuilder;
 pub use client_core::{parse_empty, parse_response, build_query_url, ClientError};
-pub use consumer::ConsumerError;
+pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext};
 pub use http_client::PlatformClient;
 pub use manifest::Manifest;
 pub use startup::StartupError;
+pub use tenant::TenantId;
 
 // Re-export commonly needed types so modules don't have to depend on
 // platform sub-crates directly for basic operations.
