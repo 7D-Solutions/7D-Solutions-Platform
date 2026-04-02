@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Stored notification template row.
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct NotificationTemplate {
     pub id: Uuid,
     pub tenant_id: String,
@@ -18,7 +19,7 @@ pub struct NotificationTemplate {
 }
 
 /// Input for creating/publishing a new template version.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateTemplate {
     pub template_key: String,
     pub channel: String,
@@ -34,7 +35,7 @@ pub struct TemplateDetail {
     pub versions: Vec<TemplateVersionSummary>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TemplateVersionSummary {
     pub version: i32,
     pub created_at: DateTime<Utc>,

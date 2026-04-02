@@ -15,6 +15,10 @@ pub struct ReconRunRequest {
     pub recon_run_id: Option<uuid::Uuid>,
 }
 
+#[utoipa::path(post, path = "/api/ar/recon/run", tag = "Reconciliation",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Reconciliation run result", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// POST /api/ar/recon/run — trigger a reconciliation matching run
 ///
 /// Matches unmatched succeeded payments against open invoices using
@@ -61,6 +65,10 @@ pub struct ScheduleReconRequest {
     pub window_end: chrono::NaiveDateTime,
 }
 
+#[utoipa::path(post, path = "/api/ar/recon/schedule", tag = "Reconciliation",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Scheduled run result", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// POST /api/ar/recon/schedule — create a scheduled reconciliation run
 pub async fn schedule_recon_route(
     State(db): State<PgPool>,
@@ -98,6 +106,10 @@ pub struct ReconPollRequest {
     pub batch_size: Option<usize>,
 }
 
+#[utoipa::path(post, path = "/api/ar/recon/poll", tag = "Reconciliation",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Scheduled run execution outcomes", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// POST /api/ar/recon/poll — claim and execute pending scheduled runs
 pub async fn recon_poll_route(
     State(db): State<PgPool>,

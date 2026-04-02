@@ -21,7 +21,8 @@ use uuid::Uuid;
 
 use platform_http_contracts::PaginatedResponse;
 
-use super::party::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::party::with_request_id;
 use crate::domain::address::{Address, CreateAddressRequest, UpdateAddressRequest};
 use crate::domain::address_service;
 use crate::AppState;

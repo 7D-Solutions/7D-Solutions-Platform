@@ -10,7 +10,8 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::work_orders::{CreateWorkOrderRequest, WorkOrder, WorkOrderRepo},
     AppState,

@@ -12,7 +12,8 @@ use std::sync::Arc;
 use utoipa::IntoParams;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::domain::models::*;
 use crate::domain::service::{self, QiError};
 use crate::AppState;

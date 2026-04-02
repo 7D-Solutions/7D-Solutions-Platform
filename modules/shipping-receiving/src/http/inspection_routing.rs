@@ -15,7 +15,8 @@ use uuid::Uuid;
 use crate::domain::inspection_routing::{InspectionRoutingService, RouteLineRequest};
 use crate::AppState;
 
-use super::shipments::types::{extract_tenant, idempotency_key, with_request_id};
+use platform_sdk::extract_tenant;
+use super::shipments::types::{idempotency_key, with_request_id};
 
 #[utoipa::path(
     post,
@@ -42,8 +43,8 @@ pub async fn route_line(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(mut req): Json<RouteLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -85,8 +86,8 @@ pub async fn list_routings(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(shipment_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 

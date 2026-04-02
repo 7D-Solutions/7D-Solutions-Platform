@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "4.0.1"
+version = "4.1.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -218,6 +218,16 @@ name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+
+[[package]]
+name = "assert-json-diff"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e4f2b81832e72834d7518d8487a0396a28cc408186a2e8854c0f98011faf12"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "async-nats"
@@ -318,8 +328,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "auth-kit"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "http",
+ "jsonwebtoken",
+ "rand 0.8.5",
+ "reqwest",
+ "rsa",
+ "security",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
 name = "auth-rs"
-version = "1.8.0"
+version = "1.8.1"
 dependencies = [
  "argon2",
  "async-nats",
@@ -337,6 +369,7 @@ dependencies = [
  "jsonwebtoken",
  "once_cell",
  "platform-client-tenant-registry",
+ "platform-sdk",
  "prometheus",
  "rand 0.8.5",
  "reqwest",
@@ -534,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.2.6"
+version = "2.2.7"
 dependencies = [
  "axum",
  "chrono",
@@ -545,7 +578,6 @@ dependencies = [
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
- "reqwest",
  "security",
  "serde",
  "serde_json",
@@ -1187,6 +1219,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
+name = "deadpool"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0be2b1d1d6ec8d846f05e137292d0b89133caf95ef33695424c09568bdd39b1b"
+dependencies = [
+ "deadpool-runtime",
+ "lazy_static",
+ "num_cpus",
+ "tokio",
+]
+
+[[package]]
+name = "deadpool-runtime"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "092966b41edc516079bdf31ec78a2e0588d1d0c08f78b91d8307215928642b2b"
+
+[[package]]
 name = "demo-seed"
 version = "1.0.0"
 dependencies = [
@@ -1338,6 +1388,7 @@ dependencies = [
  "notifications-rs",
  "party-rs",
  "payments-rs",
+ "platform-sdk",
  "production-rs",
  "projections",
  "quality-inspection-rs",
@@ -2375,7 +2426,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.4.10"
+version = "2.5.0"
 dependencies = [
  "axum",
  "chrono",
@@ -2974,6 +3025,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_cpus"
+version = "1.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
+dependencies = [
+ "hermit-abi",
+ "libc",
+]
+
+[[package]]
 name = "numbering"
 version = "2.1.4"
 dependencies = [
@@ -3128,7 +3189,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "3.0.1"
+version = "4.0.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3392,6 +3453,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-identity-auth"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-integrations"
 version = "0.1.0"
 dependencies = [
@@ -3458,7 +3531,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3471,7 +3543,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3484,7 +3555,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3497,7 +3567,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3510,7 +3579,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3523,7 +3591,6 @@ dependencies = [
  "chrono",
  "platform-http-contracts",
  "platform-sdk",
- "reqwest",
  "serde",
  "serde_json",
  "uuid",
@@ -3547,7 +3614,9 @@ name = "platform-sdk"
 version = "0.1.0"
 dependencies = [
  "async-nats",
+ "async-trait",
  "axum",
+ "base64",
  "chrono",
  "config-validator",
  "dotenvy",
@@ -3555,7 +3624,9 @@ dependencies = [
  "futures",
  "health",
  "http",
+ "http-body-util",
  "jsonwebtoken",
+ "platform-client-party",
  "platform-http-contracts",
  "platform_contracts",
  "prometheus",
@@ -5826,7 +5897,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.16"
+version = "2.1.17"
 dependencies = [
  "async-nats",
  "axum",
@@ -6576,6 +6647,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "wiremock"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08db1edfb05d9b3c1542e521aea074442088292f00b5f28e435c714a98f85031"
+dependencies = [
+ "assert-json-diff",
+ "base64",
+ "deadpool",
+ "futures",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "log",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "tokio",
+ "url",
 ]
 
 [[package]]

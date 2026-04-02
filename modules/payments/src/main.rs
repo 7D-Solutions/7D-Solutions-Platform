@@ -13,7 +13,7 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 #[openapi(
     info(
         title = "Payments Service",
-        version = "3.0.0",
+        version = "4.0.0",
         description = "Payment processing: checkout sessions, payment retrieval, and Tilled webhooks.\n\n\
                         **Authentication:** Bearer JWT. Tenant identity derived from JWT claims.",
     ),
@@ -38,8 +38,13 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
         payments_rs::http::checkout_sessions::SessionStatusPollResponse,
         payments_rs::http::payments::PaymentResponse,
         payments_rs::http::payments::DataSource,
+        payments_rs::http::admin::ProjectionStatusSchema,
+        payments_rs::http::admin::CursorStatusSchema,
+        payments_rs::http::admin::ConsistencyCheckSchema,
+        payments_rs::http::admin::ProjectionSummarySchema,
         platform_http_contracts::ApiError,
         platform_http_contracts::FieldError,
+        platform_http_contracts::PaginatedResponse<payments_rs::http::admin::ProjectionSummarySchema>,
         platform_http_contracts::PaginationMeta,
     )),
     security(("bearer" = [])),

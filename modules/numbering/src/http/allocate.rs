@@ -17,7 +17,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{format, outbox, policy};
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -73,8 +74,9 @@ pub async fn allocate(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<AllocateRequest>,
 ) -> Result<(StatusCode, Json<AllocateResponse>), ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id: Uuid = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?
+        .parse().expect("tenant_id is a valid UUID");
 
     if req.entity.is_empty() || req.entity.len() > 100 {
         return Err(with_request_id(

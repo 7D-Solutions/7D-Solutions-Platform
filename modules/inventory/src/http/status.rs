@@ -16,7 +16,8 @@ use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::status::transfer_service::{
         process_status_transfer, StatusTransferRequest, StatusTransferResult,

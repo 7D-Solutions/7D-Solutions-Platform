@@ -62,6 +62,13 @@ struct ErrorBody {
 // GET /api/ar/tax/reports/summary
 // ============================================================================
 
+#[utoipa::path(get, path = "/api/ar/tax/reports/summary", tag = "Tax Reports",
+    params(
+        ("from" = chrono::NaiveDate, Query, description = "Start date"),
+        ("to" = chrono::NaiveDate, Query, description = "End date"),
+    ),
+    responses((status = 200, description = "Tax summary report", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// Returns AR collected-tax summaries grouped by period and jurisdiction.
 pub async fn tax_report_summary(
     State(pool): State<PgPool>,
@@ -115,6 +122,14 @@ pub async fn tax_report_summary(
 // GET /api/ar/tax/reports/export
 // ============================================================================
 
+#[utoipa::path(get, path = "/api/ar/tax/reports/export", tag = "Tax Reports",
+    params(
+        ("from" = chrono::NaiveDate, Query, description = "Start date"),
+        ("to" = chrono::NaiveDate, Query, description = "End date"),
+        ("format" = Option<String>, Query, description = "Export format: json or csv"),
+    ),
+    responses((status = 200, description = "Tax report export (JSON or CSV)", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// Returns AR collected-tax summaries as a deterministic CSV or JSON file.
 pub async fn tax_report_export(
     State(pool): State<PgPool>,

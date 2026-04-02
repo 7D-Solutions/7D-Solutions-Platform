@@ -18,7 +18,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};

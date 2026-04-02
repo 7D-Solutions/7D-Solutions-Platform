@@ -113,7 +113,14 @@ pub fn tax_router(db: PgPool) -> Router {
 // POST /api/ar/tax/quote
 // ============================================================================
 
-async fn quote_tax_handler(
+#[utoipa::path(post, path = "/api/ar/tax/quote", tag = "Tax",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Tax quote", body = serde_json::Value),
+        (status = 400, description = "Invalid request", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
+pub async fn quote_tax_handler(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<QuoteTaxHttpRequest>,
@@ -225,7 +232,14 @@ async fn quote_tax_handler(
 // GET /api/ar/tax/quote?invoice_id=...
 // ============================================================================
 
-async fn lookup_cached_quote(
+#[utoipa::path(get, path = "/api/ar/tax/quote", tag = "Tax",
+    params(("invoice_id" = String, Query, description = "Invoice ID to look up cached quote")),
+    responses(
+        (status = 200, description = "Cached tax quote", body = serde_json::Value),
+        (status = 404, description = "No cached quote found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
+pub async fn lookup_cached_quote(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     axum::extract::Query(query): axum::extract::Query<LookupQuery>,
@@ -310,7 +324,14 @@ async fn lookup_cached_quote(
 // POST /api/ar/tax/commit (bd-3fy)
 // ============================================================================
 
-async fn commit_tax_handler(
+#[utoipa::path(post, path = "/api/ar/tax/commit", tag = "Tax",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Tax committed", body = serde_json::Value),
+        (status = 404, description = "No quote found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
+pub async fn commit_tax_handler(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CommitTaxHttpRequest>,
@@ -368,7 +389,13 @@ async fn commit_tax_handler(
 // POST /api/ar/tax/void (bd-3fy)
 // ============================================================================
 
-async fn void_tax_handler(
+#[utoipa::path(post, path = "/api/ar/tax/void", tag = "Tax",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Tax voided", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
+pub async fn void_tax_handler(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<VoidTaxHttpRequest>,

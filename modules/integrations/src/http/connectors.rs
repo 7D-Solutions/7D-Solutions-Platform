@@ -24,6 +24,7 @@ use crate::domain::connectors::{
     RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
 };
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Error helpers
@@ -47,13 +48,6 @@ fn connector_error(e: ConnectorError) -> ApiError {
             tracing::error!("Connector DB error: {}", e);
             ApiError::internal("Internal database error")
         }
-    }
-}
-
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 

@@ -18,7 +18,8 @@ use crate::domain::definitions::{
 };
 use crate::AppState;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 #[utoipa::path(
     post, path = "/api/workflow/definitions", tag = "Definitions",

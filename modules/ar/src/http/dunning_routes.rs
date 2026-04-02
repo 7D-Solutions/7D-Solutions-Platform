@@ -26,6 +26,12 @@ pub struct DunningPollResponse {
     pub outcomes: Vec<crate::dunning_scheduler::DunningExecutionOutcome>,
 }
 
+#[utoipa::path(post, path = "/api/ar/dunning/poll", tag = "Dunning",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Dunning poll results", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/dunning/poll — poll and execute due dunning rows
 ///
 /// Claims due rows using FOR UPDATE SKIP LOCKED and executes the next

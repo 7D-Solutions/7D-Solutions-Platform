@@ -19,7 +19,8 @@ use uuid::Uuid;
 
 use crate::domain::import::adapters::CsvFormat;
 use crate::domain::import::{service, ImportResult};
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================

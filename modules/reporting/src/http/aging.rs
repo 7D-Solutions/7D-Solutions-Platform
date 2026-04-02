@@ -21,7 +21,8 @@ use std::sync::Arc;
 
 use crate::domain::aging::{ap_aging, ar_aging};
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 // ── AR aging ─────────────────────────────────────────────────────────────────
 

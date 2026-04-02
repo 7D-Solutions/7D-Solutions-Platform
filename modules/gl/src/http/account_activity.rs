@@ -12,7 +12,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::services::account_activity_service::{self, AccountActivityResponse};
 
 /// Query parameters for account activity endpoint

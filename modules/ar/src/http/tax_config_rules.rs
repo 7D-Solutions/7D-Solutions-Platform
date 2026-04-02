@@ -56,6 +56,12 @@ pub struct ListRulesQuery {
 // Handlers
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/tax/config/rules", tag = "Tax Config",
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Rule created", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/tax/config/rules
 pub async fn create_rule(
     State(pool): State<PgPool>,
@@ -101,6 +107,13 @@ pub async fn create_rule(
     }
 }
 
+#[utoipa::path(get, path = "/api/ar/tax/config/rules", tag = "Tax Config",
+    params(
+        ("jurisdiction_id" = Option<uuid::Uuid>, Query, description = "Filter by jurisdiction"),
+        ("as_of" = Option<chrono::NaiveDate>, Query, description = "Filter rules effective on this date"),
+    ),
+    responses((status = 200, description = "List of tax rules", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// GET /api/ar/tax/config/rules
 pub async fn list_rules(
     State(pool): State<PgPool>,
@@ -143,6 +156,13 @@ pub async fn list_rules(
     }
 }
 
+#[utoipa::path(get, path = "/api/ar/tax/config/rules/{id}", tag = "Tax Config",
+    params(("id" = uuid::Uuid, Path, description = "Rule ID")),
+    responses(
+        (status = 200, description = "Rule found", body = serde_json::Value),
+        (status = 404, description = "Not found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// GET /api/ar/tax/config/rules/:id
 pub async fn get_rule(
     State(pool): State<PgPool>,
@@ -167,6 +187,14 @@ pub async fn get_rule(
     }
 }
 
+#[utoipa::path(put, path = "/api/ar/tax/config/rules/{id}", tag = "Tax Config",
+    params(("id" = uuid::Uuid, Path, description = "Rule ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Rule updated", body = serde_json::Value),
+        (status = 404, description = "Not found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// PUT /api/ar/tax/config/rules/:id
 pub async fn update_rule(
     State(pool): State<PgPool>,

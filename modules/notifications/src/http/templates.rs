@@ -13,6 +13,7 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use serde::Serialize;
 use sqlx::PgPool;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::event_bus::{create_notifications_envelope, enqueue_event};
@@ -20,7 +21,7 @@ use crate::template_store::{models, repo};
 
 // ── Response types ──────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TemplateResponse {
     pub id: Uuid,
     pub template_key: String,
@@ -32,7 +33,7 @@ pub struct TemplateResponse {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct TemplateDetailResponse {
     pub latest: TemplateResponse,
     pub versions: Vec<models::TemplateVersionSummary>,
@@ -40,7 +41,13 @@ pub struct TemplateDetailResponse {
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-async fn publish_template(
+#[utoipa::path(post, path = "/api/templates", tag = "Templates",
+    request_body = crate::template_store::models::CreateTemplate,
+    responses(
+        (status = 201, description = "Template version published", body = TemplateResponse),
+    ),
+    security(("bearer" = [])))]
+pub async fn publish_template(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(input): Json<models::CreateTemplate>,
@@ -85,7 +92,14 @@ async fn publish_template(
     Ok((StatusCode::CREATED, Json(to_response(&tpl))))
 }
 
-async fn get_template(
+#[utoipa::path(get, path = "/api/templates/{key}", tag = "Templates",
+    params(("key" = String, Path, description = "Template key")),
+    responses(
+        (status = 200, description = "Template with version history", body = TemplateDetailResponse),
+        (status = 404, description = "Template not found"),
+    ),
+    security(("bearer" = [])))]
+pub async fn get_template(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(key): Path<String>,

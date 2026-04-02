@@ -16,7 +16,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{domain::lots_serials::queries::list_serials_for_item, AppState};
 
 #[derive(Debug, Deserialize)]

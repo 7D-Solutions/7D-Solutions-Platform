@@ -1,6 +1,6 @@
 [package]
 name = "notifications-rs"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2021"
 description = "Event-driven notification delivery with scheduled dispatch and retry"
 

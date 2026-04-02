@@ -12,7 +12,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};

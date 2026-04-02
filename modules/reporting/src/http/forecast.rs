@@ -19,7 +19,8 @@ use std::sync::Arc;
 
 use crate::domain::forecast::{compute_cash_forecast, CashForecastResponse};
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 // ── Query params ─────────────────────────────────────────────────────────────
 

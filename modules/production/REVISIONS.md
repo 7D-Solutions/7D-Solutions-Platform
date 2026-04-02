@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.3.3 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.0.0 | 2026-04-02 | bd-66mqv | Convert 5 sub-collection list endpoints to PaginatedResponse: list_operations, list_time_entries, find_routings_by_item, list_routing_steps, list_workcenter_downtime. All now return `{data: [...], pagination: {page, page_size, total_items, total_pages}}` instead of `{data: [...]}`. utoipa response schemas updated to match. | Response standardization — all list endpoints use the same PaginatedResponse envelope for consistent client parsing. | YES — Sub-collection list endpoints now return `{data: [...], pagination: {...}}` instead of `{data: [...]}`. Consumers must handle the additional `pagination` field. |
 | 2.3.2 | 2026-03-31 | bd-fqvjh | Register production metrics with global prometheus registry instead of private Registry::new(). Remove unused metrics_handler and registry() method. | SDK's /metrics endpoint uses prometheus::gather() (global registry) — private registry meant /metrics returned empty body, failing API conformance. | No |
 | 2.3.1 | 2026-03-31 | bd-7v7o4 | Replace compile-time `CARGO_MANIFEST_DIR` path with runtime `"module.toml"` in `from_manifest` call. SDK now resolves path via `MODULE_MANIFEST_PATH` env var or CWD. | Compile-time absolute host path baked into the binary does not exist inside Docker containers, causing startup crash. | No |
 | 2.3.0 | 2026-03-31 | bd-ehl0p | SDK conversion with outbox publisher. Rewrite main.rs to use ModuleBuilder, extract routes into http::router(), add module.toml with bus=nats and outbox_table=production_outbox, add published_at column migration for SDK publisher compatibility. SDK auto-spawns outbox publisher that polls production_outbox and publishes events to NATS. Manual health routes replaced by SDK-provided /healthz, /api/health, /api/ready, /api/version. | P1 bug: production_outbox events were never published to NATS — inventory, QI, and maintenance consumers received nothing. | No |

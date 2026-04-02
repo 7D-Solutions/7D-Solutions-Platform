@@ -22,7 +22,8 @@ use crate::domain::forms::{
     CreateFieldRequest, FieldRepo, FormField, ReorderFieldsRequest, UpdateFieldRequest,
 };
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 /// POST /api/pdf/forms/templates/:id/fields
 #[utoipa::path(

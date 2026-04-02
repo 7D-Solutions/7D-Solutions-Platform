@@ -14,7 +14,8 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use super::pagination::PaginationQuery;
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::routings::{
         AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo, RoutingStep, RoutingTemplate,

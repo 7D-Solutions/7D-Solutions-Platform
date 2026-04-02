@@ -30,17 +30,11 @@ use crate::domain::party::{
     UpdatePartyRequest,
 };
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Shared helpers
 // ============================================================================
-
-pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
-    }
-}
 
 /// Enrich an `ApiError` with the `request_id` from `TracingContext`.
 pub fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {

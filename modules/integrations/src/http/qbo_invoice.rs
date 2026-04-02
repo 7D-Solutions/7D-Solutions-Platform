@@ -20,6 +20,7 @@ use utoipa::ToSchema;
 use crate::domain::oauth::{service as oauth_service, OAuthError};
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Request / Response
@@ -104,13 +105,6 @@ fn oauth_err(e: OAuthError) -> ApiError {
             ApiError::internal("Internal database error")
         }
         _ => ApiError::internal("Internal error"),
-    }
-}
-
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 

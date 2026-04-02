@@ -23,7 +23,8 @@ use uuid::Uuid;
 
 use platform_http_contracts::PaginatedResponse;
 
-use super::party::{extract_tenant, with_request_id, DataResponse};
+use platform_sdk::extract_tenant;
+use super::party::{with_request_id, DataResponse};
 use crate::domain::contact::{
     Contact, CreateContactRequest, PrimaryContactEntry, SetPrimaryRequest, UpdateContactRequest,
 };

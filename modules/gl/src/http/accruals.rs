@@ -10,7 +10,8 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use super::auth::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::auth::with_request_id;
 use crate::accruals;
 use crate::AppState;
 

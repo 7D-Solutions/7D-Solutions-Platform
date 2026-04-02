@@ -5,7 +5,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use super::tenant::extract_tenant;
+use platform_sdk::extract_tenant;
 use crate::{
     domain::billing::{
         models::{

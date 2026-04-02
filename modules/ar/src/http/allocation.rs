@@ -8,6 +8,13 @@ use crate::models::ApiError;
 // Payment Allocation (bd-14f)
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/payments/allocate", tag = "Payments",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Allocation result", body = serde_json::Value),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/payments/allocate — FIFO payment allocation
 pub async fn allocate_payment_route(
     State(db): State<PgPool>,

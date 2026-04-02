@@ -17,6 +17,10 @@ pub struct AgingQuery {
     pub customer_id: Option<i32>,
 }
 
+#[utoipa::path(get, path = "/api/ar/aging", tag = "Aging",
+    params(("customer_id" = Option<i32>, Query, description = "Filter by customer")),
+    responses((status = 200, description = "AR aging report", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// GET /api/ar/aging — return pre-computed aging buckets
 ///
 /// Returns the stored projection. Callers must POST /api/ar/aging/refresh
@@ -65,6 +69,10 @@ pub struct RefreshAgingRequest {
     pub customer_id: i32,
 }
 
+#[utoipa::path(post, path = "/api/ar/aging/refresh", tag = "Aging",
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Updated aging snapshot", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// POST /api/ar/aging/refresh — recompute aging for a customer
 ///
 /// Recomputes aging buckets from invoices minus payments and upserts the

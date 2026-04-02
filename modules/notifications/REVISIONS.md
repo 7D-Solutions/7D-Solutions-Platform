@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.0.1 | 2026-04-02 | bd-azq84 | Fixed response model derives for OpenAPI schema generation | Plug-and-play standardization | No |
 | 3.0.0 | 2026-04-02 | bd-y5v9j | All list endpoints (deliveries, inbox, DLQ) return PaginatedResponse<T> envelope with {data, pagination} shape. All error responses use ApiError (was per-handler ErrorResponse/InboxError/DlqError). utoipa annotations updated for all handlers. | Plug-and-play response standardization — consistent paginated envelopes and error shapes across all notification endpoints. | YES — List endpoints now return `{data: [...], pagination: {page, page_size, total_items, total_pages}}` instead of `{receipts: [...]}` / `{items: [...], total: N}`. Error responses use `ApiError` shape (`{error, message, request_id}`). Consumers must update response parsing. |
 | 2.1.6 | 2026-04-01 | bd-thx8s | Fix event subject mismatch: subscribe to ar.events.ar.invoice_opened (was ar.events.invoice.issued). Align InvoiceIssuedPayload fields (amount_cents, due_at) with AR's InvoiceLifecyclePayload. | Consumer never received events — subject and payload schema both wrong. | No |
 | 2.1.5 | 2026-04-01 | bd-manm4 | Add ApiDoc struct in http/mod.rs and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |

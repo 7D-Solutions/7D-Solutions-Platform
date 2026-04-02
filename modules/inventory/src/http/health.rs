@@ -8,6 +8,12 @@ use std::time::Instant;
 
 static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/health",
+    tag = "Health",
+    responses((status = 200, description = "Service health status", body = serde_json::Value)),
+)]
 /// Health check endpoint - returns basic service status (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {
     let uptime = START_TIME.elapsed().as_secs();
@@ -19,6 +25,15 @@ pub async fn health() -> Json<serde_json::Value> {
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/ready",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Service ready", body = serde_json::Value),
+        (status = 503, description = "Service not ready", body = serde_json::Value),
+    ),
+)]
 /// GET /api/ready — readiness probe (verifies DB connectivity)
 pub async fn ready(
     State(app_state): State<Arc<crate::AppState>>,
@@ -62,6 +77,12 @@ pub async fn ready(
     ready_response_to_axum(resp)
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/inventory/version",
+    tag = "Health",
+    responses((status = 200, description = "Module version info", body = serde_json::Value)),
+)]
 /// Version endpoint - returns module identity and schema version
 pub async fn version() -> Json<serde_json::Value> {
     const SCHEMA_VERSION: &str = "20260218000001";

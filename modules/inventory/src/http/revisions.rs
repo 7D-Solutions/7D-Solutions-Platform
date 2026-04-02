@@ -21,7 +21,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::revisions::{
         activate_revision, create_revision, list_revisions, revision_at, update_revision_policy,

@@ -10,7 +10,7 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use platform_sdk::extract_tenant;
 use crate::{
     domain::employees::{
         models::{CreateEmployeeRequest, Employee, EmployeeError, UpdateEmployeeRequest},

@@ -22,7 +22,7 @@ pub struct NotificationSend {
 }
 
 /// Input for POST /notifications/send.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct SendRequest {
     pub template_key: String,
     pub channel: String,
@@ -53,7 +53,7 @@ pub struct DeliveryReceipt {
 }
 
 /// Query parameters for GET /deliveries.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct DeliveryQuery {
     pub correlation_id: Option<String>,
     pub recipient: Option<String>,

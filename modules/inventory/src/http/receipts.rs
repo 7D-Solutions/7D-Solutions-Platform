@@ -16,7 +16,8 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::receipt_service::{process_receipt, ReceiptRequest, ReceiptResult},
     AppState,

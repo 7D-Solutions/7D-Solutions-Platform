@@ -28,7 +28,8 @@ use crate::domain::generate::generate_filled_pdf;
 use crate::domain::submissions::SubmissionRepo;
 use crate::event_bus::{create_pdf_editor_envelope, enqueue_event};
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 /// Event payload for pdf.form.generated.
 #[derive(Debug, Clone, Serialize)]

@@ -87,6 +87,13 @@ pub(crate) struct ErrorBody {
 // Jurisdiction handlers
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/tax/config/jurisdictions", tag = "Tax Config",
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Jurisdiction created", body = serde_json::Value),
+        (status = 400, description = "Validation error", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/tax/config/jurisdictions
 pub async fn create_jurisdiction(
     State(pool): State<PgPool>,
@@ -137,6 +144,14 @@ pub async fn create_jurisdiction(
     }
 }
 
+#[utoipa::path(get, path = "/api/ar/tax/config/jurisdictions", tag = "Tax Config",
+    params(
+        ("country_code" = Option<String>, Query, description = "Filter by country"),
+        ("state_code" = Option<String>, Query, description = "Filter by state"),
+        ("is_active" = Option<bool>, Query, description = "Filter by active status"),
+    ),
+    responses((status = 200, description = "List of jurisdictions", body = serde_json::Value)),
+    security(("bearer" = [])))]
 /// GET /api/ar/tax/config/jurisdictions
 pub async fn list_jurisdictions(
     State(pool): State<PgPool>,
@@ -193,6 +208,13 @@ pub async fn list_jurisdictions(
     }
 }
 
+#[utoipa::path(get, path = "/api/ar/tax/config/jurisdictions/{id}", tag = "Tax Config",
+    params(("id" = uuid::Uuid, Path, description = "Jurisdiction ID")),
+    responses(
+        (status = 200, description = "Jurisdiction found", body = serde_json::Value),
+        (status = 404, description = "Not found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// GET /api/ar/tax/config/jurisdictions/:id
 pub async fn get_jurisdiction(
     State(pool): State<PgPool>,
@@ -217,6 +239,14 @@ pub async fn get_jurisdiction(
     }
 }
 
+#[utoipa::path(put, path = "/api/ar/tax/config/jurisdictions/{id}", tag = "Tax Config",
+    params(("id" = uuid::Uuid, Path, description = "Jurisdiction ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Jurisdiction updated", body = serde_json::Value),
+        (status = 404, description = "Not found", body = serde_json::Value),
+    ),
+    security(("bearer" = [])))]
 /// PUT /api/ar/tax/config/jurisdictions/:id
 pub async fn update_jurisdiction(
     State(pool): State<PgPool>,

@@ -16,7 +16,7 @@ use std::sync::Arc;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use crate::http::checkout_sessions::extract_tenant;
+use platform_sdk::extract_tenant;
 
 fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
     match ctx {

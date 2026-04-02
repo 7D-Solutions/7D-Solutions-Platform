@@ -1,4 +1,4 @@
-mod admin;
+pub mod admin;
 mod customer;
 mod payment_methods;
 mod payments;
@@ -55,6 +55,11 @@ async fn process_webhook_event(
     Ok(())
 }
 
+#[utoipa::path(post, path = "/api/ar/webhooks/tilled", tag = "Webhooks",
+    responses(
+        (status = 200, description = "Webhook received and processed"),
+        (status = 401, description = "Signature verification failed", body = platform_http_contracts::ApiError),
+    ))]
 /// POST /api/ar/webhooks/tilled - Receive Tilled webhook
 pub async fn receive_tilled_webhook(
     State(db): State<PgPool>,

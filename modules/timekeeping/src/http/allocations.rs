@@ -12,7 +12,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use platform_sdk::extract_tenant;
 use crate::{
     domain::allocations::{
         models::{

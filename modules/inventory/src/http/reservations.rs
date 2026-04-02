@@ -23,7 +23,8 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::{
         fulfill_service::{process_fulfill, FulfillRequest, FulfillResult},

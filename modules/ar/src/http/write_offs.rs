@@ -13,6 +13,15 @@ use crate::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
 // WRITE-OFF HANDLER (bd-2f2)
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/invoices/{id}/write-off", tag = "Write-offs",
+    params(("id" = i32, Path, description = "Invoice ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Invoice written off", body = serde_json::Value),
+        (status = 200, description = "Already processed (idempotent)", body = serde_json::Value),
+        (status = 409, description = "Already written off", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/invoices/{id}/write-off
 ///
 /// Write off an invoice as uncollectable bad debt. Idempotent on `write_off_id`.

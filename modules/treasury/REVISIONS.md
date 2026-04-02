@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.6 | 2026-04-02 | bd-azq84 | Removed local extract_tenant, fixed reports annotation | Plug-and-play standardization | No |
 | 2.1.5 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotation on list_unmatched endpoint. | OpenAPI spec was missing response schema, causing codegen to emit Result<(), ClientError>. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/bus/outbox/middleware/health/shutdown boilerplate with SDK startup sequence. Bus and outbox publisher now configured via module.toml. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | bd-vnuvp.4 | Add tenant_id (app_id) filters to 12 queries in import/service.rs, recon/service.rs, and recon/metrics.rs. Removed cross-tenant snapshot from global /metrics endpoint. | P0 tenant isolation: queries on bank statements, transactions, and recon matches used id-only lookups without app_id, allowing cross-tenant data access. | No |

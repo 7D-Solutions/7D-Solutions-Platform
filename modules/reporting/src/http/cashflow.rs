@@ -20,7 +20,8 @@ use std::sync::Arc;
 
 use crate::domain::statements::cashflow;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 // ── Query parameters ─────────────────────────────────────────────────────────
 

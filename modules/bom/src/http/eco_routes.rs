@@ -8,7 +8,7 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use platform_sdk::extract_tenant;
 use crate::domain::eco_models::*;
 use crate::domain::models::PaginationQuery;
 use crate::domain::eco_service;

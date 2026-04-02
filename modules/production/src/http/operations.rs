@@ -5,12 +5,13 @@ use axum::{
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::operations::{OperationInstance, OperationRepo},
     AppState,
@@ -129,7 +130,7 @@ pub async fn complete_operation(
     tag = "Operations",
     params(("id" = Uuid, Path, description = "Work order ID")),
     responses(
-        (status = 200, description = "Operations for work order", body = Vec<OperationInstance>),
+        (status = 200, description = "Operations for work order", body = PaginatedResponse<OperationInstance>),
     ),
     security(("bearer" = [])),
 )]
@@ -145,7 +146,9 @@ pub async fn list_operations(
     };
     match OperationRepo::list(&state.pool, wo_id, &tenant_id).await {
         Ok(ops) => {
-            (StatusCode::OK, Json(serde_json::json!({ "data": ops }))).into_response()
+            let total = ops.len() as i64;
+            let resp = PaginatedResponse::new(ops, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();

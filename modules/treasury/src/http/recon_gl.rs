@@ -16,7 +16,8 @@ use crate::domain::recon::gl_link::{
     self, GlLinkResponse, LinkToGlRequest, UnmatchedBankTxnGl, UnmatchedGlRequest,
     UnmatchedGlResult,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 fn correlation(headers: &HeaderMap) -> String {

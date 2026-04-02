@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 use crate::domain::reports::cash_position;
 use crate::domain::reports::{assumptions::ForecastAssumptions, forecast};
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 /// GET /api/treasury/cash-position — real-time cash position by account and currency

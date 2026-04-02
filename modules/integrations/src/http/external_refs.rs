@@ -25,17 +25,11 @@ use crate::domain::external_refs::{
     service, CreateExternalRefRequest, ExternalRef, ExternalRefError, UpdateExternalRefRequest,
 };
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
-    }
-}
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
     headers

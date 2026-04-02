@@ -88,6 +88,49 @@ use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
         // Events
         events::list_events,
         events::get_event,
+        // Aging
+        aging::get_aging,
+        aging::refresh_aging_route,
+        // Allocation
+        allocation::allocate_payment_route,
+        // Credit Notes
+        credit_notes::issue_credit_note_route,
+        credit_notes::create_credit_memo_handler,
+        credit_notes::approve_credit_memo_handler,
+        credit_notes::issue_credit_memo_handler,
+        // Dunning
+        dunning_routes::dunning_poll_route,
+        // Reconciliation
+        reconciliation_routes::recon_run_route,
+        reconciliation_routes::schedule_recon_route,
+        reconciliation_routes::recon_poll_route,
+        // Tax Config
+        tax_config::create_jurisdiction,
+        tax_config::list_jurisdictions,
+        tax_config::get_jurisdiction,
+        tax_config::update_jurisdiction,
+        tax_config_rules::create_rule,
+        tax_config_rules::list_rules,
+        tax_config_rules::get_rule,
+        tax_config_rules::update_rule,
+        // Tax
+        tax::quote_tax_handler,
+        tax::lookup_cached_quote,
+        tax::commit_tax_handler,
+        tax::void_tax_handler,
+        // Tax Reports
+        tax_reports::tax_report_summary,
+        tax_reports::tax_report_export,
+        // Usage
+        usage::capture_usage,
+        usage::bill_usage_route,
+        // Webhooks
+        webhooks::admin::list_webhooks,
+        webhooks::admin::get_webhook,
+        webhooks::admin::replay_webhook,
+        webhooks::receive_tilled_webhook,
+        // Write-offs
+        write_offs::write_off_invoice_route,
     ),
     components(schemas(
         crate::models::Customer,

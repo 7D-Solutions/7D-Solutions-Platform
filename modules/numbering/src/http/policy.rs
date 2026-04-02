@@ -16,7 +16,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{outbox, policy};
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -62,8 +63,9 @@ pub async fn upsert_policy(
     Path(entity): Path<String>,
     Json(req): Json<UpsertPolicyRequest>,
 ) -> Result<(StatusCode, Json<PolicyResponse>), ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id: Uuid = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?
+        .parse().expect("tenant_id is a valid UUID");
 
     validate_entity(&entity, &ctx)?;
     validate_pattern(&req.pattern, &ctx)?;
@@ -149,8 +151,9 @@ pub async fn get_policy(
     ctx: Option<Extension<TracingContext>>,
     Path(entity): Path<String>,
 ) -> Result<Json<PolicyResponse>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id: Uuid = extract_tenant(&claims)
+        .map_err(|e| with_request_id(e, &ctx))?
+        .parse().expect("tenant_id is a valid UUID");
 
     let row = policy::get_policy(&state.pool, tenant_id, &entity)
         .await

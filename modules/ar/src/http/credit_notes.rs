@@ -17,6 +17,15 @@ use crate::models::ApiError;
 // CREDIT NOTE HANDLER WRAPPER (bd-1gt)
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/invoices/{id}/credit-notes", tag = "Credit Notes",
+    params(("id" = i32, Path, description = "Invoice ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Credit note issued", body = serde_json::Value),
+        (status = 200, description = "Already processed (idempotent)", body = serde_json::Value),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/invoices/{id}/credit-notes
 ///
 /// Axum handler wrapper for the domain service `issue_credit_note`.
@@ -258,6 +267,15 @@ pub struct IssueCreditMemoHttpRequest {
     pub causation_id: Option<String>,
 }
 
+#[utoipa::path(post, path = "/api/ar/credit-memos", tag = "Credit Notes",
+    request_body = serde_json::Value,
+    responses(
+        (status = 201, description = "Credit memo created (draft)", body = serde_json::Value),
+        (status = 200, description = "Already processed (idempotent)", body = serde_json::Value),
+        (status = 404, description = "Invoice not found", body = platform_http_contracts::ApiError),
+        (status = 422, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn create_credit_memo_handler(
     State(pool): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -332,6 +350,15 @@ pub async fn create_credit_memo_handler(
     }
 }
 
+#[utoipa::path(post, path = "/api/ar/credit-memos/{id}/approve", tag = "Credit Notes",
+    params(("id" = uuid::Uuid, Path, description = "Credit memo ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Credit memo approved", body = serde_json::Value),
+        (status = 404, description = "Credit memo not found", body = platform_http_contracts::ApiError),
+        (status = 409, description = "Invalid status transition", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn approve_credit_memo_handler(
     State(pool): State<PgPool>,
     Path(credit_note_id): Path<uuid::Uuid>,
@@ -393,6 +420,15 @@ pub async fn approve_credit_memo_handler(
     }
 }
 
+#[utoipa::path(post, path = "/api/ar/credit-memos/{id}/issue", tag = "Credit Notes",
+    params(("id" = uuid::Uuid, Path, description = "Credit memo ID")),
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Credit memo issued", body = serde_json::Value),
+        (status = 404, description = "Credit memo not found", body = platform_http_contracts::ApiError),
+        (status = 409, description = "Invalid status transition", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 pub async fn issue_credit_memo_handler(
     State(pool): State<PgPool>,
     Path(credit_note_id): Path<uuid::Uuid>,

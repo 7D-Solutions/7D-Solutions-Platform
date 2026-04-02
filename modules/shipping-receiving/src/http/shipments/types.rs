@@ -2,23 +2,11 @@ use axum::Extension;
 use chrono::{DateTime, Utc};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
-use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use axum::http::HeaderMap;
-
-// ── Tenant extraction ────────────────────────────────────────
-
-pub fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<Uuid, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
-    }
-}
 
 pub fn idempotency_key(headers: &HeaderMap) -> Option<String> {
     headers

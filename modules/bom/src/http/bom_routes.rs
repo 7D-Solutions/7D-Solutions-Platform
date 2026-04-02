@@ -9,7 +9,7 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::extract_tenant;
+use platform_sdk::extract_tenant;
 use crate::domain::bom_service::{self, BomError};
 use crate::domain::guards::GuardError;
 use crate::domain::models::*;

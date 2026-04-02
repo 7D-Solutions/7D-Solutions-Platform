@@ -1,3 +1,4 @@
+use platform_sdk::extract_tenant;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
@@ -19,7 +20,7 @@ use crate::outbox;
 use crate::AppState;
 
 use super::types::{
-    extract_tenant, idempotency_key, with_request_id, AddLineRequest, CreateShipmentRequest,
+    idempotency_key, with_request_id, AddLineRequest, CreateShipmentRequest,
     ListShipmentsQuery, ReceiveLineRequest, ShipLineQtyRequest, ShipmentLineRow,
     TransitionStatusRequest,
 };
@@ -43,8 +44,8 @@ pub async fn create_shipment(
     headers: HeaderMap,
     Json(req): Json<CreateShipmentRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -135,8 +136,8 @@ pub async fn get_shipment(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -165,8 +166,8 @@ pub async fn list_shipments(
     tracing_ctx: Option<Extension<TracingContext>>,
     Query(q): Query<ListShipmentsQuery>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -231,8 +232,8 @@ pub async fn transition_status(
     Path(id): Path<Uuid>,
     Json(req): Json<TransitionStatusRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -274,8 +275,8 @@ pub async fn add_line(
     Path(shipment_id): Path<Uuid>,
     Json(req): Json<AddLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -367,8 +368,8 @@ pub async fn receive_line(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<ReceiveLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -447,8 +448,8 @@ pub async fn ship_line_qty(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<ShipLineQtyRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -518,8 +519,8 @@ pub async fn close_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -557,8 +558,8 @@ pub async fn ship_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -596,8 +597,8 @@ pub async fn deliver_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let _idem = idempotency_key(&headers);
@@ -636,8 +637,8 @@ pub async fn accept_line(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
 ) -> impl IntoResponse {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 

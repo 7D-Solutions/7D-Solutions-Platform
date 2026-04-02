@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use crate::domain::oauth::{service, OAuthConnectionInfo, OAuthError, TokenResponse};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Error helpers
@@ -47,13 +48,6 @@ fn oauth_error(e: OAuthError) -> ApiError {
             tracing::error!("OAuth DB error: {}", e);
             ApiError::internal("Internal database error")
         }
-    }
-}
-
-fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
-    match claims {
-        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }
 

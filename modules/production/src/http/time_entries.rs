@@ -5,12 +5,13 @@ use axum::{
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 use crate::{
     domain::time_entries::{
         ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntry, TimeEntryRepo,
@@ -127,7 +128,7 @@ pub async fn manual_entry(
     tag = "Time Entries",
     params(("id" = Uuid, Path, description = "Work order ID")),
     responses(
-        (status = 200, description = "Time entries for work order", body = Vec<TimeEntry>),
+        (status = 200, description = "Time entries for work order", body = PaginatedResponse<TimeEntry>),
     ),
     security(("bearer" = [])),
 )]
@@ -143,7 +144,9 @@ pub async fn list_time_entries(
     };
     match TimeEntryRepo::list_by_work_order(&state.pool, wo_id, &tenant_id).await {
         Ok(entries) => {
-            (StatusCode::OK, Json(serde_json::json!({ "data": entries }))).into_response()
+            let total = entries.len() as i64;
+            let resp = PaginatedResponse::new(entries, 1, total, total);
+            (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();

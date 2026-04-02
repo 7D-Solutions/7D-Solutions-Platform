@@ -17,7 +17,8 @@ use uuid::Uuid;
 
 use crate::db::repository::ShipmentRepository;
 use crate::domain::shipments::ShipmentError;
-use crate::http::shipments::types::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::shipments::types::with_request_id;
 use crate::AppState;
 
 #[utoipa::path(
@@ -36,8 +37,8 @@ pub async fn shipments_by_po(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -66,8 +67,8 @@ pub async fn lines_by_po_line(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_line_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -99,8 +100,8 @@ pub async fn shipments_by_source_ref(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path((ref_type, ref_id)): Path<(String, Uuid)>,
 ) -> Response {
-    let tenant_id = match extract_tenant(&claims) {
-        Ok(id) => id,
+    let tenant_id: Uuid = match extract_tenant(&claims) {
+        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 

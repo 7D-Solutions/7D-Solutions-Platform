@@ -12,6 +12,13 @@ use crate::models::{ApiError, CaptureUsageRequest, UsageRecord};
 // USAGE INGESTION (bd-23z)
 // ============================================================================
 
+#[utoipa::path(post, path = "/api/ar/usage", tag = "Usage",
+    request_body = serde_json::Value,
+    responses(
+        (status = 200, description = "Usage record captured", body = serde_json::Value),
+        (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
+    ),
+    security(("bearer" = [])))]
 /// POST /api/ar/usage — Capture metered usage (idempotent)
 ///
 /// Inserts a usage record into ar_metered_usage and emits ar.usage_captured
@@ -165,6 +172,11 @@ pub struct BillUsageHttpRequest {
     pub correlation_id: String,
 }
 
+#[utoipa::path(post, path = "/api/ar/invoices/{id}/bill-usage", tag = "Usage",
+    params(("id" = i32, Path, description = "Invoice ID")),
+    request_body = serde_json::Value,
+    responses((status = 200, description = "Usage billed to invoice", body = serde_json::Value)),
+    security(("bearer" = [])))]
 pub async fn bill_usage_route(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,

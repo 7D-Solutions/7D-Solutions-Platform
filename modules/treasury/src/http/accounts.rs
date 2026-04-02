@@ -21,7 +21,8 @@ use crate::domain::accounts::{
     service, AccountError, CreateBankAccountRequest, CreateCreditCardAccountRequest,
     TreasuryAccount, UpdateAccountRequest,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================

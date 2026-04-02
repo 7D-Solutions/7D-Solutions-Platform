@@ -24,7 +24,8 @@ use crate::domain::forms::{
     CreateTemplateRequest, FormTemplate, ListTemplatesQuery, TemplateRepo, UpdateTemplateRequest,
 };
 
-use super::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::tenant::with_request_id;
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct ListTemplatesParams {
