@@ -230,6 +230,7 @@ async fn test_ttp_billing_monthly_one_time() {
 
     let registry = TenantRegistryClient::new(get_tenant_registry_url());
     let ar = ArClient::new(get_ar_base_url());
+    let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
     // -----------------------------------------------------------------------
     // Run 1: initial billing run
@@ -238,6 +239,7 @@ async fn test_ttp_billing_monthly_one_time() {
         &ttp_pool,
         &registry,
         &ar,
+        &svc_claims,
         tenant_id,
         &billing_period,
         &idempotency_key,
@@ -333,6 +335,7 @@ async fn test_ttp_billing_monthly_one_time() {
         &ttp_pool,
         &registry,
         &ar,
+        &svc_claims,
         tenant_id,
         &billing_period,
         &idempotency_key,

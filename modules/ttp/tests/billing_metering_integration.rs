@@ -161,8 +161,9 @@ async fn trace_to_invoice_equivalence() {
 
     let registry = TenantRegistryClient::new(registry_url);
     let ar = ArClient::new(ar_url);
+    let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
-    let summary = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "bmi-key-001")
+    let summary = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "bmi-key-001")
         .await
         .expect("billing run");
 
@@ -201,7 +202,7 @@ async fn trace_to_invoice_equivalence() {
     );
 
     // 6. Verify idempotency: second billing run is a no-op
-    let summary2 = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "bmi-key-001")
+    let summary2 = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "bmi-key-001")
         .await
         .expect("second billing run");
 
@@ -249,8 +250,9 @@ async fn non_metering_items_have_null_trace_hash() {
 
     let registry = TenantRegistryClient::new(registry_url);
     let ar = ArClient::new(ar_url);
+    let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
-    let summary = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "nmi-key-001")
+    let summary = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "nmi-key-001")
         .await
         .expect("billing run");
 

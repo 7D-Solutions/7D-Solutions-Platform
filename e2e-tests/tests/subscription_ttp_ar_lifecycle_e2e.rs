@@ -296,11 +296,13 @@ async fn test_subscription_lifecycle_triggers_ttp_billing_and_ar_invoice() {
     // ── Step 4: TTP billing run ─────────────────────────────────────────────
     let registry = TenantRegistryClient::new(tenant_registry_url());
     let ar = ArClient::new(ar_base_url());
+    let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
     let summary = run_billing(
         &ttp_pool,
         &registry,
         &ar,
+        &svc_claims,
         tenant_id,
         &billing_period,
         &idem_key,
@@ -392,6 +394,7 @@ async fn test_subscription_lifecycle_triggers_ttp_billing_and_ar_invoice() {
         &ttp_pool,
         &registry,
         &ar,
+        &svc_claims,
         tenant_id,
         &billing_period,
         &idem_key,

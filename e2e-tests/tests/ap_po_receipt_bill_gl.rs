@@ -29,7 +29,7 @@ use ap::domain::bills::{
 use ap::domain::po::{
     approve::approve_po, service::create_po, ApprovePoRequest, CreatePoLineRequest, CreatePoRequest,
 };
-use ap::domain::r#match::engine::run_match;
+use ap::domain::r#match::service::run_match;
 use ap::domain::r#match::RunMatchRequest;
 use ap::domain::receipts_link::{service::ingest_receipt_link, IngestReceiptLinkRequest};
 use ap::domain::tax::ZeroTaxProvider;

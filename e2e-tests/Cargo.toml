@@ -657,6 +657,7 @@ workforce-competence-rs = { path = "../modules/workforce-competence" }
 dotenvy = "0.15"
 party-rs = { path = "../modules/party" }
 ttp-rs = { path = "../modules/ttp" }
+platform-sdk = { path = "../platform/platform-sdk" }
 anyhow = "1.0"
 sha2 = "0.10"
 hex = "0.4"
