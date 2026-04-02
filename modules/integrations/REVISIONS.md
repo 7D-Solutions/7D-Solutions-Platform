@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.4 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |
 | 2.3.3 | 2026-04-02 | bd-azq84 | Removed local extract_tenant, cleaned oauth/qbo_invoice imports | Plug-and-play standardization | No |
 | 2.3.2 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotation on inbound_webhook endpoint. | OpenAPI spec was missing response schema, causing codegen to emit Result<(), ClientError>. | No |
 | 2.3.1 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Background workers spawn in routes closure. Bus accessed via ctx.bus_arc(). | SDK batch conversion — eliminate two classes of modules. | No |

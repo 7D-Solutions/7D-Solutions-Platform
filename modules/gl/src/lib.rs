@@ -8,7 +8,6 @@ pub mod dlq;
 pub mod domain;
 pub mod events;
 pub mod exports;
-pub mod health;
 pub mod http;
 pub mod invariants;
 pub mod metrics;

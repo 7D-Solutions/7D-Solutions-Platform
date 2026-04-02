@@ -1,6 +1,6 @@
 [package]
 name = "integrations-rs"
-version = "2.3.3"
+version = "2.3.4"
 edition = "2021"
 description = "External system connectors, webhook routing, and reference linking"
 
