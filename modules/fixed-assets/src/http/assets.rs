@@ -19,7 +19,8 @@ use crate::domain::assets::{
 };
 use crate::AppState;
 
-use super::helpers::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::helpers::tenant::with_request_id;
 
 // ============================================================================
 // Category endpoints
@@ -28,7 +29,7 @@ use super::helpers::tenant::{extract_tenant, with_request_id};
 #[utoipa::path(
     post, path = "/api/fixed-assets/categories", tag = "Categories",
     request_body = CreateCategoryRequest,
-    responses((status = 201, description = "Category created"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Category created", body = crate::domain::assets::Category), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn create_category(
@@ -53,7 +54,7 @@ pub async fn create_category(
     put, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
     params(("id" = Uuid, Path, description = "Category ID")),
     request_body = UpdateCategoryRequest,
-    responses((status = 200, description = "Category updated"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Category updated", body = crate::domain::assets::Category), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn update_category(
@@ -78,7 +79,7 @@ pub async fn update_category(
 #[utoipa::path(
     delete, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
     params(("id" = Uuid, Path, description = "Category ID")),
-    responses((status = 200, description = "Category deactivated"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Category deactivated", body = crate::domain::assets::Category), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn deactivate_category(
@@ -101,7 +102,7 @@ pub async fn deactivate_category(
 #[utoipa::path(
     get, path = "/api/fixed-assets/categories/{id}", tag = "Categories",
     params(("id" = Uuid, Path, description = "Category ID")),
-    responses((status = 200, description = "Category details"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Category details", body = crate::domain::assets::Category), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn get_category(
@@ -163,7 +164,7 @@ pub struct ListAssetsQuery {
 #[utoipa::path(
     post, path = "/api/fixed-assets/assets", tag = "Assets",
     request_body = CreateAssetRequest,
-    responses((status = 201, description = "Asset created"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Asset created", body = crate::domain::assets::Asset), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn create_asset(
@@ -188,7 +189,7 @@ pub async fn create_asset(
     put, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
     params(("id" = Uuid, Path, description = "Asset ID")),
     request_body = UpdateAssetRequest,
-    responses((status = 200, description = "Asset updated"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Asset updated", body = crate::domain::assets::Asset), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn update_asset(
@@ -213,7 +214,7 @@ pub async fn update_asset(
 #[utoipa::path(
     delete, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
     params(("id" = Uuid, Path, description = "Asset ID")),
-    responses((status = 200, description = "Asset deactivated"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Asset deactivated", body = crate::domain::assets::Asset), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn deactivate_asset(
@@ -236,7 +237,7 @@ pub async fn deactivate_asset(
 #[utoipa::path(
     get, path = "/api/fixed-assets/assets/{id}", tag = "Assets",
     params(("id" = Uuid, Path, description = "Asset ID")),
-    responses((status = 200, description = "Asset details"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Asset details", body = crate::domain::assets::Asset), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn get_asset(

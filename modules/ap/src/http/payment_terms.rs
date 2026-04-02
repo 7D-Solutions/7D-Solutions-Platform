@@ -21,7 +21,8 @@ use uuid::Uuid;
 use crate::domain::payment_terms::{
     service, AssignTermsRequest, CreatePaymentTermsRequest, UpdatePaymentTermsRequest,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -52,7 +53,7 @@ pub struct ListTermsQuery {
 
 #[utoipa::path(post, path = "/api/ap/payment-terms", tag = "Payment Terms",
     request_body = CreatePaymentTermsRequest,
-    responses((status = 201, description = "Terms created")), security(("bearer" = [])))]
+    responses((status = 201, description = "Terms created", body = crate::domain::payment_terms::PaymentTerms)), security(("bearer" = [])))]
 pub async fn create_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -73,7 +74,7 @@ pub async fn create_terms(
 }
 
 #[utoipa::path(get, path = "/api/ap/payment-terms/{term_id}", tag = "Payment Terms",
-    params(("term_id" = Uuid, Path)), responses((status = 200, description = "Terms details")),
+    params(("term_id" = Uuid, Path)), responses((status = 200, description = "Terms details", body = crate::domain::payment_terms::PaymentTerms)),
     security(("bearer" = [])))]
 pub async fn get_terms(
     State(state): State<Arc<AppState>>,
@@ -123,7 +124,7 @@ pub async fn list_terms(
 
 #[utoipa::path(put, path = "/api/ap/payment-terms/{term_id}", tag = "Payment Terms",
     params(("term_id" = Uuid, Path)), request_body = UpdatePaymentTermsRequest,
-    responses((status = 200, description = "Terms updated")), security(("bearer" = [])))]
+    responses((status = 200, description = "Terms updated", body = crate::domain::payment_terms::PaymentTerms)), security(("bearer" = [])))]
 pub async fn update_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -144,7 +145,7 @@ pub async fn update_terms(
 
 #[utoipa::path(post, path = "/api/ap/bills/{bill_id}/assign-terms", tag = "Payment Terms",
     params(("bill_id" = Uuid, Path)), request_body = AssignTermsRequest,
-    responses((status = 200, description = "Terms assigned")), security(("bearer" = [])))]
+    responses((status = 200, description = "Terms assigned", body = serde_json::Value)), security(("bearer" = [])))]
 pub async fn assign_terms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -20,7 +20,8 @@ use uuid::Uuid;
 use crate::domain::payment_runs::{
     builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -48,7 +49,7 @@ pub struct CreatePaymentRunBody {
 /// Idempotent: supplying the same `run_id` returns the existing run (200 OK).
 #[utoipa::path(post, path = "/api/ap/payment-runs", tag = "Payment Runs",
     request_body = CreatePaymentRunBody,
-    responses((status = 201, description = "Run created")), security(("bearer" = [])))]
+    responses((status = 201, description = "Run created", body = serde_json::Value)), security(("bearer" = [])))]
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -111,7 +112,7 @@ pub async fn create_run(
 ///
 /// Fetch a payment run and its items.
 #[utoipa::path(get, path = "/api/ap/payment-runs/{run_id}", tag = "Payment Runs",
-    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details")),
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
@@ -213,7 +214,7 @@ pub async fn get_run(
 /// Idempotent: calling this endpoint on an already-completed run returns the
 /// existing execution state with 200 OK.
 #[utoipa::path(post, path = "/api/ap/payment-runs/{run_id}/execute", tag = "Payment Runs",
-    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run executed")),
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run executed", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn execute_run(
     State(state): State<Arc<AppState>>,

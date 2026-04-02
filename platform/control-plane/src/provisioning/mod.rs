@@ -6,6 +6,7 @@
 
 pub mod registry;
 pub mod steps;
+pub mod tracking;
 
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
@@ -181,7 +182,7 @@ pub async fn provision_tenant(
     }
 
     // Seed provisioning step rows
-    steps::seed_provisioning_steps(pool, tenant_id)
+    tracking::seed_provisioning_steps(pool, tenant_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -205,7 +206,7 @@ pub async fn provision_tenant(
         step_names::ACTIVATE_TENANT,
     ];
 
-    let resume_from = steps::first_pending_step(pool, tenant_id)
+    let resume_from = tracking::first_pending_step(pool, tenant_id)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -228,7 +229,7 @@ pub async fn provision_tenant(
 
         match result {
             Ok(outcome) => {
-                steps::mark_step_completed(pool, tenant_id, step_name, &outcome.checks)
+                tracking::mark_step_completed(pool, tenant_id, step_name, &outcome.checks)
                     .await
                     .map_err(|e| e.to_string())?;
 
@@ -237,7 +238,7 @@ pub async fn provision_tenant(
             }
             Err(e) => {
                 let err_msg = e.to_string();
-                steps::mark_step_failed(pool, tenant_id, step_name, &err_msg)
+                tracking::mark_step_failed(pool, tenant_id, step_name, &err_msg)
                     .await
                     .ok();
 
@@ -259,7 +260,7 @@ async fn execute_step_with_retry(
     step_name: &str,
     module_codes: &[String],
 ) -> Result<StepOutcome, StepError> {
-    let max_attempts = if steps::is_fatal_step(step_name) {
+    let max_attempts = if tracking::is_fatal_step(step_name) {
         1
     } else {
         MAX_RETRIES
@@ -274,7 +275,7 @@ async fn execute_step_with_retry(
             tokio::time::sleep(Duration::from_secs(backoff)).await;
         }
 
-        steps::mark_step_in_progress(pool, tenant_id, step_name)
+        tracking::mark_step_in_progress(pool, tenant_id, step_name)
             .await
             .ok();
 
@@ -349,7 +350,7 @@ async fn publish_hook_if_needed(
         _ => return,
     };
 
-    if let Err(e) = steps::write_hook_event(pool, tenant_id, event_type, payload).await {
+    if let Err(e) = tracking::write_hook_event(pool, tenant_id, event_type, payload).await {
         tracing::warn!(
             tenant_id = %tenant_id,
             event = %event_type,
@@ -378,7 +379,7 @@ async fn fail_tenant(pool: &PgPool, tenant_id: Uuid, failed_step: &str, error: &
         "error": error,
     });
 
-    if let Err(e) = steps::write_hook_event(
+    if let Err(e) = tracking::write_hook_event(
         pool,
         tenant_id,
         event_types::TENANT_PROVISIONING_FAILED,

@@ -284,7 +284,7 @@ pub struct ReopenRequestResponse {
 #[utoipa::path(post, path = "/api/gl/periods/{period_id}/reopen", tag = "Period Close",
     params(("period_id" = Uuid, Path, description = "Accounting period ID")),
     request_body = ReopenRequestPayload,
-    responses((status = 201, description = "Reopen request created")),
+    responses((status = 201, description = "Reopen request created", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn request_reopen(
     State(app_state): State<Arc<AppState>>,
@@ -317,7 +317,7 @@ pub async fn request_reopen(
         ("request_id" = Uuid, Path, description = "Reopen request ID"),
     ),
     request_body = ReopenApprovePayload,
-    responses((status = 200, description = "Reopen approved")),
+    responses((status = 200, description = "Reopen approved", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn approve_reopen(
     State(app_state): State<Arc<AppState>>,
@@ -350,7 +350,7 @@ pub async fn approve_reopen(
         ("request_id" = Uuid, Path, description = "Reopen request ID"),
     ),
     request_body = ReopenRejectPayload,
-    responses((status = 200, description = "Reopen rejected")),
+    responses((status = 200, description = "Reopen rejected", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn reject_reopen(
     State(app_state): State<Arc<AppState>>,

@@ -26,7 +26,8 @@ use crate::domain::bills::{
 };
 use crate::domain::r#match::{engine, RunMatchRequest};
 use crate::domain::tax::{self, ZeroTaxProvider};
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -60,7 +61,7 @@ pub struct ListBillsQuery {
 
 #[utoipa::path(post, path = "/api/ap/bills", tag = "Bills",
     request_body = CreateBillRequest,
-    responses((status = 201, description = "Bill created")), security(("bearer" = [])))]
+    responses((status = 201, description = "Bill created", body = crate::domain::bills::VendorBillWithLines)), security(("bearer" = [])))]
 pub async fn create_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -81,7 +82,7 @@ pub async fn create_bill(
 }
 
 #[utoipa::path(get, path = "/api/ap/bills/{bill_id}", tag = "Bills",
-    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill details")),
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill details", body = crate::domain::bills::VendorBillWithLines)),
     security(("bearer" = [])))]
 pub async fn get_bill(
     State(state): State<Arc<AppState>>,
@@ -142,7 +143,7 @@ pub async fn list_bills(
 
 #[utoipa::path(post, path = "/api/ap/bills/{bill_id}/approve", tag = "Bills",
     params(("bill_id" = Uuid, Path)), request_body = ApproveBillRequest,
-    responses((status = 200, description = "Bill approved")), security(("bearer" = [])))]
+    responses((status = 200, description = "Bill approved", body = crate::domain::bills::VendorBill)), security(("bearer" = [])))]
 pub async fn approve_bill(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -175,7 +176,7 @@ pub async fn approve_bill(
 
 #[utoipa::path(post, path = "/api/ap/bills/{bill_id}/void", tag = "Bills",
     params(("bill_id" = Uuid, Path)), request_body = VoidBillRequest,
-    responses((status = 200, description = "Bill voided")), security(("bearer" = [])))]
+    responses((status = 200, description = "Bill voided", body = crate::domain::bills::VendorBill)), security(("bearer" = [])))]
 /// POST /api/ap/bills/:bill_id/void — void a bill (requires reason)
 pub async fn void_bill(
     State(state): State<Arc<AppState>>,
@@ -222,7 +223,7 @@ pub struct BillTaxQuoteRequest {
 
 #[utoipa::path(post, path = "/api/ap/bills/{bill_id}/tax-quote", tag = "Bills",
     params(("bill_id" = Uuid, Path)),
-    responses((status = 200, description = "Tax quote")), security(("bearer" = [])))]
+    responses((status = 200, description = "Tax quote", body = crate::domain::tax::ApTaxSnapshot)), security(("bearer" = [])))]
 pub async fn quote_bill_tax(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

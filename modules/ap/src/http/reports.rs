@@ -22,7 +22,8 @@ use std::sync::Arc;
 use utoipa::IntoParams;
 
 use crate::domain::reports::aging::compute_aging;
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -49,7 +50,7 @@ pub struct AgingQuery {
     tag = "Reports",
     params(AgingQuery),
     responses(
-        (status = 200, description = "AP aging report"),
+        (status = 200, description = "AP aging report", body = serde_json::Value),
     ),
     security(("bearer" = [])),
 )]

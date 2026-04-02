@@ -22,7 +22,8 @@ use uuid::Uuid;
 use crate::domain::po::{
     approve, queries, service, ApprovePoRequest, CreatePoRequest, UpdatePoLinesRequest,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -55,7 +56,7 @@ pub struct ListPosQuery {
 
 #[utoipa::path(post, path = "/api/ap/pos", tag = "Purchase Orders",
     request_body = CreatePoRequest,
-    responses((status = 201, description = "PO created")), security(("bearer" = [])))]
+    responses((status = 201, description = "PO created", body = crate::domain::po::PurchaseOrderWithLines)), security(("bearer" = [])))]
 pub async fn create_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -76,7 +77,7 @@ pub async fn create_po(
 }
 
 #[utoipa::path(get, path = "/api/ap/pos/{po_id}", tag = "Purchase Orders",
-    params(("po_id" = Uuid, Path)), responses((status = 200, description = "PO details")),
+    params(("po_id" = Uuid, Path)), responses((status = 200, description = "PO details", body = crate::domain::po::PurchaseOrderWithLines)),
     security(("bearer" = [])))]
 pub async fn get_po(
     State(state): State<Arc<AppState>>,
@@ -133,7 +134,7 @@ pub async fn list_pos(
 
 #[utoipa::path(put, path = "/api/ap/pos/{po_id}/lines", tag = "Purchase Orders",
     params(("po_id" = Uuid, Path)), request_body = UpdatePoLinesRequest,
-    responses((status = 200, description = "Lines replaced")), security(("bearer" = [])))]
+    responses((status = 200, description = "Lines replaced", body = crate::domain::po::PurchaseOrderWithLines)), security(("bearer" = [])))]
 pub async fn update_po_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -158,7 +159,7 @@ pub async fn update_po_lines(
 /// If the PO is already approved, returns 200 with the current state (no re-emit).
 #[utoipa::path(post, path = "/api/ap/pos/{po_id}/approve", tag = "Purchase Orders",
     params(("po_id" = Uuid, Path)), request_body = ApprovePoRequest,
-    responses((status = 200, description = "PO approved")), security(("bearer" = [])))]
+    responses((status = 200, description = "PO approved", body = crate::domain::po::PurchaseOrder)), security(("bearer" = [])))]
 pub async fn approve_po(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,

@@ -18,7 +18,8 @@ use utoipa::ToSchema;
 use std::sync::Arc;
 
 use crate::domain::tax::reports;
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -132,7 +133,7 @@ pub async fn tax_report_summary(
     tag = "Tax Reports",
     params(TaxExportQuery),
     responses(
-        (status = 200, description = "Tax report export (JSON or CSV)"),
+        (status = 200, description = "Tax report export (JSON or CSV)", body = ApTaxReportResponse),
         (status = 400, description = "Invalid date range", body = ApiError),
     ),
     security(("bearer" = [])),

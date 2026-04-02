@@ -17,7 +17,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::vendors::{service, CreateVendorRequest, UpdateVendorRequest};
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -50,7 +51,7 @@ pub struct ListVendorsQuery {
 #[utoipa::path(
     post, path = "/api/ap/vendors", tag = "Vendors",
     request_body = CreateVendorRequest,
-    responses((status = 201, description = "Vendor created"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Vendor created", body = crate::domain::vendors::Vendor), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn create_vendor(
@@ -101,7 +102,7 @@ pub async fn list_vendors(
 #[utoipa::path(
     get, path = "/api/ap/vendors/{vendor_id}", tag = "Vendors",
     params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
-    responses((status = 200, description = "Vendor details"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Vendor details", body = crate::domain::vendors::Vendor), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn get_vendor(
@@ -130,7 +131,7 @@ pub async fn get_vendor(
     put, path = "/api/ap/vendors/{vendor_id}", tag = "Vendors",
     params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
     request_body = UpdateVendorRequest,
-    responses((status = 200, description = "Vendor updated"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Vendor updated", body = crate::domain::vendors::Vendor), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn update_vendor(

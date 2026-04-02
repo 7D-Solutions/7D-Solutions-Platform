@@ -15,12 +15,13 @@ use uuid::Uuid;
 use crate::domain::disposals::{DisposalService, DisposeAssetRequest};
 use crate::AppState;
 
-use super::helpers::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::helpers::tenant::with_request_id;
 
 #[utoipa::path(
     post, path = "/api/fixed-assets/disposals", tag = "Disposals",
     request_body = DisposeAssetRequest,
-    responses((status = 201, description = "Disposal created"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Disposal created", body = crate::domain::disposals::Disposal), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn dispose_asset(
@@ -69,7 +70,7 @@ pub async fn list_disposals(
 #[utoipa::path(
     get, path = "/api/fixed-assets/disposals/{id}", tag = "Disposals",
     params(("id" = Uuid, Path, description = "Disposal ID")),
-    responses((status = 200, description = "Disposal details"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Disposal details", body = crate::domain::disposals::Disposal), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn get_disposal(

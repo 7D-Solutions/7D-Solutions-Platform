@@ -17,7 +17,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::allocations::{service, CreateAllocationRequest};
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -30,7 +31,7 @@ use crate::AppState;
 /// Idempotent: duplicate allocation_id returns the existing record (200 OK).
 #[utoipa::path(post, path = "/api/ap/bills/{bill_id}/allocations", tag = "Allocations",
     params(("bill_id" = Uuid, Path)), request_body = CreateAllocationRequest,
-    responses((status = 200, description = "Allocation applied")), security(("bearer" = [])))]
+    responses((status = 200, description = "Allocation applied", body = serde_json::Value)), security(("bearer" = [])))]
 pub async fn create_allocation(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -90,7 +91,7 @@ pub async fn list_allocations(
 ///
 /// Return remaining open balance for a bill.
 #[utoipa::path(get, path = "/api/ap/bills/{bill_id}/balance", tag = "Allocations",
-    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill balance")),
+    params(("bill_id" = Uuid, Path)), responses((status = 200, description = "Bill balance", body = serde_json::Value)),
     security(("bearer" = [])))]
 pub async fn get_balance(
     State(state): State<Arc<AppState>>,

@@ -35,7 +35,7 @@ use crate::AppState;
     path = "/api/webhooks/inbound/{system}",
     params(("system" = String, Path, description = "Webhook source system (stripe, github, quickbooks, internal)")),
     responses(
-        (status = 200, description = "Webhook accepted or duplicate"),
+        (status = 200, description = "Webhook accepted or duplicate", body = serde_json::Value),
         (status = 400, description = "Malformed payload"),
         (status = 401, description = "Signature verification failed"),
         (status = 404, description = "Unknown webhook system"),

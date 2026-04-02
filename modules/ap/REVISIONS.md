@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.1.6 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.6 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotations on 23 AP endpoints (vendors, bills, allocations, payment_runs, payment_terms, purchase_orders, reports, tax_reports). | OpenAPI specs were missing response schemas, causing codegen to emit Result<(), ClientError> instead of typed responses. | No |
 | 2.1.5 | 2026-04-01 | bd-14qer | Migrate list_allocations to PaginatedResponse. Add ToSchema to AllocationRecord. Register PaginatedResponse<AllocationRecord> in OpenAPI schema. | All 5 AP list endpoints now return consistent PaginatedResponse shape. | No |
 | 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/bus/outbox/middleware/health/shutdown boilerplate with SDK startup sequence. Bus and outbox publisher now configured via module.toml. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | bd-vnuvp.1 | Add tenant_id filter to 23 SQL queries across 10 AP source files. Production: purchase_orders lookup in inventory consumer, count_receipt_links_for_line now joins through purchase_orders, fetch_snapshot accepts optional tenant_id. Tests: all assertion queries on vendor_bills/ap_allocations scoped by tenant_id; queries on po_receipt_links/three_way_match/po_status use subqueries through parent tables. | P0 security: 23 queries on tenant data tables lacked tenant_id in WHERE clause, allowing potential cross-tenant data leakage. | No |

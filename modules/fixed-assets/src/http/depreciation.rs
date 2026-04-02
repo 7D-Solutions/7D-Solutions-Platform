@@ -17,7 +17,8 @@ use crate::domain::depreciation::{
 };
 use crate::AppState;
 
-use super::helpers::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use super::helpers::tenant::with_request_id;
 
 // ============================================================================
 // Schedule endpoints
@@ -26,7 +27,7 @@ use super::helpers::tenant::{extract_tenant, with_request_id};
 #[utoipa::path(
     post, path = "/api/fixed-assets/depreciation/schedule", tag = "Depreciation",
     request_body = GenerateScheduleRequest,
-    responses((status = 201, description = "Schedule generated"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Schedule generated", body = Vec<crate::domain::depreciation::DepreciationSchedule>), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn generate_schedule(
@@ -54,7 +55,7 @@ pub async fn generate_schedule(
 #[utoipa::path(
     post, path = "/api/fixed-assets/depreciation/runs", tag = "Depreciation",
     request_body = CreateRunRequest,
-    responses((status = 201, description = "Run created"), (status = 401, body = ApiError)),
+    responses((status = 201, description = "Run created", body = crate::domain::depreciation::DepreciationRun), (status = 401, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn create_run(
@@ -103,7 +104,7 @@ pub async fn list_runs(
 #[utoipa::path(
     get, path = "/api/fixed-assets/depreciation/runs/{id}", tag = "Depreciation",
     params(("id" = Uuid, Path, description = "Run ID")),
-    responses((status = 200, description = "Run details"), (status = 404, body = ApiError)),
+    responses((status = 200, description = "Run details", body = crate::domain::depreciation::DepreciationRun), (status = 404, body = ApiError)),
     security(("bearer" = [])),
 )]
 pub async fn get_run(

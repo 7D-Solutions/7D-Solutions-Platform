@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.3.2 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |
 | Bead | Bead | Active bead ID (not bd-xxxx) |
@@ -21,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.2 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotation on inbound_webhook endpoint. | OpenAPI spec was missing response schema, causing codegen to emit Result<(), ClientError>. | No |
 | 2.3.1 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Background workers spawn in routes closure. Bus accessed via ctx.bus_arc(). | SDK batch conversion — eliminate two classes of modules. | No |
 | 1.0.0 | 2026-03-28 | bd-1rdqj | Initial proof. External refs CRUD with outbox events. Webhook ingest (Stripe, GitHub, QuickBooks, internal). QBO CDC/webhook normalization with realm→tenant resolution. OAuth connection management with encrypted tokens. Outbox relay with retry/DLQ. EDI transactions. File jobs. Outbound webhooks with delivery logging. 145 integrated tests against real Postgres. | Platform integrations layer ready for production. Handles external system connections, webhook routing, and event publishing. | No |
 | 1.0.1 | 2026-03-29 | bd-ym43b | Add `POST /api/integrations/qbo/invoice/{invoice_id}/update` endpoint for sparse-updating QBO invoice shipping fields (ShipDate, TrackingNum, ShipMethodRef). Uses platform OAuth connection, handles SyncToken concurrency via QboClient retry loop. Gated by `integrations.mutate` permission. | Huber Power Phase 1 write-back requires outbound QBO invoice updates with shipping data. | No |

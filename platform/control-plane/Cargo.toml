@@ -1,6 +1,6 @@
 [package]
 name = "control-plane"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
 description = "Tenant provisioning, platform billing orchestration, and data retention"
 publish = ["7d-platform"]

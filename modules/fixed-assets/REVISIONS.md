@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.1.6 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | 2.1.4 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder with SDK consumer adapter for ap.vendor_bill_approved. | SDK batch conversion — eliminate two classes of modules. | No |
 | 2.1.3 | 2026-03-31 | bd-vnuvp.8 | Add tenant_id filter to 3 test queries: fa_ap_capitalizations SELECT (2x in ap_bill_approved and capitalize tests), fa_assets status SELECT (disposals tests). | P0 tenant isolation: test assertions queried without tenant_id, masking potential cross-tenant data leaks. | No |
 | 2.1.2 | 2026-03-31 | bd-decba | Add RequirePermissionsLayer with MODULE_READ permission to all read routes. Previously, read endpoints were accessible without JWT authentication. | P0 security: aerospace/defense requires all data endpoints gated by JWT. Read routes were unprotected since initial plug-and-play rollout. | No (consumers who already provide valid JWT + read permissions are unaffected) |
@@ -24,6 +25,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.6 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotations on 13 endpoints (categories CRUD, assets CRUD, depreciation schedule/run, disposals). | OpenAPI specs were missing response schemas, causing codegen to emit Result<(), ClientError> instead of typed responses. | No |
 | 2.1.5 | 2026-04-01 | bd-manm4 | Add openapi_dump binary for standalone OpenAPI spec generation to stdout. | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 2.1.1 | 2026-03-31 | bd-z5rek.3 | Migrate config.rs to ConfigValidator for multi-error startup validation. All config errors reported at once in table format. | Plug-and-play wave 2: consistent startup validation across all modules. | No |
 | 2.1.0 | 2026-03-30 | bd-70nin | OpenAPI via utoipa: `#[utoipa::path]` annotations on all 17 handlers, `ApiDoc` struct in http/mod.rs, `/api/openapi.json` endpoint serving full spec with JWT bearer security scheme. Tags: Categories, Assets, Depreciation, Disposals. | Self-describing API for plug-and-play consumer onboarding. | No |

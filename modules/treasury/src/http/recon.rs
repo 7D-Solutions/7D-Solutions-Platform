@@ -16,7 +16,8 @@ use crate::domain::recon::{
     models::{AutoMatchRequest, AutoMatchResult, ListMatchesQuery, ManualMatchRequest, ReconMatch},
     service,
 };
-use crate::http::tenant::{extract_tenant, with_request_id};
+use platform_sdk::extract_tenant;
+use crate::http::tenant::with_request_id;
 use crate::AppState;
 
 // ============================================================================
@@ -143,7 +144,7 @@ pub struct UnmatchedQuery {
     get, path = "/api/treasury/recon/unmatched", tag = "Reconciliation",
     params(UnmatchedQuery),
     responses(
-        (status = 200, description = "Unmatched items"),
+        (status = 200, description = "Unmatched items", body = serde_json::Value),
     ),
     security(("bearer" = [])),
 )]
