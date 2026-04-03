@@ -185,7 +185,7 @@ pub async fn test_ar_wiring() -> Result<(), String> {
     let inv = invoices
         .create_invoice(
             &claims,
-            &CreateInvoiceRequest {
+            &platform_client_ar::CreateInvoiceRequest {
                 ar_customer_id: cust.id,
                 amount_cents: 10000,
                 currency: Some("USD".into()),
@@ -214,7 +214,7 @@ pub async fn test_ar_wiring() -> Result<(), String> {
 
 pub async fn test_inventory_wiring() -> Result<(), String> {
     let client = client_for("inventory", 8092);
-    let items = ItemsClient::from_platform_client(client);
+    let items = platform_client_inventory::ItemsClient::from_platform_client(client);
     let claims = test_claims();
 
     let tenant_id = claims.tenant_id.to_string();
@@ -222,11 +222,11 @@ pub async fn test_inventory_wiring() -> Result<(), String> {
     let item = items
         .create_item(
             &claims,
-            &CreateItemRequest {
+            &platform_client_inventory::CreateItemRequest {
                 name: "Proof Widget".into(),
                 sku: format!("PROOF-{}", uuid::Uuid::new_v4().simple()),
                 tenant_id,
-                tracking_mode: TrackingMode::None,
+                tracking_mode: platform_client_inventory::TrackingMode::None,
                 cogs_account_ref: "5000".into(),
                 inventory_account_ref: "1200".into(),
                 variance_account_ref: "5010".into(),
@@ -254,7 +254,7 @@ pub async fn test_inventory_wiring() -> Result<(), String> {
 
 pub async fn test_production_wiring() -> Result<(), String> {
     let client = client_for("production", 8108);
-    let workcenters = WorkcentersClient::from_platform_client(client);
+    let workcenters = platform_client_production::WorkcentersClient::from_platform_client(client);
     let claims = test_claims();
 
     let tenant_id = claims.tenant_id.to_string();
@@ -262,7 +262,7 @@ pub async fn test_production_wiring() -> Result<(), String> {
     let wc = workcenters
         .create_workcenter(
             &claims,
-            &CreateWorkcenterRequest {
+            &platform_client_production::CreateWorkcenterRequest {
                 code: format!("WC-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
                 name: "Proof Workcenter".into(),
                 tenant_id,
@@ -285,13 +285,13 @@ pub async fn test_production_wiring() -> Result<(), String> {
 
 pub async fn test_notifications_wiring() -> Result<(), String> {
     let client = client_for("notifications", 8089);
-    let sends = SendsClient::from_platform_client(client);
+    let sends = platform_client_notifications::SendsClient::from_platform_client(client);
     let claims = test_claims();
 
     let result = sends
         .send_notification(
             &claims,
-            &SendRequest {
+            &platform_client_notifications::SendRequest {
                 template_key: "vertical_proof_test".into(),
                 channel: "in_app".into(),
                 recipients: vec!["proof-user@example.com".into()],
@@ -315,10 +315,68 @@ pub async fn test_notifications_wiring() -> Result<(), String> {
 
 pub async fn test_customer_portal_wiring() -> Result<(), String> {
     let client = client_for("customer_portal", 8111);
-    let admin = platform_client_customer_portal::AdminClient::from_platform_client(client);
-    let _claims = test_claims();
-    tracing::info!("Customer-Portal: AdminClient constructed successfully");
-    let _ = &admin;
+    let admin = platform_client_customer_portal::AdminClient::from_platform_client(client.clone());
+    let status = platform_client_customer_portal::StatusClient::from_platform_client(client);
+    let claims = test_claims();
+
+    // Create a status card via AdminClient
+    admin
+        .create_status_card(
+            &claims,
+            &platform_client_customer_portal::CreateStatusCardRequest {
+                entity_type: "order".into(),
+                party_id: uuid::Uuid::new_v4(),
+                source: "vertical-proof".into(),
+                status: "pending".into(),
+                tenant_id: claims.tenant_id,
+                title: "Vertical proof status card".into(),
+                details: None,
+                entity_id: None,
+            },
+        )
+        .await
+        .map_err(|e| format!("Customer-Portal create_status_card failed: {e}"))?;
+    tracing::info!("Customer-Portal: status card created");
+
+    // List status cards via StatusClient — verifies typed PaginatedResponse<StatusCard>
+    let page = status
+        .list_status_cards(&claims, Some(1), Some(10))
+        .await
+        .map_err(|e| format!("Customer-Portal list_status_cards failed: {e}"))?;
+    tracing::info!(count = page.data.len(), "Customer-Portal: listed status cards");
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Doc-Mgmt — document management
+// ---------------------------------------------------------------------------
+
+pub async fn test_doc_mgmt_wiring() -> Result<(), String> {
+    let client = client_for("doc_mgmt", 8095);
+    let docs = platform_client_doc_mgmt::DocumentsClient::from_platform_client(client);
+    let claims = test_claims();
+
+    let doc = docs
+        .create_document(
+            &claims,
+            &platform_client_doc_mgmt::CreateDocumentRequest {
+                doc_number: format!("DOC-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                doc_type: "procedure".into(),
+                title: "Vertical proof doc-mgmt test".into(),
+                body: None,
+            },
+        )
+        .await
+        .map_err(|e| format!("Doc-Mgmt create_document failed: {e}"))?;
+    tracing::info!(doc_id = %doc.document.id, "Doc-Mgmt: document created");
+
+    let list = docs
+        .list_documents(&claims)
+        .await
+        .map_err(|e| format!("Doc-Mgmt list_documents failed: {e}"))?;
+    tracing::info!(count = list.documents.len(), "Doc-Mgmt: listed documents");
+
     Ok(())
 }
 
@@ -328,10 +386,71 @@ pub async fn test_customer_portal_wiring() -> Result<(), String> {
 
 pub async fn test_fixed_assets_wiring() -> Result<(), String> {
     let client = client_for("fixed_assets", 8104);
+    let categories = platform_client_fixed_assets::CategoriesClient::from_platform_client(client.clone());
     let assets = platform_client_fixed_assets::AssetsClient::from_platform_client(client);
-    let _claims = test_claims();
-    tracing::info!("Fixed-Assets: AssetsClient constructed successfully");
-    let _ = &assets;
+    let claims = test_claims();
+
+    let tenant_id = claims.tenant_id.to_string();
+
+    // Create a category (assets require one)
+    let cat = categories
+        .create_category(
+            &claims,
+            &platform_client_fixed_assets::CreateCategoryRequest {
+                code: format!("CAT-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                name: "Proof FA Category".into(),
+                tenant_id: tenant_id.clone(),
+                asset_account_ref: "1500".into(),
+                accum_depreciation_ref: "1510".into(),
+                depreciation_expense_ref: "6100".into(),
+                default_method: Some(platform_client_fixed_assets::DepreciationMethod::StraightLine),
+                default_useful_life_months: Some(60),
+                default_salvage_pct_bp: Some(1000),
+                description: Some("Vertical proof FA category".into()),
+                gain_loss_account_ref: None,
+            },
+        )
+        .await
+        .map_err(|e| format!("Fixed-Assets create_category failed: {e}"))?;
+    tracing::info!(category_id = %cat.id, "Fixed-Assets: category created");
+
+    // Create an asset in that category
+    let asset = assets
+        .create_asset(
+            &claims,
+            &platform_client_fixed_assets::CreateAssetRequest {
+                name: "Proof CNC Machine".into(),
+                asset_tag: format!("FA-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                category_id: cat.id,
+                tenant_id: tenant_id.clone(),
+                acquisition_cost_minor: 500_000,
+                acquisition_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+                currency: Some("USD".into()),
+                description: Some("Test asset for vertical proof".into()),
+                depreciation_method: None,
+                department: None,
+                in_service_date: None,
+                location: None,
+                notes: None,
+                purchase_order_ref: None,
+                responsible_person: None,
+                salvage_value_minor: None,
+                serial_number: None,
+                useful_life_months: None,
+                vendor: None,
+            },
+        )
+        .await
+        .map_err(|e| format!("Fixed-Assets create_asset failed: {e}"))?;
+    tracing::info!(asset_id = %asset.id, "Fixed-Assets: asset created");
+
+    // List assets
+    let page = assets
+        .list_assets(&claims)
+        .await
+        .map_err(|e| format!("Fixed-Assets list_assets failed: {e}"))?;
+    tracing::info!(count = page.data.len(), "Fixed-Assets: listed assets");
+
     Ok(())
 }
 
@@ -627,6 +746,7 @@ pub async fn run_all(pool: &sqlx::PgPool) -> WiringResults {
             ("BOM", test_bom_wiring().await),
             ("Consolidation", test_consolidation_wiring().await),
             ("Customer-Portal", test_customer_portal_wiring().await),
+            ("Doc-Mgmt", test_doc_mgmt_wiring().await),
             ("Fixed-Assets", test_fixed_assets_wiring().await),
             ("GL", test_gl_wiring().await),
             ("Integrations", test_integrations_wiring().await),
