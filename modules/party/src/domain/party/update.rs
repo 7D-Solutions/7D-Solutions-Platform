@@ -1,9 +1,11 @@
 use crate::domain::address::Address;
 use crate::domain::contact::Contact;
 use crate::events::{
-    build_party_deactivated_envelope, build_party_updated_envelope, build_tags_updated_envelope,
-    PartyDeactivatedPayload, PartyUpdatedPayload, TagsUpdatedPayload, EVENT_TYPE_PARTY_DEACTIVATED,
-    EVENT_TYPE_PARTY_UPDATED, EVENT_TYPE_TAGS_UPDATED,
+    build_party_deactivated_envelope, build_party_reactivated_envelope,
+    build_party_updated_envelope, build_tags_updated_envelope, PartyDeactivatedPayload,
+    PartyReactivatedPayload, PartyUpdatedPayload, TagsUpdatedPayload,
+    EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_REACTIVATED, EVENT_TYPE_PARTY_UPDATED,
+    EVENT_TYPE_TAGS_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
 use chrono::Utc;
@@ -281,6 +283,69 @@ pub async fn deactivate_party(
         &mut tx,
         event_id,
         EVENT_TYPE_PARTY_DEACTIVATED,
+        "party",
+        &party_id.to_string(),
+        app_id,
+        &envelope,
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(())
+}
+
+pub async fn reactivate_party(
+    pool: &PgPool,
+    app_id: &str,
+    party_id: Uuid,
+    actor: &str,
+    correlation_id: String,
+) -> Result<(), PartyError> {
+    let event_id = Uuid::new_v4();
+    let now = Utc::now();
+
+    let mut tx = pool.begin().await?;
+
+    let exists: Option<(String,)> =
+        sqlx::query_as("SELECT status::TEXT FROM party_parties WHERE id = $1 AND app_id = $2")
+            .bind(party_id)
+            .bind(app_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+    if exists.is_none() {
+        return Err(PartyError::NotFound(party_id));
+    }
+
+    sqlx::query(
+        "UPDATE party_parties SET status = 'active', updated_at = $1 WHERE id = $2 AND app_id = $3",
+    )
+    .bind(now)
+    .bind(party_id)
+    .bind(app_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let payload = PartyReactivatedPayload {
+        party_id,
+        app_id: app_id.to_string(),
+        reactivated_by: actor.to_string(),
+        reactivated_at: now,
+    };
+
+    let envelope = build_party_reactivated_envelope(
+        event_id,
+        app_id.to_string(),
+        correlation_id,
+        None,
+        payload,
+    );
+
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_PARTY_REACTIVATED,
         "party",
         &party_id.to_string(),
         app_id,

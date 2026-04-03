@@ -52,7 +52,7 @@ pub async fn create_contact(
     .bind(party_id)
     .bind(app_id)
     .bind(req.first_name.trim())
-    .bind(req.last_name.trim())
+    .bind(req.last_name.as_deref().map(|n| n.trim()))
     .bind(&req.email)
     .bind(&req.phone)
     .bind(&req.role)
@@ -130,11 +130,11 @@ pub async fn update_contact(
         .as_deref()
         .map(|n| n.trim().to_string())
         .unwrap_or(current.first_name);
-    let new_last = req
-        .last_name
-        .as_deref()
-        .map(|n| n.trim().to_string())
-        .unwrap_or(current.last_name);
+    let new_last: Option<String> = if req.last_name.is_some() {
+        req.last_name.as_deref().map(|n| n.trim().to_string())
+    } else {
+        current.last_name
+    };
     let new_email = if req.email.is_some() {
         req.email.clone()
     } else {

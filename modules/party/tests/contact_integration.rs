@@ -73,7 +73,7 @@ async fn make_party(pool: &sqlx::PgPool, app: &str, name: &str) -> Uuid {
 fn base_contact_req(first: &str, last: &str) -> CreateContactRequest {
     CreateContactRequest {
         first_name: first.to_string(),
-        last_name: last.to_string(),
+        last_name: Some(last.to_string()),
         email: Some(format!(
             "{}.{}@example.com",
             first.to_lowercase(),
@@ -108,7 +108,7 @@ async fn test_create_contact_happy_path() {
     .expect("create_contact failed");
 
     assert_eq!(contact.first_name, "Alice");
-    assert_eq!(contact.last_name, "Smith");
+    assert_eq!(contact.last_name, Some("Smith".to_string()));
     assert_eq!(contact.party_id, party_id);
     assert_eq!(contact.app_id, app);
     assert!(!contact.is_primary);

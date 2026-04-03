@@ -1,4 +1,4 @@
-//! Party event contracts: party.created, party.updated, party.deactivated
+//! Party event contracts: party.created, party.updated, party.deactivated, party.reactivated
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -104,6 +104,39 @@ pub fn build_party_deactivated_envelope(
         event_id,
         app_id,
         EVENT_TYPE_PARTY_DEACTIVATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(PARTY_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: party.reactivated
+// ============================================================================
+
+pub const EVENT_TYPE_PARTY_REACTIVATED: &str = "party.reactivated";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PartyReactivatedPayload {
+    pub party_id: Uuid,
+    pub app_id: String,
+    pub reactivated_by: String,
+    pub reactivated_at: DateTime<Utc>,
+}
+
+pub fn build_party_reactivated_envelope(
+    event_id: Uuid,
+    app_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: PartyReactivatedPayload,
+) -> EventEnvelope<PartyReactivatedPayload> {
+    create_party_envelope(
+        event_id,
+        app_id,
+        EVENT_TYPE_PARTY_REACTIVATED.to_string(),
         correlation_id,
         causation_id,
         MUTATION_CLASS_LIFECYCLE.to_string(),

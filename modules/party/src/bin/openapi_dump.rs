@@ -36,6 +36,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         party_rs::http::party::get_party,
         party_rs::http::party::update_party,
         party_rs::http::party::deactivate_party,
+        party_rs::http::party::reactivate_party,
         party_rs::http::party::search_parties,
         party_rs::http::contacts::create_contact,
         party_rs::http::contacts::list_contacts,

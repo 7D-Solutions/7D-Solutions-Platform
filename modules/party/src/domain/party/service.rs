@@ -2,7 +2,7 @@ use crate::domain::party::{create, query, update};
 
 pub use create::{create_company, create_individual};
 pub use query::{get_party, list_parties, search_parties};
-pub use update::{deactivate_party, update_party};
+pub use update::{deactivate_party, reactivate_party, update_party};
 
 #[cfg(test)]
 mod tests {

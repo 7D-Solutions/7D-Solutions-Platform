@@ -94,7 +94,7 @@ async fn make_party(pool: &sqlx::PgPool, app: &str, name: &str) -> Uuid {
 async fn make_contact(pool: &sqlx::PgPool, app: &str, party_id: Uuid) -> Uuid {
     let req = CreateContactRequest {
         first_name: "Test".to_string(),
-        last_name: "Contact".to_string(),
+        last_name: Some("Contact".to_string()),
         email: Some("test.contact@example.com".to_string()),
         phone: None,
         role: Some("Engineer".to_string()),
@@ -302,7 +302,7 @@ async fn test_contact_roles_e2e() {
     // Create a second contact and assign same role type as primary
     let contact2_req = CreateContactRequest {
         first_name: "Other".to_string(),
-        last_name: "Person".to_string(),
+        last_name: Some("Person".to_string()),
         email: Some("other@example.com".to_string()),
         phone: None,
         role: None,

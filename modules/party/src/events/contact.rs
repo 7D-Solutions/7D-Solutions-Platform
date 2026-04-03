@@ -28,7 +28,7 @@ pub struct ContactPayload {
     pub party_id: Uuid,
     pub app_id: String,
     pub first_name: String,
-    pub last_name: String,
+    pub last_name: Option<String>,
     pub email: Option<String>,
     pub role: Option<String>,
     pub is_primary: bool,

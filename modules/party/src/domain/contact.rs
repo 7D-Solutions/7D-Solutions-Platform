@@ -17,7 +17,7 @@ pub struct Contact {
     pub party_id: Uuid,
     pub app_id: String,
     pub first_name: String,
-    pub last_name: String,
+    pub last_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub role: Option<String>,
@@ -35,7 +35,7 @@ pub struct Contact {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateContactRequest {
     pub first_name: String,
-    pub last_name: String,
+    pub last_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub role: Option<String>,
@@ -50,10 +50,12 @@ impl CreateContactRequest {
                 "first_name cannot be empty".to_string(),
             ));
         }
-        if self.last_name.trim().is_empty() {
-            return Err(PartyError::Validation(
-                "last_name cannot be empty".to_string(),
-            ));
+        if let Some(ref name) = self.last_name {
+            if name.trim().is_empty() {
+                return Err(PartyError::Validation(
+                    "last_name cannot be empty when provided".to_string(),
+                ));
+            }
         }
         if let Some(ref email) = self.email {
             if !email.contains('@') || email.trim().is_empty() {

@@ -35,6 +35,7 @@ use platform_sdk::ModuleBuilder;
         party_rs::http::party::get_party,
         party_rs::http::party::update_party,
         party_rs::http::party::deactivate_party,
+        party_rs::http::party::reactivate_party,
         party_rs::http::party::search_parties,
         // Contacts
         party_rs::http::contacts::create_contact,

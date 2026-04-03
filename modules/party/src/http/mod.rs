@@ -25,6 +25,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/party/parties/{id}/deactivate",
             post(party::deactivate_party),
         )
+        .route(
+            "/api/party/parties/{id}/reactivate",
+            post(party::reactivate_party),
+        )
         // Contact — write
         .route(
             "/api/party/parties/{party_id}/contacts",

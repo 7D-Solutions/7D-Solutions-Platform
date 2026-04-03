@@ -7,6 +7,7 @@
 //!   GET    /api/party/parties                 — list parties (paginated)
 //!   PUT    /api/party/parties/:id             — update base party fields
 //!   POST   /api/party/parties/:id/deactivate  — soft-delete
+//!   POST   /api/party/parties/:id/reactivate  — restore deactivated party
 //!   GET    /api/party/parties/search          — search by name/type/external_ref (paginated)
 //!
 //! App identity derived from JWT `VerifiedClaims` (tenant/app scope).
@@ -289,6 +290,37 @@ pub async fn deactivate_party(
     let actor = actor_from_headers(&headers);
 
     match service::deactivate_party(&state.pool, &app_id, party_id, &actor, correlation_id).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/party/parties/{id}/reactivate",
+    tag = "Parties",
+    params(("id" = Uuid, Path, description = "Party ID")),
+    responses(
+        (status = 204, description = "Party reactivated"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn reactivate_party(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
+    Path(party_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let correlation_id = correlation_from_headers(&headers);
+    let actor = actor_from_headers(&headers);
+
+    match service::reactivate_party(&state.pool, &app_id, party_id, &actor, correlation_id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }

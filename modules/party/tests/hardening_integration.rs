@@ -114,7 +114,7 @@ fn base_individual_req(first: &str, last: &str) -> CreateIndividualRequest {
 fn base_contact_req(first: &str, last: &str) -> CreateContactRequest {
     CreateContactRequest {
         first_name: first.to_string(),
-        last_name: last.to_string(),
+        last_name: Some(last.to_string()),
         email: Some(format!(
             "{}.{}@example.com",
             first.to_lowercase(),
