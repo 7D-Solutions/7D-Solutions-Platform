@@ -5,6 +5,16 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response};
 
+/// Query parameters for [`list_invoices`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ListInvoicesQuery {
+    pub customer_id: Option<i32>,
+    pub subscription_id: Option<i32>,
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
+
 /// Typed HTTP client for Invoices endpoints.
 pub struct InvoicesClient {
     client: PlatformClient,
@@ -16,24 +26,9 @@ impl InvoicesClient {
     }
 
     /// GET `/api/ar/invoices`
-    pub async fn list_invoices(&self, claims: &VerifiedClaims, customer_id: Option<i32>, subscription_id: Option<i32>, status: Option<String>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Invoice>, ClientError> {
+    pub async fn list_invoices(&self, claims: &VerifiedClaims, query: &ListInvoicesQuery) -> Result<PaginatedResponse<Invoice>, ClientError> {
         let path = format!("/api/ar/invoices");
-        #[derive(serde::Serialize)]
-        struct Query {
-            customer_id: Option<i32>,
-            subscription_id: Option<i32>,
-            status: Option<String>,
-            limit: Option<i32>,
-            offset: Option<i32>,
-        }
-        let query = Query {
-            customer_id,
-            subscription_id,
-            status,
-            limit,
-            offset,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

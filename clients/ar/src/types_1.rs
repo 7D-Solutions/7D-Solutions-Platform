@@ -8,15 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::*;
 
-/// A single line item on an invoice.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InvoiceLineItem {
-    pub description: String,
-    pub amount_cents: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub quantity: Option<i64>,
-}
-
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginationMeta {
@@ -60,13 +51,13 @@ pub struct CancelSubscriptionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureChargeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub amount_cents: Option<i32>,
+    pub amount_cents: Option<i64>,
 }
 
 /// Charge record from ar_charges table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Charge {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub app_id: String,
     pub ar_customer_id: i32,
     pub charge_type: String,
@@ -108,9 +99,9 @@ pub struct Charge {
 }
 
 /// Request body for creating a charge
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateChargeRequest {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub ar_customer_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub charge_type: Option<String>,
@@ -127,7 +118,7 @@ pub struct CreateChargeRequest {
 }
 
 /// Request body for creating a customer
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateCustomerRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
@@ -143,9 +134,9 @@ pub struct CreateCustomerRequest {
 }
 
 /// Request body for creating an invoice
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateInvoiceRequest {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub ar_customer_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_period_end: Option<chrono::DateTime<chrono::Utc>>,
@@ -160,7 +151,7 @@ pub struct CreateInvoiceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_item_details: Option<Vec<InvoiceLineItem>>,
+    pub line_item_details: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
     /// Optional link to a Party record in the party-master service.
@@ -173,9 +164,9 @@ pub struct CreateInvoiceRequest {
 }
 
 /// Request body for creating a refund
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateRefundRequest {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub charge_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -189,7 +180,7 @@ pub struct CreateRefundRequest {
 }
 
 /// Request body for creating a subscription
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateSubscriptionRequest {
     pub ar_customer_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -248,7 +239,7 @@ pub struct Customer {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dispute {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub amount_cents: Option<i32>,
+    pub amount_cents: Option<i64>,
     pub app_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub charge_id: Option<i32>,
@@ -306,7 +297,7 @@ pub struct FinalizeInvoiceRequest {
 /// Invoice record from ar_invoices table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invoice {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub app_id: String,
     pub ar_customer_id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -325,7 +316,7 @@ pub struct Invoice {
     pub hosted_url: Option<String>,
     pub id: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_item_details: Option<Vec<InvoiceLineItem>>,
+    pub line_item_details: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -338,6 +329,15 @@ pub struct Invoice {
     pub subscription_id: Option<i32>,
     pub tilled_invoice_id: String,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// A single line item on an invoice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceLineItem {
+    pub amount_cents: i64,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantity: Option<i64>,
 }
 
 /// Payment method record from ar_payment_methods table
@@ -373,7 +373,7 @@ pub struct PaymentMethod {
 /// Refund record from ar_refunds table
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Refund {
-    pub amount_cents: i32,
+    pub amount_cents: i64,
     pub app_id: String,
     pub ar_customer_id: i32,
     pub charge_id: i32,

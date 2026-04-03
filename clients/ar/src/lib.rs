@@ -4,7 +4,6 @@
 
 pub mod types_1;
 pub mod types_2;
-pub mod event_payloads;
 pub mod aging;
 pub mod charges;
 pub mod credit_notes;
@@ -29,16 +28,20 @@ pub use types_1::*;
 pub use types_2::*;
 pub use aging::AgingClient;
 pub use charges::ChargesClient;
+pub use charges::ListChargesQuery;
 pub use credit_notes::CreditNotesClient;
 pub use customers::CustomersClient;
 pub use disputes::DisputesClient;
 pub use dunning::DunningClient;
 pub use events::EventsClient;
+pub use events::ListEventsQuery;
 pub use invoices::InvoicesClient;
+pub use invoices::ListInvoicesQuery;
 pub use payment_methods::PaymentMethodsClient;
 pub use payments::PaymentsClient;
 pub use reconciliation::ReconciliationClient;
 pub use refunds::RefundsClient;
+pub use refunds::ListRefundsQuery;
 pub use subscriptions::SubscriptionsClient;
 pub use tax::TaxClient;
 pub use tax_config::TaxConfigClient;

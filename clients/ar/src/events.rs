@@ -5,6 +5,19 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response};
 
+/// Query parameters for [`list_events`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ListEventsQuery {
+    pub entity_id: Option<String>,
+    pub entity_type: Option<String>,
+    pub event_type: Option<String>,
+    pub source: Option<String>,
+    pub start: Option<chrono::DateTime<chrono::Utc>>,
+    pub end: Option<chrono::DateTime<chrono::Utc>>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
+
 /// Typed HTTP client for Events endpoints.
 pub struct EventsClient {
     client: PlatformClient,
@@ -16,30 +29,9 @@ impl EventsClient {
     }
 
     /// GET `/api/ar/events`
-    pub async fn list_events(&self, claims: &VerifiedClaims, entity_id: Option<String>, entity_type: Option<String>, event_type: Option<String>, source: Option<String>, start: Option<chrono::DateTime<chrono::Utc>>, end: Option<chrono::DateTime<chrono::Utc>>, limit: Option<i32>, offset: Option<i32>) -> Result<PaginatedResponse<Event>, ClientError> {
+    pub async fn list_events(&self, claims: &VerifiedClaims, query: &ListEventsQuery) -> Result<PaginatedResponse<Event>, ClientError> {
         let path = format!("/api/ar/events");
-        #[derive(serde::Serialize)]
-        struct Query {
-            entity_id: Option<String>,
-            entity_type: Option<String>,
-            event_type: Option<String>,
-            source: Option<String>,
-            start: Option<chrono::DateTime<chrono::Utc>>,
-            end: Option<chrono::DateTime<chrono::Utc>>,
-            limit: Option<i32>,
-            offset: Option<i32>,
-        }
-        let query = Query {
-            entity_id,
-            entity_type,
-            event_type,
-            source,
-            start,
-            end,
-            limit,
-            offset,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

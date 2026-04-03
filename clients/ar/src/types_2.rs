@@ -104,7 +104,7 @@ pub struct UpdateCustomerRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInvoiceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub amount_cents: Option<i32>,
+    pub amount_cents: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub due_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
