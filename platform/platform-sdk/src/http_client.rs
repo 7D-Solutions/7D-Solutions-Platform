@@ -129,6 +129,33 @@ impl PlatformClient {
         self.send_once(self.client.delete(self.url(path)), claims).await
     }
 
+    // -- Anonymous variants (no VerifiedClaims required) --
+
+    /// GET without auth headers — for public/pre-auth endpoints.
+    pub async fn get_anon(&self, path: &str) -> Result<Response, reqwest::Error> {
+        self.send_with_retry_anon(self.client.get(self.url(path))).await
+    }
+
+    /// POST without auth headers — for public/pre-auth endpoints.
+    pub async fn post_anon<T: Serialize>(&self, path: &str, body: &T) -> Result<Response, reqwest::Error> {
+        self.send_once_anon(self.client.post(self.url(path)).json(body)).await
+    }
+
+    /// PUT without auth headers — for public/pre-auth endpoints.
+    pub async fn put_anon<T: Serialize>(&self, path: &str, body: &T) -> Result<Response, reqwest::Error> {
+        self.send_once_anon(self.client.put(self.url(path)).json(body)).await
+    }
+
+    /// PATCH without auth headers — for public/pre-auth endpoints.
+    pub async fn patch_anon<T: Serialize>(&self, path: &str, body: &T) -> Result<Response, reqwest::Error> {
+        self.send_once_anon(self.client.patch(self.url(path)).json(body)).await
+    }
+
+    /// DELETE without auth headers — for public/pre-auth endpoints.
+    pub async fn delete_anon(&self, path: &str) -> Result<Response, reqwest::Error> {
+        self.send_once_anon(self.client.delete(self.url(path))).await
+    }
+
     fn url(&self, path: &str) -> String {
         format!("{}{}", self.base_url, path)
     }
@@ -150,6 +177,14 @@ impl PlatformClient {
         req
     }
 
+    fn inject_anon_headers(&self, mut req: reqwest::RequestBuilder, correlation_id: &Uuid) -> reqwest::RequestBuilder {
+        req = req.header("x-correlation-id", correlation_id.to_string());
+        if let Some(token) = &self.bearer_token {
+            req = req.header("authorization", format!("Bearer {token}"));
+        }
+        req
+    }
+
     /// Send once without retry — for mutations (POST/PUT/PATCH/DELETE).
     async fn send_once(
         &self,
@@ -158,6 +193,16 @@ impl PlatformClient {
     ) -> Result<Response, reqwest::Error> {
         let correlation_id = Uuid::new_v4();
         let req = self.inject_headers(builder, claims, &correlation_id);
+        req.send().await
+    }
+
+    /// Send once without retry or auth headers — for anonymous mutations.
+    async fn send_once_anon(
+        &self,
+        builder: reqwest::RequestBuilder,
+    ) -> Result<Response, reqwest::Error> {
+        let correlation_id = Uuid::new_v4();
+        let req = self.inject_anon_headers(builder, &correlation_id);
         req.send().await
     }
 
@@ -177,6 +222,46 @@ impl PlatformClient {
         for attempt in 0..=MAX_RETRIES {
             let req = builder.try_clone().expect("request must be cloneable");
             let req = self.inject_headers(req, claims, &correlation_id);
+
+            match req.send().await {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if attempt < MAX_RETRIES && (status == StatusCode::TOO_MANY_REQUESTS || status == StatusCode::SERVICE_UNAVAILABLE) {
+                        tracing::warn!(attempt, status = %status, "retrying after HTTP status");
+                        tokio::time::sleep(backoff).await;
+                        backoff *= 2;
+                        continue;
+                    }
+                    return Ok(resp);
+                }
+                Err(e) => {
+                    if attempt < MAX_RETRIES && is_transient_transport_error(&e) {
+                        tracing::warn!(attempt, error = %e, "retrying after transient transport error");
+                        tokio::time::sleep(backoff).await;
+                        backoff *= 2;
+                        last_err = Some(e);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_err.expect("loop must have set last_err before exhausting retries"))
+    }
+
+    /// Retry loop for anonymous GET requests (no auth headers).
+    async fn send_with_retry_anon(
+        &self,
+        builder: reqwest::RequestBuilder,
+    ) -> Result<Response, reqwest::Error> {
+        let correlation_id = Uuid::new_v4();
+        let mut backoff = Duration::from_millis(INITIAL_BACKOFF_MS);
+        let mut last_err: Option<reqwest::Error> = None;
+
+        for attempt in 0..=MAX_RETRIES {
+            let req = builder.try_clone().expect("request must be cloneable");
+            let req = self.inject_anon_headers(req, &correlation_id);
 
             match req.send().await {
                 Ok(resp) => {
