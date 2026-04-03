@@ -1,10 +1,9 @@
-//! Vertical proof module — proves a vertical can call 5 platform modules
+//! Vertical proof module — proves a vertical can call ALL platform modules
 //! using only `ctx.platform_client::<T>()` and the typed client crates.
 //!
 //! This module exists solely to validate the plug-and-play developer experience.
-//! It calls Party, AR, Inventory, Production, and Notifications from a single
-//! vertical, subscribes to an AR event, and publishes its own event through
-//! the outbox.
+//! Every platform module must be callable from a single vertical via
+//! `PlatformService::from_platform_client()`.
 
 use platform_sdk::VerifiedClaims;
 

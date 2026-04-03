@@ -33,15 +33,18 @@ async fn main() {
                             let results = wiring_test::run_all(&pool).await;
                             let summary = results.summary();
                             tracing::info!("\n{}", summary);
-                            Json(serde_json::json!({
-                                "all_passed": results.all_passed(),
-                                "party": fmt_result(&results.party),
-                                "ar": fmt_result(&results.ar),
-                                "inventory": fmt_result(&results.inventory),
-                                "production": fmt_result(&results.production),
-                                "notifications": fmt_result(&results.notifications),
-                                "outbox": fmt_result(&results.outbox),
-                            }))
+                            let mut map = serde_json::Map::new();
+                            map.insert(
+                                "all_passed".into(),
+                                serde_json::Value::Bool(results.all_passed()),
+                            );
+                            for (name, result) in results.as_slice() {
+                                map.insert(
+                                    name.to_lowercase().replace('-', "_"),
+                                    fmt_result(result),
+                                );
+                            }
+                            Json(serde_json::Value::Object(map))
                         }
                     }),
                 )

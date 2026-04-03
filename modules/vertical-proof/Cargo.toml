@@ -2,7 +2,7 @@
 name = "vertical-proof"
 version = "0.1.0"
 edition = "2021"
-description = "Proof vertical — proves a vertical can call 5 platform modules via SDK"
+description = "Proof vertical — proves a vertical can call ALL platform modules via SDK"
 
 [[bin]]
 name = "vertical-proof"
@@ -18,11 +18,37 @@ security = { path = "../../platform/security" }
 platform-sdk = { path = "../../platform/platform-sdk" }
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
-platform-client-party = { path = "../../clients/party" }
+# --- All module clients (alphabetical) ---
+platform-client-ap = { path = "../../clients/ap" }
 platform-client-ar = { path = "../../clients/ar" }
+platform-client-bom = { path = "../../clients/bom" }
+platform-client-consolidation = { path = "../../clients/consolidation" }
+platform-client-customer-portal = { path = "../../clients/customer-portal" }
+platform-client-fixed-assets = { path = "../../clients/fixed-assets" }
+platform-client-gl = { path = "../../clients/gl" }
+platform-client-integrations = { path = "../../clients/integrations" }
 platform-client-inventory = { path = "../../clients/inventory" }
-platform-client-production = { path = "../../clients/production" }
+platform-client-maintenance = { path = "../../clients/maintenance" }
 platform-client-notifications = { path = "../../clients/notifications" }
+platform-client-numbering = { path = "../../clients/numbering" }
+platform-client-party = { path = "../../clients/party" }
+platform-client-payments = { path = "../../clients/payments" }
+platform-client-pdf-editor = { path = "../../clients/pdf-editor" }
+platform-client-production = { path = "../../clients/production" }
+platform-client-quality-inspection = { path = "../../clients/quality-inspection" }
+platform-client-reporting = { path = "../../clients/reporting" }
+platform-client-shipping-receiving = { path = "../../clients/shipping-receiving" }
+platform-client-smoke-test = { path = "../../clients/smoke-test" }
+platform-client-subscriptions = { path = "../../clients/subscriptions" }
+platform-client-timekeeping = { path = "../../clients/timekeeping" }
+platform-client-treasury = { path = "../../clients/treasury" }
+platform-client-ttp = { path = "../../clients/ttp" }
+platform-client-workflow = { path = "../../clients/workflow" }
+platform-client-workforce-competence = { path = "../../clients/workforce-competence" }
+# --- Platform service clients ---
+platform-client-identity-auth = { path = "../../clients/identity-auth" }
+platform-client-doc-mgmt = { path = "../../clients/platform-client-doc-mgmt" }
+platform-client-tenant-registry = { path = "../../clients/platform-client-tenant-registry" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }
