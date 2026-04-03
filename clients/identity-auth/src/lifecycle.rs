@@ -16,15 +16,17 @@ impl LifecycleClient {
     }
 
     /// POST `/api/auth/access-review`
-    pub async fn record_access_review(&self, claims: &VerifiedClaims, body: &AccessReviewRequest) -> Result<OkResponse, ClientError> {
-        let url = "/api/auth/access-review";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
+    pub async fn record_access_review(&self, claims: &VerifiedClaims, body: &AccessReviewReq) -> Result<OkResponse, ClientError> {
+        let path = format!("/api/auth/access-review");
+        let url = path;
+        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// GET `/api/auth/lifecycle/{tenant_id}/{user_id}`
     pub async fn get_user_lifecycle_timeline(&self, claims: &VerifiedClaims, tenant_id: uuid::Uuid, user_id: uuid::Uuid) -> Result<Vec<LifecycleTimelineEntry>, ClientError> {
-        let url = format!("/api/auth/lifecycle/{tenant_id}/{user_id}");
+        let path = format!("/api/auth/lifecycle/{}/{}", tenant_id, user_id);
+        let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

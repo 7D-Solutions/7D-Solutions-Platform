@@ -4,44 +4,23 @@
 
 pub mod types;
 pub mod auth;
-pub mod password_reset;
-pub mod users;
-pub mod rbac;
 pub mod lifecycle;
+pub mod password_reset;
+pub mod rbac;
 pub mod sod;
+pub mod users;
 
 pub use types::*;
 pub use auth::AuthClient;
-pub use password_reset::PasswordResetClient;
-pub use users::UsersClient;
-pub use rbac::RbacClient;
 pub use lifecycle::LifecycleClient;
+pub use password_reset::PasswordResetClient;
+pub use rbac::RbacClient;
 pub use sod::SodClient;
+pub use users::UsersClient;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for AuthClient {
-    const SERVICE_NAME: &'static str = "identity-auth";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for PasswordResetClient {
-    const SERVICE_NAME: &'static str = "identity-auth";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for UsersClient {
-    const SERVICE_NAME: &'static str = "identity-auth";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for RbacClient {
     const SERVICE_NAME: &'static str = "identity-auth";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
@@ -55,9 +34,31 @@ impl platform_sdk::PlatformService for LifecycleClient {
     }
 }
 
+impl platform_sdk::PlatformService for PasswordResetClient {
+    const SERVICE_NAME: &'static str = "identity-auth";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
+impl platform_sdk::PlatformService for RbacClient {
+    const SERVICE_NAME: &'static str = "identity-auth";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+
 impl platform_sdk::PlatformService for SodClient {
     const SERVICE_NAME: &'static str = "identity-auth";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
+
+impl platform_sdk::PlatformService for UsersClient {
+    const SERVICE_NAME: &'static str = "identity-auth";
+    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
+        Self::new(client)
+    }
+}
+

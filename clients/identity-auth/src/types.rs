@@ -5,31 +5,90 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::*;
 
-// -- Auth request/response types --
+/// Pagination metadata for list endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaginationMeta {
+    pub page: i64,
+    pub page_size: i64,
+    pub total_items: i64,
+    pub total_pages: i64,
+}
+
+/// Generic paginated response envelope.
+///
+/// Local definition without `ToSchema` bound — client crates don't need
+/// OpenAPI schema derivation. Wire-compatible with `platform_http_contracts::PaginatedResponse`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub pagination: PaginationMeta,
+}
+
+/// Simple wrapper for sub-collection list endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataResponse<T> {
+    pub data: Vec<T>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterRequest {
+pub struct AccessReviewReq {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causation_id: Option<uuid::Uuid>,
+    pub decision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    pub review_id: uuid::Uuid,
+    pub reviewed_by: uuid::Uuid,
     pub tenant_id: uuid::Uuid,
     pub user_id: uuid::Uuid,
-    pub email: String,
-    pub password: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoginRequest {
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenericOkResponse {
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LifecycleTimelineEntry {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_user_id: Option<uuid::Uuid>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
+    pub event_payload: serde_json::Value,
+    pub event_type: String,
+    pub id: uuid::Uuid,
+    pub idempotency_key: String,
+    pub occurred_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_id: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role_id: Option<uuid::Uuid>,
     pub tenant_id: uuid::Uuid,
-    pub email: String,
-    pub password: String,
+    pub user_id: uuid::Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenResponse {
-    pub token_type: String,
-    pub access_token: String,
-    pub expires_in_seconds: i64,
+pub struct LoginReq {
+    pub email: String,
+    pub password: String,
+    pub tenant_id: uuid::Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogoutReq {
     pub refresh_token: String,
+    pub tenant_id: uuid::Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,161 +97,117 @@ pub struct OkResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RefreshRequest {
-    pub tenant_id: uuid::Uuid,
-    pub refresh_token: String,
+pub struct Permission {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub description: String,
+    pub id: uuid::Uuid,
+    pub key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LogoutRequest {
-    pub tenant_id: uuid::Uuid,
+pub struct RefreshReq {
     pub refresh_token: String,
+    pub tenant_id: uuid::Uuid,
 }
 
-// -- Password reset types --
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ForgotPasswordRequest {
+pub struct RegisterReq {
     pub email: String,
+    pub password: String,
+    pub tenant_id: uuid::Uuid,
+    pub user_id: uuid::Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResetPasswordRequest {
-    pub token: String,
     pub new_password: String,
+    pub token: String,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenericOkResponse {
-    pub message: String,
-}
-
-// -- User lookup types --
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserLookupResponse {
-    pub id: uuid::Uuid,
-    pub email: String,
-    pub tenant_id: uuid::Uuid,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-// -- RBAC types --
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Role {
-    pub id: uuid::Uuid,
-    pub tenant_id: uuid::Uuid,
-    pub name: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub description: String,
+    pub id: uuid::Uuid,
     pub is_system: bool,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub name: String,
+    pub tenant_id: uuid::Uuid,
     pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Permission {
-    pub id: uuid::Uuid,
-    pub key: String,
-    pub description: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-// -- Lifecycle types --
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AccessReviewRequest {
-    pub tenant_id: uuid::Uuid,
-    pub user_id: uuid::Uuid,
-    pub review_id: uuid::Uuid,
-    pub reviewed_by: uuid::Uuid,
-    pub decision: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub causation_id: Option<uuid::Uuid>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LifecycleTimelineEntry {
-    pub id: uuid::Uuid,
-    pub tenant_id: uuid::Uuid,
-    pub user_id: uuid::Uuid,
-    pub event_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actor_user_id: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub role_id: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub review_id: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub decision: Option<String>,
-    pub idempotency_key: String,
-    pub event_payload: serde_json::Value,
-    pub occurred_at: chrono::DateTime<chrono::Utc>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-// -- SoD types --
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SodPolicyUpsertRequest {
-    pub tenant_id: uuid::Uuid,
-    pub action_key: String,
-    pub primary_role_id: uuid::Uuid,
-    pub conflicting_role_id: uuid::Uuid,
-    pub allow_override: bool,
-    pub override_requires_approval: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub actor_user_id: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub causation_id: Option<uuid::Uuid>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SodEvaluateRequest {
-    pub tenant_id: uuid::Uuid,
-    pub action_key: String,
-    pub actor_user_id: uuid::Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub subject_user_id: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub override_granted_by: Option<uuid::Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub override_ticket: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub idempotency_key: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub causation_id: Option<uuid::Uuid>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SodPolicy {
-    pub id: uuid::Uuid,
-    pub tenant_id: uuid::Uuid,
-    pub action_key: String,
-    pub primary_role_id: uuid::Uuid,
-    pub conflicting_role_id: uuid::Uuid,
-    pub allow_override: bool,
-    pub override_requires_approval: bool,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SodPolicyUpsertResult {
-    pub policy: SodPolicy,
-    pub idempotent_replay: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SodDecisionResult {
     pub decision: String,
-    pub reason: String,
-    pub matched_policy_ids: Vec<uuid::Uuid>,
     pub idempotent_replay: bool,
+    pub matched_policy_ids: Vec<uuid::Uuid>,
+    pub reason: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SodEvaluateReq {
+    pub action_key: String,
+    pub actor_user_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causation_id: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub override_granted_by: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub override_ticket: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject_user_id: Option<uuid::Uuid>,
+    pub tenant_id: uuid::Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SodPolicy {
+    pub action_key: String,
+    pub allow_override: bool,
+    pub conflicting_role_id: uuid::Uuid,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: uuid::Uuid,
+    pub override_requires_approval: bool,
+    pub primary_role_id: uuid::Uuid,
+    pub tenant_id: uuid::Uuid,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SodPolicyUpsertReq {
+    pub action_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_user_id: Option<uuid::Uuid>,
+    pub allow_override: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causation_id: Option<uuid::Uuid>,
+    pub conflicting_role_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub idempotency_key: Option<String>,
+    pub override_requires_approval: bool,
+    pub primary_role_id: uuid::Uuid,
+    pub tenant_id: uuid::Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SodPolicyUpsertResult {
+    pub idempotent_replay: bool,
+    pub policy: SodPolicy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub expires_in_seconds: i64,
+    pub refresh_token: String,
+    pub token_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserLookupResponse {
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub email: String,
+    pub id: uuid::Uuid,
+    pub tenant_id: uuid::Uuid,
+}
+

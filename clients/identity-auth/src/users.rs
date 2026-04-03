@@ -17,14 +17,17 @@ impl UsersClient {
 
     /// GET `/api/auth/users`
     pub async fn get_user_by_email(&self, claims: &VerifiedClaims, email: &str, tenant_id: uuid::Uuid) -> Result<UserLookupResponse, ClientError> {
-        let path = "/api/auth/users";
+        let path = format!("/api/auth/users");
         #[derive(serde::Serialize)]
-        struct Query<'a> {
-            email: &'a str,
+        struct Query {
+            email: String,
             tenant_id: uuid::Uuid,
         }
-        let query = Query { email, tenant_id };
-        let url = build_query_url(path, &query)?;
+        let query = Query {
+            email: email.to_string(),
+            tenant_id,
+        };
+        let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

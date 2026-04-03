@@ -15,31 +15,35 @@ impl AuthClient {
         Self { client }
     }
 
-    /// POST `/api/auth/register`
-    pub async fn register(&self, claims: &VerifiedClaims, body: &RegisterRequest) -> Result<TokenResponse, ClientError> {
-        let url = "/api/auth/register";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
     /// POST `/api/auth/login`
-    pub async fn login(&self, claims: &VerifiedClaims, body: &LoginRequest) -> Result<TokenResponse, ClientError> {
-        let url = "/api/auth/login";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
-    /// POST `/api/auth/refresh`
-    pub async fn refresh(&self, claims: &VerifiedClaims, body: &RefreshRequest) -> Result<TokenResponse, ClientError> {
-        let url = "/api/auth/refresh";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
+    pub async fn login(&self, body: &LoginReq) -> Result<TokenResponse, ClientError> {
+        let path = format!("/api/auth/login");
+        let url = path;
+        let resp = self.client.post_anon(&url, body).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// POST `/api/auth/logout`
-    pub async fn logout(&self, claims: &VerifiedClaims, body: &LogoutRequest) -> Result<OkResponse, ClientError> {
-        let url = "/api/auth/logout";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
+    pub async fn logout(&self, claims: &VerifiedClaims, body: &LogoutReq) -> Result<OkResponse, ClientError> {
+        let path = format!("/api/auth/logout");
+        let url = path;
+        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
+        parse_response(resp).await
+    }
+
+    /// POST `/api/auth/refresh`
+    pub async fn refresh(&self, body: &RefreshReq) -> Result<TokenResponse, ClientError> {
+        let path = format!("/api/auth/refresh");
+        let url = path;
+        let resp = self.client.post_anon(&url, body).await.map_err(ClientError::Network)?;
+        parse_response(resp).await
+    }
+
+    /// POST `/api/auth/register`
+    pub async fn register(&self, body: &RegisterReq) -> Result<OkResponse, ClientError> {
+        let path = format!("/api/auth/register");
+        let url = path;
+        let resp = self.client.post_anon(&url, body).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

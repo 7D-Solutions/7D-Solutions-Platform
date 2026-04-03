@@ -5,7 +5,7 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, parse_response, parse_empty};
 
-/// Typed HTTP client for SoD (Separation of Duties) endpoints.
+/// Typed HTTP client for SoD endpoints.
 pub struct SodClient {
     client: PlatformClient,
 }
@@ -15,30 +15,34 @@ impl SodClient {
         Self { client }
     }
 
-    /// POST `/api/auth/sod/policies`
-    pub async fn upsert_sod_policy(&self, claims: &VerifiedClaims, body: &SodPolicyUpsertRequest) -> Result<SodPolicyUpsertResult, ClientError> {
-        let url = "/api/auth/sod/policies";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
+    /// POST `/api/auth/sod/evaluate`
+    pub async fn evaluate_sod(&self, claims: &VerifiedClaims, body: &SodEvaluateReq) -> Result<SodDecisionResult, ClientError> {
+        let path = format!("/api/auth/sod/evaluate");
+        let url = path;
+        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
-    /// POST `/api/auth/sod/evaluate`
-    pub async fn evaluate_sod(&self, claims: &VerifiedClaims, body: &SodEvaluateRequest) -> Result<SodDecisionResult, ClientError> {
-        let url = "/api/auth/sod/evaluate";
-        let resp = self.client.post(url, body, claims).await.map_err(ClientError::Network)?;
+    /// POST `/api/auth/sod/policies`
+    pub async fn upsert_sod_policy(&self, claims: &VerifiedClaims, body: &SodPolicyUpsertReq) -> Result<SodPolicyUpsertResult, ClientError> {
+        let path = format!("/api/auth/sod/policies");
+        let url = path;
+        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// GET `/api/auth/sod/policies/{tenant_id}/by-action/{action_key}`
     pub async fn list_sod_policies(&self, claims: &VerifiedClaims, tenant_id: uuid::Uuid, action_key: &str) -> Result<Vec<SodPolicy>, ClientError> {
-        let url = format!("/api/auth/sod/policies/{tenant_id}/by-action/{action_key}");
+        let path = format!("/api/auth/sod/policies/{}/by-action/{}", tenant_id, action_key);
+        let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
     /// DELETE `/api/auth/sod/policies/{tenant_id}/{rule_id}`
     pub async fn delete_sod_policy(&self, claims: &VerifiedClaims, tenant_id: uuid::Uuid, rule_id: uuid::Uuid) -> Result<(), ClientError> {
-        let url = format!("/api/auth/sod/policies/{tenant_id}/{rule_id}");
+        let path = format!("/api/auth/sod/policies/{}/{}", tenant_id, rule_id);
+        let url = path;
         let resp = self.client.delete(&url, claims).await.map_err(ClientError::Network)?;
         parse_empty(resp).await
     }
