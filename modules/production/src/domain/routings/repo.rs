@@ -420,11 +420,16 @@ impl RoutingRepo {
 
         let step = sqlx::query_as::<_, RoutingStep>(
             r#"
-            INSERT INTO routing_steps
-                (routing_template_id, sequence_number, workcenter_id, operation_name,
-                 description, setup_time_minutes, run_time_minutes, is_required)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
+            WITH inserted AS (
+                INSERT INTO routing_steps
+                    (routing_template_id, sequence_number, workcenter_id, operation_name,
+                     description, setup_time_minutes, run_time_minutes, is_required)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING *
+            )
+            SELECT i.*, w.name as workcenter_name
+            FROM inserted i
+            LEFT JOIN workcenters w ON w.workcenter_id = i.workcenter_id
             "#,
         )
         .bind(routing_template_id)
@@ -504,15 +509,111 @@ impl RoutingRepo {
         }
 
         sqlx::query_as::<_, RoutingStep>(
-            "SELECT * FROM routing_steps \
-             WHERE routing_template_id = $1 \
-               AND routing_template_id IN (SELECT routing_template_id FROM routing_templates WHERE tenant_id = $2) \
-             ORDER BY sequence_number",
+            r#"
+            SELECT rs.*, w.name as workcenter_name
+            FROM routing_steps rs
+            LEFT JOIN workcenters w ON w.workcenter_id = rs.workcenter_id
+            WHERE rs.routing_template_id = $1
+              AND rs.routing_template_id IN (SELECT routing_template_id FROM routing_templates WHERE tenant_id = $2)
+            ORDER BY rs.sequence_number
+            "#,
         )
         .bind(routing_template_id)
         .bind(tenant_id)
         .fetch_all(pool)
         .await
         .map_err(RoutingError::Database)
+    }
+
+    pub async fn find_step(
+        pool: &PgPool,
+        routing_template_id: Uuid,
+        step_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<RoutingStep>, RoutingError> {
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT routing_template_id FROM routing_templates WHERE routing_template_id = $1 AND tenant_id = $2",
+        )
+        .bind(routing_template_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if exists.is_none() {
+            return Err(RoutingError::NotFound);
+        }
+
+        sqlx::query_as::<_, RoutingStep>(
+            r#"
+            SELECT rs.*, w.name as workcenter_name
+            FROM routing_steps rs
+            LEFT JOIN workcenters w ON w.workcenter_id = rs.workcenter_id
+            WHERE rs.routing_step_id = $1
+              AND rs.routing_template_id = $2
+            "#,
+        )
+        .bind(step_id)
+        .bind(routing_template_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(RoutingError::Database)
+    }
+
+    pub async fn delete_step(
+        pool: &PgPool,
+        routing_template_id: Uuid,
+        step_id: Uuid,
+        tenant_id: &str,
+        correlation_id: &str,
+        causation_id: Option<&str>,
+    ) -> Result<(), RoutingError> {
+        let mut tx = pool.begin().await?;
+
+        let routing = sqlx::query_as::<_, RoutingTemplate>(
+            "SELECT * FROM routing_templates WHERE routing_template_id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(routing_template_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(RoutingError::NotFound)?;
+
+        if routing.status == "released" {
+            return Err(RoutingError::ReleasedImmutable);
+        }
+
+        let result = sqlx::query(
+            "DELETE FROM routing_steps WHERE routing_step_id = $1 AND routing_template_id = $2",
+        )
+        .bind(step_id)
+        .bind(routing_template_id)
+        .execute(&mut *tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(RoutingError::StepNotFound);
+        }
+
+        enqueue_event(
+            &mut tx,
+            tenant_id,
+            ProductionEventType::RoutingUpdated,
+            "routing_template",
+            &routing_template_id.to_string(),
+            &events::build_routing_updated_envelope(
+                routing_template_id,
+                tenant_id.to_string(),
+                routing.name.clone(),
+                routing.revision.clone(),
+                correlation_id.to_string(),
+                causation_id.map(String::from),
+            ),
+            correlation_id,
+            causation_id,
+        )
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
     }
 }

@@ -16,7 +16,7 @@ impl WorkcentersClient {
     }
 
     /// GET `/api/production/workcenters`
-    pub async fn list_workcenters(&self, claims: &VerifiedClaims, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<Workcenter>, ClientError> {
+    pub async fn list_workcenters(&self, claims: &VerifiedClaims, page: Option<i64>, page_size: Option<i64>, name: Option<&str>) -> Result<PaginatedResponse<Workcenter>, ClientError> {
         let path = format!("/api/production/workcenters");
         #[derive(serde::Serialize)]
         struct Query {
@@ -24,14 +24,32 @@ impl WorkcentersClient {
             page: Option<i64>,
             #[serde(skip_serializing_if = "Option::is_none")]
             page_size: Option<i64>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            name: Option<String>,
         }
         let query = Query {
             page,
             page_size,
+            name: name.map(|s| s.to_string()),
         };
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`list_workcenters`] but fetches all pages into a single `Vec`.
+    pub async fn list_workcenters_all(&self, claims: &VerifiedClaims, name: Option<&str>) -> Result<Vec<Workcenter>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_workcenters(claims, Some(page), Some(100), name).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// POST `/api/production/workcenters`

@@ -235,8 +235,8 @@ async fn list_workcenters_returns_tenant_scoped_results() {
     .await
     .expect("create b");
 
-    let (list_a, total_a) = WorkcenterRepo::list(&pool, &tenant_a, 1, 50).await.expect("list a");
-    let (list_b, total_b) = WorkcenterRepo::list(&pool, &tenant_b, 1, 50).await.expect("list b");
+    let (list_a, total_a) = WorkcenterRepo::list(&pool, &tenant_a, 1, 50, None).await.expect("list a");
+    let (list_b, total_b) = WorkcenterRepo::list(&pool, &tenant_b, 1, 50, None).await.expect("list b");
 
     assert_eq!(list_a.len(), 2);
     assert_eq!(total_a, 2);

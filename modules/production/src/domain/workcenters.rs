@@ -212,14 +212,16 @@ impl WorkcenterRepo {
         tenant_id: &str,
         page: i64,
         page_size: i64,
+        name: Option<&str>,
     ) -> Result<(Vec<Workcenter>, i64), WorkcenterError> {
         let limit = page_size.clamp(1, 200);
         let offset = (page.max(1) - 1) * limit;
 
         let items = sqlx::query_as::<_, Workcenter>(
-            "SELECT * FROM workcenters WHERE tenant_id = $1 ORDER BY code LIMIT $2 OFFSET $3",
+            "SELECT * FROM workcenters WHERE tenant_id = $1 AND ($2::text IS NULL OR name ILIKE '%' || $2 || '%') ORDER BY code LIMIT $3 OFFSET $4",
         )
         .bind(tenant_id)
+        .bind(name)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -227,9 +229,10 @@ impl WorkcenterRepo {
         .map_err(WorkcenterError::Database)?;
 
         let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM workcenters WHERE tenant_id = $1",
+            "SELECT COUNT(*) FROM workcenters WHERE tenant_id = $1 AND ($2::text IS NULL OR name ILIKE '%' || $2 || '%')",
         )
         .bind(tenant_id)
+        .bind(name)
         .fetch_one(pool)
         .await
         .map_err(WorkcenterError::Database)?;

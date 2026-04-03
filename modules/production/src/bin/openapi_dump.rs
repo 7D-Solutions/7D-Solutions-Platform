@@ -62,6 +62,8 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         production_rs::http::routings::release_routing,
         production_rs::http::routings::add_routing_step,
         production_rs::http::routings::list_routing_steps,
+        production_rs::http::routings::get_routing_step,
+        production_rs::http::routings::delete_routing_step,
         production_rs::http::downtime::start_downtime,
         production_rs::http::downtime::end_downtime,
         production_rs::http::downtime::list_active_downtime,

@@ -175,6 +175,7 @@ impl From<RoutingError> for ApiError {
                 format!("Workcenter '{}' not found or inactive", id),
             ),
             RoutingError::NotFound => ApiError::not_found("Routing not found"),
+            RoutingError::StepNotFound => ApiError::not_found("Routing step not found"),
             RoutingError::InvalidTransition { from, to } => ApiError::conflict(format!(
                 "Cannot transition from '{}' to '{}'",
                 from, to

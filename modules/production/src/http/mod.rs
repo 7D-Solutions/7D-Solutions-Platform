@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Router,
 };
 use security::{permissions, RequirePermissionsLayer};
@@ -39,6 +39,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/production/routings/{id}", put(routings::update_routing))
         .route("/api/production/routings/{id}/release", post(routings::release_routing))
         .route("/api/production/routings/{id}/steps", post(routings::add_routing_step))
+        .route("/api/production/routings/{id}/steps/{step_id}", delete(routings::delete_routing_step))
         .route("/api/production/workcenters/{id}/downtime/start", post(downtime::start_downtime))
         .route("/api/production/downtime/{id}/end", post(downtime::end_downtime))
         .route_layer(RequirePermissionsLayer::new(&[permissions::PRODUCTION_MUTATE]))
@@ -54,6 +55,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/production/routings/by-item", get(routings::find_routings_by_item))
         .route("/api/production/routings/{id}", get(routings::get_routing))
         .route("/api/production/routings/{id}/steps", get(routings::list_routing_steps))
+        .route("/api/production/routings/{id}/steps/{step_id}", get(routings::get_routing_step))
         .route("/api/production/workcenters/{id}/downtime", get(downtime::list_workcenter_downtime))
         .route("/api/production/downtime/active", get(downtime::list_active_downtime))
         .route_layer(RequirePermissionsLayer::new(&[permissions::PRODUCTION_READ]))

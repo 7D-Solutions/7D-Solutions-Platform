@@ -256,10 +256,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RoutingTemplate"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponse_RoutingTemplate"
                 }
               }
             }
@@ -479,10 +476,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RoutingStep"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponse_RoutingStep"
                 }
               }
             }
@@ -565,6 +559,123 @@
           },
           "422": {
             "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/production/routings/{id}/steps/{step_id}": {
+      "get": {
+        "tags": [
+          "Routings"
+        ],
+        "summary": "GET /api/production/routings/:id/steps/:step_id",
+        "operationId": "get_routing_step",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Routing template ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "description": "Routing step ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Routing step",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingStep"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Routings"
+        ],
+        "summary": "DELETE /api/production/routings/:id/steps/:step_id",
+        "operationId": "delete_routing_step",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Routing template ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "description": "Routing step ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Step deleted"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Released immutable",
             "content": {
               "application/json": {
                 "schema": {
@@ -1080,10 +1191,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/OperationInstance"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponse_OperationInstance"
                 }
               }
             }
@@ -1250,10 +1358,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TimeEntry"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponse_TimeEntry"
                 }
               }
             }
@@ -1426,6 +1531,15 @@
             "schema": {
               "type": "integer",
               "format": "int64"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filter by name (case-insensitive substring match).",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -1689,10 +1803,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WorkcenterDowntime"
-                  }
+                  "$ref": "#/components/schemas/PaginatedResponse_WorkcenterDowntime"
                 }
               }
             }
@@ -2223,6 +2334,181 @@
           }
         }
       },
+      "PaginatedResponse_OperationInstance": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "operation_id",
+                "work_order_id",
+                "tenant_id",
+                "sequence_number",
+                "workcenter_id",
+                "operation_name",
+                "status",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "completed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "labor_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "operation_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "operation_name": {
+                  "type": "string"
+                },
+                "routing_step_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "sequence_number": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "started_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "work_order_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "workcenter_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_RoutingStep": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "routing_step_id",
+                "routing_template_id",
+                "sequence_number",
+                "workcenter_id",
+                "operation_name",
+                "is_required",
+                "created_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "is_required": {
+                  "type": "boolean"
+                },
+                "operation_name": {
+                  "type": "string"
+                },
+                "routing_step_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "routing_template_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "run_time_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "sequence_number": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "setup_time_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "workcenter_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "workcenter_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
       "PaginatedResponse_RoutingTemplate": {
         "type": "object",
         "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
@@ -2299,6 +2585,84 @@
                 "updated_at": {
                   "type": "string",
                   "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_TimeEntry": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "time_entry_id",
+                "tenant_id",
+                "work_order_id",
+                "actor_id",
+                "start_ts",
+                "created_at"
+              ],
+              "properties": {
+                "actor_id": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end_ts": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "operation_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "start_ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "time_entry_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "work_order_id": {
+                  "type": "string",
+                  "format": "uuid"
                 }
               }
             }
@@ -2652,6 +3016,12 @@
           "workcenter_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "workcenter_name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

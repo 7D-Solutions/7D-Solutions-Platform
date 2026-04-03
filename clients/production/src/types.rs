@@ -59,7 +59,7 @@ pub struct ComponentIssueItemInput {
     pub warehouse_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateRoutingRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bom_revision_id: Option<uuid::Uuid>,
@@ -94,7 +94,7 @@ pub struct CreateWorkOrderRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateWorkcenterRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capacity: Option<i32>,
@@ -209,6 +209,8 @@ pub struct RoutingStep {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_time_minutes: Option<i32>,
     pub workcenter_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workcenter_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -317,3 +317,77 @@ pub async fn list_routing_steps(
         }
     }
 }
+
+/// GET /api/production/routings/:id/steps/:step_id
+#[utoipa::path(
+    get,
+    path = "/api/production/routings/{id}/steps/{step_id}",
+    tag = "Routings",
+    params(
+        ("id" = Uuid, Path, description = "Routing template ID"),
+        ("step_id" = Uuid, Path, description = "Routing step ID"),
+    ),
+    responses(
+        (status = 200, description = "Routing step", body = RoutingStep),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn get_routing_step(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path((id, step_id)): Path<(Uuid, Uuid)>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    match RoutingRepo::find_step(&state.pool, id, step_id, &tenant_id).await {
+        Ok(Some(step)) => (StatusCode::OK, Json(step)).into_response(),
+        Ok(None) => {
+            with_request_id(ApiError::not_found("Routing step not found"), &tracing_ctx)
+                .into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}
+
+/// DELETE /api/production/routings/:id/steps/:step_id
+#[utoipa::path(
+    delete,
+    path = "/api/production/routings/{id}/steps/{step_id}",
+    tag = "Routings",
+    params(
+        ("id" = Uuid, Path, description = "Routing template ID"),
+        ("step_id" = Uuid, Path, description = "Routing step ID"),
+    ),
+    responses(
+        (status = 204, description = "Step deleted"),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Released immutable", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn delete_routing_step(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path((id, step_id)): Path<(Uuid, Uuid)>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let corr = Uuid::new_v4().to_string();
+    match RoutingRepo::delete_step(&state.pool, id, step_id, &tenant_id, &corr, None).await {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}

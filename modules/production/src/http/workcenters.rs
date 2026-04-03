@@ -89,12 +89,20 @@ pub async fn get_workcenter(
     }
 }
 
+/// Name filter for workcenter list.
+#[derive(Debug, serde::Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct WorkcenterNameFilter {
+    /// Filter by name (case-insensitive substring match).
+    pub name: Option<String>,
+}
+
 /// GET /api/production/workcenters
 #[utoipa::path(
     get,
     path = "/api/production/workcenters",
     tag = "Workcenters",
-    params(PaginationQuery),
+    params(PaginationQuery, WorkcenterNameFilter),
     responses(
         (status = 200, description = "Paginated workcenter list", body = PaginatedResponse<Workcenter>),
     ),
@@ -104,6 +112,7 @@ pub async fn list_workcenters(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(pq): Query<PaginationQuery>,
+    Query(nq): Query<WorkcenterNameFilter>,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
@@ -112,7 +121,8 @@ pub async fn list_workcenters(
     };
     let page = pq.page.max(1);
     let page_size = pq.page_size.clamp(1, 200);
-    match WorkcenterRepo::list(&state.pool, &tenant_id, page, page_size).await {
+    let name = nq.name.as_deref();
+    match WorkcenterRepo::list(&state.pool, &tenant_id, page, page_size, name).await {
         Ok((items, total)) => {
             let resp = PaginatedResponse::new(items, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()

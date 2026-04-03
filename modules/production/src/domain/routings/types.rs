@@ -58,6 +58,7 @@ pub struct RoutingStep {
     pub routing_template_id: Uuid,
     pub sequence_number: i32,
     pub workcenter_id: Uuid,
+    pub workcenter_name: Option<String>,
     pub operation_name: String,
     pub description: Option<String>,
     pub setup_time_minutes: Option<i32>,
@@ -111,6 +112,9 @@ pub struct AddRoutingStepRequest {
 pub enum RoutingError {
     #[error("Routing not found")]
     NotFound,
+
+    #[error("Routing step not found")]
+    StepNotFound,
 
     #[error("Duplicate revision '{0}' for item in tenant '{1}'")]
     DuplicateRevision(String, String),
