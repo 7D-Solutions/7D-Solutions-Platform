@@ -12,7 +12,7 @@ use notifications_rs::{
     },
     scheduled::{
         dispatch_once, reset_orphaned_claims, ChannelRouter, HttpEmailSender, HttpSmsSender,
-        LoggingSender, NotificationSender, RetryPolicy,
+        LoggingSender, NotificationSender, RetryPolicy, SendGridEmailSender,
     },
 };
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
@@ -79,6 +79,15 @@ async fn main() {
                                     .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
                                 config.email_from.clone(),
                                 config.email_api_key.clone(),
+                            ))
+                        }
+                        notifications_rs::config::EmailSenderType::SendGrid => {
+                            Arc::new(SendGridEmailSender::new(
+                                config.email_from.clone(),
+                                config
+                                    .sendgrid_api_key
+                                    .clone()
+                                    .expect("SENDGRID_API_KEY required for SendGrid sender"),
                             ))
                         }
                     };

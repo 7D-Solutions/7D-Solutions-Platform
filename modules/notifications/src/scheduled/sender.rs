@@ -98,7 +98,7 @@ impl HttpEmailSender {
         }
     }
 
-    fn resolve_recipient(notif: &ScheduledNotification) -> Result<String, NotificationError> {
+    pub fn resolve_recipient(notif: &ScheduledNotification) -> Result<String, NotificationError> {
         if let Some(email) = notif.payload_json.get("email").and_then(|v| v.as_str()) {
             if email.contains('@') {
                 return Ok(email.to_string());
@@ -167,6 +167,129 @@ impl NotificationSender for HttpEmailSender {
             ))),
             _ => Err(NotificationError::Permanent(format!(
                 "provider returned unexpected status {status}"
+            ))),
+        }
+    }
+}
+
+/// SendGrid v3/mail/send adapter.
+///
+/// Transforms the platform notification format into SendGrid's expected
+/// `{personalizations, from, subject, content}` shape and POSTs to SendGrid's
+/// API.  Supports two modes:
+///
+/// 1. **Dynamic templates** — if `payload_json.sendgrid_template_id` is present,
+///    the adapter sends a dynamic template request with `payload_json` as the
+///    template data.
+/// 2. **Direct content** — otherwise, `payload_json.subject` and
+///    `payload_json.body` are used as the email subject and HTML body.
+pub struct SendGridEmailSender {
+    client: reqwest::Client,
+    from: String,
+    api_key: String,
+}
+
+impl SendGridEmailSender {
+    pub fn new(from: String, api_key: String) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            from,
+            api_key,
+        }
+    }
+}
+
+#[async_trait]
+impl NotificationSender for SendGridEmailSender {
+    async fn send(
+        &self,
+        notif: &ScheduledNotification,
+    ) -> Result<SendReceipt, NotificationError> {
+        let to = HttpEmailSender::resolve_recipient(notif)?;
+
+        let personalizations = if let Some(template_id) = notif
+            .payload_json
+            .get("sendgrid_template_id")
+            .and_then(|v| v.as_str())
+        {
+            // Dynamic template mode — pass payload as template data.
+            let mut data = notif.payload_json.clone();
+            // Strip the meta key so it doesn't leak into the template context.
+            if let Some(obj) = data.as_object_mut() {
+                obj.remove("sendgrid_template_id");
+            }
+            serde_json::json!({
+                "personalizations": [{
+                    "to": [{"email": to}],
+                    "dynamic_template_data": data,
+                }],
+                "from": {"email": self.from},
+                "template_id": template_id,
+            })
+        } else {
+            // Direct content mode.
+            let subject = notif
+                .payload_json
+                .get("subject")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&notif.template_key);
+            let body = notif
+                .payload_json
+                .get("body")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            serde_json::json!({
+                "personalizations": [{
+                    "to": [{"email": to}],
+                }],
+                "from": {"email": self.from},
+                "subject": subject,
+                "content": [{"type": "text/html", "value": body}],
+            })
+        };
+
+        let resp = self
+            .client
+            .post("https://api.sendgrid.com/v3/mail/send")
+            .bearer_auth(&self.api_key)
+            .json(&personalizations)
+            .send()
+            .await
+            .map_err(|e| NotificationError::Transient(e.to_string()))?;
+
+        let status = resp.status();
+
+        // SendGrid returns 202 Accepted on success with an empty body.
+        // The x-message-id header carries the provider message ID.
+        let provider_message_id = resp
+            .headers()
+            .get("x-message-id")
+            .and_then(|v| v.to_str().ok())
+            .map(ToOwned::to_owned);
+
+        match status {
+            s if s.is_success() => Ok(SendReceipt { provider_message_id }),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                Err(NotificationError::ProviderAuth(format!(
+                    "SendGrid returned status {status}"
+                )))
+            }
+            StatusCode::TOO_MANY_REQUESTS => {
+                Err(NotificationError::RateLimited(
+                    "SendGrid returned 429".to_string(),
+                ))
+            }
+            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
+                let body_text = resp.text().await.unwrap_or_default();
+                Err(NotificationError::Permanent(format!(
+                    "SendGrid rejected request (status {status}): {body_text}"
+                )))
+            }
+            s if s.is_server_error() => Err(NotificationError::Transient(format!(
+                "SendGrid server error status {s}"
+            ))),
+            _ => Err(NotificationError::Permanent(format!(
+                "SendGrid returned unexpected status {status}"
             ))),
         }
     }

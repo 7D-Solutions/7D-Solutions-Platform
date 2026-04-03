@@ -8,8 +8,8 @@ use uuid::Uuid;
 pub struct NotificationSend {
     pub id: Uuid,
     pub tenant_id: String,
-    pub template_key: String,
-    pub template_version: i32,
+    pub template_key: Option<String>,
+    pub template_version: Option<i32>,
     pub channel: String,
     pub recipients: serde_json::Value,
     pub payload_json: serde_json::Value,
@@ -22,14 +22,34 @@ pub struct NotificationSend {
 }
 
 /// Input for POST /notifications/send.
+///
+/// Two modes:
+/// 1. **Template-based**: provide `template_key` + `payload_json` — the platform
+///    resolves the template and renders subject/body server-side.
+/// 2. **Pre-rendered**: provide `rendered_subject` + `rendered_body` — the platform
+///    sends the content as-is, skipping template resolution.
+///
+/// `template_key` is required in mode 1 but optional in mode 2.
+/// Sending neither `template_key` nor pre-rendered content returns 400.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct SendRequest {
-    pub template_key: String,
+    pub template_key: Option<String>,
     pub channel: String,
     pub recipients: Vec<String>,
+    #[serde(default = "default_empty_object")]
     pub payload_json: serde_json::Value,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// Pre-rendered subject line. When provided with `rendered_body`, skips
+    /// template resolution.
+    pub rendered_subject: Option<String>,
+    /// Pre-rendered HTML body. When provided with `rendered_subject`, skips
+    /// template resolution.
+    pub rendered_body: Option<String>,
+}
+
+fn default_empty_object() -> serde_json::Value {
+    serde_json::Value::Object(serde_json::Map::new())
 }
 
 /// A delivery receipt row.

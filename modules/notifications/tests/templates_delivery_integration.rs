@@ -221,8 +221,8 @@ async fn send_creates_record_and_receipts() {
     let send = sends_repo::insert_send(
         &pool,
         &tenant,
-        "send_test",
-        tpl.version,
+        Some("send_test"),
+        Some(tpl.version),
         "email",
         &["alice@example.com".to_string(), "bob@example.com".to_string()],
         &serde_json::json!({"x": "hello"}),
@@ -233,8 +233,8 @@ async fn send_creates_record_and_receipts() {
     .await
     .expect("insert send");
 
-    assert_eq!(send.template_key, "send_test");
-    assert_eq!(send.template_version, 1);
+    assert_eq!(send.template_key.as_deref(), Some("send_test"));
+    assert_eq!(send.template_version, Some(1));
     assert_eq!(send.rendered_hash.as_deref(), Some("abc123hash"));
     assert_eq!(send.correlation_id.as_deref(), Some("corr-123"));
 
@@ -297,8 +297,8 @@ async fn query_receipts_by_correlation_id() {
     let send = sends_repo::insert_send(
         &pool,
         &tenant,
-        "corr_test",
-        1,
+        Some("corr_test"),
+        Some(1),
         "email",
         &["user@test.com".to_string()],
         &serde_json::json!({}),
@@ -379,8 +379,8 @@ async fn cross_tenant_send_access_denied() {
     let send = sends_repo::insert_send(
         &pool,
         &tenant_a,
-        "secret_tpl",
-        1,
+        Some("secret_tpl"),
+        Some(1),
         "email",
         &["user@a.com".to_string()],
         &serde_json::json!({}),
@@ -409,8 +409,8 @@ async fn cross_tenant_receipt_query_isolated() {
     let send_a = sends_repo::insert_send(
         &pool,
         &tenant_a,
-        "tpl",
-        1,
+        Some("tpl"),
+        Some(1),
         "email",
         &["a@a.com".to_string()],
         &serde_json::json!({}),
@@ -466,8 +466,8 @@ async fn send_status_updates_correctly() {
     let send = sends_repo::insert_send(
         &pool,
         &tenant,
-        "status_tpl",
-        1,
+        Some("status_tpl"),
+        Some(1),
         "email",
         &["user@test.com".to_string()],
         &serde_json::json!({}),

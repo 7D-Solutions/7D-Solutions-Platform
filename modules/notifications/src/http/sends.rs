@@ -29,8 +29,10 @@ use crate::template_store;
 pub struct SendResponse {
     pub id: Uuid,
     pub status: String,
-    pub template_key: String,
-    pub template_version: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_version: Option<i32>,
     pub channel: String,
     pub rendered_hash: Option<String>,
     pub receipt_count: usize,
@@ -40,8 +42,10 @@ pub struct SendResponse {
 pub struct SendDetailResponse {
     pub id: Uuid,
     pub status: String,
-    pub template_key: String,
-    pub template_version: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_version: Option<i32>,
     pub channel: String,
     pub rendered_hash: Option<String>,
     pub correlation_id: Option<String>,
@@ -65,17 +69,44 @@ pub async fn send_notification(
 ) -> Result<(StatusCode, Json<SendResponse>), ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
-    // Resolve template (latest version)
-    let template =
-        template_store::repo::get_latest(&pool, &tenant_id, &input.template_key)
-            .await
-            .map_err(|e| ApiError::internal(e.to_string()))?
-            .ok_or_else(|| ApiError::bad_request("Template not found"))?;
+    let has_prerendered =
+        input.rendered_subject.is_some() && input.rendered_body.is_some();
+    let has_template = input.template_key.is_some();
 
-    // Validate required_vars
-    let (rendered_subject, rendered_body) =
-        template_store::repo::render_template(&template, &input.payload_json)
-            .map_err(|e| ApiError::new(422, "validation_failed", e))?;
+    if !has_prerendered && !has_template {
+        return Err(ApiError::bad_request(
+            "Either template_key or both rendered_subject and rendered_body are required",
+        ));
+    }
+
+    // Partial pre-rendered (one without the other) is invalid
+    if input.rendered_subject.is_some() != input.rendered_body.is_some() {
+        return Err(ApiError::bad_request(
+            "Both rendered_subject and rendered_body must be provided together",
+        ));
+    }
+
+    // Resolve rendered content: either from template or pre-rendered input.
+    // When pre-rendered content is provided it takes precedence over template.
+    let (rendered_subject, rendered_body, template_key, template_version) =
+        if has_prerendered {
+            let subj = input.rendered_subject.clone().unwrap();
+            let body = input.rendered_body.clone().unwrap();
+            (subj, body, input.template_key.clone(), None)
+        } else {
+            let tpl_key = input.template_key.as_ref().unwrap();
+            let template =
+                template_store::repo::get_latest(&pool, &tenant_id, tpl_key)
+                    .await
+                    .map_err(|e| ApiError::internal(e.to_string()))?
+                    .ok_or_else(|| ApiError::bad_request("Template not found"))?;
+
+            let (subj, body) =
+                template_store::repo::render_template(&template, &input.payload_json)
+                    .map_err(|e| ApiError::new(422, "validation_failed", e))?;
+
+            (subj, body, Some(tpl_key.clone()), Some(template.version))
+        };
 
     // Compute rendered hash for compliance proof
     let rendered_hash = compute_hash(&rendered_subject, &rendered_body);
@@ -84,8 +115,8 @@ pub async fn send_notification(
     let send = repo::insert_send(
         &pool,
         &tenant_id,
-        &input.template_key,
-        template.version,
+        template_key.as_deref(),
+        template_version,
         &input.channel,
         &input.recipients,
         &input.payload_json,
@@ -101,9 +132,6 @@ pub async fn send_notification(
     let mut any_succeeded = false;
 
     for recipient in &input.recipients {
-        // In a real system, this would dispatch to the actual channel sender.
-        // For now, we record as "succeeded" (the scheduled dispatcher handles
-        // actual delivery). This creates the compliance record.
         let receipt = repo::insert_receipt(
             &pool,
             &tenant_id,
@@ -126,8 +154,8 @@ pub async fn send_notification(
             "receipt_id": receipt.id,
             "recipient": recipient,
             "channel": input.channel,
-            "template_key": input.template_key,
-            "template_version": template.version,
+            "template_key": template_key,
+            "template_version": template_version,
         });
         let attempted_envelope = create_notifications_envelope(
             Uuid::new_v4(),
@@ -151,8 +179,8 @@ pub async fn send_notification(
             "receipt_id": receipt.id,
             "recipient": recipient,
             "channel": input.channel,
-            "template_key": input.template_key,
-            "template_version": template.version,
+            "template_key": template_key,
+            "template_version": template_version,
             "rendered_hash": rendered_hash,
             "provider_id": receipt.provider_id,
         });
@@ -190,8 +218,8 @@ pub async fn send_notification(
         Json(SendResponse {
             id: send.id,
             status: final_status.to_string(),
-            template_key: input.template_key,
-            template_version: template.version,
+            template_key,
+            template_version,
             channel: input.channel,
             rendered_hash: Some(rendered_hash),
             receipt_count,

@@ -11,5 +11,5 @@ pub use repo::{
 };
 pub use sender::{
     ChannelRouter, HttpEmailSender, HttpSmsSender, LoggingSender, NotificationError,
-    NotificationSender, SendReceipt,
+    NotificationSender, SendGridEmailSender, SendReceipt,
 };

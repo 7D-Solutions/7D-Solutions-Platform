@@ -30,6 +30,7 @@ impl BusType {
 pub enum EmailSenderType {
     Logging,
     Http,
+    SendGrid,
 }
 
 impl EmailSenderType {
@@ -37,8 +38,9 @@ impl EmailSenderType {
         match s.to_lowercase().as_str() {
             "logging" => Ok(EmailSenderType::Logging),
             "http" => Ok(EmailSenderType::Http),
+            "sendgrid" => Ok(EmailSenderType::SendGrid),
             _ => Err(format!(
-                "Invalid EMAIL_SENDER_TYPE '{}'. Must be 'logging' or 'http'",
+                "Invalid EMAIL_SENDER_TYPE '{}'. Must be 'logging', 'http', or 'sendgrid'",
                 s
             )),
         }
@@ -79,6 +81,7 @@ pub struct Config {
     pub email_http_endpoint: Option<String>,
     pub email_from: String,
     pub email_api_key: Option<String>,
+    pub sendgrid_api_key: Option<String>,
     pub sms_sender_type: SmsSenderType,
     pub sms_http_endpoint: Option<String>,
     pub sms_from_number: String,
@@ -156,6 +159,7 @@ impl Config {
             .optional("EMAIL_FROM")
             .or_default("no-reply@notifications.local");
         let email_api_key = env::var("EMAIL_API_KEY").ok();
+        let sendgrid_api_key = env::var("SENDGRID_API_KEY").ok();
         let sms_sender_type = SmsSenderType::from_str(
             &v.optional("SMS_SENDER_TYPE").or_default("logging"),
         )?;
@@ -199,6 +203,7 @@ impl Config {
             email_http_endpoint,
             email_from,
             email_api_key,
+            sendgrid_api_key,
             sms_sender_type,
             sms_http_endpoint,
             sms_from_number,
@@ -237,6 +242,17 @@ impl Config {
                 .unwrap_or(true)
         {
             return Err("EMAIL_HTTP_ENDPOINT is required when EMAIL_SENDER_TYPE=http".to_string());
+        }
+        if self.email_sender_type == EmailSenderType::SendGrid
+            && self
+                .sendgrid_api_key
+                .as_ref()
+                .map(|s| s.trim().is_empty())
+                .unwrap_or(true)
+        {
+            return Err(
+                "SENDGRID_API_KEY is required when EMAIL_SENDER_TYPE=sendgrid".to_string(),
+            );
         }
         if self.sms_sender_type == SmsSenderType::Http
             && self
@@ -297,6 +313,7 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sendgrid_api_key: None,
             sms_sender_type: SmsSenderType::Logging,
             sms_http_endpoint: None,
             sms_from_number: "+10000000000".to_string(),
@@ -325,6 +342,7 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sendgrid_api_key: None,
             sms_sender_type: SmsSenderType::Logging,
             sms_http_endpoint: None,
             sms_from_number: "+10000000000".to_string(),
@@ -353,6 +371,7 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sendgrid_api_key: None,
             sms_sender_type: SmsSenderType::Logging,
             sms_http_endpoint: None,
             sms_from_number: "+10000000000".to_string(),
@@ -377,6 +396,7 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sendgrid_api_key: None,
             sms_sender_type: SmsSenderType::Logging,
             sms_http_endpoint: None,
             sms_from_number: "+10000000000".to_string(),

@@ -7,8 +7,8 @@ use super::models::{DeliveryReceipt, NotificationSend};
 pub async fn insert_send(
     pool: &PgPool,
     tenant_id: &str,
-    template_key: &str,
-    template_version: i32,
+    template_key: Option<&str>,
+    template_version: Option<i32>,
     channel: &str,
     recipients: &[String],
     payload_json: &serde_json::Value,
