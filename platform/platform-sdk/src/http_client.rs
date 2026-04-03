@@ -96,6 +96,14 @@ impl PlatformClient {
         }
     }
 
+    /// Like [`service_claims`](Self::service_claims), but parses a string
+    /// tenant ID into a UUID. Eliminates the `Uuid::parse_str` boilerplate
+    /// verticals otherwise need when their tenant IDs arrive as strings.
+    pub fn service_claims_from_str(tenant_id: &str) -> Result<VerifiedClaims, uuid::Error> {
+        let tenant_id = uuid::Uuid::parse_str(tenant_id)?;
+        Ok(Self::service_claims(tenant_id))
+    }
+
     /// GET — retries on 429/503 (safe, idempotent).
     pub async fn get(&self, path: &str, claims: &VerifiedClaims) -> Result<Response, reqwest::Error> {
         self.send_with_retry(self.client.get(self.url(path)), claims).await

@@ -232,6 +232,13 @@ impl ModuleContext {
         crate::http_client::PlatformClient::service_claims(tenant_id)
     }
 
+    /// Like [`service_claims`](Self::service_claims), but parses a string tenant ID.
+    ///
+    /// Delegates to [`PlatformClient::service_claims_from_str`](crate::http_client::PlatformClient::service_claims_from_str).
+    pub fn service_claims_from_str(&self, tenant_id: &str) -> Result<security::claims::VerifiedClaims, uuid::Error> {
+        crate::http_client::PlatformClient::service_claims_from_str(tenant_id)
+    }
+
     /// Check that the caller has the given permission.
     ///
     /// Delegates to `security::rbac::check_permissions`. This is a
