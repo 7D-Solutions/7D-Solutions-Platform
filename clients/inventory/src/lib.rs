@@ -6,7 +6,6 @@ pub mod types_1;
 pub mod types_2;
 pub mod types_3;
 pub mod adjustments;
-pub mod admin;
 pub mod cycle_counts;
 pub mod expiry;
 pub mod history;
@@ -30,12 +29,12 @@ pub use types_1::*;
 pub use types_2::*;
 pub use types_3::*;
 pub use adjustments::AdjustmentsClient;
-pub use admin::AdminClient;
 pub use cycle_counts::CycleCountsClient;
 pub use expiry::ExpiryClient;
 pub use history::HistoryClient;
 pub use issues::IssuesClient;
 pub use items::ItemsClient;
+pub use items::ListItemsQuery;
 pub use labels::LabelsClient;
 pub use locations::LocationsClient;
 pub use lot_genealogy::LotGenealogyClient;
@@ -53,13 +52,6 @@ pub use valuation::ValuationClient;
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for AdjustmentsClient {
-    const SERVICE_NAME: &'static str = "inventory";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for AdminClient {
     const SERVICE_NAME: &'static str = "inventory";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)

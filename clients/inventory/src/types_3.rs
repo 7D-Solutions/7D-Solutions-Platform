@@ -8,40 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::*;
 
-/// Lifecycle state of a serial-tracked unit.
-/// 
-/// Transitions are terminal — once a unit leaves `OnHand` it cannot be
-/// re-received. The ledger is append-only; compensating movements create new
-/// entries rather than reversing this status.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum SerialStatus {
-    #[serde(rename = "onhand")]
-    Onhand,
-    #[serde(rename = "issued")]
-    Issued,
-    #[serde(rename = "transferred")]
-    Transferred,
-    #[serde(rename = "adjusted")]
-    Adjusted,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SetLotExpiryRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub causation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub compute_from_policy: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub correlation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_on: Option<chrono::NaiveDate>,
-    pub idempotency_key: String,
-    pub lot_id: uuid::Uuid,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reference_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub tenant_id: String,
-}
-
 /// Input for PUT /api/inventory/items/:id/make-buy
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetMakeBuyRequest {

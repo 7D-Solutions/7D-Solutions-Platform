@@ -240,7 +240,17 @@ pub async fn test_inventory_wiring() -> Result<(), String> {
     tracing::info!(item_id = %item.id, "Inventory: item created");
 
     let page = items
-        .list_items(&claims, None, None, None, None, Some(1), Some(10))
+        .list_items(
+            &claims,
+            &platform_client_inventory::ListItemsQuery {
+                search: None,
+                tracking_mode: None,
+                make_buy: None,
+                active: None,
+                page: Some(1),
+                page_size: Some(10),
+            },
+        )
         .await
         .map_err(|e| format!("Inventory list_items failed: {e}"))?;
     tracing::info!(count = page.data.len(), "Inventory: listed items");
@@ -285,26 +295,87 @@ pub async fn test_production_wiring() -> Result<(), String> {
 
 pub async fn test_notifications_wiring() -> Result<(), String> {
     let client = client_for("notifications", 8089);
-    let sends = platform_client_notifications::SendsClient::from_platform_client(client);
+    let sends = platform_client_notifications::SendsClient::from_platform_client(client.clone());
+    let templates = platform_client_notifications::TemplatesClient::from_platform_client(client);
     let claims = test_claims();
 
+    // Create a template so mode-1 (template-based) send has something to resolve.
+    templates
+        .publish_template(
+            &claims,
+            &platform_client_notifications::CreateTemplate {
+                template_key: "vertical_proof_test".into(),
+                channel: "in_app".into(),
+                subject: "Proof: {{message}}".into(),
+                body: "<p>{{message}}</p>".into(),
+                required_vars: vec!["message".into()],
+            },
+        )
+        .await
+        .map_err(|e| format!("Notifications publish_template failed: {e}"))?;
+    tracing::info!("Notifications: template published");
+
+    // Case 1: template_key + payload → resolved server-side
     let result = sends
         .send_notification(
             &claims,
             &platform_client_notifications::SendRequest {
-                template_key: "vertical_proof_test".into(),
+                template_key: Some("vertical_proof_test".into()),
                 channel: "in_app".into(),
                 recipients: vec!["proof-user@example.com".into()],
-                payload_json: serde_json::json!({
-                    "message": "Vertical proof notification test"
-                }),
+                payload_json: serde_json::json!({ "message": "Vertical proof notification test" }),
                 correlation_id: Some(uuid::Uuid::new_v4().to_string()),
                 causation_id: None,
+                rendered_subject: None,
+                rendered_body: None,
             },
         )
         .await
-        .map_err(|e| format!("Notifications send failed: {e}"))?;
-    tracing::info!(send_id = %result.id, "Notifications: notification sent");
+        .map_err(|e| format!("Notifications send (template mode) failed: {e}"))?;
+    tracing::info!(send_id = %result.id, "Notifications: template-based send succeeded");
+
+    // Case 2: rendered_subject + rendered_body → skip template resolution
+    let prerendered = sends
+        .send_notification(
+            &claims,
+            &platform_client_notifications::SendRequest {
+                template_key: None,
+                channel: "email".into(),
+                recipients: vec!["proof-user@example.com".into()],
+                payload_json: serde_json::Value::Object(Default::default()),
+                correlation_id: Some(uuid::Uuid::new_v4().to_string()),
+                causation_id: None,
+                rendered_subject: Some("Pre-rendered subject".into()),
+                rendered_body: Some("<h1>Pre-rendered body</h1>".into()),
+            },
+        )
+        .await
+        .map_err(|e| format!("Notifications send (pre-rendered mode) failed: {e}"))?;
+    tracing::info!(send_id = %prerendered.id, "Notifications: pre-rendered send succeeded");
+
+    // Case 3: neither template_key nor pre-rendered content → 400
+    let bad_result = sends
+        .send_notification(
+            &claims,
+            &platform_client_notifications::SendRequest {
+                template_key: None,
+                channel: "email".into(),
+                recipients: vec!["proof-user@example.com".into()],
+                payload_json: serde_json::Value::Object(Default::default()),
+                correlation_id: None,
+                causation_id: None,
+                rendered_subject: None,
+                rendered_body: None,
+            },
+        )
+        .await;
+    match bad_result {
+        Err(e) if e.is_status(400) => {
+            tracing::info!("Notifications: missing content correctly rejected with 400");
+        }
+        Err(e) => return Err(format!("Notifications send (no content) returned unexpected error: {e}")),
+        Ok(_) => return Err("Notifications send with no content should return 400 but succeeded".into()),
+    }
 
     Ok(())
 }
@@ -512,10 +583,10 @@ pub async fn test_numbering_wiring() -> Result<(), String> {
 
 pub async fn test_payments_wiring() -> Result<(), String> {
     let client = client_for("payments", 8088);
-    let admin = platform_client_payments::AdminClient::from_platform_client(client);
+    let payments = platform_client_payments::PaymentsClient::from_platform_client(client);
     let _claims = test_claims();
-    tracing::info!("Payments: AdminClient constructed successfully");
-    let _ = &admin;
+    tracing::info!("Payments: PaymentsClient constructed successfully");
+    let _ = &payments;
     Ok(())
 }
 
@@ -564,10 +635,10 @@ pub async fn test_reporting_wiring() -> Result<(), String> {
 
 pub async fn test_shipping_receiving_wiring() -> Result<(), String> {
     let client = client_for("shipping_receiving", 8103);
-    let health = platform_client_shipping_receiving::HealthClient::from_platform_client(client);
+    let shipments = platform_client_shipping_receiving::ShipmentsClient::from_platform_client(client);
     let _claims = test_claims();
-    tracing::info!("Shipping-Receiving: HealthClient constructed successfully");
-    let _ = &health;
+    tracing::info!("Shipping-Receiving: ShipmentsClient constructed successfully");
+    let _ = &shipments;
     Ok(())
 }
 

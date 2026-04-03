@@ -15,14 +15,6 @@ impl ReceiptsClient {
         Self { client }
     }
 
-    /// POST `/api/inventory/batch-receipts`
-    pub async fn post_batch_receipts(&self, claims: &VerifiedClaims, body: &BatchReceiptRequest) -> Result<BatchReceiptResponse, ClientError> {
-        let path = format!("/api/inventory/batch-receipts");
-        let url = path;
-        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;
-        parse_response(resp).await
-    }
-
     /// POST `/api/inventory/receipts`
     pub async fn post_receipt(&self, claims: &VerifiedClaims, body: &ReceiptRequest) -> Result<ReceiptResult, ClientError> {
         let path = format!("/api/inventory/receipts");

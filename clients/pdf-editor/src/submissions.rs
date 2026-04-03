@@ -36,6 +36,21 @@ impl SubmissionsClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_submissions`] but fetches all pages into a single `Vec`.
+    pub async fn list_submissions_all(&self, claims: &VerifiedClaims, template_id: Option<uuid::Uuid>, status: Option<String>) -> Result<Vec<FormSubmission>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_submissions(claims, template_id, status.clone(), Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/pdf/forms/submissions`
     pub async fn create_submission(&self, claims: &VerifiedClaims, body: &CreateSubmissionRequest) -> Result<FormSubmission, ClientError> {
         let path = format!("/api/pdf/forms/submissions");

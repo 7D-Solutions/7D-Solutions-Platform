@@ -24,7 +24,7 @@ impl LotsSerialsClient {
     }
 
     /// GET `/api/inventory/items/{item_id}/serials`
-    pub async fn get_serials_for_item(&self, claims: &VerifiedClaims, item_id: uuid::Uuid) -> Result<PaginatedResponse<InventorySerialInstance>, ClientError> {
+    pub async fn get_serials_for_item(&self, claims: &VerifiedClaims, item_id: uuid::Uuid) -> Result<serde_json::Value, ClientError> {
         let path = format!("/api/inventory/items/{}/serials", item_id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

@@ -8,28 +8,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::*;
 
-/// Result returned on successful or replayed issue
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IssueResult {
-    pub consumed_layers: Vec<ConsumedLayer>,
-    pub currency: String,
-    /// Event id used in outbox
-    pub event_id: uuid::Uuid,
-    /// Stable business key for this issue (= ledger entry_id)
-    pub issue_line_id: uuid::Uuid,
-    pub issued_at: chrono::DateTime<chrono::Utc>,
-    pub item_id: uuid::Uuid,
-    /// BIGSERIAL ledger row id
-    pub ledger_entry_id: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub location_id: Option<uuid::Uuid>,
-    pub quantity: i64,
-    pub source_ref: SourceRef,
-    pub tenant_id: String,
-    pub total_cost_minor: i64,
-    pub warehouse_id: uuid::Uuid,
-}
-
 /// A unique item (SKU) per tenant with GL account references.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
@@ -419,6 +397,23 @@ pub struct RunExpiryAlertScanResult {
     pub expired_emitted: i64,
     pub expiring_soon_emitted: i64,
     pub expiring_within_days: i32,
+    pub tenant_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetLotExpiryRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub causation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compute_from_policy: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_on: Option<chrono::NaiveDate>,
+    pub idempotency_key: String,
+    pub lot_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reference_at: Option<chrono::DateTime<chrono::Utc>>,
     pub tenant_id: String,
 }
 

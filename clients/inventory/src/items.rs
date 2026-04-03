@@ -5,6 +5,23 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response};
 
+/// Query parameters for [`list_items`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ListItemsQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracking_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub make_buy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i64>,
+}
+
 /// Typed HTTP client for Items endpoints.
 pub struct ItemsClient {
     client: PlatformClient,
@@ -16,34 +33,29 @@ impl ItemsClient {
     }
 
     /// GET `/api/inventory/items`
-    pub async fn list_items(&self, claims: &VerifiedClaims, search: Option<&str>, tracking_mode: Option<&str>, make_buy: Option<&str>, active: Option<bool>, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<Item>, ClientError> {
+    pub async fn list_items(&self, claims: &VerifiedClaims, query: &ListItemsQuery) -> Result<PaginatedResponse<Item>, ClientError> {
         let path = format!("/api/inventory/items");
-        #[derive(serde::Serialize)]
-        struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
-            search: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            tracking_mode: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            make_buy: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            active: Option<bool>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page: Option<i64>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page_size: Option<i64>,
-        }
-        let query = Query {
-            search: search.map(|s| s.to_string()),
-            tracking_mode: tracking_mode.map(|s| s.to_string()),
-            make_buy: make_buy.map(|s| s.to_string()),
-            active,
-            page,
-            page_size,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`list_items`] but fetches all pages into a single `Vec`.
+    pub async fn list_items_all(&self, claims: &VerifiedClaims, query: &ListItemsQuery) -> Result<Vec<Item>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let mut q = query.clone();
+            q.page = Some(page);
+            q.page_size = Some(100);
+            let resp = self.list_items(claims, &q).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// POST `/api/inventory/items`

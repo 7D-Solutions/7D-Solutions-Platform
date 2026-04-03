@@ -32,6 +32,21 @@ impl TemplatesClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_templates`] but fetches all pages into a single `Vec`.
+    pub async fn list_templates_all(&self, claims: &VerifiedClaims) -> Result<Vec<FormTemplate>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_templates(claims, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/pdf/forms/templates`
     pub async fn create_template(&self, claims: &VerifiedClaims, body: &CreateTemplateRequest) -> Result<FormTemplate, ClientError> {
         let path = format!("/api/pdf/forms/templates");
