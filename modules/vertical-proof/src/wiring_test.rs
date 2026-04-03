@@ -1,19 +1,15 @@
-//! End-to-end wiring tests that call all 5 platform modules via typed clients.
+//! End-to-end wiring tests that call ALL platform modules via typed clients.
 //!
-//! Each test constructs clients from `PlatformServices` exactly as a real
+//! Each test constructs clients from `PlatformService` exactly as a real
 //! vertical would via `ctx.platform_client::<T>()`, proving the SDK wiring
 //! works without hand-written HTTP code.
+//!
+//! Modules covered (26): AP, AR, BOM, Consolidation, Customer-Portal,
+//! Fixed-Assets, GL, Integrations, Inventory, Maintenance, Notifications,
+//! Numbering, Party, Payments, PDF-Editor, Production, Quality-Inspection,
+//! Reporting, Shipping-Receiving, Smoke-Test, Subscriptions, Timekeeping,
+//! Treasury, TTP, Workflow, Workforce-Competence.
 
-use platform_client_ap::{CreateVendorRequest, VendorsClient};
-use platform_client_ar::{
-    CreateCustomerRequest, CreateInvoiceRequest, CustomersClient, InvoicesClient,
-};
-use platform_client_bom::{BomClient, CreateBomRequest};
-use platform_client_consolidation::{CreateGroupRequest, GroupsClient};
-use platform_client_inventory::{CreateItemRequest, ItemsClient, TrackingMode};
-use platform_client_notifications::{SendRequest, SendsClient};
-use platform_client_party::{CreateCompanyRequest, PartiesClient};
-use platform_client_production::{WorkcentersClient, CreateWorkcenterRequest};
 use platform_sdk::{PlatformClient, PlatformService};
 
 use crate::test_claims;
@@ -32,11 +28,11 @@ fn client_for(service: &str, default_port: u16) -> PlatformClient {
 
 pub async fn test_party_wiring() -> Result<(), String> {
     let client = client_for("party", 8098);
-    let parties = PartiesClient::from_platform_client(client);
+    let parties = platform_client_party::PartiesClient::from_platform_client(client);
     let claims = test_claims();
 
     // Create a company
-    let body = CreateCompanyRequest {
+    let body = platform_client_party::CreateCompanyRequest {
         display_name: "Vertical Proof Corp".into(),
         legal_name: "Vertical Proof Corp LLC".into(),
         email: Some("proof@example.com".into()),
@@ -64,14 +60,14 @@ pub async fn test_party_wiring() -> Result<(), String> {
 
 pub async fn test_ap_wiring() -> Result<(), String> {
     let client = client_for("ap", 8093);
-    let vendors = VendorsClient::from_platform_client(client);
+    let vendors = platform_client_ap::VendorsClient::from_platform_client(client);
     let claims = test_claims();
 
     // Create a vendor
     let vendor = vendors
         .create_vendor(
             &claims,
-            &CreateVendorRequest {
+            &platform_client_ap::CreateVendorRequest {
                 name: "Proof Vendor".into(),
                 currency: "USD".into(),
                 payment_terms_days: 30,
@@ -101,14 +97,14 @@ pub async fn test_ap_wiring() -> Result<(), String> {
 
 pub async fn test_consolidation_wiring() -> Result<(), String> {
     let client = client_for("consolidation", 8105);
-    let groups = GroupsClient::from_platform_client(client);
+    let groups = platform_client_consolidation::GroupsClient::from_platform_client(client);
     let claims = test_claims();
 
     // Create a consolidation group
     let group = groups
         .create_group(
             &claims,
-            &CreateGroupRequest {
+            &platform_client_consolidation::CreateGroupRequest {
                 name: format!("Proof Group {}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
                 reporting_currency: "USD".into(),
                 description: Some("Vertical proof consolidation test".into()),
@@ -135,13 +131,13 @@ pub async fn test_consolidation_wiring() -> Result<(), String> {
 
 pub async fn test_bom_wiring() -> Result<(), String> {
     let client = client_for("bom", 8120);
-    let bom = BomClient::from_platform_client(client);
+    let bom = platform_client_bom::BomClient::from_platform_client(client);
     let claims = test_claims();
 
     let created = bom
         .post_bom(
             &claims,
-            &CreateBomRequest {
+            &platform_client_bom::CreateBomRequest {
                 part_id: uuid::Uuid::new_v4(),
                 description: Some("Vertical proof BOM test".into()),
             },
@@ -165,15 +161,15 @@ pub async fn test_bom_wiring() -> Result<(), String> {
 
 pub async fn test_ar_wiring() -> Result<(), String> {
     let client = client_for("ar", 8086);
-    let customers = CustomersClient::from_platform_client(client.clone());
-    let invoices = InvoicesClient::from_platform_client(client);
+    let customers = platform_client_ar::CustomersClient::from_platform_client(client.clone());
+    let invoices = platform_client_ar::InvoicesClient::from_platform_client(client);
     let claims = test_claims();
 
     // Create an AR customer
     let cust = customers
         .create_customer(
             &claims,
-            &CreateCustomerRequest {
+            &platform_client_ar::CreateCustomerRequest {
                 name: Some("Proof Customer".into()),
                 email: Some("proof-ar@example.com".into()),
                 external_customer_id: None,
@@ -661,8 +657,8 @@ pub async fn run_all(pool: &sqlx::PgPool) -> WiringResults {
 // Default builders for types with many fields
 // ---------------------------------------------------------------------------
 
-fn default_create_company() -> CreateCompanyRequest {
-    CreateCompanyRequest {
+fn default_create_company() -> platform_client_party::CreateCompanyRequest {
+    platform_client_party::CreateCompanyRequest {
         display_name: String::new(),
         legal_name: String::new(),
         email: None,
