@@ -5,10 +5,12 @@
 #![allow(unused_imports)]
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use utoipa::ToSchema;
 use crate::*;
 
 /// Pagination metadata for list endpoints.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PaginationMeta {
     pub page: i64,
     pub page_size: i64,
@@ -18,26 +20,25 @@ pub struct PaginationMeta {
 
 /// Generic paginated response envelope.
 ///
-/// Local definition without `ToSchema` bound — client crates don't need
-/// OpenAPI schema derivation. Wire-compatible with `platform_http_contracts::PaginatedResponse`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Wire-compatible with `platform_http_contracts::PaginatedResponse`.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct PaginatedResponse<T> {
     pub data: Vec<T>,
     pub pagination: PaginationMeta,
 }
 
 /// Simple wrapper for sub-collection list endpoints.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DataResponse<T> {
     pub data: Vec<T>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ApplyHoldRequest {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CreateDistributionRequest {
     pub channel: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -46,7 +47,7 @@ pub struct CreateDistributionRequest {
     pub template_key: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CreateDocumentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<serde_json::Value>,
@@ -55,30 +56,30 @@ pub struct CreateDocumentRequest {
     pub title: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CreateRevisionRequest {
     pub body: serde_json::Value,
     pub change_summary: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct CreateTemplateRequest {
     pub body_template: serde_json::Value,
     pub doc_type: String,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DistributionListResponse {
     pub distributions: Vec<DocumentDistribution>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DistributionResponse {
     pub distribution: DocumentDistribution,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DistributionStatusUpdateRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delivered_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -91,7 +92,7 @@ pub struct DistributionStatusUpdateRequest {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocTemplate {
     pub body_template: serde_json::Value,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -104,7 +105,7 @@ pub struct DocTemplate {
     pub version: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Document {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub created_by: uuid::Uuid,
@@ -119,7 +120,7 @@ pub struct Document {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocumentDistribution {
     pub channel: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -148,24 +149,24 @@ pub struct DocumentDistribution {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocumentListResponse {
     pub documents: Vec<Document>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DocumentWithRevisionResponse {
     pub document: Document,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_revision: Option<Revision>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct HoldListResponse {
     pub holds: Vec<LegalHold>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LegalHold {
     pub document_id: uuid::Uuid,
     pub held_at: chrono::DateTime<chrono::Utc>,
@@ -179,12 +180,12 @@ pub struct LegalHold {
     pub tenant_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReleaseHoldRequest {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ReleaseResponse {
     pub document_id: uuid::Uuid,
     pub released_at: chrono::DateTime<chrono::Utc>,
@@ -192,7 +193,7 @@ pub struct ReleaseResponse {
     pub status: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RenderArtifact {
     pub id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -206,12 +207,12 @@ pub struct RenderArtifact {
     pub tenant_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RenderRequest {
     pub input_data: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RetentionPolicy {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub created_by: uuid::Uuid,
@@ -222,7 +223,7 @@ pub struct RetentionPolicy {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Revision {
     pub body: serde_json::Value,
     pub change_summary: String,
@@ -235,18 +236,18 @@ pub struct Revision {
     pub tenant_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RevisionResponse {
     pub revision: Revision,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SetRetentionPolicyRequest {
     pub doc_type: String,
     pub retention_days: i32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SupersedeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_summary: Option<String>,
@@ -255,7 +256,7 @@ pub struct SupersedeRequest {
     pub new_title: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SupersedeResponse {
     pub new_document: Document,
     pub new_revision: Revision,

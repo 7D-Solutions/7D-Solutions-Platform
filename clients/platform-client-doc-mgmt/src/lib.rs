@@ -19,35 +19,35 @@ pub use templates::TemplatesClient;
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for DistributionsClient {
-    const SERVICE_NAME: &'static str = "platform-client-doc-mgmt";
+    const SERVICE_NAME: &'static str = "doc-mgmt";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for DocumentsClient {
-    const SERVICE_NAME: &'static str = "platform-client-doc-mgmt";
+    const SERVICE_NAME: &'static str = "doc-mgmt";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for RetentionClient {
-    const SERVICE_NAME: &'static str = "platform-client-doc-mgmt";
+    const SERVICE_NAME: &'static str = "doc-mgmt";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for RevisionsClient {
-    const SERVICE_NAME: &'static str = "platform-client-doc-mgmt";
+    const SERVICE_NAME: &'static str = "doc-mgmt";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for TemplatesClient {
-    const SERVICE_NAME: &'static str = "platform-client-doc-mgmt";
+    const SERVICE_NAME: &'static str = "doc-mgmt";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
