@@ -1,0 +1,660 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TTP Service",
+    "description": "Tenant-to-platform billing, metering, and service agreement management.\n\n**Authentication:** Bearer JWT. Tenant derived from JWT claims.\nPermissions: `ttp.read` for queries, `ttp.mutate` for writes.",
+    "license": {
+      "name": ""
+    },
+    "version": "3.0.0"
+  },
+  "paths": {
+    "/api/metering/events": {
+      "post": {
+        "tags": [
+          "Metering"
+        ],
+        "operationId": "ingest_events",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IngestEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Events ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestEventResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Ingestion failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/metering/trace": {
+      "get": {
+        "tags": [
+          "Metering"
+        ],
+        "operationId": "get_trace",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Price trace for period",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceTrace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid period format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Trace failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ttp/billing-runs": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "summary": "POST /api/ttp/billing-runs",
+        "operationId": "create_billing_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillingRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Billing run completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingRunResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid billing period or empty idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Tenant has no app_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Billing run failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ttp/service-agreements": {
+      "get": {
+        "tags": [
+          "Service Agreements"
+        ],
+        "summary": "GET /api/ttp/service-agreements",
+        "operationId": "list_service_agreements",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "path",
+            "description": "Filter by status (default: \"active\"). Pass \"all\" to see every status.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Service agreements list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListServiceAgreementsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status filter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BillingRunRequest": {
+        "type": "object",
+        "required": [
+          "billing_period",
+          "idempotency_key"
+        ],
+        "properties": {
+          "billing_period": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      },
+      "BillingRunResponse": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "tenant_id",
+          "billing_period",
+          "parties_billed",
+          "total_amount_minor",
+          "currency",
+          "was_noop"
+        ],
+        "properties": {
+          "billing_period": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "parties_billed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total_amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "was_noop": {
+            "type": "boolean"
+          }
+        }
+      },
+      "EventItem": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "quantity",
+          "occurred_at",
+          "idempotency_key"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "IngestEventRequest": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventItem"
+            }
+          }
+        }
+      },
+      "IngestEventResponse": {
+        "type": "object",
+        "required": [
+          "ingested",
+          "duplicates",
+          "results"
+        ],
+        "properties": {
+          "duplicates": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "ingested": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IngestResultItem"
+            }
+          }
+        }
+      },
+      "IngestResultItem": {
+        "type": "object",
+        "required": [
+          "idempotency_key",
+          "was_duplicate"
+        ],
+        "properties": {
+          "event_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "was_duplicate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ListServiceAgreementsResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "items",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceAgreementItem"
+            }
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PriceTrace": {
+        "type": "object",
+        "description": "Full price trace for a billing period.",
+        "required": [
+          "tenant_id",
+          "period",
+          "period_start",
+          "period_end",
+          "line_items",
+          "total_minor",
+          "currency"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "line_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraceLineItem"
+            }
+          },
+          "period": {
+            "type": "string"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ServiceAgreementItem": {
+        "type": "object",
+        "required": [
+          "agreement_id",
+          "party_id",
+          "plan_code",
+          "amount_minor",
+          "currency",
+          "billing_cycle",
+          "status",
+          "effective_from"
+        ],
+        "properties": {
+          "agreement_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "billing_cycle": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date"
+          },
+          "effective_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "party_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plan_code": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "TraceLineItem": {
+        "type": "object",
+        "description": "A single line in the price trace.",
+        "required": [
+          "dimension",
+          "total_quantity",
+          "event_count",
+          "unit_price_minor",
+          "currency",
+          "line_total_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "event_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "line_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_quantity": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

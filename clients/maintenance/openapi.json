@@ -1,0 +1,4089 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Maintenance Service",
+    "description": "Maintenance management: work orders, preventive plans, meters, calibration, downtime tracking, and labor management.\n\n**Authentication:** Bearer JWT. Tenant derived from JWT claims.\nPermissions: MAINTENANCE_READ for queries, MAINTENANCE_MUTATE for writes.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.2.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "GET /api/health — liveness probe (legacy, kept for compatibility)",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance/assets": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "list_assets",
+        "parameters": [
+          {
+            "name": "asset_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of assets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "create_asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent duplicate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Asset created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assets/{asset_id}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "get_asset",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "update_asset",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Asset updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assets/{asset_id}/calibration-events": {
+      "post": {
+        "tags": [
+          "Calibration"
+        ],
+        "operationId": "record_calibration_event",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordCalibrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent duplicate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationEvent"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Calibration event recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assets/{asset_id}/calibration-status": {
+      "get": {
+        "tags": [
+          "Calibration"
+        ],
+        "operationId": "get_calibration_status",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current calibration status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalibrationStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assets/{asset_id}/downtime": {
+      "get": {
+        "tags": [
+          "Downtime"
+        ],
+        "operationId": "list_asset_downtime",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Downtime events for asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_DowntimeEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assets/{asset_id}/readings": {
+      "get": {
+        "tags": [
+          "Meters"
+        ],
+        "operationId": "list_readings",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "meter_type_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated meter readings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_MeterReading"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Meters"
+        ],
+        "operationId": "record_reading",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReadingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Meter reading recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterReading"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/assignments": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "list_assignments",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated plan assignments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_PlanAssignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/downtime-events": {
+      "get": {
+        "tags": [
+          "Downtime"
+        ],
+        "operationId": "list_downtime",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated downtime events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_DowntimeEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Downtime"
+        ],
+        "operationId": "create_downtime",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDowntimeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent duplicate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimeEvent"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Downtime event created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimeEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/downtime-events/{id}": {
+      "get": {
+        "tags": [
+          "Downtime"
+        ],
+        "operationId": "get_downtime",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Downtime event ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Downtime event details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DowntimeEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/meter-types": {
+      "get": {
+        "tags": [
+          "Meters"
+        ],
+        "operationId": "list_meter_types",
+        "responses": {
+          "200": {
+            "description": "List of meter types",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_MeterType"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Meters"
+        ],
+        "operationId": "create_meter_type",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMeterTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Meter type created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterType"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/plans": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "list_plans",
+        "parameters": [
+          {
+            "name": "is_active",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated maintenance plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_MaintenancePlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "create_plan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Plan created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "get_plan",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "description": "Plan ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlan"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "update_plan",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "description": "Plan ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Plan updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenancePlan"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/plans/{plan_id}/assign": {
+      "post": {
+        "tags": [
+          "Plans"
+        ],
+        "operationId": "assign_plan",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "description": "Plan ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Plan assigned to asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanAssignment"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders": {
+      "get": {
+        "tags": [
+          "Work Orders"
+        ],
+        "operationId": "list_work_orders",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated work orders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_WorkOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Work Orders"
+        ],
+        "operationId": "create_work_order",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Work order created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}": {
+      "get": {
+        "tags": [
+          "Work Orders"
+        ],
+        "operationId": "get_work_order",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Work order details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrder"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}/labor": {
+      "get": {
+        "tags": [
+          "Work Order Labor"
+        ],
+        "operationId": "list_labor",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Labor entries for work order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_WoLabor"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Work Order Labor"
+        ],
+        "operationId": "add_labor",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLaborRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Labor entry added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WoLabor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}": {
+      "delete": {
+        "tags": [
+          "Work Order Labor"
+        ],
+        "operationId": "remove_labor",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "labor_id",
+            "in": "path",
+            "description": "Labor entry ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Labor entry removed"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}/parts": {
+      "get": {
+        "tags": [
+          "Work Order Parts"
+        ],
+        "operationId": "list_parts",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parts for work order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_WoPart"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Work Order Parts"
+        ],
+        "operationId": "add_part",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Part added to work order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WoPart"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}/parts/{part_id}": {
+      "delete": {
+        "tags": [
+          "Work Order Parts"
+        ],
+        "operationId": "remove_part",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "part_id",
+            "in": "path",
+            "description": "Part entry ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Part removed from work order"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/maintenance/work-orders/{wo_id}/transition": {
+      "patch": {
+        "tags": [
+          "Work Orders"
+        ],
+        "operationId": "transition_work_order",
+        "parameters": [
+          {
+            "name": "wo_id",
+            "in": "path",
+            "description": "Work order ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Work order transitioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "GET /api/ready — readiness probe (verifies DB connectivity)",
+        "operationId": "ready",
+        "responses": {
+          "200": {
+            "description": "Service is ready",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "GET /api/version — module identity and schema version",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Module version info",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddLaborRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "technician_ref",
+          "hours_decimal",
+          "rate_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hours_decimal": {
+            "type": "string"
+          },
+          "rate_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "technician_ref": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AddPartRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "part_description",
+          "quantity",
+          "unit_cost_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inventory_issue_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "part_description": {
+            "type": "string"
+          },
+          "part_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Asset": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_tag",
+          "name",
+          "asset_type",
+          "status",
+          "out_of_service",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "asset_tag": {
+            "type": "string"
+          },
+          "asset_type": {
+            "$ref": "#/components/schemas/AssetType"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fixed_asset_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maintenance_schedule": {},
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "out_of_service": {
+            "type": "boolean"
+          },
+          "out_of_service_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serial_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssetStatus"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AssetStatus": {
+        "type": "string",
+        "description": "Asset operational status.",
+        "enum": [
+          "active",
+          "inactive",
+          "retired"
+        ]
+      },
+      "AssetType": {
+        "type": "string",
+        "description": "Asset type — classifies what kind of thing is being maintained.\nAsset-type agnostic: this is for filtering/reporting, not behavior.",
+        "enum": [
+          "vehicle",
+          "machinery",
+          "equipment",
+          "facility",
+          "other"
+        ]
+      },
+      "AssignPlanRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "asset_id"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CalibrationEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_id",
+          "performed_at",
+          "due_at",
+          "result",
+          "created_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "doc_revision_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "performed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CalibrationStatus": {
+        "type": "string",
+        "enum": [
+          "in_cal",
+          "due",
+          "overdue",
+          "out_of_service"
+        ]
+      },
+      "CalibrationStatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "last_calibrated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "next_due_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CalibrationStatus"
+          }
+        }
+      },
+      "CreateAssetRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "asset_tag",
+          "name",
+          "asset_type"
+        ],
+        "properties": {
+          "asset_tag": {
+            "type": "string"
+          },
+          "asset_type": {
+            "type": "string"
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fixed_asset_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maintenance_schedule": {},
+          "metadata": {},
+          "name": {
+            "type": "string"
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serial_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateDowntimeRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "start_time",
+          "reason",
+          "impact_classification"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "end_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "impact_classification": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "wo_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workcenter_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateMeterTypeRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "name",
+          "unit_label"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "rollover_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_label": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePlanRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "name",
+          "schedule_type"
+        ],
+        "properties": {
+          "asset_type_filter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calendar_interval_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimated_cost_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "estimated_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "meter_interval": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "meter_type_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schedule_type": {
+            "type": "string"
+          },
+          "task_checklist": {},
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateWorkOrderRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "asset_id",
+          "title",
+          "wo_type"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assigned_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checklist": {},
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan_assignment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scheduled_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "wo_type": {
+            "type": "string"
+          }
+        }
+      },
+      "DowntimeEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "start_time",
+          "reason",
+          "impact_classification",
+          "created_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "end_time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "impact_classification": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "wo_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workcenter_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "MaintenancePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "name",
+          "schedule_type",
+          "priority",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "asset_type_filter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calendar_interval_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimated_cost_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "estimated_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "meter_interval": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "meter_type_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "schedule_type": {
+            "$ref": "#/components/schemas/ScheduleType"
+          },
+          "task_checklist": {},
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MeterReading": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_id",
+          "meter_type_id",
+          "reading_value",
+          "recorded_at",
+          "created_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "meter_type_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reading_value": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recorded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "MeterType": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "name",
+          "unit_label",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rollover_value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_label": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PaginatedResponse_Asset": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "asset_tag",
+                "name",
+                "asset_type",
+                "status",
+                "out_of_service",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "asset_tag": {
+                  "type": "string"
+                },
+                "asset_type": {
+                  "$ref": "#/components/schemas/AssetType"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "department": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fixed_asset_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "idempotency_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "maintenance_schedule": {},
+                "metadata": {},
+                "name": {
+                  "type": "string"
+                },
+                "out_of_service": {
+                  "type": "boolean"
+                },
+                "out_of_service_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "responsible_person": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "serial_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "$ref": "#/components/schemas/AssetStatus"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_DowntimeEvent": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "start_time",
+                "reason",
+                "impact_classification",
+                "created_at"
+              ],
+              "properties": {
+                "asset_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "end_time": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "idempotency_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "impact_classification": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "reason_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "start_time": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "wo_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "workcenter_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_MaintenancePlan": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "name",
+                "schedule_type",
+                "priority",
+                "is_active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "asset_type_filter": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "calendar_interval_days": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "estimated_cost_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "estimated_duration_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "meter_interval": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "meter_type_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "priority": {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                "schedule_type": {
+                  "$ref": "#/components/schemas/ScheduleType"
+                },
+                "task_checklist": {},
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_MeterReading": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "asset_id",
+                "meter_type_id",
+                "reading_value",
+                "recorded_at",
+                "created_at"
+              ],
+              "properties": {
+                "asset_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "meter_type_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reading_value": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "recorded_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "recorded_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tenant_id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_MeterType": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "name",
+                "unit_label",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "rollover_value": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "unit_label": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_PlanAssignment": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "plan_id",
+                "asset_id",
+                "state",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "asset_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "due_notified_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "last_completed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "last_meter_reading": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "next_due_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "next_due_meter": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64"
+                },
+                "plan_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_WoLabor": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "work_order_id",
+                "technician_ref",
+                "hours_decimal",
+                "rate_minor",
+                "currency",
+                "created_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "hours_decimal": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "rate_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "technician_ref": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "work_order_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_WoPart": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "work_order_id",
+                "part_description",
+                "quantity",
+                "unit_cost_minor",
+                "currency",
+                "created_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "inventory_issue_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "part_description": {
+                  "type": "string"
+                },
+                "part_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "quantity": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "unit_cost_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "work_order_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_WorkOrder": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "asset_id",
+                "wo_number",
+                "title",
+                "wo_type",
+                "priority",
+                "status",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "asset_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "assigned_to": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "checklist": {},
+                "closed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "completed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "downtime_minutes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int32"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "plan_assignment_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "priority": {
+                  "$ref": "#/components/schemas/Priority"
+                },
+                "scheduled_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "started_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "status": {
+                  "$ref": "#/components/schemas/WoStatus"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "wo_number": {
+                  "type": "string"
+                },
+                "wo_type": {
+                  "$ref": "#/components/schemas/WoType"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PlanAssignment": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "plan_id",
+          "asset_id",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "due_notified_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_meter_reading": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "next_due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "next_due_meter": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "plan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Priority": {
+        "type": "string",
+        "description": "Priority level for work orders and maintenance plans.",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ]
+      },
+      "RecordCalibrationRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "performed_at",
+          "due_at",
+          "result"
+        ],
+        "properties": {
+          "doc_revision_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "performed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordReadingRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "meter_type_id",
+          "reading_value"
+        ],
+        "properties": {
+          "meter_type_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reading_value": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recorded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "recorded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ScheduleType": {
+        "type": "string",
+        "description": "Schedule type for maintenance plans.",
+        "enum": [
+          "calendar",
+          "meter",
+          "both"
+        ]
+      },
+      "TransitionRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "status"
+        ],
+        "properties": {
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "downtime_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateAssetRequest": {
+        "type": "object",
+        "properties": {
+          "asset_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fixed_asset_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maintenance_schedule": {},
+          "metadata": {},
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "out_of_service": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "out_of_service_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "serial_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdatePlanRequest": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "estimated_cost_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "estimated_duration_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "task_checklist": {}
+        }
+      },
+      "WoLabor": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "work_order_id",
+          "technician_ref",
+          "hours_decimal",
+          "rate_minor",
+          "currency",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hours_decimal": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rate_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "technician_ref": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "work_order_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "WoPart": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "work_order_id",
+          "part_description",
+          "quantity",
+          "unit_cost_minor",
+          "currency",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inventory_issue_ref": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "part_description": {
+            "type": "string"
+          },
+          "part_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "unit_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "work_order_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "WoStatus": {
+        "type": "string",
+        "description": "Work order status — tracks lifecycle position within the state machine.",
+        "enum": [
+          "draft",
+          "awaiting_approval",
+          "scheduled",
+          "in_progress",
+          "on_hold",
+          "completed",
+          "closed",
+          "cancelled"
+        ]
+      },
+      "WoType": {
+        "type": "string",
+        "description": "Work order type — classifies the nature of the maintenance work.",
+        "enum": [
+          "preventive",
+          "corrective",
+          "inspection"
+        ]
+      },
+      "WorkOrder": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_id",
+          "wo_number",
+          "title",
+          "wo_type",
+          "priority",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "assigned_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checklist": {},
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "downtime_minutes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan_assignment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "scheduled_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WoStatus"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wo_number": {
+            "type": "string"
+          },
+          "wo_type": {
+            "$ref": "#/components/schemas/WoType"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}
