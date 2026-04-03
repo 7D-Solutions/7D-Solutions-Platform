@@ -4,6 +4,7 @@
 
 pub mod types_1;
 pub mod types_2;
+pub mod event_payloads;
 pub mod aging;
 pub mod charges;
 pub mod credit_notes;

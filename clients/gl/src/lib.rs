@@ -5,6 +5,7 @@
 pub mod types_1;
 pub mod types_2;
 pub mod types_3;
+pub mod event_payloads;
 pub mod accounts;
 pub mod accruals;
 pub mod close_checklist;
