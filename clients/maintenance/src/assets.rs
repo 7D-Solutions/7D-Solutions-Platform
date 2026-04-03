@@ -36,6 +36,21 @@ impl AssetsClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_assets`] but fetches all pages into a single `Vec`.
+    pub async fn list_assets_all(&self, claims: &VerifiedClaims, asset_type: Option<String>, status: Option<String>) -> Result<Vec<Asset>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_assets(claims, asset_type.clone(), status.clone(), Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/maintenance/assets`
     pub async fn create_asset(&self, claims: &VerifiedClaims, body: &CreateAssetRequest) -> Result<Asset, ClientError> {
         let path = format!("/api/maintenance/assets");

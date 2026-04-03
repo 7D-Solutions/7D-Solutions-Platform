@@ -58,7 +58,9 @@ impl CalibrationStatus {
 
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct CalibrationStatusResponse {
+    pub asset_id: Uuid,
     pub status: CalibrationStatus,
+    pub out_of_service: bool,
     pub last_calibrated_at: Option<DateTime<Utc>>,
     pub next_due_at: Option<DateTime<Utc>>,
 }
@@ -259,7 +261,9 @@ impl CalibrationEventRepo {
             // Fetch latest event for informational fields even if out_of_service
             let latest = Self::find_latest(pool, asset_id, tenant_id).await?;
             return Ok(CalibrationStatusResponse {
+                asset_id,
                 status: CalibrationStatus::OutOfService,
+                out_of_service: true,
                 last_calibrated_at: latest.as_ref().map(|e| e.performed_at),
                 next_due_at: latest.as_ref().map(|e| e.due_at),
             });
@@ -268,14 +272,18 @@ impl CalibrationEventRepo {
         let latest = Self::find_latest(pool, asset_id, tenant_id).await?;
         match latest {
             None => Ok(CalibrationStatusResponse {
+                asset_id,
                 status: CalibrationStatus::Overdue,
+                out_of_service: false,
                 last_calibrated_at: None,
                 next_due_at: None,
             }),
             Some(event) => {
                 let status = compute_status_from_event(&event, false);
                 Ok(CalibrationStatusResponse {
+                    asset_id,
                     status,
+                    out_of_service: false,
                     last_calibrated_at: Some(event.performed_at),
                     next_due_at: Some(event.due_at),
                 })

@@ -36,6 +36,21 @@ impl WorkOrdersClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_work_orders`] but fetches all pages into a single `Vec`.
+    pub async fn list_work_orders_all(&self, claims: &VerifiedClaims, asset_id: Option<uuid::Uuid>, status: Option<String>) -> Result<Vec<WorkOrder>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_work_orders(claims, asset_id, status.clone(), Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/maintenance/work-orders`
     pub async fn create_work_order(&self, claims: &VerifiedClaims, body: &CreateWorkOrderRequest) -> Result<WorkOrder, ClientError> {
         let path = format!("/api/maintenance/work-orders");

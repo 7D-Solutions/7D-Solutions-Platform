@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.0 | 2026-04-03 | bd-j8xf6 | Add asset_id (Uuid) and out_of_service (bool) to CalibrationStatusResponse. Contract, client, and openapi.json updated. | Verticals needed extra GET /assets/{id} round-trip per calibration check — now one call returns everything. | No |
 | 2.2.1 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 2.2.0 | 2026-04-02 | bd-29n3k | Add utoipa::path annotations to all 33 HTTP handlers. openapi_dump now produces complete spec (33 paths, 26 schemas). ToSchema added to all request types, IntoParams to query param structs. | Machine-readable OpenAPI spec enables client code generation. | No |
 | 2.1.3 | 2026-03-31 | bd-5vmu6.6 | Convert main.rs to platform-sdk ModuleBuilder. SDK handles DB, bus, outbox, CORS, JWT, health, metrics. 5 consumer adapters (workcenter created/updated/deactivated, downtime started/ended). Scheduler spawns in routes closure. Metrics registered with global registry. | SDK batch conversion — eliminate two classes of modules. | No |

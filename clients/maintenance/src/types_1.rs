@@ -154,10 +154,12 @@ pub enum CalibrationStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationStatusResponse {
+    pub asset_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_calibrated_at: Option<chrono::DateTime<chrono::Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_due_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub out_of_service: bool,
     pub status: CalibrationStatus,
 }
 
@@ -187,7 +189,7 @@ pub struct CreateAssetRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDowntimeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<uuid::Uuid>,
@@ -243,7 +245,7 @@ pub struct CreatePlanRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateWorkOrderRequest {
     pub asset_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]

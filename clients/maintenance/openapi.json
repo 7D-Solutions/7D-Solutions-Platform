@@ -2092,9 +2092,15 @@
       "CalibrationStatusResponse": {
         "type": "object",
         "required": [
-          "status"
+          "asset_id",
+          "status",
+          "out_of_service"
         ],
         "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
           "last_calibrated_at": {
             "type": [
               "string",
@@ -2108,6 +2114,9 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "out_of_service": {
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/CalibrationStatus"

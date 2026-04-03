@@ -41,6 +41,24 @@ impl DowntimeClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_downtime`] but fetches all pages into a single `Vec`.
+    pub async fn list_downtime_all(&self, claims: &VerifiedClaims, query: &ListDowntimeQuery) -> Result<Vec<DowntimeEvent>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let mut q = query.clone();
+            q.page = Some(page);
+            q.page_size = Some(100);
+            let resp = self.list_downtime(claims, &q).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/maintenance/downtime-events`
     pub async fn create_downtime(&self, claims: &VerifiedClaims, body: &CreateDowntimeRequest) -> Result<DowntimeEvent, ClientError> {
         let path = format!("/api/maintenance/downtime-events");

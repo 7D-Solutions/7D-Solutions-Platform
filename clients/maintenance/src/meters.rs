@@ -34,6 +34,21 @@ impl MetersClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_readings`] but fetches all pages into a single `Vec`.
+    pub async fn list_readings_all(&self, claims: &VerifiedClaims, asset_id: uuid::Uuid, meter_type_id: Option<uuid::Uuid>) -> Result<Vec<MeterReading>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_readings(claims, asset_id, meter_type_id, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/maintenance/assets/{asset_id}/readings`
     pub async fn record_reading(&self, claims: &VerifiedClaims, asset_id: uuid::Uuid, body: &RecordReadingRequest) -> Result<MeterReading, ClientError> {
         let path = format!("/api/maintenance/assets/{}/readings", asset_id);

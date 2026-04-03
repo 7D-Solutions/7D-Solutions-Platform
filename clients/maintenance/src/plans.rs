@@ -36,6 +36,21 @@ impl PlansClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_assignments`] but fetches all pages into a single `Vec`.
+    pub async fn list_assignments_all(&self, claims: &VerifiedClaims, plan_id: Option<uuid::Uuid>, asset_id: Option<uuid::Uuid>) -> Result<Vec<PlanAssignment>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_assignments(claims, plan_id, asset_id, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// GET `/api/maintenance/plans`
     pub async fn list_plans(&self, claims: &VerifiedClaims, is_active: Option<bool>, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<MaintenancePlan>, ClientError> {
         let path = format!("/api/maintenance/plans");
@@ -53,6 +68,21 @@ impl PlansClient {
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`list_plans`] but fetches all pages into a single `Vec`.
+    pub async fn list_plans_all(&self, claims: &VerifiedClaims, is_active: Option<bool>) -> Result<Vec<MaintenancePlan>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_plans(claims, is_active, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// POST `/api/maintenance/plans`
