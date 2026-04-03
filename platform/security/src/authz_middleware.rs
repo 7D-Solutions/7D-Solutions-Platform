@@ -38,6 +38,14 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tower::{Layer, Service};
 
+/// The raw Bearer token string extracted from the `Authorization` header.
+///
+/// Stored in request extensions alongside [`VerifiedClaims`] so that
+/// downstream handlers can forward the token (e.g. OAuth proxy,
+/// webhook callbacks, audit trails) without re-parsing the header.
+#[derive(Clone, Debug)]
+pub struct RawBearerToken(pub String);
+
 // ── Claims Extraction ──────────────────────────────────────────────
 
 /// Tower Layer that verifies the JWT Bearer token and attaches
@@ -107,11 +115,15 @@ where
         let mut ready_svc = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            let claims = extract_bearer(&req).map(|token| verifier.verify(token));
+            let raw_token = extract_bearer(&req).map(|t| t.to_owned());
+            let claims = raw_token.as_deref().map(|token| verifier.verify(token));
 
             match &claims {
                 Some(Ok(verified)) => {
                     req.extensions_mut().insert(verified.clone());
+                    if let Some(t) = raw_token.clone() {
+                        req.extensions_mut().insert(RawBearerToken(t));
+                    }
                 }
                 Some(Err(e)) => {
                     // Token was present but verification failed — always log this
@@ -201,8 +213,11 @@ pub async fn optional_claims_mw(
     next: Next,
 ) -> Response {
     if let Some(v) = verifier.as_deref() {
-        if let Some(claims) = extract_bearer(&req).and_then(|t| v.verify(t).ok()) {
-            req.extensions_mut().insert(claims);
+        if let Some(token) = extract_bearer(&req).map(str::to_owned) {
+            if let Ok(claims) = v.verify(&token) {
+                req.extensions_mut().insert(RawBearerToken(token));
+                req.extensions_mut().insert(claims);
+            }
         }
     }
     next.run(req).await

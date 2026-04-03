@@ -51,7 +51,7 @@ pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 
 // Re-export JWT-backed authz middleware types
 pub use authz_middleware::{
-    optional_claims_mw, ClaimsLayer, ClaimsMiddleware, RequirePermissionsLayer,
+    optional_claims_mw, ClaimsLayer, ClaimsMiddleware, RawBearerToken, RequirePermissionsLayer,
 };
 
 // Re-export JWT claims types
