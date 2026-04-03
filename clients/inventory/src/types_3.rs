@@ -98,8 +98,9 @@ pub struct TaskLine {
     pub line_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum TaskScope {
+    #[default]
     #[serde(rename = "full")]
     Full,
     #[serde(rename = "partial")]
@@ -110,8 +111,9 @@ pub enum TaskScope {
 /// 
 /// Set at item creation; immutable thereafter (changing tracking_mode after
 /// stock exists would invalidate historical layer associations).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum TrackingMode {
+    #[default]
     #[serde(rename = "none")]
     None,
     #[serde(rename = "lot")]
