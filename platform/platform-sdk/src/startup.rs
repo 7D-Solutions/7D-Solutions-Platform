@@ -149,6 +149,13 @@ pub(crate) async fn phase_a(
     let mut outbox_handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut outbox_shutdown_tx: Option<tokio::sync::watch::Sender<bool>> = None;
 
+    // Auto-create the outbox table when requested.
+    if let Some(ref ps) = publish_section {
+        if ps.auto_create {
+            publisher::ensure_outbox_table(&pool, &ps.outbox_table).await?;
+        }
+    }
+
     if let Some(ref table) = outbox_table {
         if skip_outbox {
             tracing::info!(

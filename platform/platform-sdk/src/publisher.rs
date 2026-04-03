@@ -3,6 +3,13 @@
 //! Polls a declared outbox table for unpublished events and publishes
 //! them to the event bus. This eliminates the per-module publisher
 //! boilerplate that 9 of 25 modules needed (and some forgot).
+//!
+//! ## Standard outbox table
+//!
+//! [`STANDARD_OUTBOX_DDL`] is the canonical DDL for the outbox table.
+//! Modules that set `auto_create = true` in `[events.publish]` get this
+//! table created automatically at startup via [`ensure_outbox_table`].
+//! Modules with custom migrations can reference the constant instead.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -12,6 +19,53 @@ use sqlx::Row;
 use tokio::sync::watch;
 
 use crate::startup::StartupError;
+
+/// Canonical DDL for the events outbox table.
+///
+/// This is the standard schema that the SDK publisher expects.  Modules
+/// can either set `auto_create = true` in their manifest (which runs
+/// this DDL at startup) or copy this SQL into their own migration file.
+///
+/// Columns beyond what the publisher polls (`event_id`, `event_type`,
+/// `payload`, `created_at`, `published_at`) are included because they
+/// appear in the majority of existing module outbox tables and align
+/// with the platform `EventEnvelope` fields.
+pub const STANDARD_OUTBOX_DDL: &str = r#"
+CREATE TABLE IF NOT EXISTS "{table}" (
+    id             BIGSERIAL    PRIMARY KEY,
+    event_id       UUID         NOT NULL UNIQUE,
+    event_type     TEXT         NOT NULL,
+    aggregate_type TEXT         NOT NULL DEFAULT '',
+    aggregate_id   TEXT         NOT NULL DEFAULT '',
+    tenant_id      TEXT         NOT NULL DEFAULT '',
+    payload        JSONB        NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    published_at   TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS "idx_{table}_unpublished"
+    ON "{table}" (created_at) WHERE published_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS "idx_{table}_published"
+    ON "{table}" (published_at) WHERE published_at IS NOT NULL;
+"#;
+
+/// Create the standard outbox table if it does not already exist.
+///
+/// Called automatically during startup when `[events.publish].auto_create`
+/// is `true`. Safe to call multiple times — uses `IF NOT EXISTS`.
+pub async fn ensure_outbox_table(
+    pool: &sqlx::PgPool,
+    table_name: &str,
+) -> Result<(), StartupError> {
+    let ddl = STANDARD_OUTBOX_DDL.replace("{table}", table_name);
+    sqlx::query(&ddl)
+        .execute(pool)
+        .await
+        .map_err(|e| StartupError::Database(format!("failed to create outbox table '{table_name}': {e}")))?;
+    tracing::info!(table = %table_name, "outbox table ensured");
+    Ok(())
+}
 
 /// Query `information_schema.tables` for tables matching outbox patterns.
 ///

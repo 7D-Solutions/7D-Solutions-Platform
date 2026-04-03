@@ -503,3 +503,172 @@ async fn tenant_pool_resolver_resolves_known_and_rejects_unknown() {
     let pools = resolver.all_pools().await.expect("all_pools should work");
     assert_eq!(pools.len(), 2);
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Test 8: ensure_outbox_table creates standard table
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn ensure_outbox_table_creates_and_is_idempotent() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let table = "sdk_test_ensure_outbox";
+    drop_table(&pool, table).await;
+
+    // First call creates the table
+    publisher::ensure_outbox_table(&pool, table)
+        .await
+        .expect("first ensure should succeed");
+
+    // Verify the table exists with the expected columns
+    let cols: Vec<(String,)> = sqlx::query_as(
+        "SELECT column_name::text FROM information_schema.columns \
+         WHERE table_name = $1 AND table_schema = 'public' \
+         ORDER BY ordinal_position",
+    )
+    .bind(table)
+    .fetch_all(&pool)
+    .await
+    .expect("column query");
+
+    let col_names: Vec<&str> = cols.iter().map(|r| r.0.as_str()).collect();
+    assert!(col_names.contains(&"id"), "missing id column");
+    assert!(col_names.contains(&"event_id"), "missing event_id column");
+    assert!(col_names.contains(&"event_type"), "missing event_type column");
+    assert!(col_names.contains(&"aggregate_type"), "missing aggregate_type column");
+    assert!(col_names.contains(&"aggregate_id"), "missing aggregate_id column");
+    assert!(col_names.contains(&"tenant_id"), "missing tenant_id column");
+    assert!(col_names.contains(&"payload"), "missing payload column");
+    assert!(col_names.contains(&"created_at"), "missing created_at column");
+    assert!(col_names.contains(&"published_at"), "missing published_at column");
+
+    // Second call is idempotent — no error
+    publisher::ensure_outbox_table(&pool, table)
+        .await
+        .expect("second ensure should be idempotent");
+
+    // Verify the publisher can work with this table
+    let id = insert_event(&pool, table, "test.ensure.event").await;
+    assert_eq!(count_unpublished(&pool, table).await, 1);
+
+    // Mark published (simulates what the publisher does)
+    sqlx::query(&format!(
+        "UPDATE \"{table}\" SET published_at = NOW() WHERE event_id = $1"
+    ))
+    .bind(id)
+    .execute(&pool)
+    .await
+    .expect("mark published");
+    assert_eq!(count_unpublished(&pool, table).await, 0);
+
+    drop_table(&pool, table).await;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 9: STANDARD_OUTBOX_DDL constant is well-formed
+// ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn standard_outbox_ddl_contains_required_columns() {
+    let ddl = platform_sdk::STANDARD_OUTBOX_DDL;
+    assert!(ddl.contains("event_id"), "DDL must have event_id");
+    assert!(ddl.contains("event_type"), "DDL must have event_type");
+    assert!(ddl.contains("payload"), "DDL must have payload");
+    assert!(ddl.contains("created_at"), "DDL must have created_at");
+    assert!(ddl.contains("published_at"), "DDL must have published_at");
+    assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
+    assert!(ddl.contains("{table}"), "DDL must use {{table}} placeholder");
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 10: auto_create manifest field parses
+// ──────────────────────────────────────────────────────────────────
+
+#[test]
+fn manifest_auto_create_defaults_false() {
+    let toml_str = r#"
+[module]
+name = "no-autocreate"
+
+[bus]
+type = "inmemory"
+
+[events.publish]
+outbox_table = "events_outbox"
+"#;
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
+        .expect("manifest should parse");
+    let publish = manifest.events.unwrap().publish.unwrap();
+    assert!(!publish.auto_create, "auto_create should default to false");
+}
+
+#[test]
+fn manifest_auto_create_true_parses() {
+    let toml_str = r#"
+[module]
+name = "with-autocreate"
+
+[bus]
+type = "inmemory"
+
+[events.publish]
+outbox_table = "events_outbox"
+auto_create = true
+"#;
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
+        .expect("manifest should parse");
+    let publish = manifest.events.unwrap().publish.unwrap();
+    assert!(publish.auto_create, "auto_create should be true");
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Test 11: Publisher works with auto-created table
+// ──────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn publisher_works_with_auto_created_table() {
+    let pool = match test_pool().await {
+        Some(p) => p,
+        None => return,
+    };
+
+    let table = "sdk_test_auto_publish";
+    drop_table(&pool, table).await;
+
+    // Auto-create the table
+    publisher::ensure_outbox_table(&pool, table)
+        .await
+        .expect("ensure should succeed");
+
+    // Insert an event and publish it
+    insert_event(&pool, table, "auto.test.event").await;
+    assert_eq!(count_unpublished(&pool, table).await, 1);
+
+    let bus = Arc::new(InMemoryBus::new());
+    let mut stream = bus.subscribe("auto.test.>").await.expect("subscribe");
+
+    let pub_pool = pool.clone();
+    let pub_bus: Arc<dyn EventBus> = bus.clone();
+    let pub_table = table.to_string();
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let handle = tokio::spawn(async move {
+        publisher::run_outbox_publisher(
+            pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx,
+        )
+        .await;
+    });
+
+    let received = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+        .await
+        .expect("should receive within timeout");
+    assert!(received.is_some(), "expected event to be published");
+
+    assert_eq!(count_unpublished(&pool, table).await, 0);
+
+    let _ = shutdown_tx.send(true);
+    let _ = handle.await;
+    drop_table(&pool, table).await;
+}

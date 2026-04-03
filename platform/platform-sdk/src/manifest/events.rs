@@ -19,6 +19,12 @@ pub struct EventsPublishSection {
     /// Name of the outbox table to poll (e.g. `"events_outbox"`).
     pub outbox_table: String,
 
+    /// When `true`, the SDK creates the standard outbox table at startup
+    /// if it does not already exist. Modules with custom migrations
+    /// should leave this `false` (the default).
+    #[serde(default)]
+    pub auto_create: bool,
+
     /// Optional prefix prepended to `event_type` before publishing
     /// (e.g. `"trashtech.events"` → subject becomes `"trashtech.events.stop.started"`).
     #[serde(default)]

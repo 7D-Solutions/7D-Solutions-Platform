@@ -42,6 +42,7 @@ pub use http_client::{PlatformClient, TimeoutConfig};
 pub use manifest::Manifest;
 pub use platform_services::PlatformService;
 pub use startup::StartupError;
+pub use publisher::{STANDARD_OUTBOX_DDL, ensure_outbox_table};
 pub use tenant::TenantId;
 
 // Re-export commonly needed types so modules don't have to depend on
