@@ -1109,6 +1109,10 @@
           "characteristic_type": {
             "type": "string"
           },
+          "key_characteristic": {
+            "type": "boolean",
+            "default": false
+          },
           "name": {
             "type": "string"
           },

@@ -36,6 +36,8 @@ pub struct DataResponse<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Characteristic {
     pub characteristic_type: String,
+    #[serde(default)]
+    pub key_characteristic: bool,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nominal: Option<f64>,
@@ -47,7 +49,7 @@ pub struct Characteristic {
     pub uom: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateFinalInspectionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inspector_id: Option<uuid::Uuid>,
@@ -66,7 +68,7 @@ pub struct CreateFinalInspectionRequest {
     pub wo_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInProcessInspectionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inspector_id: Option<uuid::Uuid>,
@@ -86,7 +88,7 @@ pub struct CreateInProcessInspectionRequest {
     pub wo_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInspectionPlanRequest {
     pub characteristics: Vec<Characteristic>,
     pub part_id: uuid::Uuid,

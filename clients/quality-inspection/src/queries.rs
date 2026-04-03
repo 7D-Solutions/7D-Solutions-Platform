@@ -36,6 +36,21 @@ impl QueriesClient {
         parse_response(resp).await
     }
 
+    /// Like [`get_inspections_by_lot`] but fetches all pages into a single `Vec`.
+    pub async fn get_inspections_by_lot_all(&self, claims: &VerifiedClaims, lot_id: uuid::Uuid) -> Result<Vec<Inspection>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_inspections_by_lot(claims, lot_id, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// GET `/api/quality-inspection/inspections/by-part-rev`
     pub async fn get_inspections_by_part_rev(&self, claims: &VerifiedClaims, part_id: uuid::Uuid, part_revision: Option<&str>, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<Inspection>, ClientError> {
         let path = format!("/api/quality-inspection/inspections/by-part-rev");
@@ -60,6 +75,21 @@ impl QueriesClient {
         parse_response(resp).await
     }
 
+    /// Like [`get_inspections_by_part_rev`] but fetches all pages into a single `Vec`.
+    pub async fn get_inspections_by_part_rev_all(&self, claims: &VerifiedClaims, part_id: uuid::Uuid, part_revision: Option<&str>) -> Result<Vec<Inspection>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_inspections_by_part_rev(claims, part_id, part_revision, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// GET `/api/quality-inspection/inspections/by-receipt`
     pub async fn get_inspections_by_receipt(&self, claims: &VerifiedClaims, receipt_id: uuid::Uuid, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<Inspection>, ClientError> {
         let path = format!("/api/quality-inspection/inspections/by-receipt");
@@ -79,6 +109,21 @@ impl QueriesClient {
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`get_inspections_by_receipt`] but fetches all pages into a single `Vec`.
+    pub async fn get_inspections_by_receipt_all(&self, claims: &VerifiedClaims, receipt_id: uuid::Uuid) -> Result<Vec<Inspection>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_inspections_by_receipt(claims, receipt_id, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// GET `/api/quality-inspection/inspections/by-wo`
@@ -103,5 +148,20 @@ impl QueriesClient {
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`get_inspections_by_wo`] but fetches all pages into a single `Vec`.
+    pub async fn get_inspections_by_wo_all(&self, claims: &VerifiedClaims, wo_id: uuid::Uuid, inspection_type: Option<&str>) -> Result<Vec<Inspection>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_inspections_by_wo(claims, wo_id, inspection_type, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 }

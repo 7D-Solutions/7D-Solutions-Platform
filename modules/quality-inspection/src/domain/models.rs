@@ -44,6 +44,8 @@ pub struct Inspection {
 pub struct Characteristic {
     pub name: String,
     pub characteristic_type: String,
+    #[serde(default)]
+    pub key_characteristic: bool,
     pub nominal: Option<f64>,
     pub tolerance_low: Option<f64>,
     pub tolerance_high: Option<f64>,
