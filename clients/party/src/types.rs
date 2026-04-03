@@ -68,7 +68,8 @@ pub struct Contact {
     pub first_name: String,
     pub id: uuid::Uuid,
     pub is_primary: bool,
-    pub last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
     pub party_id: uuid::Uuid,
@@ -152,7 +153,8 @@ pub struct CreateContactRequest {
     pub first_name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_primary: Option<bool>,
-    pub last_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]

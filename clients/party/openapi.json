@@ -1113,7 +1113,6 @@
           "party_id",
           "app_id",
           "first_name",
-          "last_name",
           "is_primary",
           "created_at",
           "updated_at"
@@ -1150,7 +1149,10 @@
             "type": "boolean"
           },
           "last_name": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "metadata": {},
           "party_id": {
@@ -1363,8 +1365,7 @@
       "CreateContactRequest": {
         "type": "object",
         "required": [
-          "first_name",
-          "last_name"
+          "first_name"
         ],
         "properties": {
           "email": {
@@ -1383,7 +1384,10 @@
             ]
           },
           "last_name": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "metadata": {},
           "phone": {
@@ -1609,7 +1613,6 @@
                 "party_id",
                 "app_id",
                 "first_name",
-                "last_name",
                 "is_primary",
                 "created_at",
                 "updated_at"
@@ -1646,7 +1649,10 @@
                   "type": "boolean"
                 },
                 "last_name": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "metadata": {},
                 "party_id": {

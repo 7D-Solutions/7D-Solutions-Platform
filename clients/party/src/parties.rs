@@ -103,4 +103,12 @@ impl PartiesClient {
         let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_empty(resp).await
     }
+
+    /// POST `/api/party/parties/{id}/reactivate`
+    pub async fn reactivate_party(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<(), ClientError> {
+        let path = format!("/api/party/parties/{}/reactivate", id);
+        let url = path;
+        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
+        parse_empty(resp).await
+    }
 }
