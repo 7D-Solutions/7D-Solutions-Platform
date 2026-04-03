@@ -37,6 +37,21 @@ impl AccountsClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_accounts`] but fetches all pages into a single `Vec`.
+    pub async fn list_accounts_all(&self, claims: &VerifiedClaims, include_inactive: Option<bool>) -> Result<Vec<TreasuryAccount>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_accounts(claims, include_inactive, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/treasury/accounts/bank`
     pub async fn create_bank_account(&self, claims: &VerifiedClaims, body: &CreateBankAccountRequest) -> Result<TreasuryAccount, ClientError> {
         let path = format!("/api/treasury/accounts/bank");

@@ -56,12 +56,31 @@ pub enum AccountStatus {
     Closed,
 }
 
+impl AccountStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccountStatus::Active => "active",
+            AccountStatus::Inactive => "inactive",
+            AccountStatus::Closed => "closed",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum AccountType {
     #[serde(rename = "bank")]
     Bank,
     #[serde(rename = "credit_card")]
     CreditCard,
+}
+
+impl AccountType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AccountType::Bank => "bank",
+            AccountType::CreditCard => "credit_card",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +114,7 @@ pub struct CashPositionSummary {
 }
 
 /// Request body to create a bank account.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateBankAccountRequest {
     pub account_name: String,
     /// Last 4 digits only. Reject anything longer.
@@ -112,7 +131,7 @@ pub struct CreateBankAccountRequest {
 }
 
 /// Request body to create a credit card account.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateCreditCardAccountRequest {
     pub account_name: String,
     /// Last 4 digits of card number.
@@ -267,6 +286,16 @@ pub enum ReconMatchStatus {
     Rejected,
 }
 
+impl ReconMatchStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReconMatchStatus::Pending => "pending",
+            ReconMatchStatus::Confirmed => "confirmed",
+            ReconMatchStatus::Rejected => "rejected",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ReconMatchType {
     #[serde(rename = "auto")]
@@ -275,6 +304,16 @@ pub enum ReconMatchType {
     Manual,
     #[serde(rename = "suggested")]
     Suggested,
+}
+
+impl ReconMatchType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReconMatchType::Auto => "auto",
+            ReconMatchType::Manual => "manual",
+            ReconMatchType::Suggested => "suggested",
+        }
+    }
 }
 
 /// Full treasury account record as stored and returned.

@@ -28,7 +28,11 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
     }
 
     // Build selective platform_sdk import
-    let mut sdk_imports = vec!["ClientError", "PlatformClient", "VerifiedClaims"];
+    let needs_claims = eps.iter().any(|ep| !ep.anonymous);
+    let mut sdk_imports = vec!["ClientError", "PlatformClient"];
+    if needs_claims {
+        sdk_imports.push("VerifiedClaims");
+    }
     if needs_query {
         sdk_imports.push("build_query_url");
     }
@@ -68,6 +72,10 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
         let ep = &parsed.endpoints[idx];
         out.push('\n');
         emit_method(&mut out, ep);
+        // Generate _all depagination helper for PaginatedResponse endpoints
+        if let Some(inner) = paginated_inner_type(&ep.response) {
+            emit_list_all_method(&mut out, ep, inner);
+        }
     }
 
     out.push_str("}\n");
@@ -81,8 +89,11 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         ResponseKind::Empty => "Result<(), ClientError>".to_string(),
     };
 
-    // Build parameter list — claims is always first after &self
-    let mut params = vec!["claims: &VerifiedClaims".to_string()];
+    // Build parameter list — claims first (if authenticated), then path/query/body
+    let mut params = Vec::new();
+    if !ep.anonymous {
+        params.push("claims: &VerifiedClaims".to_string());
+    }
     for p in &ep.path_params {
         params.push(format!("{}: {}", sanitize_param(&p.name), param_arg_type(&p.rust_type)));
     }
@@ -143,32 +154,64 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
     }
 
     // Build request via PlatformClient (handles headers, retry, auth)
-    match ep.method {
-        HttpMethod::Get => {
-            out.push_str("        let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;\n");
-        }
-        HttpMethod::Delete => {
-            out.push_str("        let resp = self.client.delete(&url, claims).await.map_err(ClientError::Network)?;\n");
-        }
-        HttpMethod::Post => {
-            if ep.request_body.is_some() {
-                out.push_str("        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;\n");
-            } else {
-                out.push_str("        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+    if ep.anonymous {
+        match ep.method {
+            HttpMethod::Get => {
+                out.push_str("        let resp = self.client.get_anon(&url).await.map_err(ClientError::Network)?;\n");
+            }
+            HttpMethod::Delete => {
+                out.push_str("        let resp = self.client.delete_anon(&url).await.map_err(ClientError::Network)?;\n");
+            }
+            HttpMethod::Post => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.post_anon(&url, body).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.post_anon(&url, &serde_json::Value::Null).await.map_err(ClientError::Network)?;\n");
+                }
+            }
+            HttpMethod::Put => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.put_anon(&url, body).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.put_anon(&url, &serde_json::Value::Null).await.map_err(ClientError::Network)?;\n");
+                }
+            }
+            HttpMethod::Patch => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.patch_anon(&url, body).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.patch_anon(&url, &serde_json::Value::Null).await.map_err(ClientError::Network)?;\n");
+                }
             }
         }
-        HttpMethod::Put => {
-            if ep.request_body.is_some() {
-                out.push_str("        let resp = self.client.put(&url, body, claims).await.map_err(ClientError::Network)?;\n");
-            } else {
-                out.push_str("        let resp = self.client.put(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+    } else {
+        match ep.method {
+            HttpMethod::Get => {
+                out.push_str("        let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;\n");
             }
-        }
-        HttpMethod::Patch => {
-            if ep.request_body.is_some() {
-                out.push_str("        let resp = self.client.patch(&url, body, claims).await.map_err(ClientError::Network)?;\n");
-            } else {
-                out.push_str("        let resp = self.client.patch(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+            HttpMethod::Delete => {
+                out.push_str("        let resp = self.client.delete(&url, claims).await.map_err(ClientError::Network)?;\n");
+            }
+            HttpMethod::Post => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.post(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+                }
+            }
+            HttpMethod::Put => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.put(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.put(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+                }
+            }
+            HttpMethod::Patch => {
+                if ep.request_body.is_some() {
+                    out.push_str("        let resp = self.client.patch(&url, body, claims).await.map_err(ClientError::Network)?;\n");
+                } else {
+                    out.push_str("        let resp = self.client.patch(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;\n");
+                }
             }
         }
     }
@@ -313,6 +356,176 @@ pub fn op_id_to_query_struct(operation_id: &str) -> String {
         })
         .collect();
     format!("{pascal}Query")
+}
+
+/// If response is `PaginatedResponse<T>`, return inner type `T`.
+fn paginated_inner_type(response: &ResponseKind) -> Option<&str> {
+    match response {
+        ResponseKind::Json(t) => t
+            .strip_prefix("PaginatedResponse<")
+            .and_then(|rest| rest.strip_suffix('>')),
+        _ => None,
+    }
+}
+
+/// Emit a `{fn_name}_all` helper that iterates all pages and returns `Vec<T>`.
+///
+/// Only emitted for GET endpoints that return `PaginatedResponse<T>` and have
+/// a `page` query parameter the caller can control.
+fn emit_list_all_method(out: &mut String, ep: &Endpoint, inner_type: &str) {
+    // Only generate for GET endpoints with a controllable `page` param
+    if !matches!(ep.method, HttpMethod::Get) {
+        return;
+    }
+    let has_page = ep.query_params.iter().any(|p| p.name == "page");
+    if !has_page {
+        return;
+    }
+
+    let page_param = ep.query_params.iter().find(|p| p.name == "page").unwrap();
+    let page_size_param = ep.query_params.iter().find(|p| p.name == "page_size");
+    let fn_name = &ep.operation_id;
+    let all_fn_name = format!("{fn_name}_all");
+    let use_public_query = ep.query_params.len() >= QUERY_STRUCT_THRESHOLD;
+
+    // Build parameter list (same as original, minus page/page_size)
+    let mut params = Vec::new();
+    if !ep.anonymous {
+        params.push("claims: &VerifiedClaims".to_string());
+    }
+    for p in &ep.path_params {
+        params.push(format!(
+            "{}: {}",
+            sanitize_param(&p.name),
+            param_arg_type(&p.rust_type)
+        ));
+    }
+
+    if use_public_query {
+        let query_struct = op_id_to_query_struct(&ep.operation_id);
+        params.push(format!("query: &{query_struct}"));
+    } else {
+        for p in &ep.query_params {
+            if p.name == "page" || p.name == "page_size" {
+                continue;
+            }
+            let ty = if p.required {
+                param_arg_type(&p.rust_type)
+            } else {
+                format!("Option<{}>", param_arg_type(&p.rust_type))
+            };
+            params.push(format!("{}: {ty}", sanitize_param(&p.name)));
+        }
+    }
+    if let Some(body_type) = &ep.request_body {
+        params.push(format!("body: &{body_type}"));
+    }
+
+    let params_str = format!("&self, {}", params.join(", "));
+
+    out.push_str(&format!(
+        "\n    /// Like [`{fn_name}`] but fetches all pages into a single `Vec`.\n"
+    ));
+    out.push_str(&format!(
+        "    pub async fn {all_fn_name}({params_str}) -> Result<Vec<{inner_type}>, ClientError> {{\n"
+    ));
+    out.push_str("        let mut all_data = Vec::new();\n");
+    out.push_str("        let mut page: i64 = 1;\n");
+    out.push_str("        loop {\n");
+
+    // A param's generated type is Option<T> if:
+    //   - p.required is false (non-required params are wrapped in Option<> by emit_method), OR
+    //   - p.rust_type already starts with "Option<" (nullable spec type, even when required=true)
+    let page_is_option = !page_param.required || page_param.rust_type.starts_with("Option<");
+    let page_size_is_option = page_size_param
+        .map(|ps| !ps.required || ps.rust_type.starts_with("Option<"))
+        .unwrap_or(false);
+
+    if use_public_query {
+        // Clone the caller's query struct and override pagination fields
+        out.push_str("            let mut q = query.clone();\n");
+        if page_is_option {
+            out.push_str("            q.page = Some(page);\n");
+        } else {
+            out.push_str("            q.page = page;\n");
+        }
+        if page_size_param.is_some() {
+            if page_size_is_option {
+                out.push_str("            q.page_size = Some(100);\n");
+            } else {
+                out.push_str("            q.page_size = 100;\n");
+            }
+        }
+        // Build delegate call
+        let mut call_args = Vec::new();
+        if !ep.anonymous {
+            call_args.push("claims".to_string());
+        }
+        for p in &ep.path_params {
+            call_args.push(sanitize_param(&p.name));
+        }
+        call_args.push("&q".to_string());
+        if ep.request_body.is_some() {
+            call_args.push("body".to_string());
+        }
+        out.push_str(&format!(
+            "            let resp = self.{fn_name}({}).await?;\n",
+            call_args.join(", ")
+        ));
+    } else {
+        // Build delegate call, substituting page/page_size values
+        let mut call_args = Vec::new();
+        if !ep.anonymous {
+            call_args.push("claims".to_string());
+        }
+        for p in &ep.path_params {
+            call_args.push(sanitize_param(&p.name));
+        }
+        for p in &ep.query_params {
+            let is_option = !p.required || p.rust_type.starts_with("Option<");
+            if p.name == "page" {
+                call_args.push(if page_is_option {
+                    "Some(page)".to_string()
+                } else {
+                    "page".to_string()
+                });
+            } else if p.name == "page_size" {
+                call_args.push(if page_size_is_option {
+                    "Some(100)".to_string()
+                } else {
+                    "100".to_string()
+                });
+            } else {
+                // Required params with non-Copy Option types (e.g. Option<String>) must be
+                // cloned on each loop iteration to avoid a move error.
+                let name = sanitize_param(&p.name);
+                let needs_clone = p.required && p.rust_type.starts_with("Option<")
+                    && (p.rust_type.contains("String") || p.rust_type.contains("Vec<"));
+                let _ = is_option;
+                if needs_clone {
+                    call_args.push(format!("{name}.clone()"));
+                } else {
+                    call_args.push(name);
+                }
+            }
+        }
+        if ep.request_body.is_some() {
+            call_args.push("body".to_string());
+        }
+        out.push_str(&format!(
+            "            let resp = self.{fn_name}({}).await?;\n",
+            call_args.join(", ")
+        ));
+    }
+
+    out.push_str("            all_data.extend(resp.data);\n");
+    out.push_str("            if page >= resp.pagination.total_pages {\n");
+    out.push_str("                break;\n");
+    out.push_str("            }\n");
+    out.push_str("            page += 1;\n");
+    out.push_str("        }\n");
+    out.push_str("        Ok(all_data)\n");
+    out.push_str("    }\n");
 }
 
 fn tag_to_client_name(tag: &str) -> String {

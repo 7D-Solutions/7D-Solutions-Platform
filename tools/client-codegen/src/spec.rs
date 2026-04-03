@@ -39,6 +39,9 @@ pub struct Endpoint {
     pub query_params: Vec<Param>,
     pub request_body: Option<String>,
     pub response: ResponseKind,
+    /// True when the endpoint requires no authentication (security: [] or
+    /// absent with no top-level security).
+    pub anonymous: bool,
 }
 
 #[derive(Clone)]
@@ -89,13 +92,16 @@ impl ParsedSpec {
             }
         }
 
+        // Determine whether the spec has top-level bearer security.
+        let global_has_bearer = has_bearer_security(&doc["security"]);
+
         // Parse endpoints
         let mut endpoints = Vec::new();
         if let Some(paths) = doc["paths"].as_object() {
             for (path, methods) in paths {
                 if let Some(obj) = methods.as_object() {
                     for (method_str, detail) in obj {
-                        if let Some(ep) = parse_endpoint(method_str, path, detail) {
+                        if let Some(ep) = parse_endpoint(method_str, path, detail, global_has_bearer) {
                             endpoints.push(ep);
                         }
                     }
@@ -133,7 +139,12 @@ fn title_to_crate_name(title: &str) -> String {
         .collect::<Vec<_>>()
         .join("-");
     let module = module.trim_matches('-');
-    format!("platform-client-{module}")
+    // Avoid double-prefix when title already starts with "platform-client-"
+    if module.starts_with("platform-client-") {
+        module.to_string()
+    } else {
+        format!("platform-client-{module}")
+    }
 }
 
 fn parse_type_def(name: &str, schema: &Value) -> Option<TypeDef> {
@@ -359,7 +370,21 @@ fn resolve_ref_type(r: &str) -> String {
     name
 }
 
-fn parse_endpoint(method_str: &str, path: &str, detail: &Value) -> Option<Endpoint> {
+/// Returns true if the `security` JSON value includes a bearer requirement.
+/// e.g. `[{"bearer": []}]` → true, `[]` → false, `null` → false.
+fn has_bearer_security(security: &Value) -> bool {
+    if let Some(arr) = security.as_array() {
+        arr.iter().any(|entry| {
+            entry.as_object().map_or(false, |obj| {
+                obj.contains_key("bearer") || obj.contains_key("Bearer")
+            })
+        })
+    } else {
+        false
+    }
+}
+
+fn parse_endpoint(method_str: &str, path: &str, detail: &Value, global_has_bearer: bool) -> Option<Endpoint> {
     let method = match method_str {
         "get" => HttpMethod::Get,
         "post" => HttpMethod::Post,
@@ -418,6 +443,18 @@ fn parse_endpoint(method_str: &str, path: &str, detail: &Value) -> Option<Endpoi
 
     let response = find_success_response(detail);
 
+    // Determine auth requirement:
+    //   - explicit `security: []` on endpoint → anonymous
+    //   - explicit `security` with bearer on endpoint → authenticated
+    //   - no `security` on endpoint → inherit from global
+    let anonymous = if let Some(sec) = detail.get("security") {
+        // Explicit override on this endpoint
+        !has_bearer_security(sec)
+    } else {
+        // Inherit global: anonymous only if global has no bearer
+        !global_has_bearer
+    };
+
     Some(Endpoint {
         method,
         path: path.to_string(),
@@ -427,6 +464,7 @@ fn parse_endpoint(method_str: &str, path: &str, detail: &Value) -> Option<Endpoi
         query_params,
         request_body,
         response,
+        anonymous,
     })
 }
 

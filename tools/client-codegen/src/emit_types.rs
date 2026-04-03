@@ -72,7 +72,11 @@ fn emit_struct(out: &mut String, name: &str, fields: &[Field], doc: Option<&str>
             out.push_str(&format!("/// {line}\n"));
         }
     }
-    if name.starts_with("Create") && name.ends_with("Request") {
+    // Derive Default only when every required field has a type that implements Default.
+    // Primitive types and Option/Vec do; enums, uuid::Uuid, and chrono types do not.
+    let can_default = (name.starts_with("Create") && name.ends_with("Request"))
+        && fields.iter().all(|f| !f.required || type_has_default(&f.rust_type));
+    if can_default {
         out.push_str("#[derive(Debug, Clone, Default, Serialize, Deserialize)]\n");
     } else {
         out.push_str("#[derive(Debug, Clone, Serialize, Deserialize)]\n");
@@ -134,6 +138,18 @@ fn emit_enum(out: &mut String, name: &str, variants: &[String], doc: Option<&str
     }
 
     out.push_str("}\n\n");
+
+    // as_str() — returns the wire string for each variant
+    out.push_str(&format!("impl {name} {{\n"));
+    out.push_str("    pub fn as_str(&self) -> &'static str {\n");
+    out.push_str("        match self {\n");
+    for v in variants {
+        let pascal = to_pascal_case(v);
+        out.push_str(&format!("            {name}::{pascal} => \"{v}\",\n"));
+    }
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("}\n\n");
 }
 
 fn to_pascal_case(s: &str) -> String {
@@ -146,6 +162,18 @@ fn to_pascal_case(s: &str) -> String {
             }
         })
         .collect()
+}
+
+/// Returns true if the rust type is known to implement `Default`.
+/// Conservative: only primitive types, Option<T>, and Vec<T> qualify.
+/// Custom enums, uuid::Uuid, and chrono types do not.
+fn type_has_default(rust_type: &str) -> bool {
+    matches!(
+        rust_type,
+        "String" | "bool" | "i32" | "i64" | "i16" | "u32" | "u64" | "f32" | "f64"
+            | "usize" | "isize" | "serde_json::Value"
+    ) || rust_type.starts_with("Option<")
+        || rust_type.starts_with("Vec<")
 }
 
 fn sanitize_field(name: &str) -> String {
