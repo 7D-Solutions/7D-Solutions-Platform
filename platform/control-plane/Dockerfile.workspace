@@ -12,6 +12,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY modules modules
 COPY platform platform
 COPY tools tools
+COPY clients clients
 COPY e2e-tests e2e-tests
 RUN cargo chef prepare --recipe-path recipe.json --bin control-plane
 
@@ -26,6 +27,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY modules modules
 COPY platform platform
 COPY tools tools
+COPY clients clients
 COPY e2e-tests e2e-tests
 RUN cargo build --release --bin control-plane
 
