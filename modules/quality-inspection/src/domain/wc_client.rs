@@ -17,7 +17,7 @@ pub async fn verify_inspector_authorized(
     tenant_id: &str,
     inspector_id: Uuid,
 ) -> Result<(), QiError> {
-    let now = Utc::now().to_rfc3339();
+    let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let path = format!(
         "/api/workforce-competence/authorization?operator_id={}&artifact_code={}&at_time={}",
         inspector_id, ARTIFACT_CODE, now

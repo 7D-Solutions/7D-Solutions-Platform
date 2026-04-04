@@ -15,7 +15,7 @@ use uuid::Uuid;
 use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::domain::models::*;
-use crate::domain::service::{self, QiError};
+use crate::domain::service;
 use crate::AppState;
 
 fn correlation_id() -> String {
@@ -88,6 +88,46 @@ pub async fn get_inspection_plan(
     };
     match service::get_inspection_plan(&state.pool, &tenant_id, plan_id).await {
         Ok(plan) => Json(plan).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListPlansPaginatedQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/quality-inspection/plans",
+    tag = "Inspection Plans",
+    params(ListPlansPaginatedQuery),
+    responses(
+        (status = 200, description = "Paginated inspection plans", body = PaginatedResponse<InspectionPlan>),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["QUALITY_INSPECTION_READ"]))
+)]
+pub async fn get_inspection_plans(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Query(q): Query<ListPlansPaginatedQuery>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
+
+    match service::list_inspection_plans(&state.pool, &tenant_id, page, page_size).await {
+        Ok((rows, total)) => {
+            Json(PaginatedResponse::new(rows, page, page_size, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -489,60 +529,19 @@ pub async fn get_inspections_by_part_rev(
     let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
     let offset = (page - 1) * page_size;
 
-    let result: Result<_, QiError> = async {
-        let (rows, total) = if let Some(rev) = q.part_revision.as_deref() {
-            let rows = sqlx::query_as::<_, Inspection>(
-                r#"SELECT * FROM inspections
-                   WHERE tenant_id = $1 AND part_id = $2 AND part_revision = $3
-                   ORDER BY created_at DESC LIMIT $4 OFFSET $5"#,
-            )
-            .bind(&tenant_id)
-            .bind(q.part_id)
-            .bind(rev)
-            .bind(page_size)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await?;
-
-            let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND part_id = $2 AND part_revision = $3",
-            )
-            .bind(&tenant_id)
-            .bind(q.part_id)
-            .bind(rev)
-            .fetch_one(&state.pool)
-            .await?;
-
-            (rows, total.0)
-        } else {
-            let rows = sqlx::query_as::<_, Inspection>(
-                r#"SELECT * FROM inspections
-                   WHERE tenant_id = $1 AND part_id = $2
-                   ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
-            )
-            .bind(&tenant_id)
-            .bind(q.part_id)
-            .bind(page_size)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await?;
-
-            let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND part_id = $2",
-            )
-            .bind(&tenant_id)
-            .bind(q.part_id)
-            .fetch_one(&state.pool)
-            .await?;
-
-            (rows, total.0)
-        };
-        Ok(PaginatedResponse::new(rows, page, page_size, total))
-    }
-    .await;
-
-    match result {
-        Ok(resp) => Json(resp).into_response(),
+    match service::list_inspections_by_part_rev_paginated(
+        &state.pool,
+        &tenant_id,
+        q.part_id,
+        q.part_revision.as_deref(),
+        page_size,
+        offset,
+    )
+    .await
+    {
+        Ok((rows, total)) => {
+            Json(PaginatedResponse::new(rows, page, page_size, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -581,33 +580,18 @@ pub async fn get_inspections_by_receipt(
     let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
     let offset = (page - 1) * page_size;
 
-    let result: Result<_, QiError> = async {
-        let rows = sqlx::query_as::<_, Inspection>(
-            r#"SELECT * FROM inspections
-               WHERE tenant_id = $1 AND receipt_id = $2
-               ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
-        )
-        .bind(&tenant_id)
-        .bind(q.receipt_id)
-        .bind(page_size)
-        .bind(offset)
-        .fetch_all(&state.pool)
-        .await?;
-
-        let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND receipt_id = $2",
-        )
-        .bind(&tenant_id)
-        .bind(q.receipt_id)
-        .fetch_one(&state.pool)
-        .await?;
-
-        Ok(PaginatedResponse::new(rows, page, page_size, total.0))
-    }
-    .await;
-
-    match result {
-        Ok(resp) => Json(resp).into_response(),
+    match service::list_inspections_by_receipt_paginated(
+        &state.pool,
+        &tenant_id,
+        q.receipt_id,
+        page_size,
+        offset,
+    )
+    .await
+    {
+        Ok((rows, total)) => {
+            Json(PaginatedResponse::new(rows, page, page_size, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -647,60 +631,19 @@ pub async fn get_inspections_by_wo(
     let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
     let offset = (page - 1) * page_size;
 
-    let result: Result<_, QiError> = async {
-        let (rows, total) = if let Some(itype) = q.inspection_type.as_deref() {
-            let rows = sqlx::query_as::<_, Inspection>(
-                r#"SELECT * FROM inspections
-                   WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3
-                   ORDER BY created_at DESC LIMIT $4 OFFSET $5"#,
-            )
-            .bind(&tenant_id)
-            .bind(q.wo_id)
-            .bind(itype)
-            .bind(page_size)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await?;
-
-            let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3",
-            )
-            .bind(&tenant_id)
-            .bind(q.wo_id)
-            .bind(itype)
-            .fetch_one(&state.pool)
-            .await?;
-
-            (rows, total.0)
-        } else {
-            let rows = sqlx::query_as::<_, Inspection>(
-                r#"SELECT * FROM inspections
-                   WHERE tenant_id = $1 AND wo_id = $2
-                   ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
-            )
-            .bind(&tenant_id)
-            .bind(q.wo_id)
-            .bind(page_size)
-            .bind(offset)
-            .fetch_all(&state.pool)
-            .await?;
-
-            let total: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2",
-            )
-            .bind(&tenant_id)
-            .bind(q.wo_id)
-            .fetch_one(&state.pool)
-            .await?;
-
-            (rows, total.0)
-        };
-        Ok(PaginatedResponse::new(rows, page, page_size, total))
-    }
-    .await;
-
-    match result {
-        Ok(resp) => Json(resp).into_response(),
+    match service::list_inspections_by_wo_paginated(
+        &state.pool,
+        &tenant_id,
+        q.wo_id,
+        q.inspection_type.as_deref(),
+        page_size,
+        offset,
+    )
+    .await
+    {
+        Ok((rows, total)) => {
+            Json(PaginatedResponse::new(rows, page, page_size, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -739,33 +682,18 @@ pub async fn get_inspections_by_lot(
     let page_size = q.page_size.unwrap_or(50).clamp(1, 200);
     let offset = (page - 1) * page_size;
 
-    let result: Result<_, QiError> = async {
-        let rows = sqlx::query_as::<_, Inspection>(
-            r#"SELECT * FROM inspections
-               WHERE tenant_id = $1 AND lot_id = $2
-               ORDER BY created_at DESC LIMIT $3 OFFSET $4"#,
-        )
-        .bind(&tenant_id)
-        .bind(q.lot_id)
-        .bind(page_size)
-        .bind(offset)
-        .fetch_all(&state.pool)
-        .await?;
-
-        let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND lot_id = $2",
-        )
-        .bind(&tenant_id)
-        .bind(q.lot_id)
-        .fetch_one(&state.pool)
-        .await?;
-
-        Ok(PaginatedResponse::new(rows, page, page_size, total.0))
-    }
-    .await;
-
-    match result {
-        Ok(resp) => Json(resp).into_response(),
+    match service::list_inspections_by_lot_paginated(
+        &state.pool,
+        &tenant_id,
+        q.lot_id,
+        page_size,
+        offset,
+    )
+    .await
+    {
+        Ok((rows, total)) => {
+            Json(PaginatedResponse::new(rows, page, page_size, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

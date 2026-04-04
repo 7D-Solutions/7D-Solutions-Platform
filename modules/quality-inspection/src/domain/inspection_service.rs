@@ -2,6 +2,7 @@ use platform_sdk::PlatformClient;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::domain::inspection_repo as repo;
 use crate::domain::models::*;
 use crate::domain::outbox::enqueue_event;
 use crate::domain::service::QiError;
@@ -23,40 +24,12 @@ pub async fn create_receiving_inspection(
     }
 
     let result_val = req.result.as_deref().unwrap_or("pending");
-    match result_val {
-        "pending" | "pass" | "fail" | "conditional" => {}
-        other => {
-            return Err(QiError::Validation(format!(
-                "Invalid result '{}', expected one of: pending, pass, fail, conditional",
-                other
-            )));
-        }
-    }
+    validate_result(result_val)?;
 
     let mut tx = pool.begin().await?;
 
-    let inspection = sqlx::query_as::<_, Inspection>(
-        r#"
-        INSERT INTO inspections
-            (tenant_id, plan_id, lot_id, inspector_id, inspection_type,
-             result, notes, receipt_id, part_id, part_revision,
-             inspected_at)
-        VALUES ($1, $2, $3, $4, 'receiving', $5, $6, $7, $8, $9,
-                CASE WHEN $5 != 'pending' THEN NOW() ELSE NULL END)
-        RETURNING *
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(req.plan_id)
-    .bind(req.lot_id)
-    .bind(req.inspector_id)
-    .bind(result_val)
-    .bind(&req.notes)
-    .bind(req.receipt_id)
-    .bind(req.part_id)
-    .bind(&req.part_revision)
-    .fetch_one(&mut *tx)
-    .await?;
+    let inspection =
+        repo::insert_receiving_inspection(&mut tx, tenant_id, req, result_val).await?;
 
     enqueue_event(
         &mut tx,
@@ -102,41 +75,12 @@ pub async fn create_in_process_inspection(
     }
 
     let result_val = req.result.as_deref().unwrap_or("pending");
-    match result_val {
-        "pending" | "pass" | "fail" | "conditional" => {}
-        other => {
-            return Err(QiError::Validation(format!(
-                "Invalid result '{}', expected one of: pending, pass, fail, conditional",
-                other
-            )));
-        }
-    }
+    validate_result(result_val)?;
 
     let mut tx = pool.begin().await?;
 
-    let inspection = sqlx::query_as::<_, Inspection>(
-        r#"
-        INSERT INTO inspections
-            (tenant_id, plan_id, lot_id, inspector_id, inspection_type,
-             result, notes, wo_id, op_instance_id, part_id, part_revision,
-             inspected_at)
-        VALUES ($1, $2, $3, $4, 'in_process', $5, $6, $7, $8, $9, $10,
-                CASE WHEN $5 != 'pending' THEN NOW() ELSE NULL END)
-        RETURNING *
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(req.plan_id)
-    .bind(req.lot_id)
-    .bind(req.inspector_id)
-    .bind(result_val)
-    .bind(&req.notes)
-    .bind(req.wo_id)
-    .bind(req.op_instance_id)
-    .bind(req.part_id)
-    .bind(&req.part_revision)
-    .fetch_one(&mut *tx)
-    .await?;
+    let inspection =
+        repo::insert_in_process_inspection(&mut tx, tenant_id, req, result_val).await?;
 
     enqueue_event(
         &mut tx,
@@ -182,40 +126,12 @@ pub async fn create_final_inspection(
     }
 
     let result_val = req.result.as_deref().unwrap_or("pending");
-    match result_val {
-        "pending" | "pass" | "fail" | "conditional" => {}
-        other => {
-            return Err(QiError::Validation(format!(
-                "Invalid result '{}', expected one of: pending, pass, fail, conditional",
-                other
-            )));
-        }
-    }
+    validate_result(result_val)?;
 
     let mut tx = pool.begin().await?;
 
-    let inspection = sqlx::query_as::<_, Inspection>(
-        r#"
-        INSERT INTO inspections
-            (tenant_id, plan_id, lot_id, inspector_id, inspection_type,
-             result, notes, wo_id, part_id, part_revision,
-             inspected_at)
-        VALUES ($1, $2, $3, $4, 'final', $5, $6, $7, $8, $9,
-                CASE WHEN $5 != 'pending' THEN NOW() ELSE NULL END)
-        RETURNING *
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(req.plan_id)
-    .bind(req.lot_id)
-    .bind(req.inspector_id)
-    .bind(result_val)
-    .bind(&req.notes)
-    .bind(req.wo_id)
-    .bind(req.part_id)
-    .bind(&req.part_revision)
-    .fetch_one(&mut *tx)
-    .await?;
+    let inspection =
+        repo::insert_final_inspection(&mut tx, tenant_id, req, result_val).await?;
 
     enqueue_event(
         &mut tx,
@@ -250,19 +166,24 @@ pub async fn get_inspection(
     tenant_id: &str,
     inspection_id: Uuid,
 ) -> Result<Inspection, QiError> {
-    sqlx::query_as::<_, Inspection>(
-        "SELECT * FROM inspections WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(inspection_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| QiError::NotFound("Inspection not found".into()))
+    repo::get_by_id(pool, tenant_id, inspection_id)
+        .await?
+        .ok_or_else(|| QiError::NotFound("Inspection not found".into()))
 }
 
 // ============================================================================
 // Disposition state machine
 // ============================================================================
+
+fn validate_result(result_val: &str) -> Result<(), QiError> {
+    match result_val {
+        "pending" | "pass" | "fail" | "conditional" => Ok(()),
+        other => Err(QiError::Validation(format!(
+            "Invalid result '{}', expected one of: pending, pass, fail, conditional",
+            other
+        ))),
+    }
+}
 
 fn validate_disposition_transition(current: &str, target: &str) -> Result<(), QiError> {
     let allowed = match current {
@@ -302,19 +223,7 @@ async fn transition_disposition(
 
     let mut tx = pool.begin().await?;
 
-    let updated = sqlx::query_as::<_, Inspection>(
-        r#"
-        UPDATE inspections
-        SET disposition = $1, updated_at = NOW()
-        WHERE id = $2 AND tenant_id = $3
-        RETURNING *
-        "#,
-    )
-    .bind(target)
-    .bind(inspection_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let updated = repo::update_disposition(&mut tx, tenant_id, inspection_id, target).await?;
 
     enqueue_event(
         &mut tx,
@@ -452,33 +361,19 @@ pub async fn list_inspections_by_part_rev(
     part_id: Uuid,
     part_revision: Option<&str>,
 ) -> Result<Vec<Inspection>, QiError> {
-    let rows = if let Some(rev) = part_revision {
-        sqlx::query_as::<_, Inspection>(
-            r#"
-            SELECT * FROM inspections
-            WHERE tenant_id = $1 AND part_id = $2 AND part_revision = $3
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(part_id)
-        .bind(rev)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, Inspection>(
-            r#"
-            SELECT * FROM inspections
-            WHERE tenant_id = $1 AND part_id = $2
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(part_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    repo::list_by_part_rev(pool, tenant_id, part_id, part_revision).await
+}
+
+pub async fn list_inspections_by_part_rev_paginated(
+    pool: &PgPool,
+    tenant_id: &str,
+    part_id: Uuid,
+    part_revision: Option<&str>,
+    page_size: i64,
+    offset: i64,
+) -> Result<(Vec<Inspection>, i64), QiError> {
+    repo::list_by_part_rev_paginated(pool, tenant_id, part_id, part_revision, page_size, offset)
+        .await
 }
 
 pub async fn list_inspections_by_receipt(
@@ -486,18 +381,17 @@ pub async fn list_inspections_by_receipt(
     tenant_id: &str,
     receipt_id: Uuid,
 ) -> Result<Vec<Inspection>, QiError> {
-    let rows = sqlx::query_as::<_, Inspection>(
-        r#"
-        SELECT * FROM inspections
-        WHERE tenant_id = $1 AND receipt_id = $2
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(receipt_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
+    repo::list_by_receipt(pool, tenant_id, receipt_id).await
+}
+
+pub async fn list_inspections_by_receipt_paginated(
+    pool: &PgPool,
+    tenant_id: &str,
+    receipt_id: Uuid,
+    page_size: i64,
+    offset: i64,
+) -> Result<(Vec<Inspection>, i64), QiError> {
+    repo::list_by_receipt_paginated(pool, tenant_id, receipt_id, page_size, offset).await
 }
 
 pub async fn list_inspections_by_wo(
@@ -506,33 +400,18 @@ pub async fn list_inspections_by_wo(
     wo_id: Uuid,
     inspection_type: Option<&str>,
 ) -> Result<Vec<Inspection>, QiError> {
-    let rows = if let Some(itype) = inspection_type {
-        sqlx::query_as::<_, Inspection>(
-            r#"
-            SELECT * FROM inspections
-            WHERE tenant_id = $1 AND wo_id = $2 AND inspection_type = $3
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(wo_id)
-        .bind(itype)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, Inspection>(
-            r#"
-            SELECT * FROM inspections
-            WHERE tenant_id = $1 AND wo_id = $2
-            ORDER BY created_at DESC
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(wo_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    repo::list_by_wo(pool, tenant_id, wo_id, inspection_type).await
+}
+
+pub async fn list_inspections_by_wo_paginated(
+    pool: &PgPool,
+    tenant_id: &str,
+    wo_id: Uuid,
+    inspection_type: Option<&str>,
+    page_size: i64,
+    offset: i64,
+) -> Result<(Vec<Inspection>, i64), QiError> {
+    repo::list_by_wo_paginated(pool, tenant_id, wo_id, inspection_type, page_size, offset).await
 }
 
 pub async fn list_inspections_by_lot(
@@ -540,16 +419,15 @@ pub async fn list_inspections_by_lot(
     tenant_id: &str,
     lot_id: Uuid,
 ) -> Result<Vec<Inspection>, QiError> {
-    let rows = sqlx::query_as::<_, Inspection>(
-        r#"
-        SELECT * FROM inspections
-        WHERE tenant_id = $1 AND lot_id = $2
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(lot_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
+    repo::list_by_lot(pool, tenant_id, lot_id).await
+}
+
+pub async fn list_inspections_by_lot_paginated(
+    pool: &PgPool,
+    tenant_id: &str,
+    lot_id: Uuid,
+    page_size: i64,
+    offset: i64,
+) -> Result<(Vec<Inspection>, i64), QiError> {
+    repo::list_by_lot_paginated(pool, tenant_id, lot_id, page_size, offset).await
 }

@@ -29,7 +29,7 @@ async fn setup_db() -> sqlx::PgPool {
 }
 
 fn unique_tenant() -> String {
-    format!("test-tenant-{}", Uuid::new_v4())
+    Uuid::new_v4().to_string()
 }
 
 fn make_op_completed(tenant_id: &str) -> OperationCompletedPayload {

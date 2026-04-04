@@ -11,6 +11,7 @@
 //! Each test uses a unique tenant_id to avoid cross-test interference.
 
 use chrono::Utc;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use platform_sdk::PlatformClient;
 use quality_inspection_rs::consumers::production_event_bridge::{
     process_fg_receipt_requested, process_operation_completed, FgReceiptRequestedPayload,
@@ -20,6 +21,7 @@ use quality_inspection_rs::consumers::receipt_event_bridge::{
     process_item_received, ItemReceivedPayload,
 };
 use quality_inspection_rs::domain::service;
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -27,6 +29,48 @@ use workforce_competence_rs::domain::{
     models::{ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest},
     service as wc_service,
 };
+
+#[derive(Serialize)]
+struct TestClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
+    dotenvy::from_filename_override(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.env"),
+    )
+    .ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set in .env");
+    let encoding =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".to_string()],
+        perms: perms.iter().map(|s| s.to_string()).collect(),
+        actor_type: "service".to_string(),
+        ver: "1".to_string(),
+    };
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, &encoding)
+        .expect("failed to sign JWT")
+}
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
@@ -106,14 +150,15 @@ async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_
         .expect("assign quality_inspection competence");
 }
 
-fn wc_client() -> PlatformClient {
+fn wc_client(tenant_id: &str) -> PlatformClient {
     let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
         .unwrap_or_else(|_| "http://localhost:8121".to_string());
-    PlatformClient::new(url)
+    let token = sign_jwt(tenant_id, &["workforce_competence.read"]);
+    PlatformClient::new(url).with_bearer_token(token)
 }
 
 fn unique_tenant() -> String {
-    format!("test-tenant-{}", Uuid::new_v4())
+    Uuid::new_v4().to_string()
 }
 
 // ============================================================================
@@ -127,8 +172,8 @@ fn unique_tenant() -> String {
 async fn e2e_receiving_hold_release_in_process_final() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let part_id = Uuid::new_v4();
     let wo_id = Uuid::new_v4();
@@ -471,8 +516,8 @@ async fn e2e_receiving_hold_release_in_process_final() {
 async fn e2e_inspector_authorization_gate() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let unauthorized_inspector = Uuid::new_v4();
     let authorized_inspector = Uuid::new_v4();
@@ -630,8 +675,8 @@ async fn e2e_inspector_authorization_gate() {
 async fn e2e_quarantine_round_trip_reject() {
     let pool = setup_db().await;
     let wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let inspector_id = Uuid::new_v4();
 

@@ -13,6 +13,7 @@ use utoipa::OpenApi;
     ),
     paths(
         inspection_routes::post_inspection_plan,
+        inspection_routes::get_inspection_plans,
         inspection_routes::get_inspection_plan,
         inspection_routes::post_activate_plan,
         inspection_routes::post_receiving_inspection,
@@ -39,6 +40,7 @@ use utoipa::OpenApi;
         crate::domain::models::DispositionTransitionRequest,
         platform_http_contracts::ApiError,
         platform_http_contracts::PaginatedResponse<crate::domain::models::Inspection>,
+        platform_http_contracts::PaginatedResponse<crate::domain::models::InspectionPlan>,
     )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),

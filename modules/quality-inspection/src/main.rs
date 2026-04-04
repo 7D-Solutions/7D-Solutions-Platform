@@ -6,7 +6,7 @@ use quality_inspection_rs::{
     consumers::receipt_event_bridge::start_receipt_event_bridge,
     http::{
         inspection_routes::{
-            get_inspection, get_inspection_plan, get_inspections_by_lot,
+            get_inspection, get_inspection_plan, get_inspection_plans, get_inspections_by_lot,
             get_inspections_by_part_rev, get_inspections_by_receipt, get_inspections_by_wo,
             post_accept_inspection, post_activate_plan, post_final_inspection,
             post_hold_inspection, post_in_process_inspection, post_inspection_plan,
@@ -93,6 +93,10 @@ async fn main() {
                 .with_state(app_state.clone());
 
             let qi_reads = Router::new()
+                .route(
+                    "/api/quality-inspection/plans",
+                    axum::routing::get(get_inspection_plans),
+                )
                 .route(
                     "/api/quality-inspection/plans/{plan_id}",
                     axum::routing::get(get_inspection_plan),

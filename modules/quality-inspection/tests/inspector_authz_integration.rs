@@ -1,7 +1,9 @@
 use chrono::Utc;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use platform_sdk::PlatformClient;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -9,6 +11,48 @@ use workforce_competence_rs::domain::{
     models::{ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest},
     service as wc_service,
 };
+
+#[derive(Serialize)]
+struct TestClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
+    dotenvy::from_filename_override(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.env"),
+    )
+    .ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set in .env");
+    let encoding =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".to_string()],
+        perms: perms.iter().map(|s| s.to_string()).collect(),
+        actor_type: "service".to_string(),
+        ver: "1".to_string(),
+    };
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, &encoding)
+        .expect("failed to sign JWT")
+}
 
 async fn setup_qi_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
@@ -53,14 +97,15 @@ async fn setup_wc_db() -> sqlx::PgPool {
     pool
 }
 
-fn wc_client() -> PlatformClient {
+fn wc_client(tenant_id: &str) -> PlatformClient {
     let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
         .unwrap_or_else(|_| "http://localhost:8121".to_string());
-    PlatformClient::new(url)
+    let token = sign_jwt(tenant_id, &["workforce_competence.read"]);
+    PlatformClient::new(url).with_bearer_token(token)
 }
 
 fn unique_tenant() -> String {
-    format!("test-tenant-{}", Uuid::new_v4())
+    Uuid::new_v4().to_string()
 }
 
 /// Register a "quality_inspection" artifact and assign competence to the given operator.
@@ -121,8 +166,8 @@ fn create_pending_inspection_req() -> CreateReceivingInspectionRequest {
 async fn authorize_then_dispose_flow() {
     let qi_pool = setup_qi_db().await;
     let wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
 
@@ -200,8 +245,8 @@ async fn authorize_then_dispose_flow() {
 async fn disposition_without_inspector_id_returns_validation_error() {
     let qi_pool = setup_qi_db().await;
     let _wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
 
     let inspection = service::create_receiving_inspection(
@@ -268,8 +313,8 @@ async fn create_inspection_without_inspector_succeeds() {
 async fn all_disposition_actions_enforce_authorization() {
     let qi_pool = setup_qi_db().await;
     let _wc_pool = setup_wc_db().await;
-    let wc = wc_client();
     let tenant = unique_tenant();
+    let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let unauthorized = Uuid::new_v4();
 

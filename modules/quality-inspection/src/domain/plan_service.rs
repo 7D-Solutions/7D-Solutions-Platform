@@ -83,6 +83,35 @@ pub async fn get_inspection_plan(
     .ok_or_else(|| QiError::NotFound("Inspection plan not found".into()))
 }
 
+pub async fn list_inspection_plans(
+    pool: &PgPool,
+    tenant_id: &str,
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<InspectionPlan>, i64), QiError> {
+    let offset = (page - 1) * page_size;
+
+    let rows = sqlx::query_as::<_, InspectionPlan>(
+        r#"SELECT * FROM inspection_plans
+           WHERE tenant_id = $1
+           ORDER BY created_at DESC LIMIT $2 OFFSET $3"#,
+    )
+    .bind(tenant_id)
+    .bind(page_size)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM inspection_plans WHERE tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok((rows, total.0))
+}
+
 pub async fn activate_plan(
     pool: &PgPool,
     tenant_id: &str,

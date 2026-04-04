@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.1.0 | 2026-04-04 | bd-b89j6,bd-89i91,bd-5448p,bd-6ys1x | Add list_plans endpoint, extract inspection_repo.rs from inspection_service.rs (23 SQL queries), extract SQL from inspection_routes.rs (12 queries), fix test tenant_id validation + wc_client URL encoding | SoC: repo layer extraction + friction sweep list endpoint + test hardening | No |
 | 3.0.0 | 2026-04-02 | bd-1f3qr | Remove direct workforce-competence DB access. QI now calls WC via HTTP PlatformClient instead of reading WC database. | Module boundary violation — QI was coupled to WC database | Yes — WORKFORCE_COMPETENCE_DATABASE_URL replaced with WORKFORCE_COMPETENCE_BASE_URL |
 | 2.1.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |
 | 2.0.3 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Dual DB pool created in routes closure. Consumer bridges spawn via bus_arc(). | SDK batch conversion — eliminate two classes of modules. | No |
