@@ -254,7 +254,7 @@ All events use the platform `EventEnvelope` and are published to NATS via `Event
 | `auth.user.registered` | `auth.events.user.registered` | Successful credential registration | `user_id`, `email` |
 | `auth.user.logged_in` | `auth.events.user.logged_in` | Successful login | `user_id` |
 | `auth.token.refreshed` | `auth.events.token.refreshed` | Successful token refresh | `user_id` |
-| `auth.password_reset_requested` | `auth.events.password_reset_requested` | Successful `forgot-password` when user found | `user_id`, `email`, `raw_token` (**sensitive — TLS bus required**), `expires_at`, `correlation_id` |
+| `auth.events.password_reset_requested` | `auth.events.password_reset_requested` | Successful `forgot-password` when user found | `user_id`, `email`, `raw_token` (**sensitive — TLS bus required**), `expires_at`, `correlation_id` |
 | `auth.events.password_reset_completed` | `auth.events.password_reset_completed` | Successful `reset-password` | `user_id`, `correlation_id` |
 
 **Note:** A logout event schema file (`auth.user.logged_out.v1.json`) exists in `src/events/schemas/` but the event is not currently published by the logout handler. It is reserved for a future implementation.

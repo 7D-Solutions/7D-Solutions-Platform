@@ -414,14 +414,14 @@ async fn test_nats_completion_event_published() {
 
     // Subscribe BEFORE publishing
     let mut sub = nats
-        .subscribe("auth.password_reset_completed")
+        .subscribe("auth.events.password_reset_completed")
         .await
         .expect("subscribe to NATS subject");
 
     // Build and publish the completion event using canonical EventEnvelope structure
     let payload = serde_json::json!({
         "event_id": Uuid::new_v4().to_string(),
-        "event_type": "auth.password_reset_completed",
+        "event_type": "auth.events.password_reset_completed",
         "schema_version": "1.0.0",
         "source_version": "1.0.0",
         "occurred_at": Utc::now().to_rfc3339(),
@@ -437,7 +437,7 @@ async fn test_nats_completion_event_published() {
     });
 
     nats.publish(
-        "auth.password_reset_completed",
+        "auth.events.password_reset_completed",
         serde_json::to_vec(&payload).unwrap().into(),
     )
     .await
@@ -453,8 +453,8 @@ async fn test_nats_completion_event_published() {
         serde_json::from_slice(&msg.payload).expect("parse NATS message as JSON");
 
     assert_eq!(
-        received["event_type"], "auth.password_reset_completed",
-        "event_type must be auth.password_reset_completed"
+        received["event_type"], "auth.events.password_reset_completed",
+        "event_type must be auth.events.password_reset_completed"
     );
     assert_eq!(
         received["payload"]["user_id"],

@@ -160,8 +160,8 @@ All events are deduplicated by `event_id`. Your consumer must check and skip alr
 | `auth.user_registered` | User registered |
 | `auth.user_logged_in` | Successful login |
 | `auth.token_refreshed` | JWT token refreshed |
-| `auth.password_reset_requested` | Forgot-password initiated |
-| `auth.password_reset_completed` | Password reset completed |
+| `auth.events.password_reset_requested` | Forgot-password initiated |
+| `auth.events.password_reset_completed` | Password reset completed |
 | `auth.sod.policy.upserted` | SoD policy created or updated |
 | `auth.sod.policy.deleted` | SoD policy deleted |
 | `auth.sod.decision.recorded` | SoD evaluation decision logged |

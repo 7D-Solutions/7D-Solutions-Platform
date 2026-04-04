@@ -126,7 +126,7 @@ pub async fn forgot_password(
         let env = EventEnvelope::new(
             tenant_id.to_string(),
             state.producer.clone(),
-            "auth.password_reset_requested".to_string(),
+            "auth.events.password_reset_requested".to_string(),
             PasswordResetRequestedData {
                 user_id: user_id.to_string(),
                 email,
@@ -142,8 +142,8 @@ pub async fn forgot_password(
         if state
             .events
             .publish(
-                "auth.password_reset_requested",
-                "auth.password_reset_requested.v1.json",
+                "auth.events.password_reset_requested",
+                "auth.events.password_reset_requested.v1.json",
                 &env,
             )
             .await
@@ -287,7 +287,7 @@ pub async fn reset_password(
     let env = EventEnvelope::new(
         tenant_id.to_string(),
         state.producer.clone(),
-        "auth.password_reset_completed".to_string(),
+        "auth.events.password_reset_completed".to_string(),
         PasswordResetCompletedData {
             user_id: user_id.to_string(),
             correlation_id: trace_id.clone(),
@@ -300,8 +300,8 @@ pub async fn reset_password(
     if state
         .events
         .publish(
-            "auth.password_reset_completed",
-            "auth.password_reset_completed.v1.json",
+            "auth.events.password_reset_completed",
+            "auth.events.password_reset_completed.v1.json",
             &env,
         )
         .await

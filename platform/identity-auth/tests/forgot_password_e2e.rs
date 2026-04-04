@@ -177,8 +177,8 @@ async fn test_nats_event_contains_raw_token() {
     // Build event payload using canonical EventEnvelope structure
     let payload = serde_json::json!({
         "event_id": Uuid::new_v4().to_string(),
-        "event_type": "auth.password_reset_requested",
-        "schema_version": "auth.password_reset_requested/v1",
+        "event_type": "auth.events.password_reset_requested",
+        "schema_version": "auth.events.password_reset_requested/v1",
         "source_version": "1.0.0",
         "occurred_at": Utc::now().to_rfc3339(),
         "source_module": "auth-rs@test",
@@ -197,12 +197,12 @@ async fn test_nats_event_contains_raw_token() {
 
     // Subscribe BEFORE publishing
     let mut sub = nats
-        .subscribe("auth.password_reset_requested")
+        .subscribe("auth.events.password_reset_requested")
         .await
         .expect("subscribe to NATS subject");
 
     nats.publish(
-        "auth.password_reset_requested",
+        "auth.events.password_reset_requested",
         serde_json::to_vec(&payload).unwrap().into(),
     )
     .await
@@ -229,8 +229,8 @@ async fn test_nats_event_contains_raw_token() {
         "NATS event payload.user_id must match"
     );
     assert_eq!(
-        received["event_type"], "auth.password_reset_requested",
-        "event_type must be auth.password_reset_requested"
+        received["event_type"], "auth.events.password_reset_requested",
+        "event_type must be auth.events.password_reset_requested"
     );
     // Canonical envelope fields present
     assert_eq!(
