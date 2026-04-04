@@ -18,8 +18,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 /// Default maximum request body size: 2 MiB (matches platform security constant).
 const DEFAULT_BODY_LIMIT: usize = 2 * 1024 * 1024;
 
-// TODO: Re-enable when tower_governor compatibility with axum 0.7 is fixed
-// use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -141,14 +140,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let jwks_state = Arc::new(routes::jwks::JwksState { jwt });
 
     // Per-IP governor (global safety net)
-    // NOTE: Temporarily disabled due to tower_governor/axum compatibility issues
-    // TODO: Re-enable with working configuration or alternative rate limiting approach
-    // let governor_conf = GovernorConfigBuilder::default()
-    //     .per_second(cfg.ip_rl_per_second as u64)
-    //     .burst_size(cfg.ip_rl_burst as u32)
-    //     .finish()
-    //     .unwrap();
-    // let governor_layer = GovernorLayer::new(governor_conf);
+    let governor_conf = GovernorConfigBuilder::default()
+        .per_millisecond(1000 / cfg.ip_rl_per_second.max(1) as u64)
+        .burst_size(cfg.ip_rl_burst)
+        .use_headers()
+        .finish()
+        .expect("governor config must be valid with positive rate and burst");
+    let governor_layer = GovernorLayer::new(governor_conf);
 
     // Build routers separately then merge
     let health_router = Router::new()
@@ -188,8 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(axum::middleware::from_fn(
             middleware::tracing::trace_id_middleware,
         ))
-        // per-IP limiter - TODO: re-enable when tower_governor works with axum 0.7
-        // .layer(governor_layer)
+        .layer(governor_layer)
         .layer(cors_layer)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(TraceLayer::new_for_http());
