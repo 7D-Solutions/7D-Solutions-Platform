@@ -166,9 +166,13 @@ pub struct SodPolicy {
     pub allow_override: bool,
     pub conflicting_role_id: uuid::Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     pub id: uuid::Uuid,
     pub override_requires_approval: bool,
     pub primary_role_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
     pub tenant_id: uuid::Uuid,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -183,9 +187,13 @@ pub struct SodPolicyUpsertReq {
     pub causation_id: Option<uuid::Uuid>,
     pub conflicting_role_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub idempotency_key: Option<String>,
     pub override_requires_approval: bool,
     pub primary_role_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
     pub tenant_id: uuid::Uuid,
 }
 

@@ -34,6 +34,7 @@ pub struct GenericOkResponse {
 }
 
 #[utoipa::path(post, path = "/api/auth/forgot-password", tag = "Password Reset",
+    security(()),
     request_body = ForgotPasswordRequest,
     responses(
         (status = 200, description = "If account exists, reset email sent", body = GenericOkResponse),
@@ -175,6 +176,7 @@ pub struct ResetPasswordRequest {
 }
 
 #[utoipa::path(post, path = "/api/auth/reset-password", tag = "Password Reset",
+    security(()),
     request_body = ResetPasswordRequest,
     responses(
         (status = 200, description = "Password reset successful", body = crate::auth::handlers::OkResponse),

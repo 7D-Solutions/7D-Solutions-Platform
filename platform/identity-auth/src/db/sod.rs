@@ -14,6 +14,8 @@ pub struct SodPolicy {
     pub conflicting_role_id: Uuid,
     pub allow_override: bool,
     pub override_requires_approval: bool,
+    pub scope: Option<String>,
+    pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -26,6 +28,8 @@ pub struct SodPolicyUpsert {
     pub conflicting_role_id: Uuid,
     pub allow_override: bool,
     pub override_requires_approval: bool,
+    pub scope: Option<String>,
+    pub description: Option<String>,
     pub actor_user_id: Option<Uuid>,
     pub idempotency_key: String,
     pub trace_id: String,
@@ -90,6 +94,8 @@ pub async fn upsert_policy(
         "conflicting_role_id": req.conflicting_role_id,
         "allow_override": req.allow_override,
         "override_requires_approval": req.override_requires_approval,
+        "scope": req.scope,
+        "description": req.description,
     }))
     .fetch_optional(&mut *tx)
     .await?;
@@ -104,9 +110,11 @@ pub async fn upsert_policy(
             primary_role_id,
             conflicting_role_id,
             allow_override,
-            override_requires_approval
+            override_requires_approval,
+            scope,
+            description
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         ON CONFLICT (
             tenant_id,
             action_key,
@@ -116,9 +124,12 @@ pub async fn upsert_policy(
         DO UPDATE SET
             allow_override = EXCLUDED.allow_override,
             override_requires_approval = EXCLUDED.override_requires_approval,
+            scope = EXCLUDED.scope,
+            description = EXCLUDED.description,
             updated_at = NOW()
         RETURNING id, tenant_id, action_key, primary_role_id, conflicting_role_id,
-                  allow_override, override_requires_approval, created_at, updated_at
+                  allow_override, override_requires_approval, scope, description,
+                  created_at, updated_at
         "#,
     )
     .bind(req.tenant_id)
@@ -127,6 +138,8 @@ pub async fn upsert_policy(
     .bind(req.conflicting_role_id)
     .bind(req.allow_override)
     .bind(req.override_requires_approval)
+    .bind(req.scope.clone())
+    .bind(req.description.clone())
     .fetch_one(&mut *tx)
     .await?;
 
@@ -138,6 +151,8 @@ pub async fn upsert_policy(
         conflicting_role_id: policy.get("conflicting_role_id"),
         allow_override: policy.get("allow_override"),
         override_requires_approval: policy.get("override_requires_approval"),
+        scope: policy.get("scope"),
+        description: policy.get("description"),
         created_at: policy.get("created_at"),
         updated_at: policy.get("updated_at"),
     };
@@ -160,6 +175,8 @@ pub async fn upsert_policy(
                 "conflicting_role_id": policy.conflicting_role_id,
                 "allow_override": policy.allow_override,
                 "override_requires_approval": policy.override_requires_approval,
+                "scope": policy.scope,
+                "description": policy.description,
                 "idempotency_key": req.idempotency_key,
             }),
         )
@@ -441,7 +458,8 @@ pub async fn list_policies(
     let rows = sqlx::query(
         r#"
         SELECT id, tenant_id, action_key, primary_role_id, conflicting_role_id,
-               allow_override, override_requires_approval, created_at, updated_at
+               allow_override, override_requires_approval, scope, description,
+               created_at, updated_at
         FROM sod_policies
         WHERE tenant_id = $1 AND action_key = $2
         ORDER BY created_at ASC, id ASC
@@ -462,6 +480,8 @@ pub async fn list_policies(
             conflicting_role_id: r.get("conflicting_role_id"),
             allow_override: r.get("allow_override"),
             override_requires_approval: r.get("override_requires_approval"),
+            scope: r.get("scope"),
+            description: r.get("description"),
             created_at: r.get("created_at"),
             updated_at: r.get("updated_at"),
         })

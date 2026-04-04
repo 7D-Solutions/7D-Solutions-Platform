@@ -175,7 +175,9 @@ impl ModuleBuilder {
     /// # Example
     ///
     /// ```rust,ignore
-    /// .tenant_consumer("ar.events.invoice.opened", |pool, tenant_id, payload: InvoiceOpened| async move {
+    /// use platform_contracts::event_naming::SUBJECT_AR_INVOICE_OPENED;
+    ///
+    /// .tenant_consumer(SUBJECT_AR_INVOICE_OPENED, |pool, tenant_id, payload: InvoiceLifecyclePayload| async move {
     ///     // pool is already resolved for this tenant
     ///     // payload is deserialized from the envelope
     ///     Ok(())

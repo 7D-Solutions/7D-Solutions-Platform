@@ -130,6 +130,8 @@ pub struct SodPolicyUpsertReq {
     pub conflicting_role_id: Uuid,
     pub allow_override: bool,
     pub override_requires_approval: bool,
+    pub scope: Option<String>,
+    pub description: Option<String>,
     pub actor_user_id: Option<Uuid>,
     pub idempotency_key: Option<String>,
     pub causation_id: Option<Uuid>,
@@ -256,6 +258,8 @@ pub async fn upsert_sod_policy(
             conflicting_role_id: req.conflicting_role_id,
             allow_override: req.allow_override,
             override_requires_approval: req.override_requires_approval,
+            scope: req.scope,
+            description: req.description,
             actor_user_id: req.actor_user_id,
             idempotency_key,
             trace_id,
@@ -448,6 +452,7 @@ pub async fn get_user_lifecycle_timeline(
 }
 
 #[utoipa::path(post, path = "/api/auth/register", tag = "Auth",
+    security(()),
     request_body = RegisterReq,
     responses(
         (status = 200, description = "User registered", body = OkResponse),
@@ -669,6 +674,7 @@ pub async fn register(
 }
 
 #[utoipa::path(post, path = "/api/auth/login", tag = "Auth",
+    security(()),
     request_body = LoginReq,
     responses(
         (status = 200, description = "Login successful", body = TokenResponse),

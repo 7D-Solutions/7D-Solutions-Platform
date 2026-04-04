@@ -31,6 +31,7 @@ pub struct LogoutReq {
 }
 
 #[utoipa::path(post, path = "/api/auth/refresh", tag = "Auth",
+    security(()),
     request_body = RefreshReq,
     responses(
         (status = 200, description = "Tokens refreshed", body = TokenResponse),
