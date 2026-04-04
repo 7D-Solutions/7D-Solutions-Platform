@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 6.3.0 | 2026-04-04 | bd-q7dix,bd-nyb7t | Implement invoice lifecycle event emission (invoice_attempting, invoice_paid, invoice_failed_final, invoice_void) + envelope schema validation | Invoice lifecycle events needed for downstream consumers (payments, notifications) + constitutional envelope compliance | No |
 | 6.2.2 | 2026-04-04 | bd-t8y4c | SoC: additional domain module refinements for charges, events, subscriptions, webhooks | Separation of concerns — continued extraction of business logic from HTTP handlers into domain modules | No |
 | 6.2.1 | 2026-04-04 | bd-t8y4c | SoC: extract SQL from HTTP handlers into domain modules (charges, customers, refunds, subscriptions, payment_methods, webhooks, tax_config, disputes, events, usage, health). 96 queries moved. | Separation of concerns — SQL queries mixed into HTTP handlers violate the repo/service/handler layering pattern. | No |
 | 6.2.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |

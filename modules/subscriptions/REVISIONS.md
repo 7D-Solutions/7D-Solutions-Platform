@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 5.2.1 | 2026-04-04 | bd-nyb7t | Envelope schema validation implemented | Constitutional envelope compliance — validate EventEnvelope schema on all outbound events | No |
 | 5.2.0 | 2026-04-04 | bd-lyhp3 | SoC: move bill_run_repo and bill_run_service from http/ to domain layers. Add utoipa annotations to health endpoints for G4 compliance. | Separation of concerns + HTTP ergonomics | No |
 | 5.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 5.0.0 | 2026-04-02 | bd-cmgbw | Add ToSchema to 7 domain model structs (SubscriptionPlan, CreateSubscriptionPlanRequest, Subscription, CreateSubscriptionRequest, PauseSubscriptionRequest, CancelSubscriptionRequest, BillRun). Register all schemas in OpenAPI components. | Complete utoipa coverage: domain models were missing ToSchema, blocking typed client generation and OpenAPI spec completeness. | YES: OpenAPI spec now includes 7 additional schema definitions. No runtime API behavior changes — same endpoints, same request/response shapes. Consumers regenerating from the spec will see new types. |

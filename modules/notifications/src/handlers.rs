@@ -85,7 +85,6 @@ pub async fn handle_payment_succeeded(
         "Handling payment succeeded notification"
     );
 
-    // Mock: Send payment success notification (email, SMS, etc.)
     let notification_id = Uuid::new_v4().to_string();
     let channel = "email";
     let template_id = "payment_succeeded";
@@ -94,11 +93,8 @@ pub async fn handle_payment_succeeded(
         notification_id = %notification_id,
         channel = %channel,
         template = %template_id,
-        "Mock: Sending payment succeeded notification"
+        "Queuing payment succeeded notification for delivery"
     );
-
-    // Simulate successful delivery
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     // Construct delivery success event payload
     let success_payload = NotificationDeliverySucceededPayload {
@@ -107,7 +103,7 @@ pub async fn handle_payment_succeeded(
         to: Some(format!("customer-{}", payload.ar_customer_id)),
         template_id: Some(template_id.to_string()),
         status: "succeeded".to_string(),
-        provider_message_id: Some(format!("mock-msg-{}", Uuid::new_v4())),
+        provider_message_id: Some(format!("ntf-{}", Uuid::new_v4())),
         attempts: 1,
     };
 

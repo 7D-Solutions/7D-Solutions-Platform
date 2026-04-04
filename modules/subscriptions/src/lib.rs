@@ -12,6 +12,7 @@ pub mod consumer;
 pub mod cycle_gating;
 pub mod db;
 pub mod envelope;
+pub mod envelope_validation;
 pub mod gated_invoice_creation;
 pub mod http;
 pub mod invariants;

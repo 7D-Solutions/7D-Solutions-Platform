@@ -10,14 +10,15 @@ use crate::envelope_validation::validate_envelope;
 use crate::events::EventConsumer;
 use crate::handlers::{handle_payment_collection_requested, EnvelopeMetadata};
 use crate::models::PaymentCollectionRequestedPayload;
+use crate::processor::PaymentProcessor;
 
 /// Start consumer task that subscribes to ar.payment.collection.requested events
 ///
 /// This function spawns a background task that:
 /// 1. Subscribes to AR payment collection events
-/// 2. Processes payments using mock processor
-/// 3. Emits payment succeeded events
-pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+/// 2. Processes payments using the configured processor
+/// 3. Emits payment succeeded/failed events
+pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgPool, processor: Arc<dyn PaymentProcessor>) {
     tokio::spawn(async move {
         tracing::info!("Starting payment collection consumer");
 
@@ -70,6 +71,7 @@ pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgP
                 let consumer_clone = consumer.clone();
                 let pool_clone = pool.clone();
                 let msg_clone = msg.clone();
+                let processor_clone = processor.clone();
 
                 // Retry processing with exponential backoff
                 // Wrap in a Send-safe error type (String)
@@ -78,8 +80,9 @@ pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgP
                         let consumer = consumer_clone.clone();
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
+                        let proc = processor_clone.clone();
                         async move {
-                            process_payment_collection_request(&consumer, &pool, &msg)
+                            process_payment_collection_request(&consumer, &pool, proc.as_ref(), &msg)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -117,6 +120,7 @@ pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgP
 async fn process_payment_collection_request(
     consumer: &EventConsumer,
     pool: &PgPool,
+    processor: &dyn PaymentProcessor,
     msg: &BusMessage,
 ) -> anyhow::Result<()> {
     // Use EventConsumer's idempotent processing
@@ -158,7 +162,7 @@ async fn process_payment_collection_request(
                 };
 
                 // Handle the payment collection request
-                handle_payment_collection_requested(pool, payload, metadata).await
+                handle_payment_collection_requested(pool, processor, payload, metadata).await
             },
         )
         .await

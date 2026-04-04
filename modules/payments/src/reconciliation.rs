@@ -22,7 +22,7 @@
 //! - Lifecycle integration: Use lifecycle::transition_to_* functions (NO direct SQL)
 
 use crate::lifecycle::{status, LifecycleError};
-use crate::processor::MockPaymentProcessor;
+use crate::processor::PaymentProcessor;
 use sqlx::PgPool;
 use std::fmt;
 use tracing::{info, warn};
@@ -157,6 +157,7 @@ pub enum PspPaymentStatus {
 pub async fn reconcile_unknown_attempt(
     pool: &PgPool,
     attempt_id: Uuid,
+    processor: &dyn PaymentProcessor,
 ) -> Result<ReconciliationResult, ReconciliationError> {
     let mut tx = pool.begin().await?;
 
@@ -202,7 +203,7 @@ pub async fn reconcile_unknown_attempt(
     let processor_payment_id =
         processor_payment_id.ok_or(ReconciliationError::MissingProcessorPaymentId(attempt_id))?;
 
-    let psp_status = poll_psp_status_with_retry(&processor_payment_id, 3).await?;
+    let psp_status = poll_psp_status_with_retry(processor, &processor_payment_id, 3).await?;
 
     // ========================================================================
     // STEP 4: Resolve UNKNOWN to terminal state via lifecycle functions
@@ -276,10 +277,10 @@ pub async fn reconcile_unknown_attempt(
 /// let psp_status = poll_psp_status_with_retry("pay_stripe_12345", 3).await?;
 /// ```
 async fn poll_psp_status_with_retry(
+    processor: &dyn PaymentProcessor,
     processor_payment_id: &str,
     max_attempts: i32,
 ) -> Result<PspPaymentStatus, ReconciliationError> {
-    let processor = MockPaymentProcessor::new();
     let mut last_error = String::new();
 
     for attempt in 1..=max_attempts {

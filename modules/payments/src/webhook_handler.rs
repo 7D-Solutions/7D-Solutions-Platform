@@ -297,10 +297,98 @@ pub async fn update_payment_status_from_webhook(
     // STEP 5: Event Emission (after mutation succeeds)
     // ==========================================================================
     //
-    // TODO (future bead - bd-XXX): Emit payment status events
-    // - payments.payment.succeeded (if target_status == "succeeded")
-    // - payments.payment.failed (if target_status == "failed_*")
-    // - payments.payment.unknown (if target_status == "unknown")
+    // Fetch attempt details for event payload
+    let row: (String, uuid::Uuid, String) = sqlx::query_as(
+        "SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1",
+    )
+    .bind(attempt_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (app_id, payment_id_val, invoice_id) = row;
+
+    match target_status {
+        "succeeded" => {
+            let payload = crate::models::PaymentSucceededPayload {
+                payment_id: payment_id_val.to_string(),
+                invoice_id,
+                ar_customer_id: app_id.clone(),
+                amount_minor: 0,
+                currency: "USD".to_string(),
+                processor_payment_id: None,
+                payment_method_ref: None,
+            };
+            let envelope = crate::events::envelope::create_payments_envelope(
+                uuid::Uuid::new_v4(),
+                app_id,
+                "payment.succeeded".to_string(),
+                Some(webhook_event_id.to_string()),
+                None,
+                "LIFECYCLE".to_string(),
+                payload,
+            );
+            crate::events::outbox::enqueue_event_tx(
+                &mut tx,
+                "payment.succeeded",
+                &envelope,
+            )
+            .await?;
+        }
+        s if s.starts_with("failed") => {
+            let payload = crate::models::PaymentFailedPayload {
+                payment_id: payment_id_val.to_string(),
+                invoice_id,
+                ar_customer_id: app_id.clone(),
+                amount_minor: 0,
+                currency: "USD".to_string(),
+                failure_code: target_status.to_string(),
+                failure_message: None,
+                processor_payment_id: None,
+                payment_method_ref: None,
+            };
+            let envelope = crate::events::envelope::create_payments_envelope(
+                uuid::Uuid::new_v4(),
+                app_id,
+                "payment.failed".to_string(),
+                Some(webhook_event_id.to_string()),
+                None,
+                "LIFECYCLE".to_string(),
+                payload,
+            );
+            crate::events::outbox::enqueue_event_tx(
+                &mut tx,
+                "payment.failed",
+                &envelope,
+            )
+            .await?;
+        }
+        "unknown" => {
+            let payload = crate::models::PaymentUnknownPayload {
+                payment_id: payment_id_val.to_string(),
+                invoice_id,
+                ar_customer_id: app_id.clone(),
+                processor_payment_id: None,
+                payment_method_ref: None,
+            };
+            let envelope = crate::events::envelope::create_payments_envelope(
+                uuid::Uuid::new_v4(),
+                app_id,
+                "payment.unknown".to_string(),
+                Some(webhook_event_id.to_string()),
+                None,
+                "LIFECYCLE".to_string(),
+                payload,
+            );
+            crate::events::outbox::enqueue_event_tx(
+                &mut tx,
+                "payment.unknown",
+                &envelope,
+            )
+            .await?;
+        }
+        _ => {
+            // No event emission for unrecognized statuses
+        }
+    }
 
     tx.commit().await?;
     Ok(())

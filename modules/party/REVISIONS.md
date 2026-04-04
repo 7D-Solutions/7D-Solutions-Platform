@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.4 | 2026-04-04 | bd-4rg59 | SoC: extract service_tests.rs from party/service.rs | Test isolation from domain service | No |
 | 3.2.3 | 2026-04-04 | bd-4rg59 | SoC: address_repo refinements | Repo cleanup | No |
 | 3.2.2 | 2026-04-04 | bd-4rg59 | Repo module refinements: contact, contact_role, credit_terms repos | Separation of concerns cleanup | No |
 | 3.2.1 | 2026-04-04 | bd-4rg59 | SoC: domain services (address, contact, party create/query/update) refactored to use db repo modules | Separation of concerns — domain services delegate SQL to repos | No |

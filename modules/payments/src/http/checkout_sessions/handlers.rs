@@ -139,25 +139,29 @@ pub async fn create_checkout_session(
         }));
     }
 
-    let (pi_id, client_secret) = if let (Some(api_key), Some(account_id)) = (
+    let (api_key, account_id) = match (
         state.tilled_api_key.as_deref(),
         state.tilled_account_id.as_deref(),
     ) {
-        create_tilled_payment_intent(api_key, account_id, req.amount, &req.currency)
-            .await
-            .map_err(|e| {
-                tracing::error!("Tilled API error: {}", e);
-                with_request_id(
-                    ApiError::new(502, "bad_gateway", "Payment processor error"),
-                    &tracing_ctx,
-                )
-            })?
-    } else {
-        // Mock provider: generate fake IDs for dev/test
-        let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
-        let secret = format!("{}_secret_{}", pi_id, Uuid::new_v4().simple());
-        (pi_id, secret)
+        (Some(k), Some(a)) => (k, a),
+        _ => {
+            tracing::error!("Payment processor not configured — TILLED_API_KEY and TILLED_ACCOUNT_ID are required");
+            return Err(with_request_id(
+                ApiError::internal("Payment processor not configured"),
+                &tracing_ctx,
+            ));
+        }
     };
+
+    let (pi_id, client_secret) = create_tilled_payment_intent(api_key, account_id, req.amount, &req.currency)
+        .await
+        .map_err(|e| {
+            tracing::error!("Tilled API error: {}", e);
+            with_request_id(
+                ApiError::new(502, "bad_gateway", "Payment processor error"),
+                &tracing_ctx,
+            )
+        })?;
 
     let insert_result = repo::insert_checkout_session(
         &state.pool,

@@ -5,16 +5,17 @@ use crate::events::enqueue_event;
 use crate::models::{
     PaymentCollectionRequestedPayload, PaymentFailedPayload, PaymentSucceededPayload,
 };
-use crate::processor::MockPaymentProcessor;
+use crate::processor::PaymentProcessor;
 
 /// Handle ar.payment.collection.requested event
 ///
 /// This handler:
 /// 1. Receives payment collection request from AR
-/// 2. Processes payment using mock processor
+/// 2. Processes payment using the configured processor
 /// 3. Emits payments.payment.succeeded or payments.payment.failed event
 pub async fn handle_payment_collection_requested(
     pool: &PgPool,
+    processor: &dyn PaymentProcessor,
     payload: PaymentCollectionRequestedPayload,
     envelope_metadata: EnvelopeMetadata,
 ) -> anyhow::Result<()> {
@@ -25,8 +26,6 @@ pub async fn handle_payment_collection_requested(
         "Handling payment collection request"
     );
 
-    // Process payment using mock processor
-    let processor = MockPaymentProcessor::new();
     let result = processor.process_payment(&payload).await;
 
     match result {

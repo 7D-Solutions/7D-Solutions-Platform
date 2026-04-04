@@ -220,6 +220,7 @@ pub fn admin_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::processor::test_support::TestPaymentProcessor;
     use sqlx::PgPool;
 
     #[tokio::test]
@@ -227,6 +228,7 @@ mod tests {
         let pool = PgPool::connect_lazy("postgres://localhost/fake").expect("test pool");
         let state = Arc::new(AppState {
             pool,
+            processor: Arc::new(TestPaymentProcessor::new()),
             tilled_api_key: None,
             tilled_account_id: None,
             tilled_webhook_secret: None,

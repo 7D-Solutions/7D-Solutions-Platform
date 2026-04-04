@@ -11,9 +11,14 @@
 //! 8. Missing processor_payment_id error
 
 use payments_rs::reconciliation::{reconcile_unknown_attempt, ReconciliationResult};
+use payments_rs::TestPaymentProcessor;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
+
+fn test_processor() -> TestPaymentProcessor {
+    TestPaymentProcessor::new()
+}
 
 async fn setup_test_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
@@ -65,7 +70,7 @@ async fn test_reconcile_unknown_to_succeeded() {
     .expect("Failed to create payment attempt");
 
     // Reconcile the UNKNOWN attempt
-    let result = reconcile_unknown_attempt(&pool, attempt_id)
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Reconciliation failed");
 
@@ -129,7 +134,7 @@ async fn test_reconcile_unknown_to_failed_retry() {
     .expect("Failed to create payment attempt");
 
     // Reconcile the UNKNOWN attempt
-    let result = reconcile_unknown_attempt(&pool, attempt_id)
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Reconciliation failed");
 
@@ -193,7 +198,7 @@ async fn test_reconcile_unknown_to_failed_final() {
     .expect("Failed to create payment attempt");
 
     // Reconcile the UNKNOWN attempt
-    let result = reconcile_unknown_attempt(&pool, attempt_id)
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Reconciliation failed");
 
@@ -257,7 +262,7 @@ async fn test_reconcile_idempotency() {
     .expect("Failed to create payment attempt");
 
     // First reconciliation - should resolve to SUCCEEDED
-    let result1 = reconcile_unknown_attempt(&pool, attempt_id)
+    let result1 = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("First reconciliation failed");
 
@@ -270,7 +275,7 @@ async fn test_reconcile_idempotency() {
     );
 
     // Second reconciliation - should return AlreadyResolved (idempotent no-op)
-    let result2 = reconcile_unknown_attempt(&pool, attempt_id)
+    let result2 = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Second reconciliation failed");
 
@@ -282,7 +287,7 @@ async fn test_reconcile_idempotency() {
     );
 
     // Third reconciliation - verify still idempotent
-    let result3 = reconcile_unknown_attempt(&pool, attempt_id)
+    let result3 = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Third reconciliation failed");
 
@@ -331,7 +336,7 @@ async fn test_reconcile_already_resolved() {
     .expect("Failed to create payment attempt");
 
     // Reconcile should return AlreadyResolved immediately
-    let result = reconcile_unknown_attempt(&pool, attempt_id)
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Reconciliation failed");
 
@@ -394,7 +399,7 @@ async fn test_concurrent_reconciliation_safety() {
     for _ in 0..10 {
         let pool_clone = pool.clone();
         let handle =
-            tokio::spawn(async move { reconcile_unknown_attempt(&pool_clone, attempt_id).await });
+            tokio::spawn(async move { reconcile_unknown_attempt(&pool_clone, attempt_id, &TestPaymentProcessor::new()).await });
         handles.push(handle);
     }
 
@@ -489,7 +494,7 @@ async fn test_psp_still_unknown() {
     .expect("Failed to create payment attempt");
 
     // Reconcile the UNKNOWN attempt
-    let result = reconcile_unknown_attempt(&pool, attempt_id)
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor())
         .await
         .expect("Reconciliation failed");
 
@@ -552,7 +557,7 @@ async fn test_missing_processor_payment_id() {
     .expect("Failed to create payment attempt");
 
     // Reconcile should fail with MissingProcessorPaymentId error
-    let result = reconcile_unknown_attempt(&pool, attempt_id).await;
+    let result = reconcile_unknown_attempt(&pool, attempt_id, &test_processor()).await;
 
     assert!(
         result.is_err(),
@@ -586,7 +591,7 @@ async fn test_attempt_not_found() {
     let non_existent_id = Uuid::new_v4();
 
     // Reconcile non-existent attempt should fail
-    let result = reconcile_unknown_attempt(&pool, non_existent_id).await;
+    let result = reconcile_unknown_attempt(&pool, non_existent_id, &test_processor()).await;
 
     assert!(
         result.is_err(),

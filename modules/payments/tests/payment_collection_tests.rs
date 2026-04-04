@@ -2,9 +2,9 @@
 ///
 /// This test verifies that:
 /// 1. Payments module can consume ar.payment.collection.requested events
-/// 2. Mock processor successfully processes payments
+/// 2. Payment processor processes payments via config-driven selection
 /// 3. payment.succeeded events are emitted to the outbox
-use payments_rs::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
+use payments_rs::{PaymentCollectionRequestedPayload, PaymentSucceededPayload, TestPaymentProcessor};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -65,8 +65,9 @@ async fn test_payment_collection_handler() {
     };
 
     // Handle the payment collection request
+    let processor = TestPaymentProcessor::new();
     let result =
-        payments_rs::handle_payment_collection_requested(&pool, request_payload.clone(), metadata)
+        payments_rs::handle_payment_collection_requested(&pool, &processor, request_payload.clone(), metadata)
             .await;
 
     assert!(result.is_ok(), "Handler should succeed: {:?}", result);
@@ -118,14 +119,14 @@ async fn test_payment_collection_handler() {
 
 #[tokio::test]
 #[serial]
-async fn test_mock_processor_generates_payment_ids() {
-    use payments_rs::MockPaymentProcessor;
+async fn test_payment_processor_generates_payment_ids() {
+    use payments_rs::PaymentProcessor;
 
-    let processor = MockPaymentProcessor::new();
+    let processor = TestPaymentProcessor::new();
 
     let request = PaymentCollectionRequestedPayload {
-        invoice_id: "inv_mock123".to_string(),
-        customer_id: "cust_mock456".to_string(),
+        invoice_id: "inv_test123".to_string(),
+        customer_id: "cust_test456".to_string(),
         amount_minor: 5000,
         currency: "EUR".to_string(),
         payment_method_id: None,
@@ -133,7 +134,7 @@ async fn test_mock_processor_generates_payment_ids() {
 
     let result = processor.process_payment(&request).await;
 
-    assert!(result.is_ok(), "Mock processor should always succeed");
+    assert!(result.is_ok(), "Test processor should succeed");
 
     let payment_result = result.unwrap();
     assert!(
@@ -141,8 +142,8 @@ async fn test_mock_processor_generates_payment_ids() {
         "Should generate payment_id"
     );
     assert!(
-        payment_result.processor_payment_id.starts_with("mock_pi_"),
-        "Should generate mock processor payment ID"
+        payment_result.processor_payment_id.starts_with("test_pi_"),
+        "Should generate test processor payment ID"
     );
 }
 
@@ -168,9 +169,12 @@ async fn test_idempotent_event_processing() {
         correlation_id: None,
     };
 
+    let processor = TestPaymentProcessor::new();
+
     // Process the event twice with the same event_id
     let result1 = payments_rs::handle_payment_collection_requested(
         &pool,
+        &processor,
         request_payload.clone(),
         payments_rs::handlers::EnvelopeMetadata {
             event_id,
@@ -194,6 +198,7 @@ async fn test_idempotent_event_processing() {
     // For this test, we're just verifying the handler can be called multiple times
     let result2 = payments_rs::handle_payment_collection_requested(
         &pool,
+        &processor,
         request_payload,
         payments_rs::handlers::EnvelopeMetadata {
             event_id: Uuid::new_v4(), // Use different event_id since we're bypassing EventConsumer

@@ -20,8 +20,17 @@ use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 /// An invoice was inserted into ar_invoices
 pub const EVENT_TYPE_INVOICE_OPENED: &str = "ar.invoice_opened";
 
+/// An invoice transitioned to status='attempting'
+pub const EVENT_TYPE_INVOICE_ATTEMPTING: &str = "ar.invoice_attempting";
+
 /// An invoice transitioned to status='paid'
 pub const EVENT_TYPE_INVOICE_PAID: &str = "ar.invoice_paid";
+
+/// An invoice transitioned to status='failed_final'
+pub const EVENT_TYPE_INVOICE_FAILED_FINAL: &str = "ar.invoice_failed_final";
+
+/// An invoice transitioned to status='void'
+pub const EVENT_TYPE_INVOICE_VOID: &str = "ar.invoice_void";
 
 // ============================================================================
 // Payload (shared shape for both events)
@@ -66,6 +75,26 @@ pub fn build_invoice_opened_envelope(
     .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
 }
 
+/// Build envelope for ar.invoice_attempting (mutation_class: LIFECYCLE)
+pub fn build_invoice_attempting_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: InvoiceLifecyclePayload,
+) -> EventEnvelope<InvoiceLifecyclePayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_INVOICE_ATTEMPTING.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
 /// Build envelope for ar.invoice_paid (mutation_class: LIFECYCLE)
 pub fn build_invoice_paid_envelope(
     event_id: Uuid,
@@ -78,6 +107,46 @@ pub fn build_invoice_paid_envelope(
         event_id,
         tenant_id,
         EVENT_TYPE_INVOICE_PAID.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+/// Build envelope for ar.invoice_failed_final (mutation_class: LIFECYCLE)
+pub fn build_invoice_failed_final_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: InvoiceLifecyclePayload,
+) -> EventEnvelope<InvoiceLifecyclePayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_INVOICE_FAILED_FINAL.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+/// Build envelope for ar.invoice_void (mutation_class: LIFECYCLE)
+pub fn build_invoice_void_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: InvoiceLifecyclePayload,
+) -> EventEnvelope<InvoiceLifecyclePayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_INVOICE_VOID.to_string(),
         correlation_id,
         causation_id,
         MUTATION_CLASS_LIFECYCLE.to_string(),
@@ -147,8 +216,61 @@ mod tests {
     }
 
     #[test]
+    fn invoice_attempting_envelope_has_correct_metadata() {
+        let envelope = build_invoice_attempting_envelope(
+            Uuid::new_v4(),
+            "test-app".to_string(),
+            "corr-3".to_string(),
+            None,
+            sample_payload(None),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_ATTEMPTING);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "ar");
+    }
+
+    #[test]
+    fn invoice_failed_final_envelope_has_correct_metadata() {
+        let envelope = build_invoice_failed_final_envelope(
+            Uuid::new_v4(),
+            "test-app".to_string(),
+            "corr-4".to_string(),
+            None,
+            sample_payload(None),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_FAILED_FINAL);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
+    }
+
+    #[test]
+    fn invoice_void_envelope_has_correct_metadata() {
+        let envelope = build_invoice_void_envelope(
+            Uuid::new_v4(),
+            "test-app".to_string(),
+            "corr-5".to_string(),
+            None,
+            sample_payload(None),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_VOID);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
+    }
+
+    #[test]
     fn event_type_constants_use_ar_prefix() {
         assert!(EVENT_TYPE_INVOICE_OPENED.starts_with("ar."));
+        assert!(EVENT_TYPE_INVOICE_ATTEMPTING.starts_with("ar."));
         assert!(EVENT_TYPE_INVOICE_PAID.starts_with("ar."));
+        assert!(EVENT_TYPE_INVOICE_FAILED_FINAL.starts_with("ar."));
+        assert!(EVENT_TYPE_INVOICE_VOID.starts_with("ar."));
     }
 }

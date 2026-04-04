@@ -5,20 +5,21 @@
 
 use config_validator::ConfigValidator;
 
-/// Payment provider selection
+/// Payment provider selection.
+///
+/// Only real payment processors are supported. Set `PAYMENTS_PROVIDER`
+/// to a supported value (currently: "tilled").
 #[derive(Debug, Clone, PartialEq)]
 pub enum PaymentsProvider {
-    Mock,
     Tilled,
 }
 
 impl PaymentsProvider {
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
-            "mock" => Ok(PaymentsProvider::Mock),
             "tilled" => Ok(PaymentsProvider::Tilled),
             _ => Err(format!(
-                "Invalid PAYMENTS_PROVIDER '{}'. Must be 'mock' or 'tilled'",
+                "Invalid PAYMENTS_PROVIDER '{}'. Supported: 'tilled'",
                 s
             )),
         }
@@ -56,7 +57,7 @@ pub struct Config {
     pub env: String,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
-    /// Payment provider: 'mock' or 'tilled' (default: mock)
+    /// Payment provider (required). Supported: 'tilled'
     pub payments_provider: PaymentsProvider,
     /// Tilled API key (required when PAYMENTS_PROVIDER=tilled)
     pub tilled_api_key: Option<String>,
@@ -96,9 +97,16 @@ impl Config {
             "required when BUS_TYPE=nats",
         );
 
-        let provider_str = v.optional("PAYMENTS_PROVIDER").or_default("mock");
-        let payments_provider =
-            PaymentsProvider::from_str(&provider_str).unwrap_or(PaymentsProvider::Mock);
+        let provider_str = v.require("PAYMENTS_PROVIDER").unwrap_or_default();
+        let payments_provider = if provider_str.is_empty() {
+            // v.require already recorded the error; use placeholder
+            PaymentsProvider::Tilled
+        } else {
+            match PaymentsProvider::from_str(&provider_str) {
+                Ok(p) => p,
+                Err(e) => return Err(e),
+            }
+        };
 
         let is_tilled = payments_provider == PaymentsProvider::Tilled;
         let tilled_api_key = v.require_when(
@@ -165,17 +173,14 @@ mod tests {
     #[test]
     fn test_payments_provider_from_str() {
         assert_eq!(
-            PaymentsProvider::from_str("mock").unwrap(),
-            PaymentsProvider::Mock
-        );
-        assert_eq!(
             PaymentsProvider::from_str("tilled").unwrap(),
             PaymentsProvider::Tilled
         );
         assert_eq!(
-            PaymentsProvider::from_str("MOCK").unwrap(),
-            PaymentsProvider::Mock
+            PaymentsProvider::from_str("TILLED").unwrap(),
+            PaymentsProvider::Tilled
         );
+        assert!(PaymentsProvider::from_str("mock").is_err());
         assert!(PaymentsProvider::from_str("stripe").is_err());
     }
 }

@@ -152,45 +152,46 @@ pub async fn get_payment(
 
 /// Query the payment projection (read model)
 ///
-/// This is the fast path - queries the denormalized projection table.
+/// Fast path — queries the denormalized projection table.
 async fn query_projection(
-    _pool: &sqlx::PgPool,
+    pool: &sqlx::PgPool,
     tenant_id: &str,
     payment_id: Uuid,
 ) -> Result<PaymentResponse, Box<dyn std::error::Error + Send + Sync>> {
-    // In a real implementation, this would query a projection table like:
-    // SELECT payment_id, tenant_id, amount, status FROM payment_projections
-    // WHERE tenant_id = $1 AND payment_id = $2
-    //
-    // For this example, we'll return a mock response
-    Ok(PaymentResponse {
-        payment_id,
-        tenant_id: tenant_id.to_string(),
-        amount: 5000,
-        status: "completed".to_string(),
-        data_source: DataSource::Projection,
-    })
+    let row: Option<(i64, String)> = sqlx::query_as(
+        "SELECT amount_minor, status::text FROM payment_projections \
+         WHERE tenant_id = $1 AND payment_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(payment_id)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        Some((amount, status)) => Ok(PaymentResponse {
+            payment_id,
+            tenant_id: tenant_id.to_string(),
+            amount,
+            status,
+            data_source: DataSource::Projection,
+        }),
+        None => Err(format!("Payment {} not found in projections", payment_id).into()),
+    }
 }
 
 /// Query the write service via HTTP (fallback path)
 ///
-/// This is the slow path - hits the write service's HTTP API when projection is stale.
+/// Slow path — hits the write service's HTTP API when projection is stale.
 /// Subject to time budget and circuit breaker protection.
 async fn query_write_service(
     payment_id: Uuid,
-    tenant_id: String,
+    _tenant_id: String,
 ) -> Result<PaymentResponse, Box<dyn std::error::Error + Send + Sync>> {
-    // In a real implementation, this would make an HTTP call like:
-    // GET http://payments-write-service/api/payments/{payment_id}?tenant_id={tenant_id}
-    //
-    // For this example, we'll simulate with a delay and mock response
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-    Ok(PaymentResponse {
+    // Write-service fallback not yet wired — return error so caller
+    // falls through to the (potentially stale) projection.
+    Err(format!(
+        "Write-service fallback not available for payment {}",
         payment_id,
-        tenant_id,
-        amount: 5000,
-        status: "completed".to_string(),
-        data_source: DataSource::Fallback,
-    })
+    )
+    .into())
 }

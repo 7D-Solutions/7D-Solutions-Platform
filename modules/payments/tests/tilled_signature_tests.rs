@@ -162,17 +162,17 @@ fn test_no_secret_configured() {
     );
 }
 
-/// Provider selection test: PAYMENTS_PROVIDER=mock should keep mock behaviour.
+/// Provider selection test: PAYMENTS_PROVIDER=mock is no longer supported.
 #[test]
-fn test_provider_selection_mock() {
+fn test_provider_selection_mock_rejected() {
     use payments_rs::PaymentsProvider;
-    assert_eq!(
-        PaymentsProvider::from_str("mock").unwrap(),
-        PaymentsProvider::Mock
+    assert!(
+        PaymentsProvider::from_str("mock").is_err(),
+        "mock provider should be rejected"
     );
-    assert_eq!(
-        PaymentsProvider::from_str("MOCK").unwrap(),
-        PaymentsProvider::Mock
+    assert!(
+        PaymentsProvider::from_str("MOCK").is_err(),
+        "MOCK provider should be rejected"
     );
 }
 

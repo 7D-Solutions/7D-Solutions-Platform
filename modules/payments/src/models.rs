@@ -35,6 +35,21 @@ pub struct PaymentSucceededPayload {
     pub payment_method_ref: Option<String>,
 }
 
+/// Payload for payments.payment.unknown event
+///
+/// Emitted when a webhook provides an ambiguous result (PSP timeout, network error, etc.).
+/// Requires reconciliation to resolve to a terminal state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentUnknownPayload {
+    pub payment_id: String,
+    pub invoice_id: String,
+    pub ar_customer_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processor_payment_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method_ref: Option<String>,
+}
+
 /// Payload for payments.payment.failed event
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentFailedPayload {

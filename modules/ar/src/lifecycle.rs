@@ -18,9 +18,11 @@
 //!   └──> FAILED_FINAL <─────┘
 //! ```
 
+use chrono::NaiveDateTime;
 use sqlx::{PgPool, Postgres, Transaction};
 use std::fmt;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 // ============================================================================
 // Error Types
@@ -224,8 +226,40 @@ pub async fn transition_to_attempting(
         .execute(&mut *tx)
         .await?;
 
-    // 3. EMIT: Side effects go here (after mutation succeeds)
-    // TODO: emit_invoice_attempting_event (future bead - bd-3fo or bd-8ev)
+    // 3. EMIT: Enqueue ar.invoice_attempting event atomically within the same TX
+    let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
+        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+    )
+    .bind(invoice_id)
+    .bind(app_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (customer_id, amount_cents, currency, created_at, due_at) = row;
+    let event_payload = crate::events::contracts::InvoiceLifecyclePayload {
+        invoice_id: invoice_id.to_string(),
+        customer_id,
+        app_id: app_id.to_string(),
+        amount_cents,
+        currency,
+        created_at,
+        due_at,
+        paid_at: None,
+    };
+    let envelope = crate::events::build_invoice_attempting_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        crate::events::EVENT_TYPE_INVOICE_ATTEMPTING,
+        "invoice",
+        &invoice_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(())
@@ -253,8 +287,40 @@ pub async fn transition_to_paid(
         .execute(&mut *tx)
         .await?;
 
-    // 3. EMIT: Side effects go here
-    // TODO: emit_invoice_paid_event (future bead)
+    // 3. EMIT: Enqueue ar.invoice_paid event atomically within the same TX
+    let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>, Option<NaiveDateTime>) = sqlx::query_as(
+        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at, paid_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+    )
+    .bind(invoice_id)
+    .bind(app_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (customer_id, amount_cents, currency, created_at, due_at, paid_at) = row;
+    let event_payload = crate::events::contracts::InvoiceLifecyclePayload {
+        invoice_id: invoice_id.to_string(),
+        customer_id,
+        app_id: app_id.to_string(),
+        amount_cents,
+        currency,
+        created_at,
+        due_at,
+        paid_at,
+    };
+    let envelope = crate::events::build_invoice_paid_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        crate::events::EVENT_TYPE_INVOICE_PAID,
+        "invoice",
+        &invoice_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(())
@@ -282,8 +348,40 @@ pub async fn transition_to_failed_final(
         .execute(&mut *tx)
         .await?;
 
-    // 3. EMIT: Side effects go here
-    // TODO: emit_invoice_failed_final_event (future bead)
+    // 3. EMIT: Enqueue ar.invoice_failed_final event atomically within the same TX
+    let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
+        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+    )
+    .bind(invoice_id)
+    .bind(app_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (customer_id, amount_cents, currency, created_at, due_at) = row;
+    let event_payload = crate::events::contracts::InvoiceLifecyclePayload {
+        invoice_id: invoice_id.to_string(),
+        customer_id,
+        app_id: app_id.to_string(),
+        amount_cents,
+        currency,
+        created_at,
+        due_at,
+        paid_at: None,
+    };
+    let envelope = crate::events::build_invoice_failed_final_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        crate::events::EVENT_TYPE_INVOICE_FAILED_FINAL,
+        "invoice",
+        &invoice_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(())
@@ -311,8 +409,40 @@ pub async fn transition_to_void(
         .execute(&mut *tx)
         .await?;
 
-    // 3. EMIT: Side effects go here
-    // TODO: emit_invoice_void_event (future bead)
+    // 3. EMIT: Enqueue ar.invoice_void event atomically within the same TX
+    let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
+        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+    )
+    .bind(invoice_id)
+    .bind(app_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (customer_id, amount_cents, currency, created_at, due_at) = row;
+    let event_payload = crate::events::contracts::InvoiceLifecyclePayload {
+        invoice_id: invoice_id.to_string(),
+        customer_id,
+        app_id: app_id.to_string(),
+        amount_cents,
+        currency,
+        created_at,
+        due_at,
+        paid_at: None,
+    };
+    let envelope = crate::events::build_invoice_void_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        crate::events::EVENT_TYPE_INVOICE_VOID,
+        "invoice",
+        &invoice_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(())

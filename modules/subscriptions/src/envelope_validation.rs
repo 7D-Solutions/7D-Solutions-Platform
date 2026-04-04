@@ -1,6 +1,5 @@
 use chrono::DateTime;
 use serde_json::Value;
-use std::env;
 use uuid::Uuid;
 
 /// Validates the envelope fields according to the platform event contract
@@ -90,12 +89,8 @@ pub fn validate_envelope(envelope: &Value) -> Result<(), String> {
         return Err("Invalid payload: must be an object".to_string());
     }
 
-    // Optional schema validation if enabled
-    if env::var("ENABLE_SCHEMA_VALIDATION").unwrap_or_default() == "true" {
-        // Schema validation would be implemented here
-        // For now, we'll just log that it's enabled
-        tracing::debug!("Schema validation enabled but not yet implemented");
-    }
+    // Delegate to platform envelope contract validation (constitutional fields)
+    event_bus::validate_envelope_fields(envelope)?;
 
     Ok(())
 }
@@ -105,141 +100,97 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    #[test]
-    fn test_valid_envelope() {
-        let envelope = json!({
+    fn valid_envelope() -> serde_json::Value {
+        json!({
             "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "subscription.activated",
             "occurred_at": "2026-02-12T00:00:00Z",
             "tenant_id": "tenant-123",
-            "source_module": "ar",
+            "source_module": "subscriptions",
             "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": "LIFECYCLE",
             "payload": {
-                "invoice_id": "inv-123"
+                "subscription_id": "sub-123"
             }
-        });
+        })
+    }
 
-        assert!(validate_envelope(&envelope).is_ok());
+    #[test]
+    fn test_valid_envelope() {
+        assert!(validate_envelope(&valid_envelope()).is_ok());
     }
 
     #[test]
     fn test_valid_envelope_with_optional_fields() {
-        let envelope = json!({
-            "event_id": "550e8400-e29b-41d4-a716-446655440000",
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "correlation_id": "corr-123",
-            "causation_id": "cause-123",
-            "payload": {
-                "invoice_id": "inv-123"
-            }
-        });
-
+        let mut envelope = valid_envelope();
+        envelope["correlation_id"] = json!("corr-123");
+        envelope["causation_id"] = json!("cause-123");
         assert!(validate_envelope(&envelope).is_ok());
     }
 
     #[test]
     fn test_missing_event_id() {
-        let envelope = json!({
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "payload": {}
-        });
-
-        assert!(validate_envelope(&envelope).is_err());
-        assert_eq!(
-            validate_envelope(&envelope).unwrap_err(),
-            "Missing required field: event_id"
-        );
+        let mut envelope = valid_envelope();
+        envelope.as_object_mut().expect("test").remove("event_id");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert_eq!(err, "Missing required field: event_id");
     }
 
     #[test]
     fn test_invalid_event_id() {
-        let envelope = json!({
-            "event_id": "not-a-uuid",
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "payload": {}
-        });
-
-        assert!(validate_envelope(&envelope).is_err());
-        assert!(validate_envelope(&envelope)
-            .unwrap_err()
-            .contains("Invalid event_id"));
+        let mut envelope = valid_envelope();
+        envelope["event_id"] = json!("not-a-uuid");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert!(err.contains("Invalid event_id"));
     }
 
     #[test]
     fn test_invalid_occurred_at() {
-        let envelope = json!({
-            "event_id": "550e8400-e29b-41d4-a716-446655440000",
-            "occurred_at": "not-a-timestamp",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "payload": {}
-        });
-
-        assert!(validate_envelope(&envelope).is_err());
-        assert!(validate_envelope(&envelope)
-            .unwrap_err()
-            .contains("Invalid occurred_at"));
+        let mut envelope = valid_envelope();
+        envelope["occurred_at"] = json!("not-a-timestamp");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert!(err.contains("Invalid occurred_at"));
     }
 
     #[test]
     fn test_empty_tenant_id() {
-        let envelope = json!({
-            "event_id": "550e8400-e29b-41d4-a716-446655440000",
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "   ",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "payload": {}
-        });
-
-        assert!(validate_envelope(&envelope).is_err());
-        assert_eq!(
-            validate_envelope(&envelope).unwrap_err(),
-            "Invalid tenant_id: must be non-empty"
-        );
+        let mut envelope = valid_envelope();
+        envelope["tenant_id"] = json!("   ");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert_eq!(err, "Invalid tenant_id: must be non-empty");
     }
 
     #[test]
     fn test_missing_payload() {
-        let envelope = json!({
-            "event_id": "550e8400-e29b-41d4-a716-446655440000",
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0"
-        });
-
-        assert!(validate_envelope(&envelope).is_err());
-        assert_eq!(
-            validate_envelope(&envelope).unwrap_err(),
-            "Missing required field: payload"
-        );
+        let mut envelope = valid_envelope();
+        envelope.as_object_mut().expect("test").remove("payload");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert_eq!(err, "Missing required field: payload");
     }
 
     #[test]
     fn test_invalid_payload_type() {
-        let envelope = json!({
-            "event_id": "550e8400-e29b-41d4-a716-446655440000",
-            "occurred_at": "2026-02-12T00:00:00Z",
-            "tenant_id": "tenant-123",
-            "source_module": "ar",
-            "source_version": "1.0.0",
-            "payload": "not-an-object"
-        });
+        let mut envelope = valid_envelope();
+        envelope["payload"] = json!("not-an-object");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert_eq!(err, "Invalid payload: must be an object");
+    }
 
-        assert!(validate_envelope(&envelope).is_err());
-        assert_eq!(
-            validate_envelope(&envelope).unwrap_err(),
-            "Invalid payload: must be an object"
-        );
+    #[test]
+    fn test_rejects_missing_mutation_class() {
+        let mut envelope = valid_envelope();
+        envelope.as_object_mut().expect("test").remove("mutation_class");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert!(err.contains("mutation_class"));
+    }
+
+    #[test]
+    fn test_rejects_invalid_mutation_class() {
+        let mut envelope = valid_envelope();
+        envelope["mutation_class"] = json!("BOGUS");
+        let err = validate_envelope(&envelope).unwrap_err();
+        assert!(err.contains("Invalid mutation_class"));
     }
 }

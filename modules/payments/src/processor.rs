@@ -4,6 +4,29 @@ use crate::models::{PaymentCollectionRequestedPayload, PaymentResult};
 use crate::reconciliation::PspPaymentStatus;
 
 // ============================================================================
+// PaymentProcessor Trait
+// ============================================================================
+
+/// Trait for payment processor implementations.
+///
+/// Production code uses config-driven selection (currently only Tilled).
+/// Selected at startup via `PAYMENTS_PROVIDER` env var.
+#[async_trait::async_trait]
+pub trait PaymentProcessor: Send + Sync {
+    /// Process a payment collection request and return the result.
+    async fn process_payment(
+        &self,
+        request: &PaymentCollectionRequestedPayload,
+    ) -> anyhow::Result<PaymentResult>;
+
+    /// Query the PSP for current status of a payment intent.
+    async fn query_payment_status(
+        &self,
+        processor_payment_id: &str,
+    ) -> anyhow::Result<PspPaymentStatus>;
+}
+
+// ============================================================================
 // TilledPaymentProcessor
 // ============================================================================
 
@@ -25,12 +48,11 @@ impl TilledPaymentProcessor {
             client: reqwest::Client::new(),
         }
     }
+}
 
-    /// Process a payment via the Tilled API (payment intent flow).
-    ///
-    /// Tilled uses payment intents; we create a PaymentIntent and confirm it
-    /// using the stored `payment_method_id`.
-    pub async fn process_payment(
+#[async_trait::async_trait]
+impl PaymentProcessor for TilledPaymentProcessor {
+    async fn process_payment(
         &self,
         request: &PaymentCollectionRequestedPayload,
     ) -> anyhow::Result<PaymentResult> {
@@ -132,8 +154,7 @@ impl TilledPaymentProcessor {
         })
     }
 
-    /// Query Tilled for the current status of a payment intent.
-    pub async fn query_payment_status(
+    async fn query_payment_status(
         &self,
         processor_payment_id: &str,
     ) -> anyhow::Result<PspPaymentStatus> {
@@ -190,154 +211,84 @@ impl TilledPaymentProcessor {
     }
 }
 
-/// Mock payment processor for development and testing
-///
-/// In production, this would be replaced with actual processor integrations
-/// (Stripe, Tilled, etc.). For now, it simulates successful payment processing.
-pub struct MockPaymentProcessor;
+// ============================================================================
+// Test-only payment processor (not available in production builds)
+// ============================================================================
 
-impl MockPaymentProcessor {
-    pub fn new() -> Self {
-        Self
+#[cfg(test)]
+pub mod test_support {
+    use super::*;
+
+    /// Test payment processor for integration tests.
+    ///
+    /// Behavior driven by markers in IDs:
+    /// - `payment_method_id` starts with "fail_" -> payment fails
+    /// - `processor_payment_id` contains "unknown_" -> StillUnknown
+    /// - `processor_payment_id` contains "succeeded_" -> Succeeded
+    /// - `processor_payment_id` contains "failed_retry_" -> FailedRetry
+    /// - `processor_payment_id` contains "failed_final_" -> FailedFinal
+    /// - Default -> Succeeded
+    pub struct TestPaymentProcessor;
+
+    impl TestPaymentProcessor {
+        pub fn new() -> Self {
+            Self
+        }
     }
 
-    /// Process a payment request
-    ///
-    /// Mock implementation that simulates payment processing.
-    /// - If payment_method_id starts with "fail_", the payment will fail
-    /// - Otherwise, the payment succeeds
-    ///
-    /// In production, this would call external payment processor APIs.
-    pub async fn process_payment(
-        &self,
-        request: &PaymentCollectionRequestedPayload,
-    ) -> anyhow::Result<PaymentResult> {
-        tracing::info!(
-            invoice_id = %request.invoice_id,
-            customer_id = %request.customer_id,
-            amount = request.amount_minor,
-            currency = %request.currency,
-            payment_method_id = ?request.payment_method_id,
-            "Processing mock payment"
-        );
-
-        // Simulate processing delay
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        // Check for failure simulation trigger
-        if let Some(ref payment_method_id) = request.payment_method_id {
-            if payment_method_id.starts_with("fail_") {
-                tracing::warn!(
-                    invoice_id = %request.invoice_id,
-                    payment_method_id = %payment_method_id,
-                    "Mock payment failed (triggered by payment_method_id)"
-                );
-                return Err(anyhow::anyhow!(
-                    "Payment declined by processor: insufficient funds"
-                ));
+    #[async_trait::async_trait]
+    impl PaymentProcessor for TestPaymentProcessor {
+        async fn process_payment(
+            &self,
+            request: &PaymentCollectionRequestedPayload,
+        ) -> anyhow::Result<PaymentResult> {
+            if let Some(ref payment_method_id) = request.payment_method_id {
+                if payment_method_id.starts_with("fail_") {
+                    return Err(anyhow::anyhow!(
+                        "Payment declined by processor: insufficient funds"
+                    ));
+                }
             }
+
+            let payment_id = Uuid::new_v4().to_string();
+            let processor_payment_id = format!("test_pi_{}", Uuid::new_v4().simple());
+
+            Ok(PaymentResult {
+                payment_id,
+                processor_payment_id,
+                payment_method_ref: request.payment_method_id.clone(),
+            })
         }
 
-        // Generate mock payment IDs
-        let payment_id = Uuid::new_v4().to_string();
-        let processor_payment_id = format!("mock_pi_{}", Uuid::new_v4().simple());
+        async fn query_payment_status(
+            &self,
+            processor_payment_id: &str,
+        ) -> anyhow::Result<PspPaymentStatus> {
+            let status = if processor_payment_id.contains("unknown_") {
+                PspPaymentStatus::StillUnknown
+            } else if processor_payment_id.contains("succeeded_") {
+                PspPaymentStatus::Succeeded
+            } else if processor_payment_id.contains("failed_retry_") {
+                PspPaymentStatus::FailedRetry {
+                    code: "insufficient_funds".to_string(),
+                    message: "Insufficient funds (transient)".to_string(),
+                }
+            } else if processor_payment_id.contains("failed_final_") {
+                PspPaymentStatus::FailedFinal {
+                    code: "card_declined".to_string(),
+                    message: "Card declined (permanent)".to_string(),
+                }
+            } else {
+                PspPaymentStatus::Succeeded
+            };
 
-        tracing::info!(
-            payment_id = %payment_id,
-            processor_payment_id = %processor_payment_id,
-            "Mock payment processed successfully"
-        );
-
-        Ok(PaymentResult {
-            payment_id,
-            processor_payment_id,
-            payment_method_ref: request.payment_method_id.clone(),
-        })
+            Ok(status)
+        }
     }
 
-    /// Query payment status from PSP (for UNKNOWN reconciliation)
-    ///
-    /// **Mock Implementation for bd-2uw:**
-    /// - Processor ID contains "unknown_" → StillUnknown
-    /// - Processor ID contains "succeeded_" → Succeeded
-    /// - Processor ID contains "failed_retry_" → FailedRetry
-    /// - Processor ID contains "failed_final_" → FailedFinal
-    /// - Default → Succeeded (assume success if no special marker)
-    ///
-    /// **Production Implementation:**
-    /// - Query actual PSP API (Stripe, Tilled, etc.)
-    /// - Handle PSP-specific error codes
-    /// - Map PSP status to PspPaymentStatus enum
-    ///
-    /// **Usage:**
-    /// ```ignore
-    /// let processor = MockPaymentProcessor::new();
-    /// let status = processor.query_payment_status("mock_pi_12345").await?;
-    /// match status {
-    ///     PspPaymentStatus::Succeeded => { /* handle success */ }
-    ///     PspPaymentStatus::FailedRetry { .. } => { /* handle transient failure */ }
-    ///     PspPaymentStatus::FailedFinal { .. } => { /* handle permanent failure */ }
-    ///     PspPaymentStatus::StillUnknown => { /* defer reconciliation */ }
-    /// }
-    /// ```
-    pub async fn query_payment_status(
-        &self,
-        processor_payment_id: &str,
-    ) -> anyhow::Result<PspPaymentStatus> {
-        tracing::info!(
-            processor_payment_id = %processor_payment_id,
-            "Querying PSP for payment status (mock implementation)"
-        );
-
-        // Simulate PSP query delay
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-        // Mock logic based on processor_payment_id markers
-        let status = if processor_payment_id.contains("unknown_") {
-            tracing::warn!(
-                processor_payment_id = %processor_payment_id,
-                "PSP still does not know payment status"
-            );
-            PspPaymentStatus::StillUnknown
-        } else if processor_payment_id.contains("succeeded_") {
-            tracing::info!(
-                processor_payment_id = %processor_payment_id,
-                "PSP confirms payment succeeded"
-            );
-            PspPaymentStatus::Succeeded
-        } else if processor_payment_id.contains("failed_retry_") {
-            tracing::warn!(
-                processor_payment_id = %processor_payment_id,
-                "PSP reports transient payment failure"
-            );
-            PspPaymentStatus::FailedRetry {
-                code: "insufficient_funds".to_string(),
-                message: "Insufficient funds (transient)".to_string(),
-            }
-        } else if processor_payment_id.contains("failed_final_") {
-            tracing::warn!(
-                processor_payment_id = %processor_payment_id,
-                "PSP reports permanent payment failure"
-            );
-            PspPaymentStatus::FailedFinal {
-                code: "card_declined".to_string(),
-                message: "Card declined (permanent)".to_string(),
-            }
-        } else {
-            // Default: assume payment succeeded (most common case)
-            tracing::info!(
-                processor_payment_id = %processor_payment_id,
-                "PSP query returned success (default)"
-            );
-            PspPaymentStatus::Succeeded
-        };
-
-        Ok(status)
-    }
-}
-
-impl Default for MockPaymentProcessor {
-    fn default() -> Self {
-        Self::new()
+    impl Default for TestPaymentProcessor {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 }

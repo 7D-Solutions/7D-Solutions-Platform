@@ -6,7 +6,7 @@ use utoipa::OpenApi;
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
-use payments_rs::{AppState, Config};
+use payments_rs::{AppState, Config, PaymentsProvider, TilledPaymentProcessor};
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 
 #[derive(OpenApi)]
@@ -71,18 +71,32 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
+    // Load config eagerly — fail fast if PAYMENTS_PROVIDER is missing or invalid
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Payments config error: {}", err);
+        std::process::exit(1);
+    });
+
+    // Create processor from config (currently only Tilled is supported)
+    let processor: Arc<dyn payments_rs::PaymentProcessor> = match config.payments_provider {
+        PaymentsProvider::Tilled => {
+            let api_key = config.tilled_api_key.clone()
+                .expect("TILLED_API_KEY required when PAYMENTS_PROVIDER=tilled");
+            let account_id = config.tilled_account_id.clone()
+                .expect("TILLED_ACCOUNT_ID required when PAYMENTS_PROVIDER=tilled");
+            Arc::new(TilledPaymentProcessor::new(api_key, account_id))
+        }
+    };
+
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
+        .state(processor.clone())
+        .state(config.clone())
         .consumer(
             "ar.events.payment.collection.requested",
             on_payment_collection_requested,
         )
-        .routes(|ctx| {
-            let config = Config::from_env().unwrap_or_else(|err| {
-                tracing::error!("Payments config error: {}", err);
-                panic!("Payments config error: {}", err);
-            });
-
+        .routes(move |ctx| {
             // Register SLO metrics with global prometheus registry so
             // SDK's /metrics endpoint picks them up via prometheus::gather().
             let _ = prometheus::register(Box::new(
@@ -98,8 +112,12 @@ async fn main() {
                 payments_rs::metrics::PAYMENTS_OUTBOX_QUEUE_DEPTH.clone(),
             ));
 
+            let processor = ctx.state::<Arc<dyn payments_rs::PaymentProcessor>>().clone();
+            let config = ctx.state::<Config>().clone();
+
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
+                processor,
                 tilled_api_key: config.tilled_api_key.clone(),
                 tilled_account_id: config.tilled_account_id.clone(),
                 tilled_webhook_secret: config.tilled_webhook_secret.clone(),
@@ -180,8 +198,9 @@ async fn on_payment_collection_requested(
         "Processing payment.collection.requested event"
     );
 
-    // Business logic
-    payments_rs::handle_payment_collection_requested(pool, payload, metadata)
+    // Business logic — processor selected at startup via PAYMENTS_PROVIDER
+    let processor = ctx.state::<Arc<dyn payments_rs::PaymentProcessor>>();
+    payments_rs::handle_payment_collection_requested(pool, processor.as_ref(), payload, metadata)
         .await
         .map_err(|e| ConsumerError::Processing(e.to_string()))?;
 
