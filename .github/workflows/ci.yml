@@ -229,6 +229,32 @@ jobs:
           chmod +x scripts/ci/check-workspace-members.sh
           scripts/ci/check-workspace-members.sh
 
+  openapi-drift-check:
+    name: "OpenAPI Drift: contract vs runtime"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-openapi-drift-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check OpenAPI drift
+        run: |
+          chmod +x scripts/ci/check-openapi-drift.sh
+          scripts/ci/check-openapi-drift.sh
+
   build-auth:
     name: Build AUTH Module
     runs-on: ubuntu-latest

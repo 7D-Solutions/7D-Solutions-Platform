@@ -1,0 +1,12 @@
+# G7 Subject Allowlist
+# Modules listed here have event subject patterns that look like double-prefix
+# but are intentional by design. Each entry documents why.
+#
+# Format: module_name  # reason
+#
+# The publisher constructs subjects as: module.events.{event_type}
+# If event_type constants already start with "module.", the final subject
+# becomes module.events.module.action — which is flagged by G7 as a
+# double-prefix. Modules listed here have reviewed and accepted this pattern.
+
+ar  # ar.events.ar.* is intentional — event_type constants use ar. prefix for cross-module routing clarity

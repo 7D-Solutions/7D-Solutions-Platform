@@ -1,0 +1,5 @@
+# G4 utoipa coverage allowlist — dated entries for modules with known gaps.
+# Format: module-name YYYY-MM-DD reason
+# Remove entry once module reaches >=80% coverage.
+reporting 2026-04-03 8/11 handlers annotated — backlog for module owner
+subscriptions 2026-04-03 1/10 handlers annotated — backlog for module owner

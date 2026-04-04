@@ -1,0 +1,9 @@
+# G10 vendor HTTP allowlist — dated entries for modules with legitimate reqwest usage.
+# Format: module-name YYYY-MM-DD reason
+# Remove entry when module migrates to PlatformClient or vendor SDK.
+ar 2026-04-03 Tilled payment processor — vendor API requires direct HTTP (files, auth headers)
+integrations 2026-04-03 QuickBooks Online OAuth + API — vendor REST client
+notifications 2026-04-03 Webhook delivery — sends HTTP notifications to external endpoints
+payments 2026-04-03 Payment processor integration — vendor checkout/session API
+quality-inspection 2026-04-03 Workcenter client — cross-service HTTP call
+ttp 2026-04-03 AR client — cross-service HTTP call
