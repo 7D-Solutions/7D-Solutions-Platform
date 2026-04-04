@@ -6,6 +6,7 @@
 //! - void: no-op if already voided
 //!
 //! Tax snapshots are persisted in `ap_tax_snapshots` (AP-owned table).
+//! All SQL lives in the adjacent `repo` module.
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ use uuid::Uuid;
 use tax_core::{TaxCommitRequest, TaxProvider, TaxProviderError, TaxQuoteRequest, TaxVoidRequest};
 
 use super::models::ApTaxSnapshot;
+use super::repo;
 
 // ============================================================================
 // Error type
@@ -68,26 +70,6 @@ pub fn compute_quote_hash(req: &TaxQuoteRequest) -> String {
 }
 
 // ============================================================================
-// Snapshot lookup
-// ============================================================================
-
-/// Fetch the active (non-voided) tax snapshot for a bill, if any.
-pub async fn find_active_snapshot(
-    pool: &PgPool,
-    bill_id: Uuid,
-) -> Result<Option<ApTaxSnapshot>, sqlx::Error> {
-    sqlx::query_as::<_, ApTaxSnapshot>(
-        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-         voided_at, void_reason, created_at, updated_at \
-         FROM ap_tax_snapshots WHERE bill_id = $1 AND status != 'voided' LIMIT 1",
-    )
-    .bind(bill_id)
-    .fetch_optional(pool)
-    .await
-}
-
-// ============================================================================
 // Quote
 // ============================================================================
 
@@ -105,20 +87,12 @@ pub async fn quote_bill_tax(
 
     // Idempotency: existing active snapshot with same hash -> return it.
     // If hash differs (bill content changed), void the old snapshot first.
-    if let Some(snap) = find_active_snapshot(pool, bill_id).await? {
+    if let Some(snap) = repo::find_active_snapshot(pool, bill_id).await? {
         if snap.quote_hash == quote_hash {
             return Ok(snap);
         }
         // Content changed — void old snapshot before creating new one
-        sqlx::query(
-            "UPDATE ap_tax_snapshots \
-             SET status = 'voided', voided_at = NOW(), void_reason = 'superseded by new quote', \
-                 updated_at = NOW() \
-             WHERE id = $1",
-        )
-        .bind(snap.id)
-        .execute(pool)
-        .await?;
+        repo::void_superseded_snapshot(pool, snap.id).await?;
     }
 
     let response = provider.quote_tax(req).await?;
@@ -127,34 +101,22 @@ pub async fn quote_bill_tax(
     let tax_by_line_json =
         serde_json::to_value(&response.tax_by_line).unwrap_or_else(|_| serde_json::json!([]));
 
-    sqlx::query(
-        "INSERT INTO ap_tax_snapshots \
-         (id, bill_id, tenant_id, provider, provider_quote_ref, quote_hash, \
-          total_tax_minor, tax_by_line, status, quoted_at) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'quoted', $9)",
+    repo::insert_snapshot(
+        pool,
+        id,
+        bill_id,
+        tenant_id,
+        provider_name,
+        &response.provider_quote_ref,
+        &quote_hash,
+        response.total_tax_minor,
+        &tax_by_line_json,
+        response.quoted_at,
     )
-    .bind(id)
-    .bind(bill_id)
-    .bind(tenant_id)
-    .bind(provider_name)
-    .bind(&response.provider_quote_ref)
-    .bind(&quote_hash)
-    .bind(response.total_tax_minor)
-    .bind(&tax_by_line_json)
-    .bind(response.quoted_at)
-    .execute(pool)
     .await?;
 
     // Fetch back for the complete row with DB defaults
-    let snap = sqlx::query_as::<_, ApTaxSnapshot>(
-        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-         voided_at, void_reason, created_at, updated_at \
-         FROM ap_tax_snapshots WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await?;
+    let snap = repo::fetch_snapshot_by_id(pool, id).await?;
 
     Ok(snap)
 }
@@ -172,7 +134,7 @@ pub async fn commit_bill_tax(
     bill_id: Uuid,
     correlation_id: &str,
 ) -> Result<ApTaxSnapshot, ApTaxError> {
-    let snap = find_active_snapshot(pool, bill_id)
+    let snap = repo::find_active_snapshot(pool, bill_id)
         .await?
         .ok_or(ApTaxError::NoQuoteFound(bill_id))?;
 
@@ -190,27 +152,15 @@ pub async fn commit_bill_tax(
 
     let commit_resp = provider.commit_tax(commit_req).await?;
 
-    sqlx::query(
-        "UPDATE ap_tax_snapshots \
-         SET status = 'committed', provider_commit_ref = $1, committed_at = $2, \
-             updated_at = NOW() \
-         WHERE id = $3",
+    repo::update_snapshot_committed(
+        pool,
+        snap.id,
+        &commit_resp.provider_commit_ref,
+        commit_resp.committed_at,
     )
-    .bind(&commit_resp.provider_commit_ref)
-    .bind(commit_resp.committed_at)
-    .bind(snap.id)
-    .execute(pool)
     .await?;
 
-    let updated = sqlx::query_as::<_, ApTaxSnapshot>(
-        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-         voided_at, void_reason, created_at, updated_at \
-         FROM ap_tax_snapshots WHERE id = $1",
-    )
-    .bind(snap.id)
-    .fetch_one(pool)
-    .await?;
+    let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
 
     Ok(updated)
 }
@@ -231,33 +181,15 @@ pub async fn void_bill_tax(
     void_reason: &str,
     correlation_id: &str,
 ) -> Result<Option<ApTaxSnapshot>, ApTaxError> {
-    let snap = match find_active_snapshot(pool, bill_id).await? {
+    let snap = match repo::find_active_snapshot(pool, bill_id).await? {
         Some(s) => s,
         None => return Ok(None), // No tax snapshot -> non-taxable bill, nothing to void
     };
 
     // Quoted but never committed: just mark voided (no provider call needed)
     if snap.status == "quoted" {
-        sqlx::query(
-            "UPDATE ap_tax_snapshots \
-             SET status = 'voided', voided_at = NOW(), void_reason = $1, updated_at = NOW() \
-             WHERE id = $2",
-        )
-        .bind(void_reason)
-        .bind(snap.id)
-        .execute(pool)
-        .await?;
-
-        let updated = sqlx::query_as::<_, ApTaxSnapshot>(
-            "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-             quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-             voided_at, void_reason, created_at, updated_at \
-             FROM ap_tax_snapshots WHERE id = $1",
-        )
-        .bind(snap.id)
-        .fetch_one(pool)
-        .await?;
-
+        repo::void_snapshot_now(pool, snap.id, void_reason).await?;
+        let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
         return Ok(Some(updated));
     }
 
@@ -274,26 +206,9 @@ pub async fn void_bill_tax(
 
     let void_resp = provider.void_tax(void_req).await?;
 
-    sqlx::query(
-        "UPDATE ap_tax_snapshots \
-         SET status = 'voided', voided_at = $1, void_reason = $2, updated_at = NOW() \
-         WHERE id = $3",
-    )
-    .bind(void_resp.voided_at)
-    .bind(void_reason)
-    .bind(snap.id)
-    .execute(pool)
-    .await?;
+    repo::void_snapshot_at(pool, snap.id, void_resp.voided_at, void_reason).await?;
 
-    let updated = sqlx::query_as::<_, ApTaxSnapshot>(
-        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-         voided_at, void_reason, created_at, updated_at \
-         FROM ap_tax_snapshots WHERE id = $1",
-    )
-    .bind(snap.id)
-    .fetch_one(pool)
-    .await?;
+    let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
 
     Ok(Some(updated))
 }

@@ -24,6 +24,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::repo;
 use crate::events::valuation_snapshot_created::{
     build_valuation_snapshot_created_envelope, ValuationSnapshotCreatedLine,
     ValuationSnapshotCreatedPayload, EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
@@ -99,23 +100,6 @@ pub enum SnapshotError {
 }
 
 // ============================================================================
-// Internal row types
-// ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct LayerRow {
-    item_id: Uuid,
-    unit_cost_minor: i64,
-    qty_at_as_of: i64,
-}
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-// ============================================================================
 // Service
 // ============================================================================
 
@@ -131,7 +115,9 @@ pub async fn create_valuation_snapshot(
     validate_request(req)?;
 
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(SnapshotError::ConflictingIdempotencyKey);
         }
@@ -151,68 +137,31 @@ pub async fn create_valuation_snapshot(
 
     // --- Advisory lock: one snapshot writer per tenant at a time ---
     let lock_key = fnv_key(&req.tenant_id);
-    let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
-        .bind(lock_key)
-        .fetch_one(&mut *tx)
-        .await?;
+    let acquired = repo::try_advisory_lock(&mut tx, lock_key).await?;
     if !acquired {
         return Err(SnapshotError::ConcurrentSnapshot);
     }
 
     // --- Query FIFO layer state at as_of (warehouse-level) ---
-    let layer_rows: Vec<LayerRow> = sqlx::query_as::<_, LayerRow>(
-        r#"
-        SELECT
-            l.item_id,
-            l.unit_cost_minor,
-            (l.quantity_received - COALESCE(
-                SUM(lc.quantity_consumed) FILTER (WHERE lc.consumed_at <= $3),
-                0
-            ))::BIGINT AS qty_at_as_of
-        FROM inventory_layers l
-        LEFT JOIN layer_consumptions lc ON lc.layer_id = l.id
-        WHERE l.tenant_id = $1
-          AND l.warehouse_id = $2
-          AND l.received_at <= $3
-        GROUP BY l.id, l.item_id, l.unit_cost_minor, l.quantity_received
-        HAVING (l.quantity_received - COALESCE(
-            SUM(lc.quantity_consumed) FILTER (WHERE lc.consumed_at <= $3),
-            0
-        )) > 0
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.warehouse_id)
-    .bind(req.as_of)
-    .fetch_all(&mut *tx)
-    .await?;
+    let layer_rows =
+        repo::fetch_layers_for_snapshot(&mut tx, &req.tenant_id, req.warehouse_id, req.as_of)
+            .await?;
 
     // --- Aggregate by item: weighted-average cost ---
-    let lines = aggregate_lines(
-        &layer_rows,
-        req.warehouse_id,
-        req.location_id,
-        &req.currency,
-    );
+    let lines = aggregate_lines(&layer_rows, req.warehouse_id, req.location_id, &req.currency);
     let total_value_minor: i64 = lines.iter().map(|l| l.total_value_minor).sum();
 
     // --- Mutation: insert snapshot header ---
-    sqlx::query(
-        r#"
-        INSERT INTO inventory_valuation_snapshots
-            (id, tenant_id, warehouse_id, location_id, as_of,
-             total_value_minor, currency)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        "#,
+    repo::insert_snapshot_header(
+        &mut tx,
+        snapshot_id,
+        &req.tenant_id,
+        req.warehouse_id,
+        req.location_id,
+        req.as_of,
+        total_value_minor,
+        &req.currency,
     )
-    .bind(snapshot_id)
-    .bind(&req.tenant_id)
-    .bind(req.warehouse_id)
-    .bind(req.location_id)
-    .bind(req.as_of)
-    .bind(total_value_minor)
-    .bind(&req.currency)
-    .execute(&mut *tx)
     .await?;
 
     // --- Mutation: batch insert per-item lines (single round-trip) ---
@@ -225,30 +174,17 @@ pub async fn create_valuation_snapshot(
         let total_values: Vec<i64> = lines.iter().map(|l| l.total_value_minor).collect();
         let currencies: Vec<&str> = vec![req.currency.as_str(); lines.len()];
 
-        sqlx::query(
-            r#"
-            INSERT INTO inventory_valuation_lines
-                (snapshot_id, item_id, warehouse_id, location_id,
-                 quantity_on_hand, unit_cost_minor, total_value_minor, currency)
-            SELECT $1,
-                UNNEST($2::UUID[]),
-                UNNEST($3::UUID[]),
-                UNNEST($4::UUID[]),
-                UNNEST($5::BIGINT[]),
-                UNNEST($6::BIGINT[]),
-                UNNEST($7::BIGINT[]),
-                UNNEST($8::TEXT[])
-            "#,
+        repo::insert_snapshot_lines(
+            &mut tx,
+            snapshot_id,
+            &item_ids,
+            &warehouse_ids,
+            &location_ids,
+            &qtys,
+            &unit_costs,
+            &total_values,
+            &currencies,
         )
-        .bind(snapshot_id)
-        .bind(&item_ids)
-        .bind(&warehouse_ids)
-        .bind(&location_ids)
-        .bind(&qtys)
-        .bind(&unit_costs)
-        .bind(&total_values)
-        .bind(&currencies)
-        .execute(&mut *tx)
         .await?;
     }
 
@@ -283,23 +219,16 @@ pub async fn create_valuation_snapshot(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'valuation_snapshot', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    repo::insert_snapshot_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
+        &snapshot_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_VALUATION_SNAPSHOT_CREATED)
-    .bind(snapshot_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     // --- Idempotency: store response for replay ---
@@ -318,19 +247,14 @@ pub async fn create_valuation_snapshot(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = created_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
+    repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -351,30 +275,12 @@ fn validate_request(req: &CreateSnapshotRequest) -> Result<(), SnapshotError> {
     Ok(())
 }
 
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
-}
-
 /// Aggregate per-FIFO-layer rows into per-item snapshot lines.
 ///
 /// Uses weighted-average cost: total_value / total_qty.
 /// Rows are sorted by item_id for deterministic ordering.
 fn aggregate_lines(
-    layer_rows: &[LayerRow],
+    layer_rows: &[repo::SnapshotLayerRow],
     warehouse_id: Uuid,
     location_id: Option<Uuid>,
     currency: &str,
@@ -426,8 +332,8 @@ fn fnv_key(s: &str) -> i64 {
 mod tests {
     use super::*;
 
-    fn make_layer(item_id: Uuid, qty: i64, cost: i64) -> LayerRow {
-        LayerRow {
+    fn make_layer(item_id: Uuid, qty: i64, cost: i64) -> repo::SnapshotLayerRow {
+        repo::SnapshotLayerRow {
             item_id,
             unit_cost_minor: cost,
             qty_at_as_of: qty,

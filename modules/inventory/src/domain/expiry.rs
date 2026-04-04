@@ -1,27 +1,27 @@
 //! Lot expiry assignment and alert scanning.
 
-use chrono::{DateTime, Duration, NaiveDate, Utc};
+use chrono::{Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::expiry_repo;
 use crate::events::{
     build_expiry_alert_envelope, build_expiry_set_envelope, ExpiryAlertPayload, ExpirySetPayload,
     EVENT_TYPE_EXPIRY_ALERT, EVENT_TYPE_EXPIRY_SET,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
-pub struct LotExpiryRecord {
-    pub lot_id: Uuid,
-    pub tenant_id: String,
-    pub item_id: Uuid,
-    pub lot_code: String,
-    pub expires_on: NaiveDate,
-    pub expiry_source: String,
-    pub expiry_set_at: DateTime<Utc>,
-}
+// ============================================================================
+// Domain model (defined in expiry_repo; re-exported here for API compatibility)
+// ============================================================================
+
+pub use crate::domain::expiry_repo::LotExpiryRecord;
+
+// ============================================================================
+// Request / result types
+// ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct SetLotExpiryRequest {
@@ -32,7 +32,7 @@ pub struct SetLotExpiryRequest {
     #[serde(default)]
     pub compute_from_policy: bool,
     #[serde(default)]
-    pub reference_at: Option<DateTime<Utc>>,
+    pub reference_at: Option<chrono::DateTime<Utc>>,
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
@@ -76,53 +76,26 @@ pub enum ExpiryError {
     Database(#[from] sqlx::Error),
 }
 
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-#[derive(sqlx::FromRow)]
-struct LotRow {
-    item_id: Uuid,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(sqlx::FromRow)]
-struct LotCandidate {
-    id: Uuid,
-    item_id: Uuid,
-    lot_code: String,
-    expires_on: NaiveDate,
-}
+// ============================================================================
+// Policy helpers
+// ============================================================================
 
 pub async fn compute_expiry_from_policy(
     pool: &PgPool,
     tenant_id: &str,
     item_id: Uuid,
-    reference_at: DateTime<Utc>,
+    reference_at: chrono::DateTime<Utc>,
 ) -> Result<Option<NaiveDate>, ExpiryError> {
-    let shelf_life_days: Option<i32> = sqlx::query_scalar(
-        r#"
-        SELECT shelf_life_days
-        FROM item_revisions
-        WHERE tenant_id = $1 AND item_id = $2
-          AND effective_from IS NOT NULL
-          AND effective_from <= $3
-          AND (effective_to IS NULL OR effective_to > $3)
-        ORDER BY effective_from DESC
-        LIMIT 1
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(item_id)
-    .bind(reference_at)
-    .fetch_optional(pool)
-    .await?
-    .flatten();
+    let shelf_life_days =
+        expiry_repo::fetch_shelf_life_days(pool, tenant_id, item_id, reference_at).await?;
 
-    Ok(shelf_life_days.map(|days| reference_at.date_naive() + Duration::days(days as i64)))
+    Ok(shelf_life_days
+        .map(|days| reference_at.date_naive() + Duration::days(days as i64)))
 }
+
+// ============================================================================
+// Set lot expiry service
+// ============================================================================
 
 pub async fn set_lot_expiry(
     pool: &PgPool,
@@ -131,7 +104,9 @@ pub async fn set_lot_expiry(
     validate_set_request(req)?;
 
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        expiry_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ExpiryError::ConflictingIdempotencyKey);
         }
@@ -146,19 +121,10 @@ pub async fn set_lot_expiry(
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     let mut tx = pool.begin().await?;
-    let lot = sqlx::query_as::<_, LotRow>(
-        r#"
-        SELECT item_id, created_at
-        FROM inventory_lots
-        WHERE id = $1 AND tenant_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(req.lot_id)
-    .bind(&req.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(ExpiryError::LotNotFound)?;
+
+    let lot = expiry_repo::lock_lot(&mut tx, req.lot_id, &req.tenant_id)
+        .await?
+        .ok_or(ExpiryError::LotNotFound)?;
 
     let (expires_on, expiry_source) = if req.compute_from_policy {
         let reference_at = req.reference_at.unwrap_or(lot.created_at);
@@ -175,29 +141,14 @@ pub async fn set_lot_expiry(
         )
     };
 
-    let updated = sqlx::query_as::<_, LotExpiryRecord>(
-        r#"
-        UPDATE inventory_lots
-        SET expires_on = $1,
-            expiry_source = $2,
-            expiry_set_at = $3
-        WHERE id = $4 AND tenant_id = $5
-        RETURNING
-            id AS lot_id,
-            tenant_id,
-            item_id,
-            lot_code,
-            expires_on,
-            COALESCE(expiry_source, '') AS expiry_source,
-            COALESCE(expiry_set_at, NOW()) AS expiry_set_at
-        "#,
+    let updated = expiry_repo::update_lot_expiry(
+        &mut tx,
+        expires_on,
+        expiry_source,
+        now,
+        req.lot_id,
+        &req.tenant_id,
     )
-    .bind(expires_on)
-    .bind(expiry_source)
-    .bind(now)
-    .bind(req.lot_id)
-    .bind(&req.tenant_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     let event_id = Uuid::new_v4();
@@ -219,44 +170,38 @@ pub async fn set_lot_expiry(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES ($1, $2, 'inventory_lot', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    expiry_repo::insert_lot_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_EXPIRY_SET,
+        &updated.lot_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_EXPIRY_SET)
-    .bind(updated.lot_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     let response_json = serde_json::to_string(&updated)?;
     let expires_at = now + Duration::days(7);
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 200, $5)
-        "#,
+    expiry_repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        200,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok((updated, false))
 }
+
+// ============================================================================
+// Expiry alert scan service
+// ============================================================================
 
 pub async fn run_expiry_alert_scan(
     pool: &PgPool,
@@ -265,7 +210,9 @@ pub async fn run_expiry_alert_scan(
     validate_scan_request(req)?;
 
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        expiry_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ExpiryError::ConflictingIdempotencyKey);
         }
@@ -279,35 +226,11 @@ pub async fn run_expiry_alert_scan(
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let expiring = sqlx::query_as::<_, LotCandidate>(
-        r#"
-        SELECT id, item_id, lot_code, expires_on
-        FROM inventory_lots
-        WHERE tenant_id = $1
-          AND expires_on IS NOT NULL
-          AND expires_on > $2
-          AND expires_on <= $3
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(as_of_date)
-    .bind(as_of_date + Duration::days(req.expiring_within_days as i64))
-    .fetch_all(pool)
-    .await?;
+    let expiring =
+        expiry_repo::fetch_expiring_lots(pool, &req.tenant_id, as_of_date, req.expiring_within_days)
+            .await?;
 
-    let expired = sqlx::query_as::<_, LotCandidate>(
-        r#"
-        SELECT id, item_id, lot_code, expires_on
-        FROM inventory_lots
-        WHERE tenant_id = $1
-          AND expires_on IS NOT NULL
-          AND expires_on <= $2
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(as_of_date)
-    .fetch_all(pool)
-    .await?;
+    let expired = expiry_repo::fetch_expired_lots(pool, &req.tenant_id, as_of_date).await?;
 
     let mut expiring_soon_emitted = 0usize;
     for lot in expiring {
@@ -356,52 +279,44 @@ pub async fn run_expiry_alert_scan(
     let now = Utc::now();
     let response_json = serde_json::to_string(&result)?;
     let expires_at = now + Duration::days(7);
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 200, $5)
-        "#,
+    expiry_repo::store_idempotency_key_pool(
+        pool,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        200,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(pool)
     .await?;
 
     Ok((result, false))
 }
+
+// ============================================================================
+// Alert emission helper
+// ============================================================================
 
 async fn emit_alert_if_new(
     pool: &PgPool,
     tenant_id: &str,
     correlation_id: &str,
     causation_id: Option<String>,
-    lot: &LotCandidate,
+    lot: &expiry_repo::LotCandidate,
     alert_type: &str,
     alert_date: NaiveDate,
     window_days: i32,
 ) -> Result<bool, ExpiryError> {
     let mut tx = pool.begin().await?;
 
-    let marker: Option<Uuid> = sqlx::query_scalar(
-        r#"
-        INSERT INTO inv_lot_expiry_alert_state
-            (tenant_id, lot_id, alert_type, alert_date, window_days)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (tenant_id, lot_id, alert_type, alert_date, window_days)
-        DO NOTHING
-        RETURNING id
-        "#,
+    let marker = expiry_repo::insert_alert_state_if_new(
+        &mut tx,
+        tenant_id,
+        lot.id,
+        alert_type,
+        alert_date,
+        window_days,
     )
-    .bind(tenant_id)
-    .bind(lot.id)
-    .bind(alert_type)
-    .bind(alert_date)
-    .bind(window_days)
-    .fetch_optional(&mut *tx)
     .await?;
 
     if marker.is_none() {
@@ -430,27 +345,25 @@ async fn emit_alert_if_new(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES ($1, $2, 'inventory_lot', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    expiry_repo::insert_alert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_EXPIRY_ALERT,
+        &lot.id.to_string(),
+        tenant_id,
+        &envelope_json,
+        correlation_id,
+        causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_EXPIRY_ALERT)
-    .bind(lot.id.to_string())
-    .bind(tenant_id)
-    .bind(&envelope_json)
-    .bind(correlation_id)
-    .bind(causation_id)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(true)
 }
+
+// ============================================================================
+// Validation
+// ============================================================================
 
 fn validate_set_request(req: &SetLotExpiryRequest) -> Result<(), ExpiryError> {
     if req.tenant_id.trim().is_empty() {
@@ -482,22 +395,4 @@ fn validate_scan_request(req: &RunExpiryAlertScanRequest) -> Result<(), ExpiryEr
         ));
     }
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
 }

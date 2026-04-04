@@ -23,6 +23,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::methods::{self, FullLayer, ItemValuation, ValuationMethod};
+use super::repo;
 use crate::events::valuation_run_completed::{
     build_valuation_run_completed_envelope, ValuationRunCompletedLine,
     ValuationRunCompletedPayload, EVENT_TYPE_VALUATION_RUN_COMPLETED,
@@ -95,31 +96,6 @@ pub enum RunError {
 }
 
 // ============================================================================
-// Internal row types
-// ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct LayerRow {
-    item_id: Uuid,
-    unit_cost_minor: i64,
-    quantity_received: i64,
-    qty_consumed_at_as_of: i64,
-}
-
-/// Standard cost config loaded from item_valuation_configs.
-#[derive(sqlx::FromRow)]
-struct StandardCostConfig {
-    item_id: Uuid,
-    standard_cost_minor: Option<i64>,
-}
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-// ============================================================================
 // Service
 // ============================================================================
 
@@ -136,7 +112,9 @@ pub async fn execute_valuation_run(
 
     // --- Idempotency check ---
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(RunError::ConflictingIdempotencyKey);
         }
@@ -156,39 +134,14 @@ pub async fn execute_valuation_run(
 
     // --- Advisory lock: one valuation run per tenant at a time ---
     let lock_key = fnv_key(&format!("valrun:{}", req.tenant_id));
-    let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
-        .bind(lock_key)
-        .fetch_one(&mut *tx)
-        .await?;
+    let acquired = repo::try_advisory_lock(&mut tx, lock_key).await?;
     if !acquired {
         return Err(RunError::ConcurrentRun);
     }
 
     // --- Query all layers for tenant/warehouse up to as_of ---
-    let layer_rows: Vec<LayerRow> = sqlx::query_as::<_, LayerRow>(
-        r#"
-        SELECT
-            l.item_id,
-            l.unit_cost_minor,
-            l.quantity_received,
-            COALESCE(
-                SUM(lc.quantity_consumed) FILTER (WHERE lc.consumed_at <= $3),
-                0
-            )::BIGINT AS qty_consumed_at_as_of
-        FROM inventory_layers l
-        LEFT JOIN layer_consumptions lc ON lc.layer_id = l.id
-        WHERE l.tenant_id = $1
-          AND l.warehouse_id = $2
-          AND l.received_at <= $3
-        GROUP BY l.id, l.item_id, l.unit_cost_minor, l.quantity_received, l.received_at
-        ORDER BY l.item_id, l.received_at ASC, l.id
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.warehouse_id)
-    .bind(req.as_of)
-    .fetch_all(&mut *tx)
-    .await?;
+    let layer_rows =
+        repo::fetch_layers_for_run(&mut tx, &req.tenant_id, req.warehouse_id, req.as_of).await?;
 
     // --- Group layers by item ---
     let mut item_layers: BTreeMap<Uuid, Vec<FullLayer>> = BTreeMap::new();
@@ -206,7 +159,7 @@ pub async fn execute_valuation_run(
 
     // --- Load standard costs if needed ---
     let standard_costs: BTreeMap<Uuid, i64> = if req.method == ValuationMethod::StandardCost {
-        load_standard_costs(&mut tx, &req.tenant_id).await?
+        repo::load_standard_costs(&mut tx, &req.tenant_id).await?
     } else {
         BTreeMap::new()
     };
@@ -244,23 +197,16 @@ pub async fn execute_valuation_run(
     let total_value_minor: i64 = lines.iter().map(|l| l.total_value_minor).sum();
 
     // --- Mutation: insert run header ---
-    sqlx::query(
-        r#"
-        INSERT INTO valuation_runs
-            (id, tenant_id, warehouse_id, method, as_of,
-             total_value_minor, total_cogs_minor, currency)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        "#,
+    repo::insert_run_header(
+        &mut tx,
+        run_id,
+        &req.tenant_id,
+        req.warehouse_id,
+        req.method.as_str(),
+        req.as_of,
+        total_value_minor,
+        &req.currency,
     )
-    .bind(run_id)
-    .bind(&req.tenant_id)
-    .bind(req.warehouse_id)
-    .bind(req.method.as_str())
-    .bind(req.as_of)
-    .bind(total_value_minor)
-    .bind(0_i64)
-    .bind(&req.currency)
-    .execute(&mut *tx)
     .await?;
 
     // --- Mutation: batch insert per-item lines (single round-trip) ---
@@ -273,31 +219,17 @@ pub async fn execute_valuation_run(
         let variances: Vec<i64> = lines.iter().map(|l| l.variance_minor).collect();
         let currencies: Vec<&str> = vec![req.currency.as_str(); lines.len()];
 
-        sqlx::query(
-            r#"
-            INSERT INTO valuation_run_lines
-                (run_id, item_id, warehouse_id,
-                 quantity_on_hand, unit_cost_minor, total_value_minor,
-                 variance_minor, currency)
-            SELECT $1,
-                UNNEST($2::UUID[]),
-                UNNEST($3::UUID[]),
-                UNNEST($4::BIGINT[]),
-                UNNEST($5::BIGINT[]),
-                UNNEST($6::BIGINT[]),
-                UNNEST($7::BIGINT[]),
-                UNNEST($8::TEXT[])
-            "#,
+        repo::insert_run_lines(
+            &mut tx,
+            run_id,
+            &item_ids,
+            &warehouse_ids,
+            &qtys,
+            &unit_costs,
+            &total_values,
+            &variances,
+            &currencies,
         )
-        .bind(run_id)
-        .bind(&item_ids)
-        .bind(&warehouse_ids)
-        .bind(&qtys)
-        .bind(&unit_costs)
-        .bind(&total_values)
-        .bind(&variances)
-        .bind(&currencies)
-        .execute(&mut *tx)
         .await?;
     }
 
@@ -334,23 +266,16 @@ pub async fn execute_valuation_run(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'valuation_run', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    repo::insert_run_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_VALUATION_RUN_COMPLETED,
+        &run_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_VALUATION_RUN_COMPLETED)
-    .bind(run_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     // --- Idempotency: store response for replay ---
@@ -370,19 +295,14 @@ pub async fn execute_valuation_run(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = created_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
+    repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -401,23 +321,8 @@ pub async fn set_item_valuation_method(
     method: ValuationMethod,
     standard_cost_minor: Option<i64>,
 ) -> Result<(), RunError> {
-    sqlx::query(
-        r#"
-        INSERT INTO item_valuation_configs
-            (tenant_id, item_id, method, standard_cost_minor)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (tenant_id, item_id) DO UPDATE SET
-            method = EXCLUDED.method,
-            standard_cost_minor = EXCLUDED.standard_cost_minor,
-            updated_at = NOW()
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(item_id)
-    .bind(method.as_str())
-    .bind(standard_cost_minor)
-    .execute(pool)
-    .await?;
+    repo::upsert_valuation_method(pool, tenant_id, item_id, method.as_str(), standard_cost_minor)
+        .await?;
     Ok(())
 }
 
@@ -433,45 +338,6 @@ fn validate_request(req: &ValuationRunRequest) -> Result<(), RunError> {
         return Err(RunError::MissingIdempotencyKey);
     }
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
-}
-
-async fn load_standard_costs(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &str,
-) -> Result<BTreeMap<Uuid, i64>, sqlx::Error> {
-    let rows: Vec<StandardCostConfig> = sqlx::query_as::<_, StandardCostConfig>(
-        r#"
-        SELECT item_id, standard_cost_minor
-        FROM item_valuation_configs
-        WHERE tenant_id = $1 AND method = 'standard_cost'
-        "#,
-    )
-    .bind(tenant_id)
-    .fetch_all(&mut **tx)
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .filter_map(|r| r.standard_cost_minor.map(|c| (r.item_id, c)))
-        .collect())
 }
 
 /// Stable i64 advisory lock key from a string (FNV-1a hash).

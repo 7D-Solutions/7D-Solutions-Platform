@@ -10,34 +10,23 @@
 //! - All writes follow Guard → Mutation → Outbox pattern
 //! - Tenant-scoped: labels cannot leak across tenants
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::domain::labels_repo;
 use crate::domain::revisions::ItemRevision;
 use crate::events::{
     build_label_generated_envelope, LabelGeneratedPayload, EVENT_TYPE_LABEL_GENERATED,
 };
 
 // ============================================================================
-// Domain model
+// Domain model (defined in labels_repo; re-exported here for API compatibility)
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, utoipa::ToSchema)]
-pub struct Label {
-    pub id: Uuid,
-    pub tenant_id: String,
-    pub item_id: Uuid,
-    pub revision_id: Uuid,
-    pub label_type: String,
-    pub barcode_format: String,
-    pub payload: serde_json::Value,
-    pub idempotency_key: Option<String>,
-    pub actor_id: Option<Uuid>,
-    pub created_at: DateTime<Utc>,
-}
+pub use crate::domain::labels_repo::Label;
 
 // ============================================================================
 // Request types
@@ -96,14 +85,8 @@ pub enum LabelError {
 }
 
 // ============================================================================
-// Internal helpers
+// Helpers
 // ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
 
 fn require_non_empty(value: &str, field: &str) -> Result<(), LabelError> {
     if value.trim().is_empty() {
@@ -195,7 +178,9 @@ pub async fn generate_label(
 
     // --- Guard: idempotency check ---
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        labels_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(LabelError::ConflictingIdempotencyKey);
         }
@@ -223,25 +208,18 @@ pub async fn generate_label(
 
     let mut tx = pool.begin().await?;
 
-    let label = sqlx::query_as::<_, Label>(
-        r#"
-        INSERT INTO inv_labels
-            (tenant_id, item_id, revision_id, label_type, barcode_format,
-             payload, idempotency_key, actor_id, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6::JSONB, $7, $8, $9)
-        RETURNING *
-        "#,
+    let label = labels_repo::insert_label(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.revision_id,
+        &req.label_type,
+        &req.barcode_format,
+        &label_payload,
+        &req.idempotency_key,
+        req.actor_id,
+        now,
     )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.revision_id)
-    .bind(&req.label_type)
-    .bind(&req.barcode_format)
-    .bind(&label_payload)
-    .bind(&req.idempotency_key)
-    .bind(req.actor_id)
-    .bind(now)
-    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         if let sqlx::Error::Database(ref dbe) = e {
@@ -274,41 +252,30 @@ pub async fn generate_label(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES ($1, $2, 'label', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    labels_repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_LABEL_GENERATED,
+        &label.id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_LABEL_GENERATED)
-    .bind(label.id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     // Idempotency key
     let response_json = serde_json::to_string(&label)?;
     let expires_at = now + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
+    labels_repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -325,14 +292,7 @@ pub async fn get_label(
     tenant_id: &str,
     label_id: Uuid,
 ) -> Result<Option<Label>, LabelError> {
-    let label =
-        sqlx::query_as::<_, Label>("SELECT * FROM inv_labels WHERE id = $1 AND tenant_id = $2")
-            .bind(label_id)
-            .bind(tenant_id)
-            .fetch_optional(pool)
-            .await?;
-
-    Ok(label)
+    Ok(labels_repo::get_label(pool, tenant_id, label_id).await?)
 }
 
 /// List all labels for an item, ordered by created_at descending.
@@ -341,44 +301,21 @@ pub async fn list_labels(
     tenant_id: &str,
     item_id: Uuid,
 ) -> Result<Vec<Label>, LabelError> {
-    let labels = sqlx::query_as::<_, Label>(
-        r#"
-        SELECT * FROM inv_labels
-        WHERE tenant_id = $1 AND item_id = $2
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(item_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(labels)
+    Ok(labels_repo::list_labels(pool, tenant_id, item_id).await?)
 }
 
 // ============================================================================
 // Guards
 // ============================================================================
 
-#[derive(sqlx::FromRow)]
-struct ItemRow {
-    sku: String,
-    active: bool,
-}
-
 async fn guard_item_exists_active(
     pool: &PgPool,
     item_id: Uuid,
     tenant_id: &str,
-) -> Result<ItemRow, LabelError> {
-    let row = sqlx::query_as::<_, ItemRow>(
-        "SELECT sku, active FROM items WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(item_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(LabelError::ItemNotFound)?;
+) -> Result<labels_repo::ItemRow, LabelError> {
+    let row = labels_repo::find_item(pool, item_id, tenant_id)
+        .await?
+        .ok_or(LabelError::ItemNotFound)?;
 
     if !row.active {
         return Err(LabelError::ItemInactive);
@@ -393,42 +330,16 @@ async fn guard_revision_exists(
     item_id: Uuid,
     tenant_id: &str,
 ) -> Result<ItemRevision, LabelError> {
-    sqlx::query_as::<_, ItemRevision>(
-        r#"
-        SELECT * FROM item_revisions
-        WHERE id = $1 AND tenant_id = $2
-        "#,
-    )
-    .bind(revision_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .and_then(|rev| {
-        if rev.item_id == item_id {
-            Some(rev)
-        } else {
-            None
-        }
-    })
-    .ok_or(LabelError::RevisionNotFound)
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
+    labels_repo::find_revision(pool, revision_id, tenant_id)
+        .await?
+        .and_then(|rev| {
+            if rev.item_id == item_id {
+                Some(rev)
+            } else {
+                None
+            }
+        })
+        .ok_or(LabelError::RevisionNotFound)
 }
 
 // ============================================================================

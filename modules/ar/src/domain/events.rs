@@ -9,8 +9,8 @@ pub async fn list_events<'e>(
     executor: impl PgExecutor<'e>,
     app_id: &str,
     query: &ListEventsQuery,
-    limit: i64,
-    offset: i64,
+    limit: i32,
+    offset: i32,
 ) -> Result<Vec<Event>, sqlx::Error> {
     let mut sql = String::from(
         "SELECT id, app_id, event_type, source, entity_type, entity_id, payload, created_at FROM ar_events WHERE app_id = $1",

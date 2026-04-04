@@ -86,8 +86,8 @@ pub async fn list_webhooks<'e>(
     app_id: &str,
     event_type: Option<&str>,
     status: Option<&str>,
-    limit: i64,
-    offset: i64,
+    limit: i32,
+    offset: i32,
 ) -> Result<Vec<Webhook>, sqlx::Error> {
     let mut sql = String::from(
         r#"

@@ -131,7 +131,7 @@ pub async fn insert_subscription<'e>(
     interval_count: i32,
     current_period_start: NaiveDateTime,
     current_period_end: NaiveDateTime,
-    payment_method_id: &Option<String>,
+    payment_method_id: &str,
     metadata: Option<JsonValue>,
     party_id: Option<Uuid>,
 ) -> Result<Subscription, sqlx::Error> {

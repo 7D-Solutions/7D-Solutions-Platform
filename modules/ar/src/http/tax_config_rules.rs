@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::domain::tax_config as tax_config_repo;
 use super::tax_config::{
-    db_error, get_rule_by_id_and_tenant, ErrorBody, RuleResponse,
+    db_error, get_rule_by_id_and_tenant, ErrorBody,
 };
 
 // ============================================================================

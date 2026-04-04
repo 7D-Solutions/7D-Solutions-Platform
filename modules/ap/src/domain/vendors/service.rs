@@ -27,21 +27,7 @@ pub async fn get_vendor(
     tenant_id: &str,
     vendor_id: Uuid,
 ) -> Result<Option<Vendor>, VendorError> {
-    let vendor = sqlx::query_as::<_, Vendor>(
-        r#"
-        SELECT vendor_id, tenant_id, name, tax_id, currency,
-               payment_terms_days, payment_method, remittance_email,
-               is_active, party_id, created_at, updated_at
-        FROM vendors
-        WHERE vendor_id = $1 AND tenant_id = $2
-        "#,
-    )
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(vendor)
+    super::repo::fetch_vendor(pool, tenant_id, vendor_id).await
 }
 
 /// List vendors for a tenant. Pass `include_inactive = true` to include deactivated vendors.
@@ -50,37 +36,7 @@ pub async fn list_vendors(
     tenant_id: &str,
     include_inactive: bool,
 ) -> Result<Vec<Vendor>, VendorError> {
-    let vendors = if include_inactive {
-        sqlx::query_as::<_, Vendor>(
-            r#"
-            SELECT vendor_id, tenant_id, name, tax_id, currency,
-                   payment_terms_days, payment_method, remittance_email,
-                   is_active, party_id, created_at, updated_at
-            FROM vendors
-            WHERE tenant_id = $1
-            ORDER BY name ASC
-            "#,
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, Vendor>(
-            r#"
-            SELECT vendor_id, tenant_id, name, tax_id, currency,
-                   payment_terms_days, payment_method, remittance_email,
-                   is_active, party_id, created_at, updated_at
-            FROM vendors
-            WHERE tenant_id = $1 AND is_active = TRUE
-            ORDER BY name ASC
-            "#,
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    };
-
-    Ok(vendors)
+    super::repo::list_vendors(pool, tenant_id, include_inactive).await
 }
 
 // ============================================================================
@@ -102,58 +58,30 @@ pub async fn create_vendor(
     let vendor_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
     let now = Utc::now();
+    let currency = req.currency.to_uppercase();
 
     let mut tx = pool.begin().await?;
 
     // Guard: check for duplicate active vendor name within tenant
-    let duplicate: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT vendor_id FROM vendors WHERE tenant_id = $1 AND name = $2 AND is_active = TRUE LIMIT 1",
-    )
-    .bind(tenant_id)
-    .bind(req.name.trim())
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if duplicate.is_some() {
+    if super::repo::check_duplicate_name(&mut *tx, tenant_id, req.name.trim()).await? {
         return Err(VendorError::DuplicateName(req.name.clone()));
     }
 
     // Mutation: insert vendor
-    let vendor = sqlx::query_as::<_, Vendor>(
-        r#"
-        INSERT INTO vendors (
-            vendor_id, tenant_id, name, tax_id, currency,
-            payment_terms_days, payment_method, remittance_email,
-            is_active, party_id, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10, $10)
-        RETURNING
-            vendor_id, tenant_id, name, tax_id, currency,
-            payment_terms_days, payment_method, remittance_email,
-            is_active, party_id, created_at, updated_at
-        "#,
+    let vendor = super::repo::insert_vendor(
+        &mut *tx,
+        vendor_id,
+        tenant_id,
+        req.name.trim(),
+        &req.tax_id,
+        &currency,
+        req.payment_terms_days,
+        &req.payment_method,
+        &req.remittance_email,
+        req.party_id,
+        now,
     )
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .bind(req.name.trim())
-    .bind(&req.tax_id)
-    .bind(req.currency.to_uppercase())
-    .bind(req.payment_terms_days)
-    .bind(&req.payment_method)
-    .bind(&req.remittance_email)
-    .bind(req.party_id)
-    .bind(now)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        // Unique constraint violation maps to DuplicateName
-        if let sqlx::Error::Database(ref db_err) = e {
-            if db_err.code().as_deref() == Some("23505") {
-                return sqlx::Error::RowNotFound; // remapped below
-            }
-        }
-        e
-    })?;
+    .await?;
 
     // Outbox: enqueue vendor_created event
     let payload = VendorCreatedPayload {
@@ -212,22 +140,9 @@ pub async fn update_vendor(
     let mut tx = pool.begin().await?;
 
     // Guard: vendor must exist for this tenant
-    let existing: Option<Vendor> = sqlx::query_as(
-        r#"
-        SELECT vendor_id, tenant_id, name, tax_id, currency,
-               payment_terms_days, payment_method, remittance_email,
-               is_active, party_id, created_at, updated_at
-        FROM vendors
-        WHERE vendor_id = $1 AND tenant_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(VendorError::NotFound(vendor_id))?;
+    let current = super::repo::lock_vendor_for_update(&mut *tx, vendor_id, tenant_id)
+        .await?
+        .ok_or(VendorError::NotFound(vendor_id))?;
 
     // Resolve updated values (keep existing where not provided)
     let new_name = req
@@ -264,30 +179,19 @@ pub async fn update_vendor(
     let now = Utc::now();
 
     // Mutation
-    let vendor = sqlx::query_as::<_, Vendor>(
-        r#"
-        UPDATE vendors
-        SET name = $1, tax_id = $2, currency = $3,
-            payment_terms_days = $4, payment_method = $5,
-            remittance_email = $6, party_id = $7, updated_at = $8
-        WHERE vendor_id = $9 AND tenant_id = $10
-        RETURNING
-            vendor_id, tenant_id, name, tax_id, currency,
-            payment_terms_days, payment_method, remittance_email,
-            is_active, party_id, created_at, updated_at
-        "#,
+    let vendor = super::repo::update_vendor_row(
+        &mut *tx,
+        vendor_id,
+        tenant_id,
+        &new_name,
+        &new_tax_id,
+        &new_currency,
+        new_terms,
+        &new_method,
+        &new_email,
+        new_party_id,
+        now,
     )
-    .bind(&new_name)
-    .bind(&new_tax_id)
-    .bind(&new_currency)
-    .bind(new_terms)
-    .bind(&new_method)
-    .bind(&new_email)
-    .bind(new_party_id)
-    .bind(now)
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     // Outbox: enqueue vendor_updated event
@@ -343,26 +247,12 @@ pub async fn deactivate_vendor(
     let mut tx = pool.begin().await?;
 
     // Guard: vendor must exist for this tenant
-    let exists: Option<(bool,)> =
-        sqlx::query_as("SELECT is_active FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
-            .bind(vendor_id)
-            .bind(tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-    if exists.is_none() {
+    if !super::repo::vendor_exists(&mut *tx, vendor_id, tenant_id).await? {
         return Err(VendorError::NotFound(vendor_id));
     }
 
     // Mutation
-    sqlx::query(
-        "UPDATE vendors SET is_active = FALSE, updated_at = $1 WHERE vendor_id = $2 AND tenant_id = $3",
-    )
-    .bind(now)
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    super::repo::set_vendor_inactive(&mut *tx, vendor_id, tenant_id, now).await?;
 
     // Outbox: vendor_updated with is_active=false signal via updated_by
     let payload = VendorUpdatedPayload {

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.1 | 2026-04-04 | bd-q5efi | SoC: additional repo extraction from tax/mod.rs | Separation of concerns — SQL queries in tax module handler need to move to repo layer. | No |
 | 3.2.0 | 2026-04-04 | bd-tzbk9,bd-q5efi | SoC: extract SQL from bills/service.rs (17 queries) and tax/service.rs (13 queries) into repo modules | Separation of concerns — GL exemplar pattern | No |
 | 3.1.0 | 2026-04-02 | bd-i28hj | Add IntoParams to ListBillsQuery — codegen now picks up vendor_id and include_voided query params | Generated client was missing query params | No |
 | 3.0.2 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |

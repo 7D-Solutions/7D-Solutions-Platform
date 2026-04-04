@@ -11,7 +11,6 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use chrono::NaiveDate;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.6.1 | 2026-04-04 | bd-bxngm | SoC: wire valuation, expiry, labels, cycle_count, status repo modules | Separation of concerns — complete repo module wiring for remaining inventory domain services | No |
 | 2.6.0 | 2026-04-04 | bd-yrmmq,bd-bxngm | SoC: extract SQL from receipt, reservation, transfer, cycle_count, expiry, labels, status, valuation services into repo modules (69 queries total) | Separation of concerns — GL exemplar pattern | No |
 | 2.5.0 | 2026-04-02 | bd-fh6u1 | Add utoipa::path annotations to 3 health endpoints (health, ready, version). All 59 handlers now annotated. | OpenAPI spec completeness — codegen requires typed annotations on every endpoint. | No |
 | 2.4.10 | 2026-04-02 | bd-p9n1w | Replace `extract_tenant` + match boilerplate with `TenantId` Axum extractor in all 5 item handlers (create, get, update, list, deactivate). Pilot for platform-wide tenant context middleware. | Manual `extract_tenant` in every handler is error-prone — a missed call leaks cross-tenant data. `TenantId` extractor makes tenant extraction automatic and returns 401 before the handler runs. | No |

@@ -1,3 +1,11 @@
+pub mod address_repo;
+pub mod contact_repo;
+pub mod contact_role_repo;
+pub mod credit_terms_repo;
+pub mod party_repo;
+pub mod scorecard_repo;
+pub mod vendor_qualification_repo;
+
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 

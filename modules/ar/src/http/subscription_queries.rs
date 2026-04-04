@@ -57,10 +57,7 @@ pub async fn list_subscriptions(
         &db,
         &app_id,
         query.customer_id,
-        query.status.as_ref().map(|s| {
-            // Clone into a string we can reference
-            s.clone()
-        }).as_deref(),
+        query.status.clone(),
     )
     .await
     .map_err(|e| {
@@ -72,7 +69,7 @@ pub async fn list_subscriptions(
         &db,
         &app_id,
         query.customer_id,
-        query.status.as_deref(),
+        query.status,
         limit,
         offset,
     )

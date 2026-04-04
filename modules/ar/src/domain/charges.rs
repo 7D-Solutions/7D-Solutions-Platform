@@ -163,7 +163,7 @@ pub async fn insert_charge<'e>(
     charge_type: &str,
     reason: &str,
     reference_id: &str,
-    service_date: Option<chrono::NaiveDate>,
+    service_date: Option<chrono::NaiveDateTime>,
     note: Option<String>,
     metadata: Option<JsonValue>,
 ) -> Result<Charge, sqlx::Error> {
