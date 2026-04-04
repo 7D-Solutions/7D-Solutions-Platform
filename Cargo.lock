@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.2.1"
+version = "3.2.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.2.1"
+version = "6.2.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.9.0"
+version = "1.9.2"
 dependencies = [
  "argon2",
  "async-nats",
@@ -2459,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.6.0"
+version = "2.6.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3227,7 +3227,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.1.0"
+version = "3.2.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -6124,7 +6124,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.7"
+version = "2.1.8"
 dependencies = [
  "async-nats",
  "axum",

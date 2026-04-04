@@ -4,8 +4,10 @@
 
 pub mod engine;
 pub mod gl_link;
+pub mod gl_link_repo;
 pub mod metrics;
 pub mod models;
+pub mod repo;
 pub mod service;
 pub mod strategies;
 

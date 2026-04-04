@@ -156,8 +156,8 @@ pub struct UpdateContactRoleData<'a> {
     pub app_id: &'a str,
     pub role_type: String,
     pub is_primary: bool,
-    pub effective_from: chrono::DateTime<Utc>,
-    pub effective_to: Option<chrono::DateTime<Utc>>,
+    pub effective_from: chrono::NaiveDate,
+    pub effective_to: Option<chrono::NaiveDate>,
     pub metadata: Option<serde_json::Value>,
     pub updated_at: DateTime<Utc>,
 }

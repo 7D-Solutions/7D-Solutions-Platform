@@ -10,29 +10,19 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::domain::accounts::AccountType;
+
+use super::repo;
 
 // ============================================================================
 // Types
 // ============================================================================
 
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-struct AccountPositionRow {
-    account_id: Uuid,
-    account_name: String,
-    account_type: AccountType,
-    currency: String,
-    institution: Option<String>,
-    opening_balance_minor: i64,
-    transaction_total_minor: i64,
-}
-
 /// Position for a single account.
 #[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct AccountPosition {
-    pub account_id: Uuid,
+    pub account_id: uuid::Uuid,
     pub account_name: String,
     pub currency: String,
     pub institution: Option<String>,
@@ -67,35 +57,7 @@ pub async fn get_cash_position(
     pool: &PgPool,
     app_id: &str,
 ) -> Result<CashPositionResponse, sqlx::Error> {
-    let rows = sqlx::query_as::<_, AccountPositionRow>(
-        r#"
-        SELECT
-            a.id                          AS account_id,
-            a.account_name,
-            a.account_type,
-            a.currency,
-            a.institution,
-            COALESCE(
-                (SELECT s.opening_balance_minor
-                 FROM treasury_bank_statements s
-                 WHERE s.account_id = a.id AND s.app_id = $1
-                 ORDER BY s.period_start ASC
-                 LIMIT 1),
-                0
-            )                             AS opening_balance_minor,
-            COALESCE(SUM(t.amount_minor), 0)::BIGINT AS transaction_total_minor
-        FROM treasury_bank_accounts a
-        LEFT JOIN treasury_bank_transactions t
-            ON t.account_id = a.id AND t.app_id = $1
-        WHERE a.app_id = $1
-            AND a.status = 'active'::treasury_account_status
-        GROUP BY a.id, a.account_name, a.account_type, a.currency, a.institution
-        ORDER BY a.account_type, a.account_name
-        "#,
-    )
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
+    let rows = repo::fetch_account_positions(pool, app_id).await?;
 
     let mut bank_cash = Vec::new();
     let mut cc_liability = Vec::new();
@@ -152,6 +114,7 @@ mod tests {
     use crate::domain::accounts::{
         service as account_svc, CreateBankAccountRequest, CreateCreditCardAccountRequest,
     };
+    use crate::domain::reports::repo as reports_repo;
     use serial_test::serial;
 
     const TEST_APP: &str = "test-app-cash-pos";
@@ -169,40 +132,7 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        // Delete in dependency order
-        sqlx::query("DELETE FROM treasury_recon_matches WHERE app_id = $1")
-            .bind(TEST_APP)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM treasury_bank_transactions WHERE app_id = $1")
-            .bind(TEST_APP)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM treasury_bank_statements WHERE app_id = $1")
-            .bind(TEST_APP)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query(
-            "DELETE FROM events_outbox WHERE aggregate_type = 'bank_account' AND aggregate_id IN \
-             (SELECT id::TEXT FROM treasury_bank_accounts WHERE app_id = $1)",
-        )
-        .bind(TEST_APP)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query("DELETE FROM treasury_idempotency_keys WHERE app_id = $1")
-            .bind(TEST_APP)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM treasury_bank_accounts WHERE app_id = $1")
-            .bind(TEST_APP)
-            .execute(pool)
-            .await
-            .ok();
+        reports_repo::delete_test_cash_position_data(pool, TEST_APP).await;
     }
 
     #[tokio::test]
@@ -269,27 +199,14 @@ mod tests {
         .expect("create CC failed");
 
         // Insert transactions for both
-        sqlx::query(
-            r#"INSERT INTO treasury_bank_transactions
-               (app_id, account_id, transaction_date, amount_minor, currency, external_id)
-               VALUES ($1, $2, '2026-02-01', 100000, 'USD', 'cp-bank-1')"#,
+        reports_repo::insert_test_bank_txn(
+            &pool, TEST_APP, bank.id, "2026-02-01", 100000, "USD", "cp-bank-1",
         )
-        .bind(TEST_APP)
-        .bind(bank.id)
-        .execute(&pool)
-        .await
-        .expect("insert bank txn failed");
-
-        sqlx::query(
-            r#"INSERT INTO treasury_bank_transactions
-               (app_id, account_id, transaction_date, amount_minor, currency, external_id)
-               VALUES ($1, $2, '2026-02-05', -30000, 'USD', 'cp-cc-1')"#,
+        .await;
+        reports_repo::insert_test_bank_txn(
+            &pool, TEST_APP, cc.id, "2026-02-05", -30000, "USD", "cp-cc-1",
         )
-        .bind(TEST_APP)
-        .bind(cc.id)
-        .execute(&pool)
-        .await
-        .expect("insert cc txn failed");
+        .await;
 
         let pos = get_cash_position(&pool, TEST_APP)
             .await
@@ -338,30 +255,24 @@ mod tests {
         .expect("create failed");
 
         // Insert a statement with opening balance
-        sqlx::query(
-            r#"INSERT INTO treasury_bank_statements
-               (app_id, account_id, period_start, period_end,
-                opening_balance_minor, closing_balance_minor, currency, status)
-               VALUES ($1, $2, '2026-01-01', '2026-01-31', 500000, 520000, 'EUR',
-                       'reconciled'::treasury_statement_status)"#,
+        reports_repo::insert_test_statement(
+            &pool,
+            TEST_APP,
+            bank.id,
+            "2026-01-01",
+            "2026-01-31",
+            500000,
+            520000,
+            "EUR",
+            "reconciled",
         )
-        .bind(TEST_APP)
-        .bind(bank.id)
-        .execute(&pool)
-        .await
-        .expect("insert statement failed");
+        .await;
 
         // Insert a transaction after the statement
-        sqlx::query(
-            r#"INSERT INTO treasury_bank_transactions
-               (app_id, account_id, transaction_date, amount_minor, currency, external_id)
-               VALUES ($1, $2, '2026-02-10', 15000, 'EUR', 'cp-eur-1')"#,
+        reports_repo::insert_test_bank_txn(
+            &pool, TEST_APP, bank.id, "2026-02-10", 15000, "EUR", "cp-eur-1",
         )
-        .bind(TEST_APP)
-        .bind(bank.id)
-        .execute(&pool)
-        .await
-        .expect("insert txn failed");
+        .await;
 
         let pos = get_cash_position(&pool, TEST_APP)
             .await

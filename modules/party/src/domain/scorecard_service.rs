@@ -6,6 +6,7 @@ use rust_decimal::prelude::FromPrimitive;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::{party_repo, scorecard_repo, scorecard_repo::UpdateScorecardData};
 use crate::events::{
     build_scorecard_created_envelope, build_scorecard_updated_envelope, ScorecardPayload,
     EVENT_TYPE_SCORECARD_CREATED, EVENT_TYPE_SCORECARD_UPDATED,
@@ -25,22 +26,7 @@ pub async fn list_scorecards(
     app_id: &str,
     party_id: Uuid,
 ) -> Result<Vec<Scorecard>, PartyError> {
-    let rows: Vec<Scorecard> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, metric_name, score, max_score,
-               review_date, reviewer, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_scorecards
-        WHERE party_id = $1 AND app_id = $2
-        ORDER BY review_date DESC, metric_name ASC
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
+    scorecard_repo::list_scorecards(pool, app_id, party_id).await
 }
 
 /// Get a single scorecard by ID, scoped to app_id.
@@ -49,21 +35,7 @@ pub async fn get_scorecard(
     app_id: &str,
     scorecard_id: Uuid,
 ) -> Result<Option<Scorecard>, PartyError> {
-    let row: Option<Scorecard> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, metric_name, score, max_score,
-               review_date, reviewer, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_scorecards
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(scorecard_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
+    scorecard_repo::get_scorecard(pool, app_id, scorecard_id).await
 }
 
 // ============================================================================
@@ -83,21 +55,9 @@ pub async fn create_scorecard(
 
     // Idempotency check
     if let Some(ref idem_key) = req.idempotency_key {
-        let existing: Option<Scorecard> = sqlx::query_as(
-            r#"
-            SELECT id, party_id, app_id, metric_name, score, max_score,
-                   review_date, reviewer, notes, idempotency_key, metadata,
-                   created_at, updated_at
-            FROM party_scorecards
-            WHERE app_id = $1 AND idempotency_key = $2
-            "#,
-        )
-        .bind(app_id)
-        .bind(idem_key)
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some(existing) = existing {
+        if let Some(existing) =
+            scorecard_repo::find_scorecard_by_idempotency_key(pool, app_id, idem_key).await?
+        {
             return Ok(existing);
         }
     }
@@ -110,39 +70,13 @@ pub async fn create_scorecard(
 
     let mut tx = pool.begin().await?;
 
-    // Guard: party must exist
-    guard_party_exists_tx(&mut tx, app_id, party_id).await?;
+    party_repo::guard_party_exists_tx(&mut tx, app_id, party_id).await?;
 
-    // Mutation
-    let sc: Scorecard = sqlx::query_as(
-        r#"
-        INSERT INTO party_scorecards (
-            id, party_id, app_id, metric_name, score, max_score,
-            review_date, reviewer, notes, idempotency_key, metadata,
-            created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
-        RETURNING id, party_id, app_id, metric_name, score, max_score,
-                  review_date, reviewer, notes, idempotency_key, metadata,
-                  created_at, updated_at
-        "#,
+    let sc = scorecard_repo::insert_scorecard_tx(
+        &mut tx, sc_id, party_id, app_id, req, score, max_score, now,
     )
-    .bind(sc_id)
-    .bind(party_id)
-    .bind(app_id)
-    .bind(req.metric_name.trim())
-    .bind(score)
-    .bind(max_score)
-    .bind(req.review_date)
-    .bind(&req.reviewer)
-    .bind(&req.notes)
-    .bind(&req.idempotency_key)
-    .bind(&req.metadata)
-    .bind(now)
-    .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox
     let payload = ScorecardPayload {
         scorecard_id: sc_id,
         party_id,
@@ -190,23 +124,9 @@ pub async fn update_scorecard(
 
     let mut tx = pool.begin().await?;
 
-    // Guard
-    let existing: Option<Scorecard> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, metric_name, score, max_score,
-               review_date, reviewer, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_scorecards
-        WHERE id = $1 AND app_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(scorecard_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(PartyError::NotFound(scorecard_id))?;
+    let current = scorecard_repo::fetch_scorecard_for_update_tx(&mut tx, app_id, scorecard_id)
+        .await?
+        .ok_or(PartyError::NotFound(scorecard_id))?;
 
     let new_metric = req
         .metric_name
@@ -238,32 +158,23 @@ pub async fn update_scorecard(
         current.metadata
     };
 
-    // Mutation
-    let updated: Scorecard = sqlx::query_as(
-        r#"
-        UPDATE party_scorecards
-        SET metric_name = $1, score = $2, max_score = $3, review_date = $4,
-            reviewer = $5, notes = $6, metadata = $7, updated_at = $8
-        WHERE id = $9 AND app_id = $10
-        RETURNING id, party_id, app_id, metric_name, score, max_score,
-                  review_date, reviewer, notes, idempotency_key, metadata,
-                  created_at, updated_at
-        "#,
+    let updated = scorecard_repo::update_scorecard_row_tx(
+        &mut tx,
+        &UpdateScorecardData {
+            scorecard_id,
+            app_id,
+            metric_name: new_metric,
+            score: new_score,
+            max_score: new_max,
+            review_date: new_review_date,
+            reviewer: new_reviewer,
+            notes: new_notes,
+            metadata: new_metadata,
+            updated_at: now,
+        },
     )
-    .bind(&new_metric)
-    .bind(new_score)
-    .bind(new_max)
-    .bind(new_review_date)
-    .bind(&new_reviewer)
-    .bind(&new_notes)
-    .bind(&new_metadata)
-    .bind(now)
-    .bind(scorecard_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox
     let score_f64 = req.score.unwrap_or_else(|| {
         use rust_decimal::prelude::ToPrimitive;
         updated.score.to_f64().unwrap_or(0.0)
@@ -298,26 +209,4 @@ pub async fn update_scorecard(
 
     tx.commit().await?;
     Ok(updated)
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async fn guard_party_exists_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    app_id: &str,
-    party_id: Uuid,
-) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-
-    if exists.is_none() {
-        return Err(PartyError::NotFound(party_id));
-    }
-    Ok(())
 }

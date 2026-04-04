@@ -42,21 +42,9 @@ pub async fn approve_po(
     let mut tx = pool.begin().await?;
 
     // Guard: lock the PO row to prevent concurrent approvals
-    let po: Option<PurchaseOrder> = sqlx::query_as(
-        r#"
-        SELECT po_id, tenant_id, vendor_id, po_number, currency,
-               total_minor, status, created_by, created_at, expected_delivery_date
-        FROM purchase_orders
-        WHERE po_id = $1 AND tenant_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(po_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let po = po.ok_or(PoError::NotFound(po_id))?;
+    let po = super::repo::lock_po_for_update(&mut *tx, po_id, tenant_id)
+        .await?
+        .ok_or(PoError::NotFound(po_id))?;
 
     // Idempotency: already approved → return current state without re-emitting
     if po.status == "approved" {
@@ -76,30 +64,10 @@ pub async fn approve_po(
     let event_id = Uuid::new_v4();
 
     // Mutation: advance status to approved
-    let approved_po: PurchaseOrder = sqlx::query_as(
-        r#"
-        UPDATE purchase_orders
-        SET status = 'approved'
-        WHERE po_id = $1 AND tenant_id = $2
-        RETURNING
-            po_id, tenant_id, vendor_id, po_number, currency,
-            total_minor, status, created_by, created_at, expected_delivery_date
-        "#,
-    )
-    .bind(po_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let approved_po = super::repo::approve_po_status(&mut *tx, po_id, tenant_id).await?;
 
     // Mutation: append approved entry to status audit log
-    sqlx::query(
-        "INSERT INTO po_status (po_id, status, changed_by, changed_at) VALUES ($1, 'approved', $2, $3)",
-    )
-    .bind(po_id)
-    .bind(req.approved_by.trim())
-    .bind(now)
-    .execute(&mut *tx)
-    .await?;
+    super::repo::insert_po_status_entry(&mut *tx, po_id, req.approved_by.trim(), now).await?;
 
     // Outbox: ap.po_approved — self-contained payload with actor attribution
     let payload = PoApprovedPayload {

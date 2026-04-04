@@ -268,7 +268,7 @@ pub async fn insert_bill_line(
 
 /// SELECT bill header FOR UPDATE. Locks the bill during approval to prevent
 /// concurrent mutations.
-pub async fn lock_bill_header(
+pub(crate) async fn lock_bill_header(
     conn: &mut PgConnection,
     bill_id: Uuid,
     tenant_id: &str,
@@ -314,7 +314,7 @@ pub async fn approve_bill_status(
 }
 
 /// Fetch bill lines for GL posting (ordered by line_id).
-pub async fn fetch_bill_gl_lines(
+pub(crate) async fn fetch_bill_gl_lines(
     conn: &mut PgConnection,
     bill_id: Uuid,
 ) -> Result<Vec<BillLineGlRow>, BillError> {

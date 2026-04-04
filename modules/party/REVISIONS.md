@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.1 | 2026-04-04 | bd-4rg59 | SoC: domain services (address, contact, party create/query/update) refactored to use db repo modules | Separation of concerns — domain services delegate SQL to repos | No |
 | 3.2.0 | 2026-04-04 | bd-4rg59 | SoC: extract 7 repo modules from db layer (party, address, contact, contact_role, credit_terms, scorecard, vendor_qualification) | Separation of concerns — SQL queries mixed into service layer violate the repo/service/handler layering pattern | No |
 | 3.1.0 | 2026-04-02 | bd-eprrp | Contact.last_name changed from String to Option<String> | Verticals treat last_name as optional | Yes — callers sending required last_name still work, but can now omit it |
 | 3.0.2 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |

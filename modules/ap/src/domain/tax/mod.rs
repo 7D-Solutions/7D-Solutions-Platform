@@ -4,13 +4,13 @@
 //! AP persists tax snapshots per bill for audit and idempotency.
 
 pub mod models;
+pub mod repo;
 pub mod reports;
 pub mod service;
 
 pub use models::ApTaxSnapshot;
-pub use service::{
-    commit_bill_tax, find_active_snapshot, quote_bill_tax, void_bill_tax, ApTaxError,
-};
+pub use repo::find_active_snapshot;
+pub use service::{commit_bill_tax, quote_bill_tax, void_bill_tax, ApTaxError};
 
 // Re-export shared types for convenience
 pub use tax_core::models::TaxAddress;
@@ -111,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn zero_tax_provider_returns_zero() {
         let provider = ZeroTaxProvider;
-        let resp = provider.quote_tax(sample_quote_req()).await.unwrap();
+        let resp = provider.quote_tax(sample_quote_req()).await.expect("test");
         assert_eq!(resp.total_tax_minor, 0);
         assert_eq!(resp.tax_by_line.len(), 1);
         assert!(resp.provider_quote_ref.starts_with("zero-quote-"));
@@ -126,7 +126,7 @@ mod tests {
             provider_quote_ref: "any-ref".to_string(),
             correlation_id: "c1".to_string(),
         };
-        let resp = provider.commit_tax(req).await.unwrap();
+        let resp = provider.commit_tax(req).await.expect("test");
         assert!(resp.provider_commit_ref.starts_with("zero-commit-"));
     }
 
@@ -140,7 +140,7 @@ mod tests {
             void_reason: "bill voided".to_string(),
             correlation_id: "c1".to_string(),
         };
-        let resp = provider.void_tax(req).await.unwrap();
+        let resp = provider.void_tax(req).await.expect("test");
         assert!(resp.voided);
     }
 }

@@ -87,7 +87,7 @@ pub async fn fetch_run_items_pool(
 ///
 /// Optional filters: due_on_or_before, vendor_ids.
 /// Results are ordered deterministically: vendor_id, due_date, bill_id.
-pub async fn select_eligible_bills(
+pub(super) async fn select_eligible_bills(
     pool: &PgPool,
     tenant_id: &str,
     req: &CreatePaymentRunRequest,

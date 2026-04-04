@@ -8,6 +8,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::gl_link_repo;
 use super::models::ReconMatch;
 use super::ReconError;
 use crate::outbox::enqueue_event_tx;
@@ -77,86 +78,38 @@ pub async fn link_bank_txn_to_gl(
     correlation_id: &str,
 ) -> Result<ReconMatch, ReconError> {
     // Guard: verify bank transaction exists
-    let txn_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM treasury_bank_transactions WHERE id = $1 AND app_id = $2)",
-    )
-    .bind(req.bank_transaction_id)
-    .bind(app_id)
-    .fetch_one(pool)
-    .await?;
-
-    if !txn_exists {
+    if !gl_link_repo::txn_exists(pool, app_id, req.bank_transaction_id).await? {
         return Err(ReconError::TransactionNotFound(req.bank_transaction_id));
     }
 
     // Idempotency: check if this exact link already exists
-    let existing: Option<ReconMatch> = sqlx::query_as(
-        r#"
-        SELECT * FROM treasury_recon_matches
-        WHERE bank_transaction_id = $1 AND gl_entry_id = $2
-          AND superseded_by IS NULL AND app_id = $3
-        "#,
-    )
-    .bind(req.bank_transaction_id)
-    .bind(req.gl_entry_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-
-    if let Some(m) = existing {
+    if let Some(m) =
+        gl_link_repo::find_existing_gl_link(pool, app_id, req.bank_transaction_id, req.gl_entry_id)
+            .await?
+    {
         return Ok(m);
     }
 
     // Check for an active match on this bank_txn that has no GL link yet
-    let active_no_gl: Option<Uuid> = sqlx::query_scalar(
-        r#"
-        SELECT id FROM treasury_recon_matches
-        WHERE bank_transaction_id = $1 AND gl_entry_id IS NULL
-          AND superseded_by IS NULL AND app_id = $2
-        "#,
-    )
-    .bind(req.bank_transaction_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
+    let active_no_gl =
+        gl_link_repo::find_active_match_without_gl(pool, app_id, req.bank_transaction_id).await?;
 
     let mut tx = pool.begin().await?;
 
     let match_id = if let Some(existing_id) = active_no_gl {
         // Update existing match to add GL reference
-        sqlx::query(
-            r#"
-            UPDATE treasury_recon_matches
-            SET gl_entry_id = $1, updated_at = NOW()
-            WHERE id = $2
-            "#,
-        )
-        .bind(req.gl_entry_id)
-        .bind(existing_id)
-        .execute(&mut *tx)
-        .await?;
+        gl_link_repo::update_match_with_gl_entry(&mut tx, existing_id, req.gl_entry_id).await?;
         existing_id
     } else {
         // Create a GL-only match (no statement_line_id)
-        let id = Uuid::new_v4();
-        let now = Utc::now();
-        sqlx::query(
-            r#"
-            INSERT INTO treasury_recon_matches
-                (id, app_id, bank_transaction_id, gl_entry_id, match_type,
-                 matched_by, status, matched_at, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, 'manual', $5, 'confirmed', $6, $6, $6)
-            "#,
+        gl_link_repo::insert_gl_only_match(
+            &mut tx,
+            app_id,
+            req.bank_transaction_id,
+            req.gl_entry_id,
+            actor,
         )
-        .bind(id)
-        .bind(app_id)
-        .bind(req.bank_transaction_id)
-        .bind(req.gl_entry_id)
-        .bind(actor)
-        .bind(now)
-        .execute(&mut *tx)
-        .await?;
-        id
+        .await?
     };
 
     // Outbox event
@@ -183,10 +136,9 @@ pub async fn link_bank_txn_to_gl(
     tx.commit().await?;
 
     // Return the match row
-    let m = sqlx::query_as::<_, ReconMatch>("SELECT * FROM treasury_recon_matches WHERE id = $1")
-        .bind(match_id)
-        .fetch_one(pool)
-        .await?;
+    let m = super::repo::fetch_match(pool, match_id)
+        .await?
+        .ok_or(ReconError::MatchNotFound(match_id))?;
     Ok(m)
 }
 
@@ -202,32 +154,8 @@ pub async fn unmatched_bank_txns_for_gl(
     app_id: &str,
     account_id: Uuid,
 ) -> Result<Vec<UnmatchedBankTxnGl>, ReconError> {
-    let rows = sqlx::query_as::<_, UnmatchedBankTxnGlRow>(
-        r#"
-        SELECT t.id, t.account_id, t.transaction_date, t.amount_minor,
-               t.currency, t.description, t.reference,
-               EXISTS(
-                   SELECT 1 FROM treasury_recon_matches sm
-                   WHERE sm.bank_transaction_id = t.id
-                     AND sm.superseded_by IS NULL
-                     AND sm.statement_line_id IS NOT NULL
-               ) AS has_statement_match
-        FROM treasury_bank_transactions t
-        WHERE t.app_id = $1 AND t.account_id = $2
-          AND NOT EXISTS(
-              SELECT 1 FROM treasury_recon_matches gl
-              WHERE gl.bank_transaction_id = t.id
-                AND gl.superseded_by IS NULL
-                AND gl.gl_entry_id IS NOT NULL
-          )
-        ORDER BY t.transaction_date, t.id
-        "#,
-    )
-    .bind(app_id)
-    .bind(account_id)
-    .fetch_all(pool)
-    .await?;
-
+    let rows =
+        gl_link_repo::unmatched_bank_txns_rows(pool, app_id, account_id).await?;
     Ok(rows
         .into_iter()
         .map(|r| UnmatchedBankTxnGl {
@@ -241,18 +169,6 @@ pub async fn unmatched_bank_txns_for_gl(
             has_statement_match: r.has_statement_match,
         })
         .collect())
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct UnmatchedBankTxnGlRow {
-    id: Uuid,
-    account_id: Uuid,
-    transaction_date: chrono::NaiveDate,
-    amount_minor: i64,
-    currency: String,
-    description: Option<String>,
-    reference: Option<String>,
-    has_statement_match: bool,
 }
 
 // ============================================================================
@@ -275,19 +191,7 @@ pub async fn unmatched_gl_entries(
         });
     }
 
-    let linked_ids: Vec<i64> = sqlx::query_scalar(
-        r#"
-        SELECT DISTINCT gl_entry_id
-        FROM treasury_recon_matches
-        WHERE app_id = $1
-          AND gl_entry_id = ANY($2)
-          AND superseded_by IS NULL
-        "#,
-    )
-    .bind(app_id)
-    .bind(gl_entry_ids)
-    .fetch_all(pool)
-    .await?;
+    let linked_ids = gl_link_repo::linked_gl_entry_ids(pool, app_id, gl_entry_ids).await?;
 
     let linked_set: std::collections::HashSet<i64> = linked_ids.into_iter().collect();
     let unmatched: Vec<i64> = gl_entry_ids

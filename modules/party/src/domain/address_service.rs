@@ -4,6 +4,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::{address_repo, address_repo::UpdateAddressData, party_repo};
+
 use super::address::{Address, CreateAddressRequest, UpdateAddressRequest};
 use super::party::PartyError;
 
@@ -17,24 +19,8 @@ pub async fn list_addresses(
     app_id: &str,
     party_id: Uuid,
 ) -> Result<Vec<Address>, PartyError> {
-    guard_party_exists(pool, app_id, party_id).await?;
-
-    let addresses: Vec<Address> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, address_type::TEXT AS address_type,
-               label, line1, line2, city, state, postal_code, country,
-               is_primary, metadata, created_at, updated_at
-        FROM party_addresses
-        WHERE party_id = $1 AND app_id = $2
-        ORDER BY is_primary DESC, address_type ASC
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(addresses)
+    party_repo::guard_party_exists(pool, app_id, party_id).await?;
+    address_repo::list_addresses(pool, app_id, party_id).await
 }
 
 /// Get a single address by ID, scoped to app_id.
@@ -43,21 +29,7 @@ pub async fn get_address(
     app_id: &str,
     address_id: Uuid,
 ) -> Result<Option<Address>, PartyError> {
-    let address: Option<Address> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, address_type::TEXT AS address_type,
-               label, line1, line2, city, state, postal_code, country,
-               is_primary, metadata, created_at, updated_at
-        FROM party_addresses
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(address_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(address)
+    address_repo::get_address(pool, app_id, address_id).await
 }
 
 // ============================================================================
@@ -81,40 +53,23 @@ pub async fn create_address(
 
     let mut tx = pool.begin().await?;
 
-    guard_party_exists_tx(&mut tx, app_id, party_id).await?;
+    party_repo::guard_party_exists_tx(&mut tx, app_id, party_id).await?;
 
     if is_primary {
-        clear_primary_addresses(&mut tx, app_id, party_id).await?;
+        address_repo::clear_primary_addresses_tx(&mut tx, app_id, party_id).await?;
     }
 
-    let address: Address = sqlx::query_as(
-        r#"
-        INSERT INTO party_addresses (
-            id, party_id, app_id, address_type, label, line1, line2,
-            city, state, postal_code, country, is_primary, metadata,
-            created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4::party_address_type, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
-        RETURNING id, party_id, app_id, address_type::TEXT AS address_type,
-                  label, line1, line2, city, state, postal_code, country,
-                  is_primary, metadata, created_at, updated_at
-        "#,
+    let address = address_repo::insert_address_tx(
+        &mut tx,
+        address_id,
+        party_id,
+        app_id,
+        req,
+        addr_type,
+        country,
+        is_primary,
+        now,
     )
-    .bind(address_id)
-    .bind(party_id)
-    .bind(app_id)
-    .bind(addr_type)
-    .bind(&req.label)
-    .bind(req.line1.trim())
-    .bind(&req.line2)
-    .bind(req.city.trim())
-    .bind(&req.state)
-    .bind(&req.postal_code)
-    .bind(country)
-    .bind(is_primary)
-    .bind(&req.metadata)
-    .bind(now)
-    .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -133,25 +88,12 @@ pub async fn update_address(
     let now = Utc::now();
     let mut tx = pool.begin().await?;
 
-    let existing: Option<Address> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, address_type::TEXT AS address_type,
-               label, line1, line2, city, state, postal_code, country,
-               is_primary, metadata, created_at, updated_at
-        FROM party_addresses
-        WHERE id = $1 AND app_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(address_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(PartyError::NotFound(address_id))?;
+    let current = address_repo::fetch_address_for_update_tx(&mut tx, app_id, address_id)
+        .await?
+        .ok_or(PartyError::NotFound(address_id))?;
 
     if req.is_primary == Some(true) && !current.is_primary {
-        clear_primary_addresses(&mut tx, app_id, current.party_id).await?;
+        address_repo::clear_primary_addresses_tx(&mut tx, app_id, current.party_id).await?;
     }
 
     let new_type = req.address_type.as_deref().unwrap_or(&current.address_type);
@@ -197,32 +139,24 @@ pub async fn update_address(
         current.metadata
     };
 
-    let updated: Address = sqlx::query_as(
-        r#"
-        UPDATE party_addresses
-        SET address_type = $1::party_address_type, label = $2, line1 = $3, line2 = $4,
-            city = $5, state = $6, postal_code = $7, country = $8,
-            is_primary = $9, metadata = $10, updated_at = $11
-        WHERE id = $12 AND app_id = $13
-        RETURNING id, party_id, app_id, address_type::TEXT AS address_type,
-                  label, line1, line2, city, state, postal_code, country,
-                  is_primary, metadata, created_at, updated_at
-        "#,
+    let updated = address_repo::update_address_row_tx(
+        &mut tx,
+        &UpdateAddressData {
+            address_id,
+            app_id,
+            addr_type: new_type,
+            label: new_label,
+            line1: new_line1,
+            line2: new_line2,
+            city: new_city,
+            state: new_state,
+            postal_code: new_postal,
+            country: new_country,
+            is_primary: new_primary,
+            metadata: new_metadata,
+            updated_at: now,
+        },
     )
-    .bind(new_type)
-    .bind(&new_label)
-    .bind(&new_line1)
-    .bind(&new_line2)
-    .bind(&new_city)
-    .bind(&new_state)
-    .bind(&new_postal)
-    .bind(&new_country)
-    .bind(new_primary)
-    .bind(&new_metadata)
-    .bind(now)
-    .bind(address_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -235,65 +169,9 @@ pub async fn delete_address(
     app_id: &str,
     address_id: Uuid,
 ) -> Result<(), PartyError> {
-    let result = sqlx::query("DELETE FROM party_addresses WHERE id = $1 AND app_id = $2")
-        .bind(address_id)
-        .bind(app_id)
-        .execute(pool)
-        .await?;
-
-    if result.rows_affected() == 0 {
+    let affected = address_repo::delete_address(pool, app_id, address_id).await?;
+    if affected == 0 {
         return Err(PartyError::NotFound(address_id));
     }
-    Ok(())
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async fn guard_party_exists(pool: &PgPool, app_id: &str, party_id: Uuid) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(pool)
-            .await?;
-
-    if exists.is_none() {
-        return Err(PartyError::NotFound(party_id));
-    }
-    Ok(())
-}
-
-async fn guard_party_exists_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    app_id: &str,
-    party_id: Uuid,
-) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-
-    if exists.is_none() {
-        return Err(PartyError::NotFound(party_id));
-    }
-    Ok(())
-}
-
-async fn clear_primary_addresses(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    app_id: &str,
-    party_id: Uuid,
-) -> Result<(), PartyError> {
-    sqlx::query(
-        "UPDATE party_addresses SET is_primary = false WHERE party_id = $1 AND app_id = $2 AND is_primary = true",
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .execute(&mut **tx)
-    .await?;
     Ok(())
 }

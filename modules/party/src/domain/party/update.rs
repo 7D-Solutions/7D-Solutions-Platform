@@ -1,5 +1,4 @@
-use crate::domain::address::Address;
-use crate::domain::contact::Contact;
+use crate::domain::party::models::{PartyError, PartyView, UpdatePartyRequest};
 use crate::events::{
     build_party_deactivated_envelope, build_party_reactivated_envelope,
     build_party_updated_envelope, build_tags_updated_envelope, PartyDeactivatedPayload,
@@ -8,15 +7,12 @@ use crate::events::{
     EVENT_TYPE_TAGS_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
+use crate::db::party_repo::{self, UpdatePartyData};
 use chrono::Utc;
 use sqlx::PgPool;
-use tokio::try_join;
 use uuid::Uuid;
 
 use super::validation;
-use crate::domain::party::models::{
-    ExternalRef, Party, PartyCompany, PartyError, PartyIndividual, PartyView, UpdatePartyRequest,
-};
 
 pub async fn update_party(
     pool: &PgPool,
@@ -33,23 +29,9 @@ pub async fn update_party(
 
     let mut tx = pool.begin().await?;
 
-    let existing: Option<Party> = sqlx::query_as(
-        r#"
-        SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
-               display_name, email, phone, website,
-               address_line1, address_line2, city, state, postal_code, country,
-               metadata, tags, created_at, updated_at
-        FROM party_parties
-        WHERE id = $1 AND app_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(PartyError::NotFound(party_id))?;
+    let current = party_repo::fetch_party_for_update_tx(&mut tx, app_id, party_id)
+        .await?
+        .ok_or(PartyError::NotFound(party_id))?;
 
     let new_name = req
         .display_name
@@ -74,36 +56,26 @@ pub async fn update_party(
     let new_metadata = req.metadata.as_ref().or(current.metadata.as_ref());
     let new_tags = validation::normalized_tags(req.tags.clone(), &current.tags);
 
-    let updated: Party = sqlx::query_as(
-        r#"
-        UPDATE party_parties
-        SET display_name = $1, email = $2, phone = $3, website = $4,
-            address_line1 = $5, address_line2 = $6, city = $7, state = $8,
-            postal_code = $9, country = $10, metadata = $11, tags = $12,
-            updated_at = $13
-        WHERE id = $14 AND app_id = $15
-        RETURNING id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
-                  display_name, email, phone, website,
-                  address_line1, address_line2, city, state, postal_code, country,
-                  metadata, tags, created_at, updated_at
-        "#,
+    let updated = party_repo::update_party_row_tx(
+        &mut tx,
+        &UpdatePartyData {
+            party_id,
+            app_id,
+            display_name: &new_name,
+            email: new_email,
+            phone: new_phone,
+            website: new_website,
+            address_line1: new_addr1,
+            address_line2: new_addr2,
+            city: new_city,
+            state: new_state,
+            postal_code: new_postal,
+            country: new_country,
+            metadata: new_metadata,
+            tags: &new_tags,
+            updated_at: now,
+        },
     )
-    .bind(&new_name)
-    .bind(new_email)
-    .bind(new_phone)
-    .bind(new_website)
-    .bind(new_addr1)
-    .bind(new_addr2)
-    .bind(new_city)
-    .bind(new_state)
-    .bind(new_postal)
-    .bind(new_country)
-    .bind(new_metadata)
-    .bind(&new_tags)
-    .bind(now)
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     let payload = PartyUpdatedPayload {
@@ -164,63 +136,8 @@ pub async fn update_party(
 
     tx.commit().await?;
 
-    let (company, individual, external_refs, contacts, addresses) = try_join!(
-        sqlx::query_as::<_, PartyCompany>(
-            r#"
-            SELECT party_id, legal_name, trade_name, registration_number, tax_id,
-                   country_of_incorporation, industry_code, founded_date, employee_count,
-                   annual_revenue_cents, currency, metadata, created_at, updated_at
-            FROM party_companies WHERE party_id = $1
-            "#,
-        )
-        .bind(party_id)
-        .fetch_optional(pool),
-        sqlx::query_as::<_, PartyIndividual>(
-            r#"
-            SELECT party_id, first_name, last_name, middle_name, date_of_birth, tax_id,
-                   nationality, job_title, department, metadata, created_at, updated_at
-            FROM party_individuals WHERE party_id = $1
-            "#,
-        )
-        .bind(party_id)
-        .fetch_optional(pool),
-        sqlx::query_as::<_, ExternalRef>(
-            r#"
-            SELECT id, party_id, app_id, system, external_id, label, metadata, created_at, updated_at
-            FROM party_external_refs
-            WHERE party_id = $1 AND app_id = $2
-            ORDER BY system, external_id
-            "#,
-        )
-        .bind(party_id)
-        .bind(app_id)
-        .fetch_all(pool),
-        sqlx::query_as::<_, Contact>(
-            r#"
-            SELECT id, party_id, app_id, first_name, last_name, email, phone,
-                   role, is_primary, metadata, created_at, updated_at, deactivated_at
-            FROM party_contacts
-            WHERE party_id = $1 AND app_id = $2 AND deactivated_at IS NULL
-            ORDER BY is_primary DESC, last_name ASC, first_name ASC
-            "#,
-        )
-        .bind(party_id)
-        .bind(app_id)
-        .fetch_all(pool),
-        sqlx::query_as::<_, Address>(
-            r#"
-            SELECT id, party_id, app_id, address_type::TEXT AS address_type,
-                   label, line1, line2, city, state, postal_code, country,
-                   is_primary, metadata, created_at, updated_at
-            FROM party_addresses
-            WHERE party_id = $1 AND app_id = $2
-            ORDER BY is_primary DESC, address_type ASC
-            "#,
-        )
-        .bind(party_id)
-        .bind(app_id)
-        .fetch_all(pool),
-    )?;
+    let (company, individual, external_refs, contacts, addresses) =
+        party_repo::fetch_party_relations(pool, app_id, party_id).await?;
 
     Ok(PartyView {
         party: updated,
@@ -244,25 +161,14 @@ pub async fn deactivate_party(
 
     let mut tx = pool.begin().await?;
 
-    let exists: Option<(String,)> =
-        sqlx::query_as("SELECT status::TEXT FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-    if exists.is_none() {
+    if party_repo::fetch_party_status_for_update_tx(&mut tx, app_id, party_id)
+        .await?
+        .is_none()
+    {
         return Err(PartyError::NotFound(party_id));
     }
 
-    sqlx::query(
-        "UPDATE party_parties SET status = 'inactive', updated_at = $1 WHERE id = $2 AND app_id = $3",
-    )
-    .bind(now)
-    .bind(party_id)
-    .bind(app_id)
-    .execute(&mut *tx)
-    .await?;
+    party_repo::set_party_status_tx(&mut tx, app_id, party_id, "inactive", now).await?;
 
     let payload = PartyDeactivatedPayload {
         party_id,
@@ -307,25 +213,14 @@ pub async fn reactivate_party(
 
     let mut tx = pool.begin().await?;
 
-    let exists: Option<(String,)> =
-        sqlx::query_as("SELECT status::TEXT FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-    if exists.is_none() {
+    if party_repo::fetch_party_status_for_update_tx(&mut tx, app_id, party_id)
+        .await?
+        .is_none()
+    {
         return Err(PartyError::NotFound(party_id));
     }
 
-    sqlx::query(
-        "UPDATE party_parties SET status = 'active', updated_at = $1 WHERE id = $2 AND app_id = $3",
-    )
-    .bind(now)
-    .bind(party_id)
-    .bind(app_id)
-    .execute(&mut *tx)
-    .await?;
+    party_repo::set_party_status_tx(&mut tx, app_id, party_id, "active", now).await?;
 
     let payload = PartyReactivatedPayload {
         party_id,

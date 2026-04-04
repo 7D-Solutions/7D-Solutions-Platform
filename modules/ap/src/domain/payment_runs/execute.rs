@@ -12,8 +12,6 @@
 //!   Completion:
 //!     - UPDATE payment_runs.status → 'completed', executed_at = NOW().
 
-use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,19 +27,8 @@ use super::{PaymentRun, PaymentRunError, PaymentRunItemRow};
 // Result types
 // ============================================================================
 
-/// Record of a single vendor payment within the run.
-#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
-pub struct ExecutionRecord {
-    pub id: i64,
-    pub run_id: Uuid,
-    pub item_id: i64,
-    pub payment_id: Uuid,
-    pub vendor_id: Uuid,
-    pub amount_minor: i64,
-    pub currency: String,
-    pub status: String,
-    pub executed_at: DateTime<Utc>,
-}
+// ExecutionRecord is defined in repo.rs and re-exported here for callers.
+pub use super::repo::ExecutionRecord;
 
 /// Result returned by `execute_payment_run`.
 #[derive(Debug)]
@@ -69,25 +56,13 @@ pub async fn execute_payment_run(
     let mut tx = pool.begin().await?;
 
     // Guard: lock run row to prevent concurrent execution
-    let run: Option<PaymentRun> = sqlx::query_as(
-        r#"
-        SELECT run_id, tenant_id, total_minor, currency, scheduled_date,
-               payment_method, status, created_by, created_at, executed_at
-        FROM payment_runs
-        WHERE run_id = $1 AND tenant_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(run_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let run = run.ok_or(PaymentRunError::RunNotFound(run_id))?;
+    let run: PaymentRun = super::repo::lock_payment_run(&mut *tx, run_id, tenant_id)
+        .await?
+        .ok_or(PaymentRunError::RunNotFound(run_id))?;
 
     // Idempotency: already terminal — return existing state
     if run.status == "completed" || run.status == "failed" {
-        let executions = fetch_executions(&mut tx, run_id).await?;
+        let executions = super::repo::fetch_executions(&mut *tx, run_id).await?;
         tx.commit().await?;
         return Ok(ExecuteResult { run, executions });
     }
@@ -99,29 +74,20 @@ pub async fn execute_payment_run(
 
     // Transition to 'executing' (no-op if already executing)
     if run.status == "pending" {
-        sqlx::query(
-            "UPDATE payment_runs SET status = 'executing' WHERE run_id = $1 AND tenant_id = $2",
-        )
-        .bind(run_id)
-        .bind(tenant_id)
-        .execute(&mut *tx)
-        .await?;
+        super::repo::set_run_executing(&mut *tx, run_id, tenant_id).await?;
     }
 
     // Load all items
-    let items: Vec<PaymentRunItemRow> = sqlx::query_as(
-        "SELECT id, run_id, vendor_id, bill_ids, amount_minor, currency, created_at \
-         FROM payment_run_items WHERE run_id = $1 ORDER BY id ASC",
-    )
-    .bind(run_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let items: Vec<PaymentRunItemRow> =
+        super::repo::fetch_run_items_tx(&mut *tx, run_id).await?;
 
     let mut executions: Vec<ExecutionRecord> = Vec::with_capacity(items.len());
 
     for item in &items {
         // Idempotency: skip if already executed
-        if let Some(exec) = fetch_execution_by_item(&mut tx, run_id, item.id).await? {
+        if let Some(exec) =
+            super::repo::fetch_execution_by_item(&mut *tx, run_id, item.id).await?
+        {
             executions.push(exec);
             continue;
         }
@@ -140,7 +106,8 @@ pub async fn execute_payment_run(
         let mut actual_amount: i64 = 0;
 
         for &bill_id in &item.bill_ids {
-            let open_balance = query_open_balance(&mut tx, tenant_id, bill_id).await?;
+            let open_balance =
+                super::repo::query_open_balance(&mut *tx, tenant_id, bill_id).await?;
             if open_balance <= 0 {
                 continue; // Already fully paid — skip
             }
@@ -149,58 +116,33 @@ pub async fn execute_payment_run(
             let alloc_key = format!("{}:{}", run_id, bill_id);
             let allocation_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, alloc_key.as_bytes());
 
-            // Allocate the full open balance to this bill
-            sqlx::query(
-                r#"
-                INSERT INTO ap_allocations
-                    (allocation_id, bill_id, payment_run_id, tenant_id,
-                     amount_minor, currency, allocation_type, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, 'full', NOW())
-                ON CONFLICT (allocation_id) DO NOTHING
-                "#,
+            super::repo::insert_allocation(
+                &mut *tx,
+                allocation_id,
+                bill_id,
+                run_id,
+                tenant_id,
+                open_balance,
+                item.currency.trim(),
             )
-            .bind(allocation_id)
-            .bind(bill_id)
-            .bind(run_id)
-            .bind(tenant_id)
-            .bind(open_balance)
-            .bind(item.currency.trim())
-            .execute(&mut *tx)
             .await?;
 
-            // Transition bill to 'paid' (open_balance was the entire remainder)
-            sqlx::query(
-                "UPDATE vendor_bills SET status = 'paid' \
-                 WHERE bill_id = $1 AND tenant_id = $2 \
-                   AND status IN ('approved', 'partially_paid')",
-            )
-            .bind(bill_id)
-            .bind(tenant_id)
-            .execute(&mut *tx)
-            .await?;
+            super::repo::mark_bill_paid(&mut *tx, bill_id, tenant_id).await?;
 
             actual_amount += open_balance;
             bills_paid.push(bill_id);
         }
 
         // Record execution
-        let exec: ExecutionRecord = sqlx::query_as(
-            r#"
-            INSERT INTO payment_run_executions
-                (run_id, item_id, payment_id, vendor_id, amount_minor, currency,
-                 status, executed_at)
-            VALUES ($1, $2, $3, $4, $5, $6, 'success', NOW())
-            RETURNING id, run_id, item_id, payment_id, vendor_id, amount_minor,
-                      currency, status, executed_at
-            "#,
+        let exec = super::repo::insert_execution(
+            &mut *tx,
+            run_id,
+            item.id,
+            payment_result.payment_id,
+            item.vendor_id,
+            actual_amount.max(0),
+            item.currency.trim(),
         )
-        .bind(run_id)
-        .bind(item.id)
-        .bind(payment_result.payment_id)
-        .bind(item.vendor_id)
-        .bind(actual_amount.max(0))
-        .bind(item.currency.trim())
-        .fetch_one(&mut *tx)
         .await?;
 
         // Emit ap.payment_executed event via outbox
@@ -240,19 +182,7 @@ pub async fn execute_payment_run(
     }
 
     // Mark run as completed
-    let completed_run: PaymentRun = sqlx::query_as(
-        r#"
-        UPDATE payment_runs
-           SET status = 'completed', executed_at = NOW()
-         WHERE run_id = $1 AND tenant_id = $2
-        RETURNING run_id, tenant_id, total_minor, currency, scheduled_date,
-                  payment_method, status, created_by, created_at, executed_at
-        "#,
-    )
-    .bind(run_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let completed_run = super::repo::complete_run(&mut *tx, run_id, tenant_id).await?;
 
     tx.commit().await?;
 
@@ -260,67 +190,6 @@ pub async fn execute_payment_run(
         run: completed_run,
         executions,
     })
-}
-
-// ============================================================================
-// Private helpers
-// ============================================================================
-
-async fn fetch_executions(
-    conn: &mut sqlx::PgConnection,
-    run_id: Uuid,
-) -> Result<Vec<ExecutionRecord>, PaymentRunError> {
-    let rows: Vec<ExecutionRecord> = sqlx::query_as(
-        "SELECT id, run_id, item_id, payment_id, vendor_id, amount_minor, \
-                currency, status, executed_at \
-         FROM payment_run_executions WHERE run_id = $1 ORDER BY id ASC",
-    )
-    .bind(run_id)
-    .fetch_all(conn)
-    .await?;
-    Ok(rows)
-}
-
-async fn fetch_execution_by_item(
-    conn: &mut sqlx::PgConnection,
-    run_id: Uuid,
-    item_id: i64,
-) -> Result<Option<ExecutionRecord>, PaymentRunError> {
-    let row: Option<ExecutionRecord> = sqlx::query_as(
-        "SELECT id, run_id, item_id, payment_id, vendor_id, amount_minor, \
-                currency, status, executed_at \
-         FROM payment_run_executions WHERE run_id = $1 AND item_id = $2",
-    )
-    .bind(run_id)
-    .bind(item_id)
-    .fetch_optional(conn)
-    .await?;
-    Ok(row)
-}
-
-async fn query_open_balance(
-    conn: &mut sqlx::PgConnection,
-    tenant_id: &str,
-    bill_id: Uuid,
-) -> Result<i64, PaymentRunError> {
-    let (total,): (i64,) = sqlx::query_as(
-        "SELECT total_minor FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2",
-    )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *conn)
-    .await?;
-
-    let (allocated,): (i64,) = sqlx::query_as(
-        "SELECT COALESCE(SUM(amount_minor), 0)::bigint \
-         FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2",
-    )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *conn)
-    .await?;
-
-    Ok(total - allocated)
 }
 
 // ============================================================================

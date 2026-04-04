@@ -26,20 +26,6 @@ use super::{
 };
 
 // ============================================================================
-// Internal helper types
-// ============================================================================
-
-/// An eligible bill row returned by the selector query.
-#[derive(Debug, sqlx::FromRow)]
-struct EligibleBill {
-    bill_id: Uuid,
-    vendor_id: Uuid,
-    open_balance_minor: i64,
-    #[allow(dead_code)]
-    currency: String,
-}
-
-// ============================================================================
 // Public API
 // ============================================================================
 
@@ -58,12 +44,13 @@ pub async fn create_payment_run(
     req.validate()?;
 
     // Idempotency: if run already exists, return it
-    if let Some(existing) = fetch_existing_run(pool, tenant_id, req.run_id).await? {
-        return Ok(existing);
+    if let Some(run) = super::repo::fetch_payment_run(pool, tenant_id, req.run_id).await? {
+        let items = super::repo::fetch_run_items_pool(pool, req.run_id).await?;
+        return Ok(PaymentRunResult { run, items });
     }
 
     // Guard: select eligible bills
-    let eligible = select_eligible_bills(pool, tenant_id, req).await?;
+    let eligible = super::repo::select_eligible_bills(pool, tenant_id, req).await?;
 
     if eligible.is_empty() {
         return Err(PaymentRunError::NoBillsEligible(
@@ -81,52 +68,29 @@ pub async fn create_payment_run(
     let mut tx = pool.begin().await?;
 
     // Mutation: INSERT payment_runs
-    let run: PaymentRun = sqlx::query_as(
-        r#"
-        INSERT INTO payment_runs
-            (run_id, tenant_id, total_minor, currency, scheduled_date,
-             payment_method, status, created_by, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, NOW())
-        RETURNING run_id, tenant_id, total_minor, currency, scheduled_date,
-                  payment_method, status, created_by, created_at, executed_at
-        "#,
+    let run: PaymentRun = super::repo::insert_payment_run(
+        &mut *tx,
+        req.run_id,
+        tenant_id,
+        total_minor,
+        &req.currency,
+        req.scheduled_date,
+        &req.payment_method,
+        &req.created_by,
     )
-    .bind(req.run_id)
-    .bind(tenant_id)
-    .bind(total_minor)
-    .bind(&req.currency)
-    .bind(req.scheduled_date)
-    .bind(&req.payment_method)
-    .bind(&req.created_by)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        // Catch unique violation on run_id (race condition after idempotency check)
-        if let sqlx::Error::Database(ref db_err) = e {
-            if db_err.code().as_deref() == Some("23505") {
-                return sqlx::Error::RowNotFound; // will be handled below
-            }
-        }
-        e
-    })?;
+    .await?;
 
     // Mutation: INSERT payment_run_items (one per vendor group)
     let mut items: Vec<PaymentRunItemRow> = Vec::with_capacity(vendor_groups.len());
     for (vendor_id, amount_minor, bill_ids) in &vendor_groups {
-        let item: PaymentRunItemRow = sqlx::query_as(
-            r#"
-            INSERT INTO payment_run_items
-                (run_id, vendor_id, bill_ids, amount_minor, currency, created_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-            RETURNING id, run_id, vendor_id, bill_ids, amount_minor, currency, created_at
-            "#,
+        let item = super::repo::insert_payment_run_item(
+            &mut *tx,
+            req.run_id,
+            *vendor_id,
+            bill_ids.as_slice(),
+            *amount_minor,
+            &req.currency,
         )
-        .bind(req.run_id)
-        .bind(vendor_id)
-        .bind(bill_ids.as_slice())
-        .bind(amount_minor)
-        .bind(&req.currency)
-        .fetch_one(&mut *tx)
         .await?;
         items.push(item);
     }
@@ -182,88 +146,10 @@ pub async fn create_payment_run(
     Ok(PaymentRunResult { run, items })
 }
 
-/// Fetch a run and its items if the run_id already exists for this tenant.
-async fn fetch_existing_run(
-    pool: &PgPool,
-    tenant_id: &str,
-    run_id: Uuid,
-) -> Result<Option<PaymentRunResult>, PaymentRunError> {
-    let run: Option<PaymentRun> = sqlx::query_as(
-        r#"
-        SELECT run_id, tenant_id, total_minor, currency, scheduled_date,
-               payment_method, status, created_by, created_at, executed_at
-        FROM payment_runs
-        WHERE run_id = $1 AND tenant_id = $2
-        "#,
-    )
-    .bind(run_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let Some(run) = run else {
-        return Ok(None);
-    };
-
-    let items: Vec<PaymentRunItemRow> = sqlx::query_as(
-        r#"
-        SELECT id, run_id, vendor_id, bill_ids, amount_minor, currency, created_at
-        FROM payment_run_items
-        WHERE run_id = $1
-        ORDER BY id ASC
-        "#,
-    )
-    .bind(run_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(Some(PaymentRunResult { run, items }))
-}
-
-/// Select eligible bills: approved/partially_paid, open balance > 0, matching currency.
-///
-/// Optional filters: due_on_or_before, vendor_ids.
-/// Results are ordered deterministically: vendor_id, due_date, bill_id.
-async fn select_eligible_bills(
-    pool: &PgPool,
-    tenant_id: &str,
-    req: &CreatePaymentRunRequest,
-) -> Result<Vec<EligibleBill>, PaymentRunError> {
-    // Use nullable parameter trick for optional filters.
-    // $3::timestamptz IS NULL  → skip due_date filter
-    // $4::uuid[]    IS NULL  → skip vendor filter
-    let rows: Vec<EligibleBill> = sqlx::query_as(
-        r#"
-        SELECT
-            vb.bill_id,
-            vb.vendor_id,
-            vb.currency,
-            (vb.total_minor - COALESCE(SUM(aa.amount_minor), 0))::bigint AS open_balance_minor
-        FROM vendor_bills vb
-        LEFT JOIN ap_allocations aa
-            ON aa.bill_id = vb.bill_id AND aa.tenant_id = vb.tenant_id
-        WHERE vb.tenant_id = $1
-          AND vb.status IN ('approved', 'partially_paid')
-          AND vb.currency = $2
-          AND ($3::timestamptz IS NULL OR vb.due_date <= $3)
-          AND ($4::uuid[] IS NULL OR vb.vendor_id = ANY($4))
-        GROUP BY vb.bill_id, vb.vendor_id, vb.currency, vb.total_minor
-        HAVING (vb.total_minor - COALESCE(SUM(aa.amount_minor), 0)) > 0
-        ORDER BY vb.vendor_id, vb.due_date, vb.bill_id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(&req.currency)
-    .bind(req.due_on_or_before)
-    .bind(req.vendor_ids.as_deref())
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
-}
-
 /// Group eligible bills by vendor, returning (vendor_id, total_amount, bill_ids).
-fn group_by_vendor(bills: Vec<EligibleBill>) -> Vec<(Uuid, i64, Vec<Uuid>)> {
+fn group_by_vendor(
+    bills: Vec<super::repo::EligibleBill>,
+) -> Vec<(Uuid, i64, Vec<Uuid>)> {
     let mut groups: Vec<(Uuid, i64, Vec<Uuid>)> = Vec::new();
 
     for bill in bills {

@@ -4,6 +4,11 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::{
+    party_repo,
+    vendor_qualification_repo,
+    vendor_qualification_repo::UpdateVendorQualificationData,
+};
 use crate::events::{
     build_vendor_qualification_created_envelope, build_vendor_qualification_updated_envelope,
     VendorQualificationPayload, EVENT_TYPE_VENDOR_QUALIFICATION_CREATED,
@@ -26,22 +31,7 @@ pub async fn list_vendor_qualifications(
     app_id: &str,
     party_id: Uuid,
 ) -> Result<Vec<VendorQualification>, PartyError> {
-    let rows: Vec<VendorQualification> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, qualification_status, certification_ref,
-               issued_at, expires_at, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_vendor_qualifications
-        WHERE party_id = $1 AND app_id = $2
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
+    vendor_qualification_repo::list_vendor_qualifications(pool, app_id, party_id).await
 }
 
 /// Get a single vendor qualification by ID, scoped to app_id.
@@ -50,21 +40,7 @@ pub async fn get_vendor_qualification(
     app_id: &str,
     qualification_id: Uuid,
 ) -> Result<Option<VendorQualification>, PartyError> {
-    let row: Option<VendorQualification> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, qualification_status, certification_ref,
-               issued_at, expires_at, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_vendor_qualifications
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(qualification_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row)
+    vendor_qualification_repo::get_vendor_qualification(pool, app_id, qualification_id).await
 }
 
 // ============================================================================
@@ -84,21 +60,12 @@ pub async fn create_vendor_qualification(
 
     // Idempotency check
     if let Some(ref idem_key) = req.idempotency_key {
-        let existing: Option<VendorQualification> = sqlx::query_as(
-            r#"
-            SELECT id, party_id, app_id, qualification_status, certification_ref,
-                   issued_at, expires_at, notes, idempotency_key, metadata,
-                   created_at, updated_at
-            FROM party_vendor_qualifications
-            WHERE app_id = $1 AND idempotency_key = $2
-            "#,
-        )
-        .bind(app_id)
-        .bind(idem_key)
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some(existing) = existing {
+        if let Some(existing) =
+            vendor_qualification_repo::find_vendor_qualification_by_idempotency_key(
+                pool, app_id, idem_key,
+            )
+            .await?
+        {
             return Ok(existing);
         }
     }
@@ -109,38 +76,13 @@ pub async fn create_vendor_qualification(
 
     let mut tx = pool.begin().await?;
 
-    // Guard: party must exist for this app
-    guard_party_exists_tx(&mut tx, app_id, party_id).await?;
+    party_repo::guard_party_exists_tx(&mut tx, app_id, party_id).await?;
 
-    // Mutation
-    let qual: VendorQualification = sqlx::query_as(
-        r#"
-        INSERT INTO party_vendor_qualifications (
-            id, party_id, app_id, qualification_status, certification_ref,
-            issued_at, expires_at, notes, idempotency_key, metadata,
-            created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-        RETURNING id, party_id, app_id, qualification_status, certification_ref,
-                  issued_at, expires_at, notes, idempotency_key, metadata,
-                  created_at, updated_at
-        "#,
+    let qual = vendor_qualification_repo::insert_vendor_qualification_tx(
+        &mut tx, qual_id, party_id, app_id, req, now,
     )
-    .bind(qual_id)
-    .bind(party_id)
-    .bind(app_id)
-    .bind(req.qualification_status.trim())
-    .bind(&req.certification_ref)
-    .bind(req.issued_at)
-    .bind(req.expires_at)
-    .bind(&req.notes)
-    .bind(&req.idempotency_key)
-    .bind(&req.metadata)
-    .bind(now)
-    .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox
     let payload = VendorQualificationPayload {
         qualification_id: qual_id,
         party_id,
@@ -188,23 +130,10 @@ pub async fn update_vendor_qualification(
 
     let mut tx = pool.begin().await?;
 
-    // Guard: qualification must exist
-    let existing: Option<VendorQualification> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, qualification_status, certification_ref,
-               issued_at, expires_at, notes, idempotency_key, metadata,
-               created_at, updated_at
-        FROM party_vendor_qualifications
-        WHERE id = $1 AND app_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(qualification_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(PartyError::NotFound(qualification_id))?;
+    let current =
+        vendor_qualification_repo::fetch_vendor_qualification_for_update_tx(&mut tx, app_id, qualification_id)
+            .await?
+            .ok_or(PartyError::NotFound(qualification_id))?;
 
     let new_status = req
         .qualification_status
@@ -229,31 +158,22 @@ pub async fn update_vendor_qualification(
         current.metadata
     };
 
-    // Mutation
-    let updated: VendorQualification = sqlx::query_as(
-        r#"
-        UPDATE party_vendor_qualifications
-        SET qualification_status = $1, certification_ref = $2, issued_at = $3,
-            expires_at = $4, notes = $5, metadata = $6, updated_at = $7
-        WHERE id = $8 AND app_id = $9
-        RETURNING id, party_id, app_id, qualification_status, certification_ref,
-                  issued_at, expires_at, notes, idempotency_key, metadata,
-                  created_at, updated_at
-        "#,
+    let updated = vendor_qualification_repo::update_vendor_qualification_row_tx(
+        &mut tx,
+        &UpdateVendorQualificationData {
+            qualification_id,
+            app_id,
+            qualification_status: new_status,
+            certification_ref: new_cert_ref,
+            issued_at: new_issued,
+            expires_at: new_expires,
+            notes: new_notes,
+            metadata: new_metadata,
+            updated_at: now,
+        },
     )
-    .bind(&new_status)
-    .bind(&new_cert_ref)
-    .bind(new_issued)
-    .bind(new_expires)
-    .bind(&new_notes)
-    .bind(&new_metadata)
-    .bind(now)
-    .bind(qualification_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox
     let payload = VendorQualificationPayload {
         qualification_id,
         party_id: updated.party_id,
@@ -284,26 +204,4 @@ pub async fn update_vendor_qualification(
 
     tx.commit().await?;
     Ok(updated)
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async fn guard_party_exists_tx(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    app_id: &str,
-    party_id: Uuid,
-) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
-            .bind(party_id)
-            .bind(app_id)
-            .fetch_optional(&mut **tx)
-            .await?;
-
-    if exists.is_none() {
-        return Err(PartyError::NotFound(party_id));
-    }
-    Ok(())
 }

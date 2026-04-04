@@ -1,6 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::contact_repo;
 use crate::domain::contact::{Contact, PrimaryContactEntry};
 use crate::domain::party::PartyError;
 
@@ -13,22 +14,7 @@ pub async fn list_contacts(
     party_id: Uuid,
 ) -> Result<Vec<Contact>, PartyError> {
     guard_party_exists(pool, app_id, party_id).await?;
-
-    let contacts: Vec<Contact> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE party_id = $1 AND app_id = $2 AND deactivated_at IS NULL
-        ORDER BY is_primary DESC, last_name ASC, first_name ASC
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(contacts)
+    contact_repo::list_contacts(pool, app_id, party_id).await
 }
 
 /// Get a single active contact by ID, scoped to app_id.
@@ -37,20 +23,7 @@ pub async fn get_contact(
     app_id: &str,
     contact_id: Uuid,
 ) -> Result<Option<Contact>, PartyError> {
-    let contact: Option<Contact> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE id = $1 AND app_id = $2 AND deactivated_at IS NULL
-        "#,
-    )
-    .bind(contact_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(contact)
+    contact_repo::get_contact(pool, app_id, contact_id).await
 }
 
 /// Get primary contacts per role for a party.
@@ -61,20 +34,7 @@ pub async fn get_primary_contacts(
 ) -> Result<Vec<PrimaryContactEntry>, PartyError> {
     guard_party_exists(pool, app_id, party_id).await?;
 
-    let contacts: Vec<Contact> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE party_id = $1 AND app_id = $2
-          AND is_primary = true AND deactivated_at IS NULL
-        ORDER BY role ASC
-        "#,
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
+    let contacts = contact_repo::list_primary_contacts(pool, app_id, party_id).await?;
 
     let entries = contacts
         .into_iter()

@@ -5,6 +5,8 @@
 
 use sqlx::PgPool;
 
+use super::repo;
+
 /// Point-in-time reconciliation statistics.
 pub struct ReconSnapshot {
     /// Active (non-superseded) matches.
@@ -19,40 +21,5 @@ pub struct ReconSnapshot {
 
 /// Query the database for current recon gauge values scoped to a tenant.
 pub async fn snapshot(pool: &PgPool, app_id: &str) -> Result<ReconSnapshot, sqlx::Error> {
-    let matched: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM treasury_recon_matches WHERE superseded_by IS NULL AND app_id = $1",
-    )
-    .bind(app_id)
-    .fetch_one(pool)
-    .await?;
-
-    let unmatched_lines: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM treasury_bank_transactions \
-         WHERE status = 'unmatched' AND statement_id IS NOT NULL AND app_id = $1",
-    )
-    .bind(app_id)
-    .fetch_one(pool)
-    .await?;
-
-    let unmatched_txns: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM treasury_bank_transactions \
-         WHERE status = 'unmatched' AND statement_id IS NULL AND app_id = $1",
-    )
-    .bind(app_id)
-    .fetch_one(pool)
-    .await?;
-
-    let total = matched + unmatched_lines;
-    let match_rate = if total > 0 {
-        matched as f64 / total as f64
-    } else {
-        0.0
-    };
-
-    Ok(ReconSnapshot {
-        matched,
-        unmatched_lines,
-        unmatched_txns,
-        match_rate,
-    })
+    repo::recon_snapshot(pool, app_id).await
 }

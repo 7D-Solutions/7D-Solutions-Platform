@@ -20,14 +20,13 @@ use uuid::Uuid;
 
 use tax_core::{TaxCommitRequest, TaxProvider};
 
-use crate::domain::tax::models::ApTaxSnapshot;
 use crate::events::{
     build_vendor_bill_approved_envelope, ApprovedGlLine, VendorBillApprovedPayload,
     EVENT_TYPE_VENDOR_BILL_APPROVED,
 };
 use crate::outbox::enqueue_event_tx;
 
-use super::models::{check_match_policy, BillHeaderRow, BillLineGlRow};
+use super::models::check_match_policy;
 use super::{ApproveBillRequest, BillError, VendorBill};
 
 // ============================================================================
@@ -55,38 +54,16 @@ pub async fn approve_bill(
     let mut tx = pool.begin().await?;
 
     // Guard: lock the bill row to prevent concurrent approvals
-    let row: Option<BillHeaderRow> = sqlx::query_as(
-        r#"
-        SELECT vendor_id, vendor_invoice_ref, total_minor, currency, due_date, status,
-               fx_rate_id
-        FROM vendor_bills
-        WHERE bill_id = $1 AND tenant_id = $2
-        FOR UPDATE
-        "#,
-    )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let row = row.ok_or(BillError::NotFound(bill_id))?;
+    let row = super::repo::lock_bill_header(&mut *tx, bill_id, tenant_id)
+        .await?
+        .ok_or(BillError::NotFound(bill_id))?;
 
     // Idempotency: already approved → commit and return current state
     if row.status == "approved" {
         tx.commit().await?;
-        let bill: VendorBill = sqlx::query_as(
-            r#"
-            SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-                   total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-                   entered_by, entered_at
-            FROM vendor_bills
-            WHERE bill_id = $1 AND tenant_id = $2
-            "#,
-        )
-        .bind(bill_id)
-        .bind(tenant_id)
-        .fetch_one(pool)
-        .await?;
+        let bill = super::repo::fetch_bill(pool, tenant_id, bill_id)
+            .await?
+            .ok_or(BillError::NotFound(bill_id))?;
         return Ok(bill);
     }
 
@@ -104,15 +81,7 @@ pub async fn approve_bill(
     // Tax: commit any quoted tax snapshot for this bill.
     // If no snapshot exists, the bill is non-taxable — proceed normally.
     // If a snapshot is already committed, this is idempotent.
-    let tax_snap: Option<ApTaxSnapshot> = sqlx::query_as(
-        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
-         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
-         voided_at, void_reason, created_at, updated_at \
-         FROM ap_tax_snapshots WHERE bill_id = $1 AND status != 'voided' LIMIT 1",
-    )
-    .bind(bill_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let tax_snap = crate::domain::tax::repo::find_active_snapshot_tx(&mut *tx, bill_id).await?;
 
     if let Some(snap) = &tax_snap {
         if snap.status == "quoted" {
@@ -127,16 +96,12 @@ pub async fn approve_bill(
                 .await
                 .map_err(|e| BillError::TaxError(format!("tax commit failed: {}", e)))?;
 
-            sqlx::query(
-                "UPDATE ap_tax_snapshots \
-                 SET status = 'committed', provider_commit_ref = $1, \
-                     committed_at = $2, updated_at = NOW() \
-                 WHERE id = $3",
+            crate::domain::tax::repo::commit_snapshot_tx(
+                &mut *tx,
+                snap.id,
+                &commit_resp.provider_commit_ref,
+                commit_resp.committed_at,
             )
-            .bind(&commit_resp.provider_commit_ref)
-            .bind(commit_resp.committed_at)
-            .bind(snap.id)
-            .execute(&mut *tx)
             .await?;
         }
     }
@@ -145,34 +110,10 @@ pub async fn approve_bill(
     let event_id = Uuid::new_v4();
 
     // Mutation: advance status to approved
-    let approved: VendorBill = sqlx::query_as(
-        r#"
-        UPDATE vendor_bills
-        SET status = 'approved'
-        WHERE bill_id = $1 AND tenant_id = $2
-        RETURNING
-            bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-            total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-            entered_by, entered_at
-        "#,
-    )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let approved = super::repo::approve_bill_status(&mut *tx, bill_id, tenant_id).await?;
 
     // Fetch bill lines for GL posting allocations (replay-safe event payload)
-    let gl_line_rows: Vec<BillLineGlRow> = sqlx::query_as(
-        r#"
-        SELECT line_id, gl_account_code, line_total_minor, po_line_id
-        FROM bill_lines
-        WHERE bill_id = $1
-        ORDER BY line_id
-        "#,
-    )
-    .bind(bill_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let gl_line_rows = super::repo::fetch_bill_gl_lines(&mut *tx, bill_id).await?;
 
     let gl_lines: Vec<ApprovedGlLine> = gl_line_rows
         .into_iter()

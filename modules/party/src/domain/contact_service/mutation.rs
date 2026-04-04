@@ -2,6 +2,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::contact_repo::{self, UpdateContactData};
 use crate::events::{
     build_contact_created_envelope, build_contact_deactivated_envelope,
     build_contact_primary_set_envelope, build_contact_updated_envelope, ContactDeactivatedPayload,
@@ -37,30 +38,9 @@ pub async fn create_contact(
         clear_primary_for_role(&mut tx, app_id, party_id, req.role.as_deref()).await?;
     }
 
-    let contact: Contact = sqlx::query_as(
-        r#"
-        INSERT INTO party_contacts (
-            id, party_id, app_id, first_name, last_name, email, phone,
-            role, is_primary, metadata, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-        RETURNING id, party_id, app_id, first_name, last_name, email, phone,
-                  role, is_primary, metadata, created_at, updated_at, deactivated_at
-        "#,
-    )
-    .bind(contact_id)
-    .bind(party_id)
-    .bind(app_id)
-    .bind(req.first_name.trim())
-    .bind(req.last_name.as_deref().map(|n| n.trim()))
-    .bind(&req.email)
-    .bind(&req.phone)
-    .bind(&req.role)
-    .bind(is_primary)
-    .bind(&req.metadata)
-    .bind(now)
-    .fetch_one(&mut *tx)
-    .await?;
+    let contact =
+        contact_repo::insert_contact_tx(&mut tx, contact_id, party_id, app_id, req, is_primary, now)
+            .await?;
 
     let payload = ContactPayload {
         contact_id,
@@ -104,21 +84,9 @@ pub async fn update_contact(
     let now = Utc::now();
     let mut tx = pool.begin().await?;
 
-    let existing: Option<Contact> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE id = $1 AND app_id = $2 AND deactivated_at IS NULL
-        FOR UPDATE
-        "#,
-    )
-    .bind(contact_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    let current = existing.ok_or(PartyError::NotFound(contact_id))?;
+    let current = contact_repo::fetch_contact_for_update_tx(&mut tx, app_id, contact_id)
+        .await?
+        .ok_or(PartyError::NotFound(contact_id))?;
 
     if req.is_primary == Some(true) && !current.is_primary {
         let role = req.role.as_deref().or(current.role.as_deref());
@@ -157,27 +125,21 @@ pub async fn update_contact(
         current.metadata
     };
 
-    let updated: Contact = sqlx::query_as(
-        r#"
-        UPDATE party_contacts
-        SET first_name = $1, last_name = $2, email = $3, phone = $4,
-            role = $5, is_primary = $6, metadata = $7, updated_at = $8
-        WHERE id = $9 AND app_id = $10
-        RETURNING id, party_id, app_id, first_name, last_name, email, phone,
-                  role, is_primary, metadata, created_at, updated_at, deactivated_at
-        "#,
+    let updated = contact_repo::update_contact_row_tx(
+        &mut tx,
+        &UpdateContactData {
+            contact_id,
+            app_id,
+            first_name: new_first,
+            last_name: new_last,
+            email: new_email,
+            phone: new_phone,
+            role: new_role,
+            is_primary: new_primary,
+            metadata: new_metadata,
+            updated_at: now,
+        },
     )
-    .bind(&new_first)
-    .bind(&new_last)
-    .bind(&new_email)
-    .bind(&new_phone)
-    .bind(&new_role)
-    .bind(new_primary)
-    .bind(&new_metadata)
-    .bind(now)
-    .bind(contact_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     let payload = ContactPayload {
@@ -219,30 +181,11 @@ pub async fn deactivate_contact(
     let now = Utc::now();
     let mut tx = pool.begin().await?;
 
-    let existing: Option<Contact> = sqlx::query_as(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE id = $1 AND app_id = $2 AND deactivated_at IS NULL
-        FOR UPDATE
-        "#,
-    )
-    .bind(contact_id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let current = contact_repo::fetch_contact_for_update_tx(&mut tx, app_id, contact_id)
+        .await?
+        .ok_or(PartyError::NotFound(contact_id))?;
 
-    let current = existing.ok_or(PartyError::NotFound(contact_id))?;
-
-    sqlx::query(
-        "UPDATE party_contacts SET deactivated_at = $1, updated_at = $1 WHERE id = $2 AND app_id = $3",
-    )
-    .bind(now)
-    .bind(contact_id)
-    .bind(app_id)
-    .execute(&mut *tx)
-    .await?;
+    contact_repo::deactivate_contact_tx(&mut tx, app_id, contact_id, now).await?;
 
     let payload = ContactDeactivatedPayload {
         contact_id,
@@ -286,39 +229,13 @@ pub async fn set_primary_for_role(
     let now = Utc::now();
     let mut tx = pool.begin().await?;
 
-    sqlx::query_as::<_, Contact>(
-        r#"
-        SELECT id, party_id, app_id, first_name, last_name, email, phone,
-               role, is_primary, metadata, created_at, updated_at, deactivated_at
-        FROM party_contacts
-        WHERE id = $1 AND app_id = $2 AND party_id = $3 AND deactivated_at IS NULL
-        FOR UPDATE
-        "#,
-    )
-    .bind(contact_id)
-    .bind(app_id)
-    .bind(party_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(PartyError::NotFound(contact_id))?;
+    contact_repo::fetch_contact_for_primary_set_tx(&mut tx, app_id, party_id, contact_id)
+        .await?
+        .ok_or(PartyError::NotFound(contact_id))?;
 
     clear_primary_for_role(&mut tx, app_id, party_id, Some(role)).await?;
 
-    let updated: Contact = sqlx::query_as(
-        r#"
-        UPDATE party_contacts
-        SET is_primary = true, role = $1, updated_at = $2
-        WHERE id = $3 AND app_id = $4
-        RETURNING id, party_id, app_id, first_name, last_name, email, phone,
-                  role, is_primary, metadata, created_at, updated_at, deactivated_at
-        "#,
-    )
-    .bind(role)
-    .bind(now)
-    .bind(contact_id)
-    .bind(app_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let updated = contact_repo::set_contact_primary_tx(&mut tx, app_id, contact_id, role, now).await?;
 
     let payload = ContactPrimarySetPayload {
         contact_id,

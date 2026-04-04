@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.8 | 2026-04-04 | bd-8bchy | SoC: extract gl_link_repo from recon service | Separation of concerns — GL link queries in dedicated repo | No |
 | 2.1.7 | 2026-04-04 | bd-8bchy | SoC: partial repo extraction from accounts/mod.rs | Separation of concerns — SQL queries mixed into service layer violate repo/service layering. | No |
 | 2.1.6 | 2026-04-02 | bd-azq84 | Removed local extract_tenant, fixed reports annotation | Plug-and-play standardization | No |
 | 2.1.5 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotation on list_unmatched endpoint. | OpenAPI spec was missing response schema, causing codegen to emit Result<(), ClientError>. | No |
