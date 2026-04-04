@@ -2,6 +2,7 @@
 
 pub mod models;
 pub mod qbo_normalizer;
+pub mod repo;
 pub mod routing;
 pub mod service;
 pub mod verify;

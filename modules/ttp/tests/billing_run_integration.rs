@@ -6,7 +6,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use ttp_rs::domain::billing_db::{collect_parties_to_bill, fetch_run_summary};
+use ttp_rs::domain::billing_repo::{collect_parties_to_bill, fetch_run_summary};
 
 /// Connect to the TTP test database.
 async fn test_pool() -> PgPool {

@@ -2,6 +2,7 @@
 
 pub mod guards;
 pub mod models;
+pub mod repo;
 pub mod service;
 
 pub use models::{CreateFileJobRequest, FileJob, FileJobError, TransitionFileJobRequest};

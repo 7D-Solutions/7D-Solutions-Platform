@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 4.0.1 | 2026-04-04 | bd-usykn | SoC: extract 22 sqlx queries from domain services into repo modules | Separation of concerns — isolate persistence from business logic so domain services are testable and DB access is centralized. | No |
 | 4.0.0 | 2026-04-03 | bd-lyhp3 | Change `list_service_agreements` response from `ListServiceAgreementsResponse` (`{tenant_id, items, count}`) to `PaginatedResponse<ServiceAgreementItem>` (`{data, pagination}`). Register `PaginatedResponse` and `PaginationMeta` in OpenAPI components. Bump OpenAPI spec version to 4.0.0. | Platform G1 standard: all list endpoints must use PaginatedResponse envelope for consistent pagination. | YES — `GET /api/ttp/service-agreements` response shape changed from `{tenant_id, items, count}` to `{data: [...], pagination: {page, page_size, total_items, total_pages}}`. Consumers parsing the response must update to the PaginatedResponse envelope. |
 | 3.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 3.0.1 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |

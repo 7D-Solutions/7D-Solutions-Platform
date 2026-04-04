@@ -21,7 +21,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::metering_db;
+use super::metering_repo;
 
 // ---------------------------------------------------------------------------
 // Error
@@ -134,7 +134,7 @@ pub async fn ingest_event(
     pool: &PgPool,
     input: &MeteringEventInput,
 ) -> Result<IngestResult, MeteringError> {
-    metering_db::insert_event(pool, input).await
+    metering_repo::insert_event(pool, input).await
 }
 
 /// Ingest a batch of metering events in a single INSERT using UNNEST arrays.
@@ -145,7 +145,7 @@ pub async fn ingest_events(
     pool: &PgPool,
     inputs: &[MeteringEventInput],
 ) -> Result<Vec<IngestResult>, MeteringError> {
-    metering_db::batch_insert_events(pool, inputs).await
+    metering_repo::batch_insert_events(pool, inputs).await
 }
 
 /// Compute the full price trace for a tenant + billing period.
@@ -160,10 +160,10 @@ pub async fn compute_price_trace(
 
     // 1. Aggregate events by dimension (stable ordering guaranteed by DB query)
     let aggregates =
-        metering_db::aggregate_by_dimension(pool, tenant_id, period_start, period_end).await?;
+        metering_repo::aggregate_by_dimension(pool, tenant_id, period_start, period_end).await?;
 
     // 2. Look up pricing rules effective at the period start date
-    let pricing = metering_db::get_pricing_rules(pool, tenant_id, period_start).await?;
+    let pricing = metering_repo::get_pricing_rules(pool, tenant_id, period_start).await?;
 
     // 3. Apply pricing to aggregates (integer arithmetic, no rounding)
     let mut line_items = Vec::new();

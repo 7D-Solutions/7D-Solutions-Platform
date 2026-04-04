@@ -21,6 +21,7 @@ use super::models::{
     CreateOutboundWebhookRequest, OutboundWebhook, OutboundWebhookDelivery, OutboundWebhookError,
     RecordDeliveryRequest, UpdateOutboundWebhookRequest,
 };
+use super::repo;
 
 pub struct OutboundWebhookService {
     pool: PgPool,
@@ -41,17 +42,7 @@ impl OutboundWebhookService {
         tenant_id: &str,
         webhook_id: Uuid,
     ) -> Result<Option<OutboundWebhook>, OutboundWebhookError> {
-        let row = sqlx::query_as::<_, OutboundWebhook>(
-            r#"SELECT id, tenant_id, url, event_types, signing_secret_hash,
-                      status, idempotency_key, description, created_at, updated_at, deleted_at
-               FROM integrations_outbound_webhooks
-               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#,
-        )
-        .bind(webhook_id)
-        .bind(tenant_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row)
+        Ok(repo::get_by_id(&self.pool, tenant_id, webhook_id).await?)
     }
 
     /// List all webhooks for a tenant (non-deleted).
@@ -59,17 +50,7 @@ impl OutboundWebhookService {
         &self,
         tenant_id: &str,
     ) -> Result<Vec<OutboundWebhook>, OutboundWebhookError> {
-        let rows = sqlx::query_as::<_, OutboundWebhook>(
-            r#"SELECT id, tenant_id, url, event_types, signing_secret_hash,
-                      status, idempotency_key, description, created_at, updated_at, deleted_at
-               FROM integrations_outbound_webhooks
-               WHERE tenant_id = $1 AND deleted_at IS NULL
-               ORDER BY created_at DESC"#,
-        )
-        .bind(tenant_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
+        Ok(repo::list_by_tenant(&self.pool, tenant_id).await?)
     }
 
     // ========================================================================
@@ -99,16 +80,8 @@ impl OutboundWebhookService {
 
         // Check idempotency: if key exists, return the existing webhook
         if let Some(ref key) = req.idempotency_key {
-            let existing = sqlx::query_as::<_, OutboundWebhook>(
-                r#"SELECT id, tenant_id, url, event_types, signing_secret_hash,
-                          status, idempotency_key, description, created_at, updated_at, deleted_at
-                   FROM integrations_outbound_webhooks
-                   WHERE tenant_id = $1 AND idempotency_key = $2 AND deleted_at IS NULL"#,
-            )
-            .bind(&req.tenant_id)
-            .bind(key)
-            .fetch_optional(&mut *tx)
-            .await?;
+            let existing =
+                repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
 
             if let Some(wh) = existing {
                 tx.rollback().await?;
@@ -116,22 +89,16 @@ impl OutboundWebhookService {
             }
         }
 
-        let webhook = sqlx::query_as::<_, OutboundWebhook>(
-            r#"INSERT INTO integrations_outbound_webhooks
-                   (id, tenant_id, url, event_types, signing_secret_hash,
-                    status, idempotency_key, description)
-               VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
-               RETURNING id, tenant_id, url, event_types, signing_secret_hash,
-                         status, idempotency_key, description, created_at, updated_at, deleted_at"#,
+        let webhook = repo::insert(
+            &mut tx,
+            webhook_id,
+            &req.tenant_id,
+            &req.url,
+            &event_types_json,
+            &secret_hash,
+            &req.idempotency_key,
+            &req.description,
         )
-        .bind(webhook_id)
-        .bind(&req.tenant_id)
-        .bind(&req.url)
-        .bind(&event_types_json)
-        .bind(&secret_hash)
-        .bind(&req.idempotency_key)
-        .bind(&req.description)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ──────────────────────────────────────────────────────
@@ -181,18 +148,9 @@ impl OutboundWebhookService {
         let mut tx = self.pool.begin().await?;
 
         // Fetch existing (scoped to tenant)
-        let existing = sqlx::query_as::<_, OutboundWebhook>(
-            r#"SELECT id, tenant_id, url, event_types, signing_secret_hash,
-                      status, idempotency_key, description, created_at, updated_at, deleted_at
-               FROM integrations_outbound_webhooks
-               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
-               FOR UPDATE"#,
-        )
-        .bind(req.id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(OutboundWebhookError::NotFound)?;
+        let existing = repo::fetch_for_update(&mut tx, req.id, &req.tenant_id)
+            .await?
+            .ok_or(OutboundWebhookError::NotFound)?;
 
         // ── Mutation ────────────────────────────────────────────────────
         let new_url = req.url.as_deref().unwrap_or(&existing.url);
@@ -208,20 +166,15 @@ impl OutboundWebhookService {
             None => existing.description.as_deref(),
         };
 
-        let updated = sqlx::query_as::<_, OutboundWebhook>(
-            r#"UPDATE integrations_outbound_webhooks
-               SET url = $1, event_types = $2, status = $3, description = $4, updated_at = NOW()
-               WHERE id = $5 AND tenant_id = $6 AND deleted_at IS NULL
-               RETURNING id, tenant_id, url, event_types, signing_secret_hash,
-                         status, idempotency_key, description, created_at, updated_at, deleted_at"#,
+        let updated = repo::update_fields(
+            &mut tx,
+            new_url,
+            &new_event_types,
+            new_status,
+            new_description,
+            req.id,
+            &req.tenant_id,
         )
-        .bind(new_url)
-        .bind(&new_event_types)
-        .bind(new_status)
-        .bind(new_description)
-        .bind(req.id)
-        .bind(&req.tenant_id)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ──────────────────────────────────────────────────────
@@ -274,15 +227,7 @@ impl OutboundWebhookService {
 
         let mut tx = self.pool.begin().await?;
 
-        let result = sqlx::query(
-            r#"UPDATE integrations_outbound_webhooks
-               SET deleted_at = NOW(), status = 'disabled', updated_at = NOW()
-               WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#,
-        )
-        .bind(webhook_id)
-        .bind(tenant_id)
-        .execute(&mut *tx)
-        .await?;
+        let result = repo::soft_delete(&mut tx, webhook_id, tenant_id).await?;
 
         if result.rows_affected() == 0 {
             return Err(OutboundWebhookError::NotFound);
@@ -328,29 +273,7 @@ impl OutboundWebhookService {
         &self,
         req: RecordDeliveryRequest,
     ) -> Result<OutboundWebhookDelivery, OutboundWebhookError> {
-        let delivery = sqlx::query_as::<_, OutboundWebhookDelivery>(
-            r#"INSERT INTO integrations_outbound_webhook_deliveries
-                   (webhook_id, tenant_id, event_type, payload, status_code,
-                    response_body, error_message, attempt_number, next_retry_at, delivered_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-               RETURNING id, webhook_id, tenant_id, event_type, payload, status_code,
-                         response_body, error_message, attempt_number, next_retry_at,
-                         delivered_at, created_at"#,
-        )
-        .bind(req.webhook_id)
-        .bind(&req.tenant_id)
-        .bind(&req.event_type)
-        .bind(&req.payload)
-        .bind(req.status_code)
-        .bind(&req.response_body)
-        .bind(&req.error_message)
-        .bind(req.attempt_number)
-        .bind(req.next_retry_at)
-        .bind(req.delivered_at)
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(delivery)
+        Ok(repo::insert_delivery(&self.pool, &req).await?)
     }
 
     /// List deliveries for a specific webhook (tenant-scoped).
@@ -359,18 +282,6 @@ impl OutboundWebhookService {
         tenant_id: &str,
         webhook_id: Uuid,
     ) -> Result<Vec<OutboundWebhookDelivery>, OutboundWebhookError> {
-        let rows = sqlx::query_as::<_, OutboundWebhookDelivery>(
-            r#"SELECT id, webhook_id, tenant_id, event_type, payload, status_code,
-                      response_body, error_message, attempt_number, next_retry_at,
-                      delivered_at, created_at
-               FROM integrations_outbound_webhook_deliveries
-               WHERE webhook_id = $1 AND tenant_id = $2
-               ORDER BY created_at DESC"#,
-        )
-        .bind(webhook_id)
-        .bind(tenant_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
+        Ok(repo::list_deliveries(&self.pool, tenant_id, webhook_id).await?)
     }
 }

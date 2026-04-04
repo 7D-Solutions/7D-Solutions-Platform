@@ -15,6 +15,7 @@
 //!   idempotency key so callers can safely retry without double-side-effects.
 
 pub mod echo;
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, Utc};

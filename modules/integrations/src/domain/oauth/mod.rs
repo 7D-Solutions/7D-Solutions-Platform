@@ -7,6 +7,7 @@
 //! Tokens are encrypted at rest via pgcrypto `pgp_sym_encrypt`.
 
 pub mod refresh;
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, Utc};

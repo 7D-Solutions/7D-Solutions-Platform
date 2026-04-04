@@ -16,6 +16,7 @@ use super::cdc::{
     DbTokenProvider, QboCdcEntityPayload, CDC_ENTITIES, EVENT_TYPE_QBO_ENTITY_SYNCED,
 };
 use super::client::QboClient;
+use super::repo;
 use super::TokenProvider;
 use crate::events::envelope::create_integrations_envelope;
 use crate::events::MUTATION_CLASS_DATA_MUTATION;
@@ -52,15 +53,7 @@ pub async fn full_resync(
 
     // Mark resync complete
     let now = Utc::now();
-    sqlx::query(
-        "UPDATE integrations_oauth_connections \
-         SET full_resync_required = FALSE, cdc_watermark = $1, updated_at = $1 \
-         WHERE app_id = $2 AND provider = 'quickbooks'",
-    )
-    .bind(now)
-    .bind(app_id)
-    .execute(pool)
-    .await?;
+    repo::mark_resync_complete(pool, app_id, now).await?;
 
     Ok(total)
 }

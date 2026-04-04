@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::outbox::enqueue_event_tx;
 
+use super::repo;
 use super::{
     get_connector, ConnectorConfig, ConnectorError, RegisterConnectorRequest, RunTestActionRequest,
     TestActionResult,
@@ -25,18 +26,7 @@ pub async fn get_connector_config(
     app_id: &str,
     id: Uuid,
 ) -> Result<Option<ConnectorConfig>, ConnectorError> {
-    let row = sqlx::query_as::<_, ConnectorConfig>(
-        r#"
-        SELECT id, app_id, connector_type, name, config, enabled, created_at, updated_at
-        FROM integrations_connector_configs
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
-    Ok(row)
+    Ok(repo::get_config(pool, app_id, id).await?)
 }
 
 /// List all connector configs for a tenant, optionally filtered to enabled only.
@@ -45,32 +35,7 @@ pub async fn list_connector_configs(
     app_id: &str,
     enabled_only: bool,
 ) -> Result<Vec<ConnectorConfig>, ConnectorError> {
-    let rows = if enabled_only {
-        sqlx::query_as::<_, ConnectorConfig>(
-            r#"
-            SELECT id, app_id, connector_type, name, config, enabled, created_at, updated_at
-            FROM integrations_connector_configs
-            WHERE app_id = $1 AND enabled = TRUE
-            ORDER BY connector_type, name
-            "#,
-        )
-        .bind(app_id)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, ConnectorConfig>(
-            r#"
-            SELECT id, app_id, connector_type, name, config, enabled, created_at, updated_at
-            FROM integrations_connector_configs
-            WHERE app_id = $1
-            ORDER BY connector_type, name
-            "#,
-        )
-        .bind(app_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    Ok(repo::list_configs(pool, app_id, enabled_only).await?)
 }
 
 // ============================================================================
@@ -110,30 +75,18 @@ pub async fn register_connector(
     let event_id = Uuid::new_v4();
     let mut tx = pool.begin().await?;
 
-    let row: ConnectorConfig = sqlx::query_as(
-        r#"
-        INSERT INTO integrations_connector_configs
-            (app_id, connector_type, name, config, enabled, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, TRUE, NOW(), NOW())
-        RETURNING id, app_id, connector_type, name, config, enabled, created_at, updated_at
-        "#,
-    )
-    .bind(app_id)
-    .bind(req.connector_type.trim())
-    .bind(req.name.trim())
-    .bind(&config)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        if e.to_string().contains("unique") || e.to_string().contains("duplicate") {
-            ConnectorError::InvalidConfig(format!(
-                "A '{}' connector named '{}' already exists for this tenant",
-                req.connector_type, req.name
-            ))
-        } else {
-            ConnectorError::Database(e)
-        }
-    })?;
+    let row = repo::insert(&mut tx, app_id, req.connector_type.trim(), req.name.trim(), &config)
+        .await
+        .map_err(|e| {
+            if e.to_string().contains("unique") || e.to_string().contains("duplicate") {
+                ConnectorError::InvalidConfig(format!(
+                    "A '{}' connector named '{}' already exists for this tenant",
+                    req.connector_type, req.name
+                ))
+            } else {
+                ConnectorError::Database(e)
+            }
+        })?;
 
     // Outbox: connector.registered
     let payload = serde_json::json!({

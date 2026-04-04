@@ -18,9 +18,10 @@
 ///   5. Mark one-time charges as billed with ar_invoice_id.
 ///   6. Upsert a billing run item with status = invoiced.
 use platform_sdk::{PlatformClient, VerifiedClaims};
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::billing_repo;
 use super::metering;
 use crate::clients::ar::{ArClient, ArClientError};
 use crate::clients::tenant_registry::{TenantRegistryClient, TenantRegistryError};
@@ -89,24 +90,13 @@ pub async fn run_billing(
     billing_period: &str,
     idempotency_key: &str,
 ) -> Result<BillingRunSummary, BillingError> {
-    use super::billing_db::fetch_run_summary;
-
     // 1. Idempotency check: has this period already been billed?
-    let existing = sqlx::query(
-        "SELECT run_id, status FROM ttp_billing_runs WHERE tenant_id = $1 AND billing_period = $2",
-    )
-    .bind(tenant_id)
-    .bind(billing_period)
-    .fetch_optional(pool)
-    .await?;
-
-    if let Some(row) = existing {
-        let status: String = row.try_get("status")?;
-        let run_id: Uuid = row.try_get("run_id")?;
-
+    if let Some((run_id, status)) =
+        billing_repo::fetch_existing_run(pool, tenant_id, billing_period).await?
+    {
         if status == "completed" {
             let (parties_billed, total_amount_minor, currency) =
-                fetch_run_summary(pool, run_id).await?;
+                billing_repo::fetch_run_summary(pool, run_id).await?;
             return Ok(BillingRunSummary {
                 run_id,
                 parties_billed,
@@ -126,28 +116,12 @@ pub async fn run_billing(
 
     // 3. Create the billing run record (UNIQUE on tenant+period prevents races)
     let run_id = Uuid::new_v4();
-    sqlx::query(
-        r#"
-        INSERT INTO ttp_billing_runs (run_id, tenant_id, billing_period, status, idempotency_key)
-        VALUES ($1, $2, $3, 'pending', $4)
-        ON CONFLICT (tenant_id, billing_period) DO NOTHING
-        "#,
-    )
-    .bind(run_id)
-    .bind(tenant_id)
-    .bind(billing_period)
-    .bind(idempotency_key)
-    .execute(pool)
-    .await?;
+    billing_repo::insert_billing_run(pool, run_id, tenant_id, billing_period, idempotency_key)
+        .await?;
 
     // Re-fetch canonical run_id (another writer may have won the conflict)
-    let canonical: Uuid = sqlx::query_scalar(
-        "SELECT run_id FROM ttp_billing_runs WHERE tenant_id = $1 AND billing_period = $2",
-    )
-    .bind(tenant_id)
-    .bind(billing_period)
-    .fetch_one(pool)
-    .await?;
+    let canonical =
+        billing_repo::fetch_canonical_run_id(pool, tenant_id, billing_period).await?;
 
     execute_run(pool, ar_client, tenant_id, canonical, billing_period).await
 }
@@ -164,16 +138,9 @@ async fn execute_run(
     run_id: Uuid,
     billing_period: &str,
 ) -> Result<BillingRunSummary, BillingError> {
-    use super::billing_db::collect_parties_to_bill;
+    billing_repo::set_run_processing(pool, run_id).await?;
 
-    sqlx::query(
-        "UPDATE ttp_billing_runs SET status = 'processing' WHERE run_id = $1 AND status != 'completed'",
-    )
-    .bind(run_id)
-    .execute(pool)
-    .await?;
-
-    let mut parties = collect_parties_to_bill(pool, tenant_id, run_id).await?;
+    let mut parties = billing_repo::collect_parties_to_bill(pool, tenant_id, run_id).await?;
 
     // Compute metering trace and add metered usage as a billing item
     let trace = metering::compute_price_trace(pool, tenant_id, billing_period).await?;
@@ -200,16 +167,9 @@ async fn execute_run(
         let item_key = derive_item_key(run_id, party.party_id);
 
         // Skip already-invoiced items (re-entry after crash)
-        let existing_item = sqlx::query(
-            "SELECT ar_invoice_id, status FROM ttp_billing_run_items WHERE run_id = $1 AND party_id = $2",
-        )
-        .bind(run_id)
-        .bind(party.party_id)
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some(row) = existing_item {
-            let item_status: String = row.try_get("status")?;
+        if let Some(item_status) =
+            billing_repo::fetch_existing_item_status(pool, run_id, party.party_id).await?
+        {
             if item_status == "invoiced" {
                 parties_billed += 1;
                 total_amount_minor += party.total_amount_minor;
@@ -232,10 +192,7 @@ async fn execute_run(
         .await?;
     }
 
-    sqlx::query("UPDATE ttp_billing_runs SET status = 'completed' WHERE run_id = $1")
-        .bind(run_id)
-        .execute(pool)
-        .await?;
+    billing_repo::set_run_completed(pool, run_id).await?;
 
     Ok(BillingRunSummary {
         run_id,
@@ -280,36 +237,20 @@ async fn bill_party(
 
     let ar_invoice_uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, finalized.id.to_string().as_bytes());
 
-    sqlx::query(
-        r#"
-        INSERT INTO ttp_billing_run_items (run_id, party_id, ar_invoice_id, amount_minor, currency, status, trace_hash)
-        VALUES ($1, $2, $3, $4, $5, 'invoiced', $6)
-        ON CONFLICT (run_id, party_id) DO UPDATE
-          SET ar_invoice_id = EXCLUDED.ar_invoice_id, status = 'invoiced', trace_hash = EXCLUDED.trace_hash
-        "#,
+    billing_repo::upsert_billing_item(
+        pool,
+        run_id,
+        party.party_id,
+        ar_invoice_uuid,
+        party.total_amount_minor,
+        &party.currency,
+        &party.trace_hash,
     )
-    .bind(run_id)
-    .bind(party.party_id)
-    .bind(ar_invoice_uuid)
-    .bind(party.total_amount_minor)
-    .bind(&party.currency)
-    .bind(&party.trace_hash)
-    .execute(pool)
     .await?;
 
     if !party.charge_ids.is_empty() {
-        sqlx::query(
-            r#"
-            UPDATE ttp_one_time_charges
-            SET status = 'billed', ar_invoice_id = $1
-            WHERE charge_id = ANY($2) AND tenant_id = $3 AND status = 'pending'
-            "#,
-        )
-        .bind(ar_invoice_uuid)
-        .bind(&party.charge_ids)
-        .bind(tenant_id)
-        .execute(pool)
-        .await?;
+        billing_repo::mark_charges_billed(pool, ar_invoice_uuid, &party.charge_ids, tenant_id)
+            .await?;
     }
 
     *parties_billed += 1;
@@ -418,76 +359,5 @@ mod tests {
         let hash2 = compute_trace_hash(&trace);
         assert_eq!(hash1, hash2, "trace hash must be deterministic");
         assert_eq!(hash1.len(), 64, "sha256 hex is 64 chars");
-    }
-
-    /// Integration: billing run creates items in DB and is idempotent on repeat.
-    ///
-    /// Requires DATABASE_URL (TTP postgres) + AR_BASE_URL + TENANT_REGISTRY_URL.
-    #[tokio::test]
-    #[ignore]
-    async fn integration_billing_run_is_idempotent() {
-        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://postgres:postgres@localhost:5450/ttp_default_db".to_string()
-        });
-        let pool = sqlx::PgPool::connect(&url)
-            .await
-            .expect("connect TTP test db");
-
-        let tenant_id = Uuid::new_v4();
-        let party_id = Uuid::new_v4();
-
-        sqlx::query(
-            "INSERT INTO ttp_customers (tenant_id, party_id, status) VALUES ($1, $2, 'active') ON CONFLICT DO NOTHING"
-        )
-        .bind(tenant_id).bind(party_id).execute(&pool).await.expect("seed customer");
-
-        sqlx::query(
-            r#"INSERT INTO ttp_service_agreements
-               (tenant_id, party_id, plan_code, amount_minor, currency, effective_from)
-               VALUES ($1, $2, 'basic', 10000, 'usd', '2026-01-01')"#,
-        )
-        .bind(tenant_id)
-        .bind(party_id)
-        .execute(&pool)
-        .await
-        .expect("seed agreement");
-
-        let registry_url = std::env::var("TENANT_REGISTRY_URL")
-            .unwrap_or_else(|_| "http://localhost:8092".to_string());
-        let ar_url =
-            std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
-
-        let registry = TenantRegistryClient::new(registry_url);
-        let ar = ArClient::new(ar_url);
-        let claims = PlatformClient::service_claims(tenant_id);
-
-        let summary1 = run_billing(&pool, &registry, &ar, &claims, tenant_id, "2026-02", "key-001")
-            .await
-            .expect("first billing run");
-        let summary2 = run_billing(&pool, &registry, &ar, &claims, tenant_id, "2026-02", "key-001")
-            .await
-            .expect("second billing run (idempotent)");
-
-        assert!(summary2.was_noop, "second run must be a no-op");
-        assert_eq!(summary1.run_id, summary2.run_id);
-
-        // Cleanup
-        sqlx::query("DELETE FROM ttp_billing_run_items WHERE run_id IN (SELECT run_id FROM ttp_billing_runs WHERE tenant_id = $1)")
-            .bind(tenant_id).execute(&pool).await.ok();
-        sqlx::query("DELETE FROM ttp_billing_runs WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .execute(&pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM ttp_service_agreements WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .execute(&pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM ttp_customers WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .execute(&pool)
-            .await
-            .ok();
     }
 }

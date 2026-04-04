@@ -18,6 +18,7 @@ use super::guards::{validate_create, validate_transition};
 use super::models::{
     CreateFileJobRequest, FileJob, FileJobError, TransitionFileJobRequest, STATUS_CREATED,
 };
+use super::repo;
 
 pub struct FileJobService {
     pool: PgPool,
@@ -38,32 +39,12 @@ impl FileJobService {
         tenant_id: &str,
         job_id: Uuid,
     ) -> Result<Option<FileJob>, FileJobError> {
-        let row = sqlx::query_as::<_, FileJob>(
-            r#"SELECT id, tenant_id, file_ref, parser_type, status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_file_jobs
-               WHERE id = $1 AND tenant_id = $2"#,
-        )
-        .bind(job_id)
-        .bind(tenant_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row)
+        Ok(repo::get_by_id(&self.pool, tenant_id, job_id).await?)
     }
 
     /// List all jobs for a tenant.
     pub async fn list(&self, tenant_id: &str) -> Result<Vec<FileJob>, FileJobError> {
-        let rows = sqlx::query_as::<_, FileJob>(
-            r#"SELECT id, tenant_id, file_ref, parser_type, status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_file_jobs
-               WHERE tenant_id = $1
-               ORDER BY created_at DESC"#,
-        )
-        .bind(tenant_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
+        Ok(repo::list_by_tenant(&self.pool, tenant_id).await?)
     }
 
     // ========================================================================
@@ -80,16 +61,8 @@ impl FileJobService {
 
         // Idempotency check
         if let Some(ref key) = req.idempotency_key {
-            let existing = sqlx::query_as::<_, FileJob>(
-                r#"SELECT id, tenant_id, file_ref, parser_type, status,
-                          error_details, idempotency_key, created_at, updated_at
-                   FROM integrations_file_jobs
-                   WHERE tenant_id = $1 AND idempotency_key = $2"#,
-            )
-            .bind(&req.tenant_id)
-            .bind(key)
-            .fetch_optional(&mut *tx)
-            .await?;
+            let existing =
+                repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
 
             if let Some(job) = existing {
                 tx.rollback().await?;
@@ -100,20 +73,15 @@ impl FileJobService {
         // ── Mutation ─────────────────────────────────────────────────
         let job_id = Uuid::new_v4();
 
-        let job = sqlx::query_as::<_, FileJob>(
-            r#"INSERT INTO integrations_file_jobs
-                   (id, tenant_id, file_ref, parser_type, status, idempotency_key)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id, tenant_id, file_ref, parser_type, status,
-                         error_details, idempotency_key, created_at, updated_at"#,
+        let job = repo::insert(
+            &mut tx,
+            job_id,
+            &req.tenant_id,
+            req.file_ref.trim(),
+            req.parser_type.trim(),
+            STATUS_CREATED,
+            &req.idempotency_key,
         )
-        .bind(job_id)
-        .bind(&req.tenant_id)
-        .bind(req.file_ref.trim())
-        .bind(req.parser_type.trim())
-        .bind(STATUS_CREATED)
-        .bind(&req.idempotency_key)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ───────────────────────────────────────────────────
@@ -160,36 +128,22 @@ impl FileJobService {
         let mut tx = self.pool.begin().await?;
 
         // Fetch + lock
-        let existing = sqlx::query_as::<_, FileJob>(
-            r#"SELECT id, tenant_id, file_ref, parser_type, status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_file_jobs
-               WHERE id = $1 AND tenant_id = $2
-               FOR UPDATE"#,
-        )
-        .bind(req.job_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(FileJobError::NotFound)?;
+        let existing = repo::fetch_for_update(&mut tx, req.job_id, &req.tenant_id)
+            .await?
+            .ok_or(FileJobError::NotFound)?;
 
         // ── Guard ────────────────────────────────────────────────────
         let previous_status = existing.status.clone();
         validate_transition(&previous_status, &req)?;
 
         // ── Mutation ─────────────────────────────────────────────────
-        let updated = sqlx::query_as::<_, FileJob>(
-            r#"UPDATE integrations_file_jobs
-               SET status = $1, error_details = $2, updated_at = NOW()
-               WHERE id = $3 AND tenant_id = $4
-               RETURNING id, tenant_id, file_ref, parser_type, status,
-                         error_details, idempotency_key, created_at, updated_at"#,
+        let updated = repo::update_status(
+            &mut tx,
+            &req.new_status,
+            &req.error_details,
+            req.job_id,
+            &req.tenant_id,
         )
-        .bind(&req.new_status)
-        .bind(&req.error_details)
-        .bind(req.job_id)
-        .bind(&req.tenant_id)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ───────────────────────────────────────────────────

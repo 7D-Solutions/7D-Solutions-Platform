@@ -11,6 +11,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::watch;
 
+use super::repo;
 use super::service::encryption_key;
 use super::TokenResponse;
 
@@ -68,14 +69,6 @@ impl TokenRefresher for HttpTokenRefresher {
     }
 }
 
-/// Row returned by the refresh query (includes decrypted refresh token).
-#[derive(Debug, sqlx::FromRow)]
-struct RefreshCandidate {
-    id: uuid::Uuid,
-    provider: String,
-    refresh_token_plaintext: String,
-}
-
 /// Run one refresh tick: find expiring connections and refresh them.
 ///
 /// Returns the number of connections successfully refreshed.
@@ -91,21 +84,7 @@ pub async fn refresh_tick(
         }
     };
 
-    // Find connections where access token expires within 10 minutes.
-    // FOR UPDATE SKIP LOCKED prevents concurrent refresh of the same row.
-    let candidates = sqlx::query_as::<_, RefreshCandidate>(
-        r#"
-        SELECT id, provider,
-               pgp_sym_decrypt(refresh_token, $1) AS refresh_token_plaintext
-        FROM integrations_oauth_connections
-        WHERE connection_status = 'connected'
-          AND access_token_expires_at < NOW() + INTERVAL '10 minutes'
-        FOR UPDATE SKIP LOCKED
-        "#,
-    )
-    .bind(&key)
-    .fetch_all(pool)
-    .await?;
+    let candidates = repo::get_refresh_candidates(pool, &key).await?;
 
     let mut refreshed = 0;
 
@@ -123,26 +102,16 @@ pub async fn refresh_tick(
                     now + Duration::days(100)
                 };
 
-                let result = sqlx::query(
-                    r#"
-                    UPDATE integrations_oauth_connections
-                    SET access_token = pgp_sym_encrypt($2, $3),
-                        refresh_token = pgp_sym_encrypt($4, $3),
-                        access_token_expires_at = $5,
-                        refresh_token_expires_at = $6,
-                        last_successful_refresh = $7,
-                        updated_at = $7
-                    WHERE id = $1
-                    "#,
+                let result = repo::update_tokens(
+                    pool,
+                    candidate.id,
+                    &tokens.access_token,
+                    &key,
+                    &tokens.refresh_token,
+                    access_expires,
+                    refresh_expires,
+                    now,
                 )
-                .bind(candidate.id)
-                .bind(&tokens.access_token)
-                .bind(&key)
-                .bind(&tokens.refresh_token)
-                .bind(access_expires)
-                .bind(refresh_expires)
-                .bind(now)
-                .execute(pool)
                 .await;
 
                 match result {
@@ -171,16 +140,7 @@ pub async fn refresh_tick(
                     "Token refresh failed — marking needs_reauth"
                 );
 
-                let _ = sqlx::query(
-                    r#"
-                    UPDATE integrations_oauth_connections
-                    SET connection_status = 'needs_reauth', updated_at = NOW()
-                    WHERE id = $1
-                    "#,
-                )
-                .bind(candidate.id)
-                .execute(pool)
-                .await;
+                let _ = repo::mark_needs_reauth(pool, candidate.id).await;
             }
         }
     }

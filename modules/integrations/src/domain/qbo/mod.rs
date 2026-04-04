@@ -6,6 +6,7 @@
 
 pub mod cdc;
 pub mod client;
+pub mod repo;
 pub mod sync;
 
 use serde::Deserialize;

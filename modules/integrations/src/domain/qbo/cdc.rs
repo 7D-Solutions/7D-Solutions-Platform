@@ -12,6 +12,7 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 use super::client::QboClient;
+use super::repo;
 use super::{QboError, TokenProvider};
 use crate::events::envelope::create_integrations_envelope;
 use crate::events::MUTATION_CLASS_DATA_MUTATION;
@@ -68,19 +69,6 @@ impl TokenProvider for DbTokenProvider {
 }
 
 // ============================================================================
-// Connection query
-// ============================================================================
-
-#[derive(Debug, sqlx::FromRow)]
-struct CdcConnection {
-    id: uuid::Uuid,
-    app_id: String,
-    realm_id: String,
-    cdc_watermark: Option<DateTime<Utc>>,
-    full_resync_required: bool,
-}
-
-// ============================================================================
 // URL resolution
 // ============================================================================
 
@@ -104,16 +92,7 @@ pub fn qbo_base_url() -> String {
 ///
 /// Returns the total number of entities processed.
 pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
-    let connections = sqlx::query_as::<_, CdcConnection>(
-        r#"
-        SELECT id, app_id, realm_id, cdc_watermark, full_resync_required
-        FROM integrations_oauth_connections
-        WHERE connection_status = 'connected'
-          AND provider = 'quickbooks'
-        "#,
-    )
-    .fetch_all(pool)
-    .await?;
+    let connections = repo::get_connected_qbo_connections(pool).await?;
 
     if connections.is_empty() {
         return Ok(0);
@@ -123,7 +102,7 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
     let mut processed = 0u32;
 
     for conn in &connections {
-        let needs_resync = check_resync_needed(pool, conn).await?;
+        let needs_resync = check_resync_needed(pool, &conn).await?;
 
         if needs_resync {
             match super::sync::full_resync(pool, &base_url, &conn.app_id, &conn.realm_id).await {
@@ -174,7 +153,10 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
 }
 
 /// Check if a connection needs full resync; if so, set the DB flag.
-async fn check_resync_needed(pool: &PgPool, conn: &CdcConnection) -> Result<bool, sqlx::Error> {
+async fn check_resync_needed(
+    pool: &PgPool,
+    conn: &repo::CdcConnection,
+) -> Result<bool, sqlx::Error> {
     if conn.full_resync_required {
         return Ok(true);
     }
@@ -185,14 +167,7 @@ async fn check_resync_needed(pool: &PgPool, conn: &CdcConnection) -> Result<bool
     };
 
     if needs_resync {
-        sqlx::query(
-            "UPDATE integrations_oauth_connections \
-             SET full_resync_required = TRUE, updated_at = NOW() \
-             WHERE id = $1",
-        )
-        .bind(conn.id)
-        .execute(pool)
-        .await?;
+        repo::set_full_resync_required(pool, conn.id).await?;
     }
 
     Ok(needs_resync)
@@ -220,15 +195,7 @@ async fn poll_cdc(
 
     // Advance watermark
     let now = Utc::now();
-    sqlx::query(
-        "UPDATE integrations_oauth_connections \
-         SET cdc_watermark = $1, updated_at = $1 \
-         WHERE app_id = $2 AND provider = 'quickbooks'",
-    )
-    .bind(now)
-    .bind(app_id)
-    .execute(&mut *tx)
-    .await?;
+    repo::advance_cdc_watermark(&mut tx, app_id, now).await?;
 
     tx.commit().await?;
     Ok(count)

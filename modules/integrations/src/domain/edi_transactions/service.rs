@@ -21,6 +21,7 @@ use super::models::{
     CreateOutboundEdiRequest, EdiTransaction, EdiTransactionError, IngestEdiRequest,
     TransitionEdiRequest, DIRECTION_INBOUND, DIRECTION_OUTBOUND, STATUS_CREATED, STATUS_INGESTED,
 };
+use super::repo;
 
 pub struct EdiTransactionService {
     pool: PgPool,
@@ -41,34 +42,12 @@ impl EdiTransactionService {
         tenant_id: &str,
         transaction_id: Uuid,
     ) -> Result<Option<EdiTransaction>, EdiTransactionError> {
-        let row = sqlx::query_as::<_, EdiTransaction>(
-            r#"SELECT id, tenant_id, transaction_type, version, direction,
-                      raw_payload, parsed_payload, validation_status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_edi_transactions
-               WHERE id = $1 AND tenant_id = $2"#,
-        )
-        .bind(transaction_id)
-        .bind(tenant_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(row)
+        Ok(repo::get_by_id(&self.pool, tenant_id, transaction_id).await?)
     }
 
     /// List all transactions for a tenant.
     pub async fn list(&self, tenant_id: &str) -> Result<Vec<EdiTransaction>, EdiTransactionError> {
-        let rows = sqlx::query_as::<_, EdiTransaction>(
-            r#"SELECT id, tenant_id, transaction_type, version, direction,
-                      raw_payload, parsed_payload, validation_status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_edi_transactions
-               WHERE tenant_id = $1
-               ORDER BY created_at DESC"#,
-        )
-        .bind(tenant_id)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
+        Ok(repo::list_by_tenant(&self.pool, tenant_id).await?)
     }
 
     // ========================================================================
@@ -88,17 +67,8 @@ impl EdiTransactionService {
 
         // Idempotency check
         if let Some(ref key) = req.idempotency_key {
-            let existing = sqlx::query_as::<_, EdiTransaction>(
-                r#"SELECT id, tenant_id, transaction_type, version, direction,
-                          raw_payload, parsed_payload, validation_status,
-                          error_details, idempotency_key, created_at, updated_at
-                   FROM integrations_edi_transactions
-                   WHERE tenant_id = $1 AND idempotency_key = $2"#,
-            )
-            .bind(&req.tenant_id)
-            .bind(key)
-            .fetch_optional(&mut *tx)
-            .await?;
+            let existing =
+                repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
 
             if let Some(txn) = existing {
                 tx.rollback().await?;
@@ -109,24 +79,17 @@ impl EdiTransactionService {
         // ── Mutation ─────────────────────────────────────────────────
         let txn_id = Uuid::new_v4();
 
-        let txn = sqlx::query_as::<_, EdiTransaction>(
-            r#"INSERT INTO integrations_edi_transactions
-                   (id, tenant_id, transaction_type, version, direction,
-                    raw_payload, validation_status, idempotency_key)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-               RETURNING id, tenant_id, transaction_type, version, direction,
-                         raw_payload, parsed_payload, validation_status,
-                         error_details, idempotency_key, created_at, updated_at"#,
+        let txn = repo::insert_inbound(
+            &mut tx,
+            txn_id,
+            &req.tenant_id,
+            req.transaction_type.trim(),
+            req.version.trim(),
+            DIRECTION_INBOUND,
+            &req.raw_payload,
+            STATUS_INGESTED,
+            &req.idempotency_key,
         )
-        .bind(txn_id)
-        .bind(&req.tenant_id)
-        .bind(req.transaction_type.trim())
-        .bind(req.version.trim())
-        .bind(DIRECTION_INBOUND)
-        .bind(&req.raw_payload)
-        .bind(STATUS_INGESTED)
-        .bind(&req.idempotency_key)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ───────────────────────────────────────────────────
@@ -180,17 +143,8 @@ impl EdiTransactionService {
 
         // Idempotency check
         if let Some(ref key) = req.idempotency_key {
-            let existing = sqlx::query_as::<_, EdiTransaction>(
-                r#"SELECT id, tenant_id, transaction_type, version, direction,
-                          raw_payload, parsed_payload, validation_status,
-                          error_details, idempotency_key, created_at, updated_at
-                   FROM integrations_edi_transactions
-                   WHERE tenant_id = $1 AND idempotency_key = $2"#,
-            )
-            .bind(&req.tenant_id)
-            .bind(key)
-            .fetch_optional(&mut *tx)
-            .await?;
+            let existing =
+                repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
 
             if let Some(txn) = existing {
                 tx.rollback().await?;
@@ -201,24 +155,17 @@ impl EdiTransactionService {
         // ── Mutation ─────────────────────────────────────────────────
         let txn_id = Uuid::new_v4();
 
-        let txn = sqlx::query_as::<_, EdiTransaction>(
-            r#"INSERT INTO integrations_edi_transactions
-                   (id, tenant_id, transaction_type, version, direction,
-                    parsed_payload, validation_status, idempotency_key)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-               RETURNING id, tenant_id, transaction_type, version, direction,
-                         raw_payload, parsed_payload, validation_status,
-                         error_details, idempotency_key, created_at, updated_at"#,
+        let txn = repo::insert_outbound(
+            &mut tx,
+            txn_id,
+            &req.tenant_id,
+            req.transaction_type.trim(),
+            req.version.trim(),
+            DIRECTION_OUTBOUND,
+            &req.parsed_payload,
+            STATUS_CREATED,
+            &req.idempotency_key,
         )
-        .bind(txn_id)
-        .bind(&req.tenant_id)
-        .bind(req.transaction_type.trim())
-        .bind(req.version.trim())
-        .bind(DIRECTION_OUTBOUND)
-        .bind(&req.parsed_payload)
-        .bind(STATUS_CREATED)
-        .bind(&req.idempotency_key)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ───────────────────────────────────────────────────
@@ -269,42 +216,23 @@ impl EdiTransactionService {
         let mut tx = self.pool.begin().await?;
 
         // Fetch + lock
-        let existing = sqlx::query_as::<_, EdiTransaction>(
-            r#"SELECT id, tenant_id, transaction_type, version, direction,
-                      raw_payload, parsed_payload, validation_status,
-                      error_details, idempotency_key, created_at, updated_at
-               FROM integrations_edi_transactions
-               WHERE id = $1 AND tenant_id = $2
-               FOR UPDATE"#,
-        )
-        .bind(req.transaction_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(EdiTransactionError::NotFound)?;
+        let existing = repo::fetch_for_update(&mut tx, req.transaction_id, &req.tenant_id)
+            .await?
+            .ok_or(EdiTransactionError::NotFound)?;
 
         // ── Guard ────────────────────────────────────────────────────
         let previous_status = existing.validation_status.clone();
         validate_transition(&previous_status, &existing.direction, &req)?;
 
         // ── Mutation ─────────────────────────────────────────────────
-        let updated = sqlx::query_as::<_, EdiTransaction>(
-            r#"UPDATE integrations_edi_transactions
-               SET validation_status = $1,
-                   error_details = $2,
-                   parsed_payload = COALESCE($3, parsed_payload),
-                   updated_at = NOW()
-               WHERE id = $4 AND tenant_id = $5
-               RETURNING id, tenant_id, transaction_type, version, direction,
-                         raw_payload, parsed_payload, validation_status,
-                         error_details, idempotency_key, created_at, updated_at"#,
+        let updated = repo::update_status(
+            &mut tx,
+            &req.new_status,
+            &req.error_details,
+            &req.parsed_payload,
+            req.transaction_id,
+            &req.tenant_id,
         )
-        .bind(&req.new_status)
-        .bind(&req.error_details)
-        .bind(&req.parsed_payload)
-        .bind(req.transaction_id)
-        .bind(&req.tenant_id)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ───────────────────────────────────────────────────

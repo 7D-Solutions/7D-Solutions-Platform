@@ -6,7 +6,8 @@
 use chrono::{Duration, Utc};
 use sqlx::PgPool;
 
-use super::{OAuthConnectionInfo, OAuthConnectionRow, OAuthError, TokenResponse};
+use super::repo;
+use super::{OAuthConnectionInfo, OAuthError, TokenResponse};
 
 /// Read the encryption key from environment. Fails loudly if missing.
 pub fn encryption_key() -> Result<String, OAuthError> {
@@ -23,22 +24,7 @@ pub async fn get_connection_status(
     app_id: &str,
     provider: &str,
 ) -> Result<Option<OAuthConnectionInfo>, OAuthError> {
-    let row = sqlx::query_as::<_, OAuthConnectionRow>(
-        r#"
-        SELECT id, app_id, provider, realm_id,
-               access_token_expires_at, refresh_token_expires_at,
-               scopes_granted, connection_status,
-               last_successful_refresh, cdc_watermark, full_resync_required,
-               created_at, updated_at
-        FROM integrations_oauth_connections
-        WHERE app_id = $1 AND provider = $2
-        "#,
-    )
-    .bind(app_id)
-    .bind(provider)
-    .fetch_optional(pool)
-    .await?;
-
+    let row = repo::get_connection(pool, app_id, provider).await?;
     Ok(row.map(OAuthConnectionInfo::from))
 }
 
@@ -50,21 +36,7 @@ pub async fn get_access_token(
     provider: &str,
 ) -> Result<String, OAuthError> {
     let key = encryption_key()?;
-
-    let row: Option<(String,)> = sqlx::query_as(
-        r#"
-        SELECT pgp_sym_decrypt(access_token, $3)
-        FROM integrations_oauth_connections
-        WHERE app_id = $1 AND provider = $2
-          AND connection_status = 'connected'
-        "#,
-    )
-    .bind(app_id)
-    .bind(provider)
-    .bind(&key)
-    .fetch_optional(pool)
-    .await?;
-
+    let row = repo::get_decrypted_access_token(pool, app_id, provider, &key).await?;
     row.map(|r| r.0).ok_or(OAuthError::NotFound)
 }
 
@@ -92,39 +64,18 @@ pub async fn create_connection(
         now + Duration::days(100)
     };
 
-    let row = sqlx::query_as::<_, OAuthConnectionRow>(
-        r#"
-        INSERT INTO integrations_oauth_connections (
-            app_id, provider, realm_id,
-            access_token, refresh_token,
-            access_token_expires_at, refresh_token_expires_at,
-            scopes_granted, connection_status,
-            created_at, updated_at
-        )
-        VALUES (
-            $1, $2, $3,
-            pgp_sym_encrypt($4, $5), pgp_sym_encrypt($6, $5),
-            $7, $8,
-            $9, 'connected',
-            NOW(), NOW()
-        )
-        RETURNING id, app_id, provider, realm_id,
-                  access_token_expires_at, refresh_token_expires_at,
-                  scopes_granted, connection_status,
-                  last_successful_refresh, cdc_watermark, full_resync_required,
-                  created_at, updated_at
-        "#,
+    let row = repo::insert_connection(
+        pool,
+        app_id,
+        provider,
+        realm_id,
+        &tokens.access_token,
+        &key,
+        &tokens.refresh_token,
+        access_expires,
+        refresh_expires,
+        scopes,
     )
-    .bind(app_id)
-    .bind(provider)
-    .bind(realm_id)
-    .bind(&tokens.access_token)
-    .bind(&key)
-    .bind(&tokens.refresh_token)
-    .bind(access_expires)
-    .bind(refresh_expires)
-    .bind(scopes)
-    .fetch_one(pool)
     .await
     .map_err(|e| {
         let msg = e.to_string();
@@ -152,24 +103,8 @@ pub async fn disconnect(
     app_id: &str,
     provider: &str,
 ) -> Result<OAuthConnectionInfo, OAuthError> {
-    let row = sqlx::query_as::<_, OAuthConnectionRow>(
-        r#"
-        UPDATE integrations_oauth_connections
-        SET connection_status = 'disconnected', updated_at = NOW()
-        WHERE app_id = $1 AND provider = $2
-          AND connection_status != 'disconnected'
-        RETURNING id, app_id, provider, realm_id,
-                  access_token_expires_at, refresh_token_expires_at,
-                  scopes_granted, connection_status,
-                  last_successful_refresh, cdc_watermark, full_resync_required,
-                  created_at, updated_at
-        "#,
-    )
-    .bind(app_id)
-    .bind(provider)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(OAuthError::NotFound)?;
-
+    let row = repo::set_disconnected(pool, app_id, provider)
+        .await?
+        .ok_or(OAuthError::NotFound)?;
     Ok(OAuthConnectionInfo::from(row))
 }
