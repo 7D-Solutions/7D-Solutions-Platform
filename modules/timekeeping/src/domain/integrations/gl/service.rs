@@ -24,6 +24,8 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::repo;
+pub use super::repo::LaborCostRow;
 use crate::events;
 
 // ============================================================================
@@ -48,18 +50,6 @@ pub struct LaborCostPostingPayload {
     pub currency: String,
     pub total_cost_minor: i64,
     pub posting_date: String,
-}
-
-/// Row returned when querying approved time with employee rates.
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct LaborCostRow {
-    pub employee_id: Uuid,
-    pub employee_name: String,
-    pub project_id: Option<Uuid>,
-    pub project_name: Option<String>,
-    pub total_minutes: i64,
-    pub hourly_rate_minor: i64,
-    pub currency: String,
 }
 
 // ============================================================================
@@ -112,7 +102,7 @@ pub async fn generate_labor_cost_postings(
     }
 
     // Fetch approved entries grouped by employee + project, joined with rates
-    let rows = fetch_labor_cost_rows(pool, app_id, period_start, period_end).await?;
+    let rows = repo::fetch_labor_cost_rows(pool, app_id, period_start, period_end).await?;
     if rows.is_empty() {
         return Err(GlIntegrationError::NoEligibleEntries);
     }
@@ -170,60 +160,6 @@ pub async fn generate_labor_cost_postings(
 }
 
 // ============================================================================
-// Internal helpers
-// ============================================================================
-
-/// Fetch approved time grouped by (employee, project) with hourly rates.
-///
-/// Only includes employees with a configured `hourly_rate_minor`.
-async fn fetch_labor_cost_rows(
-    pool: &PgPool,
-    app_id: &str,
-    period_start: NaiveDate,
-    period_end: NaiveDate,
-) -> Result<Vec<LaborCostRow>, GlIntegrationError> {
-    let rows = sqlx::query_as::<_, LaborCostRow>(
-        r#"
-        SELECT
-            e.employee_id,
-            COALESCE(emp.first_name || ' ' || emp.last_name, 'Unknown') AS employee_name,
-            e.project_id,
-            p.name AS project_name,
-            SUM(e.minutes)::BIGINT AS total_minutes,
-            emp.hourly_rate_minor,
-            emp.currency
-        FROM tk_timesheet_entries e
-        JOIN tk_approval_requests ar
-            ON ar.app_id = e.app_id
-            AND ar.employee_id = e.employee_id
-            AND ar.period_start <= e.work_date
-            AND ar.period_end >= e.work_date
-            AND ar.status = 'approved'
-        JOIN tk_employees emp
-            ON emp.id = e.employee_id
-            AND emp.hourly_rate_minor IS NOT NULL
-        LEFT JOIN tk_projects p ON p.id = e.project_id
-        WHERE e.app_id = $1
-          AND e.work_date >= $2
-          AND e.work_date <= $3
-          AND e.is_current = TRUE
-          AND e.entry_type != 'void'
-        GROUP BY e.employee_id, emp.first_name, emp.last_name,
-                 e.project_id, p.name,
-                 emp.hourly_rate_minor, emp.currency
-        ORDER BY e.employee_id, e.project_id
-        "#,
-    )
-    .bind(app_id)
-    .bind(period_start)
-    .bind(period_end)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -257,16 +193,16 @@ mod tests {
             employee_name: "Jane Doe".into(),
             project_id: None,
             project_name: None,
-            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
-            period_end: NaiveDate::from_ymd_opt(2026, 2, 7).unwrap(),
+            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).expect("test"),
+            period_end: NaiveDate::from_ymd_opt(2026, 2, 7).expect("test"),
             total_minutes: 2400,
             hourly_rate_minor: 5000,
             currency: "USD".into(),
             total_cost_minor: 200000,
             posting_date: "2026-02-07".into(),
         };
-        let json = serde_json::to_string(&payload).unwrap();
-        let back: LaborCostPostingPayload = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&payload).expect("test");
+        let back: LaborCostPostingPayload = serde_json::from_str(&json).expect("test");
         assert_eq!(back.app_id, "acme");
         assert_eq!(back.total_cost_minor, 200000);
     }

@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    models::*, validate_consolidation_method, validate_currency, validate_fiscal_month,
+    models::*, repo, validate_consolidation_method, validate_currency, validate_fiscal_month,
     validate_not_blank, validate_ownership_bp, ConfigError,
 };
 
@@ -25,17 +25,14 @@ pub async fn create_group(
     let month = req.fiscal_year_end_month.unwrap_or(12);
     validate_fiscal_month(month)?;
 
-    let row = sqlx::query_as::<_, Group>(
-        "INSERT INTO csl_groups (tenant_id, name, description, reporting_currency, fiscal_year_end_month)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *",
+    let row = repo::insert_group(
+        pool,
+        tenant_id,
+        &req.name,
+        &req.description,
+        &req.reporting_currency,
+        month,
     )
-    .bind(tenant_id)
-    .bind(&req.name)
-    .bind(&req.description)
-    .bind(&req.reporting_currency)
-    .bind(month)
-    .fetch_one(pool)
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.constraint() == Some("csl_groups_unique_name") => {
@@ -51,27 +48,11 @@ pub async fn list_groups(
     tenant_id: &str,
     include_inactive: bool,
 ) -> Result<Vec<Group>, ConfigError> {
-    let rows = if include_inactive {
-        sqlx::query_as::<_, Group>("SELECT * FROM csl_groups WHERE tenant_id = $1 ORDER BY name")
-            .bind(tenant_id)
-            .fetch_all(pool)
-            .await?
-    } else {
-        sqlx::query_as::<_, Group>(
-            "SELECT * FROM csl_groups WHERE tenant_id = $1 AND is_active = TRUE ORDER BY name",
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    Ok(repo::fetch_groups(pool, tenant_id, include_inactive).await?)
 }
 
 pub async fn get_group(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Group, ConfigError> {
-    sqlx::query_as::<_, Group>("SELECT * FROM csl_groups WHERE id = $1 AND tenant_id = $2")
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
+    repo::fetch_group(pool, tenant_id, id)
         .await?
         .ok_or(ConfigError::GroupNotFound(id))
 }
@@ -92,37 +73,15 @@ pub async fn update_group(
         validate_fiscal_month(m)?;
     }
 
-    let row = sqlx::query_as::<_, Group>(
-        "UPDATE csl_groups SET
-            name = COALESCE($3, name),
-            description = COALESCE($4, description),
-            reporting_currency = COALESCE($5, reporting_currency),
-            fiscal_year_end_month = COALESCE($6, fiscal_year_end_month),
-            is_active = COALESCE($7, is_active),
-            updated_at = NOW()
-         WHERE id = $1 AND tenant_id = $2
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .bind(&req.name)
-    .bind(&req.description)
-    .bind(&req.reporting_currency)
-    .bind(req.fiscal_year_end_month)
-    .bind(req.is_active)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ConfigError::GroupNotFound(id))?;
+    let row = repo::update_group_row(pool, id, tenant_id, req)
+        .await?
+        .ok_or(ConfigError::GroupNotFound(id))?;
     Ok(row)
 }
 
 pub async fn delete_group(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
-    let result = sqlx::query("DELETE FROM csl_groups WHERE id = $1 AND tenant_id = $2")
-        .bind(id)
-        .bind(tenant_id)
-        .execute(pool)
-        .await?;
-    if result.rows_affected() == 0 {
+    let rows_affected = repo::delete_group_row(pool, tenant_id, id).await?;
+    if rows_affected == 0 {
         return Err(ConfigError::GroupNotFound(id));
     }
     Ok(())
@@ -147,19 +106,15 @@ pub async fn create_entity(
     let method = req.consolidation_method.as_deref().unwrap_or("full");
     validate_consolidation_method(method)?;
 
-    let row = sqlx::query_as::<_, GroupEntity>(
-        "INSERT INTO csl_group_entities
-            (group_id, entity_tenant_id, entity_name, functional_currency, ownership_pct_bp, consolidation_method)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *",
+    let row = repo::insert_entity(
+        pool,
+        group_id,
+        &req.entity_tenant_id,
+        &req.entity_name,
+        &req.functional_currency,
+        bp,
+        method,
     )
-    .bind(group_id)
-    .bind(&req.entity_tenant_id)
-    .bind(&req.entity_name)
-    .bind(&req.functional_currency)
-    .bind(bp)
-    .bind(method)
-    .fetch_one(pool)
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.constraint() == Some("csl_group_entities_unique") => {
@@ -180,35 +135,11 @@ pub async fn list_entities(
     include_inactive: bool,
 ) -> Result<Vec<GroupEntity>, ConfigError> {
     get_group(pool, tenant_id, group_id).await?;
-
-    let rows = if include_inactive {
-        sqlx::query_as::<_, GroupEntity>(
-            "SELECT * FROM csl_group_entities WHERE group_id = $1 \
-             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
-             ORDER BY entity_name",
-        )
-        .bind(group_id)
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, GroupEntity>(
-            "SELECT * FROM csl_group_entities WHERE group_id = $1 AND is_active = TRUE \
-             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
-             ORDER BY entity_name",
-        )
-        .bind(group_id)
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    Ok(repo::fetch_entities(pool, tenant_id, group_id, include_inactive).await?)
 }
 
 pub async fn get_entity(pool: &PgPool, id: Uuid) -> Result<GroupEntity, ConfigError> {
-    sqlx::query_as::<_, GroupEntity>("SELECT * FROM csl_group_entities WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
+    repo::fetch_entity(pool, id)
         .await?
         .ok_or(ConfigError::EntityNotFound(id))
 }
@@ -235,36 +166,14 @@ pub async fn update_entity(
         validate_consolidation_method(m)?;
     }
 
-    let row = sqlx::query_as::<_, GroupEntity>(
-        "UPDATE csl_group_entities SET
-            entity_name = COALESCE($2, entity_name),
-            functional_currency = COALESCE($3, functional_currency),
-            ownership_pct_bp = COALESCE($4, ownership_pct_bp),
-            consolidation_method = COALESCE($5, consolidation_method),
-            is_active = COALESCE($6, is_active),
-            updated_at = NOW()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&req.entity_name)
-    .bind(&req.functional_currency)
-    .bind(req.ownership_pct_bp)
-    .bind(&req.consolidation_method)
-    .bind(req.is_active)
-    .fetch_one(pool)
-    .await?;
+    let row = repo::update_entity_row(pool, id, req).await?;
     Ok(row)
 }
 
 pub async fn delete_entity(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
     let existing = get_entity(pool, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
-
-    sqlx::query("DELETE FROM csl_group_entities WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    repo::delete_entity_row(pool, id).await?;
     Ok(())
 }
 
@@ -283,18 +192,14 @@ pub async fn create_coa_mapping(
     validate_not_blank(&req.source_account_code, "source_account_code")?;
     validate_not_blank(&req.target_account_code, "target_account_code")?;
 
-    let row = sqlx::query_as::<_, CoaMapping>(
-        "INSERT INTO csl_coa_mappings
-            (group_id, entity_tenant_id, source_account_code, target_account_code, target_account_name)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *",
+    let row = repo::insert_coa_mapping(
+        pool,
+        group_id,
+        &req.entity_tenant_id,
+        &req.source_account_code,
+        &req.target_account_code,
+        &req.target_account_name,
     )
-    .bind(group_id)
-    .bind(&req.entity_tenant_id)
-    .bind(&req.source_account_code)
-    .bind(&req.target_account_code)
-    .bind(&req.target_account_name)
-    .fetch_one(pool)
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db) if db.constraint() == Some("csl_coa_mappings_unique") => {
@@ -315,26 +220,7 @@ pub async fn list_coa_mappings(
     entity_tenant_id: Option<&str>,
 ) -> Result<Vec<CoaMapping>, ConfigError> {
     get_group(pool, tenant_id, group_id).await?;
-
-    let rows = if let Some(eid) = entity_tenant_id {
-        sqlx::query_as::<_, CoaMapping>(
-            "SELECT * FROM csl_coa_mappings WHERE group_id = $1 AND entity_tenant_id = $2
-             ORDER BY source_account_code",
-        )
-        .bind(group_id)
-        .bind(eid)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, CoaMapping>(
-            "SELECT * FROM csl_coa_mappings WHERE group_id = $1
-             ORDER BY entity_tenant_id, source_account_code",
-        )
-        .bind(group_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    Ok(repo::fetch_coa_mappings(pool, group_id, entity_tenant_id).await?)
 }
 
 pub async fn delete_coa_mapping(
@@ -342,18 +228,12 @@ pub async fn delete_coa_mapping(
     tenant_id: &str,
     id: Uuid,
 ) -> Result<(), ConfigError> {
-    let mapping = sqlx::query_as::<_, CoaMapping>("SELECT * FROM csl_coa_mappings WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
+    let mapping = repo::fetch_coa_mapping(pool, id)
         .await?
         .ok_or(ConfigError::MappingNotFound(id))?;
 
     get_group(pool, tenant_id, mapping.group_id).await?;
-
-    sqlx::query("DELETE FROM csl_coa_mappings WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    repo::delete_coa_mapping_row(pool, id).await?;
     Ok(())
 }
 
@@ -373,30 +253,17 @@ pub async fn validate_group_completeness(
     let mut missing_fx = Vec::new();
 
     for entity in &entities {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM csl_coa_mappings
-             WHERE group_id = $1 AND entity_tenant_id = $2",
-        )
-        .bind(group_id)
-        .bind(&entity.entity_tenant_id)
-        .fetch_one(pool)
-        .await?;
+        let count = repo::count_coa_mappings(pool, group_id, &entity.entity_tenant_id).await?;
 
-        if count.0 == 0 {
+        if count == 0 {
             missing_coa.push(entity.entity_tenant_id.clone());
         }
 
         if entity.functional_currency != group.reporting_currency {
-            let fx_count: (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM csl_fx_policies
-                 WHERE group_id = $1 AND entity_tenant_id = $2",
-            )
-            .bind(group_id)
-            .bind(&entity.entity_tenant_id)
-            .fetch_one(pool)
-            .await?;
+            let fx_count =
+                repo::count_fx_policies(pool, group_id, &entity.entity_tenant_id).await?;
 
-            if fx_count.0 == 0 {
+            if fx_count == 0 {
                 missing_fx.push(entity.entity_tenant_id.clone());
             }
         }

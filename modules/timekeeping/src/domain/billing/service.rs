@@ -16,6 +16,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::models::*;
+use super::repo;
 
 // ============================================================================
 // Billing Rates
@@ -38,20 +39,7 @@ pub async fn create_billing_rate(
         ));
     }
 
-    let rate = sqlx::query_as::<_, BillingRate>(
-        r#"
-        INSERT INTO tk_billing_rates (app_id, name, rate_cents_per_hour)
-        VALUES ($1, $2, $3)
-        RETURNING id, app_id, name, rate_cents_per_hour, is_active, created_at
-        "#,
-    )
-    .bind(&req.app_id)
-    .bind(&req.name)
-    .bind(req.rate_cents_per_hour)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(rate)
+    repo::insert_billing_rate(pool, &req.app_id, &req.name, req.rate_cents_per_hour).await
 }
 
 /// List active billing rates for an app.
@@ -59,19 +47,7 @@ pub async fn list_billing_rates(
     pool: &PgPool,
     app_id: &str,
 ) -> Result<Vec<BillingRate>, BillingError> {
-    let rates = sqlx::query_as::<_, BillingRate>(
-        r#"
-        SELECT id, app_id, name, rate_cents_per_hour, is_active, created_at
-        FROM tk_billing_rates
-        WHERE app_id = $1 AND is_active = TRUE
-        ORDER BY name
-        "#,
-    )
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rates)
+    repo::list_billing_rates(pool, app_id).await
 }
 
 // ============================================================================
@@ -106,8 +82,18 @@ pub async fn create_billing_run(
     );
 
     // Idempotency check — return existing run if found
-    if let Some(existing) = find_existing_run(pool, &idempotency_key).await? {
-        let line_items = load_run_entries(pool, existing.id, &req.app_id).await?;
+    if let Some(existing) = repo::find_run_by_idempotency_key(pool, &idempotency_key).await? {
+        let rows = repo::load_run_entries(pool, existing.id, &req.app_id).await?;
+        let line_items = rows
+            .into_iter()
+            .map(|(entry_id, amount_cents)| BillingLineItem {
+                entry_id,
+                minutes: 0,
+                rate_cents_per_hour: 0,
+                amount_cents,
+                description: None,
+            })
+            .collect();
         return Ok(BillingRunResult {
             run: existing,
             line_items,
@@ -116,7 +102,8 @@ pub async fn create_billing_run(
     }
 
     // Collect unbilled billable entries for the period
-    let entries = fetch_billable_entries(pool, &req.app_id, req.from_date, req.to_date).await?;
+    let entries =
+        repo::fetch_billable_entries(pool, &req.app_id, req.from_date, req.to_date).await?;
 
     if entries.is_empty() {
         return Err(BillingError::NoBillableEntries);
@@ -143,38 +130,20 @@ pub async fn create_billing_run(
     let run_id = Uuid::new_v4();
     let mut tx = pool.begin().await?;
 
-    let run = sqlx::query_as::<_, BillingRun>(
-        r#"
-        INSERT INTO tk_billing_runs
-            (id, app_id, ar_customer_id, from_date, to_date,
-             amount_cents, idempotency_key, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'completed')
-        RETURNING id, app_id, ar_customer_id, from_date, to_date,
-                  amount_cents, ar_invoice_id, idempotency_key, status, created_at
-        "#,
+    let run = repo::insert_billing_run(
+        &mut *tx,
+        run_id,
+        &req.app_id,
+        req.ar_customer_id,
+        req.from_date,
+        req.to_date,
+        total_cents,
+        &idempotency_key,
     )
-    .bind(run_id)
-    .bind(&req.app_id)
-    .bind(req.ar_customer_id)
-    .bind(req.from_date)
-    .bind(req.to_date)
-    .bind(total_cents)
-    .bind(&idempotency_key)
-    .fetch_one(&mut *tx)
     .await?;
 
     for item in &line_items {
-        sqlx::query(
-            r#"
-            INSERT INTO tk_billing_run_entries (billing_run_id, entry_id, amount_cents)
-            VALUES ($1, $2, $3)
-            "#,
-        )
-        .bind(run_id)
-        .bind(item.entry_id)
-        .bind(item.amount_cents)
-        .execute(&mut *tx)
-        .await?;
+        repo::insert_billing_run_entry(&mut *tx, run_id, item.entry_id, item.amount_cents).await?;
     }
 
     tx.commit().await?;
@@ -192,100 +161,5 @@ pub async fn set_invoice_id(
     run_id: Uuid,
     ar_invoice_id: i32,
 ) -> Result<(), BillingError> {
-    sqlx::query("UPDATE tk_billing_runs SET ar_invoice_id = $1 WHERE id = $2")
-        .bind(ar_invoice_id)
-        .bind(run_id)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-// ============================================================================
-// Internal helpers
-// ============================================================================
-
-async fn find_existing_run(
-    pool: &PgPool,
-    idempotency_key: &str,
-) -> Result<Option<BillingRun>, BillingError> {
-    let run = sqlx::query_as::<_, BillingRun>(
-        r#"
-        SELECT id, app_id, ar_customer_id, from_date, to_date,
-               amount_cents, ar_invoice_id, idempotency_key, status, created_at
-        FROM tk_billing_runs
-        WHERE idempotency_key = $1
-        LIMIT 1
-        "#,
-    )
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await?;
-    Ok(run)
-}
-
-/// Fetch entries that are billable, have a billing_rate_id, are current,
-/// not void, and have not yet appeared in any billing run.
-async fn fetch_billable_entries(
-    pool: &PgPool,
-    app_id: &str,
-    from_date: chrono::NaiveDate,
-    to_date: chrono::NaiveDate,
-) -> Result<Vec<BillableEntryRow>, BillingError> {
-    let rows = sqlx::query_as::<_, BillableEntryRow>(
-        r#"
-        SELECT
-            e.entry_id,
-            e.minutes,
-            r.rate_cents_per_hour,
-            e.description
-        FROM tk_timesheet_entries e
-        JOIN tk_billing_rates r ON r.id = e.billing_rate_id
-        WHERE e.app_id = $1
-          AND e.work_date >= $2
-          AND e.work_date <= $3
-          AND e.billable = TRUE
-          AND e.is_current = TRUE
-          AND e.entry_type != 'void'
-          AND e.billing_rate_id IS NOT NULL
-          AND NOT EXISTS (
-              SELECT 1 FROM tk_billing_run_entries bre
-              WHERE bre.entry_id = e.entry_id
-          )
-        ORDER BY e.work_date, e.entry_id
-        "#,
-    )
-    .bind(app_id)
-    .bind(from_date)
-    .bind(to_date)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
-}
-
-/// Load previously-recorded line items for a billing run (for idempotent replay).
-async fn load_run_entries(
-    pool: &PgPool,
-    run_id: Uuid,
-    app_id: &str,
-) -> Result<Vec<BillingLineItem>, BillingError> {
-    let rows: Vec<(Uuid, i64)> = sqlx::query_as(
-        "SELECT entry_id, amount_cents FROM tk_billing_run_entries \
-         WHERE billing_run_id = $1 \
-           AND billing_run_id IN (SELECT id FROM tk_billing_runs WHERE app_id = $2)",
-    )
-    .bind(run_id)
-    .bind(app_id)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows
-        .into_iter()
-        .map(|(entry_id, amount_cents)| BillingLineItem {
-            entry_id,
-            minutes: 0,             // not stored; not needed for idempotent replay
-            rate_cents_per_hour: 0, // not stored; not needed for idempotent replay
-            amount_cents,
-            description: None,
-        })
-        .collect())
+    repo::set_invoice_id(pool, run_id, ar_invoice_id).await
 }

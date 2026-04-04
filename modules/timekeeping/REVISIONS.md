@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.0.2 | 2026-04-04 | bd-n2v2b | SoC: extract 70 sqlx queries from domain services into 10 repo modules | Separation of concerns — isolate persistence from business logic so domain services are testable and DB access is centralized. | No |
 | 3.0.1 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |
 | 3.0.0 | 2026-04-02 | bd-gy0uy | list_tasks endpoint now returns PaginatedResponse<Task> instead of DataWrapper<Task>. Response shape changed from `{data:[]}` to `{data:[], pagination:{page, page_size, total_items, total_pages}}`. Updated utoipa annotation. | Consistent paginated envelopes across all list endpoints — list_tasks was the last holdout using DataWrapper. | YES: Consumers of GET /api/timekeeping/projects/{id}/tasks must parse `{data:[], pagination:{…}}` instead of `{data:[]}`. |
 | 2.1.5 | 2026-03-31 | bd-5vmu6 | Convert to platform-sdk ModuleBuilder. Replaces manual dotenv/tracing/pool/middleware/health/shutdown boilerplate with SDK startup sequence. Ops routes stripped from http::router(). | SDK batch conversion — eliminate two classes of modules. | No |

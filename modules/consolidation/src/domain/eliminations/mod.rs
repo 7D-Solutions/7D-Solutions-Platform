@@ -3,6 +3,7 @@
 //! Generates elimination suggestions from intercompany matches and
 //! optionally posts them to GL with exactly-once semantics.
 
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, NaiveDate, Utc};

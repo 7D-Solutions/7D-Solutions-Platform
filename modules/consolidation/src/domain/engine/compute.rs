@@ -10,7 +10,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    compute_input_hash, ConsolidatedTbRow, ConsolidationResult, EngineError, EntityHashEntry,
+    compute_input_hash, repo, ConsolidatedTbRow, ConsolidationResult, EngineError,
+    EntityHashEntry,
 };
 use crate::domain::config::{self, CoaMapping, EliminationRule, FxPolicy, GroupEntity};
 use crate::integrations::gl::client::{GlClient, GlFxRateResponse};
@@ -291,35 +292,10 @@ async fn cache_result(
 ) -> Result<(), EngineError> {
     let mut tx = pool.begin().await?;
 
-    // Clear previous cache for this group+as_of
-    sqlx::query(
-        "DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2 \
-         AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $3)",
-    )
-    .bind(group_id)
-    .bind(as_of)
-    .bind(tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    repo::delete_cache_rows(&mut tx, tenant_id, group_id, as_of).await?;
 
-    // Insert new rows
     for row in rows {
-        sqlx::query(
-            "INSERT INTO csl_trial_balance_cache
-                (group_id, as_of, account_code, account_name, currency, debit_minor, credit_minor, net_minor, input_hash)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        )
-        .bind(group_id)
-        .bind(as_of)
-        .bind(&row.account_code)
-        .bind(&row.account_name)
-        .bind(currency)
-        .bind(row.debit_minor)
-        .bind(row.credit_minor)
-        .bind(row.net_minor)
-        .bind(input_hash)
-        .execute(&mut *tx)
-        .await?;
+        repo::insert_cache_row(&mut tx, group_id, as_of, row, currency, input_hash).await?;
     }
 
     tx.commit().await?;
@@ -332,16 +308,7 @@ pub async fn get_cached_tb(
     group_id: Uuid,
     as_of: NaiveDate,
 ) -> Result<Option<Vec<CachedTbRow>>, EngineError> {
-    let rows = sqlx::query_as::<_, CachedTbRow>(
-        "SELECT account_code, account_name, currency, debit_minor, credit_minor, net_minor, input_hash, computed_at
-         FROM csl_trial_balance_cache
-         WHERE group_id = $1 AND as_of = $2
-         ORDER BY account_code",
-    )
-    .bind(group_id)
-    .bind(as_of)
-    .fetch_all(pool)
-    .await?;
+    let rows = repo::fetch_cached_tb(pool, group_id, as_of).await?;
 
     if rows.is_empty() {
         Ok(None)

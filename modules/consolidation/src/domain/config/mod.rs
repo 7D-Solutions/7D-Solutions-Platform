@@ -2,6 +2,7 @@
 //! elimination rules, and FX translation policies.
 
 pub mod models;
+pub mod repo;
 pub mod service;
 pub mod service_rules;
 #[cfg(test)]

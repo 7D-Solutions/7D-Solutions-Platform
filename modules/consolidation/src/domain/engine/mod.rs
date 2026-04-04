@@ -3,6 +3,7 @@
 //! Deterministic pipeline: fetch snapshots → verify hashes → COA map → FX translate → eliminate → cache.
 
 pub mod compute;
+pub mod repo;
 
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};

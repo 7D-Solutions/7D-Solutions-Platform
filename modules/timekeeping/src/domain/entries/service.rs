@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use super::guards;
 use super::models::*;
+use super::repo;
 use crate::events;
 
 const EVT_ENTRY_CREATED: &str = "timesheet_entry.created";
@@ -28,26 +29,7 @@ pub async fn list_entries(
     from: NaiveDate,
     to: NaiveDate,
 ) -> Result<Vec<TimesheetEntry>, EntryError> {
-    let rows = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        SELECT id, entry_id, version, app_id, employee_id, project_id, task_id,
-               work_date, minutes, description, entry_type, is_current,
-               created_by, created_at
-        FROM tk_timesheet_entries
-        WHERE app_id = $1 AND employee_id = $2
-          AND work_date >= $3 AND work_date <= $4
-          AND is_current = TRUE
-        ORDER BY work_date, created_at
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .bind(from)
-    .bind(to)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
+    repo::list_entries(pool, app_id, employee_id, from, to).await
 }
 
 /// Fetch the full version history for a logical entry.
@@ -56,20 +38,7 @@ pub async fn entry_history(
     app_id: &str,
     entry_id: Uuid,
 ) -> Result<Vec<TimesheetEntry>, EntryError> {
-    let rows = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        SELECT id, entry_id, version, app_id, employee_id, project_id, task_id,
-               work_date, minutes, description, entry_type, is_current,
-               created_by, created_at
-        FROM tk_timesheet_entries
-        WHERE app_id = $1 AND entry_id = $2
-        ORDER BY version ASC
-        "#,
-    )
-    .bind(app_id)
-    .bind(entry_id)
-    .fetch_all(pool)
-    .await?;
+    let rows = repo::entry_history(pool, app_id, entry_id).await?;
 
     if rows.is_empty() {
         return Err(EntryError::NotFound);
@@ -116,27 +85,18 @@ pub async fn create_entry(
 
     let mut tx = pool.begin().await?;
 
-    let entry = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        INSERT INTO tk_timesheet_entries
-            (entry_id, version, app_id, employee_id, project_id, task_id,
-             work_date, minutes, description, entry_type, is_current, created_by)
-        VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, 'original', TRUE, $9)
-        RETURNING id, entry_id, version, app_id, employee_id, project_id, task_id,
-                  work_date, minutes, description, entry_type, is_current,
-                  created_by, created_at
-        "#,
+    let entry = repo::insert_entry(
+        &mut *tx,
+        entry_id,
+        &req.app_id,
+        req.employee_id,
+        req.project_id,
+        req.task_id,
+        req.work_date,
+        req.minutes,
+        req.description.as_deref(),
+        req.created_by,
     )
-    .bind(entry_id)
-    .bind(&req.app_id)
-    .bind(req.employee_id)
-    .bind(req.project_id)
-    .bind(req.task_id)
-    .bind(req.work_date)
-    .bind(req.minutes)
-    .bind(req.description.as_deref())
-    .bind(req.created_by)
-    .fetch_one(&mut *tx)
     .await?;
 
     let payload = serde_json::json!({
@@ -191,21 +151,9 @@ pub async fn correct_entry(
     let mut tx = pool.begin().await?;
 
     // Fetch current version (FOR UPDATE to prevent concurrent corrections)
-    let current = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        SELECT id, entry_id, version, app_id, employee_id, project_id, task_id,
-               work_date, minutes, description, entry_type, is_current,
-               created_by, created_at
-        FROM tk_timesheet_entries
-        WHERE app_id = $1 AND entry_id = $2 AND is_current = TRUE
-        FOR UPDATE
-        "#,
-    )
-    .bind(&req.app_id)
-    .bind(req.entry_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(EntryError::NotFound)?;
+    let current = repo::fetch_current_for_update(&mut *tx, &req.app_id, req.entry_id)
+        .await?
+        .ok_or(EntryError::NotFound)?;
 
     // Check period lock using the original work_date
     guards::check_period_lock(pool, &req.app_id, current.employee_id, current.work_date).await?;
@@ -214,41 +162,26 @@ pub async fn correct_entry(
     let event_id = Uuid::new_v4();
 
     // Flip old version's is_current to FALSE
-    sqlx::query(
-        "UPDATE tk_timesheet_entries SET is_current = FALSE \
-         WHERE entry_id = $1 AND is_current = TRUE",
-    )
-    .bind(req.entry_id)
-    .execute(&mut *tx)
-    .await?;
+    repo::flip_is_current(&mut *tx, req.entry_id).await?;
 
     // Use corrected project/task or inherit from current
     let project_id = req.project_id.or(current.project_id);
     let task_id = req.task_id.or(current.task_id);
 
     // Insert correction row
-    let entry = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        INSERT INTO tk_timesheet_entries
-            (entry_id, version, app_id, employee_id, project_id, task_id,
-             work_date, minutes, description, entry_type, is_current, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'correction', TRUE, $10)
-        RETURNING id, entry_id, version, app_id, employee_id, project_id, task_id,
-                  work_date, minutes, description, entry_type, is_current,
-                  created_by, created_at
-        "#,
+    let entry = repo::insert_correction(
+        &mut *tx,
+        req.entry_id,
+        new_version,
+        &req.app_id,
+        current.employee_id,
+        project_id,
+        task_id,
+        current.work_date,
+        req.minutes,
+        req.description.as_deref(),
+        req.created_by,
     )
-    .bind(req.entry_id)
-    .bind(new_version)
-    .bind(&req.app_id)
-    .bind(current.employee_id)
-    .bind(project_id)
-    .bind(task_id)
-    .bind(current.work_date)
-    .bind(req.minutes)
-    .bind(req.description.as_deref())
-    .bind(req.created_by)
-    .fetch_one(&mut *tx)
     .await?;
 
     let payload = serde_json::json!({
@@ -303,21 +236,9 @@ pub async fn void_entry(
 
     let mut tx = pool.begin().await?;
 
-    let current = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        SELECT id, entry_id, version, app_id, employee_id, project_id, task_id,
-               work_date, minutes, description, entry_type, is_current,
-               created_by, created_at
-        FROM tk_timesheet_entries
-        WHERE app_id = $1 AND entry_id = $2 AND is_current = TRUE
-        FOR UPDATE
-        "#,
-    )
-    .bind(&req.app_id)
-    .bind(req.entry_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(EntryError::NotFound)?;
+    let current = repo::fetch_current_for_update(&mut *tx, &req.app_id, req.entry_id)
+        .await?
+        .ok_or(EntryError::NotFound)?;
 
     guards::check_period_lock(pool, &req.app_id, current.employee_id, current.work_date).await?;
 
@@ -325,35 +246,20 @@ pub async fn void_entry(
     let event_id = Uuid::new_v4();
 
     // Flip old version
-    sqlx::query(
-        "UPDATE tk_timesheet_entries SET is_current = FALSE \
-         WHERE entry_id = $1 AND is_current = TRUE",
-    )
-    .bind(req.entry_id)
-    .execute(&mut *tx)
-    .await?;
+    repo::flip_is_current(&mut *tx, req.entry_id).await?;
 
     // Insert void row (minutes=0)
-    let entry = sqlx::query_as::<_, TimesheetEntry>(
-        r#"
-        INSERT INTO tk_timesheet_entries
-            (entry_id, version, app_id, employee_id, project_id, task_id,
-             work_date, minutes, description, entry_type, is_current, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'Voided', 'void', TRUE, $8)
-        RETURNING id, entry_id, version, app_id, employee_id, project_id, task_id,
-                  work_date, minutes, description, entry_type, is_current,
-                  created_by, created_at
-        "#,
+    let entry = repo::insert_void(
+        &mut *tx,
+        req.entry_id,
+        new_version,
+        &req.app_id,
+        current.employee_id,
+        current.project_id,
+        current.task_id,
+        current.work_date,
+        req.created_by,
     )
-    .bind(req.entry_id)
-    .bind(new_version)
-    .bind(&req.app_id)
-    .bind(current.employee_id)
-    .bind(current.project_id)
-    .bind(current.task_id)
-    .bind(current.work_date)
-    .bind(req.created_by)
-    .fetch_one(&mut *tx)
     .await?;
 
     let payload = serde_json::json!({

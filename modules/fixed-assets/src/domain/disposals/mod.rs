@@ -3,7 +3,11 @@
 //! All monetary values are i64 minor units + TEXT currency.
 //! Tenant-scoped: every query filters by tenant_id.
 
+pub mod repo;
 pub mod service;
+
+#[cfg(test)]
+mod service_tests;
 
 pub use service::DisposalService;
 

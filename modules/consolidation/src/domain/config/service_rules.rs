@@ -4,8 +4,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    models::*, service::get_group, validate_not_blank, validate_rate_type, validate_rule_type,
-    ConfigError,
+    models::*, repo, service::get_group, validate_not_blank, validate_rate_type,
+    validate_rule_type, ConfigError,
 };
 
 // ============================================================================
@@ -24,19 +24,15 @@ pub async fn create_elimination_rule(
     validate_not_blank(&req.debit_account_code, "debit_account_code")?;
     validate_not_blank(&req.credit_account_code, "credit_account_code")?;
 
-    let row = sqlx::query_as::<_, EliminationRule>(
-        "INSERT INTO csl_elimination_rules
-            (group_id, rule_name, rule_type, debit_account_code, credit_account_code, description)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *",
+    let row = repo::insert_elimination_rule(
+        pool,
+        group_id,
+        &req.rule_name,
+        &req.rule_type,
+        &req.debit_account_code,
+        &req.credit_account_code,
+        &req.description,
     )
-    .bind(group_id)
-    .bind(&req.rule_name)
-    .bind(&req.rule_type)
-    .bind(&req.debit_account_code)
-    .bind(&req.credit_account_code)
-    .bind(&req.description)
-    .fetch_one(pool)
     .await
     .map_err(|e| match &e {
         sqlx::Error::Database(db)
@@ -56,35 +52,11 @@ pub async fn list_elimination_rules(
     include_inactive: bool,
 ) -> Result<Vec<EliminationRule>, ConfigError> {
     get_group(pool, tenant_id, group_id).await?;
-
-    let rows = if include_inactive {
-        sqlx::query_as::<_, EliminationRule>(
-            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 \
-             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
-             ORDER BY rule_name",
-        )
-        .bind(group_id)
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    } else {
-        sqlx::query_as::<_, EliminationRule>(
-            "SELECT * FROM csl_elimination_rules WHERE group_id = $1 AND is_active = TRUE \
-             AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2) \
-             ORDER BY rule_name",
-        )
-        .bind(group_id)
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
-    };
-    Ok(rows)
+    Ok(repo::fetch_elimination_rules(pool, tenant_id, group_id, include_inactive).await?)
 }
 
 pub async fn get_elimination_rule(pool: &PgPool, id: Uuid) -> Result<EliminationRule, ConfigError> {
-    sqlx::query_as::<_, EliminationRule>("SELECT * FROM csl_elimination_rules WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
+    repo::fetch_elimination_rule(pool, id)
         .await?
         .ok_or(ConfigError::RuleNotFound(id))
 }
@@ -111,27 +83,7 @@ pub async fn update_elimination_rule(
         validate_not_blank(code, "credit_account_code")?;
     }
 
-    let row = sqlx::query_as::<_, EliminationRule>(
-        "UPDATE csl_elimination_rules SET
-            rule_name = COALESCE($2, rule_name),
-            rule_type = COALESCE($3, rule_type),
-            debit_account_code = COALESCE($4, debit_account_code),
-            credit_account_code = COALESCE($5, credit_account_code),
-            description = COALESCE($6, description),
-            is_active = COALESCE($7, is_active),
-            updated_at = NOW()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(id)
-    .bind(&req.rule_name)
-    .bind(&req.rule_type)
-    .bind(&req.debit_account_code)
-    .bind(&req.credit_account_code)
-    .bind(&req.description)
-    .bind(req.is_active)
-    .fetch_one(pool)
-    .await?;
+    let row = repo::update_elimination_rule_row(pool, id, req).await?;
     Ok(row)
 }
 
@@ -142,11 +94,7 @@ pub async fn delete_elimination_rule(
 ) -> Result<(), ConfigError> {
     let existing = get_elimination_rule(pool, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
-
-    sqlx::query("DELETE FROM csl_elimination_rules WHERE id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    repo::delete_elimination_rule_row(pool, id).await?;
     Ok(())
 }
 
@@ -172,26 +120,8 @@ pub async fn upsert_fx_policy(
     validate_rate_type(pl, "pl_rate_type")?;
     validate_rate_type(eq, "equity_rate_type")?;
 
-    let row = sqlx::query_as::<_, FxPolicy>(
-        "INSERT INTO csl_fx_policies
-            (group_id, entity_tenant_id, bs_rate_type, pl_rate_type, equity_rate_type, fx_rate_source)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (group_id, entity_tenant_id) DO UPDATE SET
-            bs_rate_type = EXCLUDED.bs_rate_type,
-            pl_rate_type = EXCLUDED.pl_rate_type,
-            equity_rate_type = EXCLUDED.equity_rate_type,
-            fx_rate_source = EXCLUDED.fx_rate_source,
-            updated_at = NOW()
-         RETURNING *",
-    )
-    .bind(group_id)
-    .bind(&req.entity_tenant_id)
-    .bind(bs)
-    .bind(pl)
-    .bind(eq)
-    .bind(src)
-    .fetch_one(pool)
-    .await?;
+    let row = repo::upsert_fx_policy_row(pool, group_id, &req.entity_tenant_id, bs, pl, eq, src)
+        .await?;
     Ok(row)
 }
 
@@ -201,32 +131,15 @@ pub async fn list_fx_policies(
     group_id: Uuid,
 ) -> Result<Vec<FxPolicy>, ConfigError> {
     get_group(pool, tenant_id, group_id).await?;
-
-    let rows = sqlx::query_as::<_, FxPolicy>(
-        "SELECT * FROM csl_fx_policies WHERE group_id = $1 ORDER BY entity_tenant_id",
-    )
-    .bind(group_id)
-    .fetch_all(pool)
-    .await?;
-    Ok(rows)
+    Ok(repo::fetch_fx_policies(pool, group_id).await?)
 }
 
 pub async fn delete_fx_policy(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
-    let existing = sqlx::query_as::<_, FxPolicy>("SELECT * FROM csl_fx_policies WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
+    let existing = repo::fetch_fx_policy(pool, id)
         .await?
         .ok_or(ConfigError::PolicyNotFound(id))?;
 
     get_group(pool, tenant_id, existing.group_id).await?;
-
-    sqlx::query(
-        "DELETE FROM csl_fx_policies WHERE id = $1 \
-         AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2)",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .execute(pool)
-    .await?;
+    repo::delete_fx_policy_row(pool, id, tenant_id).await?;
     Ok(())
 }

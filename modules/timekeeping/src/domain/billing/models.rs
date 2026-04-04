@@ -96,7 +96,7 @@ pub enum BillingError {
 
 /// Raw row from the billable entries query.
 #[derive(Debug, sqlx::FromRow)]
-pub(super) struct BillableEntryRow {
+pub(in crate::domain::billing) struct BillableEntryRow {
     pub entry_id: Uuid,
     pub minutes: i32,
     pub rate_cents_per_hour: i32,

@@ -25,6 +25,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.1 | 2026-04-04 | bd-v3550 | SoC: extract 38 sqlx queries from domain services into 4 repo modules (config, engine, eliminations, statements) | Separation of concerns — isolate persistence from business logic so domain services are testable and DB access is centralized. | No |
 | 2.3.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 2.2.8 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |
 | 2.2.5 | 2026-04-01 | bd-pezs6 | Replace hand-written GL/AR/AP HTTP clients (~415 LOC) with thin adapters over platform-client-{gl,ar,ap}. Error type unified from per-module GlClientError/ArClientError/ApClientError to platform_sdk::ClientError. Response types kept locally until codegen supports typed responses. | Typed client standardisation — all inter-module HTTP calls use generated clients for type safety and consistency. | No |

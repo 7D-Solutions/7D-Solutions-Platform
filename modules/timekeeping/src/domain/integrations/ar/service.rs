@@ -11,6 +11,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::repo;
 use crate::events;
 
 // ============================================================================
@@ -40,18 +41,6 @@ pub struct BillableTimeExportPayload {
     pub period_end: NaiveDate,
     pub lines: Vec<BillableTimeLine>,
     pub total_amount_minor: i64,
-    pub currency: String,
-}
-
-/// Row returned when querying billable approved time.
-#[derive(Debug, Clone, sqlx::FromRow)]
-struct BillableTimeRow {
-    pub employee_id: Uuid,
-    pub employee_name: String,
-    pub project_id: Uuid,
-    pub project_name: String,
-    pub total_minutes: i64,
-    pub hourly_rate_minor: i64,
     pub currency: String,
 }
 
@@ -104,7 +93,7 @@ pub async fn export_billable_time(
         ));
     }
 
-    let rows = fetch_billable_rows(pool, app_id, period_start, period_end).await?;
+    let rows = repo::fetch_billable_rows(pool, app_id, period_start, period_end).await?;
     if rows.is_empty() {
         return Err(ArIntegrationError::NoBillableEntries);
     }
@@ -162,60 +151,6 @@ pub async fn export_billable_time(
 }
 
 // ============================================================================
-// Internal helpers
-// ============================================================================
-
-async fn fetch_billable_rows(
-    pool: &PgPool,
-    app_id: &str,
-    period_start: NaiveDate,
-    period_end: NaiveDate,
-) -> Result<Vec<BillableTimeRow>, ArIntegrationError> {
-    let rows = sqlx::query_as::<_, BillableTimeRow>(
-        r#"
-        SELECT
-            e.employee_id,
-            COALESCE(emp.first_name || ' ' || emp.last_name, 'Unknown') AS employee_name,
-            e.project_id,
-            p.name AS project_name,
-            SUM(e.minutes)::BIGINT AS total_minutes,
-            emp.hourly_rate_minor,
-            emp.currency
-        FROM tk_timesheet_entries e
-        JOIN tk_approval_requests ar
-            ON ar.app_id = e.app_id
-            AND ar.employee_id = e.employee_id
-            AND ar.period_start <= e.work_date
-            AND ar.period_end >= e.work_date
-            AND ar.status = 'approved'
-        JOIN tk_employees emp
-            ON emp.id = e.employee_id
-            AND emp.hourly_rate_minor IS NOT NULL
-        JOIN tk_projects p
-            ON p.id = e.project_id
-            AND p.billable = TRUE
-        WHERE e.app_id = $1
-          AND e.work_date >= $2
-          AND e.work_date <= $3
-          AND e.is_current = TRUE
-          AND e.entry_type != 'void'
-          AND e.project_id IS NOT NULL
-        GROUP BY e.employee_id, emp.first_name, emp.last_name,
-                 e.project_id, p.name,
-                 emp.hourly_rate_minor, emp.currency
-        ORDER BY e.employee_id, e.project_id
-        "#,
-    )
-    .bind(app_id)
-    .bind(period_start)
-    .bind(period_end)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows)
-}
-
-// ============================================================================
 // Tests
 // ============================================================================
 
@@ -252,14 +187,14 @@ mod tests {
         let payload = BillableTimeExportPayload {
             export_id: Uuid::new_v4(),
             app_id: "acme".into(),
-            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
-            period_end: NaiveDate::from_ymd_opt(2026, 2, 7).unwrap(),
+            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).expect("test"),
+            period_end: NaiveDate::from_ymd_opt(2026, 2, 7).expect("test"),
             lines: vec![],
             total_amount_minor: 0,
             currency: "USD".into(),
         };
-        let json = serde_json::to_string(&payload).unwrap();
-        let back: BillableTimeExportPayload = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&payload).expect("test");
+        let back: BillableTimeExportPayload = serde_json::from_str(&json).expect("test");
         assert_eq!(back.app_id, "acme");
     }
 }

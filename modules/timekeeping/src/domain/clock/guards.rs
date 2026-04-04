@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::models::ClockError;
+use super::repo;
 
 /// Check that no open clock session exists for this employee in this tenant.
 /// Returns ConcurrentSession error if one is found.
@@ -16,23 +17,12 @@ pub async fn check_no_open_session(
     app_id: &str,
     employee_id: Uuid,
 ) -> Result<(), ClockError> {
-    let exists: Option<(Uuid,)> = sqlx::query_as(
-        r#"
-        SELECT id FROM tk_clock_sessions
-        WHERE app_id = $1 AND employee_id = $2 AND status = 'open'
-        LIMIT 1
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(ClockError::Database)?;
-
-    if exists.is_some() {
+    if repo::find_open_session_id(pool, app_id, employee_id)
+        .await?
+        .is_some()
+    {
         return Err(ClockError::ConcurrentSession(employee_id));
     }
-
     Ok(())
 }
 
@@ -43,19 +33,7 @@ pub async fn require_open_session(
     app_id: &str,
     employee_id: Uuid,
 ) -> Result<Uuid, ClockError> {
-    let row: Option<(Uuid,)> = sqlx::query_as(
-        r#"
-        SELECT id FROM tk_clock_sessions
-        WHERE app_id = $1 AND employee_id = $2 AND status = 'open'
-        LIMIT 1
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(ClockError::Database)?;
-
-    row.map(|r| r.0)
+    repo::find_open_session_id(pool, app_id, employee_id)
+        .await?
         .ok_or(ClockError::NoOpenSession(employee_id))
 }

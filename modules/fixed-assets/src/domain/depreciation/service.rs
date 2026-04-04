@@ -3,29 +3,13 @@
 //! Guard → Mutation → Outbox atomicity for the run.
 //! Schedule generation is idempotent via ON CONFLICT DO NOTHING.
 
-use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::engine;
-use super::gl_entries;
 use super::models::*;
+use super::repo;
 use crate::outbox;
-
-/// Minimal projection of fa_assets needed for depreciation — avoids decoding
-/// the fa_asset_status PostgreSQL ENUM (which requires a custom sqlx::Type impl).
-#[derive(sqlx::FromRow)]
-#[allow(dead_code)]
-struct AssetProjection {
-    id: Uuid,
-    tenant_id: String,
-    in_service_date: Option<NaiveDate>,
-    acquisition_cost_minor: i64,
-    salvage_value_minor: i64,
-    useful_life_months: i32,
-    depreciation_method: String,
-    currency: String,
-}
 
 pub struct DepreciationService;
 
@@ -43,19 +27,9 @@ impl DepreciationService {
     ) -> Result<Vec<DepreciationSchedule>, DepreciationError> {
         req.validate()?;
 
-        let asset = sqlx::query_as::<_, AssetProjection>(
-            r#"
-            SELECT id, tenant_id, in_service_date, acquisition_cost_minor,
-                   salvage_value_minor, useful_life_months, depreciation_method, currency
-            FROM fa_assets
-            WHERE id = $1 AND tenant_id = $2
-            "#,
-        )
-        .bind(req.asset_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or(DepreciationError::AssetNotFound(req.asset_id))?;
+        let asset = repo::fetch_asset_for_schedule(pool, req.asset_id, &req.tenant_id)
+            .await?
+            .ok_or(DepreciationError::AssetNotFound(req.asset_id))?;
 
         let in_service_date = asset
             .in_service_date
@@ -74,75 +48,17 @@ impl DepreciationService {
             asset.useful_life_months,
         );
 
-        // Batch insert all periods in a single query using UNNEST arrays.
-        // Reduces N roundtrips (one per period) to 1 roundtrip.
-        if !periods.is_empty() {
-            let n = periods.len();
-            let ids: Vec<Uuid> = (0..n).map(|_| Uuid::new_v4()).collect();
-            let tenant_ids: Vec<&str> = vec![req.tenant_id.as_str(); n];
-            let asset_ids: Vec<Uuid> = vec![asset.id; n];
-            let period_numbers: Vec<i32> = periods.iter().map(|p| p.period_number).collect();
-            let period_starts: Vec<NaiveDate> = periods.iter().map(|p| p.period_start).collect();
-            let period_ends: Vec<NaiveDate> = periods.iter().map(|p| p.period_end).collect();
-            let amounts: Vec<i64> =
-                periods.iter().map(|p| p.depreciation_amount_minor).collect();
-            let currencies: Vec<&str> = vec![asset.currency.as_str(); n];
-            let cumulatives: Vec<i64> = periods
-                .iter()
-                .map(|p| p.cumulative_depreciation_minor)
-                .collect();
-            let remainings: Vec<i64> = periods
-                .iter()
-                .map(|p| p.remaining_book_value_minor)
-                .collect();
-
-            sqlx::query(
-                r#"
-                INSERT INTO fa_depreciation_schedules
-                    (id, tenant_id, asset_id, period_number,
-                     period_start, period_end,
-                     depreciation_amount_minor, currency,
-                     cumulative_depreciation_minor, remaining_book_value_minor,
-                     is_posted, created_at, updated_at)
-                SELECT * FROM UNNEST(
-                    $1::UUID[], $2::TEXT[], $3::UUID[], $4::INT[],
-                    $5::DATE[], $6::DATE[],
-                    $7::BIGINT[], $8::TEXT[],
-                    $9::BIGINT[], $10::BIGINT[],
-                    ARRAY_FILL(FALSE, ARRAY[$11]),
-                    ARRAY_FILL(NOW()::TIMESTAMPTZ, ARRAY[$11]),
-                    ARRAY_FILL(NOW()::TIMESTAMPTZ, ARRAY[$11])
-                )
-                ON CONFLICT (asset_id, period_number) DO NOTHING
-                "#,
-            )
-            .bind(&ids)
-            .bind(&tenant_ids)
-            .bind(&asset_ids)
-            .bind(&period_numbers)
-            .bind(&period_starts)
-            .bind(&period_ends)
-            .bind(&amounts)
-            .bind(&currencies)
-            .bind(&cumulatives)
-            .bind(&remainings)
-            .bind(n as i32)
-            .execute(pool)
-            .await?;
-        }
+        repo::insert_schedule_batch(
+            pool,
+            &req.tenant_id,
+            asset.id,
+            &asset.currency,
+            &periods,
+        )
+        .await?;
 
         // Always return the full current schedule from the DB (may include pre-existing rows).
-        let schedules = sqlx::query_as::<_, DepreciationSchedule>(
-            r#"
-            SELECT * FROM fa_depreciation_schedules
-            WHERE asset_id = $1 AND tenant_id = $2
-            ORDER BY period_number
-            "#,
-        )
-        .bind(asset.id)
-        .bind(&req.tenant_id)
-        .fetch_all(pool)
-        .await?;
+        let schedules = repo::fetch_schedules(pool, asset.id, &req.tenant_id).await?;
 
         Ok(schedules)
     }
@@ -162,51 +78,18 @@ impl DepreciationService {
 
         let mut tx = pool.begin().await?;
 
-        // Insert run in 'running' state (skips pending → running transition for simplicity).
-        let run: DepreciationRun = sqlx::query_as(
-            r#"
-            INSERT INTO fa_depreciation_runs
-                (id, tenant_id, as_of_date, status,
-                 assets_processed, periods_posted, total_depreciation_minor, currency,
-                 idempotency_key, started_at, created_at, updated_at, created_by)
-            VALUES ($1,$2,$3,'running',0,0,0,$4,gen_random_uuid(),NOW(),NOW(),NOW(),$5)
-            RETURNING *
-            "#,
+        let run = repo::insert_run(
+            &mut *tx,
+            run_id,
+            &req.tenant_id,
+            req.as_of_date,
+            currency,
+            req.created_by.as_deref(),
         )
-        .bind(run_id)
-        .bind(&req.tenant_id)
-        .bind(req.as_of_date)
-        .bind(currency)
-        .bind(req.created_by.as_deref())
-        .fetch_one(&mut *tx)
         .await?;
 
-        // Post all unposted periods up to as_of_date in one UPDATE.
-        // Guard: skip schedules for disposed or impaired assets — depreciation stops at disposal.
-        let posted: Vec<DepreciationSchedule> = sqlx::query_as(
-            r#"
-            UPDATE fa_depreciation_schedules
-            SET
-                is_posted        = TRUE,
-                posted_at        = NOW(),
-                posted_by_run_id = $1,
-                updated_at       = NOW()
-            WHERE tenant_id  = $2
-              AND period_end <= $3
-              AND is_posted   = FALSE
-              AND asset_id IN (
-                  SELECT id FROM fa_assets
-                  WHERE tenant_id = $2
-                    AND status NOT IN ('disposed', 'impaired')
-              )
-            RETURNING *
-            "#,
-        )
-        .bind(run.id)
-        .bind(&req.tenant_id)
-        .bind(req.as_of_date)
-        .fetch_all(&mut *tx)
-        .await?;
+        let posted =
+            repo::post_unposted_periods(&mut *tx, run.id, &req.tenant_id, req.as_of_date).await?;
 
         let periods_posted = posted.len() as i32;
         let total_minor: i64 = posted.iter().map(|s| s.depreciation_amount_minor).sum();
@@ -217,30 +100,12 @@ impl DepreciationService {
             ids.len() as i32
         };
 
-        // Finalise run stats.
-        let completed: DepreciationRun = sqlx::query_as(
-            r#"
-            UPDATE fa_depreciation_runs
-            SET
-                status                   = 'completed',
-                assets_processed         = $2,
-                periods_posted           = $3,
-                total_depreciation_minor = $4,
-                completed_at             = NOW(),
-                updated_at               = NOW()
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(run.id)
-        .bind(assets_processed)
-        .bind(periods_posted)
-        .bind(total_minor)
-        .fetch_one(&mut *tx)
-        .await?;
+        let completed =
+            repo::finalize_run(&mut *tx, run.id, assets_processed, periods_posted, total_minor)
+                .await?;
 
         let gl_entry_data =
-            gl_entries::query_for_run(&mut tx, completed.id, &req.tenant_id).await?;
+            repo::query_gl_entries_for_run(&mut tx, completed.id, &req.tenant_id).await?;
         let event = DepreciationRunCompletedEvent {
             run_id: completed.id,
             tenant_id: req.tenant_id.clone(),
@@ -269,12 +134,7 @@ impl DepreciationService {
         pool: &PgPool,
         tenant_id: &str,
     ) -> Result<Vec<DepreciationRun>, DepreciationError> {
-        let runs = sqlx::query_as::<_, DepreciationRun>(
-            "SELECT * FROM fa_depreciation_runs WHERE tenant_id = $1 ORDER BY as_of_date DESC",
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?;
+        let runs = repo::list_runs(pool, tenant_id).await?;
         Ok(runs)
     }
 
@@ -284,245 +144,9 @@ impl DepreciationService {
         id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<DepreciationRun>, DepreciationError> {
-        let run = sqlx::query_as::<_, DepreciationRun>(
-            "SELECT * FROM fa_depreciation_runs WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let run = repo::get_run(pool, id, tenant_id).await?;
         Ok(run)
     }
 }
 
-// ============================================================================
-// Integrated tests — require a running fixed-assets Postgres instance
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::NaiveDate;
-    use serial_test::serial;
-
-    fn test_db_url() -> String {
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=require"
-                .to_string()
-        })
-    }
-
-    async fn test_pool() -> PgPool {
-        PgPool::connect(&test_db_url())
-            .await
-            .expect("connect to fixed-assets test DB")
-    }
-
-    const TEST_TENANT: &str = "test-depr-svc";
-
-    async fn cleanup(pool: &PgPool) {
-        sqlx::query("DELETE FROM fa_depreciation_schedules WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM fa_depreciation_runs WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM fa_events_outbox WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM fa_assets WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
-        sqlx::query("DELETE FROM fa_categories WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
-    }
-
-    /// Insert category + asset directly (avoiding RETURNING * with the fa_asset_status ENUM).
-    async fn create_test_asset(pool: &PgPool, in_service_date: NaiveDate) -> Uuid {
-        let cat_id = Uuid::new_v4();
-        let tag = format!("CAT-{}", &cat_id.to_string()[..8]);
-        sqlx::query(
-            r#"
-            INSERT INTO fa_categories
-                (id, tenant_id, code, name,
-                 default_method, default_useful_life_months, default_salvage_pct_bp,
-                 asset_account_ref, depreciation_expense_ref, accum_depreciation_ref,
-                 is_active, created_at, updated_at)
-            VALUES ($1,$2,$3,$4,'straight_line',12,0,'1500','6100','1510',TRUE,NOW(),NOW())
-            "#,
-        )
-        .bind(cat_id)
-        .bind(TEST_TENANT)
-        .bind(tag.clone())
-        .bind(format!("Category {}", tag))
-        .execute(pool)
-        .await
-        .expect("insert test category");
-
-        let asset_id = Uuid::new_v4();
-        let asset_tag = format!("FA-{}", &asset_id.to_string()[..8]);
-        sqlx::query(
-            r#"
-            INSERT INTO fa_assets
-                (id, tenant_id, category_id, asset_tag, name,
-                 acquisition_date, in_service_date,
-                 acquisition_cost_minor, currency,
-                 depreciation_method, useful_life_months, salvage_value_minor,
-                 accum_depreciation_minor, net_book_value_minor,
-                 created_at, updated_at)
-            VALUES ($1,$2,$3,$4,$5,$6,$6,120000,'usd','straight_line',12,0,0,120000,NOW(),NOW())
-            "#,
-        )
-        .bind(asset_id)
-        .bind(TEST_TENANT)
-        .bind(cat_id)
-        .bind(asset_tag)
-        .bind("Test Asset")
-        .bind(in_service_date)
-        .execute(pool)
-        .await
-        .expect("insert test asset");
-
-        asset_id
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn generate_schedule_creates_12_periods() {
-        let pool = test_pool().await;
-        cleanup(&pool).await;
-
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
-        let asset_id = create_test_asset(&pool, in_service).await;
-
-        let req = GenerateScheduleRequest {
-            tenant_id: TEST_TENANT.into(),
-            asset_id,
-        };
-        let schedules = DepreciationService::generate_schedule(&pool, &req)
-            .await
-            .expect("generate_schedule failed");
-
-        assert_eq!(schedules.len(), 12);
-        let total: i64 = schedules.iter().map(|s| s.depreciation_amount_minor).sum();
-        assert_eq!(total, 120_000);
-        assert_eq!(schedules[0].period_number, 1);
-        assert_eq!(schedules[11].period_number, 12);
-        assert_eq!(schedules[11].remaining_book_value_minor, 0);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn generate_schedule_is_idempotent() {
-        let pool = test_pool().await;
-        cleanup(&pool).await;
-
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
-        let asset_id = create_test_asset(&pool, in_service).await;
-
-        let req = GenerateScheduleRequest {
-            tenant_id: TEST_TENANT.into(),
-            asset_id,
-        };
-        let first = DepreciationService::generate_schedule(&pool, &req)
-            .await
-            .expect("first generate_schedule failed");
-        let second = DepreciationService::generate_schedule(&pool, &req)
-            .await
-            .expect("second generate_schedule failed");
-
-        assert_eq!(first.len(), second.len(), "no duplicate rows on rerun");
-        for (a, b) in first.iter().zip(second.iter()) {
-            assert_eq!(a.id, b.id, "same row ids — no new inserts");
-        }
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn run_posts_periods_and_is_idempotent() {
-        let pool = test_pool().await;
-        cleanup(&pool).await;
-
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
-        let asset_id = create_test_asset(&pool, in_service).await;
-
-        // Generate schedule first
-        let sched_req = GenerateScheduleRequest {
-            tenant_id: TEST_TENANT.into(),
-            asset_id,
-        };
-        DepreciationService::generate_schedule(&pool, &sched_req)
-            .await
-            .expect("generate_schedule failed");
-
-        // Run through 2026-06-30 → should post periods 1-6
-        let run_req = CreateRunRequest {
-            tenant_id: TEST_TENANT.into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid test date"),
-            currency: None,
-            created_by: None,
-        };
-        let run1 = DepreciationService::run(&pool, &run_req)
-            .await
-            .expect("run1 failed");
-        assert_eq!(run1.status, "completed");
-        assert_eq!(run1.periods_posted, 6);
-        assert_eq!(run1.assets_processed, 1);
-        assert_eq!(run1.total_depreciation_minor, 60_000);
-
-        // Rerun same as_of_date → no new periods posted
-        let run2 = DepreciationService::run(&pool, &run_req)
-            .await
-            .expect("run2 failed");
-        assert_eq!(run2.status, "completed");
-        assert_eq!(run2.periods_posted, 0, "already posted — idempotent");
-        assert_eq!(run2.total_depreciation_minor, 0);
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn run_respects_as_of_date_boundary() {
-        let pool = test_pool().await;
-        cleanup(&pool).await;
-
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
-        let asset_id = create_test_asset(&pool, in_service).await;
-
-        DepreciationService::generate_schedule(
-            &pool,
-            &GenerateScheduleRequest {
-                tenant_id: TEST_TENANT.into(),
-                asset_id,
-            },
-        )
-        .await
-        .expect("generate_schedule failed");
-
-        // Only one period ending 2026-01-31 should be posted
-        let run = DepreciationService::run(
-            &pool,
-            &CreateRunRequest {
-                tenant_id: TEST_TENANT.into(),
-                as_of_date: NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid test date"),
-                currency: None,
-                created_by: None,
-            },
-        )
-        .await
-        .expect("run failed");
-
-        assert_eq!(run.periods_posted, 1);
-        assert_eq!(run.total_depreciation_minor, 10_000); // 120_000 / 12
-    }
-}
+// Tests in service_tests.rs

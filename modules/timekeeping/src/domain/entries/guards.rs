@@ -12,6 +12,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::models::{CorrectEntryRequest, CreateEntryRequest, EntryError, VoidEntryRequest};
+use super::repo;
 
 /// Maximum minutes in a single entry (24 hours).
 const MAX_ENTRY_MINUTES: i32 = 1440;
@@ -83,26 +84,7 @@ pub async fn check_period_lock(
     employee_id: Uuid,
     work_date: NaiveDate,
 ) -> Result<(), EntryError> {
-    let locked: Option<(String,)> = sqlx::query_as(
-        r#"
-        SELECT status::TEXT
-        FROM tk_approval_requests
-        WHERE app_id = $1
-          AND employee_id = $2
-          AND period_start <= $3
-          AND period_end >= $3
-          AND status = 'approved'
-        LIMIT 1
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .bind(work_date)
-    .fetch_optional(pool)
-    .await
-    .map_err(EntryError::Database)?;
-
-    if locked.is_some() {
+    if repo::is_period_locked(pool, app_id, employee_id, work_date).await? {
         return Err(EntryError::PeriodLocked(format!(
             "Period containing {} for employee {} is approved and locked",
             work_date, employee_id
@@ -126,29 +108,7 @@ pub async fn check_overlap(
     project_id: Option<Uuid>,
     task_id: Option<Uuid>,
 ) -> Result<(), EntryError> {
-    let exists: Option<(i64,)> = sqlx::query_as(
-        r#"
-        SELECT id FROM tk_timesheet_entries
-        WHERE app_id = $1
-          AND employee_id = $2
-          AND work_date = $3
-          AND (project_id IS NOT DISTINCT FROM $4)
-          AND (task_id IS NOT DISTINCT FROM $5)
-          AND is_current = TRUE
-          AND entry_type != 'void'
-        LIMIT 1
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .bind(work_date)
-    .bind(project_id)
-    .bind(task_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(EntryError::Database)?;
-
-    if exists.is_some() {
+    if repo::has_overlap(pool, app_id, employee_id, work_date, project_id, task_id).await? {
         return Err(EntryError::Overlap);
     }
 
@@ -170,7 +130,7 @@ mod tests {
             employee_id: Uuid::new_v4(),
             project_id: Some(Uuid::new_v4()),
             task_id: None,
-            work_date: NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
+            work_date: NaiveDate::from_ymd_opt(2026, 1, 15).expect("test"),
             minutes: 480,
             description: Some("Worked on feature X".into()),
             created_by: Some(Uuid::new_v4()),

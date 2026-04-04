@@ -1,5 +1,5 @@
 pub mod models;
-pub mod service;
+pub mod repo;
 
 pub use models::*;
-pub use service::{AssetRepo, CategoryRepo};
+pub use repo::{AssetRepo, CategoryRepo};

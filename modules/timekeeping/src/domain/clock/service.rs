@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::guards;
 use super::models::*;
+use super::repo;
 use crate::events;
 
 const EVT_CLOCK_IN: &str = "clock_session.clocked_in";
@@ -23,20 +24,7 @@ pub async fn list_sessions(
     app_id: &str,
     employee_id: Uuid,
 ) -> Result<Vec<ClockSession>, ClockError> {
-    sqlx::query_as::<_, ClockSession>(
-        r#"
-        SELECT id, app_id, employee_id, clock_in_at, clock_out_at,
-               duration_minutes, status, idempotency_key, created_at, updated_at
-        FROM tk_clock_sessions
-        WHERE app_id = $1 AND employee_id = $2
-        ORDER BY clock_in_at DESC
-        "#,
-    )
-    .bind(app_id)
-    .bind(employee_id)
-    .fetch_all(pool)
-    .await
-    .map_err(ClockError::Database)
+    repo::list_sessions(pool, app_id, employee_id).await
 }
 
 // ============================================================================
@@ -64,29 +52,13 @@ pub async fn clock_in(pool: &PgPool, req: &ClockInRequest) -> Result<ClockSessio
     let event_id = Uuid::new_v4();
     let mut tx = pool.begin().await?;
 
-    let session = sqlx::query_as::<_, ClockSession>(
-        r#"
-        INSERT INTO tk_clock_sessions (app_id, employee_id, idempotency_key)
-        VALUES ($1, $2, $3)
-        RETURNING id, app_id, employee_id, clock_in_at, clock_out_at,
-                  duration_minutes, status, idempotency_key, created_at, updated_at
-        "#,
+    let session = repo::insert_clock_session(
+        &mut *tx,
+        &req.app_id,
+        req.employee_id,
+        req.idempotency_key.as_deref(),
     )
-    .bind(&req.app_id)
-    .bind(req.employee_id)
-    .bind(req.idempotency_key.as_deref())
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        // The partial unique index will fire 23505 on concurrent open sessions
-        // even if the guard check passed (race condition protection).
-        if let sqlx::Error::Database(ref dbe) = e {
-            if dbe.code().as_deref() == Some("23505") {
-                return ClockError::ConcurrentSession(req.employee_id);
-            }
-        }
-        ClockError::Database(e)
-    })?;
+    .await?;
 
     let payload = serde_json::json!({
         "session_id": session.id,
@@ -139,25 +111,10 @@ pub async fn clock_out(pool: &PgPool, req: &ClockOutRequest) -> Result<ClockSess
     let event_id = Uuid::new_v4();
     let mut tx = pool.begin().await?;
 
-    // Close the open session with FOR UPDATE to prevent concurrent clock-outs.
-    // Duration = ceiling of elapsed minutes.
-    let session = sqlx::query_as::<_, ClockSession>(
-        r#"
-        UPDATE tk_clock_sessions
-        SET clock_out_at = NOW(),
-            duration_minutes = CEIL(EXTRACT(EPOCH FROM (NOW() - clock_in_at)) / 60.0)::INTEGER,
-            status = 'closed',
-            updated_at = NOW()
-        WHERE app_id = $1 AND employee_id = $2 AND status = 'open'
-        RETURNING id, app_id, employee_id, clock_in_at, clock_out_at,
-                  duration_minutes, status, idempotency_key, created_at, updated_at
-        "#,
-    )
-    .bind(&req.app_id)
-    .bind(req.employee_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(ClockError::NoOpenSession(req.employee_id))?;
+    // Close the open session with duration computation.
+    let session = repo::close_clock_session(&mut *tx, &req.app_id, req.employee_id)
+        .await?
+        .ok_or(ClockError::NoOpenSession(req.employee_id))?;
 
     let payload = serde_json::json!({
         "session_id": session.id,

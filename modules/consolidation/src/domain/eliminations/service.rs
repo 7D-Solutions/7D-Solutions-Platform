@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{EliminationPostResult, EliminationSuggestion};
+use super::{repo, EliminationPostResult, EliminationSuggestion};
 use crate::domain::engine::EngineError;
 use crate::domain::intercompany::IntercompanyMatchResult;
 use crate::integrations::gl::client::GlClient;
@@ -138,13 +138,16 @@ pub async fn post_eliminations(
     let now = Utc::now();
 
     // Record the posting for idempotency
-    record_posting(
+    let ids_json = serde_json::to_value(&journal_entry_ids)
+        .map_err(|e| EngineError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
+    repo::insert_posting(
         pool,
         group_id,
         period_id,
         &idempotency_key,
-        &journal_entry_ids,
-        suggestions.len(),
+        &ids_json,
+        suggestions.len() as i32,
         total_amount,
         now,
     )
@@ -169,16 +172,8 @@ async fn check_existing_posting(
     period_id: Uuid,
     idempotency_key: &str,
 ) -> Result<Option<EliminationPostResult>, EngineError> {
-    let row = sqlx::query_as::<_, (chrono::DateTime<Utc>, serde_json::Value, chrono::NaiveDate)>(
-        "SELECT posted_at, journal_entry_ids, (posted_at::date) as as_of_date
-         FROM csl_elimination_postings
-         WHERE group_id = $1 AND period_id = $2 AND idempotency_key = $3",
-    )
-    .bind(group_id)
-    .bind(period_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await?;
+    let row =
+        repo::fetch_existing_posting(pool, group_id, period_id, idempotency_key).await?;
 
     match row {
         Some((posted_at, ids_json, as_of_date)) => {
@@ -198,40 +193,6 @@ async fn check_existing_posting(
     }
 }
 
-/// Record a successful elimination posting for idempotency.
-async fn record_posting(
-    pool: &PgPool,
-    group_id: Uuid,
-    period_id: Uuid,
-    idempotency_key: &str,
-    journal_entry_ids: &[Uuid],
-    suggestion_count: usize,
-    total_amount_minor: i64,
-    posted_at: chrono::DateTime<Utc>,
-) -> Result<(), EngineError> {
-    let ids_json = serde_json::to_value(journal_entry_ids)
-        .map_err(|e| EngineError::Database(sqlx::Error::Protocol(e.to_string())))?;
-
-    sqlx::query(
-        "INSERT INTO csl_elimination_postings
-            (group_id, period_id, idempotency_key, journal_entry_ids,
-             suggestion_count, total_amount_minor, posted_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (group_id, period_id, idempotency_key) DO NOTHING",
-    )
-    .bind(group_id)
-    .bind(period_id)
-    .bind(idempotency_key)
-    .bind(&ids_json)
-    .bind(suggestion_count as i32)
-    .bind(total_amount_minor)
-    .bind(posted_at)
-    .execute(pool)
-    .await?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,7 +202,7 @@ mod tests {
     fn test_suggest_eliminations_basic() {
         let match_result = IntercompanyMatchResult {
             group_id: Uuid::new_v4(),
-            as_of: NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            as_of: NaiveDate::from_ymd_opt(2026, 1, 31).expect("test"),
             matches: vec![IntercompanyMatch {
                 rule_id: Uuid::new_v4(),
                 rule_name: "IC Recv/Pay".into(),
@@ -270,7 +231,7 @@ mod tests {
     fn test_suggest_eliminations_skips_zero() {
         let match_result = IntercompanyMatchResult {
             group_id: Uuid::new_v4(),
-            as_of: NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            as_of: NaiveDate::from_ymd_opt(2026, 1, 31).expect("test"),
             matches: vec![IntercompanyMatch {
                 rule_id: Uuid::new_v4(),
                 rule_name: "Zero".into(),
@@ -293,11 +254,11 @@ mod tests {
 
     #[test]
     fn test_idempotency_key_deterministic() {
-        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let pid = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let date = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
+        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("test");
+        let pid = Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("test");
+        let date = NaiveDate::from_ymd_opt(2026, 1, 31).expect("test");
         let suggestions = vec![EliminationSuggestion {
-            rule_id: Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap(),
+            rule_id: Uuid::parse_str("00000000-0000-0000-0000-000000000003").expect("test"),
             rule_name: "IC".into(),
             rule_type: "custom".into(),
             entity_a_tenant_id: "a".into(),
@@ -315,10 +276,10 @@ mod tests {
 
     #[test]
     fn test_idempotency_key_changes_with_amount() {
-        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let pid = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-        let date = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-        let rid = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
+        let gid = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("test");
+        let pid = Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("test");
+        let date = NaiveDate::from_ymd_opt(2026, 1, 31).expect("test");
+        let rid = Uuid::parse_str("00000000-0000-0000-0000-000000000003").expect("test");
 
         let s1 = vec![EliminationSuggestion {
             rule_id: rid,

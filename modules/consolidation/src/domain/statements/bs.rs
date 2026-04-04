@@ -15,6 +15,8 @@ use sqlx::PgPool;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use super::repo;
+
 // ── Response types ────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -47,23 +49,7 @@ pub async fn compute_consolidated_bs(
     group_id: Uuid,
     as_of: NaiveDate,
 ) -> Result<ConsolidatedBalanceSheet, sqlx::Error> {
-    let rows: Vec<(String, String, String, i64, i64)> = sqlx::query_as(
-        r#"
-        SELECT account_code,
-               account_name,
-               currency,
-               debit_minor,
-               credit_minor
-        FROM csl_trial_balance_cache
-        WHERE group_id = $1
-          AND as_of = $2
-        ORDER BY account_code, currency
-        "#,
-    )
-    .bind(group_id)
-    .bind(as_of)
-    .fetch_all(pool)
-    .await?;
+    let rows = repo::fetch_tb_cache_rows(pool, group_id, as_of).await?;
 
     let mut assets: Vec<BsAccountLine> = Vec::new();
     let mut liabilities: Vec<BsAccountLine> = Vec::new();
