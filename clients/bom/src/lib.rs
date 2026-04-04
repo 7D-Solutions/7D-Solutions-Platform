@@ -10,7 +10,6 @@ pub mod bom_revisions;
 pub mod eco;
 pub mod eco_lifecycle;
 pub mod eco_links;
-pub mod health;
 
 pub use types::*;
 pub use bom::BomClient;
@@ -20,7 +19,6 @@ pub use bom_revisions::BomRevisionsClient;
 pub use eco::EcoClient;
 pub use eco_lifecycle::EcoLifecycleClient;
 pub use eco_links::EcoLinksClient;
-pub use health::HealthClient;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
@@ -67,13 +65,6 @@ impl platform_sdk::PlatformService for EcoLifecycleClient {
 }
 
 impl platform_sdk::PlatformService for EcoLinksClient {
-    const SERVICE_NAME: &'static str = "bom";
-    fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
-        Self::new(client)
-    }
-}
-
-impl platform_sdk::PlatformService for HealthClient {
     const SERVICE_NAME: &'static str = "bom";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)

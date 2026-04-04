@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.0.1"
+version = "3.1.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "4.1.0"
+version = "6.2.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.8.1"
+version = "1.9.0"
 dependencies = [
  "argon2",
  "async-nats",
@@ -567,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.2.7"
+version = "2.3.0"
 dependencies = [
  "axum",
  "chrono",
@@ -872,7 +872,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.2.7"
+version = "2.3.0"
 dependencies = [
  "axum",
  "chrono",
@@ -1148,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.1.4"
+version = "2.3.0"
 dependencies = [
  "argon2",
  "axum",
@@ -1622,7 +1622,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.6"
+version = "2.1.7"
 dependencies = [
  "async-nats",
  "axum",
@@ -1689,6 +1689,21 @@ name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
+name = "foreign-types"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
+dependencies = [
+ "foreign-types-shared",
+]
+
+[[package]]
+name = "foreign-types-shared"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
 name = "form_urlencoded"
@@ -1883,7 +1898,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "3.0.2"
+version = "3.1.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -2197,6 +2212,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-tls"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+dependencies = [
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+ "tower-service",
+]
+
+[[package]]
 name = "hyper-util"
 version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2214,9 +2245,11 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "socket2",
+ "system-configuration",
  "tokio",
  "tower-service",
  "tracing",
+ "windows-registry",
 ]
 
 [[package]]
@@ -2380,7 +2413,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.3.2"
+version = "2.3.4"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -2690,7 +2723,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "maintenance-rs"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -2828,6 +2861,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-tls"
+version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "465500e14ea162429d264d44189adc38b199b62b1c21eea9f69e4b73cb03bbf2"
+dependencies = [
+ "libc",
+ "log",
+ "openssl",
+ "openssl-probe 0.2.1",
+ "openssl-sys",
+ "schannel",
+ "security-framework 3.7.0",
+ "security-framework-sys",
+ "tempfile",
+]
+
+[[package]]
 name = "nkeys"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2871,7 +2921,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "3.0.0"
+version = "3.1.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3036,7 +3086,7 @@ dependencies = [
 
 [[package]]
 name = "numbering"
-version = "2.1.4"
+version = "2.2.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -3088,6 +3138,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
+name = "openssl"
+version = "0.10.76"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "951c002c75e16ea2c65b8c7e4d3d51d5530d8dfa7d060b4776828c88cfb18ecf"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "foreign-types",
+ "libc",
+ "once_cell",
+ "openssl-macros",
+ "openssl-sys",
+]
+
+[[package]]
+name = "openssl-macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "openssl-probe"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3098,6 +3174,18 @@ name = "openssl-probe"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+
+[[package]]
+name = "openssl-sys"
+version = "0.9.112"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57d55af3b3e226502be1526dfdba67ab0e9c96fc293004e79576b2b9edb0dbdb"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "vcpkg",
+]
 
 [[package]]
 name = "owned_ttf_parser"
@@ -3139,7 +3227,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.0.1"
+version = "3.1.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -3189,7 +3277,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "4.0.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3228,7 +3316,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor-rs"
-version = "2.1.5"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3417,6 +3505,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-consolidation"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-customer-portal"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-doc-mgmt"
 version = "0.1.0"
 dependencies = [
@@ -3425,6 +3537,7 @@ dependencies = [
  "platform-sdk",
  "serde",
  "serde_json",
+ "utoipa",
  "uuid",
 ]
 
@@ -3489,6 +3602,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-maintenance"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-notifications"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-numbering"
 version = "0.1.0"
 dependencies = [
@@ -3525,7 +3662,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-pdf-editor"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-production"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-quality-inspection"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -3561,7 +3722,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-smoke-test"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-subscriptions"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-tenant-registry"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-timekeeping"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -3585,7 +3782,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "platform-client-ttp"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "platform-client-workflow"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-workforce-competence"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -3795,7 +4016,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "2.3.3"
+version = "3.1.0"
 dependencies = [
  "axum",
  "chrono",
@@ -3929,7 +4150,7 @@ dependencies = [
 
 [[package]]
 name = "quality-inspection-rs"
-version = "2.0.4"
+version = "3.0.0"
 dependencies = [
  "axum",
  "chrono",
@@ -3938,9 +4159,11 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "jsonwebtoken",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
+ "reqwest",
  "security",
  "serde",
  "serde_json",
@@ -4194,7 +4417,7 @@ dependencies = [
 
 [[package]]
 name = "reporting"
-version = "2.1.2"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4236,18 +4459,23 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64",
  "bytes",
+ "encoding_rs",
  "futures-channel",
  "futures-core",
  "futures-util",
+ "h2",
  "http",
  "http-body",
  "http-body-util",
  "hyper",
  "hyper-rustls",
+ "hyper-tls",
  "hyper-util",
  "js-sys",
  "log",
+ "mime",
  "mime_guess",
+ "native-tls",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -4258,6 +4486,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls",
  "tower",
  "tower-http",
@@ -4548,7 +4777,7 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "security"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "axum",
  "base64",
@@ -4788,7 +5017,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "2.2.8"
+version = "3.1.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -4918,6 +5147,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "smoke-test-rs"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "event-bus",
+ "futures",
+ "health",
+ "platform-http-contracts",
+ "platform-sdk",
+ "platform_contracts",
+ "security",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "utoipa",
+ "uuid",
 ]
 
 [[package]]
@@ -5204,7 +5455,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "4.0.0"
+version = "5.1.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -5282,6 +5533,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "system-configuration"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a13f3d0daba03132c0aa9767f98351b3488edc2c100cda2d2ec2b04f3d8d3c8b"
+dependencies = [
+ "bitflags",
+ "core-foundation 0.9.4",
+ "system-configuration-sys",
+]
+
+[[package]]
+name = "system-configuration-sys"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
 ]
 
 [[package]]
@@ -5439,7 +5711,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeping"
-version = "2.1.6"
+version = "3.0.1"
 dependencies = [
  "async-nats",
  "axum",
@@ -5530,6 +5802,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
 ]
 
 [[package]]
@@ -5842,7 +6124,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.5"
+version = "2.1.6"
 dependencies = [
  "async-nats",
  "axum",
@@ -5897,7 +6179,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "2.1.17"
+version = "4.0.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -5909,6 +6191,7 @@ dependencies = [
  "health",
  "platform-client-ar",
  "platform-client-tenant-registry",
+ "platform-http-contracts",
  "platform-sdk",
  "projections",
  "prometheus",
@@ -6131,6 +6414,53 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vertical-proof"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "event-bus",
+ "platform-client-ap",
+ "platform-client-ar",
+ "platform-client-bom",
+ "platform-client-consolidation",
+ "platform-client-customer-portal",
+ "platform-client-doc-mgmt",
+ "platform-client-fixed-assets",
+ "platform-client-gl",
+ "platform-client-identity-auth",
+ "platform-client-integrations",
+ "platform-client-inventory",
+ "platform-client-maintenance",
+ "platform-client-notifications",
+ "platform-client-numbering",
+ "platform-client-party",
+ "platform-client-payments",
+ "platform-client-pdf-editor",
+ "platform-client-production",
+ "platform-client-quality-inspection",
+ "platform-client-reporting",
+ "platform-client-shipping-receiving",
+ "platform-client-smoke-test",
+ "platform-client-subscriptions",
+ "platform-client-tenant-registry",
+ "platform-client-timekeeping",
+ "platform-client-treasury",
+ "platform-client-ttp",
+ "platform-client-workflow",
+ "platform-client-workforce-competence",
+ "platform-http-contracts",
+ "platform-sdk",
+ "security",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "walkdir"
@@ -6399,6 +6729,17 @@ name = "windows-link"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
+name = "windows-registry"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02752bf7fbdcce7f2a27a742f798510f3e5ad88dbe84871e5168e2120c3d5720"
+dependencies = [
+ "windows-link",
+ "windows-result",
+ "windows-strings",
+]
 
 [[package]]
 name = "windows-result"
@@ -6762,7 +7103,7 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "2.1.4"
+version = "2.2.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -6793,7 +7134,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.1.6"
+version = "2.2.0"
 dependencies = [
  "axum",
  "chrono",

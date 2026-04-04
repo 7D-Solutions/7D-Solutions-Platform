@@ -1683,11 +1683,19 @@ components:
 
     CalibrationStatusResponse:
       type: object
+      required: [asset_id, status, out_of_service]
       properties:
+        asset_id:
+          type: string
+          format: uuid
+          description: The asset this calibration status belongs to
         status:
           type: string
           enum: [in_cal, due, overdue, out_of_service]
           description: Derived calibration status
+        out_of_service:
+          type: boolean
+          description: Whether the asset is currently out of service
         last_calibrated_at:
           type: string
           format: date-time

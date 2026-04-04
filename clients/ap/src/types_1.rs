@@ -183,7 +183,7 @@ pub struct CreateAllocationRequest {
 }
 
 /// A single bill line in the creation request.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateBillLineRequest {
     /// Optional description (defaults to "" if not supplied)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -240,7 +240,7 @@ pub struct CreatePaymentRunBody {
 }
 
 /// Request body to create payment terms.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreatePaymentTermsRequest {
     pub days_due: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -261,7 +261,7 @@ pub struct CreatePaymentTermsRequest {
 }
 
 /// A single line in a PO create or update request.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreatePoLineRequest {
     /// Human-readable line description. Required when item_id is absent.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -297,7 +297,7 @@ pub struct CreatePoRequest {
 }
 
 /// Request body to create a new vendor.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateVendorRequest {
     /// ISO 4217 currency code
     pub currency: String,

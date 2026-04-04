@@ -11,25 +11,26 @@ pub use types::*;
 pub use control::ControlClient;
 pub use plans::PlansClient;
 pub use tenants::TenantsClient;
+pub use tenants::ListTenantsQuery;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 
 impl platform_sdk::PlatformService for ControlClient {
-    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
+    const SERVICE_NAME: &'static str = "tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for PlansClient {
-    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
+    const SERVICE_NAME: &'static str = "tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }
 }
 
 impl platform_sdk::PlatformService for TenantsClient {
-    const SERVICE_NAME: &'static str = "platform-client-tenant-registry";
+    const SERVICE_NAME: &'static str = "tenant-registry";
     fn from_platform_client(client: platform_sdk::PlatformClient) -> Self {
         Self::new(client)
     }

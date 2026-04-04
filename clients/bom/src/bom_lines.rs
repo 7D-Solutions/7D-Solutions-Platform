@@ -48,6 +48,21 @@ impl BomLinesClient {
         parse_response(resp).await
     }
 
+    /// Like [`get_lines`] but fetches all pages into a single `Vec`.
+    pub async fn get_lines_all(&self, claims: &VerifiedClaims, revision_id: uuid::Uuid) -> Result<Vec<BomLine>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_lines(claims, revision_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/bom/revisions/{revision_id}/lines`
     pub async fn post_line(&self, claims: &VerifiedClaims, revision_id: uuid::Uuid, body: &AddLineRequest) -> Result<BomLine, ClientError> {
         let path = format!("/api/bom/revisions/{}/lines", revision_id);

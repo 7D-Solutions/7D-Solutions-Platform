@@ -5,6 +5,23 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response};
 
+/// Query parameters for [`list_instances`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ListInstancesQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub definition_id: Option<uuid::Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i64>,
+}
+
 /// Typed HTTP client for Instances endpoints.
 pub struct InstancesClient {
     client: PlatformClient,
@@ -16,34 +33,29 @@ impl InstancesClient {
     }
 
     /// GET `/api/workflow/instances`
-    pub async fn list_instances(&self, claims: &VerifiedClaims, entity_type: Option<&str>, entity_id: Option<&str>, status: Option<&str>, definition_id: Option<uuid::Uuid>, page: Option<i64>, page_size: Option<i64>) -> Result<PaginatedResponse<WorkflowInstance>, ClientError> {
+    pub async fn list_instances(&self, claims: &VerifiedClaims, query: &ListInstancesQuery) -> Result<PaginatedResponse<WorkflowInstance>, ClientError> {
         let path = format!("/api/workflow/instances");
-        #[derive(serde::Serialize)]
-        struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
-            entity_type: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            entity_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            definition_id: Option<uuid::Uuid>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page: Option<i64>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page_size: Option<i64>,
-        }
-        let query = Query {
-            entity_type: entity_type.map(|s| s.to_string()),
-            entity_id: entity_id.map(|s| s.to_string()),
-            status: status.map(|s| s.to_string()),
-            definition_id,
-            page,
-            page_size,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`list_instances`] but fetches all pages into a single `Vec`.
+    pub async fn list_instances_all(&self, claims: &VerifiedClaims, query: &ListInstancesQuery) -> Result<Vec<WorkflowInstance>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let mut q = query.clone();
+            q.page = Some(page);
+            q.page_size = Some(100);
+            let resp = self.list_instances(claims, &q).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// POST `/api/workflow/instances`

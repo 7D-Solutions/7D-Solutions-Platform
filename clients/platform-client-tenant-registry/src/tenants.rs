@@ -5,6 +5,23 @@
 use crate::*;
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims, build_query_url, parse_response};
 
+/// Query parameters for [`list_tenants`].
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct ListTenantsQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i64>,
+}
+
 /// Typed HTTP client for tenants endpoints.
 pub struct TenantsClient {
     client: PlatformClient,
@@ -16,32 +33,9 @@ impl TenantsClient {
     }
 
     /// GET `/api/tenants`
-    pub async fn list_tenants(&self, claims: &VerifiedClaims, search: Option<&str>, status: Option<&str>, plan: Option<&str>, app_id: Option<&str>, page: Option<i64>, page_size: Option<i64>) -> Result<TenantListResponse, ClientError> {
+    pub async fn list_tenants(&self, claims: &VerifiedClaims, query: &ListTenantsQuery) -> Result<TenantListResponse, ClientError> {
         let path = format!("/api/tenants");
-        #[derive(serde::Serialize)]
-        struct Query {
-            #[serde(skip_serializing_if = "Option::is_none")]
-            search: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            status: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            plan: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            app_id: Option<String>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page: Option<i64>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            page_size: Option<i64>,
-        }
-        let query = Query {
-            search: search.map(|s| s.to_string()),
-            status: status.map(|s| s.to_string()),
-            plan: plan.map(|s| s.to_string()),
-            app_id: app_id.map(|s| s.to_string()),
-            page,
-            page_size,
-        };
-        let url = build_query_url(&path, &query)?;
+        let url = build_query_url(&path, query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }

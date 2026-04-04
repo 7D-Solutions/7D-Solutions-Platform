@@ -72,6 +72,21 @@ impl PartiesClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_parties`] but fetches all pages into a single `Vec`.
+    pub async fn list_parties_all(&self, claims: &VerifiedClaims, include_inactive: Option<bool>) -> Result<Vec<Party>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_parties(claims, include_inactive, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// GET `/api/party/parties/search`
     pub async fn search_parties(&self, claims: &VerifiedClaims, query: &SearchPartiesQuery) -> Result<PaginatedResponse<Party>, ClientError> {
         let path = format!("/api/party/parties/search");
@@ -99,14 +114,6 @@ impl PartiesClient {
     /// POST `/api/party/parties/{id}/deactivate`
     pub async fn deactivate_party(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<(), ClientError> {
         let path = format!("/api/party/parties/{}/deactivate", id);
-        let url = path;
-        let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
-        parse_empty(resp).await
-    }
-
-    /// POST `/api/party/parties/{id}/reactivate`
-    pub async fn reactivate_party(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<(), ClientError> {
-        let path = format!("/api/party/parties/{}/reactivate", id);
         let url = path;
         let resp = self.client.post(&url, &serde_json::Value::Null, claims).await.map_err(ClientError::Network)?;
         parse_empty(resp).await

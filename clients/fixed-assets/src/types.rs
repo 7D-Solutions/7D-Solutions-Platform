@@ -148,7 +148,7 @@ pub struct CreateAssetRequest {
     pub vendor: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateCategoryRequest {
     pub accum_depreciation_ref: String,
     pub asset_account_ref: String,

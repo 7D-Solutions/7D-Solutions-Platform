@@ -1108,8 +1108,6 @@
         "required": [
           "id",
           "status",
-          "template_key",
-          "template_version",
           "channel",
           "receipts",
           "created_at"
@@ -1148,10 +1146,16 @@
             "type": "string"
           },
           "template_key": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "template_version": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32"
           }
         }
@@ -1160,7 +1164,6 @@
         "type": "object",
         "description": "Input for POST /notifications/send.",
         "required": [
-          "template_key",
           "channel",
           "recipients",
           "payload_json"
@@ -1189,7 +1192,22 @@
             }
           },
           "template_key": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rendered_subject": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rendered_body": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1198,8 +1216,6 @@
         "required": [
           "id",
           "status",
-          "template_key",
-          "template_version",
           "channel",
           "receipt_count"
         ],
@@ -1225,10 +1241,16 @@
             "type": "string"
           },
           "template_key": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "template_version": {
-            "type": "integer",
+            "type": [
+              "integer",
+              "null"
+            ],
             "format": "int32"
           }
         }

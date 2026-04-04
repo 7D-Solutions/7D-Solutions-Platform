@@ -40,6 +40,21 @@ impl EcoClient {
         parse_response(resp).await
     }
 
+    /// Like [`get_eco_history_for_part`] but fetches all pages into a single `Vec`.
+    pub async fn get_eco_history_for_part_all(&self, claims: &VerifiedClaims, part_id: uuid::Uuid) -> Result<Vec<Eco>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_eco_history_for_part(claims, part_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// GET `/api/eco/{eco_id}`
     pub async fn get_eco(&self, claims: &VerifiedClaims, eco_id: uuid::Uuid) -> Result<Eco, ClientError> {
         let path = format!("/api/eco/{}", eco_id);
@@ -63,5 +78,20 @@ impl EcoClient {
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`get_eco_audit`] but fetches all pages into a single `Vec`.
+    pub async fn get_eco_audit_all(&self, claims: &VerifiedClaims, eco_id: uuid::Uuid) -> Result<Vec<EcoAuditEntry>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_eco_audit(claims, eco_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 }

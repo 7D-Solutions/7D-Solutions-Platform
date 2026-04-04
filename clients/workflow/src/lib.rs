@@ -9,6 +9,7 @@ pub mod instances;
 pub use types::*;
 pub use definitions::DefinitionsClient;
 pub use instances::InstancesClient;
+pub use instances::ListInstancesQuery;
 
 // -- PlatformService trait impls (connects to SDK VerticalBuilder) --
 

@@ -152,7 +152,7 @@ pub struct CorrectEntryRequest {
     pub task_id: Option<uuid::Uuid>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateAllocationRequest {
     pub allocated_minutes_per_week: i32,
     pub app_id: String,
@@ -172,7 +172,7 @@ pub struct CreateBillingRateRequest {
     pub rate_cents_per_hour: i32,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateBillingRunRequest {
     pub app_id: String,
     pub ar_customer_id: i32,
@@ -198,7 +198,7 @@ pub struct CreateEmployeeRequest {
     pub last_name: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateEntryRequest {
     pub app_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -214,7 +214,7 @@ pub struct CreateEntryRequest {
     pub work_date: chrono::NaiveDate,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateExportRunRequest {
     pub app_id: String,
     pub export_type: String,
@@ -235,7 +235,7 @@ pub struct CreateProjectRequest {
     pub project_code: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTaskRequest {
     pub app_id: String,
     pub name: String,

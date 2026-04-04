@@ -56,7 +56,7 @@ pub struct AdvanceResponse {
     pub transition: WorkflowTransition,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateDefinitionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,

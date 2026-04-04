@@ -32,6 +32,21 @@ impl BomClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_boms`] but fetches all pages into a single `Vec`.
+    pub async fn list_boms_all(&self, claims: &VerifiedClaims) -> Result<Vec<BomHeader>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_boms(claims, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/bom`
     pub async fn post_bom(&self, claims: &VerifiedClaims, body: &CreateBomRequest) -> Result<BomHeader, ClientError> {
         let path = format!("/api/bom");

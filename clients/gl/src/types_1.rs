@@ -355,7 +355,7 @@ pub struct CreateAccrualRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateApprovalRequest {
     pub actor_id: String,
     pub approval_type: String,
@@ -363,7 +363,7 @@ pub struct CreateApprovalRequest {
     pub notes: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateChecklistItemRequest {
     pub label: String,
 }
@@ -392,7 +392,7 @@ pub struct CreateContractResponse {
     pub total_transaction_price_minor: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateExportRequest {
     pub export_type: String,
     pub format: String,
@@ -417,7 +417,7 @@ pub struct CreateFxRateResponse {
     pub rate_id: uuid::Uuid,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateTemplateRequest {
     pub amount_minor: i64,
     #[serde(skip_serializing_if = "Option::is_none")]

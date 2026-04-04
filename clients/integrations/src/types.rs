@@ -101,7 +101,7 @@ pub struct ConnectorConfig {
 }
 
 /// Create a new external ref (or upsert if the same system+external_id exists).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateExternalRefRequest {
     /// Internal entity ID (UUID or opaque string).
     pub entity_id: String,

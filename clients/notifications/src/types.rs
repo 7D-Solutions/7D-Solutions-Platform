@@ -59,6 +59,11 @@ pub struct DeliveryAttemptDetail {
     pub status: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryListResponse {
+    pub receipts: Vec<DeliveryReceipt>,
+}
+
 /// Query parameters for GET /deliveries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeliveryQuery {
@@ -116,6 +121,12 @@ pub struct DlqDetailResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqError {
+    pub error: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DlqItem {
     pub channel: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -131,11 +142,29 @@ pub struct DlqItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DlqListResponse {
+    pub items: Vec<DlqItem>,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InboxActionResponse {
     pub action: String,
     pub id: uuid::Uuid,
     pub is_dismissed: bool,
     pub is_read: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxError {
+    pub error: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +186,12 @@ pub struct InboxItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InboxListResponse {
+    pub items: Vec<InboxItem>,
+    pub total: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendDetailResponse {
     pub channel: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -167,8 +202,10 @@ pub struct SendDetailResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rendered_hash: Option<String>,
     pub status: String,
-    pub template_key: String,
-    pub template_version: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_version: Option<i32>,
 }
 
 /// Input for POST /notifications/send.
@@ -181,7 +218,12 @@ pub struct SendRequest {
     pub correlation_id: Option<String>,
     pub payload_json: serde_json::Value,
     pub recipients: Vec<String>,
-    pub template_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_body: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rendered_subject: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,8 +234,10 @@ pub struct SendResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rendered_hash: Option<String>,
     pub status: String,
-    pub template_key: String,
-    pub template_version: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub template_version: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

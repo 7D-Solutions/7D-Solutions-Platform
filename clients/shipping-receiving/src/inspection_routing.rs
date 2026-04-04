@@ -16,7 +16,7 @@ impl InspectionRoutingClient {
     }
 
     /// GET `/api/shipping-receiving/shipments/{id}/routings`
-    pub async fn list_routings(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<PaginatedResponse<InspectionRoutingRow>, ClientError> {
+    pub async fn list_routings(&self, claims: &VerifiedClaims, id: uuid::Uuid) -> Result<Vec<InspectionRoutingRow>, ClientError> {
         let path = format!("/api/shipping-receiving/shipments/{}/routings", id);
         let url = path;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;

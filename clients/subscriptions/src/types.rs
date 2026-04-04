@@ -77,7 +77,7 @@ pub struct CreateSubscriptionPlanRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSubscriptionRequest {
     pub ar_customer_id: String,
     pub currency: String,

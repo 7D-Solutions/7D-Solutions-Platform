@@ -32,6 +32,21 @@ impl EcoLinksClient {
         parse_response(resp).await
     }
 
+    /// Like [`get_bom_revision_links`] but fetches all pages into a single `Vec`.
+    pub async fn get_bom_revision_links_all(&self, claims: &VerifiedClaims, eco_id: uuid::Uuid) -> Result<Vec<EcoBomRevision>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_bom_revision_links(claims, eco_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/eco/{eco_id}/bom-revisions`
     pub async fn post_link_bom_revision(&self, claims: &VerifiedClaims, eco_id: uuid::Uuid, body: &LinkBomRevisionRequest) -> Result<EcoBomRevision, ClientError> {
         let path = format!("/api/eco/{}/bom-revisions", eco_id);
@@ -55,6 +70,21 @@ impl EcoLinksClient {
         let url = build_query_url(&path, &query)?;
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
+    }
+
+    /// Like [`get_doc_revision_links`] but fetches all pages into a single `Vec`.
+    pub async fn get_doc_revision_links_all(&self, claims: &VerifiedClaims, eco_id: uuid::Uuid) -> Result<Vec<EcoDocRevision>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.get_doc_revision_links(claims, eco_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
     }
 
     /// POST `/api/eco/{eco_id}/doc-revisions`

@@ -80,7 +80,7 @@ pub struct Contact {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateAddressRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address_type: Option<String>,
@@ -102,7 +102,7 @@ pub struct CreateAddressRequest {
     pub state: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateCompanyRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address_line1: Option<String>,
@@ -146,7 +146,7 @@ pub struct CreateCompanyRequest {
     pub website: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateContactRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
@@ -163,7 +163,7 @@ pub struct CreateContactRequest {
     pub role: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateIndividualRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address_line1: Option<String>,

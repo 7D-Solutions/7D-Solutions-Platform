@@ -208,6 +208,7 @@ pub struct RoutingStep {
     pub sequence_number: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub setup_time_minutes: Option<i32>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
     pub workcenter_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workcenter_name: Option<String>,

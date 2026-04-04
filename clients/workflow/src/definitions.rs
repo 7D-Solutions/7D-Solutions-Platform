@@ -37,6 +37,21 @@ impl DefinitionsClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_definitions`] but fetches all pages into a single `Vec`.
+    pub async fn list_definitions_all(&self, claims: &VerifiedClaims, active_only: Option<bool>) -> Result<Vec<WorkflowDefinition>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_definitions(claims, active_only, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/workflow/definitions`
     pub async fn create_definition(&self, claims: &VerifiedClaims, body: &CreateDefinitionRequest) -> Result<WorkflowDefinition, ClientError> {
         let path = format!("/api/workflow/definitions");

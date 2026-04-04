@@ -33,4 +33,19 @@ impl DocumentsClient {
         let resp = self.client.get(&url, claims).await.map_err(ClientError::Network)?;
         parse_response(resp).await
     }
+
+    /// Like [`list_documents`] but fetches all pages into a single `Vec`.
+    pub async fn list_documents_all(&self, claims: &VerifiedClaims) -> Result<Vec<PortalDocumentView>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_documents(claims, Some(page), Some(100)).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
 }

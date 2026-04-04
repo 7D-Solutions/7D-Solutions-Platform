@@ -40,6 +40,21 @@ impl BomRevisionsClient {
         parse_response(resp).await
     }
 
+    /// Like [`list_revisions`] but fetches all pages into a single `Vec`.
+    pub async fn list_revisions_all(&self, claims: &VerifiedClaims, bom_id: uuid::Uuid) -> Result<Vec<BomRevision>, ClientError> {
+        let mut all_data = Vec::new();
+        let mut page: i64 = 1;
+        loop {
+            let resp = self.list_revisions(claims, bom_id, page, 100).await?;
+            all_data.extend(resp.data);
+            if page >= resp.pagination.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(all_data)
+    }
+
     /// POST `/api/bom/{bom_id}/revisions`
     pub async fn post_revision(&self, claims: &VerifiedClaims, bom_id: uuid::Uuid, body: &CreateRevisionRequest) -> Result<BomRevision, ClientError> {
         let path = format!("/api/bom/{}/revisions", bom_id);

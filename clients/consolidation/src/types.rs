@@ -125,7 +125,7 @@ pub struct ConsolidatedTbRow {
     pub net_minor: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateCoaMappingRequest {
     pub entity_tenant_id: String,
     pub source_account_code: String,
@@ -134,7 +134,7 @@ pub struct CreateCoaMappingRequest {
     pub target_account_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateEliminationRuleRequest {
     pub credit_account_code: String,
     pub debit_account_code: String,
@@ -144,7 +144,7 @@ pub struct CreateEliminationRuleRequest {
     pub rule_type: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateEntityRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consolidation_method: Option<String>,
@@ -155,7 +155,7 @@ pub struct CreateEntityRequest {
     pub ownership_pct_bp: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateGroupRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
