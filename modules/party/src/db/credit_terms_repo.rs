@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::domain::credit_terms::{CreateCreditTermsRequest, CreditTerms, UpdateCreditTermsRequest};
+use crate::domain::credit_terms::{CreateCreditTermsRequest, CreditTerms};
 use crate::domain::party::PartyError;
 
 // ── Reads ─────────────────────────────────────────────────────────────────────

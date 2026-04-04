@@ -6,7 +6,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::domain::party::PartyError;
-use crate::domain::scorecard::{CreateScorecardRequest, Scorecard, UpdateScorecardRequest};
+use crate::domain::scorecard::{CreateScorecardRequest, Scorecard};
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 

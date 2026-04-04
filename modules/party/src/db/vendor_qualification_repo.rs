@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::domain::party::PartyError;
 use crate::domain::vendor_qualification::{
-    CreateVendorQualificationRequest, UpdateVendorQualificationRequest, VendorQualification,
+    CreateVendorQualificationRequest, VendorQualification,
 };
 
 // ── Reads ─────────────────────────────────────────────────────────────────────

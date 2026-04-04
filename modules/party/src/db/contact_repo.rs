@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::domain::contact::{Contact, CreateContactRequest, UpdateContactRequest};
+use crate::domain::contact::{Contact, CreateContactRequest};
 use crate::domain::party::PartyError;
 
 // ── Guard helpers ─────────────────────────────────────────────────────────────
