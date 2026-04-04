@@ -6,9 +6,11 @@
 
 pub mod admin;
 pub mod admin_types;
+pub mod bill_run_service;
 pub mod config;
 pub mod consumer;
 pub mod cycle_gating;
+pub mod db;
 pub mod envelope;
 pub mod gated_invoice_creation;
 pub mod http;

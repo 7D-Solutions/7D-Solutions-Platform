@@ -1,7 +1,8 @@
 /// HTTP handler: GET /api/ttp/service-agreements
 ///
 /// Lists service agreements (plans) for a tenant, sorted by plan_code then
-/// agreement_id for stable, deterministic output.
+/// agreement_id for stable, deterministic output.  Returns a
+/// `PaginatedResponse<ServiceAgreementItem>`.
 ///
 /// Tenant is derived from the JWT `VerifiedClaims`.
 ///
@@ -9,33 +10,12 @@
 ///
 /// - `status` (optional): filter by status — `active` | `suspended` | `cancelled`
 ///   Defaults to `active`.
-///
-/// # Response — 200 OK
-///
-/// ```json
-/// {
-///   "tenant_id": "uuid",
-///   "items": [
-///     {
-///       "agreement_id": "uuid",
-///       "party_id": "uuid",
-///       "plan_code": "starter",
-///       "amount_minor": 9900,
-///       "currency": "usd",
-///       "billing_cycle": "monthly",
-///       "status": "active",
-///       "effective_from": "2026-01-01"
-///     }
-///   ],
-///   "count": 1
-/// }
-/// ```
 use axum::{
     extract::{Query, State},
     Extension, Json,
 };
 use chrono::NaiveDate;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -73,13 +53,6 @@ pub struct ServiceAgreementItem {
     pub effective_to: Option<NaiveDate>,
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
-pub struct ListServiceAgreementsResponse {
-    pub tenant_id: Uuid,
-    pub items: Vec<ServiceAgreementItem>,
-    pub count: usize,
-}
-
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
@@ -89,7 +62,7 @@ pub struct ListServiceAgreementsResponse {
     get, path = "/api/ttp/service-agreements", tag = "Service Agreements",
     params(ListQuery),
     responses(
-        (status = 200, description = "Service agreements list", body = ListServiceAgreementsResponse),
+        (status = 200, description = "Paginated service agreements list", body = PaginatedResponse<ServiceAgreementItem>),
         (status = 400, description = "Invalid status filter", body = ApiError),
         (status = 401, description = "Missing or invalid authentication", body = ApiError),
         (status = 500, description = "Internal error", body = ApiError),
@@ -100,7 +73,7 @@ pub async fn list_service_agreements(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListQuery>,
-) -> Result<Json<ListServiceAgreementsResponse>, ApiError> {
+) -> Result<Json<PaginatedResponse<ServiceAgreementItem>>, ApiError> {
     let tenant_id = claims
         .map(|Extension(c)| c.tenant_id)
         .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
@@ -171,10 +144,6 @@ pub async fn list_service_agreements(
         ApiError::internal(e.to_string())
     })?;
 
-    let count = items.len();
-    Ok(Json(ListServiceAgreementsResponse {
-        tenant_id,
-        items,
-        count,
-    }))
+    let total = items.len() as i64;
+    Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }

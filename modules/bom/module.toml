@@ -12,7 +12,7 @@ migrations = "./db/migrations"
 auto_migrate = true
 
 [platform.services]
-numbering = { enabled = true, default_url = "http://localhost:8096" }
+numbering = { enabled = true, default_url = "http://localhost:8120" }
 
 [sdk]
 min_version = "0.1.0"

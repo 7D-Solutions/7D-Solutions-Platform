@@ -16,7 +16,7 @@ use crate::AppState;
 #[openapi(
     info(
         title = "TTP Service",
-        version = "3.0.0",
+        version = "4.0.0",
         description = "Tenant-to-platform billing, metering, and service agreement management.\n\n\
                         **Authentication:** Bearer JWT. Tenant derived from JWT claims.\n\
                         Permissions: `ttp.read` for queries, `ttp.mutate` for writes."
@@ -37,7 +37,8 @@ use crate::AppState;
         crate::domain::metering::PriceTrace,
         crate::domain::metering::TraceLineItem,
         service_agreements::ServiceAgreementItem,
-        service_agreements::ListServiceAgreementsResponse,
+        platform_http_contracts::PaginatedResponse<service_agreements::ServiceAgreementItem>,
+        platform_http_contracts::PaginationMeta,
     )),
     security(("bearer" = [])),
     modifiers(&SecurityAddon),

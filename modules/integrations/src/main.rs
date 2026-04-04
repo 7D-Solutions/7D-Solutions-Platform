@@ -1,9 +1,8 @@
-use axum::{routing::get, Json, Router};
+use axum::{routing::get, Json};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
 use integrations_rs::{
-    config::Config,
     domain::connectors::{
         ConfigField, ConfigFieldType, ConnectorCapabilities, ConnectorConfig,
         RegisterConnectorRequest, RunTestActionRequest, TestActionResult,

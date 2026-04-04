@@ -1,6 +1,4 @@
 pub mod bill_run;
-pub mod bill_run_repo;
-pub mod bill_run_service;
 pub mod health;
 
 use axum::{routing::post, Router};
@@ -19,6 +17,9 @@ pub use health::{health, ready, version};
     ),
     paths(
         bill_run::execute_bill_run,
+        health::health,
+        health::ready,
+        health::version,
         crate::admin::projection_status,
         crate::admin::consistency_check,
         crate::admin::list_projections,

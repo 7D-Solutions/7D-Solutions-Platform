@@ -13,29 +13,122 @@
 
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::HeaderMap,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
-use chrono::NaiveDate;
-use platform_http_contracts::ApiError;
+use chrono::{DateTime, NaiveDate, Utc};
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use projections::admin as proj_admin;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 use crate::domain::jobs::snapshot_runner::{run_snapshot, SnapshotRunResult};
 
 // ── Request body ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RebuildRequest {
     pub tenant_id: String,
     /// Start of rebuild range (inclusive), YYYY-MM-DD.
     pub from: NaiveDate,
     /// End of rebuild range (inclusive), YYYY-MM-DD.
     pub to: NaiveDate,
+}
+
+// ── Local ToSchema mirrors of projections::admin types ──────────────────────
+// The projections crate doesn't depend on utoipa, so we define OpenAPI-visible
+// versions here and convert from the upstream types.
+
+/// Cursor status for a single projection/tenant pair.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CursorStatusSchema {
+    pub projection_name: String,
+    pub tenant_id: String,
+    pub events_processed: i64,
+    pub last_event_id: String,
+    pub last_event_occurred_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Projection status response (may contain multiple tenant cursors).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProjectionStatusSchema {
+    pub projection_name: String,
+    pub cursors: Vec<CursorStatusSchema>,
+    pub status: String,
+}
+
+/// Consistency check result.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ConsistencyCheckSchema {
+    pub projection_name: String,
+    pub table_exists: bool,
+    pub row_count: i64,
+    pub digest: String,
+    pub digest_version: String,
+    pub order_by: String,
+    pub checked_at: DateTime<Utc>,
+    pub status: String,
+}
+
+/// Summary of a single projection in the listing.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ProjectionSummarySchema {
+    pub projection_name: String,
+    pub tenant_count: i64,
+    pub total_events_processed: i64,
+    pub last_updated: Option<DateTime<Utc>>,
+}
+
+impl From<proj_admin::ProjectionStatusResponse> for ProjectionStatusSchema {
+    fn from(r: proj_admin::ProjectionStatusResponse) -> Self {
+        Self {
+            projection_name: r.projection_name,
+            cursors: r
+                .cursors
+                .into_iter()
+                .map(|c| CursorStatusSchema {
+                    projection_name: c.projection_name,
+                    tenant_id: c.tenant_id,
+                    events_processed: c.events_processed,
+                    last_event_id: c.last_event_id,
+                    last_event_occurred_at: c.last_event_occurred_at,
+                    updated_at: c.updated_at,
+                })
+                .collect(),
+            status: r.status.to_string(),
+        }
+    }
+}
+
+impl From<proj_admin::ConsistencyCheckResponse> for ConsistencyCheckSchema {
+    fn from(r: proj_admin::ConsistencyCheckResponse) -> Self {
+        Self {
+            projection_name: r.projection_name,
+            table_exists: r.table_exists,
+            row_count: r.row_count,
+            digest: r.digest,
+            digest_version: r.digest_version,
+            order_by: r.order_by,
+            checked_at: r.checked_at,
+            status: r.status.to_string(),
+        }
+    }
+}
+
+impl From<proj_admin::ProjectionSummary> for ProjectionSummarySchema {
+    fn from(s: proj_admin::ProjectionSummary) -> Self {
+        Self {
+            projection_name: s.projection_name,
+            tenant_count: s.tenant_count,
+            total_events_processed: s.total_events_processed,
+            last_updated: s.last_updated,
+        }
+    }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -117,67 +210,91 @@ fn extract_token(headers: &HeaderMap) -> Option<&str> {
     headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
-fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ApiError>)> {
+fn guard(headers: &HeaderMap) -> Result<(), ApiError> {
     proj_admin::verify_admin_token(extract_token(headers)).map_err(|msg| {
         tracing::warn!(reason = msg, "Admin request rejected");
-        (
-            StatusCode::FORBIDDEN,
-            Json(ApiError::new(403, "forbidden", msg)),
-        )
+        ApiError::forbidden(msg)
     })
 }
 
-async fn projection_status(
+#[utoipa::path(
+    post,
+    path = "/api/reporting/admin/projection-status",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Projection cursor status", body = ProjectionStatusSchema),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn projection_status(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<proj_admin::ProjectionStatusRequest>,
-) -> Result<Json<proj_admin::ProjectionStatusResponse>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<ProjectionStatusSchema>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: projection-status");
     let resp = proj_admin::query_projection_status(&pool, &req)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::internal(e)),
-            )
+            tracing::error!("Admin projection-status error: {}", e);
+            ApiError::internal("Internal error")
         })?;
-    Ok(Json(resp))
+    Ok(Json(resp.into()))
 }
 
-async fn consistency_check(
+#[utoipa::path(
+    post,
+    path = "/api/reporting/admin/consistency-check",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Consistency check result", body = ConsistencyCheckSchema),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn consistency_check(
     State(pool): State<PgPool>,
     headers: HeaderMap,
     Json(req): Json<proj_admin::ConsistencyCheckRequest>,
-) -> Result<Json<proj_admin::ConsistencyCheckResponse>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<ConsistencyCheckSchema>, ApiError> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: consistency-check");
     let resp = proj_admin::query_consistency_check(&pool, &req)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::internal(e)),
-            )
+            tracing::error!("Admin consistency-check error: {}", e);
+            ApiError::internal("Internal error")
         })?;
-    Ok(Json(resp))
+    Ok(Json(resp.into()))
 }
 
-async fn list_projections(
+#[utoipa::path(
+    get,
+    path = "/api/reporting/admin/projections",
+    tag = "Admin",
+    responses(
+        (status = 200, description = "Paginated list of all known projections", body = PaginatedResponse<ProjectionSummarySchema>),
+        (status = 403, description = "Forbidden — invalid or missing admin token", body = ApiError),
+        (status = 500, description = "Internal server error", body = ApiError),
+    ),
+)]
+pub async fn list_projections(
     State(pool): State<PgPool>,
     headers: HeaderMap,
-) -> Result<Json<proj_admin::ProjectionListResponse>, (StatusCode, Json<ApiError>)> {
+) -> Result<Json<PaginatedResponse<ProjectionSummarySchema>>, ApiError> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
     let resp = proj_admin::query_projection_list(&pool)
         .await
         .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::internal(e)),
-            )
+            tracing::error!("Admin list-projections error: {}", e);
+            ApiError::internal("Internal error")
         })?;
-    Ok(Json(resp))
+    let items: Vec<ProjectionSummarySchema> =
+        resp.projections.into_iter().map(Into::into).collect();
+    let total = items.len() as i64;
+    Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }
 
 /// Build the standardized admin sub-router (state = PgPool).

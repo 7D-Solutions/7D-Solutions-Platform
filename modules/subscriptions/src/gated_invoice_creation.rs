@@ -190,7 +190,7 @@ pub async fn create_gated_invoice(
 
     let create_req = CreateInvoiceRequest {
         ar_customer_id,
-        amount_cents: price_minor as i32,
+        amount_cents: price_minor,
         billing_period_end: None,
         billing_period_start: None,
         compliance_codes: None,

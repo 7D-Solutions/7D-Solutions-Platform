@@ -11,7 +11,7 @@ use axum::{
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
-use crate::{metrics, ops, AppState};
+use crate::AppState;
 
 /// Build the Integrations HTTP router with all endpoints.
 ///

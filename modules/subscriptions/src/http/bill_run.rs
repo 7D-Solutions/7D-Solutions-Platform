@@ -1,7 +1,7 @@
 //! Bill run HTTP handler.
 //!
 //! POST /api/bill-runs/execute — Execute billing cycle.
-//! Delegates to [`super::bill_run_service`] for business logic.
+//! Delegates to [`crate::bill_run_service`] for business logic.
 
 use axum::{extract::State, http::StatusCode, Extension, Json};
 use chrono::Utc;
@@ -15,7 +15,7 @@ use crate::models::{BillRunResult, ExecuteBillRunRequest};
 use platform_client_ar::InvoicesClient;
 use platform_sdk::extract_tenant;
 
-use super::bill_run_service;
+use crate::bill_run_service;
 
 fn with_request_id(err: ApiError, ctx: &Option<Extension<TracingContext>>) -> ApiError {
     match ctx {

@@ -65,6 +65,7 @@ pub struct RoutingStep {
     pub run_time_minutes: Option<i32>,
     pub is_required: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 // ============================================================================

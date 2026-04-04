@@ -131,7 +131,7 @@ impl ArClient {
     ) -> Result<ArInvoice, ArClientError> {
         let body = CreateInvoiceRequest {
             ar_customer_id,
-            amount_cents: amount_minor as i32,
+            amount_cents: amount_minor,
             currency: Some(currency.to_string()),
             correlation_id: Some(correlation_id.to_string()),
             party_id: Some(party_id),

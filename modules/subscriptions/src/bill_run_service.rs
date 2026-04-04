@@ -1,6 +1,6 @@
 //! Bill run service — business logic, orchestration, and event emission.
 //!
-//! The handler calls into this layer. SQL goes through [`super::bill_run_repo`].
+//! The handler calls into this layer. SQL goes through [`crate::db::bill_run_repo`].
 
 use chrono::{Datelike, NaiveDate, Utc};
 use event_bus::TracingContext;
@@ -12,7 +12,7 @@ use crate::gated_invoice_creation::{create_gated_invoice, InvoiceCreationError};
 use crate::models::{BillRunCompletedPayload, BillRunResult};
 use crate::outbox::enqueue_event;
 
-use super::bill_run_repo as repo;
+use crate::db::bill_run_repo as repo;
 
 /// Execute a bill run: find due subscriptions, create invoices, emit event.
 ///

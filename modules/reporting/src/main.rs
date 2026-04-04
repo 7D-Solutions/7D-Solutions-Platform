@@ -22,8 +22,12 @@ use reporting::domain::{
         pl::{PlAccountLine, PlSection, PlStatement},
     },
 };
+use platform_http_contracts::{PaginatedResponse, PaginationMeta};
 use reporting::http::{
-    admin::RebuildRequest,
+    admin::{
+        RebuildRequest, CursorStatusSchema, ProjectionStatusSchema,
+        ConsistencyCheckSchema, ProjectionSummarySchema,
+    },
     aging::ArAgingResponse,
 };
 
@@ -31,7 +35,7 @@ use reporting::http::{
 #[openapi(
     info(
         title = "Reporting Service",
-        version = "2.1.0",
+        version = "3.0.0",
         description = "Financial reporting: aging, KPIs, statements, cash flow forecasts, \
                         and probabilistic collection forecasting.",
     ),
@@ -44,6 +48,12 @@ use reporting::http::{
         reporting::http::kpis::get_kpis,
         reporting::http::forecast::get_forecast,
         reporting::http::admin::rebuild,
+        reporting::http::admin::projection_status,
+        reporting::http::admin::consistency_check,
+        reporting::http::admin::list_projections,
+        reporting::http::health,
+        reporting::http::ready,
+        reporting::http::version,
     ),
     components(schemas(
         PlStatement, PlSection, PlAccountLine,
@@ -56,6 +66,9 @@ use reporting::http::{
         CashForecastResponse, CurrencyForecast, ForecastHorizon, AtRiskItem,
         SnapshotRunResult,
         RebuildRequest,
+        CursorStatusSchema, ProjectionStatusSchema,
+        ConsistencyCheckSchema, ProjectionSummarySchema,
+        PaginatedResponse<ProjectionSummarySchema>, PaginationMeta,
         ApiError,
     )),
     security(
