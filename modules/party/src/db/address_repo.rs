@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::domain::address::{Address, CreateAddressRequest, UpdateAddressRequest};
+use crate::domain::address::{Address, CreateAddressRequest};
 use crate::domain::party::PartyError;
 
 // ── Reads ─────────────────────────────────────────────────────────────────────

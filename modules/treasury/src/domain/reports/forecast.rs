@@ -17,6 +17,7 @@ use sqlx::PgPool;
 use std::collections::BTreeMap;
 
 use super::assumptions::ForecastAssumptions;
+use super::repo;
 
 // ============================================================================
 // Input types (mirrors of AR/AP aging structures)
@@ -219,25 +220,7 @@ pub async fn read_ar_aging(
     ar_pool: &PgPool,
     app_id: &str,
 ) -> Result<Vec<ArAgingInput>, sqlx::Error> {
-    let rows: Vec<ArAgingRow> = sqlx::query_as(
-        r#"
-        SELECT
-            currency,
-            COALESCE(SUM(current_minor), 0)::bigint       AS current_minor,
-            COALESCE(SUM(days_1_30_minor), 0)::bigint      AS days_1_30_minor,
-            COALESCE(SUM(days_31_60_minor), 0)::bigint     AS days_31_60_minor,
-            COALESCE(SUM(days_61_90_minor), 0)::bigint     AS days_61_90_minor,
-            COALESCE(SUM(days_over_90_minor), 0)::bigint   AS days_over_90_minor
-        FROM ar_aging_buckets
-        WHERE app_id = $1
-        GROUP BY currency
-        ORDER BY currency
-        "#,
-    )
-    .bind(app_id)
-    .fetch_all(ar_pool)
-    .await?;
-
+    let rows = repo::fetch_ar_aging(ar_pool, app_id).await?;
     Ok(rows
         .into_iter()
         .map(|r| ArAgingInput {
@@ -251,16 +234,6 @@ pub async fn read_ar_aging(
         .collect())
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ArAgingRow {
-    currency: String,
-    current_minor: i64,
-    days_1_30_minor: i64,
-    days_31_60_minor: i64,
-    days_61_90_minor: i64,
-    days_over_90_minor: i64,
-}
-
 /// Read AP aging summary grouped by currency from the AP database.
 ///
 /// Computes open balances from `vendor_bills` minus `ap_allocations`,
@@ -269,50 +242,7 @@ pub async fn read_ap_aging(
     ap_pool: &PgPool,
     tenant_id: &str,
 ) -> Result<Vec<ApAgingInput>, sqlx::Error> {
-    let rows: Vec<ApAgingRow> = sqlx::query_as(
-        r#"
-        WITH bill_open AS (
-            SELECT
-                b.currency,
-                b.due_date,
-                (b.total_minor - COALESCE(SUM(a.amount_minor), 0)) AS open_minor
-            FROM vendor_bills b
-            LEFT JOIN ap_allocations a
-                ON a.bill_id = b.bill_id AND a.tenant_id = b.tenant_id
-            WHERE b.tenant_id = $1
-              AND b.status IN ('approved', 'partially_paid')
-            GROUP BY b.bill_id, b.currency, b.due_date, b.total_minor
-            HAVING (b.total_minor - COALESCE(SUM(a.amount_minor), 0)) > 0
-        )
-        SELECT
-            currency,
-            COALESCE(SUM(CASE WHEN due_date >= NOW()
-                              THEN open_minor ELSE 0 END), 0)::bigint
-                AS current_minor,
-            COALESCE(SUM(CASE WHEN due_date >= NOW() - INTERVAL '30 days'
-                               AND due_date < NOW()
-                              THEN open_minor ELSE 0 END), 0)::bigint
-                AS days_1_30_minor,
-            COALESCE(SUM(CASE WHEN due_date >= NOW() - INTERVAL '60 days'
-                               AND due_date < NOW() - INTERVAL '30 days'
-                              THEN open_minor ELSE 0 END), 0)::bigint
-                AS days_31_60_minor,
-            COALESCE(SUM(CASE WHEN due_date >= NOW() - INTERVAL '90 days'
-                               AND due_date < NOW() - INTERVAL '60 days'
-                              THEN open_minor ELSE 0 END), 0)::bigint
-                AS days_61_90_minor,
-            COALESCE(SUM(CASE WHEN due_date < NOW() - INTERVAL '90 days'
-                              THEN open_minor ELSE 0 END), 0)::bigint
-                AS over_90_minor
-        FROM bill_open
-        GROUP BY currency
-        ORDER BY currency
-        "#,
-    )
-    .bind(tenant_id)
-    .fetch_all(ap_pool)
-    .await?;
-
+    let rows = repo::fetch_ap_aging(ap_pool, tenant_id).await?;
     Ok(rows
         .into_iter()
         .map(|r| ApAgingInput {
@@ -326,37 +256,12 @@ pub async fn read_ap_aging(
         .collect())
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ApAgingRow {
-    currency: String,
-    current_minor: i64,
-    days_1_30_minor: i64,
-    days_31_60_minor: i64,
-    days_61_90_minor: i64,
-    over_90_minor: i64,
-}
-
 /// Read pending (not yet executed) payment runs from the AP database.
 pub async fn read_scheduled_payments(
     ap_pool: &PgPool,
     tenant_id: &str,
 ) -> Result<Vec<ScheduledPaymentInput>, sqlx::Error> {
-    let rows: Vec<SchedRow> = sqlx::query_as(
-        r#"
-        SELECT
-            currency,
-            COALESCE(SUM(total_minor), 0)::bigint AS total_minor
-        FROM payment_runs
-        WHERE tenant_id = $1
-          AND status = 'pending'
-        GROUP BY currency
-        ORDER BY currency
-        "#,
-    )
-    .bind(tenant_id)
-    .fetch_all(ap_pool)
-    .await?;
-
+    let rows = repo::fetch_scheduled_payments(ap_pool, tenant_id).await?;
     Ok(rows
         .into_iter()
         .map(|r| ScheduledPaymentInput {
@@ -364,12 +269,6 @@ pub async fn read_scheduled_payments(
             total_minor: r.total_minor,
         })
         .collect())
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct SchedRow {
-    currency: String,
-    total_minor: i64,
 }
 
 // ============================================================================
