@@ -132,7 +132,7 @@ async fn test_payment_processor_generates_payment_ids() {
         payment_method_id: None,
     };
 
-    let result = processor.process_payment(&request).await;
+    let result: anyhow::Result<_> = processor.process_payment(&request).await;
 
     assert!(result.is_ok(), "Test processor should succeed");
 

@@ -40,7 +40,6 @@ pub use events::{enqueue_event, EventConsumer, EventEnvelope};
 pub use handlers::handle_payment_collection_requested;
 pub use models::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
 pub use processor::{PaymentProcessor, TilledPaymentProcessor};
-#[cfg(test)]
 pub use processor::test_support::TestPaymentProcessor;
 pub use reconciliation::{
     reconcile_unknown_attempt, PspPaymentStatus, ReconciliationError, ReconciliationResult,

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.2 | 2026-04-04 | bd-0clpi | Add pub mod db declaration for portal_repo module | Expose db repository module so extracted repos are accessible from lib root | No |
 | 2.3.1 | 2026-04-04 | bd-0clpi | SoC: extract auth + status SQL into db/ repos | Separation of concerns — handler files mixed HTTP logic with raw SQL queries | No |
 | 2.3.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 2.2.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |

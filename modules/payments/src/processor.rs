@@ -215,7 +215,6 @@ impl PaymentProcessor for TilledPaymentProcessor {
 // Test-only payment processor (not available in production builds)
 // ============================================================================
 
-#[cfg(test)]
 pub mod test_support {
     use super::*;
 
