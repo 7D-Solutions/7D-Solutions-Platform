@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
-use crate::{format, outbox, policy};
+use crate::{db::numbering_repo, format, outbox, policy};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AllocateRequest {
@@ -93,13 +93,9 @@ pub async fn allocate(
     }
 
     // ── Idempotency check ──────────────────────────────────────────────
-    let existing = sqlx::query_as::<_, IssuedRowFull>(
-        "SELECT number_value, status, expires_at \
-         FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
+    let existing = numbering_repo::find_issued_by_idempotency_key(
+        &state.pool, tenant_id, &req.idempotency_key,
     )
-    .bind(tenant_id)
-    .bind(&req.idempotency_key)
-    .fetch_optional(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!("Numbering: idempotency check failed: {}", e);
@@ -155,36 +151,20 @@ pub async fn allocate(
     // If this number is a recycled reservation, update the existing row
     // instead of inserting a new one.
     if alloc.recycled {
-        sqlx::query(
-            "UPDATE issued_numbers \
-             SET idempotency_key = $1, status = $2, expires_at = $3 \
-             WHERE tenant_id = $4 AND entity = $5 AND number_value = $6",
+        numbering_repo::update_recycled_issued_tx(
+            &mut tx, &req.idempotency_key, &issued_status, expires_at,
+            tenant_id, &req.entity, alloc.value,
         )
-        .bind(&req.idempotency_key)
-        .bind(&issued_status)
-        .bind(expires_at)
-        .bind(tenant_id)
-        .bind(&req.entity)
-        .bind(alloc.value)
-        .execute(&mut *tx)
         .await
         .map_err(|e| {
             tracing::error!("Numbering: failed to recycle issued number: {}", e);
             with_request_id(ApiError::internal("Failed to recycle issued number"), &ctx)
         })?;
     } else {
-        sqlx::query(
-            "INSERT INTO issued_numbers \
-             (tenant_id, entity, number_value, idempotency_key, status, expires_at) \
-             VALUES ($1, $2, $3, $4, $5, $6)",
+        numbering_repo::insert_issued_tx(
+            &mut tx, tenant_id, &req.entity, alloc.value,
+            &req.idempotency_key, &issued_status, expires_at,
         )
-        .bind(tenant_id)
-        .bind(&req.entity)
-        .bind(alloc.value)
-        .bind(&req.idempotency_key)
-        .bind(&issued_status)
-        .bind(expires_at)
-        .execute(&mut *tx)
         .await
         .map_err(|e| {
             tracing::error!("Numbering: failed to insert issued number: {}", e);
@@ -257,25 +237,6 @@ pub async fn allocate(
 
 // ── Internal types ─────────────────────────────────────────────────────
 
-#[derive(Debug, sqlx::FromRow)]
-struct IssuedRowFull {
-    number_value: i64,
-    status: String,
-    expires_at: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct SequenceRow {
-    current_value: i64,
-    gap_free: bool,
-    reservation_ttl_secs: i32,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct RecyclableRow {
-    number_value: i64,
-}
-
 struct Allocation {
     value: i64,
     gap_free: bool,
@@ -334,15 +295,7 @@ async fn allocate_next_value(
     entity: &str,
     gap_free_requested: bool,
 ) -> Result<Allocation, sqlx::Error> {
-    // Try to fetch + lock the existing sequence.
-    let existing_seq = sqlx::query_as::<_, SequenceRow>(
-        "SELECT current_value, gap_free, reservation_ttl_secs \
-         FROM sequences WHERE tenant_id = $1 AND entity = $2 FOR UPDATE",
-    )
-    .bind(tenant_id)
-    .bind(entity)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let existing_seq = numbering_repo::get_sequence_for_update_tx(tx, tenant_id, entity).await?;
 
     match existing_seq {
         Some(seq) => {
@@ -358,15 +311,7 @@ async fn allocate_next_value(
                 }
             }
 
-            // Advance counter
-            let row = sqlx::query_as::<_, CounterRow>(
-                "UPDATE sequences SET current_value = current_value + 1, updated_at = NOW() \
-                 WHERE tenant_id = $1 AND entity = $2 RETURNING current_value",
-            )
-            .bind(tenant_id)
-            .bind(entity)
-            .fetch_one(&mut **tx)
-            .await?;
+            let row = numbering_repo::advance_counter_tx(tx, tenant_id, entity).await?;
 
             Ok(Allocation {
                 value: row.current_value,
@@ -376,19 +321,8 @@ async fn allocate_next_value(
             })
         }
         None => {
-            // First allocation — create the sequence row.
-            let row = sqlx::query_as::<_, SequenceRow>(
-                "INSERT INTO sequences (tenant_id, entity, current_value, gap_free) \
-                 VALUES ($1, $2, 1, $3) \
-                 ON CONFLICT (tenant_id, entity) \
-                 DO UPDATE SET current_value = sequences.current_value + 1, updated_at = NOW() \
-                 RETURNING current_value, gap_free, reservation_ttl_secs",
-            )
-            .bind(tenant_id)
-            .bind(entity)
-            .bind(gap_free_requested)
-            .fetch_one(&mut **tx)
-            .await?;
+            let row = numbering_repo::upsert_sequence_tx(tx, tenant_id, entity, gap_free_requested)
+                .await?;
 
             Ok(Allocation {
                 value: row.current_value,
@@ -400,11 +334,6 @@ async fn allocate_next_value(
     }
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct CounterRow {
-    current_value: i64,
-}
-
 /// Find and lock the smallest expired reservation for recycling.
 ///
 /// Uses `FOR UPDATE SKIP LOCKED` so concurrent recyclers never fight over
@@ -414,17 +343,6 @@ async fn try_recycle(
     tenant_id: Uuid,
     entity: &str,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let row = sqlx::query_as::<_, RecyclableRow>(
-        "SELECT number_value FROM issued_numbers \
-         WHERE tenant_id = $1 AND entity = $2 \
-           AND status = 'reserved' AND expires_at < NOW() \
-         ORDER BY number_value ASC LIMIT 1 \
-         FOR UPDATE SKIP LOCKED",
-    )
-    .bind(tenant_id)
-    .bind(entity)
-    .fetch_optional(&mut **tx)
-    .await?;
-
+    let row = numbering_repo::find_recyclable_tx(tx, tenant_id, entity).await?;
     Ok(row.map(|r| r.number_value))
 }

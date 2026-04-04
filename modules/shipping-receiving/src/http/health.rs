@@ -50,8 +50,7 @@ pub async fn ready(
     State(state): State<Arc<crate::AppState>>,
 ) -> Result<Json<ReadyResponse>, (StatusCode, Json<ReadyResponse>)> {
     let start = Instant::now();
-    let db_err = sqlx::query("SELECT 1")
-        .execute(&state.pool)
+    let db_err = crate::db::repository::ShipmentRepository::ping(&state.pool)
         .await
         .err()
         .map(|e| e.to_string());

@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
-use crate::outbox;
+use crate::{db::numbering_repo, outbox};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ConfirmRequest {
@@ -38,12 +38,6 @@ struct NumberConfirmedPayload {
     pub entity: String,
     pub number_value: i64,
     pub idempotency_key: String,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct IssuedRow {
-    number_value: i64,
-    status: String,
 }
 
 #[utoipa::path(
@@ -84,19 +78,12 @@ pub async fn confirm(
         with_request_id(ApiError::internal("Failed to begin transaction"), &ctx)
     })?;
 
-    let row = sqlx::query_as::<_, IssuedRow>(
-        "SELECT number_value, status FROM issued_numbers \
-         WHERE tenant_id = $1 AND idempotency_key = $2 \
-         FOR UPDATE",
-    )
-    .bind(tenant_id)
-    .bind(&req.idempotency_key)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Numbering: confirm lookup failed: {}", e);
-        with_request_id(ApiError::internal("Failed to look up reservation"), &ctx)
-    })?;
+    let row = numbering_repo::find_issued_for_update_tx(&mut tx, tenant_id, &req.idempotency_key)
+        .await
+        .map_err(|e| {
+            tracing::error!("Numbering: confirm lookup failed: {}", e);
+            with_request_id(ApiError::internal("Failed to look up reservation"), &ctx)
+        })?;
 
     let row = match row {
         Some(r) => r,
@@ -132,18 +119,12 @@ pub async fn confirm(
         ));
     }
 
-    sqlx::query(
-        "UPDATE issued_numbers SET status = 'confirmed', expires_at = NULL \
-         WHERE tenant_id = $1 AND idempotency_key = $2",
-    )
-    .bind(tenant_id)
-    .bind(&req.idempotency_key)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Numbering: confirm update failed: {}", e);
-        with_request_id(ApiError::internal("Failed to confirm reservation"), &ctx)
-    })?;
+    numbering_repo::confirm_issued_tx(&mut tx, tenant_id, &req.idempotency_key)
+        .await
+        .map_err(|e| {
+            tracing::error!("Numbering: confirm update failed: {}", e);
+            with_request_id(ApiError::internal("Failed to confirm reservation"), &ctx)
+        })?;
 
     let event_payload = NumberConfirmedPayload {
         tenant_id: tenant_id.to_string(),

@@ -45,17 +45,7 @@ pub struct ChecklistItemResponse {
     pub waive_reason: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ChecklistItemRow {
-    id: Uuid,
-    tenant_id: String,
-    period_id: Uuid,
-    label: String,
-    status: String,
-    completed_by: Option<String>,
-    completed_at: Option<DateTime<Utc>>,
-    waive_reason: Option<String>,
-}
+use crate::repos::checklist_repo;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct CompleteChecklistItemRequest {
@@ -87,17 +77,9 @@ pub async fn create_checklist_item(
 ) -> Result<(StatusCode, Json<ChecklistItemResponse>), ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let row = sqlx::query_as::<_, ChecklistItemRow>(
-        r#"
-        INSERT INTO close_checklist_items (tenant_id, period_id, label)
-        VALUES ($1, $2, $3)
-        RETURNING id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
-        "#,
+    let row = checklist_repo::create_checklist_item(
+        &app_state.pool, &tenant_id, period_id, &request.label,
     )
-    .bind(&tenant_id)
-    .bind(period_id)
-    .bind(&request.label)
-    .fetch_one(&app_state.pool)
     .await
     .map_err(|e| with_request_id(ApiError::internal(format!("Failed to create checklist item: {}", e)), &ctx))?;
 
@@ -122,19 +104,9 @@ pub async fn complete_checklist_item(
 ) -> Result<Json<ChecklistItemResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let row = sqlx::query_as::<_, ChecklistItemRow>(
-        r#"
-        UPDATE close_checklist_items
-        SET status = 'complete', completed_by = $1, completed_at = NOW(), updated_at = NOW()
-        WHERE id = $2 AND period_id = $3 AND tenant_id = $4
-        RETURNING id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
-        "#,
+    let row = checklist_repo::complete_checklist_item(
+        &app_state.pool, &request.completed_by, item_id, period_id, &tenant_id,
     )
-    .bind(&request.completed_by)
-    .bind(item_id)
-    .bind(period_id)
-    .bind(&tenant_id)
-    .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
@@ -165,21 +137,10 @@ pub async fn waive_checklist_item(
 ) -> Result<Json<ChecklistItemResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let row = sqlx::query_as::<_, ChecklistItemRow>(
-        r#"
-        UPDATE close_checklist_items
-        SET status = 'waived', completed_by = $1, completed_at = NOW(),
-            waive_reason = $2, updated_at = NOW()
-        WHERE id = $3 AND period_id = $4 AND tenant_id = $5
-        RETURNING id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
-        "#,
+    let row = checklist_repo::waive_checklist_item(
+        &app_state.pool, &request.completed_by, &request.waive_reason,
+        item_id, period_id, &tenant_id,
     )
-    .bind(&request.completed_by)
-    .bind(&request.waive_reason)
-    .bind(item_id)
-    .bind(period_id)
-    .bind(&tenant_id)
-    .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
@@ -205,29 +166,19 @@ pub async fn get_checklist_status(
 ) -> Result<Json<PaginatedResponse<ChecklistItemResponse>>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let rows = sqlx::query_as::<_, ChecklistItemRow>(
-        r#"
-        SELECT id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
-        FROM close_checklist_items
-        WHERE tenant_id = $1 AND period_id = $2
-        ORDER BY created_at ASC
-        "#,
-    )
-    .bind(&tenant_id)
-    .bind(period_id)
-    .fetch_all(&app_state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        with_request_id(ApiError::internal("Internal database error"), &ctx)
-    })?;
+    let rows = checklist_repo::list_checklist_items(&app_state.pool, &tenant_id, period_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error: {}", e);
+            with_request_id(ApiError::internal("Internal database error"), &ctx)
+        })?;
 
     let items: Vec<ChecklistItemResponse> = rows.into_iter().map(to_checklist_response).collect();
     let total = items.len() as i64;
     Ok(Json(PaginatedResponse::new(items, 1, total, total)))
 }
 
-fn to_checklist_response(row: ChecklistItemRow) -> ChecklistItemResponse {
+fn to_checklist_response(row: checklist_repo::ChecklistItemRow) -> ChecklistItemResponse {
     ChecklistItemResponse {
         id: row.id,
         tenant_id: row.tenant_id,
@@ -262,17 +213,6 @@ pub struct ApprovalResponse {
     pub approved_at: DateTime<Utc>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ApprovalRow {
-    id: Uuid,
-    tenant_id: String,
-    period_id: Uuid,
-    actor_id: String,
-    approval_type: String,
-    notes: Option<String>,
-    approved_at: DateTime<Utc>,
-}
-
 // ============================================================
 // APPROVAL HANDLERS
 // ============================================================
@@ -292,21 +232,10 @@ pub async fn create_approval(
 ) -> Result<(StatusCode, Json<ApprovalResponse>), ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let row = sqlx::query_as::<_, ApprovalRow>(
-        r#"
-        INSERT INTO close_approvals (tenant_id, period_id, actor_id, approval_type, notes)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (tenant_id, period_id, approval_type) DO UPDATE
-            SET actor_id = EXCLUDED.actor_id, notes = EXCLUDED.notes, approved_at = NOW()
-        RETURNING id, tenant_id, period_id, actor_id, approval_type, notes, approved_at
-        "#,
+    let row = checklist_repo::create_approval(
+        &app_state.pool, &tenant_id, period_id,
+        &request.actor_id, &request.approval_type, request.notes.as_deref(),
     )
-    .bind(&tenant_id)
-    .bind(period_id)
-    .bind(&request.actor_id)
-    .bind(&request.approval_type)
-    .bind(&request.notes)
-    .fetch_one(&app_state.pool)
     .await
     .map_err(|e| with_request_id(ApiError::internal(format!("Failed to record approval: {}", e)), &ctx))?;
 
@@ -337,22 +266,12 @@ pub async fn get_approvals(
 ) -> Result<Json<PaginatedResponse<ApprovalResponse>>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
-    let rows = sqlx::query_as::<_, ApprovalRow>(
-        r#"
-        SELECT id, tenant_id, period_id, actor_id, approval_type, notes, approved_at
-        FROM close_approvals
-        WHERE tenant_id = $1 AND period_id = $2
-        ORDER BY approved_at ASC
-        "#,
-    )
-    .bind(&tenant_id)
-    .bind(period_id)
-    .fetch_all(&app_state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        with_request_id(ApiError::internal("Internal database error"), &ctx)
-    })?;
+    let rows = checklist_repo::list_approvals(&app_state.pool, &tenant_id, period_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error: {}", e);
+            with_request_id(ApiError::internal("Internal database error"), &ctx)
+        })?;
 
     let items: Vec<ApprovalResponse> = rows
         .into_iter()

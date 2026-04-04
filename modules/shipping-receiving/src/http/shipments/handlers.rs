@@ -65,26 +65,20 @@ pub async fn create_shipment(
         }
     };
 
-    let shipment = match sqlx::query_as::<_, crate::domain::shipments::Shipment>(
-        r#"
-        INSERT INTO shipments (tenant_id, direction, status, carrier_party_id,
-            tracking_number, freight_cost_minor, currency, expected_arrival_date, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING *
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(req.direction.as_str())
-    .bind(initial_status)
-    .bind(req.carrier_party_id)
-    .bind(&req.tracking_number)
-    .bind(req.freight_cost_minor)
-    .bind(&req.currency)
-    .bind(req.expected_arrival_date)
-    .bind(claims.as_ref().map(|Extension(c)| c.user_id))
-    .fetch_one(&mut *tx)
-    .await
-    {
+    let params = crate::db::repository::InsertShipmentParams {
+        tenant_id,
+        direction: req.direction.as_str().to_string(),
+        status: initial_status.to_string(),
+        carrier_party_id: req.carrier_party_id,
+        tracking_number: req.tracking_number.clone(),
+        freight_cost_minor: req.freight_cost_minor,
+        currency: req.currency.clone(),
+        expected_arrival_date: req.expected_arrival_date,
+        created_by: claims.as_ref().map(|Extension(c)| c.user_id),
+        source_ref_type: None,
+        source_ref_id: None,
+    };
+    let shipment = match ShipmentRepository::insert_shipment_tx(&mut tx, &params).await {
         Ok(s) => s,
         Err(e) => {
             return with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
@@ -324,26 +318,19 @@ pub async fn add_line(
         .into_response();
     }
 
-    let line = sqlx::query_as::<_, ShipmentLineRow>(
-        r#"
-        INSERT INTO shipment_lines (tenant_id, shipment_id, sku, uom, warehouse_id,
-            qty_expected, source_ref_type, source_ref_id, po_id, po_line_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(shipment_id)
-    .bind(&req.sku)
-    .bind(&req.uom)
-    .bind(req.warehouse_id)
-    .bind(req.qty_expected)
-    .bind(&req.source_ref_type)
-    .bind(req.source_ref_id)
-    .bind(req.po_id)
-    .bind(req.po_line_id)
-    .fetch_one(&state.pool)
-    .await;
+    let line_params = crate::db::repository::InsertLineParams {
+        tenant_id,
+        shipment_id,
+        sku: req.sku.clone(),
+        uom: req.uom.clone(),
+        warehouse_id: req.warehouse_id,
+        qty_expected: req.qty_expected,
+        source_ref_type: req.source_ref_type.clone(),
+        source_ref_id: req.source_ref_id,
+        po_id: req.po_id,
+        po_line_id: req.po_line_id,
+    };
+    let line = ShipmentRepository::insert_line(&state.pool, &line_params).await;
 
     match line {
         Ok(l) => (StatusCode::CREATED, Json(serde_json::json!(l))).into_response(),
@@ -403,24 +390,10 @@ pub async fn receive_line(
         .into_response();
     }
 
-    let line = sqlx::query_as::<_, ShipmentLineRow>(
-        r#"
-        UPDATE shipment_lines SET
-            qty_received = $4,
-            qty_accepted = $5,
-            qty_rejected = $6,
-            updated_at = NOW()
-        WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
-        RETURNING *
-        "#,
+    let line = ShipmentRepository::receive_line(
+        &state.pool, line_id, shipment_id, tenant_id,
+        req.qty_received, req.qty_accepted, req.qty_rejected,
     )
-    .bind(line_id)
-    .bind(shipment_id)
-    .bind(tenant_id)
-    .bind(req.qty_received)
-    .bind(req.qty_accepted)
-    .bind(req.qty_rejected)
-    .fetch_optional(&state.pool)
     .await;
 
     match line {
@@ -485,20 +458,9 @@ pub async fn ship_line_qty(
         .into_response();
     }
 
-    let line = sqlx::query_as::<_, ShipmentLineRow>(
-        r#"
-        UPDATE shipment_lines SET
-            qty_shipped = $4,
-            updated_at = NOW()
-        WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
-        RETURNING *
-        "#,
+    let line = ShipmentRepository::ship_line_qty(
+        &state.pool, line_id, shipment_id, tenant_id, req.qty_shipped,
     )
-    .bind(line_id)
-    .bind(shipment_id)
-    .bind(tenant_id)
-    .bind(req.qty_shipped)
-    .fetch_optional(&state.pool)
     .await;
 
     match line {
@@ -664,20 +626,9 @@ pub async fn accept_line(
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
-    let line = sqlx::query_as::<_, ShipmentLineRow>(
-        r#"
-        UPDATE shipment_lines SET
-            qty_accepted = qty_received,
-            qty_rejected = 0,
-            updated_at = NOW()
-        WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
-        RETURNING *
-        "#,
+    let line = ShipmentRepository::accept_line(
+        &state.pool, line_id, shipment_id, tenant_id,
     )
-    .bind(line_id)
-    .bind(shipment_id)
-    .bind(tenant_id)
-    .fetch_optional(&state.pool)
     .await;
 
     match line {

@@ -8,17 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::with_request_id;
-use crate::{auth::hash_refresh_token, outbox::enqueue_portal_event};
-
-#[derive(sqlx::FromRow)]
-struct PortalUserRow {
-    id: Uuid,
-    tenant_id: Uuid,
-    party_id: Uuid,
-    password_hash: String,
-    is_active: bool,
-    lock_until: Option<chrono::DateTime<Utc>>,
-}
+use crate::{auth::hash_refresh_token, db::portal_repo, outbox::enqueue_portal_event};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
@@ -69,17 +59,12 @@ pub async fn login(
 
     if let Some(key) = req.idempotency_key.as_ref() {
         if !key.trim().is_empty() {
-            let existing = sqlx::query_scalar::<_, serde_json::Value>(
-                "SELECT response FROM portal_idempotency WHERE tenant_id=$1 AND operation='login' AND idempotency_key=$2",
-            )
-            .bind(req.tenant_id)
-            .bind(key)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "portal auth db error");
-                with_request_id(ApiError::internal("Database error"), &ctx)
-            })?;
+            let existing = portal_repo::find_idempotency(&state.pool, req.tenant_id, "login", key)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "portal auth db error");
+                    with_request_id(ApiError::internal("Database error"), &ctx)
+                })?;
 
             if let Some(response) = existing {
                 let access_token = response
@@ -103,19 +88,13 @@ pub async fn login(
         }
     }
 
-    let user = sqlx::query_as::<_, PortalUserRow>(
-        "SELECT id, tenant_id, party_id, password_hash, is_active, lock_until \
-         FROM portal_users WHERE tenant_id=$1 AND email=$2",
-    )
-    .bind(req.tenant_id)
-    .bind(req.email.to_lowercase())
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal auth db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?
-    .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
+    let user = portal_repo::find_user_by_email(&state.pool, req.tenant_id, &req.email.to_lowercase())
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal auth db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?
+        .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
 
     if !user.is_active {
         return Err(with_request_id(
@@ -161,25 +140,16 @@ pub async fn login(
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
-    sqlx::query(
-        "INSERT INTO portal_refresh_tokens (id, tenant_id, user_id, token_hash, expires_at) \
-         VALUES ($1,$2,$3,$4,$5)",
+    portal_repo::insert_refresh_token_tx(
+        &mut tx, Uuid::new_v4(), user.tenant_id, user.id, &refresh_hash, refresh_expires_at,
     )
-    .bind(Uuid::new_v4())
-    .bind(user.tenant_id)
-    .bind(user.id)
-    .bind(&refresh_hash)
-    .bind(refresh_expires_at)
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal auth db error");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
-    sqlx::query("UPDATE portal_users SET last_login_at = NOW() WHERE id = $1")
-        .bind(user.id)
-        .execute(&mut *tx)
+    portal_repo::update_last_login_tx(&mut tx, user.id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "portal auth db error");
@@ -188,17 +158,10 @@ pub async fn login(
 
     if let Some(key) = req.idempotency_key.as_ref() {
         if !key.trim().is_empty() {
-            sqlx::query(
-                "INSERT INTO portal_idempotency (tenant_id, operation, idempotency_key, response) VALUES ($1,'login',$2,$3) \
-                 ON CONFLICT (tenant_id, operation, idempotency_key) DO NOTHING",
+            portal_repo::insert_idempotency_tx(
+                &mut tx, user.tenant_id, "login", key,
+                &serde_json::json!({"access_token": access_token, "refresh_token": refresh_raw}),
             )
-            .bind(user.tenant_id)
-            .bind(key)
-            .bind(serde_json::json!({
-                "access_token": access_token,
-                "refresh_token": refresh_raw,
-            }))
-            .execute(&mut *tx)
             .await
             .map_err(|e| {
                 tracing::error!(error = %e, "portal auth db error");
@@ -247,29 +210,13 @@ pub async fn refresh(
 ) -> Result<Json<AuthResponse>, ApiError> {
     let old_hash = hash_refresh_token(&req.refresh_token);
 
-    let row = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            Uuid,
-            chrono::DateTime<Utc>,
-            Option<chrono::DateTime<Utc>>,
-        ),
-    >(
-        "SELECT rt.user_id, rt.tenant_id, u.party_id, rt.expires_at, rt.revoked_at \
-         FROM portal_refresh_tokens rt \
-         JOIN portal_users u ON u.id = rt.user_id \
-         WHERE rt.token_hash = $1",
-    )
-    .bind(&old_hash)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal auth db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?
-    .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
+    let row = portal_repo::find_refresh_token(&state.pool, &old_hash)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal auth db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?
+        .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
 
     let (user_id, tenant_id, party_id, expires_at, revoked_at) = row;
     if revoked_at.is_some() || expires_at < Utc::now() {
@@ -301,24 +248,16 @@ pub async fn refresh(
         tracing::error!(error = %e, "portal auth db error");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
-    sqlx::query("UPDATE portal_refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1")
-        .bind(&old_hash)
-        .execute(&mut *tx)
+    portal_repo::revoke_refresh_token_tx(&mut tx, &old_hash)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "portal auth db error");
             with_request_id(ApiError::internal("Database error"), &ctx)
         })?;
 
-    sqlx::query(
-        "INSERT INTO portal_refresh_tokens (id, tenant_id, user_id, token_hash, expires_at) VALUES ($1,$2,$3,$4,$5)",
+    portal_repo::insert_refresh_token_tx(
+        &mut tx, Uuid::new_v4(), tenant_id, user_id, &new_refresh_hash, new_exp,
     )
-    .bind(Uuid::new_v4())
-    .bind(tenant_id)
-    .bind(user_id)
-    .bind(new_refresh_hash)
-    .bind(new_exp)
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal auth db error");
@@ -365,17 +304,13 @@ pub async fn logout(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let hash = hash_refresh_token(&req.refresh_token);
 
-    let row = sqlx::query_as::<_, (Uuid, Uuid)>(
-        "SELECT user_id, tenant_id FROM portal_refresh_tokens WHERE token_hash=$1 AND revoked_at IS NULL",
-    )
-    .bind(&hash)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal auth db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?
-    .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
+    let row = portal_repo::find_active_refresh_token(&state.pool, &hash)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal auth db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?
+        .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
 
     let (user_id, tenant_id) = row;
     let mut tx = state.pool.begin().await.map_err(|e| {
@@ -383,9 +318,7 @@ pub async fn logout(
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
-    sqlx::query("UPDATE portal_refresh_tokens SET revoked_at=NOW() WHERE token_hash=$1")
-        .bind(hash)
-        .execute(&mut *tx)
+    portal_repo::revoke_refresh_token_tx(&mut tx, &hash)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "portal auth db error");

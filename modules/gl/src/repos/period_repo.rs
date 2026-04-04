@@ -139,6 +139,28 @@ pub async fn validate_posting_date(
     }
 }
 
+/// Find an accounting period by ID and tenant.
+pub async fn find_by_id_and_tenant(
+    pool: &PgPool,
+    period_id: Uuid,
+    tenant_id: &str,
+) -> Result<Option<AccountingPeriod>, PeriodError> {
+    let period = sqlx::query_as::<_, AccountingPeriod>(
+        r#"
+        SELECT id, tenant_id, period_start, period_end, is_closed, created_at,
+               close_requested_at, closed_at, closed_by, close_reason, close_hash
+        FROM accounting_periods
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(period)
+}
+
 /// Validate that a date falls within an open accounting period within a transaction
 /// Returns error if no period exists for the date or if the period is closed
 pub async fn validate_posting_date_tx(
@@ -170,7 +192,7 @@ mod tests {
     fn test_period_error_display() {
         let err = PeriodError::NoPeriodForDate {
             tenant_id: "tenant_123".to_string(),
-            date: NaiveDate::from_ymd_opt(2024, 2, 11).unwrap(),
+            date: NaiveDate::from_ymd_opt(2024, 2, 11).expect("test"),
         };
         assert!(err.to_string().contains("tenant_123"));
         assert!(err.to_string().contains("2024-02-11"));
@@ -180,7 +202,7 @@ mod tests {
     fn test_period_closed_error_display() {
         let err = PeriodError::PeriodClosed {
             tenant_id: "tenant_123".to_string(),
-            date: NaiveDate::from_ymd_opt(2024, 2, 11).unwrap(),
+            date: NaiveDate::from_ymd_opt(2024, 2, 11).expect("test"),
             period_id: Uuid::new_v4(),
         };
         assert!(err.to_string().contains("closed"));

@@ -24,6 +24,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.1.2 | 2026-04-04 | bd-0clpi | SoC: extract close_checklist + period_close SQL into checklist_repo.rs and period_repo.rs | Separation of concerns — handler files mixed HTTP logic with raw SQL queries | No |
 | 3.1.1 | 2026-04-02 | bd-vcly8 | Delete dead health.rs stub (unreferenced after SDK conversion) | Dead code cleanup | No |
 | 3.1.0 | 2026-04-02 | bd-5b1q2 | Add POST /api/gl/journal-entries HTTP endpoint. Consolidation module needs synchronous journal entry creation (elimination entries). Handler maps HTTP request to GlPostingRequestV1, uses UUID v5 idempotency from tenant+source_doc_id. Added ToSchema derives to GlPostingRequestV1, SourceDocType, JournalLine, Dimensions. | Consolidation calls POST /api/gl/journal-entries but endpoint did not exist — entries were only created via event consumers. | No |
 | 3.0.3 | 2026-04-02 | bd-azq84 | Minor utoipa annotation fixes on revrec and trial_balance | Plug-and-play standardization | No |

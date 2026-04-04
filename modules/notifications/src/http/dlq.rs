@@ -19,6 +19,7 @@ use sqlx::PgPool;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::db::dlq_repo;
 use crate::event_bus::{create_notifications_envelope, enqueue_event};
 
 // ── Response types ──────────────────────────────────────────────────
@@ -71,38 +72,6 @@ pub struct DlqListParams {
     pub template_key: Option<String>,
 }
 
-// ── Row types ───────────────────────────────────────────────────────
-
-#[derive(sqlx::FromRow)]
-struct DlqRow {
-    id: Uuid,
-    recipient_ref: String,
-    channel: String,
-    template_key: String,
-    payload_json: serde_json::Value,
-    retry_count: i32,
-    last_error: Option<String>,
-    dead_lettered_at: Option<DateTime<Utc>>,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(sqlx::FromRow)]
-struct AttemptRow {
-    id: Uuid,
-    attempt_no: i32,
-    status: String,
-    provider_message_id: Option<String>,
-    error_class: Option<String>,
-    error_message: Option<String>,
-    rendered_subject: Option<String>,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(sqlx::FromRow)]
-struct StatusOnly {
-    status: String,
-}
-
 // ── Handlers ────────────────────────────────────────────────────────
 
 #[utoipa::path(get, path = "/api/dlq", tag = "DLQ",
@@ -119,52 +88,17 @@ pub async fn list_dlq(
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
 
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM scheduled_notifications \
-         WHERE status = 'dead_lettered' AND tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
-
-    // tenant_id is always $1
-    let mut bind_idx = 1u32;
-    let mut binds: Vec<String> = vec![tenant_id];
-
-    let mut query = String::from(
-        "SELECT id, recipient_ref, channel, template_key, payload_json, \
-         retry_count, last_error, dead_lettered_at, created_at \
-         FROM scheduled_notifications WHERE status = 'dead_lettered' AND tenant_id = $1",
-    );
-
-    if let Some(ref ch) = params.channel {
-        bind_idx += 1;
-        query.push_str(&format!(" AND channel = ${bind_idx}"));
-        binds.push(ch.clone());
-    }
-    if let Some(ref tk) = params.template_key {
-        bind_idx += 1;
-        query.push_str(&format!(" AND template_key = ${bind_idx}"));
-        binds.push(tk.clone());
-    }
-
-    query.push_str(" ORDER BY dead_lettered_at DESC");
-    bind_idx += 1;
-    query.push_str(&format!(" LIMIT ${bind_idx}"));
-    bind_idx += 1;
-    query.push_str(&format!(" OFFSET ${bind_idx}"));
-
-    let mut q = sqlx::query_as::<_, DlqRow>(&query);
-    for b in &binds {
-        q = q.bind(b);
-    }
-    q = q.bind(limit).bind(offset);
-
-    let rows = q
-        .fetch_all(&pool)
+    let count = dlq_repo::count_dead_lettered(&pool, &tenant_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let rows = dlq_repo::list_dead_lettered(
+        &pool, &tenant_id,
+        params.channel.as_deref(), params.template_key.as_deref(),
+        limit, offset,
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let items: Vec<DlqItem> = rows
         .into_iter()
@@ -198,29 +132,14 @@ pub async fn get_dlq_item(
     Path(id): Path<Uuid>,
 ) -> Result<Json<DlqDetailResponse>, ApiError> {
     let tenant_id = require_tenant(&claims)?;
-    let row = sqlx::query_as::<_, DlqRow>(
-        "SELECT id, recipient_ref, channel, template_key, payload_json, \
-         retry_count, last_error, dead_lettered_at, created_at \
-         FROM scheduled_notifications \
-         WHERE id = $1 AND status = 'dead_lettered' AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(&tenant_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?
-    .ok_or_else(|| ApiError::not_found("DLQ item not found or not in dead_lettered status"))?;
+    let row = dlq_repo::get_dead_lettered_item(&pool, id, &tenant_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("DLQ item not found or not in dead_lettered status"))?;
 
-    let attempts = sqlx::query_as::<_, AttemptRow>(
-        "SELECT id, attempt_no, status, provider_message_id, error_class, \
-         error_message, rendered_subject, created_at \
-         FROM notification_delivery_attempts \
-         WHERE notification_id = $1 ORDER BY created_at ASC",
-    )
-    .bind(id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    let attempts = dlq_repo::get_delivery_attempts(&pool, id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     Ok(Json(DlqDetailResponse {
         item: DlqItem {
@@ -269,16 +188,10 @@ pub async fn replay_dlq_item(
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Guard: only replay if currently dead_lettered AND belongs to caller's tenant
-    let current = sqlx::query_as::<_, StatusOnly>(
-        "SELECT status FROM scheduled_notifications \
-         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-    )
-    .bind(id)
-    .bind(&tenant_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?
-    .ok_or_else(|| ApiError::not_found("Notification not found"))?;
+    let current = dlq_repo::get_status_for_update_tx(&mut tx, id, &tenant_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Notification not found"))?;
 
     if current.status != "dead_lettered" {
         // Idempotent: if already replayed (pending/attempting/sent) or abandoned, return current state
@@ -294,21 +207,9 @@ pub async fn replay_dlq_item(
 
     // Mutation: reset to pending for re-dispatch, bump replay_generation
     // for fresh idempotency keys
-    sqlx::query(
-        "UPDATE scheduled_notifications \
-         SET status = 'pending', \
-             deliver_at = NOW(), \
-             retry_count = 0, \
-             replay_generation = replay_generation + 1, \
-             last_error = NULL, \
-             dead_lettered_at = NULL, \
-             failed_at = NULL \
-         WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    dlq_repo::replay_notification_tx(&mut tx, id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Outbox: emit dlq.replayed event
     let envelope = create_notifications_envelope(
@@ -361,16 +262,10 @@ pub async fn abandon_dlq_item(
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Guard: only abandon if currently dead_lettered AND belongs to caller's tenant
-    let current = sqlx::query_as::<_, StatusOnly>(
-        "SELECT status FROM scheduled_notifications \
-         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-    )
-    .bind(id)
-    .bind(&tenant_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?
-    .ok_or_else(|| ApiError::not_found("Notification not found"))?;
+    let current = dlq_repo::get_status_for_update_tx(&mut tx, id, &tenant_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?
+        .ok_or_else(|| ApiError::not_found("Notification not found"))?;
 
     if current.status != "dead_lettered" {
         // Idempotent: if already abandoned or in another state, return current
@@ -385,16 +280,9 @@ pub async fn abandon_dlq_item(
     }
 
     // Mutation: mark as abandoned
-    sqlx::query(
-        "UPDATE scheduled_notifications \
-         SET status = 'abandoned', \
-             abandoned_at = NOW() \
-         WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::internal(e.to_string()))?;
+    dlq_repo::abandon_notification_tx(&mut tx, id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
 
     // Outbox: emit dlq.abandoned event
     let envelope = create_notifications_envelope(

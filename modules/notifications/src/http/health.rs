@@ -19,8 +19,7 @@ pub async fn ready(
     State(pool): State<PgPool>,
 ) -> Result<Json<ReadyResponse>, (StatusCode, Json<ReadyResponse>)> {
     let start = Instant::now();
-    let db_err = sqlx::query("SELECT 1")
-        .execute(&pool)
+    let db_err = crate::db::dlq_repo::ping(&pool)
         .await
         .err()
         .map(|e| e.to_string());

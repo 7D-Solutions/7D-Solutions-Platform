@@ -12,7 +12,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::{extract_actor, with_request_id};
-use crate::outbox::enqueue_portal_event;
+use crate::{db::portal_repo, outbox::enqueue_portal_event};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct InviteUserRequest {
@@ -61,17 +61,12 @@ pub async fn invite_user(
         return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let existing = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT response FROM portal_idempotency WHERE tenant_id=$1 AND operation='invite_user' AND idempotency_key=$2",
-    )
-    .bind(req.tenant_id)
-    .bind(&req.idempotency_key)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal admin db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?;
+    let existing = portal_repo::find_idempotency(&state.pool, req.tenant_id, "invite_user", &req.idempotency_key)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal admin db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
     if let Some(response) = existing {
         let user_id = response
@@ -103,32 +98,21 @@ pub async fn invite_user(
     })?;
 
     let user_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO portal_users (id, tenant_id, party_id, email, password_hash, display_name, invited_by, invited_at) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+    portal_repo::insert_user_tx(
+        &mut tx, user_id, req.tenant_id, req.party_id,
+        &req.email.to_lowercase(), &password_hash, &req.display_name,
+        actor.user_id, Utc::now(),
     )
-    .bind(user_id)
-    .bind(req.tenant_id)
-    .bind(req.party_id)
-    .bind(req.email.to_lowercase())
-    .bind(password_hash)
-    .bind(req.display_name)
-    .bind(actor.user_id)
-    .bind(Utc::now())
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal admin db error");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
-    sqlx::query(
-        "INSERT INTO portal_idempotency (tenant_id, operation, idempotency_key, response) VALUES ($1,'invite_user',$2,$3)",
+    portal_repo::insert_idempotency_no_conflict_tx(
+        &mut tx, req.tenant_id, "invite_user", &req.idempotency_key,
+        &serde_json::json!({"user_id": user_id.to_string()}),
     )
-    .bind(req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(serde_json::json!({"user_id": user_id.to_string()}))
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal admin db error");

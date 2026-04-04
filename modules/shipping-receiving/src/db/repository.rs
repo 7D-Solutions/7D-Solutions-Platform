@@ -417,6 +417,92 @@ impl ShipmentRepository {
         .await
     }
 
+    // ── Line mutations ────────────────────────────────────────
+
+    pub async fn receive_line(
+        pool: &PgPool,
+        line_id: Uuid,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+        qty_received: i64,
+        qty_accepted: i64,
+        qty_rejected: i64,
+    ) -> Result<Option<ShipmentLineRow>, sqlx::Error> {
+        sqlx::query_as::<_, ShipmentLineRow>(
+            r#"
+            UPDATE shipment_lines SET
+                qty_received = $4,
+                qty_accepted = $5,
+                qty_rejected = $6,
+                updated_at = NOW()
+            WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
+            RETURNING *
+            "#,
+        )
+        .bind(line_id)
+        .bind(shipment_id)
+        .bind(tenant_id)
+        .bind(qty_received)
+        .bind(qty_accepted)
+        .bind(qty_rejected)
+        .fetch_optional(pool)
+        .await
+    }
+
+    pub async fn ship_line_qty(
+        pool: &PgPool,
+        line_id: Uuid,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+        qty_shipped: i64,
+    ) -> Result<Option<ShipmentLineRow>, sqlx::Error> {
+        sqlx::query_as::<_, ShipmentLineRow>(
+            r#"
+            UPDATE shipment_lines SET
+                qty_shipped = $4,
+                updated_at = NOW()
+            WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
+            RETURNING *
+            "#,
+        )
+        .bind(line_id)
+        .bind(shipment_id)
+        .bind(tenant_id)
+        .bind(qty_shipped)
+        .fetch_optional(pool)
+        .await
+    }
+
+    pub async fn accept_line(
+        pool: &PgPool,
+        line_id: Uuid,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Option<ShipmentLineRow>, sqlx::Error> {
+        sqlx::query_as::<_, ShipmentLineRow>(
+            r#"
+            UPDATE shipment_lines SET
+                qty_accepted = qty_received,
+                qty_rejected = 0,
+                updated_at = NOW()
+            WHERE id = $1 AND shipment_id = $2 AND tenant_id = $3
+            RETURNING *
+            "#,
+        )
+        .bind(line_id)
+        .bind(shipment_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
+    }
+
+    // ── Health ───────────────────────────────────────────────
+
+    pub async fn ping(pool: &PgPool) -> Result<(), sqlx::Error> {
+        sqlx::query("SELECT 1").execute(pool).await?;
+        Ok(())
+    }
+
     // ── Idempotency ──────────────────────────────────────────
 
     /// Check if an event has already been processed. Returns true if so.

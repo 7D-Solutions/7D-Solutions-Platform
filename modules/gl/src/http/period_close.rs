@@ -190,17 +190,9 @@ pub async fn get_close_status(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     // Single-row query (O(1) per period)
-    let period = sqlx::query_as::<_, PeriodCloseStatusData>(
-        r#"
-        SELECT id, tenant_id, period_start, period_end,
-               closed_at, closed_by, close_reason, close_hash, close_requested_at
-        FROM accounting_periods
-        WHERE id = $1 AND tenant_id = $2
-        "#,
+    let ap = crate::repos::period_repo::find_by_id_and_tenant(
+        &app_state.pool, period_id, &tenant_id,
     )
-    .bind(period_id)
-    .bind(&tenant_id)
-    .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| {
         tracing::error!("Database error: {}", e);
@@ -212,6 +204,17 @@ pub async fn get_close_status(
             &ctx,
         )
     })?;
+    let period = PeriodCloseStatusData {
+        id: ap.id,
+        tenant_id: ap.tenant_id,
+        period_start: ap.period_start,
+        period_end: ap.period_end,
+        closed_at: ap.closed_at,
+        closed_by: ap.closed_by,
+        close_reason: ap.close_reason,
+        close_hash: ap.close_hash,
+        close_requested_at: ap.close_requested_at,
+    };
 
     // Determine close status from period fields
     let close_status = if let Some(closed_at) = period.closed_at {

@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::with_request_id;
-use crate::auth::PortalClaims;
+use crate::{auth::PortalClaims, db::portal_repo};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PortalDocumentView {
@@ -16,17 +16,6 @@ pub struct PortalDocumentView {
     pub distribution_id: Uuid,
     pub display_title: Option<String>,
     pub status: String,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct PortalDocLinkRow {
-    document_id: Uuid,
-    display_title: Option<String>,
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct PortalUserEmailRow {
-    email: String,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
@@ -67,31 +56,20 @@ pub async fn list_documents(
     let user_id =
         Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
-    let user_email = sqlx::query_as::<_, PortalUserEmailRow>(
-        "SELECT email FROM portal_users WHERE id = $1 AND tenant_id = $2 AND party_id = $3",
-    )
-    .bind(user_id)
-    .bind(tenant_id)
-    .bind(party_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal docs db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?
-    .ok_or_else(|| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let user_email = portal_repo::get_user_email(&state.pool, user_id, tenant_id, party_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal docs db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?
+        .ok_or_else(|| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
-    let links = sqlx::query_as::<_, PortalDocLinkRow>(
-        "SELECT document_id, display_title FROM portal_document_links WHERE tenant_id = $1 AND party_id = $2 ORDER BY created_at DESC",
-    )
-    .bind(tenant_id)
-    .bind(party_id)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal docs db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?;
+    let links = portal_repo::list_document_links(&state.pool, tenant_id, party_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal docs db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
     let mut visible = Vec::new();
     for link in links {

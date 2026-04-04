@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use super::tenant::{extract_actor, with_request_id};
-use crate::{auth::PortalClaims, outbox::enqueue_portal_event};
+use crate::{auth::PortalClaims, db::portal_repo, outbox::enqueue_portal_event};
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateStatusCardRequest {
@@ -73,21 +73,11 @@ pub async fn create_status_card(
     }
 
     let id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO portal_status_feed (id, tenant_id, party_id, entity_type, entity_id, title, status, details, source, occurred_at) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+    portal_repo::insert_status_card(
+        &state.pool, id, req.tenant_id, req.party_id,
+        &req.entity_type, req.entity_id, &req.title, &req.status,
+        &req.details, &req.source, Utc::now(),
     )
-    .bind(id)
-    .bind(req.tenant_id)
-    .bind(req.party_id)
-    .bind(req.entity_type)
-    .bind(req.entity_id)
-    .bind(req.title)
-    .bind(req.status)
-    .bind(req.details)
-    .bind(req.source)
-    .bind(Utc::now())
-    .execute(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal status db error");
@@ -131,32 +121,19 @@ pub async fn list_status_cards(
     let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
     let offset = (page - 1) * page_size;
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM portal_status_feed WHERE tenant_id = $1 AND party_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(party_id)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal status db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?;
+    let total: i64 = portal_repo::count_status_cards(&state.pool, tenant_id, party_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal status db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
-    let cards = sqlx::query_as::<_, StatusCard>(
-        "SELECT id, entity_type, entity_id, title, status, details, source, occurred_at \
-         FROM portal_status_feed WHERE tenant_id = $1 AND party_id = $2 ORDER BY occurred_at DESC LIMIT $3 OFFSET $4",
-    )
-    .bind(tenant_id)
-    .bind(party_id)
-    .bind(page_size)
-    .bind(offset)
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal status db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?;
+    let cards = portal_repo::list_status_cards(&state.pool, tenant_id, party_id, page_size, offset)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal status db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
     Ok(Json(PaginatedResponse::new(cards, page, page_size, total)))
 }
@@ -199,35 +176,24 @@ pub async fn acknowledge(
     let portal_user_id =
         Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
-    let existing = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT response FROM portal_idempotency WHERE tenant_id = $1 AND operation = 'acknowledge' AND idempotency_key = $2",
-    )
-    .bind(tenant_id)
-    .bind(&req.idempotency_key)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "portal status db error");
-        with_request_id(ApiError::internal("Database error"), &ctx)
-    })?;
+    let existing = portal_repo::find_idempotency(&state.pool, tenant_id, "acknowledge", &req.idempotency_key)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "portal status db error");
+            with_request_id(ApiError::internal("Database error"), &ctx)
+        })?;
 
     if let Some(response) = existing {
         return Ok(Json(response));
     }
 
     if let Some(doc_id) = req.document_id {
-        let linked: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT document_id FROM portal_document_links WHERE tenant_id = $1 AND party_id = $2 AND document_id = $3",
-        )
-        .bind(tenant_id)
-        .bind(party_id)
-        .bind(doc_id)
-        .fetch_optional(&state.pool)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "portal status db error");
-            with_request_id(ApiError::internal("Database error"), &ctx)
-        })?;
+        let linked: Option<(Uuid,)> = portal_repo::find_document_link(&state.pool, tenant_id, party_id, doc_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "portal status db error");
+                with_request_id(ApiError::internal("Database error"), &ctx)
+            })?;
 
         if linked.is_none() {
             return Err(with_request_id(ApiError::not_found("not_found"), &ctx));
@@ -240,21 +206,11 @@ pub async fn acknowledge(
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
-    sqlx::query(
-        "INSERT INTO portal_acknowledgments \
-         (id, tenant_id, party_id, portal_user_id, document_id, status_card_id, ack_type, notes, idempotency_key) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    portal_repo::insert_acknowledgment_tx(
+        &mut tx, ack_id, tenant_id, party_id, portal_user_id,
+        req.document_id, req.status_card_id, &req.ack_type,
+        req.notes.as_deref(), &req.idempotency_key,
     )
-    .bind(ack_id)
-    .bind(tenant_id)
-    .bind(party_id)
-    .bind(portal_user_id)
-    .bind(req.document_id)
-    .bind(req.status_card_id)
-    .bind(&req.ack_type)
-    .bind(&req.notes)
-    .bind(&req.idempotency_key)
-    .execute(&mut *tx)
     .await
     .map_err(|err| {
         if let sqlx::Error::Database(db) = &err {
@@ -299,13 +255,9 @@ pub async fn acknowledge(
         "ack_type": req.ack_type,
     });
 
-    sqlx::query(
-        "INSERT INTO portal_idempotency (tenant_id, operation, idempotency_key, response) VALUES ($1,'acknowledge',$2,$3)",
+    portal_repo::insert_idempotency_no_conflict_tx(
+        &mut tx, tenant_id, "acknowledge", &req.idempotency_key, &response,
     )
-    .bind(tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&response)
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal status db error");
@@ -349,18 +301,10 @@ pub async fn link_document(
     }
 
     let id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO portal_document_links (id, tenant_id, party_id, document_id, display_title, created_by) \
-         VALUES ($1,$2,$3,$4,$5,$6) \
-         ON CONFLICT (tenant_id, party_id, document_id) DO NOTHING",
+    portal_repo::upsert_document_link(
+        &state.pool, id, req.tenant_id, req.party_id,
+        req.document_id, req.display_title.as_deref(), actor.user_id,
     )
-    .bind(id)
-    .bind(req.tenant_id)
-    .bind(req.party_id)
-    .bind(req.document_id)
-    .bind(req.display_title)
-    .bind(actor.user_id)
-    .execute(&state.pool)
     .await
     .map_err(|e| {
         tracing::error!(error = %e, "portal status db error");

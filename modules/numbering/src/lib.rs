@@ -3,6 +3,7 @@
 //! Tenant-scoped, idempotent, atomic sequence allocation service.
 
 pub mod config;
+pub mod db;
 pub mod format;
 pub mod http;
 pub mod metrics;
