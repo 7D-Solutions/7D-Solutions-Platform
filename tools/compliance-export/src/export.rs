@@ -6,7 +6,7 @@
 //! Invariant: Exports are tenant-scoped, complete, and tamper-evident with stable ordering.
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
@@ -109,7 +109,12 @@ pub struct ExportManifest {
 
 /// Fetch all audit events for a tenant (filtered by entity_id pattern or metadata)
 /// Orders by occurred_at ASC, then audit_id ASC for determinism
-async fn fetch_audit_events(pool: &PgPool, tenant_id: &str) -> Result<Vec<AuditEvent>> {
+async fn fetch_audit_events(
+    pool: &PgPool,
+    tenant_id: &str,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+) -> Result<Vec<AuditEvent>> {
     let rows = sqlx::query(
         r#"
         SELECT
@@ -131,12 +136,16 @@ async fn fetch_audit_events(pool: &PgPool, tenant_id: &str) -> Result<Vec<AuditE
             metadata
         FROM audit_events
         WHERE
-            entity_id LIKE '%' || $1 || '%'
-            OR (metadata->>'tenant_id')::text = $1
+            (entity_id LIKE '%' || $1 || '%'
+             OR (metadata->>'tenant_id')::text = $1)
+            AND ($2::date IS NULL OR occurred_at >= $2::date)
+            AND ($3::date IS NULL OR occurred_at < $3::date + interval '1 day')
         ORDER BY occurred_at ASC, audit_id ASC
         "#,
     )
     .bind(tenant_id)
+    .bind(from)
+    .bind(to)
     .fetch_all(pool)
     .await
     .context("Failed to fetch audit events")?;
@@ -170,7 +179,12 @@ async fn fetch_audit_events(pool: &PgPool, tenant_id: &str) -> Result<Vec<AuditE
 
 /// Fetch all AR invoices for a tenant
 /// Orders by created_at ASC, then id ASC for determinism
-async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoice>> {
+async fn fetch_ar_invoices(
+    pool: &PgPool,
+    tenant_id: &str,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+) -> Result<Vec<ArInvoice>> {
     let rows = sqlx::query(
         r#"
         SELECT
@@ -190,10 +204,14 @@ async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoi
             billing_period_end
         FROM ar_invoices
         WHERE app_id = $1
+            AND ($2::date IS NULL OR created_at >= $2::date)
+            AND ($3::date IS NULL OR created_at < $3::date + interval '1 day')
         ORDER BY created_at ASC, id ASC
         "#,
     )
     .bind(tenant_id)
+    .bind(from)
+    .bind(to)
     .fetch_all(pool)
     .await
     .context("Failed to fetch AR invoices")?;
@@ -231,7 +249,12 @@ async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoi
 
 /// Fetch all payment attempts for a tenant
 /// Orders by attempted_at ASC, then id ASC for determinism
-async fn fetch_payment_attempts(pool: &PgPool, tenant_id: &str) -> Result<Vec<PaymentAttempt>> {
+async fn fetch_payment_attempts(
+    pool: &PgPool,
+    tenant_id: &str,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+) -> Result<Vec<PaymentAttempt>> {
     let rows = sqlx::query(
         r#"
         SELECT
@@ -251,10 +274,14 @@ async fn fetch_payment_attempts(pool: &PgPool, tenant_id: &str) -> Result<Vec<Pa
             updated_at
         FROM payment_attempts
         WHERE app_id = $1
+            AND ($2::date IS NULL OR attempted_at >= $2::date)
+            AND ($3::date IS NULL OR attempted_at < $3::date + interval '1 day')
         ORDER BY attempted_at ASC, id ASC
         "#,
     )
     .bind(tenant_id)
+    .bind(from)
+    .bind(to)
     .fetch_all(pool)
     .await
     .context("Failed to fetch payment attempts")?;
@@ -290,7 +317,12 @@ async fn fetch_payment_attempts(pool: &PgPool, tenant_id: &str) -> Result<Vec<Pa
 
 /// Fetch all GL journal entries for a tenant
 /// Orders by posted_at ASC, then id ASC for determinism
-async fn fetch_journal_entries(pool: &PgPool, tenant_id: &str) -> Result<Vec<JournalEntry>> {
+async fn fetch_journal_entries(
+    pool: &PgPool,
+    tenant_id: &str,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+) -> Result<Vec<JournalEntry>> {
     let rows = sqlx::query(
         r#"
         SELECT
@@ -307,10 +339,14 @@ async fn fetch_journal_entries(pool: &PgPool, tenant_id: &str) -> Result<Vec<Jou
             created_at
         FROM journal_entries
         WHERE tenant_id = $1
+            AND ($2::date IS NULL OR posted_at >= $2::date)
+            AND ($3::date IS NULL OR posted_at < $3::date + interval '1 day')
         ORDER BY posted_at ASC, id ASC
         "#,
     )
     .bind(tenant_id)
+    .bind(from)
+    .bind(to)
     .fetch_all(pool)
     .await
     .context("Failed to fetch journal entries")?;
@@ -390,11 +426,19 @@ fn export_manifest(manifest: &ExportManifest, path: &Path) -> Result<()> {
 }
 
 /// Main export function
-pub async fn export_compliance_data(tenant_id: &str, output_dir: &str, format: &str) -> Result<()> {
+pub async fn export_compliance_data(
+    tenant_id: &str,
+    output_dir: &str,
+    format: &str,
+    from: Option<NaiveDate>,
+    to: Option<NaiveDate>,
+) -> Result<()> {
     tracing::info!(
         tenant_id = %tenant_id,
         output_dir = %output_dir,
         format = %format,
+        from = ?from,
+        to = ?to,
         "Starting compliance export"
     );
 
@@ -425,16 +469,16 @@ pub async fn export_compliance_data(tenant_id: &str, output_dir: &str, format: &
 
     // Fetch data
     tracing::info!("Fetching audit events");
-    let audit_events = fetch_audit_events(&audit_pool, tenant_id).await?;
+    let audit_events = fetch_audit_events(&audit_pool, tenant_id, from, to).await?;
 
     tracing::info!("Fetching AR invoices");
-    let ar_invoices = fetch_ar_invoices(&ar_pool, tenant_id).await?;
+    let ar_invoices = fetch_ar_invoices(&ar_pool, tenant_id, from, to).await?;
 
     tracing::info!("Fetching payment attempts");
-    let payment_attempts = fetch_payment_attempts(&payments_pool, tenant_id).await?;
+    let payment_attempts = fetch_payment_attempts(&payments_pool, tenant_id, from, to).await?;
 
     tracing::info!("Fetching journal entries");
-    let journal_entries = fetch_journal_entries(&gl_pool, tenant_id).await?;
+    let journal_entries = fetch_journal_entries(&gl_pool, tenant_id, from, to).await?;
 
     // Calculate checksums
     tracing::info!("Calculating checksums");

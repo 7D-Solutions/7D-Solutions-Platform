@@ -249,8 +249,19 @@ impl SimulationRunner {
             "Generated deterministic tenants"
         );
 
-        // TODO: Create tenants in DB (via subscriptions module)
-        // TODO: Create subscriptions for each tenant
+        // Pre-create subscriptions (and AR customers) for all tenants before cycling
+        let base_date = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+        for tenant_id in &tenant_ids {
+            self.ensure_subscription_exists(tenant_id, base_date)
+                .await
+                .context(format!("Failed to create subscription for tenant {}", tenant_id))?;
+        }
+
+        info!(
+            run = run_number,
+            tenant_count = tenant_ids.len(),
+            "Pre-created subscriptions for all tenants"
+        );
 
         // Run N cycles
         for cycle in 1..=self.config.cycle_count {

@@ -15,6 +15,7 @@
 //! ```
 
 use anyhow::Result;
+use chrono::NaiveDate;
 use clap::{Parser, Subcommand};
 use compliance_export::export_compliance_data;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -100,21 +101,32 @@ async fn main() -> Result<()> {
             from,
             to,
         } => {
+            let from_date = from
+                .map(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d"))
+                .transpose()
+                .map_err(|e| anyhow::anyhow!("Invalid --from date (expected YYYY-MM-DD): {}", e))?;
+
+            let to_date = to
+                .map(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d"))
+                .transpose()
+                .map_err(|e| anyhow::anyhow!("Invalid --to date (expected YYYY-MM-DD): {}", e))?;
+
+            if let (Some(f), Some(t)) = (from_date, to_date) {
+                if f > t {
+                    anyhow::bail!("--from date must be before or equal to --to date");
+                }
+            }
+
             tracing::info!(
                 tenant = %tenant,
                 output = %output,
                 format = %format,
+                from = ?from_date,
+                to = ?to_date,
                 "Export command invoked"
             );
 
-            // Date range filtering is not yet implemented
-            if from.is_some() || to.is_some() {
-                tracing::warn!(
-                    "Date range filtering (--from/--to) is not yet implemented and will be ignored"
-                );
-            }
-
-            export_compliance_data(&tenant, &output, &format).await?;
+            export_compliance_data(&tenant, &output, &format, from_date, to_date).await?;
 
             Ok(())
         }
