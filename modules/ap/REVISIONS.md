@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.0 | 2026-04-04 | bd-tzbk9,bd-q5efi | SoC: extract SQL from bills/service.rs (17 queries) and tax/service.rs (13 queries) into repo modules | Separation of concerns — GL exemplar pattern | No |
 | 3.1.0 | 2026-04-02 | bd-i28hj | Add IntoParams to ListBillsQuery — codegen now picks up vendor_id and include_voided query params | Generated client was missing query params | No |
 | 3.0.2 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 3.0.1 | 2026-04-02 | bd-5d6ae | Remove dead run_publisher_task and publish_batch from outbox/mod.rs. SDK publisher (ModuleBuilder) handles event publishing; this custom loop was never called and contained a double-prefix bug (ap.events.ap.*). | Dead code hygiene — eliminates confusing unused publisher that would publish to wrong NATS subjects if ever wired up. | No |

@@ -21,6 +21,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::guards::{guard_item_active, guard_quantity_positive, GuardError};
+use crate::domain::reservation_repo;
 
 // Internal event type strings — not shared with external consumers yet.
 const EVENT_TYPE_ITEM_RESERVED: &str = "inventory.item_reserved";
@@ -121,26 +122,6 @@ pub enum ReservationError {
 }
 
 // ============================================================================
-// Internal DB row types
-// ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-/// Minimal reservation row fetched for the release guard check.
-#[derive(sqlx::FromRow)]
-struct ReservationRow {
-    id: Uuid,
-    tenant_id: String,
-    item_id: Uuid,
-    warehouse_id: Uuid,
-    quantity: i64,
-}
-
-// ============================================================================
 // Reserve
 // ============================================================================
 
@@ -158,7 +139,9 @@ pub async fn process_reserve(
     let request_hash = serde_json::to_string(req)?;
 
     // Fast-path: check idempotency key before hitting the DB further.
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        reservation_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ReservationError::ConflictingIdempotencyKey);
         }
@@ -181,21 +164,9 @@ pub async fn process_reserve(
     // Step 0: Lock item_on_hand row and check available stock.
     //   SELECT FOR UPDATE serializes concurrent reservations at the row lock.
     //   quantity_available = quantity_on_hand - quantity_reserved (generated column).
-    let available: Option<i64> = sqlx::query_scalar(
-        r#"
-        SELECT quantity_available
-        FROM item_on_hand
-        WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
-          AND location_id IS NULL
-        FOR UPDATE
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .flatten();
+    let available: Option<i64> =
+        reservation_repo::lock_available_stock(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id)
+            .await?;
 
     let current_available = available.unwrap_or(0);
     if current_available < req.quantity {
@@ -207,48 +178,29 @@ pub async fn process_reserve(
 
     // Step 1: Insert primary reservation row.
     //   status = 'active', reverses_reservation_id = NULL (primary entry).
-    let reservation_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO inventory_reservations
-            (tenant_id, item_id, warehouse_id, quantity, status,
-             reverses_reservation_id, reference_type, reference_id,
-             reserved_at, expires_at)
-        VALUES
-            ($1, $2, $3, $4, 'active', NULL, $5, $6, $7, $8)
-        RETURNING id
-        "#,
+    let reservation_id = reservation_repo::insert_reservation(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.quantity,
+        req.reference_type.as_deref(),
+        req.reference_id.as_deref(),
+        reserved_at,
+        req.expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(req.quantity)
-    .bind(&req.reference_type)
-    .bind(&req.reference_id)
-    .bind(reserved_at)
-    .bind(req.expires_at)
-    .fetch_one(&mut *tx)
     .await?;
 
     // Step 2: Upsert on-hand projection — increment quantity_reserved.
     //   Reservations operate on the null-location row (warehouse-level) in v1.
     //   quantity_available is GENERATED ALWAYS AS (available_status_on_hand - reserved).
-    sqlx::query(
-        r#"
-        INSERT INTO item_on_hand
-            (tenant_id, item_id, warehouse_id, location_id, quantity_reserved, projected_at)
-        VALUES ($1, $2, $3, NULL, $4, NOW())
-        ON CONFLICT (tenant_id, item_id, warehouse_id)
-        WHERE location_id IS NULL
-        DO UPDATE
-            SET quantity_reserved = item_on_hand.quantity_reserved + EXCLUDED.quantity_reserved,
-                projected_at = NOW()
-        "#,
+    reservation_repo::increment_reserved(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.quantity,
     )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(req.quantity)
-    .execute(&mut *tx)
     .await?;
 
     // Step 3: Write outbox event.
@@ -263,23 +215,16 @@ pub async fn process_reserve(
         "reserved_at":    reserved_at,
     });
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'inventory_reservation', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    reservation_repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_ITEM_RESERVED,
+        &reservation_id.to_string(),
+        &req.tenant_id,
+        &payload.to_string(),
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_ITEM_RESERVED)
-    .bind(reservation_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(payload.to_string())
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     // Step 4: Build result.
@@ -297,19 +242,15 @@ pub async fn process_reserve(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = reserved_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
+    reservation_repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        201,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -338,7 +279,9 @@ pub async fn process_release(
     let request_hash = serde_json::to_string(req)?;
 
     // Fast-path idempotency check.
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        reservation_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ReservationError::ConflictingIdempotencyKey);
         }
@@ -348,28 +291,13 @@ pub async fn process_release(
 
     // Fetch the original reserve row — must be a primary entry (reverses_reservation_id IS NULL)
     // and belong to the requesting tenant.
-    let original = sqlx::query_as::<_, ReservationRow>(
-        r#"
-        SELECT id, tenant_id, item_id, warehouse_id, quantity
-        FROM inventory_reservations
-        WHERE id = $1 AND tenant_id = $2 AND reverses_reservation_id IS NULL
-        "#,
-    )
-    .bind(req.reservation_id)
-    .bind(&req.tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ReservationError::ReservationNotFound)?;
+    let original =
+        reservation_repo::find_active_reservation(pool, req.reservation_id, &req.tenant_id)
+            .await?
+            .ok_or(ReservationError::ReservationNotFound)?;
 
     // Guard: no compensating entry may already exist.
-    let already_compensated: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM inventory_reservations WHERE reverses_reservation_id = $1)",
-    )
-    .bind(original.id)
-    .fetch_one(pool)
-    .await?;
-
-    if already_compensated {
+    if reservation_repo::is_already_compensated(pool, original.id).await? {
         return Err(ReservationError::AlreadyReleased);
     }
 
@@ -384,43 +312,14 @@ pub async fn process_release(
 
     // Step 1: Insert compensating reservation row.
     //   status = 'released', reverses_reservation_id = original.id.
-    let release_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO inventory_reservations
-            (tenant_id, item_id, warehouse_id, quantity, status,
-             reverses_reservation_id, released_at)
-        VALUES
-            ($1, $2, $3, $4, 'released', $5, $6)
-        RETURNING id
-        "#,
-    )
-    .bind(&original.tenant_id)
-    .bind(original.item_id)
-    .bind(original.warehouse_id)
-    .bind(original.quantity)
-    .bind(original.id)
-    .bind(released_at)
-    .fetch_one(&mut *tx)
-    .await?;
+    let release_id =
+        reservation_repo::insert_compensating_reservation(&mut tx, &original, released_at)
+            .await?;
 
     // Step 2: Decrement quantity_reserved on the null-location on-hand row.
     //   Reservations are warehouse-level in v1 (location_id IS NULL).
     //   GREATEST(0, ...) is a safety floor in case of projection skew.
-    sqlx::query(
-        r#"
-        UPDATE item_on_hand
-        SET quantity_reserved = GREATEST(0, quantity_reserved - $1),
-            projected_at = NOW()
-        WHERE tenant_id = $2 AND item_id = $3 AND warehouse_id = $4
-          AND location_id IS NULL
-        "#,
-    )
-    .bind(original.quantity)
-    .bind(&original.tenant_id)
-    .bind(original.item_id)
-    .bind(original.warehouse_id)
-    .execute(&mut *tx)
-    .await?;
+    reservation_repo::decrement_reserved(&mut tx, &original).await?;
 
     // Step 3: Write outbox event.
     let payload = serde_json::json!({
@@ -433,23 +332,16 @@ pub async fn process_release(
         "released_at":    released_at,
     });
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'inventory_reservation', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    reservation_repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_RESERVATION_RELEASED,
+        &original.id.to_string(),
+        &original.tenant_id,
+        &payload.to_string(),
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_RESERVATION_RELEASED)
-    .bind(original.id.to_string())
-    .bind(&original.tenant_id)
-    .bind(payload.to_string())
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     // Step 4: Build result.
@@ -465,19 +357,15 @@ pub async fn process_release(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = released_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 200, $5)
-        "#,
+    reservation_repo::store_idempotency_key(
+        &mut tx,
+        &original.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        200,
+        expires_at,
     )
-    .bind(&original.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -516,24 +404,6 @@ fn validate_release(req: &ReleaseRequest) -> Result<(), ReservationError> {
         )));
     }
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
 }
 
 // ============================================================================

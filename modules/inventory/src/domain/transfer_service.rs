@@ -21,6 +21,7 @@ use crate::{
         fifo::{self, AvailableLayer, FifoError},
         guards::{guard_item_active, guard_quantity_positive, GuardError},
         projections::on_hand,
+        transfer_repo,
     },
     events::{
         contracts::{build_transfer_completed_envelope, ConsumedLayer, TransferCompletedPayload},
@@ -97,28 +98,6 @@ pub enum TransferError {
 }
 
 // ============================================================================
-// Internal DB row types
-// ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct LedgerRow {
-    id: i64,
-}
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-#[derive(sqlx::FromRow)]
-struct LayerRow {
-    id: Uuid,
-    quantity_remaining: i64,
-    unit_cost_minor: i64,
-}
-
-// ============================================================================
 // Service
 // ============================================================================
 
@@ -138,7 +117,7 @@ pub async fn process_transfer(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency fast-path ---
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) = transfer_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
         if record.request_hash != request_hash {
             return Err(TransferError::ConflictingIdempotencyKey);
         }
@@ -159,23 +138,7 @@ pub async fn process_transfer(
     let mut tx = pool.begin().await?;
 
     // --- Lock FIFO layers on source warehouse (deterministic FIFO order) ---
-    let layer_rows = sqlx::query_as::<_, LayerRow>(
-        r#"
-        SELECT id, quantity_remaining, unit_cost_minor
-        FROM inventory_layers
-        WHERE tenant_id     = $1
-          AND item_id       = $2
-          AND warehouse_id  = $3
-          AND quantity_remaining > 0
-        ORDER BY received_at ASC, ledger_entry_id ASC
-        FOR UPDATE
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.from_warehouse_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let layer_rows = transfer_repo::lock_fifo_layers(&mut tx, &req.tenant_id, req.item_id, req.from_warehouse_id).await?;
 
     let available_layers: Vec<AvailableLayer> = layer_rows
         .iter()
@@ -189,22 +152,7 @@ pub async fn process_transfer(
     let sum_remaining: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
 
     // Available = total remaining − reserved
-    let quantity_reserved: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COALESCE(quantity_reserved, 0)
-        FROM item_on_hand
-        WHERE tenant_id    = $1
-          AND item_id      = $2
-          AND warehouse_id = $3
-          AND location_id IS NULL
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.from_warehouse_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(0i64);
+    let quantity_reserved = transfer_repo::fetch_quantity_reserved(&mut tx, &req.tenant_id, req.item_id, req.from_warehouse_id).await?;
 
     let net_available = sum_remaining - quantity_reserved;
     if net_available < req.quantity {
@@ -232,64 +180,31 @@ pub async fn process_transfer(
     // --- Step 1: Insert 'transfer_out' ledger row (source, negative qty) ---
     let transfer_id = Uuid::new_v4();
 
-    let out_ledger = sqlx::query_as::<_, LedgerRow>(
-        r#"
-        INSERT INTO inventory_ledger
-            (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
-             unit_cost_minor, currency, source_event_id, source_event_type,
-             reference_type, reference_id, posted_at)
-        VALUES
-            ($1, $2, $3, NULL, 'transfer_out', $4, 0, $5, $6, $7, 'transfer', $8, $9)
-        RETURNING id
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.from_warehouse_id)
-    .bind(-req.quantity) // negative = stock out
-    .bind(&req.currency)
-    .bind(out_event_id)
-    .bind(EVENT_TYPE_TRANSFER_COMPLETED)
-    .bind(transfer_id.to_string())
-    .bind(transferred_at)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let issue_ledger_id = out_ledger.id;
+    let issue_ledger_id = transfer_repo::insert_transfer_out_ledger(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.from_warehouse_id,
+        -req.quantity,
+        &req.currency,
+        out_event_id,
+        EVENT_TYPE_TRANSFER_COMPLETED,
+        &transfer_id.to_string(),
+        transferred_at,
+    ).await?;
 
     // --- Step 2: FIFO layer consumptions + decrement source layer quantities ---
     for c in &consumed {
-        sqlx::query(
-            r#"
-            INSERT INTO layer_consumptions
-                (layer_id, ledger_entry_id, quantity_consumed, unit_cost_minor, consumed_at)
-            VALUES ($1, $2, $3, $4, $5)
-            "#,
-        )
-        .bind(c.layer_id)
-        .bind(issue_ledger_id)
-        .bind(c.quantity)
-        .bind(c.unit_cost_minor)
-        .bind(transferred_at)
-        .execute(&mut *tx)
-        .await?;
+        transfer_repo::insert_layer_consumption(
+            &mut tx,
+            c.layer_id,
+            issue_ledger_id,
+            c.quantity,
+            c.unit_cost_minor,
+            transferred_at,
+        ).await?;
 
-        sqlx::query(
-            r#"
-            UPDATE inventory_layers
-            SET quantity_remaining = quantity_remaining - $1,
-                exhausted_at = CASE
-                    WHEN quantity_remaining - $1 = 0 THEN $2
-                    ELSE exhausted_at
-                END
-            WHERE id = $3
-            "#,
-        )
-        .bind(c.quantity)
-        .bind(transferred_at)
-        .bind(c.layer_id)
-        .execute(&mut *tx)
-        .await?;
+        transfer_repo::decrement_layer(&mut tx, c.quantity, transferred_at, c.layer_id).await?;
     }
 
     // --- Step 3: Update source on-hand projection (absolute set from FIFO sums) ---
@@ -327,53 +242,32 @@ pub async fn process_transfer(
     };
 
     // --- Step 4: Insert 'transfer_in' ledger row (destination, positive qty) ---
-    let in_ledger = sqlx::query_as::<_, LedgerRow>(
-        r#"
-        INSERT INTO inventory_ledger
-            (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
-             unit_cost_minor, currency, source_event_id, source_event_type,
-             reference_type, reference_id, posted_at)
-        VALUES
-            ($1, $2, $3, NULL, 'transfer_in', $4, $5, $6, $7, $8, 'transfer', $9, $10)
-        RETURNING id
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.to_warehouse_id)
-    .bind(req.quantity) // positive = stock in
-    .bind(avg_unit_cost)
-    .bind(&req.currency)
-    .bind(in_event_id)
-    .bind(EVENT_TYPE_TRANSFER_COMPLETED)
-    .bind(transfer_id.to_string())
-    .bind(transferred_at)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let receipt_ledger_id = in_ledger.id;
+    let receipt_ledger_id = transfer_repo::insert_transfer_in_ledger(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.to_warehouse_id,
+        req.quantity,
+        avg_unit_cost,
+        &req.currency,
+        in_event_id,
+        EVENT_TYPE_TRANSFER_COMPLETED,
+        &transfer_id.to_string(),
+        transferred_at,
+    ).await?;
 
     // --- Step 5: Create new FIFO layer at destination ---
-    sqlx::query(
-        r#"
-        INSERT INTO inventory_layers
-            (tenant_id, item_id, warehouse_id, ledger_entry_id, received_at,
-             quantity_received, quantity_remaining, unit_cost_minor, currency)
-        VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.to_warehouse_id)
-    .bind(receipt_ledger_id)
-    .bind(transferred_at)
-    .bind(req.quantity)
-    .bind(req.quantity)
-    .bind(avg_unit_cost)
-    .bind(&req.currency)
-    .execute(&mut *tx)
-    .await?;
+    transfer_repo::insert_destination_fifo_layer(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.to_warehouse_id,
+        receipt_ledger_id,
+        transferred_at,
+        req.quantity,
+        avg_unit_cost,
+        &req.currency,
+    ).await?;
 
     // --- Step 6: Update destination on-hand projection ---
     on_hand::upsert_after_receipt(
@@ -401,26 +295,19 @@ pub async fn process_transfer(
     .map_err(TransferError::Database)?;
 
     // --- Step 7: Insert inv_transfers business record ---
-    sqlx::query(
-        r#"
-        INSERT INTO inv_transfers
-            (id, tenant_id, item_id, from_warehouse_id, to_warehouse_id,
-             quantity, event_id, issue_ledger_id, receipt_ledger_id, transferred_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        "#,
-    )
-    .bind(transfer_id)
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.from_warehouse_id)
-    .bind(req.to_warehouse_id)
-    .bind(req.quantity)
-    .bind(event_id)
-    .bind(issue_ledger_id)
-    .bind(receipt_ledger_id)
-    .bind(transferred_at)
-    .execute(&mut *tx)
-    .await?;
+    transfer_repo::insert_transfer_record(
+        &mut tx,
+        transfer_id,
+        &req.tenant_id,
+        req.item_id,
+        req.from_warehouse_id,
+        req.to_warehouse_id,
+        req.quantity,
+        event_id,
+        issue_ledger_id,
+        receipt_ledger_id,
+        transferred_at,
+    ).await?;
 
     // --- Step 8: Enqueue outbox event ---
     let payload = TransferCompletedPayload {
@@ -446,24 +333,16 @@ pub async fn process_transfer(
     .with_tracing_context(ctx);
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'inventory_item', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
-    )
-    .bind(event_id)
-    .bind(EVENT_TYPE_TRANSFER_COMPLETED)
-    .bind(req.item_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
-    .await?;
+    transfer_repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_TRANSFER_COMPLETED,
+        &req.item_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
+    ).await?;
 
     // --- Step 9: Build result and store idempotency key ---
     let result = TransferResult {
@@ -485,20 +364,14 @@ pub async fn process_transfer(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = transferred_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
-    .await?;
+    transfer_repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
+    ).await?;
 
     tx.commit().await?;
 
@@ -530,24 +403,6 @@ fn validate_request(req: &TransferRequest) -> Result<(), TransferError> {
     }
     guard_quantity_positive(req.quantity).map_err(TransferError::Guard)?;
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
 }
 
 // ============================================================================

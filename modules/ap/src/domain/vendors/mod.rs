@@ -5,6 +5,7 @@
 //! Payment method metadata is stored (method type, remittance pointers) but
 //! NO secret credentials are ever persisted here.
 
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, NaiveDate, Utc};

@@ -1,4 +1,5 @@
 pub mod handlers;
+pub mod repo;
 pub mod session_logic;
 
 pub use handlers::*;

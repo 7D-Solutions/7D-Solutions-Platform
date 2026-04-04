@@ -12,6 +12,9 @@ use uuid::Uuid;
 
 pub mod builder;
 pub mod execute;
+pub mod repo;
+
+pub use repo::ExecutionRecord;
 
 // ============================================================================
 // Domain types

@@ -10,6 +10,7 @@
 
 pub mod approve;
 pub mod models;
+pub mod repo;
 pub mod service;
 pub mod void;
 

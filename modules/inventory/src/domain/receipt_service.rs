@@ -25,6 +25,7 @@ use crate::{
         items::TrackingMode,
         lots_serials::receipt::{insert_serial_instances, upsert_lot},
         projections::on_hand,
+        receipt_repo,
         reorder::evaluator,
     },
     events::{
@@ -147,22 +148,6 @@ pub enum ReceiptError {
 }
 
 // ============================================================================
-// Internal DB row types
-// ============================================================================
-
-#[derive(sqlx::FromRow)]
-struct LedgerRow {
-    id: i64,
-    entry_id: Uuid,
-}
-
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String, // read as JSONB::TEXT
-    request_hash: String,
-}
-
-// ============================================================================
 // Service
 // ============================================================================
 
@@ -183,7 +168,9 @@ pub async fn process_receipt(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency check (read outside tx; fast path for replays) ---
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        receipt_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ReceiptError::ConflictingIdempotencyKey);
         }
@@ -231,31 +218,21 @@ pub async fn process_receipt(
     let mut tx = pool.begin().await?;
 
     // Step 1: Insert ledger row
-    let ledger_row = sqlx::query_as::<_, LedgerRow>(
-        r#"
-        INSERT INTO inventory_ledger
-            (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
-             unit_cost_minor, currency, source_event_id, source_event_type,
-             reference_type, reference_id, source_type, posted_at)
-        VALUES
-            ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING id, entry_id
-        "#,
+    let ledger_row = receipt_repo::insert_ledger_row(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        quantity,
+        req.unit_cost_minor,
+        &req.currency,
+        event_id,
+        EVENT_TYPE_ITEM_RECEIVED,
+        req.purchase_order_id,
+        &req.source_type,
+        received_at,
     )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(req.location_id)
-    .bind(quantity)
-    .bind(req.unit_cost_minor)
-    .bind(&req.currency)
-    .bind(event_id)
-    .bind(EVENT_TYPE_ITEM_RECEIVED)
-    .bind(req.purchase_order_id.map(|_| "purchase_order"))
-    .bind(req.purchase_order_id.map(|id| id.to_string()))
-    .bind(&req.source_type)
-    .bind(received_at)
-    .fetch_one(&mut *tx)
     .await?;
 
     let ledger_entry_id = ledger_row.id;
@@ -280,27 +257,18 @@ pub async fn process_receipt(
     };
 
     // Step 3: Insert FIFO layer (with lot_id association when lot-tracked)
-    let layer_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO inventory_layers
-            (tenant_id, item_id, warehouse_id, ledger_entry_id, received_at,
-             quantity_received, quantity_remaining, unit_cost_minor, currency, lot_id)
-        VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id
-        "#,
+    let layer_id = receipt_repo::insert_fifo_layer(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        ledger_entry_id,
+        received_at,
+        quantity,
+        req.unit_cost_minor,
+        &req.currency,
+        lot_id,
     )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(ledger_entry_id)
-    .bind(received_at)
-    .bind(quantity) // quantity_received (base_uom units)
-    .bind(quantity) // quantity_remaining = quantity_received on insert
-    .bind(req.unit_cost_minor)
-    .bind(&req.currency)
-    .bind(lot_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     // Step 3b: Insert serial instances if serial-tracked
@@ -379,23 +347,17 @@ pub async fn process_receipt(
     .with_tracing_context(ctx);
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'inventory_item', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
+    receipt_repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_ITEM_RECEIVED,
+        "inventory_item",
+        &req.item_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
     )
-    .bind(event_id)
-    .bind(EVENT_TYPE_ITEM_RECEIVED)
-    .bind(req.item_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
     .await?;
 
     if let (Some(lot_id), Some(expires_on), Some(expiry_source), Some(lot_code)) = (
@@ -423,23 +385,17 @@ pub async fn process_receipt(
         );
         let expiry_envelope_json = serde_json::to_string(&expiry_envelope)?;
 
-        sqlx::query(
-            r#"
-            INSERT INTO inv_outbox
-                (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-                 payload, correlation_id, causation_id, schema_version)
-            VALUES
-                ($1, $2, 'inventory_lot', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-            "#,
+        receipt_repo::insert_outbox_event(
+            &mut tx,
+            expiry_event_id,
+            EVENT_TYPE_EXPIRY_SET,
+            "inventory_lot",
+            &lot_id.to_string(),
+            &req.tenant_id,
+            &expiry_envelope_json,
+            &correlation_id,
+            req.causation_id.as_deref(),
         )
-        .bind(expiry_event_id)
-        .bind(EVENT_TYPE_EXPIRY_SET)
-        .bind(lot_id.to_string())
-        .bind(&req.tenant_id)
-        .bind(&expiry_envelope_json)
-        .bind(&correlation_id)
-        .bind(&req.causation_id)
-        .execute(&mut *tx)
         .await?;
     }
 
@@ -466,20 +422,14 @@ pub async fn process_receipt(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = received_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES
-            ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
+    receipt_repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
     )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -563,24 +513,6 @@ fn validate_tracking_requirements(
         TrackingMode::None => {}
     }
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
 }
 
 // ============================================================================

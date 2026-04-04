@@ -18,6 +18,7 @@
 
 pub mod approve;
 pub mod queries;
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, Utc};

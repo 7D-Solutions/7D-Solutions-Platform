@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::guards::{guard_item_active, guard_quantity_positive, GuardError},
-    domain::status::models::InvItemStatus,
+    domain::status::{models::InvItemStatus, repo},
     events::{
         status_changed::{build_status_changed_envelope, StatusChangedPayload},
         EVENT_TYPE_STATUS_CHANGED,
@@ -82,22 +82,6 @@ pub enum StatusTransferError {
     Database(#[from] sqlx::Error),
 }
 
-#[derive(sqlx::FromRow)]
-struct IdempotencyRecord {
-    response_body: String,
-    request_hash: String,
-}
-
-#[derive(sqlx::FromRow)]
-struct AvailRow {
-    quantity_available: i64,
-}
-
-#[derive(sqlx::FromRow)]
-struct BucketRow {
-    quantity_on_hand: i64,
-}
-
 /// Move quantity between status buckets atomically.
 ///
 /// Returns `(StatusTransferResult, is_replay)`.
@@ -114,7 +98,7 @@ pub async fn process_status_transfer(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency check (fast path for replays) ---
-    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) = repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
         if record.request_hash != request_hash {
             return Err(StatusTransferError::ConflictingIdempotencyKey);
         }
@@ -140,21 +124,7 @@ pub async fn process_status_transfer(
 
     if req.from_status == InvItemStatus::Available {
         // For 'available', guard against reserved stock.
-        // Lock item_on_hand and check quantity_available (non-reserved available).
-        let row = sqlx::query_as::<_, AvailRow>(
-            r#"
-            SELECT quantity_available
-            FROM item_on_hand
-            WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
-              AND location_id IS NULL
-            FOR UPDATE
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let row = repo::lock_available_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id).await?;
 
         let avail = row.map(|r| r.quantity_available).unwrap_or(0);
         if avail < req.quantity {
@@ -165,67 +135,22 @@ pub async fn process_status_transfer(
             });
         }
 
-        // Decrement available bucket in item_on_hand_by_status
-        let rows = sqlx::query(
-            r#"
-            UPDATE item_on_hand_by_status
-            SET quantity_on_hand = quantity_on_hand - $4,
-                updated_at       = NOW()
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND status       = 'available'
-              AND quantity_on_hand >= $4
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(req.quantity)
-        .execute(&mut *tx)
-        .await?;
+        let rows_affected = repo::decrement_available_bucket(
+            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
+        ).await?;
 
-        if rows.rows_affected() == 0 {
+        if rows_affected == 0 {
             return Err(StatusTransferError::BucketNotFound("available".to_string()));
         }
 
-        // Sync item_on_hand.available_status_on_hand
-        sqlx::query(
-            r#"
-            UPDATE item_on_hand
-            SET available_status_on_hand = available_status_on_hand - $4,
-                projected_at             = NOW()
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND location_id IS NULL
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(req.quantity)
-        .execute(&mut *tx)
-        .await?;
+        repo::decrement_item_on_hand_available(
+            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
+        ).await?;
     } else {
         // Non-available bucket: check quantity_on_hand in that bucket.
-        let row = sqlx::query_as::<_, BucketRow>(
-            r#"
-            SELECT quantity_on_hand
-            FROM item_on_hand_by_status
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND status       = $4::inv_item_status
-            FOR UPDATE
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(from_str)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let row = repo::lock_non_available_bucket(
+            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, from_str,
+        ).await?;
 
         let on_hand = match row {
             Some(r) => r.quantity_on_hand,
@@ -240,86 +165,33 @@ pub async fn process_status_transfer(
             });
         }
 
-        sqlx::query(
-            r#"
-            UPDATE item_on_hand_by_status
-            SET quantity_on_hand = quantity_on_hand - $4,
-                updated_at       = NOW()
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND status       = $5::inv_item_status
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(req.quantity)
-        .bind(from_str)
-        .execute(&mut *tx)
-        .await?;
+        repo::decrement_non_available_bucket(
+            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity, from_str,
+        ).await?;
     }
 
     // --- Increment to_status bucket (upsert) ---
-    sqlx::query(
-        r#"
-        INSERT INTO item_on_hand_by_status
-            (tenant_id, item_id, warehouse_id, status, quantity_on_hand)
-        VALUES ($1, $2, $3, $4::inv_item_status, $5)
-        ON CONFLICT (tenant_id, item_id, warehouse_id, status) DO UPDATE
-            SET quantity_on_hand = item_on_hand_by_status.quantity_on_hand + $5,
-                updated_at       = NOW()
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(to_str)
-    .bind(req.quantity)
-    .execute(&mut *tx)
-    .await?;
+    repo::upsert_to_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id, to_str, req.quantity).await?;
 
     // If to_status == 'available', sync item_on_hand.available_status_on_hand
     if req.to_status == InvItemStatus::Available {
-        sqlx::query(
-            r#"
-            UPDATE item_on_hand
-            SET available_status_on_hand = available_status_on_hand + $4,
-                projected_at             = NOW()
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND location_id IS NULL
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(req.quantity)
-        .execute(&mut *tx)
-        .await?;
+        repo::increment_item_on_hand_available(
+            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
+        ).await?;
     }
 
     // --- Insert append-only ledger row ---
-    let transfer_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO inv_status_transfers
-            (tenant_id, item_id, warehouse_id, from_status, to_status, quantity, event_id, transferred_at)
-        VALUES
-            ($1, $2, $3, $4::inv_item_status, $5::inv_item_status, $6, $7, $8)
-        RETURNING id
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(from_str)
-    .bind(to_str)
-    .bind(req.quantity)
-    .bind(event_id)
-    .bind(transferred_at)
-    .fetch_one(&mut *tx)
-    .await?;
+    let transfer_id = repo::insert_status_transfer(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        from_str,
+        to_str,
+        req.quantity,
+        event_id,
+        transferred_at,
+    ).await?;
 
     // --- Build event envelope and enqueue in outbox ---
     let payload = StatusChangedPayload {
@@ -343,24 +215,16 @@ pub async fn process_status_transfer(
     );
     let envelope_json = serde_json::to_string(&envelope)?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, 'inventory_item', $3, $4, $5::JSONB, $6, $7, '1.0.0')
-        "#,
-    )
-    .bind(event_id)
-    .bind(EVENT_TYPE_STATUS_CHANGED)
-    .bind(req.item_id.to_string())
-    .bind(&req.tenant_id)
-    .bind(&envelope_json)
-    .bind(&correlation_id)
-    .bind(&req.causation_id)
-    .execute(&mut *tx)
-    .await?;
+    repo::insert_outbox_event(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_STATUS_CHANGED,
+        &req.item_id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        req.causation_id.as_deref(),
+    ).await?;
 
     // --- Build result ---
     let result = StatusTransferResult {
@@ -379,21 +243,14 @@ pub async fn process_status_transfer(
     let response_json = serde_json::to_string(&result)?;
     let expires_at = transferred_at + Duration::days(7);
 
-    sqlx::query(
-        r#"
-        INSERT INTO inv_idempotency_keys
-            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES
-            ($1, $2, $3, $4::JSONB, 201, $5)
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(&req.idempotency_key)
-    .bind(&request_hash)
-    .bind(&response_json)
-    .bind(expires_at)
-    .execute(&mut *tx)
-    .await?;
+    repo::store_idempotency_key(
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        expires_at,
+    ).await?;
 
     tx.commit().await?;
 
@@ -416,24 +273,6 @@ fn validate_request(req: &StatusTransferRequest) -> Result<(), StatusTransferErr
     }
     guard_quantity_positive(req.quantity)?;
     Ok(())
-}
-
-async fn find_idempotency_key(
-    pool: &PgPool,
-    tenant_id: &str,
-    idempotency_key: &str,
-) -> Result<Option<IdempotencyRecord>, sqlx::Error> {
-    sqlx::query_as::<_, IdempotencyRecord>(
-        r#"
-        SELECT response_body::TEXT AS response_body, request_hash
-        FROM inv_idempotency_keys
-        WHERE tenant_id = $1 AND idempotency_key = $2
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(idempotency_key)
-    .fetch_optional(pool)
-    .await
 }
 
 #[cfg(test)]

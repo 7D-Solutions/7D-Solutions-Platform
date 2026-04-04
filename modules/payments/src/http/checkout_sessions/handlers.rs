@@ -26,6 +26,7 @@ use uuid::Uuid;
 use crate::webhook_signature::{validate_webhook_signature, WebhookSource};
 
 use platform_sdk::extract_tenant;
+use super::repo;
 use super::session_logic::{
     create_tilled_payment_intent, poll_tilled_intent_status, validate_https_url,
     CheckoutSessionStatusResponse, CreateCheckoutSessionRequest, CreateCheckoutSessionResponse,
@@ -114,29 +115,15 @@ pub async fn create_checkout_session(
         .to_string();
 
     // Check for existing session with same (tenant_id, idempotency_key)
-    #[derive(sqlx::FromRow)]
-    struct ExistingSession {
-        id: Uuid,
-        processor_payment_id: String,
-        client_secret: Option<String>,
-    }
-
-    let existing: Option<ExistingSession> = sqlx::query_as(
-        "SELECT id, processor_payment_id, client_secret \
-         FROM checkout_sessions \
-         WHERE tenant_id = $1 AND idempotency_key = $2",
-    )
-    .bind(&req.tenant_id)
-    .bind(&idem_key)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check existing checkout session: {}", e);
-        with_request_id(
-            ApiError::internal("Internal database error"),
-            &tracing_ctx,
-        )
-    })?;
+    let existing = repo::find_session_by_idempotency_key(&state.pool, &req.tenant_id, &idem_key)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check existing checkout session: {}", e);
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
+        })?;
 
     if let Some(session) = existing {
         tracing::info!(
@@ -172,25 +159,18 @@ pub async fn create_checkout_session(
         (pi_id, secret)
     };
 
-    let insert_result: Result<Uuid, sqlx::Error> = sqlx::query_scalar(
-        r#"
-        INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id,
-             client_secret, idempotency_key, return_url, cancel_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        RETURNING id
-        "#,
+    let insert_result = repo::insert_checkout_session(
+        &state.pool,
+        &req.invoice_id,
+        &req.tenant_id,
+        req.amount,
+        &req.currency,
+        &pi_id,
+        &client_secret,
+        &idem_key,
+        &req.return_url,
+        &req.cancel_url,
     )
-    .bind(&req.invoice_id)
-    .bind(&req.tenant_id)
-    .bind(req.amount)
-    .bind(&req.currency)
-    .bind(&pi_id)
-    .bind(&client_secret)
-    .bind(&idem_key)
-    .bind(&req.return_url)
-    .bind(&req.cancel_url)
-    .fetch_one(&state.pool)
     .await;
 
     match insert_result {
@@ -219,22 +199,22 @@ pub async fn create_checkout_session(
                 "Race condition on idempotent insert — fetching existing session"
             );
             // Race condition fallback: fetch the session that won the insert race
-            let winner: ExistingSession = sqlx::query_as(
-                "SELECT id, processor_payment_id, client_secret \
-                 FROM checkout_sessions \
-                 WHERE tenant_id = $1 AND idempotency_key = $2",
-            )
-            .bind(&req.tenant_id)
-            .bind(&idem_key)
-            .fetch_one(&state.pool)
-            .await
-            .map_err(|e2| {
-                tracing::error!("Failed to fetch race-winner session: {}", e2);
-                with_request_id(
-                    ApiError::internal("Internal database error"),
-                    &tracing_ctx,
-                )
-            })?;
+            let winner =
+                repo::find_session_by_idempotency_key(&state.pool, &req.tenant_id, &idem_key)
+                    .await
+                    .map_err(|e2| {
+                        tracing::error!("Failed to fetch race-winner session: {}", e2);
+                        with_request_id(
+                            ApiError::internal("Internal database error"),
+                            &tracing_ctx,
+                        )
+                    })?
+                    .ok_or_else(|| {
+                        with_request_id(
+                            ApiError::internal("Internal database error"),
+                            &tracing_ctx,
+                        )
+                    })?;
 
             Ok(Json(CreateCheckoutSessionResponse {
                 session_id: winner.id.to_string(),
@@ -276,34 +256,15 @@ pub async fn get_checkout_session(
 ) -> Result<Json<CheckoutSessionStatusResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
-    #[derive(sqlx::FromRow)]
-    struct SessionRow {
-        status: String,
-        processor_payment_id: String,
-        invoice_id: String,
-        tenant_id: String,
-        amount_minor: i64,
-        currency: String,
-        return_url: Option<String>,
-        cancel_url: Option<String>,
-    }
-
-    let row: Option<SessionRow> = sqlx::query_as(
-        r#"SELECT status, processor_payment_id, invoice_id, tenant_id,
-                  amount_minor, currency, return_url, cancel_url
-           FROM checkout_sessions WHERE id = $1 AND tenant_id = $2"#,
-    )
-    .bind(session_id)
-    .bind(&tenant_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        with_request_id(
-            ApiError::internal("Internal database error"),
-            &tracing_ctx,
-        )
-    })?;
+    let row = repo::find_session_details(&state.pool, session_id, &tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error: {}", e);
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
+        })?;
 
     let session = row.ok_or_else(|| {
         with_request_id(
@@ -324,13 +285,8 @@ pub async fn get_checkout_session(
             {
                 Ok(live_status) if live_status != session.status => {
                     // Update cached status if it changed
-                    let _ = sqlx::query(
-                        "UPDATE checkout_sessions SET status = $1, updated_at = NOW() WHERE id = $2",
-                    )
-                    .bind(&live_status)
-                    .bind(session_id)
-                    .execute(&state.pool)
-                    .await;
+                    let _ =
+                        repo::update_session_status(&state.pool, session_id, &live_status).await;
                     live_status
                 }
                 Ok(s) => s,
@@ -382,40 +338,27 @@ pub async fn present_checkout_session(
 ) -> Result<StatusCode, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
-    let rows = sqlx::query(
-        "UPDATE checkout_sessions \
-         SET status = 'presented', presented_at = NOW(), updated_at = NOW() \
-         WHERE id = $1 AND status = 'created' AND tenant_id = $2",
-    )
-    .bind(session_id)
-    .bind(&tenant_id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error updating checkout session: {}", e);
-        with_request_id(
-            ApiError::internal("Internal database error"),
-            &tracing_ctx,
-        )
-    })?
-    .rows_affected();
-
-    if rows == 0 {
-        // 0 rows: either already in a later state (idempotent) or session not found
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM checkout_sessions WHERE id = $1 AND tenant_id = $2)",
-        )
-        .bind(session_id)
-        .bind(&tenant_id)
-        .fetch_one(&state.pool)
+    let rows = repo::present_session(&state.pool, session_id, &tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error checking session existence: {}", e);
+            tracing::error!("Database error updating checkout session: {}", e);
             with_request_id(
                 ApiError::internal("Internal database error"),
                 &tracing_ctx,
             )
         })?;
+
+    if rows == 0 {
+        // 0 rows: either already in a later state (idempotent) or session not found
+        let exists = repo::session_exists(&state.pool, session_id, &tenant_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Database error checking session existence: {}", e);
+                with_request_id(
+                    ApiError::internal("Internal database error"),
+                    &tracing_ctx,
+                )
+            })?;
 
         if !exists {
             return Err(with_request_id(
@@ -456,19 +399,15 @@ pub async fn poll_checkout_session_status(
 ) -> Result<Json<SessionStatusPollResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
-    let status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1 AND tenant_id = $2")
-            .bind(session_id)
-            .bind(&tenant_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("Database error polling session status: {}", e);
-                with_request_id(
-                    ApiError::internal("Internal database error"),
-                    &tracing_ctx,
-                )
-            })?;
+    let status = repo::poll_session_status(&state.pool, session_id, &tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error polling session status: {}", e);
+            with_request_id(
+                ApiError::internal("Internal database error"),
+                &tracing_ctx,
+            )
+        })?;
 
     let status = status.ok_or_else(|| {
         with_request_id(
@@ -548,21 +487,12 @@ pub async fn tilled_webhook(
 
     // Idempotent: only transition from non-terminal states.
     // If already in completed/failed/canceled/expired, UPDATE matches 0 rows — no-op.
-    let rows_updated = sqlx::query(
-        "UPDATE checkout_sessions \
-         SET status = $1, updated_at = NOW() \
-         WHERE processor_payment_id = $2 \
-         AND status IN ('created', 'presented')",
-    )
-    .bind(new_status)
-    .bind(pi_id)
-    .execute(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error in webhook handler: {}", e);
-        ApiError::internal("Internal database error")
-    })?
-    .rows_affected();
+    let rows_updated = repo::update_status_by_processor_id(&state.pool, pi_id, new_status)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error in webhook handler: {}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
     tracing::info!(
         event_type = event_type,

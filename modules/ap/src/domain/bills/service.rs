@@ -1,9 +1,11 @@
-//! Bill service — Guard → Mutation → Outbox DB operations.
+//! Bill service — Guard → Mutation → Outbox orchestration.
 //!
 //! All writes follow the pattern:
 //!   1. Guard: validate business preconditions (vendor exists, no duplicate invoice)
 //!   2. Mutation: insert bill + lines in a transaction
 //!   3. Outbox: enqueue vendor_bill_created event atomically
+//!
+//! Raw SQL lives in `super::repo`; this module owns business logic only.
 
 use chrono::Utc;
 use sqlx::PgPool;
@@ -16,7 +18,8 @@ use crate::events::{
 };
 use crate::outbox::enqueue_event_tx;
 
-use super::{BillError, BillLineRecord, CreateBillRequest, VendorBill, VendorBillWithLines};
+use super::repo;
+use super::{BillError, CreateBillRequest, VendorBillWithLines};
 
 // ============================================================================
 // Reads
@@ -28,36 +31,11 @@ pub async fn get_bill(
     tenant_id: &str,
     bill_id: Uuid,
 ) -> Result<Option<VendorBillWithLines>, BillError> {
-    let bill: Option<VendorBill> = sqlx::query_as(
-        r#"
-        SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-               total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-               entered_by, entered_at
-        FROM vendor_bills
-        WHERE bill_id = $1 AND tenant_id = $2
-        "#,
-    )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
-
-    let Some(bill) = bill else {
+    let Some(bill) = repo::fetch_bill(pool, tenant_id, bill_id).await? else {
         return Ok(None);
     };
 
-    let lines: Vec<BillLineRecord> = sqlx::query_as(
-        r#"
-        SELECT line_id, bill_id, description, quantity, unit_price_minor,
-               line_total_minor, gl_account_code, po_line_id, created_at
-        FROM bill_lines
-        WHERE bill_id = $1
-        ORDER BY created_at ASC
-        "#,
-    )
-    .bind(bill_id)
-    .fetch_all(pool)
-    .await?;
+    let lines = repo::fetch_bill_lines(pool, bill_id).await?;
 
     Ok(Some(VendorBillWithLines { bill, lines }))
 }
@@ -69,72 +47,8 @@ pub async fn list_bills(
     tenant_id: &str,
     vendor_id: Option<Uuid>,
     include_voided: bool,
-) -> Result<Vec<VendorBill>, BillError> {
-    let bills = match (vendor_id, include_voided) {
-        (Some(vid), true) => {
-            sqlx::query_as::<_, VendorBill>(
-                r#"
-                SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-                       total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-                       entered_by, entered_at
-                FROM vendor_bills
-                WHERE tenant_id = $1 AND vendor_id = $2
-                ORDER BY invoice_date DESC
-                "#,
-            )
-            .bind(tenant_id)
-            .bind(vid)
-            .fetch_all(pool)
-            .await?
-        }
-        (Some(vid), false) => {
-            sqlx::query_as::<_, VendorBill>(
-                r#"
-                SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-                       total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-                       entered_by, entered_at
-                FROM vendor_bills
-                WHERE tenant_id = $1 AND vendor_id = $2 AND status != 'voided'
-                ORDER BY invoice_date DESC
-                "#,
-            )
-            .bind(tenant_id)
-            .bind(vid)
-            .fetch_all(pool)
-            .await?
-        }
-        (None, true) => {
-            sqlx::query_as::<_, VendorBill>(
-                r#"
-                SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-                       total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-                       entered_by, entered_at
-                FROM vendor_bills
-                WHERE tenant_id = $1
-                ORDER BY invoice_date DESC
-                "#,
-            )
-            .bind(tenant_id)
-            .fetch_all(pool)
-            .await?
-        }
-        (None, false) => {
-            sqlx::query_as::<_, VendorBill>(
-                r#"
-                SELECT bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-                       total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-                       entered_by, entered_at
-                FROM vendor_bills
-                WHERE tenant_id = $1 AND status != 'voided'
-                ORDER BY invoice_date DESC
-                "#,
-            )
-            .bind(tenant_id)
-            .fetch_all(pool)
-            .await?
-        }
-    };
-    Ok(bills)
+) -> Result<Vec<super::VendorBill>, BillError> {
+    repo::list_bills(pool, tenant_id, vendor_id, include_voided).await
 }
 
 // ============================================================================
@@ -155,18 +69,7 @@ pub async fn create_bill(
     req.validate()?;
 
     // Guard: vendor must exist and be active for this tenant
-    let vendor_row: Option<(Uuid, i32)> = sqlx::query_as(
-        r#"
-        SELECT vendor_id, payment_terms_days
-        FROM vendors
-        WHERE vendor_id = $1 AND tenant_id = $2 AND is_active = TRUE
-        "#,
-    )
-    .bind(req.vendor_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
-
+    let vendor_row = repo::fetch_active_vendor(pool, req.vendor_id, tenant_id).await?;
     let (_, payment_terms_days) = vendor_row.ok_or(BillError::VendorNotFound(req.vendor_id))?;
 
     // Derive due_date deterministically from vendor terms when not provided
@@ -192,42 +95,22 @@ pub async fn create_bill(
     let mut tx = pool.begin().await?;
 
     // Mutation: insert bill header
-    let bill: VendorBill = sqlx::query_as(
-        r#"
-        INSERT INTO vendor_bills (
-            bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-            total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-            entered_by, entered_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open', $10, $11, $12)
-        RETURNING
-            bill_id, tenant_id, vendor_id, vendor_invoice_ref, currency,
-            total_minor, tax_minor, invoice_date, due_date, status, fx_rate_id,
-            entered_by, entered_at
-        "#,
+    let bill = repo::insert_bill(
+        &mut *tx,
+        bill_id,
+        tenant_id,
+        req.vendor_id,
+        req.vendor_invoice_ref.trim(),
+        &req.currency.to_uppercase(),
+        total_minor,
+        req.tax_minor,
+        req.invoice_date,
+        due_date,
+        req.fx_rate_id,
+        req.entered_by.trim(),
+        now,
     )
-    .bind(bill_id)
-    .bind(tenant_id)
-    .bind(req.vendor_id)
-    .bind(req.vendor_invoice_ref.trim())
-    .bind(req.currency.to_uppercase())
-    .bind(total_minor)
-    .bind(req.tax_minor)
-    .bind(req.invoice_date)
-    .bind(due_date)
-    .bind(req.fx_rate_id)
-    .bind(req.entered_by.trim())
-    .bind(now)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        if let sqlx::Error::Database(ref db) = e {
-            if db.code().as_deref() == Some("23505") {
-                return BillError::DuplicateInvoice(req.vendor_invoice_ref.trim().to_string());
-            }
-        }
-        BillError::Database(e)
-    })?;
+    .await?;
 
     // Mutation: insert bill lines
     let mut bill_lines = Vec::with_capacity(req.lines.len());
@@ -243,28 +126,18 @@ pub async fn create_bill(
             .to_string();
         let line_total = line_req.line_total_minor();
 
-        let line: BillLineRecord = sqlx::query_as(
-            r#"
-            INSERT INTO bill_lines (
-                line_id, bill_id, description, quantity, unit_price_minor,
-                line_total_minor, gl_account_code, po_line_id, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING
-                line_id, bill_id, description, quantity, unit_price_minor,
-                line_total_minor, gl_account_code, po_line_id, created_at
-            "#,
+        let line = repo::insert_bill_line(
+            &mut *tx,
+            line_id,
+            bill_id,
+            &description,
+            line_req.quantity,
+            line_req.unit_price_minor,
+            line_total,
+            &gl_account,
+            line_req.po_line_id,
+            now,
         )
-        .bind(line_id)
-        .bind(bill_id)
-        .bind(&description)
-        .bind(line_req.quantity)
-        .bind(line_req.unit_price_minor)
-        .bind(line_total)
-        .bind(&gl_account)
-        .bind(line_req.po_line_id)
-        .bind(now)
-        .fetch_one(&mut *tx)
         .await?;
 
         event_lines.push(EventBillLine {
