@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-04-04 | bd-zv5o7 | Reconcile event_naming.rs with live publisher strategies | Event naming conventions in code diverged from what modules actually publish on NATS. | No |
 | 1.0.0 | 2026-03-28 | bd-2nu3u | Initial proof. All E2E tests passing. | Module build complete. | No |
 
 ## How to read this table

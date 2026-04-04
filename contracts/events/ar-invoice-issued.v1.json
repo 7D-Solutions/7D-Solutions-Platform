@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://7dsolutions.io/schemas/events/ar-invoice-issued.v1.json",
-  "title": "ar.invoice.issued",
+  "title": "ar.invoice_opened",
   "description": "Event emitted when an AR invoice is created and issued",
   "type": "object",
   "required": [

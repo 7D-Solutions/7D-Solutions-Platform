@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.1.1 | 2026-04-04 | bd-85tso | Replace tenant_id.parse().expect() with ApiError::bad_request on 16 request paths | Unwrap on user-supplied input causes panic (500) instead of returning 400 Bad Request. | No |
 | 3.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 3.0.0 | 2026-04-02 | bd-4g5my | Add `#[utoipa::path]` to 4 health handlers (`healthz`, `health`, `ready`, `version`). Change `list_routings` to return `PaginatedResponse<InspectionRoutingRow>` instead of bare `Vec`. All 20 paths now registered in OpenAPI spec. | Response standardization: health endpoints lacked utoipa annotations; list_routings must use PaginatedResponse for consistency with platform standard. | YES — `GET /api/shipping-receiving/shipments/{id}/routings` response shape changed from bare `[...]` array to `{"data":[...],"pagination":{...}}`. Consumers parsing the routings list must update to the PaginatedResponse envelope. |
 | 2.2.8 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |

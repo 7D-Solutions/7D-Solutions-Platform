@@ -7,8 +7,9 @@ use chrono::Datelike;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
+use crate::domain::{customers, payment_methods};
 use crate::models::{
-    AddPaymentMethodRequest, ApiError, Customer, PaymentMethod, UpdatePaymentMethodRequest,
+    AddPaymentMethodRequest, ApiError, PaymentMethod, UpdatePaymentMethodRequest,
 };
 use crate::tilled::TilledClient;
 
@@ -31,96 +32,37 @@ pub async fn add_payment_method(
         return Err(ApiError::bad_request("tilled_payment_method_id is required"));
     }
 
-    let _customer = sqlx::query_as::<_, Customer>(
-        r#"
-        SELECT
-            id, app_id, external_customer_id, tilled_customer_id, status,
-            email, name, default_payment_method_id, payment_method_type,
-            metadata, update_source, updated_by, delinquent_since,
-            grace_period_end, next_retry_at, retry_attempt_count,
-            created_at, updated_at
-        FROM ar_customers
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(req.ar_customer_id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching customer: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?
-    .ok_or_else(|| {
-        ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
-    })?;
-
-    let existing = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        SELECT
-            id, app_id, ar_customer_id, tilled_payment_method_id,
-            status, type, brand, last4, exp_month, exp_year,
-            bank_name, bank_last4, is_default, metadata,
-            deleted_at, created_at, updated_at
-        FROM ar_payment_methods
-        WHERE tilled_payment_method_id = $1
-        "#,
-    )
-    .bind(&req.tilled_payment_method_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error checking payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
-
-    let payment_method = if let Some(_pm) = existing {
-        sqlx::query_as::<_, PaymentMethod>(
-            r#"
-            UPDATE ar_payment_methods
-            SET app_id = $1, ar_customer_id = $2, status = 'pending_sync',
-                deleted_at = NULL, updated_at = NOW()
-            WHERE tilled_payment_method_id = $3
-            RETURNING
-                id, app_id, ar_customer_id, tilled_payment_method_id,
-                status, type, brand, last4, exp_month, exp_year,
-                bank_name, bank_last4, is_default, metadata,
-                deleted_at, created_at, updated_at
-            "#,
-        )
-        .bind(&app_id)
-        .bind(req.ar_customer_id)
-        .bind(&req.tilled_payment_method_id)
-        .fetch_one(&db)
+    let _customer = customers::fetch_customer(&db, req.ar_customer_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update payment method: {:?}", e);
+            tracing::error!("Database error fetching customer: {:?}", e);
             ApiError::internal("Internal database error")
         })?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
+        })?;
+
+    let existing = payment_methods::find_by_tilled_id(&db, &req.tilled_payment_method_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error checking payment method: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
+
+    let payment_method = if existing.is_some() {
+        payment_methods::reattach(&db, &app_id, req.ar_customer_id, &req.tilled_payment_method_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update payment method: {:?}", e);
+                ApiError::internal("Internal database error")
+            })?
     } else {
-        sqlx::query_as::<_, PaymentMethod>(
-            r#"
-            INSERT INTO ar_payment_methods (
-                app_id, ar_customer_id, tilled_payment_method_id,
-                type, status, is_default, metadata, created_at, updated_at
-            )
-            VALUES ($1, $2, $3, 'card', 'pending_sync', FALSE, '{}', NOW(), NOW())
-            RETURNING
-                id, app_id, ar_customer_id, tilled_payment_method_id,
-                status, type, brand, last4, exp_month, exp_year,
-                bank_name, bank_last4, is_default, metadata,
-                deleted_at, created_at, updated_at
-            "#,
-        )
-        .bind(&app_id)
-        .bind(req.ar_customer_id)
-        .bind(&req.tilled_payment_method_id)
-        .fetch_one(&db)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to create payment method: {:?}", e);
-            ApiError::internal("Internal database error")
-        })?
+        payment_methods::insert_pending(&db, &app_id, req.ar_customer_id, &req.tilled_payment_method_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create payment method: {:?}", e);
+                ApiError::internal("Internal database error")
+            })?
     };
 
     tracing::info!(
@@ -149,29 +91,15 @@ pub async fn update_payment_method(
 ) -> Result<Json<PaymentMethod>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let existing = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        SELECT
-            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
-            pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
-            pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
-            pm.deleted_at, pm.created_at, pm.updated_at
-        FROM ar_payment_methods pm
-        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
-        WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
-        "#,
-    )
-    .bind(id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?
-    .ok_or_else(|| {
-        ApiError::not_found(format!("Payment method {} not found", id))
-    })?;
+    let existing = payment_methods::fetch_with_tenant(&db, id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching payment method: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("Payment method {} not found", id))
+        })?;
 
     if req.metadata.is_none() {
         return Err(ApiError::bad_request("No valid fields to update"));
@@ -179,26 +107,12 @@ pub async fn update_payment_method(
 
     let metadata = req.metadata.or(existing.metadata);
 
-    let payment_method = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        UPDATE ar_payment_methods
-        SET metadata = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING
-            id, app_id, ar_customer_id, tilled_payment_method_id,
-            status, type, brand, last4, exp_month, exp_year,
-            bank_name, bank_last4, is_default, metadata,
-            deleted_at, created_at, updated_at
-        "#,
-    )
-    .bind(metadata)
-    .bind(id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let payment_method = payment_methods::update_metadata(&db, id, metadata)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update payment method: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
     tracing::info!("Updated payment method {}", id);
 
@@ -221,44 +135,22 @@ pub async fn delete_payment_method(
 ) -> Result<StatusCode, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let payment_method = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        SELECT
-            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
-            pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
-            pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
-            pm.deleted_at, pm.created_at, pm.updated_at
-        FROM ar_payment_methods pm
-        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
-        WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
-        "#,
-    )
-    .bind(id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?
-    .ok_or_else(|| {
-        ApiError::not_found(format!("Payment method {} not found", id))
-    })?;
+    let payment_method = payment_methods::fetch_with_tenant(&db, id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching payment method: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("Payment method {} not found", id))
+        })?;
 
-    let blocking_charge_count: Option<i64> = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(*)
-        FROM ar_charges
-        WHERE ar_customer_id = $1 AND status IN ('pending', 'authorized')
-        "#,
-    )
-    .bind(payment_method.ar_customer_id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error checking blocking charges: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let blocking_charge_count = payment_methods::count_blocking_charges(&db, payment_method.ar_customer_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error checking blocking charges: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
     if blocking_charge_count.unwrap_or(0) > 0 {
         return Err(ApiError::conflict(format!(
@@ -286,39 +178,23 @@ pub async fn delete_payment_method(
         }
     }
 
-    sqlx::query(
-        r#"
-        UPDATE ar_payment_methods
-        SET deleted_at = NOW(), is_default = FALSE, updated_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .execute(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to delete payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
-
-    if payment_method.is_default {
-        sqlx::query(
-            r#"
-            UPDATE ar_customers
-            SET default_payment_method_id = NULL, payment_method_type = NULL, updated_at = NOW()
-            WHERE id = $1
-            "#,
-        )
-        .bind(payment_method.ar_customer_id)
-        .execute(&db)
+    payment_methods::soft_delete(&db, id)
         .await
         .map_err(|e| {
-            tracing::error!(
-                "Failed to clear default payment method from customer: {:?}",
-                e
-            );
+            tracing::error!("Failed to delete payment method: {:?}", e);
             ApiError::internal("Internal database error")
         })?;
+
+    if payment_method.is_default {
+        customers::clear_default_payment_method(&db, payment_method.ar_customer_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to clear default payment method from customer: {:?}",
+                    e
+                );
+                ApiError::internal("Internal database error")
+            })?;
     }
 
     tracing::info!("Deleted payment method {}", id);
@@ -342,29 +218,15 @@ pub async fn set_default_payment_method(
 ) -> Result<Json<PaymentMethod>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let payment_method = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        SELECT
-            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
-            pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
-            pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
-            pm.deleted_at, pm.created_at, pm.updated_at
-        FROM ar_payment_methods pm
-        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
-        WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
-        "#,
-    )
-    .bind(id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching payment method: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?
-    .ok_or_else(|| {
-        ApiError::not_found(format!("Payment method {} not found", id))
-    })?;
+    let payment_method = payment_methods::fetch_with_tenant(&db, id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching payment method: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?
+        .ok_or_else(|| {
+            ApiError::not_found(format!("Payment method {} not found", id))
+        })?;
 
     if payment_method.status != "active" {
         return Err(ApiError::bad_request(format!(
@@ -392,53 +254,26 @@ pub async fn set_default_payment_method(
         ApiError::internal("Internal database error")
     })?;
 
-    sqlx::query(
-        r#"
-        UPDATE ar_payment_methods
-        SET is_default = FALSE, updated_at = NOW()
-        WHERE ar_customer_id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(payment_method.ar_customer_id)
-    .bind(&app_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to clear default flags: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    payment_methods::clear_default_flags(&mut *tx, payment_method.ar_customer_id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to clear default flags: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
-    let updated_pm = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        UPDATE ar_payment_methods
-        SET is_default = TRUE, updated_at = NOW()
-        WHERE id = $1
-        RETURNING
-            id, app_id, ar_customer_id, tilled_payment_method_id,
-            status, type, brand, last4, exp_month, exp_year,
-            bank_name, bank_last4, is_default, metadata,
-            deleted_at, created_at, updated_at
-        "#,
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to set default flag: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let updated_pm = payment_methods::set_default_flag(&mut *tx, id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to set default flag: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
-    sqlx::query(
-        r#"
-        UPDATE ar_customers
-        SET default_payment_method_id = $1, payment_method_type = $2, updated_at = NOW()
-        WHERE id = $3
-        "#,
+    customers::set_default_payment_method(
+        &mut *tx,
+        payment_method.ar_customer_id,
+        &payment_method.tilled_payment_method_id,
+        &payment_method.payment_type,
     )
-    .bind(&payment_method.tilled_payment_method_id)
-    .bind(&payment_method.payment_type)
-    .bind(payment_method.ar_customer_id)
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to update customer default: {:?}", e);

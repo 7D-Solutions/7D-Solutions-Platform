@@ -167,6 +167,7 @@ to, known consumers, and the source file containing the payload definition.
 | `party.events.contact.primary_set` | `party.events.party.events.contact.primary_set` | — | `modules/party/src/events/contact.rs` |
 | `party.events.contact.updated` | `party.events.party.events.contact.updated` | — | `modules/party/src/events/contact.rs` |
 | `party.events.tags.updated` | `party.events.party.events.tags.updated` | — | `modules/party/src/events/contact.rs` |
+| `party.reactivated` | `party.events.party.reactivated` | — | `modules/party/src/events/party.rs` |
 | `party.scorecard.created` | `party.events.party.scorecard.created` | — | `modules/party/src/events/vendor.rs` |
 | `party.scorecard.updated` | `party.events.party.scorecard.updated` | — | `modules/party/src/events/vendor.rs` |
 | `party.updated` | `party.events.party.updated` | — | `modules/party/src/events/party.rs` |
@@ -241,7 +242,7 @@ to, known consumers, and the source file containing the payload definition.
 
 | Event Type | NATS Subject | Consumers | Source |
 |-----------|-------------|-----------|--------|
-| `billrun.completed` | `subscriptions.events.billrun.completed` | — | `modules/subscriptions/src/http/bill_run_service.rs` |
+| `billrun.completed` | `subscriptions.events.billrun.completed` | — | `modules/subscriptions/src/bill_run_service.rs` |
 | `subscriptions.status.changed` | `subscriptions.events.subscriptions.status.changed` | — | `modules/subscriptions/src/lifecycle/transitions.rs` |
 
 ## treasury
@@ -262,6 +263,6 @@ to, known consumers, and the source file containing the payload definition.
 
 ---
 
-**Summary:** 171 events across 16 modules, 26 consumer subscriptions.
+**Summary:** 172 events across 16 modules, 27 consumer subscriptions.
 
-*Generated on 2026-04-02T16:53:46Z*
+*Generated on 2026-04-03T19:36:23Z*

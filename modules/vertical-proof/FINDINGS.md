@@ -40,7 +40,7 @@ updated to include all of them.
 ## Gap 2: No consumer guide documents which event subjects exist
 
 **Problem:** To subscribe to an AR event, a vertical developer must guess the NATS
-subject (e.g. `ar.events.invoice.opened`). There is no canonical list of event subjects
+subject (e.g. `ar.events.ar.invoice_opened`). There is no canonical list of event subjects
 published by each module.
 
 **Impact:** Vertical developers must read module source code to discover events.
@@ -83,7 +83,7 @@ request, verticals need to construct `VerifiedClaims`. The SDK provides
 
 ## Gap 5: No event schema types shared between publisher and consumer
 
-**Problem:** When subscribing to `ar.events.invoice.opened`, the vertical must know
+**Problem:** When subscribing to `ar.events.ar.invoice_opened`, the vertical must know
 the payload schema. There are no shared event payload types in the client crates — the
 consumer gets `EventEnvelope<serde_json::Value>` and must deserialize manually.
 

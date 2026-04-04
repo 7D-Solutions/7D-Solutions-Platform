@@ -37,8 +37,10 @@ pub async fn shipments_by_po(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims) {
-        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -67,8 +69,10 @@ pub async fn lines_by_po_line(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_line_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims) {
-        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -100,8 +104,10 @@ pub async fn shipments_by_source_ref(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path((ref_type, ref_id)): Path<(String, Uuid)>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims) {
-        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 

@@ -13,6 +13,7 @@ use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
+use crate::domain::tax_config as tax_config_repo;
 use crate::tax::{self, LocalTaxProvider, TaxAddress, TaxLineItem, TaxQuoteRequest};
 
 // ============================================================================
@@ -250,32 +251,7 @@ pub async fn lookup_cached_quote(
     };
 
     // Look up the most recent cached quote for this tenant + invoice_id
-    let row = sqlx::query_as::<
-        _,
-        (
-            uuid::Uuid,
-            String,
-            String,
-            String,
-            String,
-            i64,
-            serde_json::Value,
-            chrono::DateTime<chrono::Utc>,
-        ),
-    >(
-        r#"
-        SELECT id, provider, provider_quote_ref, request_hash, idempotency_key,
-               total_tax_minor, tax_by_line, quoted_at
-        FROM ar_tax_quote_cache
-        WHERE app_id = $1 AND invoice_id = $2
-        ORDER BY created_at DESC
-        LIMIT 1
-        "#,
-    )
-    .bind(&tenant_id)
-    .bind(&query.invoice_id)
-    .fetch_optional(&pool)
-    .await;
+    let row = tax_config_repo::lookup_cached_quote(&pool, &tenant_id, &query.invoice_id).await;
 
     match row {
         Ok(Some(r)) => {

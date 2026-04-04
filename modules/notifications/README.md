@@ -29,7 +29,7 @@ Admin routes are available under the admin router (requires `notifications.mutat
 ## Events
 
 ### Consumed
-- `ar.events.invoice.issued` — creates notification when invoice is issued
+- `ar.events.ar.invoice_opened` — creates notification when invoice is opened
 - `payments.events.payment.succeeded` — creates notification on successful payment
 - `payments.events.payment.failed` — creates notification on failed payment
 

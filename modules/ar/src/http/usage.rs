@@ -6,6 +6,7 @@ use event_bus::TracingContext;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
+use crate::domain::usage as usage_repo;
 use crate::models::{ApiError, CaptureUsageRequest, UsageRecord};
 
 // ============================================================================
@@ -36,21 +37,12 @@ pub async fn capture_usage(
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Guard: check for duplicate idempotency_key (no-op return of original)
-    let existing: Option<UsageRecord> = sqlx::query_as::<_, UsageRecord>(
-        r#"
-        SELECT id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
-               quantity::float8 AS quantity, unit, unit_price_cents, period_start, period_end, recorded_at
-        FROM ar_metered_usage
-        WHERE idempotency_key = $1
-        "#,
-    )
-    .bind(req.idempotency_key)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("DB error checking usage idempotency: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let existing: Option<UsageRecord> = usage_repo::find_by_idempotency_key(&db, req.idempotency_key)
+        .await
+        .map_err(|e| {
+            tracing::error!("DB error checking usage idempotency: {:?}", e);
+            ApiError::internal("Internal database error")
+        })?;
 
     if let Some(record) = existing {
         tracing::info!(
@@ -77,28 +69,18 @@ pub async fn capture_usage(
     })?;
 
     // Mutation: insert usage record
-    let record = sqlx::query_as::<_, UsageRecord>(
-        r#"
-        INSERT INTO ar_metered_usage (
-            app_id, customer_id, metric_name, quantity, unit_price_cents,
-            period_start, period_end, recorded_at,
-            idempotency_key, usage_uuid, unit
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, gen_random_uuid(), $9)
-        RETURNING id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
-                  quantity::float8 AS quantity, unit, unit_price_cents, period_start, period_end, recorded_at
-        "#,
+    let record = usage_repo::insert_usage(
+        &mut *tx,
+        &app_id,
+        customer_id,
+        &req.metric_name,
+        req.quantity,
+        quantity_minor as i32,
+        req.period_start.naive_utc(),
+        req.period_end.naive_utc(),
+        req.idempotency_key,
+        &req.unit,
     )
-    .bind(&app_id)
-    .bind(customer_id)
-    .bind(&req.metric_name)
-    .bind(req.quantity)
-    .bind(quantity_minor as i32)
-    .bind(req.period_start.naive_utc())
-    .bind(req.period_end.naive_utc())
-    .bind(req.idempotency_key)
-    .bind(&req.unit)
-    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to insert usage record: {:?}", e);

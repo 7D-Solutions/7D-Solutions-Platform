@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 6.2.1 | 2026-04-04 | bd-t8y4c | SoC: extract SQL from HTTP handlers into domain modules (charges, customers, refunds, subscriptions, payment_methods, webhooks, tax_config, disputes, events, usage, health). 96 queries moved. | Separation of concerns — SQL queries mixed into HTTP handlers violate the repo/service/handler layering pattern. | No |
 | 6.2.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 6.1.0 | 2026-04-02 | bd-gex3m | line_item_details changed from Option<Value> to Option<Vec<InvoiceLineItem>> | Typed line items for vertical consumption | Yes — callers using raw Value must use InvoiceLineItem struct |
 | 6.0.0 | 2026-04-02 | bd-a924k | Widen all amount_cents fields from i32 to i64 across models, handlers, repo, events, tests. DB migration alters ar_invoices, ar_charges, ar_refunds, ar_disputes, ar_payment_allocations, ar_invoice_line_items, ar_tax_calculations, ar_discount_applications from INTEGER to BIGINT. Remove checked_i32_to_i64 calls where amount is now natively i64. | i32 truncates at 2,147,483,647 cents (~$21.47M) — aerospace/defense contracts exceed this. | YES: all amount_cents fields in request/response types change from i32 to i64. Consumers parsing JSON numbers are unaffected (JSON has no i32/i64 distinction), but typed SDK clients must regenerate. |

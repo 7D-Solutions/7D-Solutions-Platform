@@ -3,6 +3,20 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
 
+// ============================================================================
+// NATS Subject Constants
+// ============================================================================
+//
+// AR event_types carry the module prefix (e.g. `ar.invoice_opened`), so the
+// wire subjects include it twice: `ar.events.ar.invoice_opened`.
+// See platform_contracts::event_naming for the cross-module constants.
+
+/// NATS subject for invoice-opened events.
+pub const SUBJECT_INVOICE_OPENED: &str = "ar.events.ar.invoice_opened";
+
+/// NATS subject for invoice-paid events.
+pub const SUBJECT_INVOICE_PAID: &str = "ar.events.ar.invoice_paid";
+
 /// Background task that publishes events from the outbox to the event bus
 ///
 /// This task polls the events_outbox table for unpublished events and publishes

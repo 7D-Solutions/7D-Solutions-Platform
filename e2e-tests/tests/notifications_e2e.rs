@@ -72,7 +72,7 @@ fn make_invoice_issued_msg(event_id: Uuid, tenant_id: &str, invoice_id: &str) ->
         }
     });
     BusMessage {
-        subject: "ar.events.invoice.issued".to_string(),
+        subject: "ar.events.ar.invoice_opened".to_string(),
         payload: serde_json::to_vec(&envelope).unwrap(),
         headers: None,
         reply_to: None,

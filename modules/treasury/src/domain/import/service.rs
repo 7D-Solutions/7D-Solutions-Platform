@@ -6,11 +6,12 @@
 //! 2. `external_id` on each transaction line — `ON CONFLICT DO NOTHING` prevents
 //!    duplicate rows even if the hash check is somehow bypassed.
 
-use chrono::{NaiveDate, Utc};
+use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::adapters::CsvFormat;
+use super::repo;
 use super::{parser, ImportError, ImportResult, LineError};
 use crate::domain::accounts::AccountStatus;
 use crate::outbox::enqueue_event_tx;
@@ -28,8 +29,8 @@ const EVT_STATEMENT_IMPORTED: &str = "bank_statement.imported";
 
 pub struct ImportRequest {
     pub account_id: Uuid,
-    pub period_start: NaiveDate,
-    pub period_end: NaiveDate,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
     pub opening_balance_minor: i64,
     pub closing_balance_minor: i64,
     pub csv_data: Vec<u8>,
@@ -56,7 +57,9 @@ pub async fn import_statement(
     verify_account(pool, app_id, req.account_id).await?;
 
     // 3. Check for duplicate import (same file re-uploaded)
-    if let Some(existing_id) = find_by_hash(pool, app_id, req.account_id, statement_hash).await? {
+    if let Some(existing_id) =
+        repo::find_statement_by_hash(pool, app_id, req.account_id, statement_hash).await?
+    {
         return Err(ImportError::DuplicateImport {
             statement_id: existing_id,
         });
@@ -82,74 +85,52 @@ pub async fn import_statement(
     let statement_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
     let now = Utc::now();
-    let currency = fetch_account_currency(pool, app_id, req.account_id).await?;
+    let currency = repo::fetch_account_currency(pool, app_id, req.account_id).await?;
 
     let mut tx = pool.begin().await?;
 
-    // Insert statement header
-    sqlx::query(
-        r#"
-        INSERT INTO treasury_bank_statements
-            (id, app_id, account_id, period_start, period_end,
-             opening_balance_minor, closing_balance_minor, currency,
-             status, imported_at, source_filename, statement_hash,
-             created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                'imported'::treasury_statement_status, $9, $10, $11, $9, $9)
-        "#,
+    repo::insert_statement_header(
+        &mut tx,
+        statement_id,
+        app_id,
+        req.account_id,
+        req.period_start,
+        req.period_end,
+        req.opening_balance_minor,
+        req.closing_balance_minor,
+        &currency,
+        req.filename.as_deref(),
+        statement_hash,
+        now,
     )
-    .bind(statement_id)
-    .bind(app_id)
-    .bind(req.account_id)
-    .bind(req.period_start)
-    .bind(req.period_end)
-    .bind(req.opening_balance_minor)
-    .bind(req.closing_balance_minor)
-    .bind(&currency)
-    .bind(now)
-    .bind(req.filename.as_deref())
-    .bind(statement_hash)
-    .execute(&mut *tx)
     .await?;
 
-    // Insert transaction lines
     let mut imported = 0usize;
     let mut skipped = 0usize;
     let line_errors: Vec<LineError> = parsed.errors;
 
     for (idx, line) in parsed.lines.iter().enumerate() {
-        // Deterministic external_id: hash(statement_hash + line_index)
         let ext_id = format!("stmt:{}:line:{}", statement_hash, idx);
-
-        let result = sqlx::query(
-            r#"
-            INSERT INTO treasury_bank_transactions
-                (app_id, account_id, statement_id, transaction_date,
-                 amount_minor, currency, description, reference, external_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            ON CONFLICT (account_id, external_id) DO NOTHING
-            "#,
+        let inserted = repo::insert_txn_line(
+            &mut tx,
+            app_id,
+            req.account_id,
+            statement_id,
+            line.date,
+            line.amount_minor,
+            &currency,
+            &line.description,
+            line.reference.as_deref(),
+            &ext_id,
         )
-        .bind(app_id)
-        .bind(req.account_id)
-        .bind(statement_id)
-        .bind(line.date)
-        .bind(line.amount_minor)
-        .bind(&currency)
-        .bind(&line.description)
-        .bind(line.reference.as_deref())
-        .bind(&ext_id)
-        .execute(&mut *tx)
         .await?;
-
-        if result.rows_affected() > 0 {
+        if inserted {
             imported += 1;
         } else {
             skipped += 1;
         }
     }
 
-    // Emit outbox event
     let payload = serde_json::json!({
         "statement_id": statement_id,
         "account_id": req.account_id,
@@ -187,44 +168,12 @@ pub async fn import_statement(
 // ============================================================================
 
 async fn verify_account(pool: &PgPool, app_id: &str, account_id: Uuid) -> Result<(), ImportError> {
-    let row: Option<(AccountStatus,)> =
-        sqlx::query_as("SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
-            .bind(account_id)
-            .bind(app_id)
-            .fetch_optional(pool)
-            .await?;
-
-    match row {
+    let status = repo::fetch_account_status(pool, app_id, account_id).await?;
+    match status {
         None => Err(ImportError::AccountNotFound(account_id)),
-        Some((status,)) if status != AccountStatus::Active => Err(ImportError::AccountNotActive),
+        Some(s) if s != AccountStatus::Active => Err(ImportError::AccountNotActive),
         Some(_) => Ok(()),
     }
-}
-
-async fn find_by_hash(
-    pool: &PgPool,
-    app_id: &str,
-    account_id: Uuid,
-    hash: Uuid,
-) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT id FROM treasury_bank_statements WHERE account_id = $1 AND statement_hash = $2 AND app_id = $3",
-    )
-    .bind(account_id)
-    .bind(hash)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await
-}
-
-async fn fetch_account_currency(pool: &PgPool, app_id: &str, account_id: Uuid) -> Result<String, sqlx::Error> {
-    let currency: String =
-        sqlx::query_scalar("SELECT currency FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
-            .bind(account_id)
-            .bind(app_id)
-            .fetch_one(pool)
-            .await?;
-    Ok(currency)
 }
 
 #[cfg(test)]

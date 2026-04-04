@@ -58,7 +58,7 @@ It is the single source of truth for: "Who owns what?" and "Who is allowed to ch
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
 | `modules/integrations` | connector configs, external refs, webhook endpoints, webhook ingest logs | yes | `connector.registered`, `external_ref.created`, `external_ref.updated`, `external_ref.deleted`, `webhook.received`, `webhook.routed` | various (webhook routing) |
-| `modules/notifications` | scheduled notifications, delivery status, dead-letter queue, event processing state | yes | `notifications.delivery.succeeded`, `notifications.low_stock.alert.created`, `notifications.close_calendar.reminder` | `ar.invoice.issued`, `payments.payment.succeeded`, `payments.payment.failed`, `inventory.low_stock_triggered` (handler built, not yet wired) |
+| `modules/notifications` | scheduled notifications, delivery status, dead-letter queue, event processing state | yes | `notifications.delivery.succeeded`, `notifications.low_stock.alert.created`, `notifications.close_calendar.reminder` | `ar.invoice_opened`, `payments.payment.succeeded`, `payments.payment.failed`, `inventory.low_stock_triggered` (handler built, not yet wired) |
 | `modules/reporting` | report definitions, reporting caches, forecast caches | no (read-only aggregation) | none | `gl.posting.requested`, `payments.payment.succeeded`, `ap.vendor_bill_created`, `ap.vendor_bill_voided`, `ap.payment_executed`, `inventory.valuation_snapshot_created`, `ar.invoice_opened`, `ar.invoice_paid`, `ar.ar_aging_updated` |
 | `modules/pdf-editor` | form templates, form fields, form submissions | yes | `pdf.form.submitted`, `pdf.document.generated` (planned) | none |
 

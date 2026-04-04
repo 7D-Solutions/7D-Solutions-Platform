@@ -1,5 +1,6 @@
 use sqlx::PgPool;
 
+use crate::domain::charges;
 use crate::models::TilledWebhookEvent;
 
 /// Process payment intent webhook events.
@@ -39,47 +40,31 @@ pub(super) async fn process_payment_intent_event(
         .and_then(|v| v.as_str());
 
     // Try to update existing charge by tilled_charge_id (out-of-order guard).
-    let updated = sqlx::query(
-        r#"
-        UPDATE ar_charges
-        SET status = $1, metadata = $2,
-            amount_cents = COALESCE($3, amount_cents),
-            currency = $4,
-            failure_code = COALESCE($5, failure_code),
-            failure_message = COALESCE($6, failure_message),
-            updated_at = NOW()
-        WHERE tilled_charge_id = $7 AND app_id = $8
-          AND status NOT IN ('succeeded', 'failed', 'refunded')
-        "#,
+    let updated = charges::webhook_update_by_tilled_id(
+        db,
+        status,
+        &event.data,
+        amount.map(|a| a as i32),
+        currency,
+        failure_code,
+        failure_message,
+        payment_intent_id,
+        app_id,
     )
-    .bind(status)
-    .bind(&event.data)
-    .bind(amount.map(|a| a as i32))
-    .bind(currency)
-    .bind(failure_code)
-    .bind(failure_message)
-    .bind(payment_intent_id)
-    .bind(app_id)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to update charge: {}", e))?;
 
-    if updated.rows_affected() > 0 {
+    if updated > 0 {
         tracing::info!("Updated charge via tilled_charge_id={}", payment_intent_id);
         return Ok(());
     }
 
     // Check if already terminal (idempotent replay — no-op).
-    let already_terminal = sqlx::query_scalar::<_, i32>(
-        "SELECT 1 FROM ar_charges WHERE tilled_charge_id = $1 AND app_id = $2 AND status IN ('succeeded', 'failed', 'refunded')",
-    )
-    .bind(payment_intent_id)
-    .bind(app_id)
-    .fetch_optional(db)
-    .await
-    .map_err(|e| format!("Failed to check terminal charge: {}", e))?;
+    let already_terminal = charges::check_terminal(db, payment_intent_id, app_id)
+        .await
+        .map_err(|e| format!("Failed to check terminal charge: {}", e))?;
 
-    if already_terminal.is_some() {
+    if already_terminal {
         tracing::info!(
             "Charge {} already terminal, skipping out-of-order event",
             payment_intent_id
@@ -91,35 +76,22 @@ pub(super) async fn process_payment_intent_event(
     let tilled_customer_id = pi_data.get("customer").and_then(|v| v.as_str());
 
     if let Some(cust_id) = tilled_customer_id {
-        let bound = sqlx::query(
-            r#"
-            UPDATE ar_charges
-            SET tilled_charge_id = $1, status = $2, metadata = $3,
-                amount_cents = COALESCE($4, amount_cents),
-                currency = $5,
-                failure_code = $6, failure_message = $7,
-                updated_at = NOW()
-            WHERE app_id = $8 AND tilled_charge_id IS NULL AND status = 'pending'
-              AND ar_customer_id = (
-                  SELECT id FROM ar_customers
-                  WHERE tilled_customer_id = $9 AND app_id = $8 LIMIT 1
-              )
-            "#,
+        let bound = charges::bind_pending_by_customer(
+            db,
+            payment_intent_id,
+            status,
+            &event.data,
+            amount.map(|a| a as i32),
+            currency,
+            failure_code,
+            failure_message,
+            app_id,
+            cust_id,
         )
-        .bind(payment_intent_id)
-        .bind(status)
-        .bind(&event.data)
-        .bind(amount.map(|a| a as i32))
-        .bind(currency)
-        .bind(failure_code)
-        .bind(failure_message)
-        .bind(app_id)
-        .bind(cust_id)
-        .execute(db)
         .await
         .map_err(|e| format!("Failed to bind pending charge: {}", e))?;
 
-        if bound.rows_affected() > 0 {
+        if bound > 0 {
             tracing::info!(
                 "Bound pending charge to payment_intent={}",
                 payment_intent_id
@@ -160,29 +132,19 @@ pub(super) async fn process_charge_event(
     let failure_code = charge_data.get("failure_code").and_then(|v| v.as_str());
     let failure_message = charge_data.get("failure_message").and_then(|v| v.as_str());
 
-    // Out-of-order guard: terminal states cannot be regressed.
-    let updated = sqlx::query(
-        r#"
-        UPDATE ar_charges
-        SET status = $1, metadata = $2,
-            failure_code = COALESCE($3, failure_code),
-            failure_message = COALESCE($4, failure_message),
-            updated_at = NOW()
-        WHERE tilled_charge_id = $5 AND app_id = $6
-          AND status NOT IN ('succeeded', 'failed', 'refunded')
-        "#,
+    let updated = charges::webhook_update_charge_event(
+        db,
+        status,
+        &event.data,
+        failure_code,
+        failure_message,
+        tilled_charge_id,
+        app_id,
     )
-    .bind(status)
-    .bind(&event.data)
-    .bind(failure_code)
-    .bind(failure_message)
-    .bind(tilled_charge_id)
-    .bind(app_id)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to update charge: {}", e))?;
 
-    if updated.rows_affected() == 0 {
+    if updated == 0 {
         tracing::info!(
             "Charge {} already terminal or not found, skipping",
             tilled_charge_id
@@ -215,26 +177,17 @@ pub(super) async fn process_invoice_event(
         _ => "open",
     };
 
-    // Out-of-order guard: paid is terminal.
-    let updated = sqlx::query(
-        r#"
-        UPDATE ar_invoices
-        SET status = $1, metadata = $2,
-            paid_at = CASE WHEN $1 = 'paid' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
-            updated_at = NOW()
-        WHERE tilled_invoice_id = $3 AND app_id = $4
-          AND status NOT IN ('paid', 'void', 'written_off')
-        "#,
+    let updated = charges::webhook_update_invoice_event(
+        db,
+        status,
+        &event.data,
+        tilled_invoice_id,
+        app_id,
     )
-    .bind(status)
-    .bind(&event.data)
-    .bind(tilled_invoice_id)
-    .bind(app_id)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to update invoice: {}", e))?;
 
-    if updated.rows_affected() == 0 {
+    if updated == 0 {
         tracing::info!(
             "Invoice {} already terminal or not found, skipping",
             tilled_invoice_id

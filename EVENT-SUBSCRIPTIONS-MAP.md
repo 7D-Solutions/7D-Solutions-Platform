@@ -21,13 +21,13 @@ All event subjects MUST follow this pattern:
 Where:
 - **`<module>`** - The source module emitting the event (e.g., `ar`, `payments`, `auth`, `notifications`)
 - **`events`** - Literal namespace separator indicating this is an event stream
-- **`<event-type>`** - The specific event type following dot notation (e.g., `ar.invoice.issued`, `payments.payment.succeeded`)
+- **`<event-type>`** - The specific event type following underscore notation (e.g., `ar.invoice_opened`, `payments.payment.succeeded`)
 
 ### Examples
 
 | Module | Event Type | Full Subject |
 |--------|-----------|--------------|
-| AR | ar.invoice.issued | `ar.events.ar.invoice.issued` |
+| AR | ar.invoice_opened | `ar.events.ar.invoice_opened` |
 | AR | ar.payment.collection.requested | `ar.events.ar.payment.collection.requested` |
 | AR | ar.payment.applied | `ar.events.ar.payment.applied` |
 | Payments | payments.payment.succeeded | `payments.events.payments.payment.succeeded` |
@@ -71,7 +71,7 @@ Where:
 
 | Consumer Module | Purpose | Durable Name | Subscribes To |
 |----------------|---------|--------------|---------------|
-| Notifications | Process invoice events | `notifications-invoice-notifier-consumer` | `ar.events.ar.invoice.issued` |
+| Notifications | Process invoice events | `notifications-invoice-notifier-consumer` | `ar.events.ar.invoice_opened` |
 | Notifications | Process payment successes | `notifications-payment-success-consumer` | `payments.events.payments.payment.succeeded` |
 | Notifications | Process payment failures | `notifications-payment-failure-consumer` | `payments.events.payments.payment.failed` |
 | Payments | Process AR payment requests | `payments-ar-collection-consumer` | `ar.events.ar.payment.collection.requested` |
@@ -92,7 +92,7 @@ Current implementation uses basic NATS subscriptions without explicit durable co
 // Future implementation pattern
 let consumer_config = async_nats::jetstream::consumer::pull::Config {
     durable_name: Some("notifications-invoice-notifier-consumer".to_string()),
-    filter_subject: "ar.events.ar.invoice.issued".to_string(),
+    filter_subject: "ar.events.ar.invoice_opened".to_string(),
     ack_policy: AckPolicy::Explicit,
     max_deliver: 5,
     ..Default::default()
@@ -147,7 +147,7 @@ Where:
 |--------|-------------|-----------------|---------------------|
 | Auth | `AUTH_DLQ` | `auth.dlq.*` | `auth.dlq.user.registered` |
 | Payments | `PAYMENTS_DLQ` | `payments.dlq.*` | `payments.dlq.payment.succeeded` |
-| AR | `AR_DLQ` | `ar.dlq.*` | `ar.dlq.invoice.issued` |
+| AR | `AR_DLQ` | `ar.dlq.*` | `ar.dlq.invoice_opened` |
 
 ### Moving Messages to DLQ
 
@@ -212,8 +212,8 @@ Examples:
 
 **Current Strategy**: Subject names do NOT include version numbers.
 
-- Subject: `ar.events.ar.invoice.issued`
-- Schema: `ar-invoice-issued.v1.json`
+- Subject: `ar.events.ar.invoice_opened`
+- Schema: `ar-invoice-opened.v1.json`
 
 This allows:
 - **Backward compatibility**: Publishers can evolve payload structure without changing subjects
@@ -237,8 +237,8 @@ When introducing breaking changes (v1 → v2):
 
 1. **Dual Publishing** (Transition Period)
    - Publisher emits to BOTH old and new subjects
-   - `ar.events.ar.invoice.issued` (v1 format)
-   - `ar.events.ar.invoice.issued.v2` (v2 format)
+   - `ar.events.ar.invoice_opened` (v1 format)
+   - `ar.events.ar.invoice_opened.v2` (v2 format)
 
 2. **Consumer Migration**
    - Consumers migrate to new subject/schema at their own pace
@@ -322,7 +322,7 @@ where
 
 | Aspect | Pattern | Example |
 |--------|---------|---------|
-| **Subject** | `<module>.events.<event-type>` | `ar.events.ar.invoice.issued` |
+| **Subject** | `<module>.events.<event-type>` | `ar.events.ar.invoice_opened` |
 | **Durable Name** | `<module>-<purpose>-consumer` | `notifications-invoice-notifier-consumer` |
 | **DLQ Stream** | `<MODULE>_DLQ` | `AUTH_DLQ` |
 | **DLQ Subject** | `<module>.dlq.<event-type>` | `auth.dlq.user.registered` |

@@ -18,7 +18,7 @@ Never drive financial logic.
 
 ## Consumes
 
-- ar.invoice.issued
+- ar.invoice_opened
 - ar.payment.applied
 - payments.payment.failed
 - payments.dispute.opened

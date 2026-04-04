@@ -62,8 +62,8 @@ pub async fn confirm(
     Json(req): Json<ConfirmRequest>,
 ) -> Result<(StatusCode, Json<ConfirmResponse>), ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?
-        .parse().expect("tenant_id is a valid UUID");
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .map_err(|e| with_request_id(e, &ctx))?;
 
     if req.entity.is_empty() || req.entity.len() > 100 {
         return Err(with_request_id(

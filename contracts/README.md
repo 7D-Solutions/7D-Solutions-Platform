@@ -165,7 +165,7 @@ active → paused → resumed → cancelled
 **Flow:**
 1. Subscriptions executes bill run
 2. Subscriptions calls AR: `POST /api/ar/invoices`
-3. AR emits event: `ar.invoice.issued`
+3. AR emits event: `ar.invoice_opened`
 4. Payments listens and processes payment
 
 **Invariants:**

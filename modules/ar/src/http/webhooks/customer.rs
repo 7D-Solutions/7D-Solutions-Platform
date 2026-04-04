@@ -1,5 +1,6 @@
 use sqlx::PgPool;
 
+use crate::domain::customers;
 use crate::models::TilledWebhookEvent;
 
 /// Process customer webhook events.
@@ -28,25 +29,18 @@ pub(super) async fn process_customer_event(
         .unwrap_or("active");
 
     // First: try to bind a pending_sync customer by email (provider ID not yet set).
-    let bound = sqlx::query(
-        r#"
-        UPDATE ar_customers
-        SET tilled_customer_id = $1, status = 'active', name = COALESCE($2, name),
-            metadata = $3, update_source = 'webhook', updated_at = NOW()
-        WHERE app_id = $4 AND email = $5
-          AND status = 'pending_sync' AND tilled_customer_id IS NULL
-        "#,
+    let bound = customers::bind_pending_by_email(
+        db,
+        tilled_customer_id,
+        name,
+        &event.data,
+        app_id,
+        email,
     )
-    .bind(tilled_customer_id)
-    .bind(name)
-    .bind(&event.data)
-    .bind(app_id)
-    .bind(email)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to bind pending customer: {}", e))?;
 
-    if bound.rows_affected() > 0 {
+    if bound > 0 {
         tracing::info!(
             "Bound pending_sync customer to tilled_customer_id={}",
             tilled_customer_id
@@ -55,30 +49,15 @@ pub(super) async fn process_customer_event(
     }
 
     // Upsert by tilled_customer_id (globally unique).
-    sqlx::query(
-        r#"
-        INSERT INTO ar_customers (
-            app_id, tilled_customer_id, email, name, status, metadata,
-            update_source, retry_attempt_count, created_at, updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, 'webhook', 0, NOW(), NOW())
-        ON CONFLICT (tilled_customer_id)
-        DO UPDATE SET
-            email = EXCLUDED.email,
-            name = COALESCE(EXCLUDED.name, ar_customers.name),
-            status = EXCLUDED.status,
-            metadata = EXCLUDED.metadata,
-            update_source = 'webhook',
-            updated_at = NOW()
-        "#,
+    customers::upsert_by_tilled_id(
+        db,
+        app_id,
+        tilled_customer_id,
+        email,
+        name,
+        webhook_status,
+        &event.data,
     )
-    .bind(app_id)
-    .bind(tilled_customer_id)
-    .bind(email)
-    .bind(name)
-    .bind(webhook_status)
-    .bind(&event.data)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to upsert customer: {}", e))?;
 

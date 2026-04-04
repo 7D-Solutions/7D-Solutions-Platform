@@ -18,7 +18,7 @@ type = "nats"
 outbox_table = "events_outbox"
 
 [events.subscribe]
-subjects = ["ar.events.invoice.opened"]
+subjects = ["ar.events.ar.invoice_opened"]
 consumer_name = "vertical-proof-ar-listener"
 
 [platform.services]

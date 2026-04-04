@@ -57,12 +57,12 @@ produces a subject that matches the subscription string.
 | 2 | shipping-receiving | `ap.events.ap.po_approved` | AP | `ap.events.ap.po_approved` | **FIXED** (bd-thx8s) |
 | 3 | shipping-receiving | `sales.so.released` | (none) | **No sales module exists** | **FIXED** (bd-thx8s) — consumer removed |
 
-#### Mismatch 1: notifications → `ar.events.invoice.issued`
+#### Mismatch 1: notifications → `ar.events.ar.invoice_opened` — RESOLVED
 
 - **Consumer**: `modules/notifications/src/main.rs:27`
-- **Problem**: AR has no event type `invoice.issued`. The closest AR event type is `ar.invoice_opened` (constant `EVENT_TYPE_INVOICE_OPENED`), which the AR publisher formats as `ar.events.ar.invoice_opened`.
-- **Root cause**: Consumer subscription was written against an assumed subject that was never implemented. The dot-separated `invoice.issued` format doesn't match the underscore-based `ar.invoice_opened` convention either.
-- **Impact**: Notifications will never fire for invoice creation/issuance events from AR.
+- **Problem** (historical): Consumer originally subscribed to a non-existent event type. The correct AR event type is `ar.invoice_opened` (constant `EVENT_TYPE_INVOICE_OPENED`), published on `ar.events.ar.invoice_opened`.
+- **Root cause**: Consumer subscription was written against an assumed subject that was never implemented.
+- **Resolution**: Consumer fixed to subscribe to `ar.events.ar.invoice_opened` (bd-thx8s).
 
 #### Mismatch 2: shipping-receiving → `ap.po.approved`
 
@@ -326,7 +326,6 @@ The dependent bead `bd-thx8s` (Fix event subject mismatches) should address mism
 
 1. **shipping-receiving → AP PO approved**: fix consumer subject to `ap.events.ap.po_approved`
    (match the current publisher behavior) or fix AP to stop double-prefixing
-2. **notifications → AR invoice issued**: either add an `invoice.issued` event to AR,
-   or change the consumer to subscribe to `ar.events.ar.invoice_opened`
+2. ~~**notifications → AR invoice issued**~~: RESOLVED — consumer changed to `ar.events.ar.invoice_opened` (bd-thx8s)
 3. **shipping-receiving → sales.so.released**: remove or gate behind feature flag until
    a sales module exists

@@ -83,9 +83,9 @@ Audited all 25 modules for outbox publishers and event consumers. Found **30 cro
 | Event type | `ar.invoice_opened` (EVENT_TYPE_INVOICE_OPENED) |
 | Published subject | `ar.events.ar.invoice_opened` |
 | Consumer | Notifications (`notifications/src/consumer_tasks.rs:24`) |
-| Subscribed subject | `ar.events.invoice.issued` |
-| Status | **SUBJECT-MISMATCH** |
-| Impact | Invoice-issued notifications are never sent |
+| Subscribed subject | `ar.events.ar.invoice_opened` |
+| Status | **RESOLVED** (bd-r3f26) |
+| Impact | Fixed — consumer now matches publisher subject |
 
 ### 6. AR -> GL: posting requested (LIVE via cross-module routing)
 
@@ -337,6 +337,6 @@ Production, Inventory, and Timekeeping all write events to outbox tables but nev
 3. **P0: Fix GL consumer subjects** — 6 GL consumers subscribe to wrong subjects (need `ar.events.*` or `ap.events.*` prefix)
 4. **P1: Wire timekeeping outbox relay** — GL labor cost consumer blocked
 5. **P1: Fix SR consumer subjects** — `ap.po.approved` should be `ap.events.ap.po_approved`
-6. **P1: Fix notifications invoice consumer subject** — `ar.events.invoice.issued` should be `ar.events.ar.invoice_opened`
+6. ~~**P1: Fix notifications invoice consumer subject**~~ — RESOLVED (bd-thx8s, bd-r3f26): consumer now subscribes to `ar.events.ar.invoice_opened`
 7. **P2: Wire subscriptions invoice_suspended consumer** — dead consumer in main.rs
 8. **P3: Decide on `sales.so.released`** — either build sales module or remove orphan consumer

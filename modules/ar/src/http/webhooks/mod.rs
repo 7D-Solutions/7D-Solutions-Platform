@@ -12,6 +12,7 @@ use axum::{body::Bytes, http::HeaderMap, http::StatusCode};
 use axum::extract::State;
 use sqlx::PgPool;
 
+use crate::domain::webhooks as webhook_repo;
 use crate::models::{ApiError, TilledWebhookEvent};
 
 /// Process webhook event based on type
@@ -66,8 +67,6 @@ pub async fn receive_tilled_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<StatusCode, ApiError> {
-    // Webhook endpoints are called by Tilled (HMAC-authenticated, not JWT).
-    // Tenant is determined by the registered webhook endpoint configuration.
     let app_id = std::env::var("TILLED_WEBHOOK_APP_ID").unwrap_or_else(|_| {
         headers
             .get("x-tilled-account")
@@ -76,7 +75,6 @@ pub async fn receive_tilled_webhook(
             .to_string()
     });
 
-    // Get webhook secret from environment — required, no fallback
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
         .or_else(|_| std::env::var("TILLED_WEBHOOK_SECRET"))
         .map_err(|_| {
@@ -84,7 +82,6 @@ pub async fn receive_tilled_webhook(
             ApiError::internal("Webhook secret not configured")
         })?;
 
-    // Always verify signature — no bypass
     let sig = headers
         .get("tilled-signature")
         .or_else(|| headers.get("x-tilled-signature"))
@@ -95,7 +92,6 @@ pub async fn receive_tilled_webhook(
         return Err(ApiError::unauthorized(e));
     }
 
-    // Parse webhook event
     let event: TilledWebhookEvent = serde_json::from_slice(&body).map_err(|e| {
         tracing::error!("Failed to parse webhook event: {}", e);
         ApiError::bad_request(format!("Failed to parse webhook: {}", e))
@@ -108,45 +104,29 @@ pub async fn receive_tilled_webhook(
     );
 
     // Check for duplicate event (idempotency)
-    let existing = sqlx::query_scalar::<_, i32>(
-        r#"
-        SELECT id FROM ar_webhooks
-        WHERE event_id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(&event.id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to check for duplicate webhook: {}", e);
-        ApiError::internal("Failed to check idempotency")
-    })?;
+    let existing = webhook_repo::check_duplicate_event(&db, &event.id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check for duplicate webhook: {}", e);
+            ApiError::internal("Failed to check idempotency")
+        })?;
 
     if existing.is_some() {
         tracing::info!("Webhook event {} already processed (idempotent)", event.id);
-        // Return 200 to prevent Tilled retries
         return Ok(StatusCode::OK);
     }
 
     // Store webhook in database (status: received)
-    let webhook_id = sqlx::query_scalar::<_, i32>(
-        r#"
-        INSERT INTO ar_webhooks (
-            app_id, event_id, event_type, status, payload, attempt_count, received_at
-        )
-        VALUES ($1, $2, $3, 'received', $4, 1, NOW())
-        RETURNING id
-        "#,
+    let webhook_id = webhook_repo::insert_webhook(
+        &db,
+        &app_id,
+        &event.id,
+        &event.event_type,
+        serde_json::to_value(&event).map_err(|e| {
+            tracing::error!("Failed to serialize webhook event: {}", e);
+            ApiError::internal("Failed to serialize event")
+        })?,
     )
-    .bind(&app_id)
-    .bind(&event.id)
-    .bind(&event.event_type)
-    .bind(serde_json::to_value(&event).map_err(|e| {
-        tracing::error!("Failed to serialize webhook event: {}", e);
-        ApiError::internal("Failed to serialize event")
-    })?)
-    .fetch_one(&db)
     .await
     .map_err(|e| {
         tracing::error!("Failed to store webhook: {}", e);
@@ -154,59 +134,24 @@ pub async fn receive_tilled_webhook(
     })?;
 
     // Update status to processing
-    sqlx::query(
-        r#"
-        UPDATE ar_webhooks
-        SET status = 'processing', last_attempt_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(webhook_id)
-    .execute(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update webhook status: {}", e);
-        ApiError::internal("Failed to update webhook status")
-    })?;
+    webhook_repo::set_processing(&db, webhook_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update webhook status: {}", e);
+            ApiError::internal("Failed to update webhook status")
+        })?;
 
     // Process the event
     match process_webhook_event(&db, &app_id, &event).await {
         Ok(_) => {
-            // Mark as processed
-            sqlx::query(
-                r#"
-                UPDATE ar_webhooks
-                SET status = 'processed', processed_at = NOW()
-                WHERE id = $1
-                "#,
-            )
-            .bind(webhook_id)
-            .execute(&db)
-            .await
-            .ok();
-
+            webhook_repo::set_processed(&db, webhook_id).await.ok();
             tracing::info!("Successfully processed webhook event {}", event.id);
         }
         Err(e) => {
-            // Mark as failed
-            sqlx::query(
-                r#"
-                UPDATE ar_webhooks
-                SET status = 'failed', error = $1, error_code = 'processing_error'
-                WHERE id = $2
-                "#,
-            )
-            .bind(&e)
-            .bind(webhook_id)
-            .execute(&db)
-            .await
-            .ok();
-
+            webhook_repo::set_failed(&db, webhook_id, &e).await.ok();
             tracing::error!("Failed to process webhook event {}: {}", event.id, e);
         }
     }
 
-    // Always return 200 to prevent Tilled retries
-    // Errors are stored in the database for manual investigation
     Ok(StatusCode::OK)
 }

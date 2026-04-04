@@ -71,7 +71,7 @@ mutations do not.
 | `cancel_subscription` | POST /api/ar/subscriptions/:id/cancel | **FAIL** — direct SQL UPDATE, no outbox event |
 | `create_invoice` | POST /api/ar/invoices | PASS — `ar.invoice_created` via outbox |
 | `update_invoice` | PUT /api/ar/invoices/:id | PASS — `ar.invoice_updated` via outbox |
-| `finalize_invoice` | POST /api/ar/invoices/:id/finalize | PASS — `ar.payment.collection.requested` + `ar.invoice.opened` via outbox |
+| `finalize_invoice` | POST /api/ar/invoices/:id/finalize | PASS — `ar.payment.collection.requested` + `ar.invoice_opened` via outbox |
 | `bill_usage_route` | POST /api/ar/invoices/:id/bill-usage | PASS — `ar.invoice_updated` via outbox |
 | `issue_credit_note_route` | POST /api/ar/invoices/:id/credit-notes | PASS — credit note + outbox event |
 | `write_off_invoice_route` | POST /api/ar/invoices/:id/write-off | PASS — `ar.invoice_written_off` via outbox |

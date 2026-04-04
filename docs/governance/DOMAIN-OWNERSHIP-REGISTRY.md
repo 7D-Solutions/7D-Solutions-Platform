@@ -147,7 +147,7 @@ This registry declares the single source of truth for each domain concept in the
 - Close calendar reminders
 
 **External Dependencies**:
-- Consumes: `ar.events.invoice.issued`, `payments.events.payment.succeeded`, `payments.events.payment.failed` (from AR/Payments), `inventory.low_stock_triggered` (handler built, not yet wired)
+- Consumes: `ar.events.ar.invoice_opened`, `payments.events.payment.succeeded`, `payments.events.payment.failed` (from AR/Payments), `inventory.low_stock_triggered` (handler built, not yet wired)
 - Produces: `notifications.delivery.succeeded`, `notifications.low_stock.alert.created`, `notifications.close_calendar.reminder`
 - External: Email/SMS service providers
 
@@ -618,7 +618,7 @@ This section declares all cross-module commands (events) and their write degrada
 
 ---
 
-### Event: `invoice.issued` / `payment.succeeded` / `payment.failed`
+### Event: `invoice_opened` / `payment.succeeded` / `payment.failed`
 
 **Producer**: AR / Payments
 **Consumer**: Notifications

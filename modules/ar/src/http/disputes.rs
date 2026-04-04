@@ -5,6 +5,7 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
+use crate::domain::disputes;
 use crate::models::{ApiError, Dispute, ListDisputesQuery, PaginatedResponse, SubmitDisputeEvidenceRequest};
 use crate::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
 use crate::tilled::TilledClient;
@@ -26,76 +27,34 @@ pub async fn list_disputes(
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
 
-    let mut sql = String::from(
-        r#"
-        SELECT
-            id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
-            status, amount_cents, currency, reason, reason_code,
-            evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM ar_disputes
-        WHERE app_id = $1
-        "#,
-    );
+    let dispute_list = disputes::list_disputes(
+        &db,
+        &app_id,
+        query.charge_id,
+        query.status.as_deref(),
+        limit,
+        offset,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error listing disputes: {:?}", e);
+        ApiError::internal("Failed to list disputes")
+    })?;
 
-    let mut bind_index = 2;
-    if query.charge_id.is_some() {
-        sql.push_str(&format!(" AND charge_id = ${}", bind_index));
-        bind_index += 1;
-    }
-    if query.status.is_some() {
-        sql.push_str(&format!(" AND status = ${}", bind_index));
-        bind_index += 1;
-    }
-
-    sql.push_str(&format!(
-        " ORDER BY created_at DESC LIMIT ${} OFFSET ${}",
-        bind_index,
-        bind_index + 1
-    ));
-
-    let mut query_builder = sqlx::query_as::<_, Dispute>(&sql).bind(&app_id);
-
-    if let Some(charge_id) = query.charge_id {
-        query_builder = query_builder.bind(charge_id);
-    }
-    if let Some(ref status) = query.status {
-        query_builder = query_builder.bind(status);
-    }
-
-    let disputes = query_builder
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(&db)
-        .await
-        .map_err(|e| {
-            tracing::error!("Database error listing disputes: {:?}", e);
-            ApiError::internal("Failed to list disputes")
-        })?;
-
-    // Count total matching rows
-    let mut count_sql = String::from("SELECT COUNT(*) FROM ar_disputes WHERE app_id = $1");
-    let mut count_idx = 2;
-    if query.charge_id.is_some() {
-        count_sql.push_str(&format!(" AND charge_id = ${count_idx}"));
-        count_idx += 1;
-    }
-    if query.status.is_some() {
-        count_sql.push_str(&format!(" AND status = ${count_idx}"));
-    }
-    let mut count_q = sqlx::query_scalar::<_, i64>(&count_sql).bind(&app_id);
-    if let Some(cid) = query.charge_id {
-        count_q = count_q.bind(cid);
-    }
-    if let Some(ref st) = query.status {
-        count_q = count_q.bind(st);
-    }
-    let total_items = count_q.fetch_one(&db).await.map_err(|e| {
+    let total_items = disputes::count_disputes(
+        &db,
+        &app_id,
+        query.charge_id,
+        query.status.as_deref(),
+    )
+    .await
+    .map_err(|e| {
         tracing::error!("Database error counting disputes: {:?}", e);
         ApiError::internal("Failed to count disputes")
     })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(disputes, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(dispute_list, page, limit as i64, total_items)))
 }
 
 /// GET /api/ar/disputes/{id} - Get a specific dispute
@@ -113,25 +72,13 @@ pub async fn get_dispute(
 ) -> Result<Json<Dispute>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let dispute = sqlx::query_as::<_, Dispute>(
-        r#"
-        SELECT
-            id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
-            status, amount_cents, currency, reason, reason_code,
-            evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM ar_disputes
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching dispute: {:?}", e);
-        ApiError::internal("Failed to fetch dispute")
-    })?
-    .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
+    let dispute = disputes::fetch_by_id(&db, id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching dispute: {:?}", e);
+            ApiError::internal("Failed to fetch dispute")
+        })?
+        .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
 
     Ok(Json(dispute))
 }
@@ -154,25 +101,13 @@ pub async fn submit_dispute_evidence(
 ) -> Result<Json<Dispute>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let dispute = sqlx::query_as::<_, Dispute>(
-        r#"
-        SELECT
-            id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
-            status, amount_cents, currency, reason, reason_code,
-            evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM ar_disputes
-        WHERE id = $1 AND app_id = $2
-        "#,
-    )
-    .bind(id)
-    .bind(&app_id)
-    .fetch_optional(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error fetching dispute: {:?}", e);
-        ApiError::internal("Failed to fetch dispute")
-    })?
-    .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
+    let dispute = disputes::fetch_by_id(&db, id, &app_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error fetching dispute: {:?}", e);
+            ApiError::internal("Failed to fetch dispute")
+        })?
+        .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
 
     if let Some(evidence_due_by) = dispute.evidence_due_by {
         if chrono::Utc::now().naive_utc() > evidence_due_by {
@@ -241,27 +176,15 @@ pub async fn submit_dispute_evidence(
         .await
     {
         Ok(_tilled_dispute) => {
-            let updated = sqlx::query_as::<_, Dispute>(
-                r#"
-                UPDATE ar_disputes
-                SET status = 'under_review', updated_at = NOW()
-                WHERE id = $1
-                RETURNING
-                    id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
-                    status, amount_cents, currency, reason, reason_code,
-                    evidence_due_by, opened_at, closed_at, created_at, updated_at
-                "#,
-            )
-            .bind(id)
-            .fetch_one(&db)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to update dispute after evidence submission: {:?}",
-                    e
-                );
-                ApiError::internal("Failed to update dispute")
-            })?;
+            let updated = disputes::set_under_review(&db, id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(
+                        "Failed to update dispute after evidence submission: {:?}",
+                        e
+                    );
+                    ApiError::internal("Failed to update dispute")
+                })?;
 
             tracing::info!(
                 "Submitted evidence for dispute {} (Tilled ID: {})",

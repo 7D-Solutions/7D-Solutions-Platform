@@ -11,12 +11,12 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .consumer(
-            "ar.events.invoice.opened",
+            "ar.events.ar.invoice_opened",
             |_ctx, env| async move {
                 tracing::info!(
                     event_type = %env.event_type,
                     tenant = %env.tenant_id,
-                    "vertical-proof consumed AR invoice.opened event"
+                    "vertical-proof consumed AR invoice_opened event"
                 );
                 Ok::<(), ConsumerError>(())
             },

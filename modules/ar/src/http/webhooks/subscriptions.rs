@@ -1,5 +1,6 @@
 use sqlx::PgPool;
 
+use crate::domain::subscriptions;
 use crate::models::TilledWebhookEvent;
 
 /// Process subscription webhook events.
@@ -88,58 +89,33 @@ async fn handle_created(
     current_period_start: Option<chrono::NaiveDateTime>,
     current_period_end: Option<chrono::NaiveDateTime>,
 ) -> Result<(), String> {
-    // Try to bind a pending_sync subscription by customer.
     let tilled_customer_id = event.data.get("customer").and_then(|v| v.as_str());
     let mut bound = false;
 
     if let Some(cust_id) = tilled_customer_id {
-        let res = sqlx::query(
-            r#"
-            UPDATE ar_subscriptions
-            SET tilled_subscription_id = $1, status = 'active'::ar_subscriptions_status,
-                metadata = $2,
-                current_period_start = COALESCE($3, current_period_start),
-                current_period_end = COALESCE($4, current_period_end),
-                update_source = 'webhook', updated_at = NOW()
-            WHERE app_id = $5
-              AND status = 'pending_sync'::ar_subscriptions_status
-              AND tilled_subscription_id IS NULL
-              AND ar_customer_id = (
-                  SELECT id FROM ar_customers
-                  WHERE tilled_customer_id = $6 AND app_id = $5 LIMIT 1
-              )
-            "#,
+        let rows = subscriptions::bind_pending_by_customer(
+            db,
+            tilled_sub_id,
+            &event.data,
+            current_period_start,
+            current_period_end,
+            app_id,
+            cust_id,
         )
-        .bind(tilled_sub_id)
-        .bind(&event.data)
-        .bind(current_period_start)
-        .bind(current_period_end)
-        .bind(app_id)
-        .bind(cust_id)
-        .execute(db)
         .await
         .map_err(|e| format!("Failed to bind pending subscription: {}", e))?;
-        bound = res.rows_affected() > 0;
+        bound = rows > 0;
     }
 
     if !bound {
-        // Update if already exists by tilled_subscription_id.
-        sqlx::query(
-            r#"
-            UPDATE ar_subscriptions
-            SET status = 'active'::ar_subscriptions_status, metadata = $1,
-                current_period_start = COALESCE($2, current_period_start),
-                current_period_end = COALESCE($3, current_period_end),
-                update_source = 'webhook', updated_at = NOW()
-            WHERE tilled_subscription_id = $4 AND app_id = $5
-            "#,
+        subscriptions::update_by_tilled_id_created(
+            db,
+            &event.data,
+            current_period_start,
+            current_period_end,
+            tilled_sub_id,
+            app_id,
         )
-        .bind(&event.data)
-        .bind(current_period_start)
-        .bind(current_period_end)
-        .bind(tilled_sub_id)
-        .bind(app_id)
-        .execute(db)
         .await
         .map_err(|e| format!("Failed to update subscription: {}", e))?;
     }
@@ -153,24 +129,9 @@ async fn handle_canceled(
     event: &TilledWebhookEvent,
     tilled_sub_id: &str,
 ) -> Result<(), String> {
-    // Terminal: set canceled. Cannot be regressed by older events.
-    sqlx::query(
-        r#"
-        UPDATE ar_subscriptions
-        SET status = 'canceled'::ar_subscriptions_status, metadata = $1,
-            canceled_at = COALESCE(canceled_at, NOW()),
-            update_source = 'webhook', updated_at = NOW()
-        WHERE tilled_subscription_id = $2 AND app_id = $3
-          AND status != 'canceled'::ar_subscriptions_status
-        "#,
-    )
-    .bind(&event.data)
-    .bind(tilled_sub_id)
-    .bind(app_id)
-    .execute(db)
-    .await
-    .map_err(|e| format!("Failed to cancel subscription: {}", e))?;
-
+    subscriptions::webhook_set_canceled(db, &event.data, tilled_sub_id, app_id)
+        .await
+        .map_err(|e| format!("Failed to cancel subscription: {}", e))?;
     Ok(())
 }
 
@@ -183,27 +144,16 @@ async fn handle_updated(
     current_period_start: Option<chrono::NaiveDateTime>,
     current_period_end: Option<chrono::NaiveDateTime>,
 ) -> Result<(), String> {
-    // subscription.updated — out-of-order guard: canceled is terminal.
-    sqlx::query(
-        r#"
-        UPDATE ar_subscriptions
-        SET status = $1::ar_subscriptions_status, metadata = $2,
-            current_period_start = COALESCE($3, current_period_start),
-            current_period_end = COALESCE($4, current_period_end),
-            update_source = 'webhook', updated_at = NOW()
-        WHERE tilled_subscription_id = $5 AND app_id = $6
-          AND status != 'canceled'::ar_subscriptions_status
-        "#,
+    subscriptions::webhook_update(
+        db,
+        status,
+        &event.data,
+        current_period_start,
+        current_period_end,
+        tilled_sub_id,
+        app_id,
     )
-    .bind(status)
-    .bind(&event.data)
-    .bind(current_period_start)
-    .bind(current_period_end)
-    .bind(tilled_sub_id)
-    .bind(app_id)
-    .execute(db)
     .await
     .map_err(|e| format!("Failed to update subscription: {}", e))?;
-
     Ok(())
 }

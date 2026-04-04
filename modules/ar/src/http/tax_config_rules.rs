@@ -16,8 +16,9 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::domain::tax_config as tax_config_repo;
 use super::tax_config::{
-    db_error, get_rule_by_id_and_tenant, row_to_rule, ErrorBody, RuleResponse,
+    db_error, get_rule_by_id_and_tenant, ErrorBody, RuleResponse,
 };
 
 // ============================================================================
@@ -125,33 +126,8 @@ pub async fn list_rules(
         Err(e) => return e.into_response(),
     };
 
-    let rows = sqlx::query_as::<_, (
-        Uuid, Uuid, String, Option<String>, f64,
-        i64, bool, NaiveDate, Option<NaiveDate>, i32,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>,
-    )>(
-        r#"
-        SELECT id, jurisdiction_id, app_id, tax_code, rate::FLOAT8,
-               flat_amount_minor, is_exempt, effective_from, effective_to, priority,
-               created_at, updated_at
-        FROM ar_tax_rules
-        WHERE app_id = $1
-          AND ($2::UUID IS NULL OR jurisdiction_id = $2)
-          AND ($3::DATE IS NULL OR (effective_from <= $3 AND (effective_to IS NULL OR effective_to > $3)))
-        ORDER BY jurisdiction_id, priority DESC, effective_from DESC
-        "#,
-    )
-    .bind(&app_id)
-    .bind(q.jurisdiction_id)
-    .bind(q.as_of)
-    .fetch_all(&pool)
-    .await;
-
-    match rows {
-        Ok(rows) => {
-            let rules: Vec<RuleResponse> = rows.into_iter().map(row_to_rule).collect();
-            (StatusCode::OK, Json(rules)).into_response()
-        }
+    match tax_config_repo::list_rules(&pool, &app_id, q.jurisdiction_id, q.as_of).await {
+        Ok(rules) => (StatusCode::OK, Json(rules)).into_response(),
         Err(e) => db_error(e),
     }
 }
@@ -207,30 +183,20 @@ pub async fn update_rule(
         Err(e) => return e.into_response(),
     };
 
-    let result = sqlx::query(
-        r#"
-        UPDATE ar_tax_rules SET
-            rate             = COALESCE($2, rate),
-            flat_amount_minor = COALESCE($3, flat_amount_minor),
-            is_exempt        = COALESCE($4, is_exempt),
-            effective_to     = COALESCE($5, effective_to),
-            priority         = COALESCE($6, priority),
-            updated_at       = NOW()
-        WHERE id = $1 AND app_id = $7
-        "#,
+    let result = tax_config_repo::update_rule(
+        &pool,
+        id,
+        body.rate,
+        body.flat_amount_minor,
+        body.is_exempt,
+        body.effective_to,
+        body.priority,
+        &app_id,
     )
-    .bind(id)
-    .bind(body.rate)
-    .bind(body.flat_amount_minor)
-    .bind(body.is_exempt)
-    .bind(body.effective_to)
-    .bind(body.priority)
-    .bind(&app_id)
-    .execute(&pool)
     .await;
 
     match result {
-        Ok(r) if r.rows_affected() == 0 => (
+        Ok(rows) if rows == 0 => (
             StatusCode::NOT_FOUND,
             Json(ErrorBody {
                 error: "Rule not found".into(),

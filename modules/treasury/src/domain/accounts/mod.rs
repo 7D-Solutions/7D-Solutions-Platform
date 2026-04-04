@@ -4,6 +4,7 @@
 //! (credit limit, statement closing day, network). All accounts are
 //! app_id-scoped. No secrets stored. Balances are informational.
 
+pub mod repo;
 pub mod service;
 
 use chrono::{DateTime, Utc};

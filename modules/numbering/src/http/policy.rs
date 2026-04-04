@@ -64,8 +64,8 @@ pub async fn upsert_policy(
     Json(req): Json<UpsertPolicyRequest>,
 ) -> Result<(StatusCode, Json<PolicyResponse>), ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?
-        .parse().expect("tenant_id is a valid UUID");
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .map_err(|e| with_request_id(e, &ctx))?;
 
     validate_entity(&entity, &ctx)?;
     validate_pattern(&req.pattern, &ctx)?;
@@ -152,8 +152,8 @@ pub async fn get_policy(
     Path(entity): Path<String>,
 ) -> Result<Json<PolicyResponse>, ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?
-        .parse().expect("tenant_id is a valid UUID");
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .map_err(|e| with_request_id(e, &ctx))?;
 
     let row = policy::get_policy(&state.pool, tenant_id, &entity)
         .await

@@ -13,7 +13,7 @@ This standard complements the event envelope spec in `contracts/events/README.md
 **`{domain}.{entity}.{action}`**
 
 Examples:
-- `ar.invoice.issued`
+- `ar.invoice_opened`
 - `ar.payment.collection.requested`
 - `payments.payment.succeeded`
 - `gl.posting.rejected`
@@ -31,7 +31,7 @@ Rules:
 - Something **has happened** and is immutable.
 - Use past tense where possible.
 Examples:
-- `ar.invoice.issued`
+- `ar.invoice_opened`
 - `payments.payment.succeeded`
 - `gl.posting.accepted`
 

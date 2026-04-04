@@ -44,8 +44,10 @@ pub async fn route_line(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(mut req): Json<RouteLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims) {
-        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
@@ -87,8 +89,10 @@ pub async fn list_routings(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(shipment_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims) {
-        Ok(id) => id.parse().expect("tenant_id is a valid UUID"),
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 

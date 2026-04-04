@@ -129,7 +129,7 @@ All events follow the envelope standard from `contracts/events/README.md` with r
 | Event Name | Purpose | Side Effects |
 |------------|---------|--------------|
 | **ar.invoice.created** | Invoice created in draft state | None |
-| **ar.invoice.issued** | Invoice finalized (draft → issued) | Triggers `gl.posting.requested` for AR receivable debit |
+| **ar.invoice_opened** | Invoice finalized (draft → opened) | Triggers `gl.posting.requested` for AR receivable debit |
 | **ar.invoice.voided** | Invoice voided | Triggers GL reversal posting |
 | **ar.payment.collection.requested** | **COMMAND EVENT** — AR requests Payments module to collect payment (Option A) | Payments module executes payment |
 | **ar.payment.applied** | Payment successfully applied to invoice | Triggers `gl.posting.requested` for cash receipt |

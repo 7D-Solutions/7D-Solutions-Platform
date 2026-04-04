@@ -10,6 +10,7 @@
 
 pub mod adapters;
 pub mod parser;
+pub mod repo;
 pub mod service;
 
 use serde::Serialize;

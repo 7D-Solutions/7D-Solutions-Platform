@@ -42,7 +42,7 @@ It answers four questions:
 The module is a platform service. It has no user-facing frontend — it consumes events and delivers outbound communications.
 
 ### Other Platform Modules (Event Producers)
-- AR emits `ar.events.invoice.issued` — Notifications schedules a "due soon" reminder 3 days before the due date.
+- AR emits `ar.events.ar.invoice_opened` — Notifications schedules a "due soon" reminder 3 days before the due date.
 - Payments emits `payments.events.payment.succeeded` — Notifications sends an immediate payment confirmation.
 - Payments emits `payments.events.payment.failed` — Notifications schedules a retry reminder 24 hours later.
 - Inventory emits `inventory.low_stock_triggered` — Handler implemented (`handle_low_stock_triggered`) but consumer subscription not yet wired in `main.rs`.
@@ -87,7 +87,7 @@ Notifications boots and runs with only Postgres and NATS (or InMemory bus for de
 ## MVP Scope (v0.1.0)
 
 ### In Scope (Built)
-- Event consumption from AR (`ar.events.invoice.issued`), Payments (`payments.events.payment.succeeded`, `payments.events.payment.failed`). Inventory handler (`inventory.low_stock_triggered`) implemented but consumer not yet wired in `main.rs`.
+- Event consumption from AR (`ar.events.ar.invoice_opened`), Payments (`payments.events.payment.succeeded`, `payments.events.payment.failed`). Inventory handler (`inventory.low_stock_triggered`) implemented but consumer not yet wired in `main.rs`.
 - Idempotent event processing via `processed_events` table
 - Scheduled notifications with `scheduled_notifications` table (pending, claimed, sent, failed states)
 - Background dispatcher: 60-second poll, `FOR UPDATE SKIP LOCKED`, orphan reset, linear back-off retry (5 attempts)
@@ -250,7 +250,7 @@ All events use the platform `EventEnvelope` and are written to the module outbox
 
 | Event | Source Module | Action |
 |-------|-------------|--------|
-| `ar.events.invoice.issued` | AR | Schedules `invoice_due_soon` reminder 3 days before due date. Skipped if no `due_date` in payload. |
+| `ar.events.ar.invoice_opened` | AR | Schedules `invoice_due_soon` reminder 3 days before due date. Skipped if no `due_date` in payload. |
 | `payments.events.payment.succeeded` | Payments | Simulates immediate delivery, emits `notifications.delivery.succeeded` to outbox. |
 | `payments.events.payment.failed` | Payments | Schedules `payment_retry` reminder 24 hours from now. |
 | `inventory.low_stock_triggered` | Inventory | Handler enqueues `notifications.low_stock.alert.created` to outbox. **Note:** Consumer subscription not yet wired in `main.rs`. |
@@ -260,7 +260,7 @@ All events use the platform `EventEnvelope` and are written to the module outbox
 ## Integration Points
 
 ### AR (Event Consumer)
-Notifications subscribes to `ar.events.invoice.issued`. When an invoice is issued with a `due_date`, Notifications schedules an `invoice_due_soon` reminder 3 days before. The recipient is identified by `tenant_id:customer_id`. **AR never calls Notifications.**
+Notifications subscribes to `ar.events.ar.invoice_opened`. When an invoice is issued with a `due_date`, Notifications schedules an `invoice_due_soon` reminder 3 days before. The recipient is identified by `tenant_id:customer_id`. **AR never calls Notifications.**
 
 ### Payments (Event Consumer)
 Notifications subscribes to `payments.events.payment.succeeded` and `payments.events.payment.failed`. Successful payments trigger an immediate delivery confirmation event. Failed payments schedule a retry reminder in 24 hours. **Payments never calls Notifications.**

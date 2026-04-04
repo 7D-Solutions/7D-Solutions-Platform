@@ -119,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = routes::build_router(app_state, summary_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT));
 
-    let port = std::env::var("PORT").unwrap_or_else(|_| "8092".to_string());
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8091".to_string());
     let addr = format!("0.0.0.0:{port}");
 
     tracing::info!("Control-plane listening on {}", addr);

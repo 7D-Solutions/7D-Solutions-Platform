@@ -8,4 +8,4 @@ Run:
 cargo run -p control-plane
 ```
 
-Config: `DATABASE_URL`, `AR_DATABASE_URL`, `PORT` (default `8092`).
+Config: `DATABASE_URL`, `AR_DATABASE_URL`, `PORT` (default `8091`).

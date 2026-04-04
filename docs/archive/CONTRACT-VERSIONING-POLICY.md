@@ -143,7 +143,7 @@ responses:
 
 ❌ **Change event subject naming**
 ```
-ar.events.ar.invoice.issued  (v1)
+ar.events.ar.invoice_opened  (v1)
 ar.events.invoice.created     (v2) - BREAKING, different subject
 ```
 
@@ -179,7 +179,7 @@ paths:
 
 ✅ **Add new event type**
 ```
-ar.events.ar.invoice.issued    # Existing
+ar.events.ar.invoice_opened    # Existing
 ar.events.ar.invoice.voided    # New event
 ```
 
@@ -238,9 +238,9 @@ NATS subject pattern with version:
 ```
 
 **No version in subject** - use schema version instead:
-- ✅ `ar.events.ar.invoice.issued` (schema: v1)
-- ✅ `ar.events.ar.invoice.issued` (schema: v2)
-- ❌ `ar.events.ar.invoice.issued.v1` (don't version subject)
+- ✅ `ar.events.ar.invoice_opened` (schema: v1)
+- ✅ `ar.events.ar.invoice_opened` (schema: v2)
+- ❌ `ar.events.ar.invoice_opened.v1` (don't version subject)
 
 **Rationale:** Subjects stay stable; schema evolution handles compatibility.
 
@@ -421,7 +421,7 @@ Track deprecated API/event usage:
 ```
 # Metrics
 deprecated_api_calls_total{endpoint="/api/legacy", version="v1"}
-deprecated_event_consumed_total{event="ar.invoice.issued", version="v1"}
+deprecated_event_consumed_total{event="ar.invoice_opened", version="v1"}
 ```
 
 #### 4. Remove After Window
@@ -449,7 +449,7 @@ let v1_event = InvoiceIssuedV1 {
     amount_due_minor: invoice.amount,
     currency: "USD".to_string(),
 };
-event_bus.publish("ar.events.ar.invoice.issued", v1_event).await?;
+event_bus.publish("ar.events.ar.invoice_opened", v1_event).await?;
 
 // Publish v2 event for new consumers
 let v2_event = InvoiceIssuedV2 {
@@ -463,7 +463,7 @@ let v2_event = InvoiceIssuedV2 {
         currency: "USD".to_string(),
     },
 };
-event_bus.publish("ar.events.ar.invoice.issued", v2_event).await?;
+event_bus.publish("ar.events.ar.invoice_opened", v2_event).await?;
 ```
 
 **Both events:**
@@ -543,7 +543,7 @@ Every schema MUST include at least one golden example.
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://7dsolutions.io/schemas/events/ar-invoice-issued.v1.json",
-  "title": "ar.invoice.issued",
+  "title": "ar.invoice_opened",
   "description": "Event emitted when an AR invoice is created and issued",
   "type": "object",
   "examples": [

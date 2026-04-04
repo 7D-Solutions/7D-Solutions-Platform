@@ -53,7 +53,7 @@ This is **the** reference flow for billing, collections, and GL posting.
 1. SUBS identifies billable subscriptions for a period.
 2. SUBS calls AR OpenAPI: create/issue invoice with line items and service period metadata.
 3. AR creates invoice and emits:
-   - `ar.invoice.issued` (fact)
+   - `ar.invoice_opened` (fact)
 
 **Rules**
 - SUBS never creates invoices in its own DB.
