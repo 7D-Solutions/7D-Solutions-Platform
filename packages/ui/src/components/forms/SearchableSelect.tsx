@@ -8,7 +8,6 @@ import React, {
 import { cn } from "../../lib/cn.js";
 import { ariaDescribedBy, ariaInvalid } from "../../lib/a11y.js";
 import { Keys } from "../../lib/keyboard.js";
-import { getFocusBoundaries } from "../../lib/focus.js";
 
 export interface SelectOption {
   value: string;
