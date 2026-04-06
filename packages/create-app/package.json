@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "create-7d-app": "./create-7d-app.ts"
+    "create-7d-app": "./create-7d-app.ts",
+    "7d-add-component": "./bin/add-component.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -13,6 +13,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["create-7d-app.ts"],
+  "include": ["create-7d-app.ts", "bin/**/*.ts"],
   "exclude": ["node_modules", "templates"]
 }
