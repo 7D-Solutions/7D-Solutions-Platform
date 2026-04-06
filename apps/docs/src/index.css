@@ -1,0 +1,6 @@
+@import "@7d/tokens/tokens.css";
+@import "@7d/tokens/themes/trashtech";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
