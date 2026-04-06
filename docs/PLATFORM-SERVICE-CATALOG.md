@@ -63,6 +63,7 @@ Shared crates used by services. Not independently deployed.
 |---------|-------|---------|-------------|------|
 | audit | audit | 1.0.0 | Append-only audit trail with field-level diffs and policy enforcement | [Revisions](platform/audit/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | auth-kit | auth-kit | 0.1.0 | Reusable auth package for vertical apps — login proxy, JWKS verification, claims middleware |  |
+| blob-storage | blob-storage | 0.1.0 | Platform blob storage client — S3-compatible object store with tenant-scoped keys per ADR-018 |  |
 | config-validator | config-validator | 0.1.0 | Shared builder for environment config validation. |  |
 | event-bus | event-bus | 2.0.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
 | event-consumer | event-consumer | 1.0.0 | Consumer-side event dispatch: handler registry, router, and context | [Revisions](platform/event-consumer/REVISIONS.md) |

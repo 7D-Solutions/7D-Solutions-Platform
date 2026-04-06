@@ -29,6 +29,7 @@
 //! ```
 
 mod auth;
+mod blob;
 mod bus;
 mod cors;
 mod database;
@@ -41,6 +42,7 @@ mod sdk;
 mod server;
 
 pub use auth::AuthSection;
+pub use blob::BlobSection;
 pub use bus::BusSection;
 pub use cors::CorsSection;
 pub use database::DatabaseSection;
@@ -98,6 +100,8 @@ pub struct Manifest {
     pub rate_limit: Option<RateLimitSection>,
     #[serde(default)]
     pub platform: Option<PlatformSection>,
+    #[serde(default)]
+    pub blob: Option<BlobSection>,
 
     /// Unknown top-level keys are captured here so we can warn without erroring.
     #[serde(flatten)]
@@ -296,6 +300,9 @@ impl Manifest {
             for (name, entry) in &platform.services {
                 warn_extra_keys(&format!("platform.services.{name}"), &entry.extra);
             }
+        }
+        if let Some(ref blob) = self.blob {
+            warn_extra_keys("blob", &blob.extra);
         }
 
         Ok(())

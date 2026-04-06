@@ -78,6 +78,7 @@ pub struct ModuleBuilder {
     skip_cors: bool,
     skip_rate_limit: bool,
     skip_auth: bool,
+    use_blob_storage: bool,
 }
 
 impl ModuleBuilder {
@@ -107,6 +108,7 @@ impl ModuleBuilder {
             skip_cors: false,
             skip_rate_limit: false,
             skip_auth: false,
+            use_blob_storage: false,
         }
     }
 
@@ -345,6 +347,29 @@ impl ModuleBuilder {
         self
     }
 
+    /// Enable blob storage for this module.
+    ///
+    /// The SDK reads the bucket name from the `[blob]` section of `module.toml`
+    /// (required when this is called). Credentials and endpoint are resolved
+    /// from environment variables at startup:
+    ///
+    /// - `BLOB_REGION` — required
+    /// - `BLOB_ACCESS_KEY_ID` — required
+    /// - `BLOB_SECRET_ACCESS_KEY` — required
+    /// - `BLOB_ENDPOINT` — optional (MinIO / Cloudflare R2)
+    /// - `BLOB_PROVIDER` — optional (default: `"s3"`)
+    /// - `BLOB_PRESIGN_TTL_SECONDS` — optional (default: 900)
+    /// - `BLOB_MAX_UPLOAD_BYTES` — optional (default: 26 214 400)
+    ///
+    /// The initialised client is available via [`ModuleContext::blob_storage`].
+    ///
+    /// Startup fails fast if the `[blob]` section is absent or any required
+    /// environment variable is missing.
+    pub fn blob_storage(mut self) -> Self {
+        self.use_blob_storage = true;
+        self
+    }
+
     /// Register a tenant pool resolver for database-per-tenant architectures.
     ///
     /// When registered, `ctx.pool_for(tenant_id)` resolves to the correct
@@ -384,6 +409,20 @@ impl ModuleBuilder {
                 module = %manifest.module.name,
                 count = platform_services.len(),
                 "platform service clients ready"
+            );
+        }
+
+        // Initialise blob storage client if requested.
+        if self.use_blob_storage {
+            let blob_client = startup::init_blob_storage(&manifest).await?;
+            tracing::info!(
+                module = %manifest.module.name,
+                bucket = %blob_client.config.bucket,
+                "blob storage client ready"
+            );
+            self.extensions.insert(
+                TypeId::of::<std::sync::Arc<blob_storage::BlobStorageClient>>(),
+                Box::new(std::sync::Arc::new(blob_client)),
             );
         }
 
