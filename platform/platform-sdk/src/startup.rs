@@ -49,6 +49,56 @@ pub enum StartupError {
     UndeclaredOutboxTable { table: String },
 }
 
+/// Initialise a [`BlobStorageClient`] from the manifest `[blob]` section and env vars.
+///
+/// The bucket name is read from `[blob].bucket` in the manifest.  All credentials
+/// and the optional endpoint come from environment variables (loaded in phase A).
+///
+/// Returns a config error and aborts startup if the `[blob]` section is absent or
+/// any required env var is missing.
+///
+/// [`BlobStorageClient`]: blob_storage::BlobStorageClient
+pub(crate) async fn init_blob_storage(
+    manifest: &Manifest,
+) -> Result<blob_storage::BlobStorageClient, StartupError> {
+    let blob_section = manifest.blob.as_ref().ok_or_else(|| {
+        StartupError::Config(
+            ".blob_storage() called but [blob] section is missing from module.toml \
+             — add [blob] bucket = \"<name>\" to enable blob storage"
+                .into(),
+        )
+    })?;
+
+    let require_env = |name: &str| -> Result<String, StartupError> {
+        std::env::var(name).map_err(|_| {
+            StartupError::Config(format!(
+                "{name} environment variable is required when [blob] is configured"
+            ))
+        })
+    };
+
+    let config = blob_storage::BlobStorageConfig {
+        provider: std::env::var("BLOB_PROVIDER").unwrap_or_else(|_| "s3".to_string()),
+        region: require_env("BLOB_REGION")?,
+        endpoint: std::env::var("BLOB_ENDPOINT").ok(),
+        bucket: blob_section.bucket.clone(),
+        access_key_id: require_env("BLOB_ACCESS_KEY_ID")?,
+        secret_access_key: require_env("BLOB_SECRET_ACCESS_KEY")?,
+        presign_ttl_seconds: std::env::var("BLOB_PRESIGN_TTL_SECONDS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(900),
+        max_upload_bytes: std::env::var("BLOB_MAX_UPLOAD_BYTES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(26_214_400),
+    };
+
+    blob_storage::BlobStorageClient::new(config)
+        .await
+        .map_err(|e| StartupError::Config(format!("blob storage client init failed: {e}")))
+}
+
 /// Phase A: infrastructure setup.
 ///
 /// 1. Load .env

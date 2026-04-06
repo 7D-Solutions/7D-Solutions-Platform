@@ -387,7 +387,7 @@ impl ModuleBuilder {
     ///
     /// This blocks until the server receives a shutdown signal (SIGTERM
     /// or Ctrl+C), then drains connections and returns.
-    pub async fn run(self) -> Result<(), StartupError> {
+    pub async fn run(mut self) -> Result<(), StartupError> {
         let manifest = self.manifest?;
 
         // Phase A: infrastructure

@@ -165,6 +165,27 @@ impl ModuleContext {
         self.bus.clone().ok_or(BusNotAvailable)
     }
 
+    /// Access the blob storage client initialised by [`ModuleBuilder::blob_storage`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if `.blob_storage()` was not called on the builder. Use
+    /// [`try_blob_storage`](ModuleContext::try_blob_storage) for a non-panicking variant.
+    pub fn blob_storage(&self) -> &blob_storage::BlobStorageClient {
+        self.try_blob_storage().unwrap_or_else(|| {
+            panic!(
+                "ModuleContext::blob_storage — not available; \
+                 add .blob_storage() to the builder and [blob] to module.toml"
+            )
+        })
+    }
+
+    /// Access the blob storage client if initialised, or `None`.
+    pub fn try_blob_storage(&self) -> Option<&blob_storage::BlobStorageClient> {
+        self.try_state::<std::sync::Arc<blob_storage::BlobStorageClient>>()
+            .map(|arc| arc.as_ref())
+    }
+
     /// Retrieve module-specific state injected via [`ModuleBuilder::state`]
     /// or [`ModuleBuilder::on_startup`].
     ///
