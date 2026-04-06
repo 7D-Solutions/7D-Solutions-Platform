@@ -14,6 +14,7 @@ use crate::models::*;
 
 pub struct AppState {
     pub db: PgPool,
+    pub blob: std::sync::Arc<blob_storage::BlobStorageClient>,
 }
 
 pub fn extract_idem_key(headers: &HeaderMap) -> Option<String> {

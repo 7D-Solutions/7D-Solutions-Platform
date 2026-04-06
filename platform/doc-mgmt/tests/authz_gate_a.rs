@@ -22,16 +22,33 @@ fn build_claims(perms: &[&str]) -> VerifiedClaims {
     }
 }
 
-fn test_app() -> axum::Router {
+async fn test_app() -> axum::Router {
     let pool = PgPoolOptions::new()
         .connect_lazy("postgresql://doc_mgmt_user:doc_mgmt_pass@127.0.0.1:59999/doc_mgmt_db")
         .expect("lazy pool");
-    api_router(std::sync::Arc::new(AppState { db: pool }))
+    // Dummy blob config — authz tests never reach blob operations.
+    let blob_config = blob_storage::BlobStorageConfig {
+        provider: "s3".to_string(),
+        region: "us-east-1".to_string(),
+        endpoint: Some("http://127.0.0.1:59998".to_string()),
+        bucket: "test-bucket".to_string(),
+        access_key_id: "test".to_string(),
+        secret_access_key: "test".to_string(),
+        presign_ttl_seconds: 900,
+        max_upload_bytes: 26_214_400,
+    };
+    let blob = blob_storage::BlobStorageClient::new(blob_config)
+        .await
+        .expect("dummy blob client");
+    api_router(std::sync::Arc::new(AppState {
+        db: pool,
+        blob: std::sync::Arc::new(blob),
+    }))
 }
 
 #[tokio::test]
 async fn create_document_requires_mutate_permission() {
-    let app = test_app();
+    let app = test_app().await;
     let mut req = Request::builder()
         .method("POST")
         .uri("/api/documents")
@@ -49,7 +66,7 @@ async fn create_document_requires_mutate_permission() {
 
 #[tokio::test]
 async fn release_requires_mutate_permission() {
-    let app = test_app();
+    let app = test_app().await;
     let mut req = Request::builder()
         .method("POST")
         .uri(format!("/api/documents/{}/release", Uuid::new_v4()))
@@ -64,7 +81,7 @@ async fn release_requires_mutate_permission() {
 
 #[tokio::test]
 async fn distribute_requires_mutate_permission() {
-    let app = test_app();
+    let app = test_app().await;
     let mut req = Request::builder()
         .method("POST")
         .uri(format!("/api/documents/{}/distributions", Uuid::new_v4()))
@@ -82,7 +99,7 @@ async fn distribute_requires_mutate_permission() {
 
 #[tokio::test]
 async fn admin_mutation_endpoint_requires_mutate_permission() {
-    let app = test_app();
+    let app = test_app().await;
     let mut req = Request::builder()
         .method("POST")
         .uri("/api/retention-policies")
@@ -98,7 +115,7 @@ async fn admin_mutation_endpoint_requires_mutate_permission() {
 
 #[tokio::test]
 async fn read_endpoint_requires_read_permission() {
-    let app = test_app();
+    let app = test_app().await;
     let mut req = Request::builder()
         .method("GET")
         .uri("/api/documents")

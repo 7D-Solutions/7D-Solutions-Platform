@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
+mod attachments;
 mod config;
 mod db;
 mod distribution;
@@ -40,8 +41,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Spawn outbox relay
     tokio::spawn(outbox_relay::start_outbox_relay(pool.clone(), bus));
 
+    // Blob storage (fail-fast — required for attachment endpoints)
+    let blob_config = blob_storage::BlobStorageConfig::from_env()
+        .map_err(|e| format!("blob storage config error: {e}"))?;
+    let blob_client = blob_storage::BlobStorageClient::new(blob_config)
+        .await
+        .map_err(|e| format!("blob storage init error: {e}"))?;
+    blob_client
+        .ensure_bucket_exists()
+        .await
+        .map_err(|e| format!("blob storage bucket check failed: {e}"))?;
+    tracing::info!("blob storage initialized");
+
     // App state
-    let app_state = Arc::new(handlers::AppState { db: pool.clone() });
+    let app_state = Arc::new(handlers::AppState {
+        db: pool.clone(),
+        blob: Arc::new(blob_client),
+    });
 
     // JWT verifier (optional — permissive if not configured)
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);

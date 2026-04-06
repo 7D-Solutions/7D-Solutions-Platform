@@ -206,6 +206,41 @@ pub struct DocumentRenderedPayload {
     pub output_hash: String,
 }
 
+// ── Attachment models (DOC6) ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Attachment {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size_bytes: i64,
+    pub s3_key: String,
+    pub status: String,
+    pub uploaded_at: Option<DateTime<Utc>>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAttachmentRequest {
+    pub entity_type: String,
+    pub entity_id: String,
+    pub filename: String,
+    pub mime_type: String,
+    /// Declared upload size in bytes. Validated against the configured limit when present.
+    pub size_bytes: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AttachmentListQuery {
+    pub entity_type: String,
+    pub entity_id: String,
+}
+
 // ── Controlled distribution models (DOC4) ───────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

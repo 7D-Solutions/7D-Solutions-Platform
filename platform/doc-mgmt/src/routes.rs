@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use security::{permissions, RequirePermissionsLayer};
@@ -9,6 +9,11 @@ use crate::handlers::AppState;
 
 pub fn api_router(state: Arc<AppState>) -> Router {
     let read_routes = Router::new()
+        .route("/api/attachments", get(crate::attachments::list_attachments))
+        .route(
+            "/api/attachments/{id}",
+            get(crate::attachments::get_attachment),
+        )
         .route("/api/documents", get(crate::handlers::list_documents))
         .route("/api/documents/{id}", get(crate::handlers::get_document))
         .route(
@@ -31,6 +36,15 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         .route_layer(RequirePermissionsLayer::new(&[permissions::DOC_MGMT_READ]));
 
     let mutate_routes = Router::new()
+        // Attachments
+        .route(
+            "/api/attachments",
+            post(crate::attachments::create_attachment),
+        )
+        .route(
+            "/api/attachments/{id}",
+            delete(crate::attachments::delete_attachment),
+        )
         // Document lifecycle
         .route("/api/documents", post(crate::handlers::create_document))
         .route(

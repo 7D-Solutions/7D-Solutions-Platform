@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.0 | 2026-04-06 | bd-4l4mw | Add entity-agnostic attachment endpoints: POST /api/attachments (presigned PUT URL), GET /api/attachments/{id} (presigned GET URL), GET /api/attachments?entity_type=X&entity_id=Y (list), DELETE /api/attachments/{id} (soft delete). New `attachments` table (migration 006). AppState gains `blob: Arc<BlobStorageClient>`. blob-storage from_env now accepts BLOB_BUCKET alias and defaults BLOB_REGION to us-east-1. | Verticals need to attach photos and files to any entity without file bytes flowing through the service. | No |
 | 1.0.1 | 2026-04-01 | bd-manm4 | Add utoipa dependency, openapi module with ApiDoc struct, and openapi_dump binary for standalone spec generation. Info-only spec (handler annotations pending). | OpenAPI spec hygiene — all modules must emit complete specs for client codegen. | No |
 | 1.0.0 | 2026-03-28 | bd-2j13q | Initial proof. Document metadata storage, template rendering with deterministic hashing, document lifecycle management, tenant-scoped queries. 5 unit tests pass, clippy clean. | Document management module complete and proven. All gates pass. | No |
 

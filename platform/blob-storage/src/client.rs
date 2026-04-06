@@ -39,8 +39,9 @@ pub struct BlobStorageConfig {
 impl BlobStorageConfig {
     /// Load configuration from environment variables per ADR-018.
     ///
-    /// Required: `BLOB_REGION`, `BLOB_BUCKET_DOCS`, `BLOB_ACCESS_KEY_ID`,
-    ///           `BLOB_SECRET_ACCESS_KEY`
+    /// Required: `BLOB_ACCESS_KEY_ID`, `BLOB_SECRET_ACCESS_KEY`
+    /// Bucket:   `BLOB_BUCKET_DOCS` (preferred) or `BLOB_BUCKET` (alias)
+    /// Region:   `BLOB_REGION` (default "us-east-1"; MinIO ignores this)
     /// Optional: `BLOB_PROVIDER` (default "s3"), `BLOB_ENDPOINT`,
     ///           `BLOB_PRESIGN_TTL_SECONDS` (default 900),
     ///           `BLOB_MAX_UPLOAD_BYTES` (default 26214400)
@@ -50,11 +51,21 @@ impl BlobStorageConfig {
                 .map_err(|_| BlobError::Config(format!("{name} environment variable is required")))
         };
 
+        // Accept BLOB_BUCKET_DOCS (canonical) or BLOB_BUCKET (compose alias).
+        let bucket = std::env::var("BLOB_BUCKET_DOCS")
+            .or_else(|_| std::env::var("BLOB_BUCKET"))
+            .map_err(|_| {
+                BlobError::Config(
+                    "BLOB_BUCKET_DOCS (or BLOB_BUCKET) environment variable is required".into(),
+                )
+            })?;
+
         Ok(Self {
             provider: std::env::var("BLOB_PROVIDER").unwrap_or_else(|_| "s3".to_string()),
-            region: require("BLOB_REGION")?,
+            // Region is optional for MinIO/R2; default matches AWS SDK expectations.
+            region: std::env::var("BLOB_REGION").unwrap_or_else(|_| "us-east-1".to_string()),
             endpoint: std::env::var("BLOB_ENDPOINT").ok(),
-            bucket: require("BLOB_BUCKET_DOCS")?,
+            bucket,
             access_key_id: require("BLOB_ACCESS_KEY_ID")?,
             secret_access_key: require("BLOB_SECRET_ACCESS_KEY")?,
             presign_ttl_seconds: std::env::var("BLOB_PRESIGN_TTL_SECONDS")

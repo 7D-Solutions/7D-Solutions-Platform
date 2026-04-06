@@ -1,6 +1,6 @@
 [package]
 name = "doc_mgmt"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 description = "Document management service: core doc model, revision tracking, and lifecycle (draft → released)"
 publish = ["7d-platform"]
@@ -31,6 +31,7 @@ platform_contracts = { path = "../platform-contracts" }
 security = { path = "../security" }
 health = { path = "../health" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
+blob-storage = { path = "../blob-storage" }
 
 [[bin]]
 name = "openapi_dump"

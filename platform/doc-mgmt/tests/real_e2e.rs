@@ -3047,3 +3047,290 @@ async fn delivery_status_flow_and_replay_safety() {
     .expect("count status logs");
     assert_eq!(log_count, 1, "status replay should not duplicate logs");
 }
+
+// ── Attachment tests (DOC6) ──────────────────────────────────────────
+
+/// Insert a test attachment directly into the DB, returning the attachment id.
+async fn insert_test_attachment(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    entity_type: &str,
+    entity_id: &str,
+    filename: &str,
+    s3_key: &str,
+    status: &str,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO attachments (id, tenant_id, entity_type, entity_id, filename, mime_type, size_bytes, s3_key, status, created_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, 'application/pdf', 0, $6, $7, $8, now())",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(filename)
+    .bind(s3_key)
+    .bind(status)
+    .bind(actor)
+    .execute(pool)
+    .await
+    .expect("insert test attachment");
+    id
+}
+
+#[tokio::test]
+async fn attachments_table_exists() {
+    let pool = get_pool().await;
+
+    let table_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'attachments'
+         )",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("check attachments table");
+
+    assert!(table_exists, "attachments table must exist after migration");
+}
+
+#[tokio::test]
+async fn attachments_schema_columns() {
+    let pool = get_pool().await;
+
+    let columns: Vec<String> = sqlx::query_scalar(
+        "SELECT column_name::text FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'attachments'
+         ORDER BY column_name",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("query columns");
+
+    let expected = vec![
+        "created_at",
+        "created_by",
+        "deleted_at",
+        "entity_id",
+        "entity_type",
+        "filename",
+        "id",
+        "mime_type",
+        "s3_key",
+        "size_bytes",
+        "status",
+        "tenant_id",
+        "uploaded_at",
+    ];
+
+    for col in &expected {
+        assert!(
+            columns.iter().any(|c| c == *col),
+            "expected column '{col}' missing from attachments table"
+        );
+    }
+}
+
+#[tokio::test]
+async fn attachments_insert_and_query() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4().to_string();
+    let key = format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/06/test-test.pdf");
+
+    let att_id = insert_test_attachment(
+        &pool,
+        tenant_id,
+        "work_order",
+        &entity_id,
+        "report.pdf",
+        &key,
+        "pending",
+    )
+    .await;
+
+    let row: (String, String, String) = sqlx::query_as(
+        "SELECT entity_type, entity_id, status FROM attachments WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(att_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch attachment");
+
+    assert_eq!(row.0, "work_order");
+    assert_eq!(row.1, entity_id);
+    assert_eq!(row.2, "pending");
+}
+
+#[tokio::test]
+async fn attachments_list_by_entity() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4().to_string();
+
+    // Insert 3 attachments for the entity
+    for i in 0..3 {
+        let key = format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/file-{i}.pdf");
+        insert_test_attachment(
+            &pool,
+            tenant_id,
+            "animal",
+            &entity_id,
+            &format!("file-{i}.pdf"),
+            &key,
+            "pending",
+        )
+        .await;
+    }
+
+    // Insert one for a different entity — must not appear in list
+    let other_id = Uuid::new_v4().to_string();
+    let other_key =
+        format!("tenants/{tenant_id}/doc-mgmt/attachment/{other_id}/other.pdf");
+    insert_test_attachment(
+        &pool,
+        tenant_id,
+        "animal",
+        &other_id,
+        "other.pdf",
+        &other_key,
+        "pending",
+    )
+    .await;
+
+    let ids: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM attachments
+         WHERE tenant_id = $1 AND entity_type = 'animal' AND entity_id = $2 AND status != 'deleted'
+         ORDER BY created_at DESC",
+    )
+    .bind(tenant_id)
+    .bind(&entity_id)
+    .fetch_all(&pool)
+    .await
+    .expect("list attachments");
+
+    assert_eq!(ids.len(), 3, "list must return exactly the 3 entity attachments");
+}
+
+#[tokio::test]
+async fn attachments_soft_delete() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4().to_string();
+    let key = format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/del.pdf");
+
+    let att_id = insert_test_attachment(
+        &pool,
+        tenant_id,
+        "inspection",
+        &entity_id,
+        "del.pdf",
+        &key,
+        "pending",
+    )
+    .await;
+
+    // Soft-delete
+    let affected = sqlx::query(
+        "UPDATE attachments SET status = 'deleted', deleted_at = now()
+         WHERE id = $1 AND tenant_id = $2 AND status != 'deleted'",
+    )
+    .bind(att_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await
+    .expect("soft delete")
+    .rows_affected();
+
+    assert_eq!(affected, 1);
+
+    // Row still exists in DB
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM attachments WHERE id = $1")
+            .bind(att_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch status");
+    assert_eq!(status, "deleted");
+
+    // Idempotent — second delete should match 0 rows
+    let affected2 = sqlx::query(
+        "UPDATE attachments SET status = 'deleted', deleted_at = now()
+         WHERE id = $1 AND tenant_id = $2 AND status != 'deleted'",
+    )
+    .bind(att_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await
+    .expect("second soft delete")
+    .rows_affected();
+
+    assert_eq!(affected2, 0, "second delete must be a no-op");
+}
+
+#[tokio::test]
+async fn attachments_tenant_isolation() {
+    let pool = get_pool().await;
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    let entity_id = Uuid::new_v4().to_string();
+    let key_a = format!("tenants/{tenant_a}/doc-mgmt/attachment/{entity_id}/a.pdf");
+    let key_b = format!("tenants/{tenant_b}/doc-mgmt/attachment/{entity_id}/b.pdf");
+
+    let att_a = insert_test_attachment(
+        &pool, tenant_a, "order", &entity_id, "a.pdf", &key_a, "pending",
+    )
+    .await;
+    insert_test_attachment(
+        &pool, tenant_b, "order", &entity_id, "b.pdf", &key_b, "pending",
+    )
+    .await;
+
+    // Tenant A can only see their own row
+    let rows: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM attachments WHERE tenant_id = $1 AND entity_id = $2",
+    )
+    .bind(tenant_a)
+    .bind(&entity_id)
+    .fetch_all(&pool)
+    .await
+    .expect("tenant isolation query");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], att_a);
+}
+
+#[tokio::test]
+async fn attachments_s3_key_tenant_scoped() {
+    // Verify BlobKeyBuilder produces the expected tenant-scoped path structure.
+    // This test does not require MinIO — it only checks key formatting.
+    use blob_storage::BlobKeyBuilder;
+    use chrono::NaiveDate;
+
+    let tenant_id = Uuid::new_v4();
+    let attachment_id = Uuid::new_v4();
+    let entity_id = Uuid::new_v4();
+
+    let key = BlobKeyBuilder {
+        tenant_id: &tenant_id.to_string(),
+        service: "doc-mgmt",
+        artifact_type: "attachment",
+        entity_id: &entity_id.to_string(),
+        object_id: &attachment_id.to_string(),
+        filename: "photo.jpg",
+    }
+    .build(NaiveDate::from_ymd_opt(2026, 4, 6).unwrap());
+
+    // Key must be scoped to tenant and contain the expected path segments.
+    assert!(
+        key.starts_with(&format!("tenants/{}/", tenant_id)),
+        "key must start with tenant prefix: {key}"
+    );
+    assert!(key.contains("doc-mgmt"), "key must contain service: {key}");
+    assert!(key.contains("attachment"), "key must contain artifact_type: {key}");
+    assert!(key.contains("photo.jpg"), "key must contain filename: {key}");
+}
