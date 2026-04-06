@@ -56,7 +56,9 @@ Examples:
   pnpm exec 7d-add-component DataTable --dir ./apps/trashtech
 
 Components: Button, Input, Textarea, Checkbox, RadioGroup, Switch, Label,
-  FormField, HelperText, Spinner, Skeleton, Separator, Tooltip, Badge,
+  FormField, HelperText, Spinner, Skeleton, SkeletonText, SkeletonCard,
+  SkeletonRow, SkeletonTable, SkeletonStat, Separator, Tooltip, Badge,
+  EmptyState, EmptyStateInline, GlassCard, PageHeader,
   Modal, Drawer, Toast, ToastContainer, Breadcrumbs, Pagination,
   DataTable, DataTableToolbar, ColumnManager, SearchableSelect, FileUpload,
   useLoadingState, useSearchDebounce, useBeforeUnload, usePagination,
@@ -113,6 +115,20 @@ const ALIASES: Record<string, string> = {
   RowCheckbox: "RowSelection",
   // ToastContainer is exported from Toast.tsx
   ToastContainer: "Toast",
+  // GlassCard sub-components all live in GlassCard.tsx
+  GlassCardHeader: "GlassCard",
+  GlassCardTitle: "GlassCard",
+  GlassCardDescription: "GlassCard",
+  GlassCardContent: "GlassCard",
+  GlassCardFooter: "GlassCard",
+  // Skeleton variants all live in Skeleton.tsx
+  SkeletonText: "Skeleton",
+  SkeletonCard: "Skeleton",
+  SkeletonRow: "Skeleton",
+  SkeletonTable: "Skeleton",
+  SkeletonStat: "Skeleton",
+  // EmptyStateInline lives in EmptyState.tsx
+  EmptyStateInline: "EmptyState",
 };
 
 // ---------------------------------------------------------------------------

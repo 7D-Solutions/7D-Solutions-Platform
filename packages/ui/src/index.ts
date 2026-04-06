@@ -112,7 +112,7 @@ export {
 export { Keys, isKey, onKey, isActivationKey } from "./lib/keyboard.js";
 export type { Key } from "./lib/keyboard.js";
 
-// Primitives — form + feedback
+// Primitives — form + feedback + layout
 export {
   Button,
   Input,
@@ -125,9 +125,23 @@ export {
   HelperText,
   Spinner,
   Skeleton,
+  SkeletonText,
+  SkeletonCard,
+  SkeletonRow,
+  SkeletonTable,
+  SkeletonStat,
   Separator,
   Tooltip,
   Badge,
+  EmptyState,
+  EmptyStateInline,
+  GlassCard,
+  GlassCardHeader,
+  GlassCardTitle,
+  GlassCardDescription,
+  GlassCardContent,
+  GlassCardFooter,
+  PageHeader,
 } from "./components/primitives/index.js";
 export type {
   ButtonProps,
@@ -152,4 +166,9 @@ export type {
   BadgeProps,
   BadgeVariant,
   BadgeSize,
+  EmptyStateProps,
+  GlassCardProps,
+  GlassCardVariant,
+  GlassCardPadding,
+  PageHeaderProps,
 } from "./components/primitives/index.js";
