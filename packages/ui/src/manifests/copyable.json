@@ -1,1 +1,16 @@
-[]
+[
+  "src/components/primitives/Button.tsx",
+  "src/components/primitives/Input.tsx",
+  "src/components/primitives/Textarea.tsx",
+  "src/components/primitives/Checkbox.tsx",
+  "src/components/primitives/RadioGroup.tsx",
+  "src/components/primitives/Switch.tsx",
+  "src/components/primitives/Label.tsx",
+  "src/components/primitives/FormField.tsx",
+  "src/components/primitives/HelperText.tsx",
+  "src/components/primitives/Spinner.tsx",
+  "src/components/primitives/Skeleton.tsx",
+  "src/components/primitives/Separator.tsx",
+  "src/components/primitives/Tooltip.tsx",
+  "src/components/primitives/Badge.tsx"
+]

@@ -40,23 +40,24 @@ export function Tooltip({
   };
 
   const child = React.Children.only(children);
+  const childProps = child.props as React.HTMLAttributes<HTMLElement>;
   const childWithProps = React.cloneElement(child, {
     "aria-describedby": visible ? tooltipId : undefined,
     onMouseEnter: (e: React.MouseEvent) => {
       show();
-      child.props.onMouseEnter?.(e);
+      childProps.onMouseEnter?.(e);
     },
     onMouseLeave: (e: React.MouseEvent) => {
       hide();
-      child.props.onMouseLeave?.(e);
+      childProps.onMouseLeave?.(e);
     },
     onFocus: (e: React.FocusEvent) => {
       show();
-      child.props.onFocus?.(e);
+      childProps.onFocus?.(e);
     },
     onBlur: (e: React.FocusEvent) => {
       hide();
-      child.props.onBlur?.(e);
+      childProps.onBlur?.(e);
     },
   } as React.HTMLAttributes<HTMLElement>);
 
