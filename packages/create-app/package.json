@@ -1,0 +1,17 @@
+{
+  "name": "@7d/create-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "create-7d-app": "./create-7d-app.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@7d/config": "workspace:*",
+    "@types/node": "^22",
+    "typescript": "^5"
+  }
+}
