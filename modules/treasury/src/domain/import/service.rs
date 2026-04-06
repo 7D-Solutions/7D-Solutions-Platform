@@ -119,7 +119,7 @@ pub async fn import_statement(
             line.date,
             line.amount_minor,
             &currency,
-            &line.description,
+            &Some(line.description.clone()),
             line.reference.as_deref(),
             &ext_id,
         )

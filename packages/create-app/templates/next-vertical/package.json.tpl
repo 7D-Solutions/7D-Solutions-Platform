@@ -11,8 +11,9 @@
   "dependencies": {
     "@7d/platform-client": "workspace:*",
     "@7d/tokens": "workspace:*",
-    "@7d/ui": "workspace:*",
     "@tanstack/react-query": "^5.0.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.5.0",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
