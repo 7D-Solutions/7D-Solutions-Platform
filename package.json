@@ -3,11 +3,22 @@
   "version": "1.0.0",
   "type": "module",
   "description": "7D Solutions Platform",
-  "scripts": {},
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
   "dependencies": {
     "playwright": "^1.48.0"
   },
   "devDependencies": {
-    "@agentcore/flywheel-tools": "file:../AgentCore/flywheel_tools"
+    "@agentcore/flywheel-tools": "file:../AgentCore/flywheel_tools",
+    "turbo": "^2.4.4"
   }
 }

@@ -1,3 +1,6 @@
+# Turborepo cache
+.turbo/
+
 # CASS runtime data
 .cass/
 
