@@ -967,6 +967,58 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # BLOB STORAGE
+  # =========================
+  minio:
+    container_name: 7d-minio
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "minio"
+      com.7dsolutions.type: "blob-storage"
+      com.7dsolutions.env: "dev"
+
+  minio-init:
+    container_name: 7d-minio-init
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://7d-minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
+        mc mb --ignore-existing local/platform-docs;
+        echo 'MinIO bucket ready.';
+      "
+    networks:
+      - 7d-platform
+    restart: "no"
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "minio-init"
+      com.7dsolutions.type: "init"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -1066,3 +1118,5 @@ volumes:
   reporting_pgdata:
     name: 7d-reporting-pgdata
     external: true
+  minio_data:
+    name: 7d-minio-data

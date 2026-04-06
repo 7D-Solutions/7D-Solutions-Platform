@@ -1144,6 +1144,10 @@ services:
       PORT: 8095
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
+      BLOB_ENDPOINT: ${BLOB_ENDPOINT:-http://7d-minio:9000}
+      BLOB_BUCKET: ${BLOB_BUCKET:-platform-docs}
+      BLOB_ACCESS_KEY_ID: ${BLOB_ACCESS_KEY_ID:-minioadmin}
+      BLOB_SECRET_ACCESS_KEY: ${BLOB_SECRET_ACCESS_KEY:-minioadmin}
     ports:
       - "127.0.0.1:8095:8095"
     networks:
