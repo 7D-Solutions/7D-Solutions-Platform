@@ -72,6 +72,18 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/create-app:
+    devDependencies:
+      '@7d/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^22
+        version: 22.19.17
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   packages/platform-client:
     dependencies:
       '@tanstack/react-query':
@@ -111,6 +123,9 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
       tailwind-merge:
         specifier: ^2.5.0
         version: 2.6.1
@@ -121,6 +136,9 @@ importers:
       '@types/react':
         specifier: ^19
         version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
       typescript:
         specifier: ^5
         version: 5.9.3
