@@ -556,4 +556,28 @@ key = "value"
         assert!(manifest.extra.contains_key("unknown_section"));
         assert!(manifest.module.extra.contains_key("custom_field"));
     }
+
+    #[test]
+    fn blob_section_parses() {
+        let toml_str = r#"
+[module]
+name = "doc-mgmt"
+
+[blob]
+bucket = "platform-docs"
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("blob section should parse");
+        let blob = manifest.blob.expect("blob section");
+        assert_eq!(blob.bucket, "platform-docs");
+    }
+
+    #[test]
+    fn no_blob_section_is_none() {
+        let toml_str = r#"
+[module]
+name = "party"
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("manifest should parse");
+        assert!(manifest.blob.is_none());
+    }
 }

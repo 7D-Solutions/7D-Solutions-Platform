@@ -1885,10 +1885,11 @@ dependencies = [
 
 [[package]]
 name = "doc_mgmt"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "async-nats",
  "axum",
+ "blob-storage",
  "chrono",
  "dotenvy",
  "event-bus",
