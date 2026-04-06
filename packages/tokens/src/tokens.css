@@ -1,0 +1,267 @@
+/* ============================================================
+ * 7D Solutions Platform — Design Tokens
+ * Base layer: all CSS custom properties.
+ * Brand overrides live in themes/*.css
+ * ============================================================ */
+
+:root {
+  /* ===== COLOR SYSTEM ===== */
+
+  /* Brand Primary — overridden per app/brand theme */
+  --color-primary: #2c72d5;
+  --color-primary-light: #5691e3;
+  --color-primary-lighter: #8bb2ed;
+  --color-primary-dark: #1e5bb8;
+  --color-primary-darker: #144091;
+
+  /* Secondary */
+  --color-secondary: #6c757d;
+  --color-secondary-light: #868e96;
+  --color-secondary-dark: #545b62;
+
+  /* Semantic — shared across all apps, never overridden by brand themes */
+  --color-success: #28a745;
+  --color-success-light: #48b461;
+  --color-success-dark: #1e7e34;
+
+  --color-info: #17a2b8;
+  --color-info-light: #3ab0c3;
+  --color-info-dark: #117a8b;
+
+  --color-warning: #ffc107;
+  --color-warning-light: #ffcd39;
+  --color-warning-dark: #d39e00;
+
+  --color-danger: #dc3545;
+  --color-danger-light: #e4606d;
+  --color-danger-dark: #bd2130;
+  --color-danger-light-bg: #fef2f2;
+
+  /* Gray Scale */
+  --color-gray-50: #f8f9fa;
+  --color-gray-100: #f1f3f5;
+  --color-gray-200: #e9ecef;
+  --color-gray-300: #dee2e6;
+  --color-gray-400: #ced4da;
+  --color-gray-500: #adb5bd;
+  --color-gray-600: #6c757d;
+  --color-gray-700: #495057;
+  --color-gray-800: #343a40;
+  --color-gray-900: #212529;
+
+  /* Backgrounds */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f9fa;
+  --color-bg-tertiary: #e9ecef;
+
+  /* Text */
+  --color-text-primary: #212529;
+  --color-text-secondary: #6c757d;
+  --color-text-muted: #adb5bd;
+  --color-text-inverse: #ffffff;
+
+  /* Borders */
+  --color-border-light: #dee2e6;
+  --color-border-default: #ced4da;
+  --color-border-dark: #adb5bd;
+
+
+  /* ===== TYPOGRAPHY SYSTEM ===== */
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+  /* Sizes */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.5rem;    /* 24px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+  --font-size-4xl: 2.25rem;   /* 36px */
+
+  /* Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line Heights */
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* Letter Spacing */
+  --letter-spacing-tight: -0.05em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.05em;
+
+
+  /* ===== SPACING SYSTEM ===== */
+
+  --space-0: 0;
+  --space-px: 1px;
+  --space-0-5: 0.125rem;  /* 2px */
+  --space-1: 0.25rem;     /* 4px */
+  --space-2: 0.5rem;      /* 8px */
+  --space-3: 0.75rem;     /* 12px */
+  --space-4: 1rem;        /* 16px */
+  --space-5: 1.25rem;     /* 20px */
+  --space-6: 1.5rem;      /* 24px */
+  --space-7: 1.75rem;     /* 28px */
+  --space-8: 2rem;        /* 32px */
+  --space-10: 2.5rem;     /* 40px */
+  --space-12: 3rem;       /* 48px */
+  --space-16: 4rem;       /* 64px */
+  --space-20: 5rem;       /* 80px */
+  --space-24: 6rem;       /* 96px */
+
+
+  /* ===== LAYOUT SYSTEM ===== */
+
+  --header-height: 77px;
+  --tab-bar-height: 48px;
+  --chrome-total-height: 155px;
+
+  --container-sm: 576px;
+  --container-md: 768px;
+  --container-lg: 992px;
+  --container-xl: 1200px;
+  --container-xxl: 1400px;
+
+  --modal-width-sm: 480px;
+  --modal-width-md: 600px;
+  --modal-width-lg: 800px;
+  --modal-width-xl: 1000px;
+
+  --modal-height-sm: 400px;
+  --modal-height-md: 500px;
+  --modal-height-lg: 600px;
+  --modal-height-xl: 700px;
+  --modal-max-height: 90vh;
+  --modal-content-max-height: 60vh;
+  --modal-footer-height: 80px;
+
+
+  /* ===== BORDER RADIUS ===== */
+
+  --radius-none: 0;
+  --radius-sm: 0.125rem;
+  --radius-default: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+
+  /* ===== SHADOWS ===== */
+
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-default: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+
+
+  /* ===== Z-INDEX SCALE ===== */
+
+  --z-0: 0;
+  --z-10: 10;
+  --z-20: 20;
+  --z-30: 30;
+  --z-40: 40;
+  --z-50: 50;
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  --z-notification: 10000;
+
+
+  /* ===== COMPONENT SIZE SYSTEM ===== */
+  /* Shared scale for buttons, badges, inputs, tags */
+
+  --component-size-compact-padding-y: 5px;
+  --component-size-compact-padding-x: 14px;
+  --component-size-compact-font-size: 13px;
+  --component-size-compact-min-height: 26px;
+  --component-size-compact-line-height: 1.2;
+
+  --component-size-xs-padding-y: 6px;
+  --component-size-xs-padding-x: 12px;
+  --component-size-xs-font-size: 12px;
+  --component-size-xs-min-height: 28px;
+
+  --component-size-sm-padding-y: 8px;
+  --component-size-sm-padding-x: 16px;
+  --component-size-sm-font-size: 14px;
+  --component-size-sm-min-height: 32px;
+
+  --component-size-md-padding-y: 10px;
+  --component-size-md-padding-x: 20px;
+  --component-size-md-font-size: 16px;
+  --component-size-md-min-height: 38px;
+
+  --component-size-lg-padding-y: 12px;
+  --component-size-lg-padding-x: 24px;
+  --component-size-lg-font-size: 18px;
+  --component-size-lg-min-height: 44px;
+
+  --component-size-xl-padding-y: 16px;
+  --component-size-xl-padding-x: 32px;
+  --component-size-xl-font-size: 20px;
+  --component-size-xl-min-height: 52px;
+
+
+  /* ===== TABLE SYSTEM ===== */
+
+  --table-row-height: 42px;
+  --table-header-height: 42px;
+  --table-cell-padding-y: 8px;
+  --table-cell-padding-x: 20px;
+  --table-body-font-size: 14px;
+  --table-header-font-size: 12px;
+  --table-line-height: 1.5;
+
+
+  /* ===== ANIMATION SYSTEM ===== */
+
+  --transition-none: none;
+  --transition-all: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 100ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-default: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --duration-75: 75ms;
+  --duration-100: 100ms;
+  --duration-150: 150ms;
+  --duration-200: 200ms;
+  --duration-300: 300ms;
+  --duration-500: 500ms;
+  --duration-700: 700ms;
+  --duration-1000: 1000ms;
+}
+
+
+/* ===== UTILITY CLASSES ===== */
+
+.hide-scrollbar {
+  overflow-y: scroll;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

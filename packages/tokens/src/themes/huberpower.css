@@ -1,0 +1,13 @@
+/* ============================================================
+ * HuberPower — Brand Theme
+ * Overrides brand-primary only. Semantic colors are unchanged.
+ * Usage: add data-brand="huberpower" to <html> or root element.
+ * ============================================================ */
+
+[data-brand="huberpower"] {
+  --color-primary: #e05c00;
+  --color-primary-light: #f07020;
+  --color-primary-lighter: #f89050;
+  --color-primary-dark: #b54800;
+  --color-primary-darker: #8a3600;
+}

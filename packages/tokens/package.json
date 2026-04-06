@@ -1,0 +1,27 @@
+{
+  "name": "@7d/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./preset": {
+      "types": "./src/preset.ts",
+      "default": "./src/preset.ts"
+    },
+    "./tokens.css": "./src/tokens.css",
+    "./themes/trashtech": "./src/themes/trashtech.css",
+    "./themes/huberpower": "./src/themes/huberpower.css",
+    "./themes/ranchorbit": "./src/themes/ranchorbit.css"
+  },
+  "peerDependencies": {
+    "tailwindcss": ">=3"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,13 @@
+/* ============================================================
+ * TrashTech Pro — Brand Theme
+ * Overrides brand-primary only. Semantic colors are unchanged.
+ * Usage: add data-brand="trashtech" to <html> or root element.
+ * ============================================================ */
+
+[data-brand="trashtech"] {
+  --color-primary: #1a7340;
+  --color-primary-light: #2a9a57;
+  --color-primary-lighter: #4db87a;
+  --color-primary-dark: #125a32;
+  --color-primary-darker: #0c3d22;
+}

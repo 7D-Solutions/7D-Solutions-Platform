@@ -1,0 +1,13 @@
+/* ============================================================
+ * RanchOrbit — Brand Theme
+ * Overrides brand-primary only. Semantic colors are unchanged.
+ * Usage: add data-brand="ranchorbit" to <html> or root element.
+ * ============================================================ */
+
+[data-brand="ranchorbit"] {
+  --color-primary: #7c5c2e;
+  --color-primary-light: #9b7640;
+  --color-primary-lighter: #c09a60;
+  --color-primary-dark: #624722;
+  --color-primary-darker: #4a3318;
+}
