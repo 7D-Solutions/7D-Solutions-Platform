@@ -18,16 +18,16 @@ Standard structure for bead descriptions. Ensures any pool agent can execute wit
 <Commands to confirm it works. Must use real services — no mocks, no stubs.>
 
 ## Skills
-<Optional. Hint skills that help: /skill-name>
+<Scan available skills list and include any that apply: /skill-name>
 ```
 
 ## Requirements by Priority
 
 | Priority | Required Sections |
 |----------|-------------------|
-| P0-P1    | What + Want + Files + Verify |
-| P2       | What + Want + Verify |
-| P3-P4    | What only |
+| P0-P1    | What + Want + Files + Verify + Skills |
+| P2       | What + Want + Verify + Skills |
+| P3-P4    | What + Skills |
 
 ## Guidelines
 
@@ -35,7 +35,7 @@ Standard structure for bead descriptions. Ensures any pool agent can execute wit
 - **Want**: Describe the outcome, not the implementation steps. "Users can log in with SSO" not "Add SAML handler to auth middleware."
 - **Files**: Best-effort list. Agents will discover more, but this saves initial search time.
 - **Verify**: Concrete commands that produce pass/fail results. `cargo test -p foo` or `curl localhost:8080/health`. Not "check that it works."
-- **Skills**: Only include if a specific skill meaningfully accelerates the work.
+- **Skills**: Required for P0-P2. Scan the available skills list and include any that match the task. Write `/none` if no skills apply — this confirms you checked rather than forgot.
 
 ## Example (P1)
 

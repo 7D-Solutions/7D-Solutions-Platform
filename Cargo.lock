@@ -6865,7 +6865,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.9"
+version = "2.1.10"
 dependencies = [
  "async-nats",
  "axum",

@@ -39,3 +39,39 @@ Do NOT run docker commands (hook blocks it). The cross-watcher handles compilati
 **Versioning:** Proven modules (>= 1.0.0) require version bumps. PATCH for fixes, MINOR for features, MAJOR for breaking. Add REVISIONS.md entry. See [docs/VERSIONING.md](./docs/VERSIONING.md).
 
 **Frontend:** This is a backend-only repo. Verticals build frontends separately.
+
+## Agent Mail
+
+**First time:** Register in the mail system:
+```bash
+./flywheel_tools/scripts/core/agent-mail-helper.sh register "Your role"
+```
+
+**Every session:** Check identity and inbox:
+```bash
+./flywheel_tools/scripts/core/agent-mail-helper.sh whoami
+./flywheel_tools/scripts/core/agent-mail-helper.sh inbox
+```
+
+## Beads Workflow (MANDATORY)
+
+All work MUST be tracked with a bead. Edits are blocked until you have an active bead.
+
+**IMPORTANT: Never bypass or disable hooks. If an edit is blocked, create a bead first.**
+
+**Start of session:**
+```bash
+./scripts/br-start-work.sh "Your task title"  # Create new bead
+# OR
+./flywheel_tools/scripts/beads/bv-claim.sh     # Claim recommended bead
+```
+
+**Commits:** Always prefix with bead ID:
+```bash
+git commit -m "[bd-xxx] Your commit message"
+```
+
+**End of work:** Close your bead:
+```bash
+br close bd-xxx
+```

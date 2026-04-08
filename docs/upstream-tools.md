@@ -10,7 +10,7 @@ Tools from Jeffrey's repos (Dicklesworthstone). Track versions, patches, and upg
 | Current | 0.1.34 (upgraded 2026-03-28) |
 | Latest | 0.1.34 |
 | Binary | ~/.local/bin/br-real |
-| Wrapper | scripts/br-wrapper.sh (injects --actor, --assignee, --lock-timeout) |
+| Wrapper | scripts/br-wrapper.sh (injects --actor, --assignee, --lock-timeout; claim guard) |
 | Patched? | No — all customization is in the wrapper, binary is stock |
 | Status | **Current** — upgraded 2026-03-28 |
 
@@ -221,6 +221,15 @@ Every feature, fix, and change we'd pull in by upgrading.
 - Proptest regression file for ID property tests (6feb8dc)
 - MinGW libKernel32.a case-sensitivity symlink for Windows cross-compilation (2760166)
 
+### br-wrapper.sh Changelog
+
+#### 2026-03-30 — Hard block on ownerless in-progress beads (bd-vi9da)
+
+- `br update --status in_progress` without `--assignee` is now BLOCKED when agent identity cannot be resolved. Previously the auto-inject silently skipped, allowing beads to enter in_progress with no owner.
+- Detection of `_is_claim` and `_has_assignee` moved outside the `_resolved` conditional so the guard fires regardless of identity resolution.
+- Audit line emitted: `gate=claim decision=blocked reason=no_assignee_no_identity`.
+- Explicit `--assignee` still works even without identity resolution (e.g. orchestrator reassigning).
+
 ## bv (beads_viewer)
 
 | Field | Value |
@@ -329,11 +338,11 @@ Every feature, fix, and change we'd pull in by upgrading.
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/coding_agent_session_search |
-| Current | 0.2.0 |
+| Current | 0.2.4 (upgraded 2026-03-29) |
 | Latest | 0.2.4 |
 | Binary | ~/.local/bin/cass |
-| Patched? | Unknown |
-| Status | **4 versions behind** |
+| Patched? | No — stock binary |
+| Status | **Current** |
 
 ### cass Upstream Changelog: v0.2.0 → v0.2.4
 
@@ -421,11 +430,12 @@ Every feature, fix, and change we'd pull in by upgrading.
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/frankensearch |
-| Current | 0.1.0 |
+| Current | 1.1.7 (upgraded 2026-03-29) |
 | Latest | 1.1.7 |
 | Binary | ~/.local/bin/fsfs |
-| Patched? | Unknown |
-| Status | **Major upgrade** — 0.1.0 to 1.1.7 |
+| Backup | ~/.local/bin/fsfs-upstream-0.1.0 |
+| Patched? | No — stock binary |
+| Status | **Current** — upgraded 2026-03-29 |
 
 ### fsfs Upstream Changelog: v0.1.0 → v1.1.7
 
@@ -578,12 +588,14 @@ Every feature, fix, and change we'd pull in by upgrading.
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/ntm |
-| Current | f95b4fa8-dirty (local build) |
+| Current | v1.10.0 (upgraded 2026-03-29 via `ntm upgrade`) |
 | Latest release | v1.10.0 (2026-03-25) |
 | Upstream main | **41 commits ahead of v1.10.0** (as of 2026-03-28) |
-| Binary | /opt/homebrew/bin/ntm (homebrew install) and local build in ntm/ |
-| Patched? | **Yes — dirty local build, not from any release** |
-| Status | **Major gap — running unversioned local build** |
+| Binary | /opt/homebrew/bin/ntm (official release binary) |
+| Patched? | **No — stock release binary. spawn-fix.go.patch NOT applied (see below)** |
+| Status | **Current** — upgraded 2026-03-29 |
+
+**Lost patch:** `ntm/spawn-fix.go.patch` reorders Agent Mail registration to happen BEFORE SendKeys during `ntm spawn`, so identity files exist before the agent process starts. This patch was in the dirty local build but is NOT in v1.10.0. The patch file is preserved at `ntm/spawn-fix.go.patch` and the old binary at `ntm/ntm-backup-dirty`. A new bead should be created to either re-apply this patch from source or verify upstream has incorporated it.
 
 ### ntm Upstream Changelog: v1.7.0 → v1.10.0+
 
@@ -762,11 +774,11 @@ Every feature, fix, and change we'd pull in by upgrading.
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/destructive_command_guard |
-| Current | v0.2.15 |
+| Current | v0.4.0 |
 | Latest release | **v0.4.0** (with binaries; v0.4.3 tag-only, unreleased work beyond) |
 | Binary | ~/.local/bin/dcg |
-| Patched? | Unknown |
-| Status | **2 major versions behind** — safety-critical tool |
+| Patched? | No |
+| Status | **Current** — on latest release with binaries |
 
 ### dcg Upstream Changelog: v0.2.15 → v0.4.3+
 
