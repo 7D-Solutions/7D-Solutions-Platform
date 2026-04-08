@@ -111,8 +111,8 @@ Implemented gauges:
 ### 7. JetStream Setup ✅
 **File**: `src/jetstream_setup.rs`
 
-- ✅ AUTH_EVENTS stream (14 day retention)
-- ✅ AUTH_DLQ stream (30 day retention)
+- ✅ AUTH_EVENTS stream (14 day retention, subjects: auth.>)
+- ✅ DLQ consumers use filtered consumer on AUTH_EVENTS (auth.dlq.>)
 - ✅ Automatic creation on startup
 
 **Grade**: A+
