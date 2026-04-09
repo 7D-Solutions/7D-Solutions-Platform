@@ -80,6 +80,31 @@ pub async fn get_config_by_type(
     .await
 }
 
+/// Merge `patch` fields into the stored config JSON for a connector config row.
+///
+/// Used by background pollers (e.g. Amazon SP-API) to persist state (e.g.
+/// `last_poll_timestamp`) atomically alongside file_job writes.
+pub async fn merge_config_json(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: uuid::Uuid,
+    app_id: &str,
+    patch: &serde_json::Value,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        UPDATE integrations_connector_configs
+        SET config = config || $1, updated_at = NOW()
+        WHERE id = $2 AND app_id = $3
+        "#,
+    )
+    .bind(patch)
+    .bind(id)
+    .bind(app_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 pub async fn insert(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     app_id: &str,

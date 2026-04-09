@@ -1,5 +1,6 @@
 //! File import/export job framework — durable job records with lifecycle tracking.
 
+pub mod amazon_poller;
 pub mod guards;
 pub mod models;
 pub mod repo;

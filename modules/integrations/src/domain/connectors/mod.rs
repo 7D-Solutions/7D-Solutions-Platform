@@ -14,6 +14,7 @@
 //! - **Idempotency key threading**: every test-action invocation carries an
 //!   idempotency key so callers can safely retry without double-side-effects.
 
+pub mod amazon;
 pub mod echo;
 pub mod repo;
 pub mod service;
@@ -149,6 +150,7 @@ pub fn get_connector(connector_type: &str) -> Option<Box<dyn Connector>> {
     match connector_type {
         "echo" => Some(Box::new(echo::EchoConnector)),
         "shopify" => Some(Box::new(shopify::ShopifyConnector)),
+        "amazon_sp" => Some(Box::new(amazon::AmazonConnector)),
         _ => None,
     }
 }
@@ -158,6 +160,7 @@ pub fn all_connectors() -> Vec<ConnectorCapabilities> {
     vec![
         echo::EchoConnector.capabilities(),
         shopify::ShopifyConnector.capabilities(),
+        amazon::AmazonConnector.capabilities(),
     ]
 }
 
