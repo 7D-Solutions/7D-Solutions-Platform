@@ -1,0 +1,136 @@
+name: "Carrier Integration Tests"
+
+# Runs when carrier adapter code or credential infra changes, and on manual dispatch.
+# Requires sandbox credentials stored as GitHub repository secrets.
+# Tests are gated with #[ignore] so they only run in this job, not in unit test runs.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modules/shipping-receiving/src/domain/carrier_providers/**'
+      - 'modules/integrations/db/migrations/20260409000013_seed_carrier_sandbox_credentials.sql'
+      - '.github/workflows/carrier-integration.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/shipping-receiving/src/domain/carrier_providers/**'
+      - 'modules/integrations/db/migrations/20260409000013_seed_carrier_sandbox_credentials.sql'
+      - '.github/workflows/carrier-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  carrier-integration:
+    name: "Carrier Sandbox Integration Tests"
+    runs-on: ubuntu-latest
+
+    services:
+      integrations-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: integrations_db
+          POSTGRES_USER: integrations_user
+          POSTGRES_PASSWORD: integrations_pass
+        ports:
+          - 5449:5432
+        options: >-
+          --health-cmd "pg_isready -U integrations_user -d integrations_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-carrier-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-carrier-integration-
+            ${{ runner.os }}-cargo-
+
+      - name: Validate sandbox credentials
+        run: |
+          missing=()
+          [ -z "$USPS_USER_ID" ]        && missing+=("USPS_USER_ID")
+          [ -z "$UPS_CLIENT_ID" ]       && missing+=("UPS_CLIENT_ID")
+          [ -z "$UPS_CLIENT_SECRET" ]   && missing+=("UPS_CLIENT_SECRET")
+          [ -z "$UPS_ACCOUNT_NUMBER" ]  && missing+=("UPS_ACCOUNT_NUMBER")
+          [ -z "$FEDEX_CLIENT_ID" ]     && missing+=("FEDEX_CLIENT_ID")
+          [ -z "$FEDEX_CLIENT_SECRET" ] && missing+=("FEDEX_CLIENT_SECRET")
+          [ -z "$FEDEX_ACCOUNT_NUMBER" ] && missing+=("FEDEX_ACCOUNT_NUMBER")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            echo "See docs/carrier-sandbox-setup.md for provisioning instructions."
+            exit 1
+          fi
+          echo "✓ All carrier sandbox credentials present"
+        env:
+          USPS_USER_ID:        ${{ secrets.USPS_USER_ID }}
+          UPS_CLIENT_ID:       ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET:   ${{ secrets.UPS_CLIENT_SECRET }}
+          UPS_ACCOUNT_NUMBER:  ${{ secrets.UPS_ACCOUNT_NUMBER }}
+          FEDEX_CLIENT_ID:     ${{ secrets.FEDEX_CLIENT_ID }}
+          FEDEX_CLIENT_SECRET: ${{ secrets.FEDEX_CLIENT_SECRET }}
+          FEDEX_ACCOUNT_NUMBER: ${{ secrets.FEDEX_ACCOUNT_NUMBER }}
+
+      - name: Apply integrations schema migrations
+        run: |
+          for f in modules/integrations/db/migrations/[0-9]*.sql; do
+            echo "Applying $f"
+            PGPASSWORD=integrations_pass psql \
+              -h localhost -p 5449 \
+              -U integrations_user -d integrations_db \
+              -f "$f"
+          done
+        # Exclude the seed migration from schema migration loop — seeded separately below.
+        # The seed file is idempotent (ON CONFLICT DO UPDATE), so running it here is safe,
+        # but we seed explicitly with credentials in the next step.
+
+      - name: Seed carrier sandbox credentials
+        run: |
+          PGPASSWORD=integrations_pass psql \
+            -h localhost -p 5449 \
+            -U integrations_user -d integrations_db \
+            -c "SET app.usps_user_id = '${USPS_USER_ID}';" \
+            -c "SET app.ups_client_id = '${UPS_CLIENT_ID}';" \
+            -c "SET app.ups_client_secret = '${UPS_CLIENT_SECRET}';" \
+            -c "SET app.ups_account_number = '${UPS_ACCOUNT_NUMBER}';" \
+            -c "SET app.fedex_client_id = '${FEDEX_CLIENT_ID}';" \
+            -c "SET app.fedex_client_secret = '${FEDEX_CLIENT_SECRET}';" \
+            -c "SET app.fedex_account_number = '${FEDEX_ACCOUNT_NUMBER}';" \
+            -f modules/integrations/db/migrations/20260409000013_seed_carrier_sandbox_credentials.sql
+          echo "✓ Carrier credentials seeded into integrations DB"
+        env:
+          USPS_USER_ID:        ${{ secrets.USPS_USER_ID }}
+          UPS_CLIENT_ID:       ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET:   ${{ secrets.UPS_CLIENT_SECRET }}
+          UPS_ACCOUNT_NUMBER:  ${{ secrets.UPS_ACCOUNT_NUMBER }}
+          FEDEX_CLIENT_ID:     ${{ secrets.FEDEX_CLIENT_ID }}
+          FEDEX_CLIENT_SECRET: ${{ secrets.FEDEX_CLIENT_SECRET }}
+          FEDEX_ACCOUNT_NUMBER: ${{ secrets.FEDEX_ACCOUNT_NUMBER }}
+
+      - name: Run carrier integration tests
+        working-directory: modules/shipping-receiving
+        run: |
+          cargo test -p shipping-receiving-rs -- carrier_provider --include-ignored --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          DATABASE_URL: postgres://integrations_user:integrations_pass@localhost:5449/integrations_db
+          INTEGRATIONS_SERVICE_URL: ""
+          # Carrier sandbox env vars — read directly by adapter tests
+          USPS_USER_ID:        ${{ secrets.USPS_USER_ID }}
+          UPS_CLIENT_ID:       ${{ secrets.UPS_CLIENT_ID }}
+          UPS_CLIENT_SECRET:   ${{ secrets.UPS_CLIENT_SECRET }}
+          UPS_ACCOUNT_NUMBER:  ${{ secrets.UPS_ACCOUNT_NUMBER }}
+          FEDEX_CLIENT_ID:     ${{ secrets.FEDEX_CLIENT_ID }}
+          FEDEX_CLIENT_SECRET: ${{ secrets.FEDEX_CLIENT_SECRET }}
+          FEDEX_ACCOUNT_NUMBER: ${{ secrets.FEDEX_ACCOUNT_NUMBER }}

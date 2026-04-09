@@ -13,7 +13,10 @@ use thiserror::Error;
 
 pub mod credentials;
 pub mod dispatch;
+pub mod fedex;
 pub mod stub;
+pub mod ups;
+pub mod usps;
 
 // ── Response types ────────────────────────────────────────────
 
@@ -104,7 +107,10 @@ pub trait CarrierProvider: Send + Sync {
 /// Returns `None` if the code is not registered.
 pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
     match carrier_code {
+        "fedex" => Some(Box::new(fedex::FedexCarrierProvider)),
         "stub" => Some(Box::new(stub::StubCarrierProvider)),
+        "ups" => Some(Box::new(ups::UpsCarrierProvider::new())),
+        "usps" => Some(Box::new(usps::UspsCarrierProvider)),
         _ => None,
     }
 }
@@ -124,9 +130,23 @@ mod tests {
 
     #[test]
     fn registry_returns_none_for_unknown() {
-        assert!(get_provider("fedex").is_none());
         assert!(get_provider("").is_none());
         assert!(get_provider("unknown-carrier").is_none());
+        assert!(get_provider("dhl").is_none());
+    }
+
+    #[test]
+    fn registry_resolves_ups() {
+        let p = get_provider("ups");
+        assert!(p.is_some());
+        assert_eq!(p.unwrap().carrier_code(), "ups");
+    }
+
+    #[test]
+    fn registry_resolves_fedex() {
+        let p = get_provider("fedex");
+        assert!(p.is_some());
+        assert_eq!(p.unwrap().carrier_code(), "fedex");
     }
 
     #[tokio::test]

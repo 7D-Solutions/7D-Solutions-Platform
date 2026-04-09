@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "3.2.1"
+version = "3.3.0"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 
@@ -48,6 +48,7 @@ platform-http-contracts = { path = "../../platform/http-contracts", features = [
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-axum = "0.2"
 config-validator = { path = "../../platform/config-validator" }
+quick-xml = "0.37"
 
 [dev-dependencies]
 serial_test = "3.3.1"

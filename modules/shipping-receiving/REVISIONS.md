@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.3.0 | 2026-04-09 | bd-1z8bl,bd-ttdso,bd-2xl19 | USPS, FedEx, and UPS carrier adapters implementing CarrierProvider trait. USPS: XML-based Rate V4, eVS label, Track V2 with HTML entity-safe strip_html_tags. FedEx: OAuth2 client-credentials with token caching, Rate/Ship/Track REST APIs, Ground+Express response handling. UPS: OAuth2, Rating/Shipping/Track JSON APIs. All three registered in get_provider() dispatch. Integration tests for each carrier (sandbox credentials in CI). quick-xml dependency added. | Three production carrier integrations enabling rate shopping, label creation, and tracking across major US carriers | No |
 | 3.2.1 | 2026-04-09 | bd-or9z8 | 4 edge-case tests for CarrierProvider dispatch (unknown carrier → failed, concurrent dispatch lock, missing config, unreachable service) | Verify carrier provider handles failure modes gracefully without panics | No |
 | 3.2.0 | 2026-04-08 | bd-w9mu5 | CarrierProvider trait + async dispatch consumer + credential facade | Platform needs a carrier abstraction so verticals don't implement carrier integrations directly. StubCarrierProvider for testing, NATS consumer for sr.carrier_request.created, reqwest facade to integrations internal endpoint for credentials. | No |
 | 3.1.2 | 2026-04-04 | bd-0clpi | SoC: extract shipments handler SQL into db/repository.rs | Separation of concerns — shipments handler mixed HTTP logic with raw SQL queries | No |
