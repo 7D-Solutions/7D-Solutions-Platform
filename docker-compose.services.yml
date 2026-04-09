@@ -852,6 +852,8 @@ services:
       PORT: 8103
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
+      INVENTORY_URL: http://7d-inventory:8092
+      INTEGRATIONS_SERVICE_URL: http://7d-integrations:8099
     ports:
       - "127.0.0.1:8103:8103"
     networks:
