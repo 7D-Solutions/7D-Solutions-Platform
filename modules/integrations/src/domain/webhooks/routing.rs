@@ -160,4 +160,22 @@ mod tests {
         let result = map_to_domain_event("quickbooks", Some("qbo.unknown.v1"));
         assert_eq!(result, None);
     }
+
+    #[test]
+    fn test_shopify_orders_create_routed() {
+        let result = map_to_domain_event("shopify", Some("orders/create"));
+        assert_eq!(result, Some("integrations.order.ingested".to_string()));
+    }
+
+    #[test]
+    fn test_shopify_orders_updated_routed() {
+        let result = map_to_domain_event("shopify", Some("orders/updated"));
+        assert_eq!(result, Some("integrations.order.ingested".to_string()));
+    }
+
+    #[test]
+    fn test_shopify_unknown_topic_not_routed() {
+        let result = map_to_domain_event("shopify", Some("products/create"));
+        assert_eq!(result, None);
+    }
 }

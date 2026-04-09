@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.1 | 2026-04-09 | bd-0urmb | Add 3 Shopify webhook routing unit tests (orders/create, orders/updated, unknown topic) | Verify webhook routing covers Shopify topics after connector was added | No |
 | 2.4.0 | 2026-04-08 | bd-w9mu5,bd-yvc71,bd-0urmb | Internal carrier credentials endpoint, QBO outbound invoice creation from AR events, Shopify marketplace connector with webhook handler and order ingestion | Carrier providers need credential lookup; AR invoices must sync to QBO; Shopify orders must flow into the platform via normalized webhooks | No |
 | 2.3.6 | 2026-04-04 | bd-p54p6 | SoC: extract domain service SQL into repo modules (connectors, edi_transactions, external_refs, file_jobs, oauth, outbound_webhooks, qbo, webhooks) | Separation of concerns — isolate persistence from business logic so domain services are testable and DB access is centralized. | No |
 | 2.3.5 | 2026-04-04 | bd-7tv0x | Remove unused Router and Config imports from main.rs | Dead import cleanup | No |
