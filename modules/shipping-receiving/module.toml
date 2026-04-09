@@ -15,7 +15,7 @@ auto_migrate = true
 type = "nats"
 
 [events.publish]
-outbox_table = "events_outbox"
+outbox_table = "sr_events_outbox"
 
 [platform.services]
 inventory = { enabled = true, default_url = "http://localhost:8092" }
