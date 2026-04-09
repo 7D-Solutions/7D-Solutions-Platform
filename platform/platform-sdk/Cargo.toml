@@ -33,12 +33,12 @@ serde_urlencoded = "0.7"
 toml = "0.8"
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "json"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "json", "chrono"] }
 uuid = { version = "1", features = ["v4"] }
 
 # Observability
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 prometheus = "0.13"
 
 # HTTP client
@@ -50,6 +50,8 @@ thiserror = "2"
 semver = "1"
 regex = "1"
 chrono = "0.4"
+rand = "0.8"
+base64 = "0.22"
 
 [dev-dependencies]
 async-trait = "0.1"
@@ -69,7 +71,7 @@ axum = "0.8"
 tower = { version = "0.5", features = ["util"] }
 http = "1"
 http-body-util = "0.1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "json"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "json", "chrono"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 health = { path = "../health" }
 platform-client-party = { path = "../../clients/party" }

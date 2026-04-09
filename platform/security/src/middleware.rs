@@ -3,7 +3,7 @@
 //! Provides request body size limits, request timeouts, and IP-based rate limiting.
 //! All modules should apply these layers for consistent security posture.
 
-use crate::ratelimit::{RateLimitConfig, RateLimiter};
+use crate::ratelimit::{RateLimitConfig, RateLimiter, TieredRateLimiter};
 use axum::{extract::ConnectInfo, http::StatusCode, response::IntoResponse};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -59,6 +59,55 @@ pub async fn rate_limit_middleware(
     } else {
         false
     };
+
+    if rejected {
+        return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
+    }
+
+    next.run(request).await
+}
+
+/// Tiered rate-limiting middleware for Axum routers.
+///
+/// Reads `Extension<Arc<TieredRateLimiter>>` from the request.
+/// Rate limit key: `tier_name:tenant_id:ip` where:
+/// - tier is resolved by longest-prefix match on the request path
+/// - tenant_id comes from `VerifiedClaims` (JWT, if available), else falls back to IP
+/// - IP comes from the `X-Forwarded-For` header (first entry) or the peer address
+pub async fn tiered_rate_limit_middleware(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let rejected =
+        if let Some(limiter) = request.extensions().get::<Arc<TieredRateLimiter>>() {
+            // IP: prefer X-Forwarded-For (reverse-proxy environments), fall back to ConnectInfo.
+            let ip = request
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next())
+                .map(|s| s.trim().to_string())
+                .or_else(|| {
+                    request
+                        .extensions()
+                        .get::<ConnectInfo<SocketAddr>>()
+                        .map(|ci| ci.0.ip().to_string())
+                })
+                .unwrap_or_else(|| "unknown".into());
+
+            // Tenant ID: from verified JWT claims when available, else fall back to IP.
+            let tenant_id = request
+                .extensions()
+                .get::<crate::claims::VerifiedClaims>()
+                .map(|c| c.tenant_id.to_string())
+                .unwrap_or_else(|| ip.clone());
+
+            limiter
+                .check_limit(request.uri().path(), &tenant_id, &ip)
+                .is_err()
+        } else {
+            false
+        };
 
     if rejected {
         return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();

@@ -33,8 +33,12 @@ use std::sync::Arc;
 use axum::Router;
 use event_bus::EventEnvelope;
 
+use security::ratelimit::RateLimitConfig;
+
+use crate::authz_gate::AuthzGateConfig;
 use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
 use crate::context::{ModuleContext, TenantPoolResolver};
+use crate::event_registry::EventRegistry;
 use crate::manifest::{Manifest, ManifestError};
 use crate::platform_services::PlatformServices;
 use crate::startup::{self, StartupError};
@@ -79,6 +83,10 @@ pub struct ModuleBuilder {
     skip_rate_limit: bool,
     skip_auth: bool,
     use_blob_storage: bool,
+    csrf_protection: bool,
+    authz_gate: Option<Arc<AuthzGateConfig>>,
+    /// Named rate limit tiers registered via `.rate_limit_tier()`.
+    rate_limit_tiers: Vec<(String, RateLimitConfig, Vec<String>)>,
 }
 
 impl ModuleBuilder {
@@ -109,6 +117,9 @@ impl ModuleBuilder {
             skip_rate_limit: false,
             skip_auth: false,
             use_blob_storage: false,
+            csrf_protection: false,
+            authz_gate: None,
+            rate_limit_tiers: Vec::new(),
         }
     }
 
@@ -242,6 +253,39 @@ impl ModuleBuilder {
         self
     }
 
+    /// Subscribe an [`EventRegistry`] to a NATS subject.
+    ///
+    /// The registry dispatches each incoming event to the handler registered
+    /// for its `(event_type, schema_version)` pair. Unrecognized pairs are
+    /// logged and skipped without returning an error.
+    ///
+    /// This is an opt-in alternative to [`consumer`](ModuleBuilder::consumer)
+    /// and [`tenant_consumer`](ModuleBuilder::tenant_consumer). Those methods
+    /// remain fully supported and their behavior is unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use platform_sdk::event_registry::EventRegistry;
+    ///
+    /// let registry = EventRegistry::new()
+    ///     .on::<InvoiceOpened>("invoice.opened", "1.0.0", |ctx, env| async move {
+    ///         Ok(())
+    ///     });
+    ///
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .event_registry("ar.events", registry)
+    ///     .run()
+    ///     .await?;
+    /// ```
+    pub fn event_registry(self, subject: impl Into<String>, registry: EventRegistry) -> Self {
+        let registry = Arc::new(registry);
+        self.consumer(subject, move |ctx, env| {
+            let registry = Arc::clone(&registry);
+            async move { registry.dispatch(ctx, env).await }
+        })
+    }
+
     /// Inject module-specific state accessible via [`ModuleContext::state`].
     ///
     /// Any `Send + Sync + 'static` value can be stored. Retrieve it later
@@ -335,6 +379,50 @@ impl ModuleBuilder {
         self
     }
 
+    /// Register a named rate limit tier with per-route assignment.
+    ///
+    /// Routes are matched by prefix (longest-first). Paths not matching any
+    /// configured tier fall through to the default `"api"` tier.
+    ///
+    /// Multiple calls accumulate tiers. Tiers registered here are merged with
+    /// any tiers declared in `[rate_limit.tiers]` in the manifest (builder
+    /// entries win on name collision).
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use security::ratelimit::RateLimitConfig;
+    /// use std::time::Duration;
+    ///
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .rate_limit_tier(
+    ///         "login",
+    ///         RateLimitConfig::new(10, Duration::from_secs(60)),
+    ///         ["/api/auth/", "/api/login"],
+    ///     )
+    ///     .rate_limit_tier(
+    ///         "api",
+    ///         RateLimitConfig::new(1000, Duration::from_secs(60)),
+    ///         ["/api/"],
+    ///     )
+    ///     .routes(|ctx| { /* ... */ })
+    ///     .run()
+    ///     .await?;
+    /// ```
+    pub fn rate_limit_tier(
+        mut self,
+        name: impl Into<String>,
+        config: RateLimitConfig,
+        routes: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.rate_limit_tiers.push((
+            name.into(),
+            config,
+            routes.into_iter().map(|r| r.into()).collect(),
+        ));
+        self
+    }
+
     /// Disable the SDK's JWT authentication middleware layer.
     ///
     /// Use this when the module provides its own auth logic or serves
@@ -344,6 +432,57 @@ impl ModuleBuilder {
     /// endpoints) continue to operate normally.
     pub fn skip_auth(mut self) -> Self {
         self.skip_auth = true;
+        self
+    }
+
+    /// Enable optional CSRF protection using the double-submit cookie pattern.
+    ///
+    /// When `enable` is `true`, the SDK adds a CSRF middleware layer:
+    /// - **GET / HEAD / OPTIONS**: sets a `__csrf` cookie with a fresh random token.
+    ///   The cookie is `HttpOnly=false` (JavaScript must read it), `SameSite=Strict`,
+    ///   and `Secure` when `CSRF_SECURE=true` or `APP_ENV=production`.
+    /// - **POST / PUT / PATCH / DELETE**: requires the `X-CSRF-Token` header to match
+    ///   the `__csrf` cookie value. Mismatch returns `403 Forbidden`.
+    ///
+    /// This is a stateless defence-in-depth layer. `SameSite=Strict` is the primary
+    /// CSRF protection; the double-submit token adds a second line of defence for
+    /// non-SameSite-capable clients.
+    ///
+    /// Use `enable = false` (or omit this call) for pure API servers that do not
+    /// serve browser-facing HTML — most platform modules do not need CSRF protection.
+    pub fn csrf_protection(mut self, enable: bool) -> Self {
+        self.csrf_protection = enable;
+        self
+    }
+
+    /// Enable route-level permission enforcement via [`AuthzGateConfig`].
+    ///
+    /// The config maps `(Method, path)` pairs to the permissions required for
+    /// access. Routes not present in the map are **unprotected** — this is
+    /// opt-in enforcement, not deny-by-default.
+    ///
+    /// The middleware runs after JWT authentication, so `VerifiedClaims` are
+    /// available for inspection. Users with `admin:all` bypass all checks.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use axum::http::Method;
+    /// use platform_sdk::authz_gate::AuthzGateConfig;
+    ///
+    /// let config = AuthzGateConfig::new([
+    ///     ((Method::GET, "/api/orders"), vec!["orders:read"]),
+    ///     ((Method::POST, "/api/orders"), vec!["orders:write"]),
+    /// ]);
+    ///
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .authz_gate(config)
+    ///     .routes(|ctx| { /* ... */ })
+    ///     .run()
+    ///     .await?;
+    /// ```
+    pub fn authz_gate(mut self, config: AuthzGateConfig) -> Self {
+        self.authz_gate = Some(Arc::new(config));
         self
     }
 
@@ -390,12 +529,37 @@ impl ModuleBuilder {
     pub async fn run(mut self) -> Result<(), StartupError> {
         let manifest = self.manifest?;
 
+        // Merge manifest tiers with builder tiers (builder wins on name collision).
+        let mut merged_tiers: Vec<(String, RateLimitConfig, Vec<String>)> =
+            if let Some(ref rl) = manifest.rate_limit {
+                rl.tiers
+                    .iter()
+                    .filter(|(name, _)| {
+                        !self.rate_limit_tiers.iter().any(|(n, _, _)| n == *name)
+                    })
+                    .map(|(name, ts)| {
+                        (
+                            name.clone(),
+                            RateLimitConfig::new(
+                                ts.requests_per_window,
+                                std::time::Duration::from_secs(ts.window_seconds),
+                            ),
+                            ts.routes.clone(),
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+        merged_tiers.extend(self.rate_limit_tiers.drain(..));
+
         // Phase A: infrastructure
         let phase_a = startup::phase_a(
             &manifest,
             self.skip_outbox_publisher,
             self.skip_auth || self.skip_default_middleware,
             self.pool_resolver.clone(),
+            merged_tiers,
         )
         .await?;
 
@@ -504,6 +668,8 @@ impl ModuleBuilder {
                 skip_cors: self.skip_cors,
                 skip_rate_limit: self.skip_rate_limit,
                 skip_auth: self.skip_auth,
+                csrf_protection: self.csrf_protection,
+                authz_gate: self.authz_gate,
             };
             startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
                 .await

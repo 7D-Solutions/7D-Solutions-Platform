@@ -580,4 +580,72 @@ name = "party"
         let manifest = Manifest::from_str(toml_str, None).expect("manifest should parse");
         assert!(manifest.blob.is_none());
     }
+
+    #[test]
+    fn rate_limit_tiers_parse() {
+        let toml_str = r#"
+[module]
+name = "with-tiers"
+
+[rate_limit]
+requests_per_second = 100
+burst = 200
+
+[rate_limit.tiers.api]
+requests_per_window = 1000
+window_seconds = 60
+routes = ["/api/"]
+
+[rate_limit.tiers.login]
+requests_per_window = 10
+window_seconds = 60
+routes = ["/api/auth/", "/api/login"]
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("rate_limit tiers should parse");
+        let rl = manifest.rate_limit.expect("rate_limit section");
+        assert_eq!(rl.requests_per_second, 100);
+        assert_eq!(rl.burst, 200);
+        assert_eq!(rl.tiers.len(), 2);
+
+        let api = rl.tiers.get("api").expect("api tier");
+        assert_eq!(api.requests_per_window, 1000);
+        assert_eq!(api.window_seconds, 60);
+        assert_eq!(api.routes, vec!["/api/"]);
+
+        let login = rl.tiers.get("login").expect("login tier");
+        assert_eq!(login.requests_per_window, 10);
+        assert_eq!(login.routes, vec!["/api/auth/", "/api/login"]);
+    }
+
+    #[test]
+    fn rate_limit_tiers_default_window_seconds() {
+        let toml_str = r#"
+[module]
+name = "tier-defaults"
+
+[rate_limit.tiers.api]
+requests_per_window = 500
+routes = ["/api/"]
+"#;
+        let manifest =
+            Manifest::from_str(toml_str, None).expect("tier with default window should parse");
+        let rl = manifest.rate_limit.expect("rate_limit section");
+        let api = rl.tiers.get("api").expect("api tier");
+        assert_eq!(api.window_seconds, 60, "default window should be 60s");
+    }
+
+    #[test]
+    fn rate_limit_tiers_empty_by_default() {
+        let toml_str = r#"
+[module]
+name = "no-tiers"
+
+[rate_limit]
+requests_per_second = 50
+burst = 100
+"#;
+        let manifest = Manifest::from_str(toml_str, None).expect("should parse without tiers");
+        let rl = manifest.rate_limit.expect("rate_limit section");
+        assert!(rl.tiers.is_empty(), "no tiers section should yield empty map");
+    }
 }

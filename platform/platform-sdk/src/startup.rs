@@ -9,8 +9,8 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use event_bus::EventBus;
-use security::middleware::rate_limit_middleware;
-use security::ratelimit::{RateLimitConfig, RateLimiter};
+use security::middleware::{rate_limit_middleware, tiered_rate_limit_middleware};
+use security::ratelimit::{RateLimitConfig, RateLimiter, TieredRateLimiter};
 use security::{optional_claims_mw, JwtVerifier};
 use tracing_subscriber::EnvFilter;
 
@@ -116,14 +116,24 @@ pub(crate) async fn phase_a(
     skip_outbox: bool,
     skip_auth: bool,
     pool_resolver: Option<Arc<dyn crate::context::TenantPoolResolver>>,
+    builder_tiers: Vec<(String, RateLimitConfig, Vec<String>)>,
 ) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
     dotenvy::dotenv().ok();
 
-    // Step 2: tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    // Step 2: tracing — LOG_FORMAT=json enables structured JSON output
+    let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
+    if log_format.eq_ignore_ascii_case("json") {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .init();
+    }
 
     tracing::info!(
         module = %manifest.module.name,
@@ -312,15 +322,22 @@ pub(crate) async fn phase_a(
         ));
     }
 
-    // Step 9: rate limiter — from manifest [rate_limit] section or platform defaults
-    let rate_limiter = if let Some(ref rl) = manifest.rate_limit {
+    // Step 9: rate limiter — tiered if any tiers are configured, simple otherwise.
+    let rate_limiter = if !builder_tiers.is_empty() {
+        tracing::info!(
+            module = %manifest.module.name,
+            tiers = builder_tiers.len(),
+            "tiered rate limiter active"
+        );
+        RateLimiterKind::Tiered(Arc::new(TieredRateLimiter::new(builder_tiers)))
+    } else if let Some(ref rl) = manifest.rate_limit {
         let window = std::time::Duration::from_secs(1);
-        Arc::new(RateLimiter::with_configs(
+        RateLimiterKind::Simple(Arc::new(RateLimiter::with_configs(
             RateLimitConfig::new(rl.burst, window),
             RateLimitConfig::new((rl.requests_per_second / 10).max(1), window),
-        ))
+        )))
     } else {
-        security::middleware::default_rate_limiter()
+        RateLimiterKind::Simple(security::middleware::default_rate_limiter())
     };
 
     Ok(PhaseAOutput {
@@ -334,12 +351,20 @@ pub(crate) async fn phase_a(
     })
 }
 
+/// Which rate limiter variant is active for this module.
+pub(crate) enum RateLimiterKind {
+    /// Single-tier (backwards-compatible, no tier config).
+    Simple(Arc<RateLimiter>),
+    /// Multi-tier with per-tier token buckets and route-based dispatch.
+    Tiered(Arc<TieredRateLimiter>),
+}
+
 pub(crate) struct PhaseAOutput {
     pub pool: sqlx::PgPool,
     pub bus: Option<Arc<dyn EventBus>>,
     pub nats_client: Option<async_nats::Client>,
     pub jwt_verifier: Option<Arc<JwtVerifier>>,
-    pub rate_limiter: Arc<security::ratelimit::RateLimiter>,
+    pub rate_limiter: RateLimiterKind,
     pub outbox_handle: Option<tokio::task::JoinHandle<()>>,
     /// Shutdown sender for the outbox publisher. Send `true` to request stop.
     pub outbox_shutdown_tx: Option<tokio::sync::watch::Sender<bool>>,
@@ -357,6 +382,12 @@ pub(crate) struct MiddlewareFlags {
     pub skip_rate_limit: bool,
     /// Skip the JWT authentication layer (e.g. internal-only traffic).
     pub skip_auth: bool,
+    /// Enable CSRF protection (double-submit cookie pattern).
+    /// Off by default — enable for browser-facing verticals.
+    pub csrf_protection: bool,
+    /// Optional route-level permission enforcement configuration.
+    /// When `Some`, an AuthzGate middleware layer is inserted after JWT auth.
+    pub authz_gate: Option<Arc<crate::authz_gate::AuthzGateConfig>>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
@@ -443,10 +474,29 @@ pub(crate) async fn phase_b(
         }));
 
     let app = if !flags.skip_rate_limit {
-        app.layer(axum::middleware::from_fn(rate_limit_middleware))
-            .layer(Extension(phase_a.rate_limiter))
+        match phase_a.rate_limiter {
+            RateLimiterKind::Simple(limiter) => app
+                .layer(axum::middleware::from_fn(rate_limit_middleware))
+                .layer(Extension(limiter)),
+            RateLimiterKind::Tiered(limiter) => app
+                .layer(axum::middleware::from_fn(tiered_rate_limit_middleware))
+                .layer(Extension(limiter)),
+        }
     } else {
         tracing::info!(module = %module_name, "rate-limit middleware disabled");
+        app
+    };
+
+    // AuthzGate is applied BEFORE auth in the builder chain so that auth
+    // (the outer wrapper) runs first and injects VerifiedClaims, which
+    // AuthzGate then reads.  Execution order: auth → authz_gate → ...
+    let app = if let Some(config) = flags.authz_gate {
+        tracing::info!(module = %module_name, "authz gate middleware enabled");
+        app.layer(axum::middleware::from_fn_with_state(
+            config,
+            crate::authz_gate::authz_gate_middleware,
+        ))
+    } else {
         app
     };
 
@@ -457,6 +507,21 @@ pub(crate) async fn phase_b(
         ))
     } else {
         tracing::info!(module = %module_name, "auth middleware disabled");
+        app
+    };
+
+    let app = if flags.csrf_protection {
+        let csrf_config = std::sync::Arc::new(crate::csrf::CsrfConfig::from_env());
+        tracing::info!(
+            module = %module_name,
+            secure = %csrf_config.secure,
+            "CSRF double-submit middleware enabled"
+        );
+        app.layer(axum::middleware::from_fn_with_state(
+            csrf_config,
+            crate::csrf::csrf_middleware,
+        ))
+    } else {
         app
     };
 

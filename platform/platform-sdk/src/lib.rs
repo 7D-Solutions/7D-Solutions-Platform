@@ -22,10 +22,15 @@
 //! }
 //! ```
 
+pub mod authz_gate;
 pub mod builder;
 pub mod client_core;
 pub mod consumer;
 pub mod context;
+pub mod csrf;
+pub mod dlq;
+pub mod event_registry;
+pub mod idempotency;
 pub mod http_client;
 pub mod manifest;
 pub mod platform_services;
@@ -35,6 +40,7 @@ mod startup_helpers;
 pub mod tenant;
 
 pub use builder::ModuleBuilder;
+pub use event_registry::EventRegistry;
 pub use client_core::{ensure, parse_empty, parse_response, build_query_url, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext, TenantPoolError, TenantPoolResolver};
@@ -43,6 +49,8 @@ pub use manifest::Manifest;
 pub use platform_services::PlatformService;
 pub use startup::StartupError;
 pub use publisher::{STANDARD_OUTBOX_DDL, ensure_outbox_table};
+pub use dlq::{STANDARD_DLQ_DDL, ensure_dlq_table};
+pub use idempotency::{STANDARD_DEDUPE_DDL, ensure_dedupe_table};
 pub use tenant::TenantId;
 
 // Re-export commonly needed types so modules don't have to depend on

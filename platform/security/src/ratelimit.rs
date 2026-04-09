@@ -292,6 +292,154 @@ impl Default for RateLimiter {
     }
 }
 
+// ── TieredRateLimiter ─────────────────────────────────────────────────────────
+
+struct TierState {
+    config: RateLimitConfig,
+    buckets: Arc<DashMap<String, TokenBucket>>,
+}
+
+/// Multi-tier rate limiter with per-tier token buckets.
+///
+/// Each tier is fully isolated — a slow "login" tier cannot block fast "api"
+/// tier lookups because each tier owns its own `DashMap`.
+///
+/// Rate limit key: `tier_name:tenant_id:ip`
+///
+/// Route assignment uses longest-prefix matching. Paths not matching any
+/// configured prefix fall through to the default `"api"` tier.
+pub struct TieredRateLimiter {
+    tiers: std::collections::HashMap<String, TierState>,
+    /// `(path_prefix, tier_name)` sorted longest-first for greedy match.
+    route_map: Vec<(String, String)>,
+    default_tier_name: String,
+}
+
+impl TieredRateLimiter {
+    /// Build a tiered rate limiter from named tier definitions.
+    ///
+    /// Each entry is `(tier_name, config, route_prefixes)`.
+    ///
+    /// If no tier named `"api"` is provided, a default `"api"` tier using
+    /// [`RateLimitConfig::normal_read`] is inserted automatically.
+    pub fn new(tiers: Vec<(String, RateLimitConfig, Vec<String>)>) -> Self {
+        let mut tier_map: std::collections::HashMap<String, TierState> =
+            std::collections::HashMap::new();
+        let mut route_map: Vec<(String, String)> = Vec::new();
+        let default_tier_name = "api".to_string();
+
+        for (name, config, routes) in tiers {
+            for route in routes {
+                route_map.push((route, name.clone()));
+            }
+            tier_map.insert(
+                name,
+                TierState {
+                    config,
+                    buckets: Arc::new(DashMap::new()),
+                },
+            );
+        }
+
+        // Ensure a default "api" tier always exists.
+        if !tier_map.contains_key(&default_tier_name) {
+            tier_map.insert(
+                default_tier_name.clone(),
+                TierState {
+                    config: RateLimitConfig::normal_read(),
+                    buckets: Arc::new(DashMap::new()),
+                },
+            );
+        }
+
+        // Longest-first so more-specific prefixes win.
+        route_map.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
+        Self {
+            tiers: tier_map,
+            route_map,
+            default_tier_name,
+        }
+    }
+
+    fn resolve_tier(&self, path: &str) -> &str {
+        for (prefix, tier_name) in &self.route_map {
+            if path.starts_with(prefix.as_str()) {
+                return tier_name.as_str();
+            }
+        }
+        self.default_tier_name.as_str()
+    }
+
+    fn build_key(tier_name: &str, tenant_id: &str, ip: &str) -> String {
+        let mut key =
+            String::with_capacity(tier_name.len() + 1 + tenant_id.len() + 1 + ip.len());
+        key.push_str(tier_name);
+        key.push(':');
+        key.push_str(tenant_id);
+        key.push(':');
+        key.push_str(ip);
+        key
+    }
+
+    /// Check whether a request is within its tier's rate limit.
+    ///
+    /// - `path` — request URI path (used for tier resolution)
+    /// - `tenant_id` — tenant identifier (from JWT claims, or IP as fallback)
+    /// - `ip` — client IP (from `X-Forwarded-For` or peer addr)
+    pub fn check_limit(
+        &self,
+        path: &str,
+        tenant_id: &str,
+        ip: &str,
+    ) -> Result<(), crate::SecurityError> {
+        let tier_name = self.resolve_tier(path);
+
+        let tier = match self.tiers.get(tier_name) {
+            Some(t) => t,
+            None => return Ok(()),
+        };
+
+        let key = Self::build_key(tier_name, tenant_id, ip);
+
+        let consumed = if let Some(mut bucket) = tier.buckets.get_mut(&key) {
+            bucket.consume()
+        } else {
+            tier.buckets
+                .entry(key)
+                .or_insert_with(|| TokenBucket::new(tier.config.max_requests, tier.config.window))
+                .consume()
+        };
+
+        if consumed {
+            Ok(())
+        } else {
+            Err(crate::SecurityError::RateLimitExceeded)
+        }
+    }
+
+    /// Get the remaining quota for a path/tenant/ip combination.
+    pub fn remaining_quota(&self, path: &str, tenant_id: &str, ip: &str) -> u32 {
+        let tier_name = self.resolve_tier(path);
+        let key = Self::build_key(tier_name, tenant_id, ip);
+        match self.tiers.get(tier_name) {
+            Some(tier) => tier
+                .buckets
+                .get(&key)
+                .map(|b| b.remaining())
+                .unwrap_or(tier.config.max_requests),
+            None => 0,
+        }
+    }
+
+    /// Clear all rate limit state (useful for testing).
+    pub fn reset(&self) {
+        for tier in self.tiers.values() {
+            tier.buckets.clear();
+        }
+    }
+}
+
 /// IP-based rate limiter for inbound webhook endpoints.
 ///
 /// Webhook endpoints are public-facing (no auth), so rate limiting by tenant
@@ -469,5 +617,189 @@ mod tests {
         // IP 2 still has full quota
         assert!(limiter.check_webhook_limit("10.0.0.2").is_ok());
         assert!(limiter.check_webhook_limit("10.0.0.2").is_ok());
+    }
+
+    // ── TieredRateLimiter tests ────────────────────────────────────────────────
+
+    fn build_tiered() -> TieredRateLimiter {
+        TieredRateLimiter::new(vec![
+            (
+                "login".to_string(),
+                RateLimitConfig::new(3, Duration::from_secs(60)),
+                vec!["/api/auth/".to_string(), "/api/login".to_string()],
+            ),
+            (
+                "api".to_string(),
+                RateLimitConfig::new(10, Duration::from_secs(60)),
+                vec!["/api/".to_string()],
+            ),
+        ])
+    }
+
+    #[test]
+    fn test_tiered_different_tiers_enforce_different_limits() {
+        let limiter = build_tiered();
+
+        // "login" tier allows 3 requests, then blocks
+        for _ in 0..3 {
+            assert!(
+                limiter.check_limit("/api/auth/token", "t1", "1.2.3.4").is_ok(),
+                "login tier should allow request within quota"
+            );
+        }
+        assert!(
+            limiter
+                .check_limit("/api/auth/token", "t1", "1.2.3.4")
+                .is_err(),
+            "login tier should block after quota exhausted"
+        );
+
+        // "api" tier is independent — same tenant, same IP still has 10 quota
+        for _ in 0..10 {
+            assert!(
+                limiter.check_limit("/api/invoices", "t1", "1.2.3.4").is_ok(),
+                "api tier should allow request within its own quota"
+            );
+        }
+        assert!(
+            limiter
+                .check_limit("/api/invoices", "t1", "1.2.3.4")
+                .is_err(),
+            "api tier should block after its own quota exhausted"
+        );
+    }
+
+    #[test]
+    fn test_tiered_isolation_by_tenant_id() {
+        let limiter = build_tiered();
+
+        // Exhaust tenant1's login quota
+        for _ in 0..3 {
+            assert!(limiter
+                .check_limit("/api/auth/token", "tenant1", "1.2.3.4")
+                .is_ok());
+        }
+        assert!(limiter
+            .check_limit("/api/auth/token", "tenant1", "1.2.3.4")
+            .is_err());
+
+        // tenant2 with same IP is unaffected
+        assert!(
+            limiter
+                .check_limit("/api/auth/token", "tenant2", "1.2.3.4")
+                .is_ok(),
+            "different tenant should have independent quota"
+        );
+    }
+
+    #[test]
+    fn test_tiered_isolation_by_ip() {
+        let limiter = build_tiered();
+
+        // Exhaust 1.2.3.4's login quota
+        for _ in 0..3 {
+            assert!(limiter
+                .check_limit("/api/auth/token", "t1", "1.2.3.4")
+                .is_ok());
+        }
+        assert!(limiter
+            .check_limit("/api/auth/token", "t1", "1.2.3.4")
+            .is_err());
+
+        // Same tenant, different IP — independent bucket
+        assert!(
+            limiter
+                .check_limit("/api/auth/token", "t1", "9.9.9.9")
+                .is_ok(),
+            "different IP should have independent quota"
+        );
+    }
+
+    #[test]
+    fn test_tiered_default_api_tier_for_unmatched_paths() {
+        let limiter = build_tiered();
+
+        // /v1/orders does not match any explicit prefix → falls to "api" tier (10 limit)
+        for _ in 0..10 {
+            assert!(
+                limiter.check_limit("/v1/orders", "t1", "1.2.3.4").is_ok(),
+                "unmatched path should use default api tier"
+            );
+        }
+        assert!(limiter
+            .check_limit("/v1/orders", "t1", "1.2.3.4")
+            .is_err());
+    }
+
+    #[test]
+    fn test_tiered_longest_prefix_wins() {
+        // /api/auth/ (3 limit) should win over /api/ (10 limit) for /api/auth/token
+        let limiter = build_tiered();
+        for _ in 0..3 {
+            assert!(limiter
+                .check_limit("/api/auth/token", "t1", "1.2.3.4")
+                .is_ok());
+        }
+        // Should be blocked by "login" tier (limit=3), not "api" (limit=10)
+        assert!(limiter
+            .check_limit("/api/auth/token", "t1", "1.2.3.4")
+            .is_err());
+    }
+
+    #[test]
+    fn test_tiered_auto_default_tier_inserted_when_missing() {
+        // Tier config with no "api" tier — should still work via auto-inserted default
+        let limiter = TieredRateLimiter::new(vec![(
+            "login".to_string(),
+            RateLimitConfig::new(2, Duration::from_secs(60)),
+            vec!["/api/auth/".to_string()],
+        )]);
+
+        // Unmatched paths go to auto "api" tier with normal_read defaults (100)
+        assert!(limiter
+            .check_limit("/api/invoices", "t1", "1.2.3.4")
+            .is_ok());
+    }
+
+    #[test]
+    fn test_tiered_remaining_quota() {
+        let limiter = build_tiered();
+
+        assert_eq!(
+            limiter.remaining_quota("/api/auth/token", "t1", "1.2.3.4"),
+            3,
+            "fresh login tier should report full quota"
+        );
+
+        limiter
+            .check_limit("/api/auth/token", "t1", "1.2.3.4")
+            .expect("test assertion");
+        assert_eq!(
+            limiter.remaining_quota("/api/auth/token", "t1", "1.2.3.4"),
+            2,
+            "remaining quota should decrease after one request"
+        );
+    }
+
+    #[test]
+    fn test_tiered_reset_clears_all_tiers() {
+        let limiter = build_tiered();
+
+        // Exhaust both tiers
+        for _ in 0..3 {
+            let _ = limiter.check_limit("/api/auth/token", "t1", "1.2.3.4");
+        }
+        for _ in 0..10 {
+            let _ = limiter.check_limit("/api/invoices", "t1", "1.2.3.4");
+        }
+
+        limiter.reset();
+
+        assert!(limiter
+            .check_limit("/api/auth/token", "t1", "1.2.3.4")
+            .is_ok());
+        assert!(limiter
+            .check_limit("/api/invoices", "t1", "1.2.3.4")
+            .is_ok());
     }
 }
