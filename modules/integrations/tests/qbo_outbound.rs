@@ -47,6 +47,30 @@ fn unique_tenant() -> String {
     format!("qbo-ob-{}", Uuid::new_v4().simple())
 }
 
+/// Remove all DB state created by a qbo_outbound test for a given app_id.
+///
+/// Must be called at the end of every DB-backed test to prevent stale OAuth
+/// connections accumulating and disrupting `oauth_integration` tests (which
+/// use `get_refresh_candidates` with a 10-minute look-ahead window — a
+/// connection seeded with `NOW() + 1 hour` enters that window after ~50 min).
+async fn cleanup_tenant(pool: &PgPool, app_id: &str) {
+    sqlx::query("DELETE FROM integrations_oauth_connections WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_external_refs WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+}
+
 /// Seed a QBO OAuth connection for `app_id` with `realm_id`.
 /// Uses a known test encryption key and a plaintext test token.
 async fn seed_oauth_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
@@ -339,6 +363,8 @@ async fn qbo_outbound_consumer_creates_invoice_and_stores_ref() {
         event_payload["payload"]["qbo_invoice_id"].as_str(),
         Some(qbo_invoice_id.as_str())
     );
+
+    cleanup_tenant(&pool, &app_id).await;
 }
 
 // ============================================================================
@@ -373,6 +399,8 @@ async fn qbo_outbound_consumer_idempotent_on_duplicate_event() {
     // The existing external ref is unchanged
     let stored = find_external_ref(&pool, &app_id, "ar_invoice", &invoice_id, "qbo_invoice").await;
     assert_eq!(stored.as_deref(), Some(existing_qbo_id));
+
+    cleanup_tenant(&pool, &app_id).await;
 }
 
 // ============================================================================
@@ -419,4 +447,30 @@ async fn qbo_outbound_consumer_missing_customer_emits_error_event() {
     assert_eq!(err_payload["ar_invoice_id"].as_str(), Some(invoice_id.as_str()));
     assert_eq!(err_payload["ar_customer_id"].as_str(), Some(customer_id.as_str()));
     assert_eq!(err_payload["reason"].as_str(), Some("no_qbo_customer_mapping"));
+
+    cleanup_tenant(&pool, &app_id).await;
+}
+
+// ============================================================================
+// Test 5 — consumer shuts down gracefully (no panic, no crash)
+// ============================================================================
+
+#[tokio::test]
+async fn qbo_outbound_consumer_shuts_down_gracefully() {
+    use event_bus::InMemoryBus;
+    use integrations_rs::domain::qbo::outbound::spawn_outbound_consumer;
+    use tokio::sync::watch;
+
+    let pool = setup_db().await;
+    let bus: Arc<dyn event_bus::EventBus> = Arc::new(InMemoryBus::new());
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+
+    let handle = spawn_outbound_consumer(pool, bus, shutdown_rx);
+
+    // Signal shutdown immediately — consumer should drain and exit cleanly
+    shutdown_tx.send(true).unwrap();
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
+    assert!(result.is_ok(), "consumer should shut down within 5 seconds");
+    assert!(result.unwrap().is_ok(), "consumer task should not panic");
 }

@@ -191,4 +191,47 @@ mod tests {
         let resp = router.oneshot(req).await.expect("oneshot request");
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
+
+    #[tokio::test]
+    #[serial]
+    async fn get_carrier_credentials_returns_404_for_disabled_connector() {
+        let pool = test_pool().await;
+        let app_id = "test-app-carrier-creds-disabled";
+        let connector_type = "disabled_carrier_type";
+        cleanup(&pool, app_id).await;
+
+        sqlx::query(
+            r#"
+            INSERT INTO integrations_connector_configs
+                (app_id, connector_type, name, config, enabled, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, FALSE, NOW(), NOW())
+            "#,
+        )
+        .bind(app_id)
+        .bind(connector_type)
+        .bind("Disabled Carrier")
+        .bind(serde_json::json!({"api_key": "disabled-key"}))
+        .execute(&pool)
+        .await
+        .expect("insert disabled connector failed");
+
+        let router = build_router(pool.clone());
+        let req = Request::builder()
+            .uri(format!(
+                "/api/integrations/internal/carrier-credentials/{}",
+                connector_type
+            ))
+            .header("x-app-id", app_id)
+            .body(Body::empty())
+            .expect("build request");
+
+        let resp = router.oneshot(req).await.expect("oneshot request");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "disabled connector should return 404, not expose credentials"
+        );
+
+        cleanup(&pool, app_id).await;
+    }
 }

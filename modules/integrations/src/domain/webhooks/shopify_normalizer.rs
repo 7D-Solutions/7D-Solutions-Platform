@@ -695,4 +695,79 @@ mod tests {
 
         cleanup(&pool).await;
     }
+
+    // ── Edge case: orders/updated topic creates a separate ingest record ───────
+
+    #[tokio::test]
+    #[serial]
+    async fn normalize_orders_updated_topic_creates_separate_ingest() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+
+        let order_id = 9000000003u64;
+        let payload = sample_order_payload(order_id);
+        let body = serde_json::to_vec(&payload).expect("serialize test payload");
+        let headers = signed_headers(&body);
+
+        let normalizer = ShopifyNormalizer::new(pool.clone());
+
+        let r1 = normalizer
+            .normalize(&body, &payload, &headers, TEST_APP, "orders/create", &connector_config())
+            .await
+            .expect("orders/create normalize failed");
+        assert!(!r1.is_duplicate);
+
+        // orders/updated has a different idempotency key — should NOT be a duplicate
+        let r2 = normalizer
+            .normalize(&body, &payload, &headers, TEST_APP, "orders/updated", &connector_config())
+            .await
+            .expect("orders/updated normalize failed");
+        assert!(!r2.is_duplicate, "orders/updated should not be flagged as duplicate of orders/create");
+        assert_ne!(r2.file_job_id, Uuid::nil());
+
+        cleanup(&pool).await;
+    }
+
+    // ── Edge case: invalid HMAC is rejected inside normalize() ────────────────
+
+    #[tokio::test]
+    async fn normalize_rejects_invalid_hmac_via_normalize() {
+        let pool = test_pool().await;
+        let order_id = 9999000001u64;
+        let payload = sample_order_payload(order_id);
+        let body = serde_json::to_vec(&payload).expect("serialize test payload");
+
+        let mut bad_headers = std::collections::HashMap::new();
+        bad_headers.insert(
+            "x-shopify-hmac-sha256".to_string(),
+            shopify_hmac_b64(WEBHOOK_SECRET, b"this is not the real body"),
+        );
+
+        let normalizer = ShopifyNormalizer::new(pool.clone());
+        let result = normalizer
+            .normalize(&body, &payload, &bad_headers, TEST_APP, "orders/create", &connector_config())
+            .await;
+
+        assert!(
+            matches!(result, Err(WebhookError::SignatureVerification(_))),
+            "invalid HMAC should return SignatureVerification error, got: {:?}",
+            result
+        );
+    }
+
+    // ── Edge case: order with empty line_items parses successfully ─────────────
+
+    #[test]
+    fn parse_order_empty_line_items_succeeds() {
+        let payload = serde_json::json!({
+            "id": 1234567890u64,
+            "order_number": 42,
+            "financial_status": "pending",
+            "line_items": []
+        });
+
+        let order = parse_shopify_order(&payload).expect("should parse successfully");
+        assert_eq!(order.order_id, "1234567890");
+        assert!(order.line_items.is_empty(), "empty line_items should yield empty vec");
+    }
 }
