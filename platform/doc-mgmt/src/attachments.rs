@@ -86,6 +86,17 @@ pub async fn create_attachment(
     }
     .build_today();
 
+    let mut tx = match state.db.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!(error = %e, "begin transaction failed");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "internal error"})),
+            );
+        }
+    };
+
     if let Err(e) = sqlx::query(
         "INSERT INTO attachments (id, tenant_id, entity_type, entity_id, filename, mime_type, size_bytes, s3_key, status, created_by, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10)",
@@ -100,10 +111,45 @@ pub async fn create_attachment(
     .bind(&s3_key)
     .bind(actor_id)
     .bind(now)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await
     {
         tracing::error!(error = %e, "insert attachment failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    let outbox_payload = serde_json::json!({
+        "tenant_id": tenant_id,
+        "attachment_id": attachment_id,
+        "entity_type": req.entity_type,
+        "entity_id": req.entity_id,
+        "filename": req.filename,
+        "mime_type": req.mime_type,
+        "size_bytes": req.size_bytes.unwrap_or(0),
+        "uploaded_by": actor_id,
+    });
+
+    if let Err(e) = sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
+    )
+    .bind("docmgmt.attachment.created")
+    .bind("docmgmt.attachment.created")
+    .bind(outbox_payload)
+    .execute(&mut *tx)
+    .await
+    {
+        tracing::error!(error = %e, "insert doc_outbox event failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    if let Err(e) = tx.commit().await {
+        tracing::error!(error = %e, "transaction commit failed");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "internal error"})),
