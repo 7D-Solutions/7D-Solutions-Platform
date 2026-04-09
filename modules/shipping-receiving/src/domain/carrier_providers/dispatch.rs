@@ -285,11 +285,12 @@ mod tests {
     }
 
     fn test_nats_url() -> String {
-        // Default embeds the dev token so the connection succeeds without setting env vars.
+        // Default uses platform user + NATS_AUTH_TOKEN password.
+        // The dev NATS server uses user/password auth (user=platform, pass=$NATS_AUTH_TOKEN).
         std::env::var("NATS_URL").unwrap_or_else(|_| {
-            let token = std::env::var("NATS_AUTH_TOKEN")
+            let pass = std::env::var("NATS_AUTH_TOKEN")
                 .unwrap_or_else(|_| "dev-nats-token".to_string());
-            format!("nats://{}@localhost:4222", token)
+            format!("nats://platform:{}@localhost:4222", pass)
         })
     }
 
@@ -499,6 +500,122 @@ mod tests {
                 );
             }
         }
+
+        cleanup(&pool, tenant_id).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn dispatch_unknown_carrier_code_transitions_to_failed() {
+        let pool = test_pool().await;
+        let tenant_id: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
+        cleanup(&pool, tenant_id).await;
+
+        let carrier_req = create_pending_request(
+            &pool,
+            tenant_id,
+            "rate",
+            "test-dispatch-unknown-carrier-001",
+        )
+        .await;
+        assert_eq!(carrier_req.status, "pending");
+
+        let http_client = Client::new();
+        // Dispatch with a carrier_code that has no registered provider — must
+        // not panic; the request should land in "failed" with an error payload.
+        dispatch_carrier_request(
+            &pool,
+            &http_client,
+            carrier_req.id,
+            tenant_id,
+            "rate",
+            "no_such_carrier_xyz",
+            &carrier_req.payload,
+        )
+        .await
+        .expect("dispatch should return Ok even for unknown carrier (graceful failure)");
+
+        let updated = CarrierRequestService::find_by_id(&pool, carrier_req.id, tenant_id)
+            .await
+            .expect("find failed")
+            .expect("not found");
+        assert_eq!(updated.status, "failed");
+
+        let response = updated.response.expect("response must be set on failed request");
+        let error_msg = response.get("error").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(
+            error_msg.contains("no provider registered"),
+            "error message should mention 'no provider registered', got: {}",
+            error_msg
+        );
+
+        cleanup(&pool, tenant_id).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn concurrent_dispatch_only_one_proceeds() {
+        let pool = test_pool().await;
+        let tenant_id: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
+        cleanup(&pool, tenant_id).await;
+
+        let carrier_req = create_pending_request(
+            &pool,
+            tenant_id,
+            "rate",
+            "test-dispatch-concurrent-001",
+        )
+        .await;
+        assert_eq!(carrier_req.status, "pending");
+
+        let id = carrier_req.id;
+        let payload = carrier_req.payload.clone();
+        let pool1 = pool.clone();
+        let pool2 = pool.clone();
+        let http_client1 = Client::new();
+        let http_client2 = Client::new();
+
+        // Race two dispatches concurrently. The FOR UPDATE lock inside
+        // transition_status ensures only one can move past pending→submitted.
+        let (r1, r2) = tokio::join!(
+            dispatch_carrier_request(
+                &pool1,
+                &http_client1,
+                id,
+                tenant_id,
+                "rate",
+                "stub",
+                &payload
+            ),
+            dispatch_carrier_request(
+                &pool2,
+                &http_client2,
+                id,
+                tenant_id,
+                "rate",
+                "stub",
+                &payload
+            ),
+        );
+
+        // At least one must succeed
+        assert!(
+            r1.is_ok() || r2.is_ok(),
+            "at least one concurrent dispatch should succeed; r1={:?} r2={:?}",
+            r1,
+            r2
+        );
+
+        // Final state must be completed — the winner ran the full pipeline
+        let updated = CarrierRequestService::find_by_id(&pool, id, tenant_id)
+            .await
+            .expect("find failed")
+            .expect("not found");
+        assert_eq!(updated.status, "completed");
+        assert!(
+            updated.response.is_some(),
+            "completed request must have a response"
+        );
 
         cleanup(&pool, tenant_id).await;
     }

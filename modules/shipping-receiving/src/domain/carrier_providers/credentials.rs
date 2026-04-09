@@ -63,3 +63,62 @@ pub async fn get_carrier_credentials(
         ))),
     }
 }
+
+// ── Tests ─────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::Client;
+    use serial_test::serial;
+
+    /// Save and restore INTEGRATIONS_SERVICE_URL around a test body.
+    macro_rules! with_integrations_url {
+        ($value:expr, $body:expr) => {{
+            let prev = std::env::var("INTEGRATIONS_SERVICE_URL").ok();
+            match $value {
+                Some(v) => std::env::set_var("INTEGRATIONS_SERVICE_URL", v),
+                None => std::env::remove_var("INTEGRATIONS_SERVICE_URL"),
+            }
+            let result = $body;
+            match prev {
+                Some(v) => std::env::set_var("INTEGRATIONS_SERVICE_URL", v),
+                None => std::env::remove_var("INTEGRATIONS_SERVICE_URL"),
+            }
+            result
+        }};
+    }
+
+    /// When INTEGRATIONS_SERVICE_URL is absent, `MissingConfig` is returned.
+    #[tokio::test]
+    #[serial]
+    async fn missing_config_when_env_unset() {
+        let client = Client::new();
+        let result =
+            with_integrations_url!(None::<&str>, get_carrier_credentials(&client, "tenant-test", "stub").await);
+
+        assert!(
+            matches!(result, Err(CredentialsError::MissingConfig)),
+            "expected MissingConfig when INTEGRATIONS_SERVICE_URL is not set"
+        );
+    }
+
+    /// When the integrations service is unreachable, `HttpError` is returned —
+    /// the caller (`fetch_credentials_or_empty`) handles this gracefully.
+    #[tokio::test]
+    #[serial]
+    async fn unreachable_service_returns_http_error() {
+        let client = Client::new();
+        // Port 19999 on loopback — nothing listening there.
+        let result = with_integrations_url!(
+            Some("http://127.0.0.1:19999"),
+            get_carrier_credentials(&client, "tenant-test", "stub").await
+        );
+
+        assert!(
+            matches!(result, Err(CredentialsError::HttpError(_))),
+            "expected HttpError for unreachable service, got {:?}",
+            result
+        );
+    }
+}
