@@ -199,7 +199,7 @@
 <div class="header">
   <div>
     <h1>Manufacturing Roadmap</h1>
-    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-04-09 08:25</span>
+    <span class="refresh-note">Auto-refreshes every 30s &middot; Last generated: 2026-04-09 11:05</span>
   </div>
   <div class="meta">Roadmap updated: 2026-03-04</div>
 </div>
@@ -225,3 +225,356 @@
 </div>
 <div class="extraction-section">
   <h3>Pre-B Infrastructure (Fireproof Extraction)</h3>
+  <div class="item"><span class="status-done item-status">DONE</span> — Event consumer crate (platform/event-consumer/)</div>
+  <div class="item"><span class="status-not-started item-status">NOT STARTED</span> — Security audit log (platform/security/src/security_event.rs)</div>
+</div>
+<div class="phase " onclick="this.classList.toggle('open')">
+  <div class="phase-header">
+    <div>
+      <span class="toggle-icon">&#9654;</span>
+      <span class="phase-title">Phase 0</span>
+      <span class="phase-goal">Design Lock — Prevent one-way-door mistakes</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:var(--text-dim);font-size:12px">9/9</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
+    </div>
+  </div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
+  <div class="phase-body">
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="deliverable-cell">Cost rollup flow design (component FIFO → FG unit cost → GL journal)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Manufacturing identity graph (part/rev, WO/build, lot/serial, inspection IDs)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">WIP representation decision (inventory location vs ledger-only)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Variance handling policy v1 (explicitly disallow OR define minimal allowed cases)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">GL posting trigger model (which event triggers GL, who posts, minimal payload)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM schema decisions confirmed (depth model, effectivity model, from prerequisites doc)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Workcenter ownership path confirmed (Production owns from Phase B; Maintenance workcenter_id unvalidated until Phase E)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Event contract naming review (existing modules + new manufacturing subjects)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Design doc signed off by all reviewers</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-p4mx2</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="phase " onclick="this.classList.toggle('open')">
+  <div class="phase-header">
+    <div>
+      <span class="toggle-icon">&#9654;</span>
+      <span class="phase-title">Phase A</span>
+      <span class="phase-goal">Inventory + BOM — Product structure + inventory movements</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:var(--text-dim);font-size:12px">14/14</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
+    </div>
+  </div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
+  <div class="phase-body">
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="deliverable-cell">Inventory: source_type field on receipts (purchase/production/return)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-194cd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inventory: production receipt path (caller-provided unit cost)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-194cd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inventory: issue path with source_type tagging (no work_order_id yet)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-194cd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inventory: make/buy classification on items</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-194cd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inventory: event payload extended with source_type</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-194cd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: module scaffold (bom-rs crate)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: multi-level structure (header, revision, lines)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: date-based effectivity with non-overlapping constraint</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: multi-level explosion query with depth guard</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: where-used reverse lookup</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">BOM: events emitted via outbox</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1uy2l</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">GL: consumer branches by source_type (COGS vs WIP) + production receipt GL path</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2vc9u</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Docker: bom-rs container with compose watch + CI build job</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1mgdw</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: BOM + Inventory end-to-end (5 tests prove Phase A exit criteria)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2g7el</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="phase " onclick="this.classList.toggle('open')">
+  <div class="phase-header">
+    <div>
+      <span class="toggle-icon">&#9654;</span>
+      <span class="phase-title">Phase B</span>
+      <span class="phase-goal">Production Execution — WO → issue → execute → receipt</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:var(--text-dim);font-size:12px">13/13</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
+    </div>
+  </div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
+  <div class="phase-body">
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="deliverable-cell">Pre-B Infra: event-consumer crate — core dispatch (registry + router + context)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-23vfl</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Pre-B Infra: event-consumer crate — persistence layer (with_dedupe + DLQ + sqlx migrations)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-25rtl</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Pre-B Infra: event-consumer crate — JetStream client + integration (consumer manager, retry-DLQ, ops health)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-3dcpg</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: module scaffold (production-rs crate)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2ya5w</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: work order lifecycle (create/release/close)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2aem0</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: workcenter master table (owned by Production)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1bcvd</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: routing/operations model (sequence, workcenter, status)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1jo88</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: operation execution model (start/complete tied to routing)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-31f07</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: explicit component issue workflow → Inventory</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-nl0zm</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: FG receipt → Inventory at rolled-up cost</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1j2hj</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Production: timekeeping link (operation events → clock events) — optional B-late</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-3j1hx</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Docker: production-rs container with compose watch</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2ya5w</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: WO → issue → ops → FG receipt end-to-end (4 tests prove Phase B exit criteria)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2porq</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="phase " onclick="this.classList.toggle('open')">
+  <div class="phase-header">
+    <div>
+      <span class="toggle-icon">&#9654;</span>
+      <span class="phase-title">Phase C1</span>
+      <span class="phase-goal">Receiving Inspection — Incoming material inspection</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:var(--text-dim);font-size:12px">9/9</span>
+      <span class="phase-badge badge-complete">COMPLETE</span>
+    </div>
+  </div>
+  <div class="phase-progress"><div class="phase-progress-bar complete" style="width:100%"></div></div>
+  <div class="phase-body">
+    <table>
+      <thead><tr><th>Deliverable</th><th>Status</th><th>Bead</th><th>Date</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="deliverable-cell">Inspection: module scaffold (quality-inspection-rs crate)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2f1xv</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: inspection plan model (characteristics, tolerances, sampling)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1y2nc</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: receiving inspection records</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-1y2nc</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: quarantine/hold before disposition</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-16fy6</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: disposition outcomes (accept, reject-to-hold, release)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-16fy6</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: inspector authorization via Workforce-Competence</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-38xvm</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Inspection: S-R event bridge (auto-create receiving inspection)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-986e4</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Docker: quality-inspection-rs container with compose watch</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-2f1xv</span></td>
+          <td class="date-cell">2026-03-05</td>
+        </tr>
+        <tr>
+          <td class="deliverable-cell">Integration proof: C1 e2e (receipt → hold/release → events + evidence queries)</td>
+          <td><span class="status-done">DONE</span></td>
+          <td><span class="bead-link">bd-qh5px</span></td>
+          <td class="date-cell">2026-03-06</td>
+        </tr>
