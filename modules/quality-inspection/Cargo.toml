@@ -1,6 +1,6 @@
 [package]
 name = "quality-inspection-rs"
-version = "3.1.0"
+version = "3.1.1"
 edition = "2021"
 description = "Quality Inspection: receiving inspection, in-process inspection, disposition tracking"
 

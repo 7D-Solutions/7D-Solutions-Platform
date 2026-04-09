@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Extension, Json,
 };
@@ -17,6 +17,17 @@ use super::tenant::with_request_id;
 use crate::domain::models::*;
 use crate::domain::service;
 use crate::AppState;
+
+/// Clone the WC client with the inbound request's bearer token attached,
+/// so downstream WC calls are authenticated as the original caller.
+fn wc_with_bearer(state: &AppState, headers: &HeaderMap) -> platform_sdk::PlatformClient {
+    if let Some(auth) = headers.get("authorization").and_then(|v| v.to_str().ok()) {
+        if let Some(token) = auth.strip_prefix("Bearer ") {
+            return state.wc_client.clone().with_bearer_token(token.to_string());
+        }
+    }
+    state.wc_client.clone()
+}
 
 fn correlation_id() -> String {
     Uuid::new_v4().to_string()
@@ -255,6 +266,7 @@ pub async fn post_hold_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
@@ -262,9 +274,10 @@ pub async fn post_hold_inspection(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
+    let wc = wc_with_bearer(&state, &headers);
     match service::hold_inspection(
         &state.pool,
-        &state.wc_client,
+        &wc,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -298,6 +311,7 @@ pub async fn post_release_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
@@ -305,9 +319,10 @@ pub async fn post_release_inspection(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
+    let wc = wc_with_bearer(&state, &headers);
     match service::release_inspection(
         &state.pool,
-        &state.wc_client,
+        &wc,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -341,6 +356,7 @@ pub async fn post_accept_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
@@ -348,9 +364,10 @@ pub async fn post_accept_inspection(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
+    let wc = wc_with_bearer(&state, &headers);
     match service::accept_inspection(
         &state.pool,
-        &state.wc_client,
+        &wc,
         &tenant_id,
         inspection_id,
         req.inspector_id,
@@ -384,6 +401,7 @@ pub async fn post_reject_inspection(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
     Path(inspection_id): Path<Uuid>,
     Json(req): Json<DispositionTransitionRequest>,
 ) -> impl IntoResponse {
@@ -391,9 +409,10 @@ pub async fn post_reject_inspection(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
+    let wc = wc_with_bearer(&state, &headers);
     match service::reject_inspection(
         &state.pool,
-        &state.wc_client,
+        &wc,
         &tenant_id,
         inspection_id,
         req.inspector_id,
