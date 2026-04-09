@@ -4,7 +4,13 @@ use std::time::Duration;
 
 use notifications_rs::{
     config::Config,
-    consumers::EventConsumer,
+    consumers::{
+        shipping::{
+            handle_outbound_delivered, handle_outbound_shipped, OutboundDeliveredPayload,
+            OutboundShippedPayload,
+        },
+        EventConsumer,
+    },
     handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded},
     http, metrics,
     models::{
@@ -30,6 +36,14 @@ async fn main() {
             on_payment_succeeded,
         )
         .consumer("payments.events.payment.failed", on_payment_failed)
+        .consumer(
+            "shipping_receiving.outbound_shipped",
+            on_outbound_shipped,
+        )
+        .consumer(
+            "shipping_receiving.outbound_delivered",
+            on_outbound_delivered,
+        )
         .routes(|ctx| {
             let pool = ctx.pool().clone();
             let config = Config::from_env().unwrap_or_else(|err| {
@@ -270,6 +284,96 @@ async fn on_payment_succeeded(
         .mark_processed(
             event_id,
             "payments.events.payment.succeeded",
+            &envelope.tenant_id,
+            &envelope.source_module,
+        )
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    Ok(())
+}
+
+/// SDK consumer adapter for shipping_receiving.outbound_shipped.
+async fn on_outbound_shipped(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
+
+    let consumer = EventConsumer::new(pool.clone());
+    if consumer
+        .is_processed(event_id)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?
+    {
+        tracing::info!(event_id = %event_id, "Duplicate outbound_shipped event ignored");
+        return Ok(());
+    }
+
+    let payload: OutboundShippedPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    let metadata = EnvelopeMetadata {
+        event_id,
+        tenant_id: envelope.tenant_id.clone(),
+        correlation_id: envelope.correlation_id.clone(),
+    };
+
+    handle_outbound_shipped(pool, payload, metadata)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    consumer
+        .mark_processed(
+            event_id,
+            "shipping_receiving.outbound_shipped",
+            &envelope.tenant_id,
+            &envelope.source_module,
+        )
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    Ok(())
+}
+
+/// SDK consumer adapter for shipping_receiving.outbound_delivered.
+async fn on_outbound_delivered(
+    ctx: ModuleContext,
+    envelope: EventEnvelope<serde_json::Value>,
+) -> Result<(), ConsumerError> {
+    let pool = ctx.pool();
+    let event_id = envelope.event_id;
+
+    let consumer = EventConsumer::new(pool.clone());
+    if consumer
+        .is_processed(event_id)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?
+    {
+        tracing::info!(event_id = %event_id, "Duplicate outbound_delivered event ignored");
+        return Ok(());
+    }
+
+    let payload: OutboundDeliveredPayload =
+        serde_json::from_value(envelope.payload.clone())
+            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+
+    let metadata = EnvelopeMetadata {
+        event_id,
+        tenant_id: envelope.tenant_id.clone(),
+        correlation_id: envelope.correlation_id.clone(),
+    };
+
+    handle_outbound_delivered(pool, payload, metadata)
+        .await
+        .map_err(|e| ConsumerError::Processing(e.to_string()))?;
+
+    consumer
+        .mark_processed(
+            event_id,
+            "shipping_receiving.outbound_delivered",
             &envelope.tenant_id,
             &envelope.source_module,
         )

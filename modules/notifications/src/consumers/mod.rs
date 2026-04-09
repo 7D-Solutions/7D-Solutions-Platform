@@ -1,4 +1,5 @@
 pub mod close_calendar;
+pub mod shipping;
 
 use event_bus::BusMessage;
 use serde::de::DeserializeOwned;

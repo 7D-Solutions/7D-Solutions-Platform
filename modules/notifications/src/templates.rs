@@ -108,6 +108,40 @@ fn lookup(template_key: &str) -> Result<Template, RenderError> {
             ),
         }),
 
+        "order_shipped" => Ok(Template {
+            subject: "Your order has shipped — tracking {{tracking_number}}",
+            body_html: concat!(
+                "<p>Hi {{recipient_name}},</p>",
+                "<p>Your shipment has been handed to <strong>{{carrier}}</strong>.</p>",
+                "<p>Tracking number: <strong>{{tracking_number}}</strong></p>",
+                "<p>Shipped at: {{shipped_at}}</p>",
+                "<p>Use your tracking number to follow your delivery status.</p>",
+            ),
+            body_text: concat!(
+                "Hi {{recipient_name}},\n\n",
+                "Your shipment has been handed to {{carrier}}.\n",
+                "Tracking number: {{tracking_number}}\n",
+                "Shipped at: {{shipped_at}}\n\n",
+                "Use your tracking number to follow your delivery status.",
+            ),
+        }),
+
+        "delivery_confirmed" => Ok(Template {
+            subject: "Your order has been delivered",
+            body_html: concat!(
+                "<p>Hi {{recipient_name}},</p>",
+                "<p>Your shipment has been delivered.</p>",
+                "<p>Delivered at: {{delivered_at}}</p>",
+                "<p>Thank you for your order!</p>",
+            ),
+            body_text: concat!(
+                "Hi {{recipient_name}},\n\n",
+                "Your shipment has been delivered.\n",
+                "Delivered at: {{delivered_at}}\n\n",
+                "Thank you for your order!",
+            ),
+        }),
+
         _ => Err(RenderError::UnknownTemplate(template_key.to_string())),
     }
 }
