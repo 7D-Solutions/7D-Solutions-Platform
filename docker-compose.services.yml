@@ -873,6 +873,7 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       RUST_LOG: ${RUST_LOG:-info}
       INVENTORY_BASE_URL: http://7d-inventory:8092
+      INVENTORY_DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       INTEGRATIONS_SERVICE_URL: http://7d-integrations:8099
     ports:
       - "127.0.0.1:8103:8103"
