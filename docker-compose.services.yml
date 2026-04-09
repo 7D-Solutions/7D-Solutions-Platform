@@ -890,6 +890,7 @@ services:
       PORT: 8106
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
+      WORKFORCE_COMPETENCE_BASE_URL: http://7d-workforce-competence:8121
     ports:
       - "127.0.0.1:8106:8106"
     networks:
