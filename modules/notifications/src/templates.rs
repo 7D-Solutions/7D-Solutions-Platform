@@ -115,14 +115,14 @@ fn lookup(template_key: &str) -> Result<Template, RenderError> {
                 "<p>Your shipment has been handed to <strong>{{carrier}}</strong>.</p>",
                 "<p>Tracking number: <strong>{{tracking_number}}</strong></p>",
                 "<p>Shipped at: {{shipped_at}}</p>",
-                "<p>Use your tracking number to follow your delivery status.</p>",
+                "<p>Track your shipment: {{tracking_url}}</p>",
             ),
             body_text: concat!(
                 "Hi {{recipient_name}},\n\n",
                 "Your shipment has been handed to {{carrier}}.\n",
                 "Tracking number: {{tracking_number}}\n",
-                "Shipped at: {{shipped_at}}\n\n",
-                "Use your tracking number to follow your delivery status.",
+                "Shipped at: {{shipped_at}}\n",
+                "Track your shipment: {{tracking_url}}",
             ),
         }),
 
@@ -198,6 +198,34 @@ fn substitute(
 
     result.push_str(rest);
     Ok(result)
+}
+
+// ── Tracking URL builder ────────────────────────────────────────────
+
+/// Return a carrier tracking URL for a known carrier, or `None` if the
+/// carrier code is unrecognised or the tracking number is empty.
+///
+/// Matching is case-insensitive. To add a new carrier, add one arm to the
+/// `match` — no other code paths need changing.
+///
+/// Known carriers:
+/// - `"UPS"`   → <https://www.ups.com/track?tracknum={num}>
+/// - `"FEDEX"` → <https://www.fedex.com/fedextrack/?trknbr={num}>
+/// - `"USPS"`  → <https://tools.usps.com/go/TrackConfirmAction?tLabels={num}>
+pub fn tracking_url(carrier_code: &str, tracking_number: &str) -> Option<String> {
+    if tracking_number.is_empty() {
+        return None;
+    }
+    let url = match carrier_code.to_ascii_uppercase().as_str() {
+        "UPS" => format!("https://www.ups.com/track?tracknum={}", tracking_number),
+        "FEDEX" => format!("https://www.fedex.com/fedextrack/?trknbr={}", tracking_number),
+        "USPS" => format!(
+            "https://tools.usps.com/go/TrackConfirmAction?tLabels={}",
+            tracking_number
+        ),
+        _ => return None,
+    };
+    Some(url)
 }
 
 // ── Public render entry point ───────────────────────────────────────

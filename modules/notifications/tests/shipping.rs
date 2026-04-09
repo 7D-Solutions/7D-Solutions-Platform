@@ -13,7 +13,7 @@ use notifications_rs::{
         EventConsumer,
     },
     models::EnvelopeMetadata,
-    templates::render,
+    templates::{render, tracking_url},
 };
 use serial_test::serial;
 use sqlx::PgPool;
@@ -358,14 +358,16 @@ async fn shipping_missing_tracking_number_defaults_to_pending() {
 // ── Template rendering ────────────────────────────────────────────────────────
 
 /// order_shipped template renders correctly — subject contains tracking number,
-/// body is valid HTML.
+/// body is valid HTML, and tracking URL is included for a known carrier.
 #[test]
 fn shipping_template_order_shipped_renders_correctly() {
+    let url = tracking_url("UPS", "1Z999AA10123456784").unwrap_or_default();
     let payload = serde_json::json!({
         "tracking_number": "1Z999AA10123456784",
         "carrier": "UPS",
         "shipped_at": "2026-04-08T12:00:00Z",
         "recipient_name": "Alice",
+        "tracking_url": url,
     });
 
     let msg = render("order_shipped", &payload).expect("render order_shipped failed");
@@ -390,8 +392,16 @@ fn shipping_template_order_shipped_renders_correctly() {
         "body_html must contain tracking number"
     );
     assert!(
+        msg.body_html.contains("ups.com/track"),
+        "body_html must contain UPS tracking URL"
+    );
+    assert!(
         msg.body_text.contains("Alice"),
         "body_text must contain recipient_name"
+    );
+    assert!(
+        msg.body_text.contains("ups.com/track"),
+        "body_text must contain UPS tracking URL"
     );
 }
 
@@ -425,15 +435,66 @@ fn shipping_template_delivery_confirmed_renders_correctly() {
 }
 
 /// order_shipped template with "pending" tracking number renders without error.
+/// Unknown carrier produces no tracking URL; template receives an empty string.
 #[test]
 fn shipping_template_order_shipped_pending_tracking() {
+    let url = tracking_url("unknown", "pending").unwrap_or_default();
     let payload = serde_json::json!({
         "tracking_number": "pending",
         "carrier": "unknown",
         "shipped_at": "2026-04-08T10:00:00Z",
         "recipient_name": "Customer",
+        "tracking_url": url,
     });
 
     let msg = render("order_shipped", &payload).expect("render with pending tracking should work");
     assert!(msg.subject.contains("pending"));
+}
+
+// ── tracking_url unit tests ───────────────────────────────────────────────────
+
+#[test]
+fn tracking_url_ups_returns_correct_url() {
+    let url = tracking_url("UPS", "1Z999AA10123456784");
+    assert_eq!(
+        url.as_deref(),
+        Some("https://www.ups.com/track?tracknum=1Z999AA10123456784")
+    );
+}
+
+#[test]
+fn tracking_url_ups_case_insensitive() {
+    let lower = tracking_url("ups", "1Z999AA10123456784");
+    let upper = tracking_url("UPS", "1Z999AA10123456784");
+    assert_eq!(lower, upper, "carrier matching must be case-insensitive");
+}
+
+#[test]
+fn tracking_url_fedex_returns_correct_url() {
+    let url = tracking_url("FEDEX", "123456789012");
+    assert_eq!(
+        url.as_deref(),
+        Some("https://www.fedex.com/fedextrack/?trknbr=123456789012")
+    );
+}
+
+#[test]
+fn tracking_url_usps_returns_correct_url() {
+    let url = tracking_url("USPS", "9400111899223397091523");
+    assert_eq!(
+        url.as_deref(),
+        Some("https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223397091523")
+    );
+}
+
+#[test]
+fn tracking_url_unknown_carrier_returns_none() {
+    let url = tracking_url("DHL", "1234567890");
+    assert!(url.is_none(), "unrecognised carrier must return None");
+}
+
+#[test]
+fn tracking_url_empty_tracking_number_returns_none() {
+    let url = tracking_url("UPS", "");
+    assert!(url.is_none(), "empty tracking number must return None");
 }
