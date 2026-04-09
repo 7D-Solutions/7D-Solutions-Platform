@@ -17,7 +17,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ap | ap | 3.2.2 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ap | ap | 3.3.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ar | ar-rs | 6.3.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | bom | bom-rs | 2.3.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 2.3.1 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |

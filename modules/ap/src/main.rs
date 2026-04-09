@@ -27,6 +27,14 @@ async fn main() {
                 metrics: ap_metrics,
             });
 
+            if let Ok(bus) = ctx.bus_arc() {
+                ap::consumers::attachment_linked::start_attachment_linked_consumer(
+                    bus,
+                    ctx.pool().clone(),
+                );
+                tracing::info!("AP: attachment_linked consumer started");
+            }
+
             let ap_mutations = Router::new()
                 .route("/api/ap/vendors", post(http::vendors::create_vendor))
                 .route(

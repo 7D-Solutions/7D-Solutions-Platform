@@ -1,6 +1,6 @@
 [package]
 name = "ap"
-version = "3.2.2"
+version = "3.3.0"
 edition = "2021"
 description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
 
