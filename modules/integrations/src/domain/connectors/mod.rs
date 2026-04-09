@@ -15,6 +15,7 @@
 //!   idempotency key so callers can safely retry without double-side-effects.
 
 pub mod amazon;
+pub mod ebay;
 pub mod echo;
 pub mod repo;
 pub mod service;
@@ -151,6 +152,7 @@ pub fn get_connector(connector_type: &str) -> Option<Box<dyn Connector>> {
         "echo" => Some(Box::new(echo::EchoConnector)),
         "shopify" => Some(Box::new(shopify::ShopifyConnector)),
         "amazon_sp" => Some(Box::new(amazon::AmazonConnector)),
+        "ebay" => Some(Box::new(ebay::EbayConnector)),
         _ => None,
     }
 }
@@ -161,6 +163,7 @@ pub fn all_connectors() -> Vec<ConnectorCapabilities> {
         echo::EchoConnector.capabilities(),
         shopify::ShopifyConnector.capabilities(),
         amazon::AmazonConnector.capabilities(),
+        ebay::EbayConnector.capabilities(),
     ]
 }
 
