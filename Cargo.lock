@@ -1885,7 +1885,7 @@ dependencies = [
 
 [[package]]
 name = "doc_mgmt"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -3093,7 +3093,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3939,7 +3939,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "5.1.1"
+version = "5.1.2"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4824,7 +4824,7 @@ dependencies = [
 
 [[package]]
 name = "quality-inspection-rs"
-version = "3.1.0"
+version = "3.1.1"
 dependencies = [
  "axum",
  "chrono",
@@ -5759,7 +5759,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "3.2.1"
+version = "3.3.0"
 dependencies = [
  "async-nats",
  "async-trait",
