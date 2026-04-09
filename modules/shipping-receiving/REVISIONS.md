@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.0 | 2026-04-08 | bd-w9mu5 | CarrierProvider trait + async dispatch consumer + credential facade | Platform needs a carrier abstraction so verticals don't implement carrier integrations directly. StubCarrierProvider for testing, NATS consumer for sr.carrier_request.created, reqwest facade to integrations internal endpoint for credentials. | No |
 | 3.1.2 | 2026-04-04 | bd-0clpi | SoC: extract shipments handler SQL into db/repository.rs | Separation of concerns — shipments handler mixed HTTP logic with raw SQL queries | No |
 | 3.1.1 | 2026-04-04 | bd-85tso | Replace tenant_id.parse().expect() with ApiError::bad_request on 16 request paths | Unwrap on user-supplied input causes panic (500) instead of returning 400 Bad Request. | No |
 | 3.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |

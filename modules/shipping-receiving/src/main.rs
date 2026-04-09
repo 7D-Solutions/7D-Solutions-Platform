@@ -7,6 +7,7 @@ use shipping_receiving_rs::{
     consumers,
     db::inspection_routing_repo::InspectionRoutingRow,
     domain::{
+        carrier_providers::dispatch::start_carrier_dispatch_consumer,
         inspection_routing::RouteLineRequest,
         shipments::{Direction, Shipment},
     },
@@ -119,6 +120,11 @@ async fn main() {
             );
 
             let inventory = ctx.platform_client::<shipping_receiving_rs::InventoryIntegration>();
+
+            // Start carrier dispatch consumer if a bus is configured
+            if let Ok(bus) = ctx.bus_arc() {
+                start_carrier_dispatch_consumer(bus, ctx.pool().clone());
+            }
 
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),

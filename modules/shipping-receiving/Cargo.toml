@@ -1,6 +1,6 @@
 [package]
 name = "shipping-receiving-rs"
-version = "3.1.2"
+version = "3.2.0"
 edition = "2021"
 description = "Inbound and outbound shipment tracking with inventory integration"
 
@@ -39,6 +39,7 @@ prometheus = "0.13"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+async-trait = "0.1"
 platform-client-inventory = { path = "../../clients/inventory" }
 event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.38"
