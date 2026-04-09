@@ -258,11 +258,12 @@ async fn test_refresh_tick_updates_expired_tokens() {
     let tenant = unique_tenant();
     let realm = unique_realm();
 
-    // Clean up stale expired connections from previous test runs to avoid pollution
-    sqlx::query("DELETE FROM integrations_oauth_connections WHERE access_token_expires_at < NOW()")
+    // Clean ALL connections — refresh_tick queries globally without tenant filter,
+    // so stale rows encrypted with a different OAUTH_ENCRYPTION_KEY cause decrypt failures.
+    sqlx::query("DELETE FROM integrations_oauth_connections")
         .execute(&pool)
         .await
-        .expect("cleanup stale connections failed");
+        .expect("cleanup all connections failed");
 
     // Create a connection with already-expired access token
     let tokens = test_tokens();
@@ -325,6 +326,12 @@ async fn test_concurrent_refresh_skip_locked() {
     set_encryption_key();
     let tenant = unique_tenant();
     let realm = unique_realm();
+
+    // Clean ALL connections — refresh_tick queries globally without tenant filter
+    sqlx::query("DELETE FROM integrations_oauth_connections")
+        .execute(&pool)
+        .await
+        .expect("cleanup all connections failed");
 
     let tokens = test_tokens();
     service::create_connection(
@@ -485,6 +492,12 @@ async fn test_refresh_failure_marks_needs_reauth() {
     set_encryption_key();
     let tenant = unique_tenant();
     let realm = unique_realm();
+
+    // Clean ALL connections — refresh_tick queries globally without tenant filter
+    sqlx::query("DELETE FROM integrations_oauth_connections")
+        .execute(&pool)
+        .await
+        .expect("cleanup all connections failed");
 
     service::create_connection(
         &pool,
