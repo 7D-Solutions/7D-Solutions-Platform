@@ -12,7 +12,7 @@ migrations = "./db/migrations"
 auto_migrate = true
 
 [platform.services]
-platform-client-doc-mgmt = { enabled = true, default_url = "http://localhost:8095" }
+doc-mgmt = { enabled = true, default_url = "http://localhost:8095" }
 
 [auth]
 required = false
