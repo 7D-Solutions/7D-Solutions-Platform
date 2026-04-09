@@ -21,7 +21,6 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
-      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       JWT_KID: ${JWT_KID:-auth-key-1}
       ACCESS_TOKEN_TTL_MINUTES: "15"
       REFRESH_TOKEN_TTL_DAYS: "14"
@@ -70,7 +69,6 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
-      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       JWT_KID: ${JWT_KID:-auth-key-1}
       ACCESS_TOKEN_TTL_MINUTES: "15"
       REFRESH_TOKEN_TTL_DAYS: "14"
