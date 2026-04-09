@@ -55,6 +55,31 @@ pub async fn list_configs(
     }
 }
 
+/// Fetch the most-recently-created enabled connector config for a given
+/// `app_id` + `connector_type` pair.
+///
+/// Used by the internal carrier-credentials endpoint so that shipping-receiving
+/// can look up carrier API credentials without direct DB access.
+pub async fn get_config_by_type(
+    pool: &PgPool,
+    app_id: &str,
+    connector_type: &str,
+) -> Result<Option<ConnectorConfig>, sqlx::Error> {
+    sqlx::query_as::<_, ConnectorConfig>(
+        r#"
+        SELECT id, app_id, connector_type, name, config, enabled, created_at, updated_at
+        FROM integrations_connector_configs
+        WHERE app_id = $1 AND connector_type = $2 AND enabled = TRUE
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#,
+    )
+    .bind(app_id)
+    .bind(connector_type)
+    .fetch_optional(pool)
+    .await
+}
+
 pub async fn insert(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     app_id: &str,

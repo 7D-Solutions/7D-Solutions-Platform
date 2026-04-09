@@ -45,6 +45,9 @@ pub fn map_to_domain_event(system: &str, source_event_type: Option<&str>) -> Opt
             Some("payments.payment.synced".to_string())
         }
         ("quickbooks", Some("qbo.item.updated.v1")) => Some("inventory.item.synced".to_string()),
+        // Shopify marketplace order events
+        ("shopify", Some("orders/create")) => Some("integrations.order.ingested".to_string()),
+        ("shopify", Some("orders/updated")) => Some("integrations.order.ingested".to_string()),
         // Internal pass-through
         ("internal", Some(et)) => Some(et.to_string()),
         // Unknown — do not route

@@ -1,11 +1,74 @@
 //! QBO REST API client implementation.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use super::{classify_error, parse_api_error, QboApiAction, QboError, TokenProvider};
+
+// ============================================================================
+// Invoice creation types
+// ============================================================================
+
+/// A single line item on a QBO invoice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboLineItem {
+    /// Amount in dollars (not cents).
+    pub amount: f64,
+    pub description: Option<String>,
+    /// QBO Item.Id (e.g. "1" = Services). Optional — omit for untracked line items.
+    pub item_ref: Option<String>,
+}
+
+/// Payload for creating a QBO invoice via POST /v3/company/{realm}/invoice.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboInvoicePayload {
+    /// QBO Customer.Id.
+    pub customer_ref: String,
+    pub line_items: Vec<QboLineItem>,
+    /// Due date in YYYY-MM-DD format.
+    pub due_date: Option<String>,
+    /// AR invoice ID placed in QBO DocNumber for cross-reference.
+    pub doc_number: Option<String>,
+}
+
+impl QboInvoicePayload {
+    /// Serialize to QBO REST API wire format.
+    pub(crate) fn to_qbo_json(&self) -> Value {
+        let lines: Vec<Value> = self
+            .line_items
+            .iter()
+            .map(|item| {
+                let mut line = serde_json::json!({
+                    "Amount": item.amount,
+                    "DetailType": "SalesItemLineDetail",
+                    "SalesItemLineDetail": {}
+                });
+                if let Some(ref ir) = item.item_ref {
+                    line["SalesItemLineDetail"]["ItemRef"] = serde_json::json!({"value": ir});
+                }
+                if let Some(ref desc) = item.description {
+                    line["Description"] = Value::String(desc.clone());
+                }
+                line
+            })
+            .collect();
+
+        let mut body = serde_json::json!({
+            "CustomerRef": {"value": &self.customer_ref},
+            "Line": lines,
+        });
+        if let Some(ref dd) = self.due_date {
+            body["DueDate"] = Value::String(dd.clone());
+        }
+        if let Some(ref dn) = self.doc_number {
+            body["DocNumber"] = Value::String(dn.clone());
+        }
+        body
+    }
+}
 
 /// Minor version appended to all QBO API requests.
 pub const MINOR_VERSION: u32 = 75;
@@ -223,6 +286,45 @@ impl QboClient {
         }
 
         Err(QboError::SyncTokenExhausted(SYNC_TOKEN_MAX_RETRIES))
+    }
+
+    /// Create a new invoice in QBO.
+    ///
+    /// Uses `write_url()` which appends `?requestid=UUID` for idempotency.
+    /// Returns the `Invoice` object from the QBO response.
+    pub async fn create_invoice(&self, payload: &QboInvoicePayload) -> Result<Value, QboError> {
+        let url = self.write_url("invoice");
+        let body = payload.to_qbo_json();
+        let token = self.tokens.get_token().await?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let resp_body = resp.text().await?;
+
+        if status == 200 {
+            let val = parse_json(&resp_body)?;
+            return Ok(val["Invoice"].clone());
+        }
+
+        match classify_error(status, &resp_body) {
+            QboApiAction::RefreshToken => {
+                let new_token = self.tokens.refresh_token().await?;
+                // Generate a fresh write_url so requestid changes on retry
+                let retry_url = self.write_url("invoice");
+                let val = self.post_json(&retry_url, &body, &new_token).await?;
+                Ok(val["Invoice"].clone())
+            }
+            QboApiAction::Backoff => Err(QboError::RateLimited),
+            _ => Err(parse_api_error(&resp_body)),
+        }
     }
 
     /// Call the CDC endpoint.
@@ -506,5 +608,78 @@ mod tests {
             4,
             "should attempt 4 POSTs then give up"
         );
+    }
+
+    // -- create_invoice tests --
+
+    async fn start_create_server() -> (String, Arc<AtomicU32>) {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let count = call_count.clone();
+        let app = axum::Router::new()
+            .route(
+                "/v3/company/{realm}/invoice",
+                axum::routing::post(move || {
+                    let c = count.clone();
+                    async move {
+                        c.fetch_add(1, Ordering::SeqCst);
+                        (
+                            axum::http::StatusCode::OK,
+                            r#"{"Invoice":{"Id":"42","SyncToken":"0","DocNumber":"INV-001"}}"#,
+                        )
+                    }
+                }),
+            );
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.expect("server crashed")
+        });
+        (format!("http://{}/v3", addr), call_count)
+    }
+
+    #[tokio::test]
+    async fn create_invoice_returns_invoice_id() {
+        let (base_url, call_count) = start_create_server().await;
+        let client = test_client(&base_url);
+
+        let payload = QboInvoicePayload {
+            customer_ref: "1".to_string(),
+            line_items: vec![QboLineItem {
+                amount: 150.00,
+                description: Some("Service fee".to_string()),
+                item_ref: None,
+            }],
+            due_date: Some("2026-05-01".to_string()),
+            doc_number: Some("INV-001".to_string()),
+        };
+
+        let result = client.create_invoice(&payload).await.expect("create_invoice failed");
+        assert_eq!(result["Id"].as_str(), Some("42"), "returned invoice must have Id=42");
+        assert_eq!(call_count.load(Ordering::SeqCst), 1, "one POST to QBO");
+    }
+
+    #[tokio::test]
+    async fn qbo_invoice_payload_serializes_correctly() {
+        let payload = QboInvoicePayload {
+            customer_ref: "5".to_string(),
+            line_items: vec![QboLineItem {
+                amount: 500.00,
+                description: Some("Consulting".to_string()),
+                item_ref: Some("1".to_string()),
+            }],
+            due_date: Some("2026-06-15".to_string()),
+            doc_number: Some("DOC-999".to_string()),
+        };
+        let json = payload.to_qbo_json();
+        assert_eq!(json["CustomerRef"]["value"].as_str(), Some("5"));
+        assert_eq!(json["DueDate"].as_str(), Some("2026-06-15"));
+        assert_eq!(json["DocNumber"].as_str(), Some("DOC-999"));
+        let lines = json["Line"].as_array().expect("Line must be array");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0]["Amount"].as_f64(), Some(500.00));
+        assert_eq!(lines[0]["SalesItemLineDetail"]["ItemRef"]["value"].as_str(), Some("1"));
     }
 }

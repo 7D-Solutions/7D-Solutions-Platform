@@ -1,5 +1,6 @@
 pub mod connectors;
 pub mod external_refs;
+pub mod internal;
 pub mod oauth;
 pub mod qbo_invoice;
 pub mod webhooks;
@@ -110,6 +111,14 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_READ,
         ]))
+        .with_state(state.clone());
+
+    // Internal platform-to-platform endpoints — no auth layer, network-gated only
+    let internal_routes = Router::new()
+        .route(
+            "/api/integrations/internal/carrier-credentials/{connector_type}",
+            get(internal::get_carrier_credentials),
+        )
         .with_state(state);
 
     Router::new()
@@ -117,4 +126,5 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(reads)
         .merge(webhook_inbound)
         .merge(oauth_callback)
+        .merge(internal_routes)
 }

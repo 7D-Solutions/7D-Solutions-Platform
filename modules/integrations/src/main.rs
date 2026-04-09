@@ -92,6 +92,8 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
+            let bus = ctx.bus_arc().expect("Integrations requires event bus");
+
             // Spawn conditional background workers
             if std::env::var("QBO_CLIENT_ID").is_ok() {
                 let refresher: Arc<dyn refresh::TokenRefresher> =
@@ -126,6 +128,15 @@ async fn main() {
                     interval_secs = cdc_interval_secs,
                     "Integrations: QBO CDC polling worker started"
                 );
+
+                let (_outbound_shutdown_tx, outbound_shutdown_rx) =
+                    tokio::sync::watch::channel(false);
+                integrations_rs::domain::qbo::outbound::spawn_outbound_consumer(
+                    ctx.pool().clone(),
+                    bus.clone(),
+                    outbound_shutdown_rx,
+                );
+                tracing::info!("Integrations: QBO outbound consumer started");
             }
 
             let integrations_metrics = Arc::new(
@@ -133,7 +144,6 @@ async fn main() {
                     .expect("Integrations: failed to create metrics"),
             );
 
-            let bus = ctx.bus_arc().expect("Integrations requires event bus");
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: integrations_metrics,

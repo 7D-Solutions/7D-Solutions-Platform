@@ -6,6 +6,7 @@
 
 pub mod cdc;
 pub mod client;
+pub mod outbound;
 pub mod repo;
 pub mod sync;
 

@@ -14,6 +14,7 @@ pub mod external_ref_deleted;
 pub mod external_ref_updated;
 pub mod file_job_created;
 pub mod file_job_status_changed;
+pub mod order_ingested;
 pub mod outbound_webhook_created;
 pub mod outbound_webhook_deleted;
 pub mod outbound_webhook_updated;
@@ -55,6 +56,10 @@ pub use file_job_created::{
 pub use file_job_status_changed::{
     build_file_job_status_changed_envelope, FileJobStatusChangedPayload,
     EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
+};
+pub use order_ingested::{
+    build_order_ingested_envelope, OrderIngestedPayload, OrderLineItemPayload,
+    EVENT_TYPE_ORDER_INGESTED,
 };
 pub use outbound_webhook_created::{
     build_outbound_webhook_created_envelope, OutboundWebhookCreatedPayload,

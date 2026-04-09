@@ -17,6 +17,7 @@
 pub mod echo;
 pub mod repo;
 pub mod service;
+pub mod shopify;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -147,13 +148,17 @@ pub trait Connector: Send + Sync {
 pub fn get_connector(connector_type: &str) -> Option<Box<dyn Connector>> {
     match connector_type {
         "echo" => Some(Box::new(echo::EchoConnector)),
+        "shopify" => Some(Box::new(shopify::ShopifyConnector)),
         _ => None,
     }
 }
 
 /// Return all registered connector capability descriptors.
 pub fn all_connectors() -> Vec<ConnectorCapabilities> {
-    vec![echo::EchoConnector.capabilities()]
+    vec![
+        echo::EchoConnector.capabilities(),
+        shopify::ShopifyConnector.capabilities(),
+    ]
 }
 
 // ============================================================================
