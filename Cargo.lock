@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.2.2"
+version = "3.3.0"
 dependencies = [
  "async-nats",
  "axum",
@@ -3093,7 +3093,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3604,7 +3604,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4870,6 +4870,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quick-xml"
+version = "0.37.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5750,7 +5759,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "3.2.0"
+version = "3.2.1"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -5766,6 +5775,7 @@ dependencies = [
  "platform-sdk",
  "platform_contracts",
  "prometheus",
+ "quick-xml",
  "reqwest",
  "security",
  "serde",

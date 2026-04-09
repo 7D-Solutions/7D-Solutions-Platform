@@ -329,6 +329,9 @@ services:
       PORT: 8088
       RUST_LOG: ${RUST_LOG:-info}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-tilled}
+      TILLED_API_KEY: ${TILLED_API_KEY:-placeholder-tilled-api-key}
+      TILLED_ACCOUNT_ID: ${TILLED_ACCOUNT_ID:-placeholder-tilled-account-id}
     ports:
       - "127.0.0.1:8088:8088"
     networks:
