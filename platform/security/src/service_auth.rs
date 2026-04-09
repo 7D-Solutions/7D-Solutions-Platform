@@ -158,23 +158,61 @@ fn sign_claims(claims_b64: &str) -> Result<Vec<u8>, ServiceAuthError> {
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
+/// Mint a proper RSA-signed JWT that ClaimsLayer can verify.
+///
+/// Uses `JWT_PRIVATE_KEY_PEM` to sign. The resulting token contains
+/// `RawAccessClaims`-compatible fields so `JwtVerifier::verify()` can
+/// decode it into `VerifiedClaims` with `service.internal` permission.
+fn mint_rsa_service_jwt(_service_name: &str) -> Result<String, ServiceAuthError> {
+    let pem = env::var("JWT_PRIVATE_KEY_PEM")
+        .map_err(|_| ServiceAuthError::MissingSigningKey)?;
+    let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes())
+        .map_err(|_| ServiceAuthError::MissingSigningKey)?;
+
+    let now = Utc::now();
+    let exp = now + Duration::minutes(15);
+    let nil = uuid::Uuid::nil();
+
+    let claims = serde_json::json!({
+        "sub": nil.to_string(),
+        "iss": "platform-service",
+        "aud": "platform",
+        "iat": now.timestamp(),
+        "exp": exp.timestamp(),
+        "jti": uuid::Uuid::new_v4().to_string(),
+        "tenant_id": nil.to_string(),
+        "roles": [],
+        "perms": ["service.internal"],
+        "actor_type": "service",
+        "ver": "1.0",
+    });
+
+    let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .map_err(|_| ServiceAuthError::MissingSigningKey)
+}
+
 /// Get service token from environment or generate one
 ///
-/// This is a convenience function for services that need to authenticate
-/// to other services. It first checks for a SERVICE_TOKEN environment variable,
-/// and if not found, generates a new token using the service name from
-/// SERVICE_NAME environment variable.
+/// Prefers RSA-signed JWT (via `JWT_PRIVATE_KEY_PEM`) because that is what
+/// `ClaimsLayer` / `JwtVerifier` can decode. Falls back to HMAC token
+/// only if the private key is not available.
 pub fn get_service_token() -> Result<String, ServiceAuthError> {
     // Check if token is already in environment
     if let Ok(token) = env::var("SERVICE_TOKEN") {
-        // Verify it's still valid
         if verify_service_token(&token).is_ok() {
             return Ok(token);
         }
     }
 
-    // Generate new token
     let service_name = env::var("SERVICE_NAME").unwrap_or_else(|_| "unknown".to_string());
+
+    // Prefer RSA JWT — compatible with ClaimsLayer verification
+    if env::var("JWT_PRIVATE_KEY_PEM").is_ok() {
+        return mint_rsa_service_jwt(&service_name);
+    }
+
+    // Fallback to HMAC (legacy, not compatible with ClaimsLayer)
     generate_service_token(&service_name, None)
 }
 
