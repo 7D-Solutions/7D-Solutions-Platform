@@ -282,13 +282,16 @@ where
         Box::pin(async move {
             match req.extensions().get::<VerifiedClaims>() {
                 Some(claims) => {
+                    // Service-to-service calls bypass permission checks
+                    let is_service = claims.perms.iter().any(|p| p == "service.internal");
+
                     let missing: Vec<&str> = required
                         .iter()
                         .filter(|p| !claims.perms.contains(p))
                         .map(|s| s.as_str())
                         .collect();
 
-                    if !missing.is_empty() {
+                    if !missing.is_empty() && !is_service {
                         let path = req.uri().path().to_string();
                         security_event(
                             Some(claims.tenant_id),

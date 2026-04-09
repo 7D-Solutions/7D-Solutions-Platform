@@ -72,7 +72,7 @@ Shared crates used by services. Not independently deployed.
 | platform-contracts | platform_contracts | 1.0.1 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | platform-sdk | platform-sdk | 0.1.0 | Module startup SDK — manifest parser, builder, and HTTP runtime for 7D platform services |  |
 | projections | projections | 1.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap | [Revisions](platform/projections/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| security | security | 1.3.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
+| security | security | 1.3.1 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
 | tax-core | tax-core | 1.0.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
 | tenant-registry | tenant-registry | 1.1.1 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
 
