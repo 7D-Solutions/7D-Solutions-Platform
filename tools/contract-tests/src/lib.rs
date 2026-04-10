@@ -109,6 +109,42 @@ pub fn validate_openapi_spec(path: &Path) -> Result<Value, ContractError> {
     Ok(spec)
 }
 
+/// Parse and validate an OpenAPI JSON file
+pub fn validate_openapi_spec_json(path: &Path) -> Result<Value, ContractError> {
+    let contents = fs::read_to_string(path)?;
+    let spec: Value = serde_json::from_str(&contents)?;
+    Ok(spec)
+}
+
+/// Check that no schema in an OpenAPI spec is an empty object `{}`
+pub fn check_no_empty_schemas(spec: &Value, spec_name: &str) -> Result<(), ContractError> {
+    let schemas = spec
+        .get("components")
+        .and_then(|c| c.get("schemas"))
+        .and_then(|s| s.as_object());
+
+    if let Some(schemas) = schemas {
+        let empty: Vec<&str> = schemas
+            .iter()
+            .filter(|(_, v)| {
+                v.as_object()
+                    .map(|o| o.is_empty())
+                    .unwrap_or(false)
+            })
+            .map(|(k, _)| k.as_str())
+            .collect();
+
+        if !empty.is_empty() {
+            return Err(ContractError::ValidationError(format!(
+                "OpenAPI spec '{}' has empty schemas: {:?}",
+                spec_name, empty
+            )));
+        }
+    }
+
+    Ok(())
+}
+
 /// Check that required paths exist in an OpenAPI spec
 pub fn check_required_paths(
     spec: &Value,

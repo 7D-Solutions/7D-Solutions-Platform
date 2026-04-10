@@ -167,6 +167,9 @@ else
   if ! command -v k6 &>/dev/null; then
     log_fail "k6 not found in PATH — install k6 or run with --skip-perf"
     record_gate "Perf smoke (k6)" "FAIL"
+  elif [[ -z "${PERF_AUTH_TOKEN:-}" && ( -z "${PERF_AUTH_EMAIL:-}" || -z "${PERF_AUTH_PASSWORD:-}" ) ]]; then
+    echo "  (skipped — no auth credentials; set PERF_AUTH_EMAIL/PASSWORD or PERF_AUTH_TOKEN to enable)"
+    record_gate "Perf smoke (k6)" "SKIPPED"
   else
     log_step "k6 smoke scenario"
     PERF_ENV_VAL="local"

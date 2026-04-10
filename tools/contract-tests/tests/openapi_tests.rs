@@ -363,3 +363,156 @@ fn test_pdf_editor_openapi_spec_valid() {
 
     println!("✓ PDF Editor spec contains all required paths");
 }
+
+#[test]
+fn test_ap_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("ap/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path).expect("Failed to parse AP OpenAPI spec");
+
+    println!("✓ AP OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 3, "ap/openapi.json");
+
+    let required_paths = vec![
+        "/api/ap/vendors",
+        "/api/ap/vendors/{vendor_id}",
+        "/api/ap/vendors/{vendor_id}/deactivate",
+        "/api/ap/pos",
+        "/api/ap/pos/{po_id}",
+        "/api/ap/pos/{po_id}/approve",
+        "/api/ap/bills",
+        "/api/ap/bills/{bill_id}",
+        "/api/ap/bills/{bill_id}/approve",
+        "/api/ap/bills/{bill_id}/void",
+        "/api/ap/payment-runs",
+        "/api/ap/payment-runs/{run_id}",
+        "/api/ap/payment-terms",
+        "/api/ap/aging",
+    ];
+
+    check_required_paths(&spec, &required_paths, "ap/openapi.json")
+        .expect("AP spec missing required paths");
+
+    check_no_empty_schemas(&spec, "ap/openapi.json").expect("AP spec has empty schemas");
+
+    println!("✓ AP spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_bom_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("bom/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path).expect("Failed to parse BOM OpenAPI spec");
+
+    println!("✓ BOM OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "bom/openapi.json");
+
+    let required_paths = vec![
+        "/api/bom",
+        "/api/bom/{bom_id}",
+        "/api/eco",
+        "/api/eco/{eco_id}",
+        "/api/eco/{eco_id}/submit",
+        "/api/eco/{eco_id}/approve",
+        "/api/eco/{eco_id}/reject",
+        "/api/eco/{eco_id}/apply",
+    ];
+
+    check_required_paths(&spec, &required_paths, "bom/openapi.json")
+        .expect("BOM spec missing required paths");
+
+    check_no_empty_schemas(&spec, "bom/openapi.json").expect("BOM spec has empty schemas");
+
+    println!("✓ BOM spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_production_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("production/openapi.json");
+
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Production OpenAPI spec");
+
+    println!("✓ Production OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "production/openapi.json");
+
+    let required_paths = vec![
+        "/api/production/workcenters",
+        "/api/production/workcenters/{id}",
+        "/api/production/work-orders",
+        "/api/production/work-orders/{id}",
+        "/api/production/work-orders/{id}/release",
+        "/api/production/work-orders/{id}/close",
+        "/api/production/routings",
+        "/api/production/routings/{id}",
+        "/api/production/time-entries/start",
+        "/api/production/workcenters/{id}/downtime/start",
+    ];
+
+    check_required_paths(&spec, &required_paths, "production/openapi.json")
+        .expect("Production spec missing required paths");
+
+    check_no_empty_schemas(&spec, "production/openapi.json")
+        .expect("Production spec has empty schemas");
+
+    println!("✓ Production spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_integrations_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("integrations/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Integrations OpenAPI spec");
+
+    println!("✓ Integrations OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "integrations/openapi.json");
+
+    let required_paths = vec![
+        "/api/integrations/external-refs",
+        "/api/integrations/external-refs/{id}",
+        "/api/integrations/connectors/types",
+        "/api/integrations/connectors",
+        "/api/integrations/connectors/{id}",
+        "/api/webhooks/inbound/{system}",
+        "/api/integrations/oauth/connect/{provider}",
+        "/api/integrations/oauth/status/{provider}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "integrations/openapi.json")
+        .expect("Integrations spec missing required paths");
+
+    check_no_empty_schemas(&spec, "integrations/openapi.json")
+        .expect("Integrations spec has empty schemas");
+
+    println!("✓ Integrations spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_shipping_receiving_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("shipping-receiving/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Shipping & Receiving OpenAPI spec");
+
+    println!("✓ Shipping & Receiving OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 3, "shipping-receiving/openapi.json");
+
+    let required_paths = vec![
+        "/api/shipping-receiving/shipments",
+        "/api/shipping-receiving/shipments/{id}",
+        "/api/shipping-receiving/shipments/{id}/lines",
+        "/api/shipping-receiving/shipments/{id}/close",
+        "/api/shipping-receiving/shipments/{id}/ship",
+        "/api/shipping-receiving/po/{po_id}/shipments",
+        "/api/shipping-receiving/shipments/{id}/routings",
+    ];
+
+    check_required_paths(&spec, &required_paths, "shipping-receiving/openapi.json")
+        .expect("Shipping & Receiving spec missing required paths");
+
+    check_no_empty_schemas(&spec, "shipping-receiving/openapi.json")
+        .expect("Shipping & Receiving spec has empty schemas");
+
+    println!("✓ Shipping & Receiving spec contains all required paths with no empty schemas");
+}

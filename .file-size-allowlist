@@ -77,3 +77,7 @@ modules/quality-inspection/src/domain/inspection_service.rs  # 554 LOC — inspe
 
 # Production module — cohesive concern (bd-mm0z8)
 modules/production/src/events/mod.rs  # 705 LOC — event payloads + envelope builders (one repeating pattern, single concern)
+
+# Shipping-Receiving carrier providers — third-party API integrations (bd-9zrdo)
+modules/shipping-receiving/src/domain/carrier_providers/ups.rs    # 1012 LOC — UPS REST API client (one provider, all rate/shipment/tracking calls)
+modules/shipping-receiving/src/domain/carrier_providers/fedex.rs  # 1164 LOC — FedEx REST API client (one provider, all rate/shipment/tracking calls)

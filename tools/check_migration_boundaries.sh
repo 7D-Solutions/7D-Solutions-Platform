@@ -58,8 +58,12 @@ for i in "${!MODULE_NAMES[@]}"; do
     current_mod="${MODULE_NAMES[$i]}"
     current_dir="${MODULE_DIRS[$i]}"
 
-    # Build a list of forbidden table names: all tables from OTHER modules
+    # Build a list of forbidden table names: tables from OTHER modules that
+    # this module does NOT also own. A table defined in both module A and
+    # module B is a per-module copy (e.g. items, work_orders created
+    # independently in each service DB) — not a cross-module reference.
     forbidden_tables=()
+    current_tables=" ${MODULE_TABLES[$current_mod]} "
     for j in "${!MODULE_NAMES[@]}"; do
         if [ "$i" = "$j" ]; then
             continue
@@ -73,9 +77,15 @@ for i in "${!MODULE_NAMES[@]}"; do
                     break
                 fi
             done
-            if [ "$is_shared" = false ]; then
-                forbidden_tables+=("$table")
+            if [ "$is_shared" = true ]; then
+                continue
             fi
+            # Skip tables that the current module ALSO defines — these are
+            # per-service copies of the same entity, not cross-module FKs.
+            if [[ "$current_tables" == *" $table "* ]]; then
+                continue
+            fi
+            forbidden_tables+=("$table")
         done
     done
 

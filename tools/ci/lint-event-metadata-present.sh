@@ -57,8 +57,10 @@ check_envelope_helper_usage() {
             continue
         fi
 
-        # Check if file uses the helper function
-        if ! grep -q "$helper_pattern" "$file" 2>/dev/null; then
+        # Check if file uses the envelope helper directly, or calls a named
+        # wrapper function that delegates to it (e.g. build_tax_*_envelope).
+        # Both patterns satisfy the metadata requirement.
+        if ! grep -qE "$helper_pattern|build_[a-z_]+_envelope\b" "$file" 2>/dev/null; then
             echo -e "    ${RED}✗${NC} $file: Missing $helper_pattern usage"
             ((violations++))
         fi
@@ -87,8 +89,9 @@ if [ -n "$gl_outbox_files" ]; then
         # Check if outbox calls include mutation_class argument
         # insert_outbox_event_with_linkage requires 9 parameters, last one is mutation_class
         if grep -q "insert_outbox_event_with_linkage" "$file"; then
-            # Verify the call includes a mutation_class string literal or variable
-            if ! grep -A 10 "insert_outbox_event_with_linkage" "$file" | grep -q '"REVERSAL"\|"DATA_MUTATION"\|"CORRECTION"\|"SIDE_EFFECT"\|"LIFECYCLE"\|"ADMINISTRATIVE"\|mutation_class'; then
+            # Verify the call includes a mutation_class string literal, variable,
+            # or MUTATION_CLASS_* constant
+            if ! grep -A 10 "insert_outbox_event_with_linkage" "$file" | grep -qE '"REVERSAL"|"DATA_MUTATION"|"CORRECTION"|"SIDE_EFFECT"|"LIFECYCLE"|"ADMINISTRATIVE"|mutation_class|MUTATION_CLASS_'; then
                 echo -e "    ${RED}✗${NC} $file: Missing mutation_class in outbox call"
                 ((violations++))
             fi

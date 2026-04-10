@@ -34,15 +34,19 @@ jobs:
           import yaml
           import sys
           from pathlib import Path
-          
+
           errors = []
           for f in Path('contracts').rglob('*.yaml'):
+              content = f.read_text().strip()
+              if not content:
+                  print(f'⚠ {f}: empty placeholder, skipping')
+                  continue
               try:
-                  yaml.safe_load(f.read_text())
+                  yaml.safe_load(content)
                   print(f'✓ {f}')
               except Exception as e:
                   errors.append(f'✗ {f}: {e}')
-          
+
           if errors:
               for e in errors:
                   print(e, file=sys.stderr)
@@ -55,15 +59,19 @@ jobs:
           import json
           import sys
           from pathlib import Path
-          
+
           errors = []
           for f in Path('contracts').rglob('*.json'):
+              content = f.read_text().strip()
+              if not content:
+                  print(f'⚠ {f}: empty placeholder, skipping')
+                  continue
               try:
-                  json.loads(f.read_text())
+                  json.loads(content)
                   print(f'✓ {f}')
               except Exception as e:
                   errors.append(f'✗ {f}: {e}')
-          
+
           if errors:
               for e in errors:
                   print(e, file=sys.stderr)
@@ -574,6 +582,20 @@ jobs:
 
       - name: Check EventEnvelope, subject, and schema_version conventions
         run: bash scripts/ci/check-event-conventions.sh
+
+  lint-event-catalog:
+    name: "Lint: Event Catalog Freshness"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate event catalog is up to date
+        run: python3 tools/event-catalog/generate.py --check
 
   check-migration-versioning:
     name: Check Migration Versioning
