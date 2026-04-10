@@ -22,6 +22,8 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.4.1 | 2026-04-10 | bd-e5yna | Generate contracts/bom/openapi.json from openapi_dump binary. All BOM and ECO endpoints documented with typed schemas, no empty schemas. Add contract-tests validation. | OpenAPI contracts batch 1 — blocks TypeScript SDK codegen and API discovery. | No |
+| 2.4.0 | 2026-04-10 | bd-7lb9x | Add `?include=item_details` query param to `GET /api/bom/revisions/{id}/lines`. When present, each BomLine is enriched with an embedded `item` object (sku, name, description, unit_cost_minor from standard-cost config). Unresolvable component_item_id returns `item: null`. Add InventoryClient (Platform/Http/Direct modes). Add BomLineEnriched and ItemDetails types to client crate. | Manufacturing cost rollup requires per-line item cost; planned cost rollup uses standard_cost_minor. | No |
 | 2.3.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |
 | 2.2.8 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 2.2.7 | 2026-04-02 | bd-5d6ae | Remove unused reqwest::Client field from NumberingClient Mode::Http. Drop reqwest dependency. All HTTP calls already use PlatformClient via generated numbering client. | Dead code hygiene — reqwest was stored but never used after typed client conversion (bd-8ls7t). | No |

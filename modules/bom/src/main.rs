@@ -10,9 +10,9 @@ use bom_rs::{
             EcoBomRevision, EcoDocRevision, LinkBomRevisionRequest, LinkDocRevisionRequest,
         },
         models::{
-            AddLineRequest, BomHeader, BomLine, BomRevision, CreateBomRequest,
-            CreateRevisionRequest, ExplosionRow, SetEffectivityRequest, UpdateLineRequest,
-            WhereUsedRow,
+            AddLineRequest, BomHeader, BomLine, BomLineEnriched, BomRevision, CreateBomRequest,
+            CreateRevisionRequest, ExplosionRow, ItemDetails, SetEffectivityRequest,
+            UpdateLineRequest, WhereUsedRow,
         },
     },
     http::{
@@ -28,7 +28,7 @@ use bom_rs::{
         },
     },
     metrics::BomMetrics,
-    AppState, NumberingClient,
+    AppState, InventoryClient, NumberingClient,
 };
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 use platform_sdk::ModuleBuilder;
@@ -66,6 +66,7 @@ use platform_sdk::ModuleBuilder;
         // Explosion + Where-Used
         bom_rs::http::bom_routes::get_explosion,
         bom_rs::http::bom_routes::get_where_used,
+
         // ECO
         bom_rs::http::eco_routes::post_eco,
         bom_rs::http::eco_routes::get_eco,
@@ -83,7 +84,7 @@ use platform_sdk::ModuleBuilder;
         bom_rs::http::eco_routes::get_doc_revision_links,
     ),
     components(schemas(
-        BomHeader, BomRevision, BomLine, ExplosionRow, WhereUsedRow,
+        BomHeader, BomRevision, BomLine, BomLineEnriched, ItemDetails, ExplosionRow, WhereUsedRow,
         CreateBomRequest, CreateRevisionRequest, SetEffectivityRequest,
         AddLineRequest, UpdateLineRequest,
         Eco, EcoAuditEntry, EcoBomRevision, EcoDocRevision,
@@ -131,10 +132,12 @@ async fn main() {
         .routes(|ctx| {
             let metrics = Arc::new(BomMetrics::new().expect("Failed to create metrics registry"));
             let numbering = ctx.platform_client::<NumberingClient>();
+            let inventory = ctx.platform_client::<InventoryClient>();
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics,
                 numbering,
+                inventory,
             });
 
             let bom_mutations = Router::new()

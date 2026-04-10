@@ -15,6 +15,13 @@ use crate::domain::guards::GuardError;
 use crate::domain::models::*;
 use crate::AppState;
 
+fn paginate_enriched(items: Vec<BomLineEnriched>, pq: &LinesQuery) -> PaginatedResponse<BomLineEnriched> {
+    let total = items.len() as i64;
+    let start = ((pq.page - 1) * pq.page_size) as usize;
+    let data: Vec<BomLineEnriched> = items.into_iter().skip(start).take(pq.page_size as usize).collect();
+    PaginatedResponse::new(data, pq.page, pq.page_size, total)
+}
+
 // ============================================================================
 // Error mapping → ApiError
 // ============================================================================
@@ -366,9 +373,9 @@ pub async fn delete_line(
     get,
     path = "/api/bom/revisions/{revision_id}/lines",
     tag = "BOM Lines",
-    params(("revision_id" = Uuid, Path, description = "Revision ID"), PaginationQuery),
+    params(("revision_id" = Uuid, Path, description = "Revision ID"), LinesQuery),
     responses(
-        (status = 200, description = "Paginated list of BOM lines", body = PaginatedResponse<BomLine>),
+        (status = 200, description = "Paginated list of BOM lines (bare or enriched)", body = PaginatedResponse<BomLine>),
         (status = 404, description = "Revision not found", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -377,13 +384,41 @@ pub async fn get_lines(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(revision_id): Path<Uuid>,
-    Query(pq): Query<PaginationQuery>,
-) -> Result<Json<PaginatedResponse<BomLine>>, ApiError> {
-    let tenant_id = extract_tenant(&claims)?;
-    let all = bom_service::list_lines(&state.pool, &tenant_id, revision_id)
+    Query(q): Query<LinesQuery>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    let include_items = q.include.as_deref() == Some("item_details");
+
+    if include_items {
+        let verified = match claims.as_ref().map(|e| &e.0) {
+            Some(c) => c,
+            None => return ApiError::unauthorized("Authentication required").into_response(),
+        };
+        match bom_service::list_lines_enriched(
+            &state.pool,
+            &tenant_id,
+            revision_id,
+            &state.inventory,
+            verified,
+        )
         .await
-        .map_err(into_api_error)?;
-    Ok(Json(paginate(all, &pq)))
+        {
+            Ok(all) => Json(paginate_enriched(all, &q)).into_response(),
+            Err(e) => into_api_error(e).into_response(),
+        }
+    } else {
+        match bom_service::list_lines(&state.pool, &tenant_id, revision_id).await {
+            Ok(all) => {
+                let pq = PaginationQuery { page: q.page, page_size: q.page_size };
+                Json(paginate(all, &pq)).into_response()
+            }
+            Err(e) => into_api_error(e).into_response(),
+        }
+    }
 }
 
 // ============================================================================

@@ -130,3 +130,45 @@ pub struct PaginationQuery {
     #[serde(default = "default_page_size")]
     pub page_size: i64,
 }
+
+/// Resolved item details embedded in a BOM line when `?include=item_details` is requested.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ItemDetails {
+    pub item_id: Uuid,
+    pub sku: String,
+    pub name: String,
+    pub description: Option<String>,
+    /// Standard or last-known unit cost in minor currency units (e.g. cents).
+    /// `None` when the inventory service does not expose a cost for this item.
+    pub unit_cost_minor: Option<i64>,
+}
+
+/// BOM line with optional embedded item details (returned when `?include=item_details`).
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct BomLineEnriched {
+    pub id: Uuid,
+    pub revision_id: Uuid,
+    pub tenant_id: String,
+    pub component_item_id: Uuid,
+    pub quantity: f64,
+    pub uom: Option<String>,
+    pub scrap_factor: Option<f64>,
+    pub find_number: Option<i32>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    /// Resolved item details. `None` when the part_id does not resolve in inventory.
+    pub item: Option<ItemDetails>,
+}
+
+/// Query parameters for the `GET /api/bom/revisions/{revision_id}/lines` endpoint.
+///
+/// Extends pagination with an optional `include` flag.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct LinesQuery {
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
+    /// Pass `item_details` to embed resolved inventory item data in each line.
+    pub include: Option<String>,
+}

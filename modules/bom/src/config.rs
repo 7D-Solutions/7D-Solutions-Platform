@@ -4,6 +4,7 @@ use std::env;
 pub struct Config {
     pub database_url: String,
     pub numbering_url: String,
+    pub inventory_url: String,
     pub host: String,
     pub port: u16,
     pub env: String,
@@ -53,6 +54,9 @@ impl Config {
         let numbering_url =
             env::var("NUMBERING_URL").unwrap_or_else(|_| "http://7d-numbering:8080".to_string());
 
+        let inventory_url =
+            env::var("INVENTORY_URL").unwrap_or_else(|_| "http://7d-inventory:8081".to_string());
+
         let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
 
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
@@ -78,6 +82,7 @@ impl Config {
         Ok(Config {
             database_url,
             numbering_url,
+            inventory_url,
             host,
             port,
             env: env_name,

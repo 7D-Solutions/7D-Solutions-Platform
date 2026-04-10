@@ -2,9 +2,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::guards::{guard_positive_quantity, guard_scrap_factor, GuardError};
+use crate::domain::inventory_client::InventoryClient;
 use crate::domain::models::*;
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, BomEventType};
+use platform_sdk::VerifiedClaims;
 
 use super::headers::get_revision;
 use super::BomError;
@@ -215,6 +217,41 @@ pub async fn list_lines(
     .fetch_all(pool)
     .await?;
     Ok(rows)
+}
+
+/// List BOM lines with embedded inventory item details.
+///
+/// For each line, fetches the corresponding item from the inventory service.
+/// Unresolvable `component_item_id` values produce `item: null` — never an error.
+pub async fn list_lines_enriched(
+    pool: &PgPool,
+    tenant_id: &str,
+    revision_id: Uuid,
+    inventory: &InventoryClient,
+    claims: &VerifiedClaims,
+) -> Result<Vec<BomLineEnriched>, BomError> {
+    let lines = list_lines(pool, tenant_id, revision_id).await?;
+
+    let mut enriched = Vec::with_capacity(lines.len());
+    for line in lines {
+        let item = inventory
+            .fetch_item_details(claims, tenant_id, line.component_item_id)
+            .await?;
+        enriched.push(BomLineEnriched {
+            id: line.id,
+            revision_id: line.revision_id,
+            tenant_id: line.tenant_id.clone(),
+            component_item_id: line.component_item_id,
+            quantity: line.quantity,
+            uom: line.uom.clone(),
+            scrap_factor: line.scrap_factor,
+            find_number: line.find_number,
+            created_at: line.created_at,
+            updated_at: line.updated_at,
+            item,
+        });
+    }
+    Ok(enriched)
 }
 
 async fn fetch_line(pool: &PgPool, line_id: Uuid, tenant_id: &str) -> Result<BomLine, BomError> {
