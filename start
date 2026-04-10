@@ -112,10 +112,10 @@ if [ -f "./scripts/disk-space-monitor.sh" ]; then
     ./scripts/disk-space-monitor.sh start
 fi
 
-# Index project with fsfs for semantic codebase search (background, non-blocking)
+# Start fsfs serve daemon for semantic codebase search (idempotent: fails silently if already running)
 if command -v fsfs &>/dev/null; then
-    echo "🔍 Indexing project with fsfs..."
-    fsfs index . >/dev/null 2>&1 &
+    echo "🔍 Starting fsfs serve daemon..."
+    fsfs serve --daemon >/dev/null 2>&1 || true
 fi
 
 # Run UBS baseline bug scan on all active projects (background, non-blocking)

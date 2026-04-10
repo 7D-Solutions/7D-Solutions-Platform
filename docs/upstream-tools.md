@@ -430,14 +430,14 @@ Every feature, fix, and change we'd pull in by upgrading.
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/frankensearch |
-| Current | 1.1.7 (upgraded 2026-03-29) |
-| Latest | 1.1.7 |
+| Current | 1.2.5 (upgraded 2026-04-10) |
+| Latest | 1.2.5 |
 | Binary | ~/.local/bin/fsfs |
-| Backup | ~/.local/bin/fsfs-upstream-0.1.0 |
+| Backup | ~/.local/bin/fsfs-1.1.7 (auto-created by fsfs update) |
 | Patched? | No — stock binary |
-| Status | **Current** — upgraded 2026-03-29 |
+| Status | **Current** — upgraded 2026-04-10 |
 
-### fsfs Upstream Changelog: v0.1.0 → v1.1.7
+### fsfs Upstream Changelog: v0.1.0 → v1.2.5
 
 #### v1.0.0 (2026-02-21) — First stable release
 
