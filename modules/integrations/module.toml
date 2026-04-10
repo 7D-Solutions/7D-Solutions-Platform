@@ -15,7 +15,7 @@ auto_migrate = true
 type = "nats"
 
 [events.publish]
-outbox_table = "events_outbox"
+outbox_table = "integrations_outbox"
 
 [sdk]
 min_version = "0.1.0"
