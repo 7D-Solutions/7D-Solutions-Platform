@@ -21,7 +21,7 @@ use axum::{
 use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
@@ -65,13 +65,6 @@ fn actor_from_headers(headers: &HeaderMap) -> String {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("system")
         .to_string()
-}
-
-/// Simple wrapper for sub-collection list endpoints that don't need
-/// full pagination (contacts per party, addresses per party, etc.).
-#[derive(Debug, Serialize, ToSchema)]
-pub struct DataResponse<T: Serialize + ToSchema> {
-    pub data: Vec<T>,
 }
 
 // ============================================================================

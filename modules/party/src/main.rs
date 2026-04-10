@@ -10,7 +10,7 @@ use party_rs::domain::party::{
     CreateCompanyRequest, CreateIndividualRequest, ExternalRef, Party, PartyCompany,
     PartyIndividual, PartyView, SearchQuery, UpdatePartyRequest,
 };
-use party_rs::http::party::{DataResponse, ListPartiesQuery};
+use party_rs::http::party::ListPartiesQuery;
 use party_rs::{http, metrics, AppState};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 use platform_sdk::ModuleBuilder;
@@ -63,8 +63,7 @@ use platform_sdk::ModuleBuilder;
         // Address types
         Address, CreateAddressRequest, UpdateAddressRequest,
         // Shared envelopes
-        ApiError, PaginatedResponse<Party>, PaginationMeta,
-        DataResponse<Contact>, DataResponse<Address>, DataResponse<PrimaryContactEntry>,
+        ApiError, PaginatedResponse<Party>, PaginatedResponse<PrimaryContactEntry>, PaginationMeta,
     )),
     security(
         ("bearer" = [])

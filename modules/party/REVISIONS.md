@@ -23,6 +23,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.2.5 | 2026-04-10 | bd-1vq9e | Standardize Party response types: contacts uses PaginatedResponse<PrimaryContactEntry>, removed DataResponse<T>. OpenAPI registrations updated. | Plug-and-play response standardization — consistent paginated envelopes for client codegen | No |
 | 3.2.4 | 2026-04-04 | bd-4rg59 | SoC: extract service_tests.rs from party/service.rs | Test isolation from domain service | No |
 | 3.2.3 | 2026-04-04 | bd-4rg59 | SoC: address_repo refinements | Repo cleanup | No |
 | 3.2.2 | 2026-04-04 | bd-4rg59 | Repo module refinements: contact, contact_role, credit_terms repos | Separation of concerns cleanup | No |

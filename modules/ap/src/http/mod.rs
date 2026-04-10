@@ -86,6 +86,8 @@ use utoipa::OpenApi;
         crate::domain::r#match::RunMatchRequest,
         crate::domain::r#match::MatchOutcome,
         // Allocations
+        crate::domain::allocations::AllocationRecord,
+        crate::domain::allocations::BillBalanceSummary,
         crate::domain::allocations::CreateAllocationRequest,
         // Payment Terms
         crate::domain::payment_terms::PaymentTerms,
@@ -94,6 +96,14 @@ use utoipa::OpenApi;
         crate::domain::payment_terms::AssignTermsRequest,
         // Payment Runs
         payment_runs::CreatePaymentRunBody,
+        payment_runs::PaymentRunItem,
+        payment_runs::PaymentRunResponse,
+        payment_runs::ExecutionEntry,
+        payment_runs::ExecuteRunResponse,
+        // Reports
+        crate::domain::reports::aging::AgingReport,
+        crate::domain::reports::aging::CurrencyBucket,
+        crate::domain::reports::aging::VendorBucket,
         // Tax
         crate::domain::tax::ApTaxSnapshot,
         tax_reports::ApTaxReportResponse,

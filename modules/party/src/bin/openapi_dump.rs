@@ -14,7 +14,7 @@ use party_rs::domain::party::{
     CreateCompanyRequest, CreateIndividualRequest, ExternalRef, Party, PartyCompany,
     PartyIndividual, PartyView, SearchQuery, UpdatePartyRequest,
 };
-use party_rs::http::party::{DataResponse, ListPartiesQuery};
+use party_rs::http::party::ListPartiesQuery;
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 
 #[derive(OpenApi)]
@@ -58,8 +58,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         Contact, CreateContactRequest, UpdateContactRequest,
         SetPrimaryRequest, PrimaryContactEntry,
         Address, CreateAddressRequest, UpdateAddressRequest,
-        ApiError, PaginatedResponse<Party>, PaginationMeta,
-        DataResponse<Contact>, DataResponse<Address>, DataResponse<PrimaryContactEntry>,
+        ApiError, PaginatedResponse<Party>, PaginatedResponse<PrimaryContactEntry>, PaginationMeta,
     )),
     security(
         ("bearer" = [])

@@ -12,9 +12,9 @@ use chrono::{DateTime, Utc};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::payment_runs::{
@@ -28,7 +28,7 @@ use crate::AppState;
 // Request body
 // ============================================================================
 
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreatePaymentRunBody {
     pub run_id: Option<Uuid>,
     pub currency: String,
@@ -37,6 +37,58 @@ pub struct CreatePaymentRunBody {
     pub created_by: String,
     pub due_on_or_before: Option<DateTime<Utc>>,
     pub vendor_ids: Option<Vec<Uuid>>,
+}
+
+// ============================================================================
+// Response types
+// ============================================================================
+
+/// A vendor item within a payment run.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaymentRunItem {
+    pub id: i64,
+    pub vendor_id: Uuid,
+    pub bill_ids: Vec<Uuid>,
+    pub amount_minor: i64,
+    pub currency: String,
+}
+
+/// Response for create_run and get_run — payment run with its items.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaymentRunResponse {
+    pub run_id: Uuid,
+    pub tenant_id: String,
+    pub status: String,
+    pub total_minor: i64,
+    pub currency: String,
+    pub scheduled_date: DateTime<Utc>,
+    pub payment_method: String,
+    pub created_by: String,
+    pub created_at: DateTime<Utc>,
+    pub executed_at: Option<DateTime<Utc>>,
+    pub items: Vec<PaymentRunItem>,
+}
+
+/// A single vendor payment execution within a run.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ExecutionEntry {
+    pub id: i64,
+    pub item_id: i64,
+    pub payment_id: Uuid,
+    pub vendor_id: Uuid,
+    pub amount_minor: i64,
+    pub currency: String,
+    pub status: String,
+    pub executed_at: DateTime<Utc>,
+}
+
+/// Response for execute_run.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ExecuteRunResponse {
+    pub run_id: Uuid,
+    pub status: String,
+    pub executed_at: Option<DateTime<Utc>>,
+    pub executions: Vec<ExecutionEntry>,
 }
 
 // ============================================================================
@@ -49,7 +101,7 @@ pub struct CreatePaymentRunBody {
 /// Idempotent: supplying the same `run_id` returns the existing run (200 OK).
 #[utoipa::path(post, path = "/api/ap/payment-runs", tag = "Payment Runs",
     request_body = CreatePaymentRunBody,
-    responses((status = 201, description = "Run created", body = serde_json::Value)), security(("bearer" = [])))]
+    responses((status = 200, description = "Run created", body = PaymentRunResponse)), security(("bearer" = [])))]
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
@@ -76,33 +128,27 @@ pub async fn create_run(
 
     match create_payment_run(&state.pool, &tenant_id, &req).await {
         Ok(result) => {
-            let items: Vec<serde_json::Value> = result
-                .items
-                .iter()
-                .map(|item| {
-                    json!({
-                        "id": item.id,
-                        "vendor_id": item.vendor_id,
-                        "bill_ids": item.bill_ids,
-                        "amount_minor": item.amount_minor,
-                        "currency": item.currency,
-                    })
-                })
-                .collect();
-
-            Json(json!({
-                "run_id": result.run.run_id,
-                "tenant_id": result.run.tenant_id,
-                "status": result.run.status,
-                "total_minor": result.run.total_minor,
-                "currency": result.run.currency,
-                "scheduled_date": result.run.scheduled_date,
-                "payment_method": result.run.payment_method,
-                "created_by": result.run.created_by,
-                "created_at": result.run.created_at,
-                "items": items,
-            }))
-            .into_response()
+            let items = result.items.iter().map(|item| PaymentRunItem {
+                id: item.id,
+                vendor_id: item.vendor_id,
+                bill_ids: item.bill_ids.clone(),
+                amount_minor: item.amount_minor,
+                currency: item.currency.clone(),
+            }).collect();
+            let resp = PaymentRunResponse {
+                run_id: result.run.run_id,
+                tenant_id: result.run.tenant_id.clone(),
+                status: result.run.status.clone(),
+                total_minor: result.run.total_minor,
+                currency: result.run.currency.clone(),
+                scheduled_date: result.run.scheduled_date,
+                payment_method: result.run.payment_method.clone(),
+                created_by: result.run.created_by.clone(),
+                created_at: result.run.created_at,
+                executed_at: result.run.executed_at,
+                items,
+            };
+            Json(resp).into_response()
         }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
@@ -112,7 +158,7 @@ pub async fn create_run(
 ///
 /// Fetch a payment run and its items.
 #[utoipa::path(get, path = "/api/ap/payment-runs/{run_id}", tag = "Payment Runs",
-    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details", body = crate::domain::payment_runs::PaymentRun)),
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run details", body = PaymentRunResponse)),
     security(("bearer" = [])))]
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
@@ -157,7 +203,7 @@ pub async fn get_run(
         }
     };
 
-    let items: Vec<crate::domain::payment_runs::PaymentRunItemRow> = match sqlx::query_as(
+    let rows: Vec<crate::domain::payment_runs::PaymentRunItemRow> = match sqlx::query_as(
         r#"
         SELECT id, run_id, vendor_id, bill_ids, amount_minor, currency, created_at
         FROM payment_run_items
@@ -177,33 +223,28 @@ pub async fn get_run(
         }
     };
 
-    let items_json: Vec<serde_json::Value> = items
-        .iter()
-        .map(|item| {
-            json!({
-                "id": item.id,
-                "vendor_id": item.vendor_id,
-                "bill_ids": item.bill_ids,
-                "amount_minor": item.amount_minor,
-                "currency": item.currency,
-            })
-        })
-        .collect();
+    let items = rows.iter().map(|item| PaymentRunItem {
+        id: item.id,
+        vendor_id: item.vendor_id,
+        bill_ids: item.bill_ids.clone(),
+        amount_minor: item.amount_minor,
+        currency: item.currency.clone(),
+    }).collect();
 
-    Json(json!({
-        "run_id": run.run_id,
-        "tenant_id": run.tenant_id,
-        "status": run.status,
-        "total_minor": run.total_minor,
-        "currency": run.currency,
-        "scheduled_date": run.scheduled_date,
-        "payment_method": run.payment_method,
-        "created_by": run.created_by,
-        "created_at": run.created_at,
-        "executed_at": run.executed_at,
-        "items": items_json,
-    }))
-    .into_response()
+    let resp = PaymentRunResponse {
+        run_id: run.run_id,
+        tenant_id: run.tenant_id.clone(),
+        status: run.status.clone(),
+        total_minor: run.total_minor,
+        currency: run.currency.clone(),
+        scheduled_date: run.scheduled_date,
+        payment_method: run.payment_method.clone(),
+        created_by: run.created_by.clone(),
+        created_at: run.created_at,
+        executed_at: run.executed_at,
+        items,
+    };
+    Json(resp).into_response()
 }
 
 /// POST /api/ap/payment-runs/:run_id/execute
@@ -214,7 +255,7 @@ pub async fn get_run(
 /// Idempotent: calling this endpoint on an already-completed run returns the
 /// existing execution state with 200 OK.
 #[utoipa::path(post, path = "/api/ap/payment-runs/{run_id}/execute", tag = "Payment Runs",
-    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run executed", body = serde_json::Value)),
+    params(("run_id" = Uuid, Path)), responses((status = 200, description = "Run executed", body = ExecuteRunResponse)),
     security(("bearer" = [])))]
 pub async fn execute_run(
     State(state): State<Arc<AppState>>,
@@ -229,30 +270,23 @@ pub async fn execute_run(
 
     match execute_payment_run(&state.pool, &tenant_id, run_id).await {
         Ok(result) => {
-            let executions_json: Vec<serde_json::Value> = result
-                .executions
-                .iter()
-                .map(|e| {
-                    json!({
-                        "id": e.id,
-                        "item_id": e.item_id,
-                        "payment_id": e.payment_id,
-                        "vendor_id": e.vendor_id,
-                        "amount_minor": e.amount_minor,
-                        "currency": e.currency,
-                        "status": e.status,
-                        "executed_at": e.executed_at,
-                    })
-                })
-                .collect();
-
-            Json(json!({
-                "run_id": result.run.run_id,
-                "status": result.run.status,
-                "executed_at": result.run.executed_at,
-                "executions": executions_json,
-            }))
-            .into_response()
+            let executions = result.executions.iter().map(|e| ExecutionEntry {
+                id: e.id,
+                item_id: e.item_id,
+                payment_id: e.payment_id,
+                vendor_id: e.vendor_id,
+                amount_minor: e.amount_minor,
+                currency: e.currency.clone(),
+                status: e.status.clone(),
+                executed_at: e.executed_at,
+            }).collect();
+            let resp = ExecuteRunResponse {
+                run_id: result.run.run_id,
+                status: result.run.status.clone(),
+                executed_at: result.run.executed_at,
+                executions,
+            };
+            Json(resp).into_response()
         }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }

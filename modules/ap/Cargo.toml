@@ -1,6 +1,6 @@
 [package]
 name = "ap"
-version = "3.3.1"
+version = "3.3.2"
 edition = "2021"
 description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
 
@@ -36,6 +36,8 @@ prometheus = "0.13"
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 tax-core = { path = "../../platform/tax-core" }
+http-body-util = "0.1"
+security = { path = "../../platform/security" }
 
 [[bin]]
 name = "bench"

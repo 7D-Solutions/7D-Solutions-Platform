@@ -85,9 +85,14 @@ async fn migrations_apply_cleanly() {
 // ============================================================================
 // Test 2: Forward-fix rollback — drop all tables, re-apply cleanly
 // ============================================================================
+// NOTE: ignored because this test drops ALL AP tables (including _sqlx_migrations),
+// which destroys the schema for concurrently-running test binaries.
+// Run explicitly when testing rollback procedures:
+//   cargo test -p ap --test migration_safety_test -- --ignored
 
 #[tokio::test]
 #[serial]
+#[ignore]
 async fn forward_fix_rollback_and_reapply() {
     let pool = connect().await;
 

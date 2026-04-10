@@ -180,12 +180,18 @@ async fn failed_guard_leaves_no_outbox_event() {
     let tid = unique_tenant();
     let bogus_vendor_id = Uuid::new_v4(); // No such vendor
 
-    // Count outbox rows before the attempt
-    let before: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE aggregate_type = 'bill'")
-            .fetch_one(&pool)
-            .await
-            .expect("count before");
+    // Count outbox rows for this tenant before the attempt.
+    // Filter by payload->>'tenant_id' to isolate from concurrently-running test binaries
+    // that also write bill events but with different tenant IDs.
+    let before: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events_outbox \
+         WHERE aggregate_type = 'bill' \
+           AND payload->>'tenant_id' = $1",
+    )
+    .bind(&tid)
+    .fetch_one(&pool)
+    .await
+    .expect("count before");
 
     // Attempt to create a bill with a non-existent vendor — guard should reject
     let result = create_bill(
@@ -215,12 +221,16 @@ async fn failed_guard_leaves_no_outbox_event() {
 
     assert!(result.is_err(), "Bill creation with bogus vendor must fail");
 
-    // No new outbox rows should have been created
-    let after: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE aggregate_type = 'bill'")
-            .fetch_one(&pool)
-            .await
-            .expect("count after");
+    // No new outbox rows should have been created for this tenant
+    let after: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events_outbox \
+         WHERE aggregate_type = 'bill' \
+           AND payload->>'tenant_id' = $1",
+    )
+    .bind(&tid)
+    .fetch_one(&pool)
+    .await
+    .expect("count after");
 
     assert_eq!(
         before, after,

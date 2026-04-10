@@ -24,7 +24,7 @@ use uuid::Uuid;
 use platform_http_contracts::PaginatedResponse;
 
 use platform_sdk::extract_tenant;
-use super::party::{with_request_id, DataResponse};
+use super::party::with_request_id;
 use crate::domain::contact::{
     Contact, CreateContactRequest, PrimaryContactEntry, SetPrimaryRequest, UpdateContactRequest,
 };
@@ -258,7 +258,7 @@ pub async fn set_primary(
     tag = "Contacts",
     params(("party_id" = Uuid, Path, description = "Party ID")),
     responses(
-        (status = 200, description = "Primary contacts by role", body = DataResponse<PrimaryContactEntry>),
+        (status = 200, description = "Primary contacts by role", body = PaginatedResponse<PrimaryContactEntry>),
     ),
     security(("bearer" = [])),
 )]
@@ -274,7 +274,10 @@ pub async fn primary_contacts(
     };
 
     match contact_service::get_primary_contacts(&state.pool, &app_id, party_id).await {
-        Ok(entries) => Json(DataResponse { data: entries }).into_response(),
+        Ok(entries) => {
+            let total = entries.len() as i64;
+            Json(PaginatedResponse::new(entries, 1, total, total)).into_response()
+        }
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

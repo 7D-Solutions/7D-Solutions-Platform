@@ -75,12 +75,7 @@ pub async fn aging_report(
     let as_of = params.as_of.unwrap_or_else(|| Utc::now().date_naive());
 
     match compute_aging(&state.pool, &tenant_id, as_of, params.by_vendor).await {
-        Ok(report) => Json(serde_json::json!({
-            "as_of": report.as_of.to_string(),
-            "buckets_by_currency": report.buckets_by_currency,
-            "vendor_breakdown": report.vendor_breakdown,
-        }))
-        .into_response(),
+        Ok(report) => Json(report).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
