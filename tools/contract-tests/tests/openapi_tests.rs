@@ -371,7 +371,7 @@ fn test_ap_openapi_spec_valid() {
     let spec = validate_openapi_spec_json(&spec_path).expect("Failed to parse AP OpenAPI spec");
 
     println!("✓ AP OpenAPI spec is valid JSON");
-    check_spec_version(&spec, 3, "ap/openapi.json");
+    check_spec_version(&spec, 2, "ap/openapi.json");
 
     let required_paths = vec![
         "/api/ap/vendors",

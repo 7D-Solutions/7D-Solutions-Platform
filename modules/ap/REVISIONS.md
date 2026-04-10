@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.3.3 | 2026-04-10 | bd-e5yna | Generate contracts/ap/openapi.json from openapi_dump binary. All 24 endpoints documented with typed request/response schemas, no empty schemas. Add contract-tests validation. | OpenAPI contracts batch 1 — blocks TypeScript SDK codegen and API discovery for Fireproof vertical. | No |
 | 3.3.2 | 2026-04-10 | bd-1vq9e | Standardize AP response types: allocations, payment_runs, reports now return typed structs with OpenAPI schemas. 9 new ToSchema types registered. Bonus: migration_safety_test ignore attr, outbox_atomicity_test tenant isolation fix. | Plug-and-play response standardization — typed responses instead of raw JSON for OpenAPI codegen | No |
 | 3.3.1 | 2026-04-10 | bd-wocfs | Add tenant_id to all tax snapshot repo functions and thread through service layer and bill approval. Add 2 tenant isolation integration tests. | Cross-tenant data leakage prevention — tax snapshot SQL lacked tenant_id in WHERE clause | No |
 | 3.3.0 | 2026-04-09 | bd-q4kb8 | AP attachment consumer: bill_attachments migration (bill_id + attachment_id unique with IF NOT EXISTS on index), attachment_linked NATS consumer on docmgmt.attachment.created, links doc-mgmt attachments to vendor bills with idempotent upsert | AP needs to react to document uploads and link attachments to vendor bills for 3-way match workflows | No |

@@ -1,0 +1,1423 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Integrations Service",
+    "description": "External system connectors, webhook routing, OAuth connection management, and reference linking.\n\n**Authentication:** Bearer JWT. Tenant identity derived from JWT claims (not headers). Permissions: `integrations.read` for queries, `integrations.mutate` for writes.\n\n**Webhooks:** Inbound webhooks (Stripe, GitHub, QuickBooks) are unauthenticated and gated by HMAC-SHA256 signature verification.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.3.0"
+  },
+  "paths": {
+    "/api/integrations/connectors": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "GET /api/integrations/connectors — list this tenant's connector configs",
+        "operationId": "list_connectors",
+        "parameters": [
+          {
+            "name": "enabled_only",
+            "in": "query",
+            "description": "Filter to enabled connectors only",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of connector configs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ConnectorConfig"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "POST /api/integrations/connectors — register a connector config for this tenant",
+        "operationId": "register_connector",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterConnectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Connector registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorConfig"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid config or unknown type"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/connectors/types": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "GET /api/integrations/connectors/types — list all registered connector types and their capabilities",
+        "operationId": "list_connector_types",
+        "responses": {
+          "200": {
+            "description": "List of connector types",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ConnectorCapabilities"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/connectors/{id}": {
+      "get": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "GET /api/integrations/connectors/:id — fetch a single connector config",
+        "operationId": "get_connector",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connector config ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connector config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/connectors/{id}/test": {
+      "post": {
+        "tags": [
+          "Connectors"
+        ],
+        "summary": "POST /api/integrations/connectors/:id/test — run the connector's test action",
+        "operationId": "run_connector_test",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Connector config ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTestActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestActionResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "502": {
+            "description": "Action failed"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/external-refs": {
+      "post": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "create_external_ref",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExternalRefRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "External ref created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/external-refs/by-entity": {
+      "get": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "list_by_entity",
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "description": "Internal entity type",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "description": "Internal entity ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of external refs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_ExternalRef"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/external-refs/by-system": {
+      "get": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "get_by_external",
+        "parameters": [
+          {
+            "name": "system",
+            "in": "query",
+            "description": "External system name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "external_id",
+            "in": "query",
+            "description": "External ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "External ref found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/external-refs/{id}": {
+      "get": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "get_external_ref",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "External ref ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "External ref found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "update_external_ref",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "External ref ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExternalRefRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "External ref updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalRef"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "External Refs"
+        ],
+        "operationId": "delete_external_ref",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "External ref ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/oauth/callback/{provider}": {
+      "get": {
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "GET /api/integrations/oauth/callback/{provider}",
+        "description": "Handles the redirect from the provider after user authorization.\nExchanges the auth code for tokens and persists the connection.",
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "OAuth provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "description": "Authorization code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "realmId",
+            "in": "query",
+            "description": "QBO realm ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "State parameter (app_id)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Connection created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthConnectionInfo"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Token exchange failed"
+          }
+        }
+      }
+    },
+    "/api/integrations/oauth/connect/{provider}": {
+      "get": {
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "GET /api/integrations/oauth/connect/{provider}",
+        "description": "Redirects the user to the provider's authorization page.",
+        "operationId": "connect",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "OAuth provider (e.g. quickbooks)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to provider authorization page"
+          },
+          "422": {
+            "description": "Unsupported provider"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/oauth/disconnect/{provider}": {
+      "post": {
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "POST /api/integrations/oauth/disconnect/{provider}",
+        "description": "Marks the connection as disconnected.",
+        "operationId": "disconnect",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "OAuth provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthConnectionInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connection found"
+          },
+          "409": {
+            "description": "Already disconnected"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/oauth/status/{provider}": {
+      "get": {
+        "tags": [
+          "OAuth"
+        ],
+        "summary": "GET /api/integrations/oauth/status/{provider}",
+        "description": "Returns the connection status for the current tenant + provider.",
+        "operationId": "status",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "OAuth provider",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Connection status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthConnectionInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No connection found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/integrations/qbo/invoice/{invoice_id}/update": {
+      "post": {
+        "tags": [
+          "QBO Invoice"
+        ],
+        "operationId": "update_invoice",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "QBO invoice ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Invoice updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateInvoiceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields provided"
+          },
+          "404": {
+            "description": "Invoice or connection not found"
+          },
+          "409": {
+            "description": "Concurrent modification"
+          },
+          "412": {
+            "description": "QBO connection not active"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/webhooks/inbound/{system}": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "operationId": "inbound_webhook",
+        "parameters": [
+          {
+            "name": "system",
+            "in": "path",
+            "description": "Webhook source system (stripe, github, quickbooks, internal)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook accepted or duplicate",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed payload"
+          },
+          "401": {
+            "description": "Signature verification failed"
+          },
+          "404": {
+            "description": "Unknown webhook system"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ConfigField": {
+        "type": "object",
+        "description": "A single declared config field for a connector.",
+        "required": [
+          "key",
+          "label",
+          "field_type",
+          "required"
+        ],
+        "properties": {
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional default value (serialised as string)."
+          },
+          "field_type": {
+            "$ref": "#/components/schemas/ConfigFieldType",
+            "description": "Field data type hint for UIs."
+          },
+          "key": {
+            "type": "string",
+            "description": "Machine-readable field key."
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable label."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the field must be supplied."
+          }
+        }
+      },
+      "ConfigFieldType": {
+        "type": "string",
+        "description": "Supported config field types.",
+        "enum": [
+          "text",
+          "secret",
+          "url",
+          "boolean",
+          "integer"
+        ]
+      },
+      "ConnectionStatus": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "disconnected",
+          "needs_reauth"
+        ]
+      },
+      "ConnectorCapabilities": {
+        "type": "object",
+        "description": "What a given connector implementation supports.",
+        "required": [
+          "connector_type",
+          "description",
+          "supports_test_action",
+          "config_fields"
+        ],
+        "properties": {
+          "config_fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConfigField"
+            },
+            "description": "Declared config fields (used for config validation and UI rendering)."
+          },
+          "connector_type": {
+            "type": "string",
+            "description": "Connector kind identifier (e.g. `\"echo\"`, `\"http-push\"`)."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the connector."
+          },
+          "supports_test_action": {
+            "type": "boolean",
+            "description": "Whether this connector implements `run_test_action`."
+          }
+        }
+      },
+      "ConnectorConfig": {
+        "type": "object",
+        "description": "A persisted connector config row.",
+        "required": [
+          "id",
+          "app_id",
+          "connector_type",
+          "name",
+          "config",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "config": {},
+          "connector_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateExternalRefRequest": {
+        "type": "object",
+        "description": "Create a new external ref (or upsert if the same system+external_id exists).",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "system",
+          "external_id"
+        ],
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "description": "Internal entity ID (UUID or opaque string)."
+          },
+          "entity_type": {
+            "type": "string",
+            "description": "Internal entity type (e.g. \"invoice\", \"customer\", \"order\")."
+          },
+          "external_id": {
+            "type": "string",
+            "description": "The identifier in the external system."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional human-readable label."
+          },
+          "metadata": {
+            "description": "Optional arbitrary metadata."
+          },
+          "system": {
+            "type": "string",
+            "description": "External system name (e.g. \"stripe\", \"quickbooks\", \"salesforce\")."
+          }
+        }
+      },
+      "ExternalRef": {
+        "type": "object",
+        "description": "A single external ID mapping: internal entity ↔ external system identifier.",
+        "required": [
+          "id",
+          "app_id",
+          "entity_type",
+          "entity_id",
+          "system",
+          "external_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "app_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "entity_type": {
+            "type": "string"
+          },
+          "external_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {},
+          "system": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "OAuthConnectionInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "app_id",
+          "provider",
+          "realm_id",
+          "scopes_granted",
+          "connection_status",
+          "access_token_expires_at",
+          "refresh_token_expires_at",
+          "full_resync_required",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "access_token_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "app_id": {
+            "type": "string"
+          },
+          "cdc_watermark": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "connection_status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "full_resync_required": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_successful_refresh": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "realm_id": {
+            "type": "string"
+          },
+          "refresh_token_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scopes_granted": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PaginatedResponse_ConnectorCapabilities": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "What a given connector implementation supports.",
+              "required": [
+                "connector_type",
+                "description",
+                "supports_test_action",
+                "config_fields"
+              ],
+              "properties": {
+                "config_fields": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigField"
+                  },
+                  "description": "Declared config fields (used for config validation and UI rendering)."
+                },
+                "connector_type": {
+                  "type": "string",
+                  "description": "Connector kind identifier (e.g. `\"echo\"`, `\"http-push\"`)."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Human-readable description of the connector."
+                },
+                "supports_test_action": {
+                  "type": "boolean",
+                  "description": "Whether this connector implements `run_test_action`."
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_ConnectorConfig": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A persisted connector config row.",
+              "required": [
+                "id",
+                "app_id",
+                "connector_type",
+                "name",
+                "config",
+                "enabled",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "app_id": {
+                  "type": "string"
+                },
+                "config": {},
+                "connector_type": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_ExternalRef": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A single external ID mapping: internal entity ↔ external system identifier.",
+              "required": [
+                "id",
+                "app_id",
+                "entity_type",
+                "entity_id",
+                "system",
+                "external_id",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "app_id": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "entity_id": {
+                  "type": "string"
+                },
+                "entity_type": {
+                  "type": "string"
+                },
+                "external_id": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "metadata": {},
+                "system": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "RegisterConnectorRequest": {
+        "type": "object",
+        "description": "Request body for registering a connector.",
+        "required": [
+          "connector_type",
+          "name"
+        ],
+        "properties": {
+          "config": {
+            "description": "Connector-specific config. Validated by the connector's own schema."
+          },
+          "connector_type": {
+            "type": "string",
+            "description": "Connector type (must be a registered type, e.g. `\"echo\"`)."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name for this registration."
+          }
+        }
+      },
+      "RunTestActionRequest": {
+        "type": "object",
+        "description": "Request body for invoking the test action.",
+        "required": [
+          "idempotency_key"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Caller-supplied idempotency key."
+          }
+        }
+      },
+      "TestActionResult": {
+        "type": "object",
+        "description": "Outcome of a connector test action.",
+        "required": [
+          "connector_type",
+          "success",
+          "output",
+          "idempotency_key",
+          "executed_at"
+        ],
+        "properties": {
+          "connector_type": {
+            "type": "string",
+            "description": "Connector type that executed the action."
+          },
+          "executed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Wall-clock time when the action was executed."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "description": "Idempotency key echoed back from the caller."
+          },
+          "output": {
+            "description": "Connector-specific output payload."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the action succeeded."
+          }
+        }
+      },
+      "UpdateExternalRefRequest": {
+        "type": "object",
+        "description": "Update mutable fields on an existing external ref.",
+        "properties": {
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "UpdateInvoiceRequest": {
+        "type": "object",
+        "properties": {
+          "carrier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Carrier name (e.g., \"FedEx\", \"UPS\")"
+          },
+          "ship_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Ship date in YYYY-MM-DD format"
+          },
+          "tracking_num": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tracking number"
+          }
+        }
+      },
+      "UpdateInvoiceResponse": {
+        "type": "object",
+        "required": [
+          "invoice_id",
+          "sync_token"
+        ],
+        "properties": {
+          "carrier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "invoice_id": {
+            "type": "string"
+          },
+          "ship_date": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sync_token": {
+            "type": "string"
+          },
+          "tracking_num": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

@@ -1,0 +1,3444 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AP Service",
+    "description": "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/ap/aging": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "summary": "GET /api/ap/aging",
+        "description": "Returns AP aging bucket totals grouped by currency as of `as_of`.\nOptionally includes a per-vendor breakdown when `by_vendor=true`.\n\nOnly bills with status `approved` or `partially_paid` and a positive\nremaining open balance are included. Paid and voided bills are excluded.",
+        "operationId": "aging_report",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "description": "Aging reference date (YYYY-MM-DD). Defaults to today (UTC).",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "by_vendor",
+            "in": "query",
+            "description": "When `true`, include per-vendor breakdown in the response.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AP aging report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgingReport"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills": {
+      "get": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "list_bills",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "query",
+            "description": "Filter to a specific vendor",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "include_voided",
+            "in": "query",
+            "description": "Include voided bills (default: false)",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bill list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_VendorBill"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "create_bill",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Bill created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBillWithLines"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}": {
+      "get": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "get_bill",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bill details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBillWithLines"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/allocations": {
+      "get": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "GET /api/ap/bills/:bill_id/allocations",
+        "description": "List all allocations for a bill in insertion order.",
+        "operationId": "list_allocations",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Allocation list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_AllocationRecord"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "POST /api/ap/bills/:bill_id/allocations",
+        "description": "Apply a payment allocation to an approved or partially-paid bill.\nIdempotent: duplicate allocation_id returns the existing record (200 OK).",
+        "operationId": "create_allocation",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAllocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Allocation applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationRecord"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/approve": {
+      "post": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "approve_bill",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveBillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bill approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBill"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/assign-terms": {
+      "post": {
+        "tags": [
+          "Payment Terms"
+        ],
+        "operationId": "assign_terms",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Terms assigned",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/balance": {
+      "get": {
+        "tags": [
+          "Allocations"
+        ],
+        "summary": "GET /api/ap/bills/:bill_id/balance",
+        "description": "Return remaining open balance for a bill.",
+        "operationId": "get_balance",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bill balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillBalanceSummary"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/match": {
+      "post": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "match_bill",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Match result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchOutcome"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/tax-quote": {
+      "post": {
+        "tags": [
+          "Bills"
+        ],
+        "operationId": "quote_bill_tax",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tax quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApTaxSnapshot"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/bills/{bill_id}/void": {
+      "post": {
+        "tags": [
+          "Bills"
+        ],
+        "summary": "POST /api/ap/bills/:bill_id/void — void a bill (requires reason)",
+        "operationId": "void_bill",
+        "parameters": [
+          {
+            "name": "bill_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidBillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bill voided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VendorBill"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/payment-runs": {
+      "post": {
+        "tags": [
+          "Payment Runs"
+        ],
+        "summary": "POST /api/ap/payment-runs",
+        "description": "Create a payment run by selecting all eligible bills for the tenant.\nIdempotent: supplying the same `run_id` returns the existing run (200 OK).",
+        "operationId": "create_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentRunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRunResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/payment-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "Payment Runs"
+        ],
+        "summary": "GET /api/ap/payment-runs/:run_id",
+        "description": "Fetch a payment run and its items.",
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRunResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/payment-runs/{run_id}/execute": {
+      "post": {
+        "tags": [
+          "Payment Runs"
+        ],
+        "summary": "POST /api/ap/payment-runs/:run_id/execute",
+        "description": "Execute a payment run: submit payments to the disbursement layer,\nrecord allocations, mark bills paid, and emit `ap.payment_executed` events.\n\nIdempotent: calling this endpoint on an already-completed run returns the\nexisting execution state with 200 OK.",
+        "operationId": "execute_run",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run executed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteRunResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/payment-terms": {
+      "get": {
+        "tags": [
+          "Payment Terms"
+        ],
+        "operationId": "list_terms",
+        "responses": {
+          "200": {
+            "description": "Terms list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_PaymentTerms"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Payment Terms"
+        ],
+        "operationId": "create_terms",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Terms created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/payment-terms/{term_id}": {
+      "get": {
+        "tags": [
+          "Payment Terms"
+        ],
+        "operationId": "get_terms",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Terms details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Payment Terms"
+        ],
+        "operationId": "update_terms",
+        "parameters": [
+          {
+            "name": "term_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePaymentTermsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Terms updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentTerms"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/pos": {
+      "get": {
+        "tags": [
+          "Purchase Orders"
+        ],
+        "operationId": "list_pos",
+        "responses": {
+          "200": {
+            "description": "PO list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_PurchaseOrder"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Purchase Orders"
+        ],
+        "operationId": "create_po",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "PO created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/pos/{po_id}": {
+      "get": {
+        "tags": [
+          "Purchase Orders"
+        ],
+        "operationId": "get_po",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PO details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/pos/{po_id}/approve": {
+      "post": {
+        "tags": [
+          "Purchase Orders"
+        ],
+        "summary": "POST /api/ap/pos/:po_id/approve — approve a draft PO (idempotent)",
+        "description": "Transitions the PO from draft → approved and emits ap.po_approved.\nIf the PO is already approved, returns 200 with the current state (no re-emit).",
+        "operationId": "approve_po",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovePoRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "PO approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrder"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/pos/{po_id}/lines": {
+      "put": {
+        "tags": [
+          "Purchase Orders"
+        ],
+        "operationId": "update_po_lines",
+        "parameters": [
+          {
+            "name": "po_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePoLinesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Lines replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrderWithLines"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/tax/reports/export": {
+      "get": {
+        "tags": [
+          "Tax Reports"
+        ],
+        "operationId": "tax_report_export",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tax report export (JSON or CSV)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApTaxReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/tax/reports/summary": {
+      "get": {
+        "tags": [
+          "Tax Reports"
+        ],
+        "operationId": "tax_report_summary",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid-tax summary by period/jurisdiction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApTaxReportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/vendors": {
+      "get": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "list_vendors",
+        "responses": {
+          "200": {
+            "description": "Vendor list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Vendor"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "create_vendor",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVendorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Vendor created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/vendors/{vendor_id}": {
+      "get": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "get_vendor",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "description": "Vendor ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vendor details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "update_vendor",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "description": "Vendor ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVendorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Vendor updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Vendor"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/ap/vendors/{vendor_id}/deactivate": {
+      "post": {
+        "tags": [
+          "Vendors"
+        ],
+        "operationId": "deactivate_vendor",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "description": "Vendor ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Vendor deactivated"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgingReport": {
+        "type": "object",
+        "description": "Complete aging report response.",
+        "required": [
+          "as_of",
+          "buckets_by_currency"
+        ],
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "description": "The date used as the aging reference point."
+          },
+          "buckets_by_currency": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrencyBucket"
+            },
+            "description": "Bucket totals grouped by currency."
+          },
+          "vendor_breakdown": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/VendorBucket"
+            },
+            "description": "Per-vendor breakdown — present only when `by_vendor=true` was requested."
+          }
+        }
+      },
+      "AllocationRecord": {
+        "type": "object",
+        "description": "A single allocation record as stored in ap_allocations.",
+        "required": [
+          "id",
+          "allocation_id",
+          "bill_id",
+          "tenant_id",
+          "amount_minor",
+          "currency",
+          "allocation_type",
+          "created_at"
+        ],
+        "properties": {
+          "allocation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable external idempotency anchor — caller-generated UUID."
+          },
+          "allocation_type": {
+            "type": "string",
+            "description": "\"partial\" or \"full\" — derived from remaining bill balance at allocation time."
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount applied in minor currency units (always > 0)."
+          },
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "BIGSERIAL primary key (internal ordering)"
+          },
+          "payment_run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Set when this allocation is claimed by a payment run."
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ApTaxReportResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "from",
+          "to",
+          "rows",
+          "total_tax_minor",
+          "total_bills"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApTaxSummaryRow"
+            }
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "total_bills": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tax_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ApTaxSnapshot": {
+        "type": "object",
+        "description": "Persisted tax snapshot for an AP vendor bill.\n\nRecords the full quote -> commit -> void lifecycle with provider references\nand a deterministic quote hash for idempotency.",
+        "required": [
+          "id",
+          "bill_id",
+          "tenant_id",
+          "provider",
+          "provider_quote_ref",
+          "quote_hash",
+          "total_tax_minor",
+          "tax_by_line",
+          "status",
+          "quoted_at",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "committed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_commit_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider_quote_ref": {
+            "type": "string"
+          },
+          "quote_hash": {
+            "type": "string"
+          },
+          "quoted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tax_by_line": {},
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_tax_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "void_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "voided_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ApTaxSummaryRow": {
+        "type": "object",
+        "description": "A single row in an AP paid-tax summary report.",
+        "required": [
+          "period",
+          "jurisdiction",
+          "tax_type",
+          "applied_rate",
+          "total_tax_minor",
+          "bill_count"
+        ],
+        "properties": {
+          "applied_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "bill_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "period": {
+            "type": "string"
+          },
+          "tax_type": {
+            "type": "string"
+          },
+          "total_tax_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ApproveBillRequest": {
+        "type": "object",
+        "description": "Request body to approve a vendor bill.\n\nMatch policy is enforced unless `override_reason` is provided:\n  - Bills in 'open' status (never matched) require an override.\n  - Bills in 'matched' status with tolerance violations require an override.",
+        "required": [
+          "approved_by"
+        ],
+        "properties": {
+          "approved_by": {
+            "type": "string",
+            "description": "Actor approving the bill (for audit attribution)"
+          },
+          "override_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Override reason to bypass match policy. Required when the bill is\nunmatched or has tolerance violations."
+          }
+        }
+      },
+      "ApprovePoRequest": {
+        "type": "object",
+        "description": "Request body to approve a purchase order.",
+        "required": [
+          "approved_by"
+        ],
+        "properties": {
+          "approved_by": {
+            "type": "string",
+            "description": "Actor performing the approval (for event attribution and audit)"
+          }
+        }
+      },
+      "AssignTermsRequest": {
+        "type": "object",
+        "description": "Request to assign payment terms to an existing bill.",
+        "required": [
+          "term_id"
+        ],
+        "properties": {
+          "term_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "BillBalanceSummary": {
+        "type": "object",
+        "description": "Summary of remaining open balance on a bill.",
+        "required": [
+          "bill_id",
+          "total_minor",
+          "allocated_minor",
+          "open_balance_minor",
+          "status"
+        ],
+        "properties": {
+          "allocated_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "open_balance_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BillLineRecord": {
+        "type": "object",
+        "description": "A single line on a vendor bill as returned from the DB.",
+        "required": [
+          "line_id",
+          "bill_id",
+          "description",
+          "quantity",
+          "unit_price_minor",
+          "line_total_minor",
+          "gl_account_code",
+          "created_at"
+        ],
+        "properties": {
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "gl_account_code": {
+            "type": "string"
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "line_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "po_line_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "description": "Quantity (DOUBLE PRECISION in DB, f64 in Rust)"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateAllocationRequest": {
+        "type": "object",
+        "description": "Request body to apply a payment allocation to a vendor bill.",
+        "required": [
+          "allocation_id",
+          "amount_minor",
+          "currency"
+        ],
+        "properties": {
+          "allocation_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Caller-generated stable UUID — used for idempotency.\nDuplicate submissions with the same allocation_id return the existing record."
+          },
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount to apply in minor currency units (must be > 0)."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code. Must match the bill currency."
+          },
+          "payment_run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional: payment run claiming this allocation (may be set later)."
+          }
+        }
+      },
+      "CreateBillLineRequest": {
+        "type": "object",
+        "description": "A single bill line in the creation request.",
+        "required": [
+          "quantity",
+          "unit_price_minor"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional description (defaults to \"\" if not supplied)"
+          },
+          "gl_account_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "GL account code (defaults to \"\" if not supplied)"
+          },
+          "item_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional item reference — informational only, not persisted in this bead"
+          },
+          "po_line_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "PO line reference for matching (None for unmatched/non-PO bills)"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CreateBillRequest": {
+        "type": "object",
+        "description": "Request body to create a vendor bill.",
+        "required": [
+          "vendor_id",
+          "vendor_invoice_ref",
+          "currency",
+          "invoice_date",
+          "entered_by",
+          "lines"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "due_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Explicit due date; if None, derived deterministically from vendor payment terms"
+          },
+          "entered_by": {
+            "type": "string",
+            "description": "Actor entering the bill"
+          },
+          "fx_rate_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "GL fx_rates UUID — supply when bill currency != tenant functional currency.\nReuses GL FX infrastructure; do not pass a raw rate value here."
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Invoice date from the vendor"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateBillLineRequest"
+            }
+          },
+          "tax_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Optional tax total in minor currency units"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor_invoice_ref": {
+            "type": "string",
+            "description": "Vendor's external invoice reference (must be unique per vendor per tenant)"
+          }
+        }
+      },
+      "CreatePaymentRunBody": {
+        "type": "object",
+        "required": [
+          "currency",
+          "scheduled_date",
+          "payment_method",
+          "created_by"
+        ],
+        "properties": {
+          "created_by": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "due_on_or_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vendor_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "CreatePaymentTermsRequest": {
+        "type": "object",
+        "description": "Request body to create payment terms.",
+        "required": [
+          "term_code",
+          "days_due"
+        ],
+        "properties": {
+          "days_due": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discount_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Days within which discount applies. Defaults to 0."
+          },
+          "discount_pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Discount percentage (e.g. 2.0 for 2%). Defaults to 0."
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Idempotency key for duplicate prevention."
+          },
+          "installment_schedule": {
+            "description": "Installment schedule as a JSON array (optional)."
+          },
+          "term_code": {
+            "type": "string"
+          }
+        }
+      },
+      "CreatePoLineRequest": {
+        "type": "object",
+        "description": "A single line in a PO create or update request.",
+        "required": [
+          "quantity",
+          "unit_price_minor"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Human-readable line description. Required when item_id is absent."
+          },
+          "gl_account_code": {
+            "type": "string",
+            "description": "GL expense account code"
+          },
+          "item_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional inventory item UUID reference.\nValidated as non-empty if provided; no cross-DB reads are performed.\nWhen description is absent, stored as \"item:{uuid}\"."
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double",
+            "description": "Quantity ordered (must be > 0)"
+          },
+          "unit_of_measure": {
+            "type": "string",
+            "description": "Unit of measure (e.g. \"each\", \"kg\"); defaults to \"each\""
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unit price in minor currency units (must be >= 0)"
+          }
+        }
+      },
+      "CreatePoRequest": {
+        "type": "object",
+        "description": "Request body to create a purchase order (always created as draft).",
+        "required": [
+          "vendor_id",
+          "currency",
+          "created_by",
+          "lines"
+        ],
+        "properties": {
+          "created_by": {
+            "type": "string",
+            "description": "Actor creating the PO (for event attribution and audit)"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "expected_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Optional expected delivery date"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatePoLineRequest"
+            },
+            "description": "Line items (at least one required)"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CreateVendorRequest": {
+        "type": "object",
+        "description": "Request body to create a new vendor.",
+        "required": [
+          "name",
+          "currency",
+          "payment_terms_days"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "name": {
+            "type": "string"
+          },
+          "party_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional link to a Party record in the party-master service."
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payment method type (e.g. \"ach\", \"wire\", \"check\")"
+          },
+          "payment_terms_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Payment terms in days. Use PaymentTermsPreset for named values."
+          },
+          "remittance_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Remittance email (pointer only, no secrets)"
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CurrencyBucket": {
+        "type": "object",
+        "description": "Aging bucket totals for a single currency.",
+        "required": [
+          "currency",
+          "current_minor",
+          "days_1_30_minor",
+          "days_31_60_minor",
+          "days_61_90_minor",
+          "over_90_minor",
+          "total_open_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code."
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance in the current bucket (not yet overdue), in minor units."
+          },
+          "days_1_30_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 1–30 days past due, in minor units."
+          },
+          "days_31_60_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 31–60 days past due, in minor units."
+          },
+          "days_61_90_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance 61–90 days past due, in minor units."
+          },
+          "over_90_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open balance more than 90 days past due, in minor units."
+          },
+          "total_open_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all buckets = total outstanding for this currency."
+          }
+        }
+      },
+      "ExecuteRunResponse": {
+        "type": "object",
+        "description": "Response for execute_run.",
+        "required": [
+          "run_id",
+          "status",
+          "executions"
+        ],
+        "properties": {
+          "executed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "executions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExecutionEntry"
+            }
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecutionEntry": {
+        "type": "object",
+        "description": "A single vendor payment execution within a run.",
+        "required": [
+          "id",
+          "item_id",
+          "payment_id",
+          "vendor_id",
+          "amount_minor",
+          "currency",
+          "status",
+          "executed_at"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "executed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "item_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "MatchLineResult": {
+        "type": "object",
+        "required": [
+          "bill_line_id",
+          "match_type",
+          "matched_quantity",
+          "matched_amount_minor",
+          "price_variance_minor",
+          "qty_variance",
+          "within_tolerance",
+          "match_status"
+        ],
+        "properties": {
+          "bill_line_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "match_status": {
+            "type": "string",
+            "description": "\"matched\" | \"price_variance\" | \"qty_variance\" | \"price_and_qty_variance\""
+          },
+          "match_type": {
+            "type": "string",
+            "description": "\"two_way\", \"three_way\", or \"non_po\""
+          },
+          "matched_amount_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount matched at PO price (minor currency units)"
+          },
+          "matched_quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "po_line_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "PO line matched against (None for non-PO lines)"
+          },
+          "price_variance_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "(bill_price - po_price) × matched_qty (minor currency units; signed)"
+          },
+          "qty_variance": {
+            "type": "number",
+            "format": "double",
+            "description": "bill_qty - (received_qty or po_qty); positive means over-billed"
+          },
+          "receipt_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Primary receipt used (None for two_way or non_po)"
+          },
+          "within_tolerance": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MatchOutcome": {
+        "type": "object",
+        "required": [
+          "bill_id",
+          "po_id",
+          "lines",
+          "fully_matched",
+          "matched_by",
+          "matched_at"
+        ],
+        "properties": {
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fully_matched": {
+            "type": "boolean",
+            "description": "True when all lines are within tolerance"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchLineResult"
+            }
+          },
+          "matched_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "matched_by": {
+            "type": "string"
+          },
+          "po_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PaginatedResponse_AllocationRecord": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A single allocation record as stored in ap_allocations.",
+              "required": [
+                "id",
+                "allocation_id",
+                "bill_id",
+                "tenant_id",
+                "amount_minor",
+                "currency",
+                "allocation_type",
+                "created_at"
+              ],
+              "properties": {
+                "allocation_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Stable external idempotency anchor — caller-generated UUID."
+                },
+                "allocation_type": {
+                  "type": "string",
+                  "description": "\"partial\" or \"full\" — derived from remaining bill balance at allocation time."
+                },
+                "amount_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Amount applied in minor currency units (always > 0)."
+                },
+                "bill_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code."
+                },
+                "id": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "BIGSERIAL primary key (internal ordering)"
+                },
+                "payment_run_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "Set when this allocation is claimed by a payment run."
+                },
+                "tenant_id": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_PaymentTerms": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Payment terms record as stored in the database.",
+              "required": [
+                "term_id",
+                "tenant_id",
+                "term_code",
+                "description",
+                "days_due",
+                "discount_pct",
+                "discount_days",
+                "is_active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "days_due": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "discount_days": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "discount_pct": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "idempotency_key": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "installment_schedule": {},
+                "is_active": {
+                  "type": "boolean"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "term_code": {
+                  "type": "string"
+                },
+                "term_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_PurchaseOrder": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Purchase order header record as returned from the DB.",
+              "required": [
+                "po_id",
+                "tenant_id",
+                "vendor_id",
+                "po_number",
+                "currency",
+                "total_minor",
+                "status",
+                "created_by",
+                "created_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code"
+                },
+                "expected_delivery_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "po_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "po_number": {
+                  "type": "string",
+                  "description": "Human-readable PO number (unique per tenant)"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Lifecycle status: draft, approved, closed, cancelled"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "total_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Total PO value in minor currency units"
+                },
+                "vendor_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Vendor": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Full vendor record as stored and returned.",
+              "required": [
+                "vendor_id",
+                "tenant_id",
+                "name",
+                "currency",
+                "payment_terms_days",
+                "is_active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code (e.g. \"USD\")"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "party_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "Optional link to a Party record in the party-master service."
+                },
+                "payment_method": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Preferred payment method type: \"ach\", \"wire\", \"check\", etc."
+                },
+                "payment_terms_days": {
+                  "type": "integer",
+                  "format": "int32",
+                  "description": "Net payment terms in calendar days (e.g. 30 = Net-30)"
+                },
+                "remittance_email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Remittance email address (pointer, not a credential)"
+                },
+                "tax_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "vendor_id": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_VendorBill": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A vendor bill header record as returned from the DB.",
+              "required": [
+                "bill_id",
+                "tenant_id",
+                "vendor_id",
+                "vendor_invoice_ref",
+                "currency",
+                "total_minor",
+                "invoice_date",
+                "due_date",
+                "status",
+                "entered_by",
+                "entered_at"
+              ],
+              "properties": {
+                "bill_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "ISO 4217 currency code"
+                },
+                "due_date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "entered_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "entered_by": {
+                  "type": "string"
+                },
+                "fx_rate_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid",
+                  "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
+                },
+                "invoice_date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Lifecycle status string (\"open\", \"approved\", \"partially_paid\", \"paid\", \"voided\", \"matched\")"
+                },
+                "tax_minor": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "format": "int64",
+                  "description": "Tax amount in minor currency units (optional)"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "total_minor": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "Total bill amount in minor currency units"
+                },
+                "vendor_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "vendor_invoice_ref": {
+                  "type": "string",
+                  "description": "Vendor's external invoice/bill reference number"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PaymentRunItem": {
+        "type": "object",
+        "description": "A vendor item within a payment run.",
+        "required": [
+          "id",
+          "vendor_id",
+          "bill_ids",
+          "amount_minor",
+          "currency"
+        ],
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bill_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "currency": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PaymentRunResponse": {
+        "type": "object",
+        "description": "Response for create_run and get_run — payment run with its items.",
+        "required": [
+          "run_id",
+          "tenant_id",
+          "status",
+          "total_minor",
+          "currency",
+          "scheduled_date",
+          "payment_method",
+          "created_by",
+          "created_at",
+          "items"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "executed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentRunItem"
+            }
+          },
+          "payment_method": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PaymentTerms": {
+        "type": "object",
+        "description": "Payment terms record as stored in the database.",
+        "required": [
+          "term_id",
+          "tenant_id",
+          "term_code",
+          "description",
+          "days_due",
+          "discount_pct",
+          "discount_days",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "days_due": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          },
+          "discount_days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "discount_pct": {
+            "type": "number",
+            "format": "double"
+          },
+          "idempotency_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "installment_schedule": {},
+          "is_active": {
+            "type": "boolean"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "term_code": {
+            "type": "string"
+          },
+          "term_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PoLineRecord": {
+        "type": "object",
+        "description": "A single PO line as returned from the DB.",
+        "required": [
+          "line_id",
+          "po_id",
+          "description",
+          "quantity",
+          "unit_of_measure",
+          "unit_price_minor",
+          "line_total_minor",
+          "gl_account_code",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "gl_account_code": {
+            "type": "string"
+          },
+          "line_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "line_total_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "po_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unit_of_measure": {
+            "type": "string"
+          },
+          "unit_price_minor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "description": "Purchase order header record as returned from the DB.",
+        "required": [
+          "po_id",
+          "tenant_id",
+          "vendor_id",
+          "po_number",
+          "currency",
+          "total_minor",
+          "status",
+          "created_by",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "expected_delivery_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "po_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "po_number": {
+            "type": "string",
+            "description": "Human-readable PO number (unique per tenant)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Lifecycle status: draft, approved, closed, cancelled"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total PO value in minor currency units"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PurchaseOrderWithLines": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PurchaseOrder"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lines"
+            ],
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PoLineRecord"
+                }
+              }
+            }
+          }
+        ],
+        "description": "PO with its line items (for GET and POST 201 responses)."
+      },
+      "RunMatchRequest": {
+        "type": "object",
+        "description": "Request to run the match engine for a vendor bill against a PO.",
+        "required": [
+          "po_id",
+          "matched_by"
+        ],
+        "properties": {
+          "matched_by": {
+            "type": "string",
+            "description": "Actor triggering the match (for audit trail)"
+          },
+          "po_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "PO to match this bill against"
+          },
+          "price_tolerance_pct": {
+            "type": "number",
+            "format": "double",
+            "description": "Price tolerance as a fraction (0.0–1.0). Default: 0.05 (5%).\nVariance ≤ po_price × matched_qty × tolerance is within tolerance."
+          }
+        }
+      },
+      "UpdatePaymentTermsRequest": {
+        "type": "object",
+        "description": "Request body to update payment terms (partial update).",
+        "properties": {
+          "days_due": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "discount_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "discount_pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "installment_schedule": {},
+          "is_active": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdatePoLinesRequest": {
+        "type": "object",
+        "description": "Request body to replace all lines on a draft PO (idempotent full replacement).",
+        "required": [
+          "updated_by",
+          "lines"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatePoLineRequest"
+            },
+            "description": "Full replacement line set (at least one required)"
+          },
+          "updated_by": {
+            "type": "string",
+            "description": "Actor performing the update (for audit)"
+          }
+        }
+      },
+      "UpdateVendorRequest": {
+        "type": "object",
+        "description": "Request body to update an existing vendor. All fields are optional (partial update).",
+        "properties": {
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "party_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional link to a Party record in the party-master service."
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "payment_terms_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "remittance_email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Actor performing the update (for event attribution)"
+          }
+        }
+      },
+      "Vendor": {
+        "type": "object",
+        "description": "Full vendor record as stored and returned.",
+        "required": [
+          "vendor_id",
+          "tenant_id",
+          "name",
+          "currency",
+          "payment_terms_days",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (e.g. \"USD\")"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "party_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional link to a Party record in the party-master service."
+          },
+          "payment_method": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Preferred payment method type: \"ach\", \"wire\", \"check\", etc."
+          },
+          "payment_terms_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Net payment terms in calendar days (e.g. 30 = Net-30)"
+          },
+          "remittance_email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Remittance email address (pointer, not a credential)"
+          },
+          "tax_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "VendorBill": {
+        "type": "object",
+        "description": "A vendor bill header record as returned from the DB.",
+        "required": [
+          "bill_id",
+          "tenant_id",
+          "vendor_id",
+          "vendor_invoice_ref",
+          "currency",
+          "total_minor",
+          "invoice_date",
+          "due_date",
+          "status",
+          "entered_by",
+          "entered_at"
+        ],
+        "properties": {
+          "bill_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "entered_by": {
+            "type": "string"
+          },
+          "fx_rate_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "GL fx_rates UUID — NULL when bill currency == functional currency (no FX needed)"
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "description": "Lifecycle status string (\"open\", \"approved\", \"partially_paid\", \"paid\", \"voided\", \"matched\")"
+          },
+          "tax_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Tax amount in minor currency units (optional)"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_minor": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total bill amount in minor currency units"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor_invoice_ref": {
+            "type": "string",
+            "description": "Vendor's external invoice/bill reference number"
+          }
+        }
+      },
+      "VendorBillWithLines": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/VendorBill"
+          },
+          {
+            "type": "object",
+            "required": [
+              "lines"
+            ],
+            "properties": {
+              "lines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BillLineRecord"
+                }
+              }
+            }
+          }
+        ],
+        "description": "A vendor bill with its line items (for GET responses and POST 201)."
+      },
+      "VendorBucket": {
+        "type": "object",
+        "description": "Aging bucket totals for a single vendor + currency combination.",
+        "required": [
+          "vendor_id",
+          "vendor_name",
+          "currency",
+          "current_minor",
+          "days_1_30_minor",
+          "days_31_60_minor",
+          "days_61_90_minor",
+          "over_90_minor",
+          "total_open_minor"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "current_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_1_30_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_31_60_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "days_61_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "over_90_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_open_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vendor_name": {
+            "type": "string"
+          }
+        }
+      },
+      "VoidBillRequest": {
+        "type": "object",
+        "description": "Request body to void a vendor bill.\n\nVoiding is append-only: the void_reason is persisted in the outbox event\nand serves as the immutable audit record. Void is allowed from any active\nstatus (open, matched, approved, partially_paid).",
+        "required": [
+          "voided_by",
+          "void_reason"
+        ],
+        "properties": {
+          "void_reason": {
+            "type": "string",
+            "description": "Required reason for voiding (forms the auditable justification)"
+          },
+          "voided_by": {
+            "type": "string",
+            "description": "Actor performing the void"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}
