@@ -38,6 +38,7 @@ pub mod publisher;
 pub mod startup;
 mod startup_helpers;
 pub mod tenant;
+pub mod tenant_resolver;
 
 pub use builder::ModuleBuilder;
 pub use event_registry::EventRegistry;
@@ -51,7 +52,8 @@ pub use startup::StartupError;
 pub use publisher::{STANDARD_OUTBOX_DDL, ensure_outbox_table};
 pub use dlq::{STANDARD_DLQ_DDL, ensure_dlq_table};
 pub use idempotency::{STANDARD_DEDUPE_DDL, ensure_dedupe_table};
-pub use tenant::TenantId;
+pub use tenant::{TenantId, TenantPool};
+pub use tenant_resolver::DefaultTenantResolver;
 
 // Re-export commonly needed types so modules don't have to depend on
 // platform sub-crates directly for basic operations.

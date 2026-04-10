@@ -77,11 +77,11 @@ pub struct ModuleBuilder {
     startup_fns: Vec<StartupFn>,
     provisioning_handler: Option<ProvisioningHandler>,
     pool_resolver: Option<Arc<dyn TenantPoolResolver>>,
-    skip_default_middleware: bool,
     skip_outbox_publisher: bool,
     skip_cors: bool,
     skip_rate_limit: bool,
     skip_auth: bool,
+    skip_tracing: bool,
     use_blob_storage: bool,
     csrf_protection: bool,
     authz_gate: Option<Arc<AuthzGateConfig>>,
@@ -111,11 +111,11 @@ impl ModuleBuilder {
             startup_fns: Vec::new(),
             provisioning_handler: None,
             pool_resolver: None,
-            skip_default_middleware: false,
             skip_outbox_publisher: false,
             skip_cors: false,
             skip_rate_limit: false,
             skip_auth: false,
+            skip_tracing: false,
             use_blob_storage: false,
             csrf_protection: false,
             authz_gate: None,
@@ -325,15 +325,28 @@ impl ModuleBuilder {
         self
     }
 
-    /// Skip the SDK's built-in middleware stack (CORS, JWT, rate limiting,
-    /// timeout, health endpoints, metrics endpoint).
+    /// Skip all SDK middleware layers in one call.
     ///
-    /// Use this when the module provides its own middleware — for example
-    /// a vertical that already has custom CORS, auth, and health routes.
-    /// The SDK still handles infrastructure (DB pool, event bus, consumers,
-    /// graceful shutdown, consumer draining).
+    /// Equivalent to calling `.skip_cors().skip_rate_limit().skip_auth().skip_tracing()`.
+    ///
+    /// **Prefer the granular methods** — they let you skip only what you need
+    /// while keeping the rest of the SDK stack. This method exists for
+    /// backwards compatibility and full-bypass scenarios where the module
+    /// supplies its own complete middleware stack.
+    ///
+    /// The SDK still handles infrastructure: DB pool, event bus, consumers,
+    /// graceful shutdown, consumer draining, and observability endpoints
+    /// (health, ready, metrics, version).
+    #[deprecated(
+        since = "0.1.0",
+        note = "Use the granular methods instead: .skip_cors(), .skip_rate_limit(), \
+                .skip_auth(), .skip_tracing()"
+    )]
     pub fn skip_default_middleware(mut self) -> Self {
-        self.skip_default_middleware = true;
+        self.skip_cors = true;
+        self.skip_rate_limit = true;
+        self.skip_auth = true;
+        self.skip_tracing = true;
         self
     }
 
@@ -428,10 +441,23 @@ impl ModuleBuilder {
     /// Use this when the module provides its own auth logic or serves
     /// only internal/machine traffic that does not carry bearer tokens.
     ///
-    /// All other SDK middleware (CORS, rate limiting, timeout, health
+    /// All other SDK middleware (CORS, rate limiting, tracing, timeout, health
     /// endpoints) continue to operate normally.
     pub fn skip_auth(mut self) -> Self {
         self.skip_auth = true;
+        self
+    }
+
+    /// Disable the SDK's tracing context middleware layer.
+    ///
+    /// Use this when the module receives trace IDs from an upstream proxy
+    /// that already injects them, or when the module provides its own
+    /// tracing instrumentation.
+    ///
+    /// All other SDK middleware (CORS, JWT, rate limiting, timeout, health
+    /// endpoints) continue to operate normally.
+    pub fn skip_tracing(mut self) -> Self {
+        self.skip_tracing = true;
         self
     }
 
@@ -557,7 +583,7 @@ impl ModuleBuilder {
         let phase_a = startup::phase_a(
             &manifest,
             self.skip_outbox_publisher,
-            self.skip_auth || self.skip_default_middleware,
+            self.skip_auth,
             self.pool_resolver.clone(),
             merged_tiers,
         )
@@ -660,20 +686,16 @@ impl ModuleBuilder {
         };
 
         // Phase B: HTTP stack + serve
-        if self.skip_default_middleware {
-            startup::phase_b_raw(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx)
-                .await
-        } else {
-            let flags = startup::MiddlewareFlags {
-                skip_cors: self.skip_cors,
-                skip_rate_limit: self.skip_rate_limit,
-                skip_auth: self.skip_auth,
-                csrf_protection: self.csrf_protection,
-                authz_gate: self.authz_gate,
-            };
-            startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
-                .await
-        }
+        let flags = startup::MiddlewareFlags {
+            skip_cors: self.skip_cors,
+            skip_rate_limit: self.skip_rate_limit,
+            skip_auth: self.skip_auth,
+            skip_tracing: self.skip_tracing,
+            csrf_protection: self.csrf_protection,
+            authz_gate: self.authz_gate,
+        };
+        startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
+            .await
     }
 }
 

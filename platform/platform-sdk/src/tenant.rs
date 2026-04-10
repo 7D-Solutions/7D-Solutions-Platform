@@ -44,6 +44,7 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use platform_http_contracts::ApiError;
 use security::claims::VerifiedClaims;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Tenant ID extracted from the caller's JWT claims.
@@ -83,6 +84,75 @@ where
             .get::<VerifiedClaims>()
             .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
         Ok(TenantId(claims.tenant_id))
+    }
+}
+
+/// Per-request database pool resolved from the authenticated tenant's identity.
+///
+/// Implements [`FromRequestParts`] so it can be used directly in handler signatures.
+/// Combines [`TenantId`] (from JWT claims) with the module's [`TenantPoolResolver`]
+/// (from the request extensions injected by [`ModuleBuilder`]) to return the correct
+/// [`PgPool`] for the authenticated tenant.
+///
+/// **Single-database modules** (the majority of platform modules) get back the
+/// default module pool — the resolver falls through to it when none is configured.
+///
+/// **Database-per-tenant modules** (e.g. verticals using [`DefaultTenantResolver`])
+/// get back a tenant-specific pool from the cache.
+///
+/// # Defence-in-depth
+///
+/// The extractor enforces two isolation boundaries:
+///
+/// 1. **Authentication** — returns `401 Unauthorized` if no [`VerifiedClaims`] are
+///    present (i.e. the JWT middleware did not find a valid token).
+/// 2. **Pool isolation** — for multi-DB setups, the pool is scoped to the
+///    authenticated tenant; a handler cannot accidentally receive another tenant's pool.
+///
+/// # Usage
+///
+/// ```rust,ignore
+/// pub async fn list_orders(
+///     TenantPool(pool): TenantPool,
+///     // ...
+/// ) -> impl IntoResponse {
+///     let orders = order_repo::list(&pool, &query).await?;
+///     // ...
+/// }
+/// ```
+///
+/// [`DefaultTenantResolver`]: crate::tenant_resolver::DefaultTenantResolver
+/// [`ModuleBuilder`]: crate::builder::ModuleBuilder
+pub struct TenantPool(pub PgPool);
+
+impl<S> FromRequestParts<S> for TenantPool
+where
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let claims = parts
+            .extensions
+            .get::<VerifiedClaims>()
+            .ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
+
+        let ctx = parts
+            .extensions
+            .get::<crate::context::ModuleContext>()
+            .ok_or_else(|| {
+                ApiError::internal(
+                    "TenantPool extractor: ModuleContext not in extensions — \
+                     ensure the module is started with ModuleBuilder",
+                )
+            })?;
+
+        let pool = ctx
+            .pool_for(claims.tenant_id)
+            .await
+            .map_err(|e| ApiError::internal(format!("tenant pool error: {e}")))?;
+
+        Ok(TenantPool(pool))
     }
 }
 

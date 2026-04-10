@@ -310,8 +310,8 @@ pub(crate) async fn phase_a(
     //
     // When [auth] is absent, required defaults to true — modules must
     // explicitly opt out with `[auth] required = false`.  The builder's
-    // `.skip_auth()` / `.skip_default_middleware()` also bypasses this
-    // check (the module handles its own authentication).
+    // `.skip_auth()` also bypasses this check (the module handles its own
+    // authentication).
     let auth_required = manifest.auth.as_ref().map_or(true, |a| a.required);
     if auth_required && !skip_auth && jwt_verifier.is_none() {
         return Err(StartupError::Config(
@@ -382,6 +382,8 @@ pub(crate) struct MiddlewareFlags {
     pub skip_rate_limit: bool,
     /// Skip the JWT authentication layer (e.g. internal-only traffic).
     pub skip_auth: bool,
+    /// Skip the tracing context middleware (e.g. proxy already injects trace IDs).
+    pub skip_tracing: bool,
     /// Enable CSRF protection (double-submit cookie pattern).
     /// Off by default — enable for browser-facing verticals.
     pub csrf_protection: bool,
@@ -457,21 +459,27 @@ pub(crate) async fn phase_b(
     let request_timeout = parse_duration_str(&manifest.server.request_timeout);
 
     // Assemble the full app: module routes + observability + middleware.
-    // Layers are applied unconditionally first (tracing, timeout, body limit),
-    // then each optional layer is applied only when its flag is not set.
+    // Body limit and timeout are applied unconditionally. Tracing and each
+    // optional layer is applied only when its flag is not set.
     let app = module_routes
         .merge(obs_routes)
         .layer(Extension(ctx))
         .layer(DefaultBodyLimit::max(body_limit))
-        .layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
         .layer(axum::middleware::from_fn(move |req, next: axum::middleware::Next| async move {
             match tokio::time::timeout(request_timeout, next.run(req)).await {
                 Ok(response) => response,
                 Err(_) => (StatusCode::REQUEST_TIMEOUT, "Request timeout\n").into_response(),
             }
         }));
+
+    let app = if !flags.skip_tracing {
+        app.layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
+    } else {
+        tracing::info!(module = %module_name, "tracing context middleware disabled");
+        app
+    };
 
     let app = if !flags.skip_rate_limit {
         match phase_a.rate_limiter {
@@ -539,102 +547,6 @@ pub(crate) async fn phase_b(
         .map_err(|_| StartupError::Config(format!("invalid address: {}:{}", host, port)))?;
 
     tracing::info!(module = %module_name, %addr, "listening");
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| StartupError::Bind { addr, source: e })?;
-
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .map_err(|e| StartupError::Serve(e.to_string()))?;
-
-    tracing::info!(module = %module_name, "server stopped — draining consumers");
-    consumer_handles.shutdown().await;
-    if let Some(handle) = phase_a.outbox_handle {
-        tracing::info!(module = %module_name, "stopping outbox publisher");
-        if let Some(tx) = phase_a.outbox_shutdown_tx {
-            let _ = tx.send(true);
-        }
-        let _ = handle.await;
-    }
-    tracing::info!(module = %module_name, "closing resources");
-    shutdown_pool.close().await;
-    tracing::info!(module = %module_name, "shutdown complete");
-
-    Ok(())
-}
-
-/// Phase B variant: serve module routes as-is without SDK middleware.
-///
-/// Used when a module provides its own middleware stack (CORS, JWT, health,
-/// metrics). The SDK still handles migrations, graceful shutdown, and
-/// consumer draining.
-pub(crate) async fn phase_b_raw(
-    manifest: &Manifest,
-    phase_a: PhaseAOutput,
-    module_routes: Router,
-    migrator: Option<&sqlx::migrate::Migrator>,
-    consumer_handles: ConsumerHandles,
-    ctx: ModuleContext,
-) -> Result<(), StartupError> {
-    let module_name = &manifest.module.name;
-
-    // Run migrations if a migrator was provided and auto_migrate is enabled.
-    if let Some(migrator) = migrator {
-        if manifest
-            .database
-            .as_ref()
-            .map_or(false, |db| db.auto_migrate)
-        {
-            migrator
-                .run(&phase_a.pool)
-                .await
-                .map_err(|e| StartupError::Migration(e.to_string()))?;
-            tracing::info!(module = %module_name, "database migrations applied");
-        }
-    }
-
-    let shutdown_pool = phase_a.pool.clone();
-
-    // Observability routes are always served — they are not middleware.
-    let version = manifest
-        .module
-        .version
-        .as_deref()
-        .unwrap_or("0.0.0")
-        .to_string();
-    let health_deps: Vec<String> = manifest
-        .health
-        .as_ref()
-        .map(|h| h.dependencies.clone())
-        .unwrap_or_default();
-    let probe_nats = health_deps.iter().any(|d| d == "nats");
-    let obs_routes = build_observability_routes(
-        module_name.clone(),
-        version,
-        phase_a.pool.clone(),
-        phase_a.bus.clone(),
-        probe_nats,
-    );
-
-    // Env-based overrides for host/port
-    let host = std::env::var("HOST").unwrap_or_else(|_| manifest.server.host.clone());
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(manifest.server.port);
-
-    let app = module_routes
-        .merge(obs_routes)
-        .layer(Extension(ctx))
-        .into_make_service_with_connect_info::<SocketAddr>();
-
-    let addr: SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .map_err(|_| StartupError::Config(format!("invalid address: {}:{}", host, port)))?;
-
-    tracing::info!(module = %module_name, %addr, "listening (raw mode)");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
