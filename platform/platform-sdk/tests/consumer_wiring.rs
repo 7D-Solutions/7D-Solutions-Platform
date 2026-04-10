@@ -584,6 +584,12 @@ async fn consumer_span_carries_correlation_id() {
         None => return,
     };
 
+    // Install a tracing subscriber so spans are real (not no-ops).
+    // Without this, info_span! returns Span::none() and Span::current() inside
+    // the handler has no metadata, causing the assertions to fail.
+    // try_init() is used because parallel tests may have already installed one.
+    let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+
     let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
     let manifest = test_manifest();
     let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
