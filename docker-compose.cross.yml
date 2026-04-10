@@ -4,8 +4,12 @@
 # Binaries are cross-compiled on macOS targeting aarch64-unknown-linux-musl:
 #   target/aarch64-unknown-linux-musl/debug/<binary-name>
 #
-# Services use 7d-runtime as base image (thin debian + ca-certificates + curl).
+# Services use 7d-runtime as base image (debian + supervisor + binary watcher).
 # Build it once: docker build -t 7d-runtime -f infra/Dockerfile.runtime .
+#
+# Each service sets SERVICE_BINARY so the entrypoint + watcher know which binary
+# to run and watch. No docker restart needed — the watcher detects binary changes
+# via checksum and restarts the process via supervisorctl.
 #
 # Script: scripts/dev-cross.sh <service>
 
@@ -13,7 +17,8 @@ services:
   ar:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/ar-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/ar-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/usr/local/bin/ar-rs:ro
       - ./modules/ar/module.toml:/app/module.toml:ro
@@ -22,7 +27,8 @@ services:
   subscriptions:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/subscriptions-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/subscriptions-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/subscriptions-rs:/usr/local/bin/subscriptions-rs:ro
       - ./modules/subscriptions/module.toml:/app/module.toml:ro
@@ -31,7 +37,8 @@ services:
   payments:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/payments-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/payments-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/payments-rs:/usr/local/bin/payments-rs:ro
       - ./modules/payments/module.toml:/app/module.toml:ro
@@ -40,7 +47,8 @@ services:
   notifications:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/notifications-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/notifications-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/notifications-rs:/usr/local/bin/notifications-rs:ro
       - ./modules/notifications/module.toml:/app/module.toml:ro
@@ -49,7 +57,8 @@ services:
   gl:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/gl-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/gl-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/gl-rs:/usr/local/bin/gl-rs:ro
       - ./modules/gl/module.toml:/app/module.toml:ro
@@ -58,7 +67,8 @@ services:
   inventory:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/inventory-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/inventory-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/inventory-rs:/usr/local/bin/inventory-rs:ro
       - ./modules/inventory/module.toml:/app/module.toml:ro
@@ -67,7 +77,8 @@ services:
   ap:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/ap"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/ap
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ap:/usr/local/bin/ap:ro
       - ./modules/ap/module.toml:/app/module.toml:ro
@@ -76,7 +87,8 @@ services:
   treasury:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/treasury"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/treasury
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/treasury:/usr/local/bin/treasury:ro
       - ./modules/treasury/module.toml:/app/module.toml:ro
@@ -85,7 +97,8 @@ services:
   fixed-assets:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/fixed-assets"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/fixed-assets
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/fixed-assets:/usr/local/bin/fixed-assets:ro
       - ./modules/fixed-assets/module.toml:/app/module.toml:ro
@@ -94,7 +107,8 @@ services:
   consolidation:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/consolidation"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/consolidation
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/consolidation:/usr/local/bin/consolidation:ro
       - ./modules/consolidation/module.toml:/app/module.toml:ro
@@ -103,7 +117,8 @@ services:
   timekeeping:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/timekeeping"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/timekeeping
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/timekeeping:/usr/local/bin/timekeeping:ro
       - ./modules/timekeeping/module.toml:/app/module.toml:ro
@@ -112,7 +127,8 @@ services:
   party:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/party"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/party
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/party:/usr/local/bin/party:ro
       - ./modules/party/module.toml:/app/module.toml:ro
@@ -121,7 +137,8 @@ services:
   integrations:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/integrations"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/integrations
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/integrations:/usr/local/bin/integrations:ro
       - ./modules/integrations/module.toml:/app/module.toml:ro
@@ -130,7 +147,8 @@ services:
   ttp:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/ttp"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/ttp
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/ttp:/usr/local/bin/ttp:ro
       - ./modules/ttp/module.toml:/app/module.toml:ro
@@ -139,7 +157,8 @@ services:
   pdf-editor:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/pdf-editor-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/pdf-editor-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/usr/local/bin/pdf-editor-rs:ro
       - ./modules/pdf-editor/module.toml:/app/module.toml:ro
@@ -148,7 +167,8 @@ services:
   maintenance:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/maintenance-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/maintenance-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/maintenance-rs:/usr/local/bin/maintenance-rs:ro
       - ./modules/maintenance/module.toml:/app/module.toml:ro
@@ -157,7 +177,8 @@ services:
   shipping-receiving:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/shipping-receiving-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/shipping-receiving-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/usr/local/bin/shipping-receiving-rs:ro
       - ./modules/shipping-receiving/module.toml:/app/module.toml:ro
@@ -166,7 +187,8 @@ services:
   quality-inspection:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/quality-inspection-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/quality-inspection-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/quality-inspection-rs:/usr/local/bin/quality-inspection-rs:ro
       - ./modules/quality-inspection/module.toml:/app/module.toml:ro
@@ -175,7 +197,8 @@ services:
   bom:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/bom-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/bom-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/bom-rs:/usr/local/bin/bom-rs:ro
       - ./modules/bom/module.toml:/app/module.toml:ro
@@ -184,7 +207,8 @@ services:
   production:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/production-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/production-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/production-rs:/usr/local/bin/production-rs:ro
       - ./modules/production/module.toml:/app/module.toml:ro
@@ -193,7 +217,8 @@ services:
   workflow:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/workflow"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/workflow
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/workflow:/usr/local/bin/workflow:ro
       - ./modules/workflow/module.toml:/app/module.toml:ro
@@ -202,7 +227,8 @@ services:
   numbering:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/numbering"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/numbering
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/numbering:/usr/local/bin/numbering:ro
       - ./modules/numbering/module.toml:/app/module.toml:ro
@@ -211,7 +237,8 @@ services:
   workforce-competence:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/workforce-competence-rs"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/workforce-competence-rs
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/workforce-competence-rs:/usr/local/bin/workforce-competence-rs:ro
       - ./modules/workforce-competence/module.toml:/app/module.toml:ro
@@ -220,7 +247,8 @@ services:
   customer-portal:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/customer-portal"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/customer-portal
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/customer-portal:/usr/local/bin/customer-portal:ro
       - ./modules/customer-portal/module.toml:/app/module.toml:ro
@@ -229,7 +257,8 @@ services:
   reporting:
     image: 7d-runtime
     working_dir: /app
-    command: ["/usr/local/bin/reporting"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/reporting
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/reporting:/usr/local/bin/reporting:ro
       - ./modules/reporting/module.toml:/app/module.toml:ro
@@ -237,14 +266,24 @@ services:
 
   control-plane:
     image: 7d-runtime
-    command: ["/usr/local/bin/control-plane"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/control-plane
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/control-plane:/usr/local/bin/control-plane:ro
       - ./platform/tenant-registry/db/migrations:/app/platform/tenant-registry/db/migrations:ro
 
+  doc-mgmt:
+    image: 7d-runtime
+    working_dir: /app
+    environment:
+      SERVICE_BINARY: /usr/local/bin/doc-mgmt
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/doc-mgmt:/usr/local/bin/doc-mgmt:ro
+
   auth-1:
     image: 7d-runtime
-    command: ["/usr/local/bin/identity-auth"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/identity-auth
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
       - ./platform/identity-auth/db/migrations:/app/migrations:ro
@@ -252,7 +291,8 @@ services:
 
   auth-2:
     image: 7d-runtime
-    command: ["/usr/local/bin/identity-auth"]
+    environment:
+      SERVICE_BINARY: /usr/local/bin/identity-auth
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
       - ./platform/identity-auth/db/migrations:/app/migrations:ro

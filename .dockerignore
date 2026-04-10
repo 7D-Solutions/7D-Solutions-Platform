@@ -70,6 +70,10 @@ planning/
 docs/
 contracts/
 infra/
+!infra/Dockerfile.runtime
+!infra/supervisord.conf
+!infra/watch-binary.sh
+!infra/dev-entrypoint.sh
 scripts/
 pids/
 
