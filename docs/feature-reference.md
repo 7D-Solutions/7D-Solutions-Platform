@@ -84,41 +84,96 @@ To deploy: pull upstream changes to `~/mcp_agent_mail/` and restart the server.
 
 ## Hooks System
 
-Claude hooks (`~/.claude/hooks/`) fire on specific events. Installed globally.
+All hook logic runs in a single HTTP server: `~/.claude/hooks/hook-server.mjs` on `localhost:9876`. There are no individual hook scripts — every handler was consolidated into this file. Claude Code POSTs each event to the server rather than spawning subprocess scripts.
 
-### Session Lifecycle
+`~/.claude/settings.json` wires the four endpoints:
 
-| Hook | Event | Description |
-|------|-------|-------------|
-| `beads-session-start.sh` | Session start | Registers agent identity, sets up mail monitor, creates tracking files |
-| `beads-session-stop.sh` | Session stop | Cleans up tracking files and mail monitors |
+| Event | Matcher | Endpoint |
+|-------|---------|----------|
+| `PreToolUse` | `ExitPlanMode\|Task\|Bash\|Edit\|Write\|MultiEdit\|Read\|Glob\|Grep\|NotebookEdit\|Skill` | `POST /hooks/pre-tool-use` |
+| `PostToolUse` | `Bash` | `POST /hooks/post-tool-use` |
+| `SessionStart` | — | `POST /hooks/session-start` |
+| `Stop` | — | `POST /hooks/stop` |
 
-### Bead Lifecycle
+### PreToolUse handlers
 
-| Hook | Event | Description |
-|------|-------|-------------|
-| `beads-post-bead-close.sh` | After `br close` | Increments retro counter, triggers auto-retro if threshold met, calls `next-bead.sh` |
-| `beads-post-bash-track.sh` | After bash commands | Tracks bash command history for bead activity logging |
+Handlers run in order. The first deny short-circuits the chain. Advisory responses accumulate and are shown to the agent without blocking.
 
-### Safety Guards
+| Handler | What it guards |
+|---------|---------------|
+| `handlePreTaskBlock` | Blocks Task/subagent spawning when configured |
+| `handlePreEditCheck` | Rejects edits to files not in the active bead's declared file list |
+| `handlePreBashCheck` | Pre-execution bash safety checks |
+| `handleNoDelete` | Prevents file deletion |
+| `handleCrossWatcherGuard` | Blocks cross-project watcher interference |
+| `handleDockerGuard` | Guards Docker operations |
+| `handleDirectoryRestriction` | Blocks reads/writes outside the project directory |
+| `handlePackageLockProtection` | Protects lock files from modification |
+| `handleFsfsNudge` | Advisory: suggests `fsfs` before raw grep (non-blocking) |
+| `handlePlanPreview` | Shows plan preview before ExitPlanMode |
+| `handleSlbGuard` | Guards SLB (Simultaneous Launch Button) operations |
 
-| Hook | Event | Description |
-|------|-------|-------------|
-| `beads-pre-bash-check.sh` | Before bash execution | Pre-execution validation checks |
-| `beads-pre-edit-check.sh` | Before file edits | Validates edits (scope check against bead's file list) |
-| `beads-pre-task-block.sh` | Before Task/subagent | Blocks subagent spawning when configured |
-| `directory-restriction.py` | File access | Blocks reads/writes outside the project directory |
-| `no-delete.py` | File deletion | Prevents accidental file deletion |
-| `docker-guard.py` | Docker commands | Guards Docker operations |
-| `docker-use-running-only.py` | Docker commands | Only allows use of already-running containers |
-| `enforce-docker-servers.py` | Docker servers | Enforces Docker server policies |
-| `package-lock-protection.py` | Package files | Protects lock files from modification |
+### PostToolUse handlers
 
-### Advisory
+Fires after every `Bash` call. None block.
 
-| Hook | Event | Description |
-|------|-------|-------------|
-| `fsfs-nudge.sh` | Before grep/rg | Reminds agents to try `fsfs` before raw grep (non-blocking) |
+| Handler | What it does |
+|---------|-------------|
+| `handlePostBashCommandLog` | Logs the command for verify-gate matching |
+| `handlePostBeadClose` | Detects `br close`, increments retro counter, calls `next-bead.sh` |
+| `handlePostBashTrack` | Tracks bash command history for bead activity logging |
+
+### SessionStart / Stop handlers
+
+| Endpoint | What it does |
+|----------|-------------|
+| `/hooks/session-start` | Registers agent identity, sets up mail monitor, creates tracking files |
+| `/hooks/stop` | Cleans up tracking files and mail monitors |
+
+### Bypass
+
+```bash
+touch .claude-hooks-bypass   # disable all guards for this project
+rm .claude-hooks-bypass      # re-enable
+```
+
+Only create this file when the user explicitly asks. Never create it on your own initiative.
+
+### Adding a new rule
+
+1. Add a handler function in `hook-server.mjs`:
+   ```js
+   function handleMyRule(toolName, toolInput, cwd) {
+     if (toolName !== 'Bash') return null;
+     if (toolInput.command?.includes('dangerous-pattern')) {
+       return denyResponse('MyRule: reason the command is blocked');
+     }
+     return null; // allow
+   }
+   ```
+2. Add it to the `handlers` array in the `'/hooks/pre-tool-use'` case (order matters — earlier handlers run first).
+3. Restart the server: `pkill -f hook-server.mjs && node ~/.claude/hooks/hook-server.mjs &`
+
+### Debugging a blocked tool call
+
+The deny reason appears in Claude's UI inline. To trace further:
+
+```bash
+# Confirm the server is up
+curl -s http://localhost:9876/health | jq .
+# → {"status":"ok"}
+
+# Replay the blocked call directly
+curl -s -X POST http://localhost:9876/hooks/pre-tool-use \
+  -H 'Content-Type: application/json' \
+  -d '{"tool_name":"Edit","tool_input":{"file_path":"/tmp/test.txt"},"cwd":"/Users/james/Projects/AgentCore"}' \
+  | jq .
+
+# If the server is not running, start it
+node ~/.claude/hooks/hook-server.mjs
+```
+
+**Example:** Agent tries to edit `AGENTS.md` and gets blocked with "file not in bead scope." That's `handlePreEditCheck`. The active bead doesn't declare `AGENTS.md` in its file list. Fix: add the file to the bead with `br update bd-xxx --files AGENTS.md`, or switch to a bead that already declares it.
 
 ---
 
@@ -310,7 +365,7 @@ Config: `config/supervisord.conf`
 Prevents multiple agents from editing the same file simultaneously.
 
 ```bash
-$PROJECT_ROOT/scripts/reserve-files.sh status   # Check current reservations
+$PROJECT_ROOT/scripts/reserve-files.sh list   # Check current reservations
 # Automatic: macro_file_reservation_cycle MCP tool
 # Pre-commit guard: install_precommit_guard / uninstall_precommit_guard MCP tools
 ```
