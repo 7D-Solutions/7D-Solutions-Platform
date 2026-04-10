@@ -33,7 +33,7 @@ pub struct DataResponse<T> {
     pub data: Vec<T>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AddLaborRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -45,7 +45,7 @@ pub struct AddLaborRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AddPartRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub currency: Option<String>,
@@ -119,7 +119,7 @@ pub enum AssetType {
     Other,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AssignPlanRequest {
     pub asset_id: uuid::Uuid,
     pub tenant_id: String,
@@ -189,7 +189,7 @@ pub struct CreateAssetRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateDowntimeRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_id: Option<uuid::Uuid>,
@@ -245,7 +245,7 @@ pub struct CreatePlanRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CreateWorkOrderRequest {
     pub asset_id: uuid::Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -378,7 +378,7 @@ pub enum Priority {
     Critical,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecordCalibrationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc_revision_id: Option<uuid::Uuid>,
@@ -390,7 +390,7 @@ pub struct RecordCalibrationRequest {
     pub tenant_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecordReadingRequest {
     pub meter_type_id: uuid::Uuid,
     pub reading_value: i64,
@@ -412,7 +412,7 @@ pub enum ScheduleType {
     Both,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TransitionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub closed_at: Option<chrono::DateTime<chrono::Utc>>,

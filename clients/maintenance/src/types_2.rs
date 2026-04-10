@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use crate::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateAssetRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub asset_type: Option<String>,
@@ -38,7 +38,7 @@ pub struct UpdateAssetRequest {
     pub status: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdatePlanRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
