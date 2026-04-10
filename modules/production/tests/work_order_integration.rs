@@ -1,4 +1,9 @@
-use production_rs::domain::work_orders::{CreateWorkOrderRequest, WorkOrderError, WorkOrderRepo};
+use production_rs::domain::operations::OperationRepo;
+use production_rs::domain::routings::{AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo};
+use production_rs::domain::work_orders::{
+    CreateWorkOrderRequest, DerivedStatus, WorkOrderError, WorkOrderRepo,
+};
+use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -348,5 +353,216 @@ async fn create_rejects_zero_quantity() {
             assert!(msg.contains("planned_quantity"), "msg: {}", msg);
         }
         other => panic!("Expected Validation, got: {:?}", other),
+    }
+}
+
+// ============================================================================
+// Helpers for derived_status tests (require routing + operations setup)
+// ============================================================================
+
+async fn create_test_workcenter_for_wo(pool: &sqlx::PgPool, tenant: &str) -> Uuid {
+    let corr = Uuid::new_v4().to_string();
+    WorkcenterRepo::create(
+        pool,
+        &CreateWorkcenterRequest {
+            tenant_id: tenant.to_string(),
+            code: format!("WC-{}", &Uuid::new_v4().to_string()[..8]),
+            name: "Test Workcenter".to_string(),
+            description: None,
+            capacity: Some(8),
+            cost_rate_minor: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create workcenter")
+    .workcenter_id
+}
+
+/// Create a released WO with a one-step routing; return (wo_id, operation_id after initialize).
+async fn setup_released_wo_with_one_op(
+    pool: &sqlx::PgPool,
+    tenant: &str,
+) -> (Uuid, Uuid) {
+    let corr = Uuid::new_v4().to_string();
+    let wc_id = create_test_workcenter_for_wo(pool, tenant).await;
+
+    let rt = RoutingRepo::create(
+        pool,
+        &CreateRoutingRequest {
+            tenant_id: tenant.to_string(),
+            name: format!("RT-{}", &Uuid::new_v4().to_string()[..8]),
+            description: None,
+            item_id: None,
+            bom_revision_id: None,
+            revision: None,
+            effective_from_date: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create routing");
+
+    RoutingRepo::add_step(
+        pool,
+        rt.routing_template_id,
+        &AddRoutingStepRequest {
+            tenant_id: tenant.to_string(),
+            sequence_number: 10,
+            workcenter_id: wc_id,
+            operation_name: "Assemble".to_string(),
+            description: None,
+            setup_time_minutes: None,
+            run_time_minutes: None,
+            is_required: Some(true),
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("add step");
+
+    RoutingRepo::release(pool, rt.routing_template_id, tenant, &corr, None)
+        .await
+        .expect("release routing");
+
+    let wo = WorkOrderRepo::create(
+        pool,
+        &CreateWorkOrderRequest {
+            tenant_id: tenant.to_string(),
+            order_number: format!("WO-{}", &Uuid::new_v4().to_string()[..8]),
+            item_id: Uuid::new_v4(),
+            bom_revision_id: Uuid::new_v4(),
+            routing_template_id: Some(rt.routing_template_id),
+            planned_quantity: 5,
+            planned_start: None,
+            planned_end: None,
+            correlation_id: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create wo");
+
+    WorkOrderRepo::release(pool, wo.work_order_id, tenant, &corr, None)
+        .await
+        .expect("release wo");
+
+    let ops = OperationRepo::initialize(pool, wo.work_order_id, tenant, &corr, None)
+        .await
+        .expect("initialize ops");
+
+    (wo.work_order_id, ops[0].operation_id)
+}
+
+// ============================================================================
+// derived_status: WO with 0 operations → not_started
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn derived_status_no_operations_is_not_started() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let wo = WorkOrderRepo::create(&pool, &wo_request(&tenant, "WO-DS-NONE"), &corr, None)
+        .await
+        .expect("create");
+
+    let resp = WorkOrderRepo::find_by_id_with_derived(&pool, wo.work_order_id, &tenant)
+        .await
+        .expect("find_by_id_with_derived")
+        .expect("should exist");
+
+    assert_eq!(resp.derived_status, DerivedStatus::NotStarted);
+}
+
+// ============================================================================
+// derived_status: WO with 1 started operation → in_progress
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn derived_status_with_started_op_is_in_progress() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, op_id) = setup_released_wo_with_one_op(&pool, &tenant).await;
+
+    OperationRepo::start(&pool, wo_id, op_id, &tenant, &corr, None)
+        .await
+        .expect("start op");
+
+    let resp = WorkOrderRepo::find_by_id_with_derived(&pool, wo_id, &tenant)
+        .await
+        .expect("find_by_id_with_derived")
+        .expect("should exist");
+
+    assert_eq!(resp.derived_status, DerivedStatus::InProgress);
+}
+
+// ============================================================================
+// derived_status: WO with all operations completed → complete
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn derived_status_all_ops_complete_is_complete() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, op_id) = setup_released_wo_with_one_op(&pool, &tenant).await;
+
+    OperationRepo::start(&pool, wo_id, op_id, &tenant, &corr, None)
+        .await
+        .expect("start op");
+
+    OperationRepo::complete(&pool, wo_id, op_id, &tenant, &corr, None)
+        .await
+        .expect("complete op");
+
+    let resp = WorkOrderRepo::find_by_id_with_derived(&pool, wo_id, &tenant)
+        .await
+        .expect("find_by_id_with_derived")
+        .expect("should exist");
+
+    assert_eq!(resp.derived_status, DerivedStatus::Complete);
+}
+
+// ============================================================================
+// list_with_derived: derived_status appears in list response
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn list_with_derived_includes_derived_status() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    WorkOrderRepo::create(&pool, &wo_request(&tenant, "WO-LIST-A"), &corr, None)
+        .await
+        .expect("create A");
+    WorkOrderRepo::create(&pool, &wo_request(&tenant, "WO-LIST-B"), &corr, None)
+        .await
+        .expect("create B");
+
+    let (items, total) = WorkOrderRepo::list_with_derived(&pool, &tenant, 1, 50)
+        .await
+        .expect("list_with_derived");
+
+    assert_eq!(total, 2);
+    assert_eq!(items.len(), 2);
+    for item in &items {
+        assert_eq!(item.derived_status, DerivedStatus::NotStarted);
     }
 }

@@ -15,7 +15,9 @@ use production_rs::domain::routings::{
 use production_rs::domain::time_entries::{
     ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntry,
 };
-use production_rs::domain::work_orders::{CreateWorkOrderRequest, WorkOrder, WorkOrderStatus};
+use production_rs::domain::work_orders::{
+    CreateWorkOrderRequest, DerivedStatus, WorkOrder, WorkOrderResponse, WorkOrderStatus,
+};
 use production_rs::domain::workcenters::{
     CreateWorkcenterRequest, UpdateWorkcenterRequest, Workcenter,
 };
@@ -45,6 +47,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         production_rs::http::work_orders::create_work_order,
         production_rs::http::work_orders::release_work_order,
         production_rs::http::work_orders::close_work_order,
+        production_rs::http::work_orders::list_work_orders,
         production_rs::http::work_orders::get_work_order,
         production_rs::http::operations::initialize_operations,
         production_rs::http::operations::start_operation,
@@ -73,7 +76,7 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
     ),
     components(schemas(
         Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest,
-        WorkOrder, WorkOrderStatus, CreateWorkOrderRequest,
+        WorkOrder, WorkOrderStatus, WorkOrderResponse, DerivedStatus, CreateWorkOrderRequest,
         OperationInstance,
         TimeEntry, StartTimerRequest, StopTimerRequest, ManualEntryRequest,
         WorkcenterDowntime, StartDowntimeRequest, EndDowntimeRequest,
@@ -82,7 +85,8 @@ use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
         RequestComponentIssueRequest, ComponentIssueItemInput,
         RequestFgReceiptRequest,
         ApiError, PaginatedResponse<Workcenter>, PaginatedResponse<RoutingTemplate>,
-        PaginatedResponse<WorkcenterDowntime>, PaginationMeta, PaginationQuery,
+        PaginatedResponse<WorkOrderResponse>, PaginatedResponse<WorkcenterDowntime>,
+        PaginationMeta, PaginationQuery,
         ItemDateQuery,
     )),
     security(

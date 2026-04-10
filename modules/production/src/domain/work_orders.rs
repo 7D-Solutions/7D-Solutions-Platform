@@ -40,6 +40,30 @@ impl WorkOrderStatus {
 }
 
 // ============================================================================
+// Derived status — computed at query time from operations aggregate
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DerivedStatus {
+    NotStarted,
+    InProgress,
+    Complete,
+}
+
+impl TryFrom<String> for DerivedStatus {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "not_started" => Ok(Self::NotStarted),
+            "in_progress" => Ok(Self::InProgress),
+            "complete" => Ok(Self::Complete),
+            other => Err(format!("Unknown derived_status: {}", other)),
+        }
+    }
+}
+
+// ============================================================================
 // Model
 // ============================================================================
 
@@ -70,6 +94,33 @@ impl WorkOrder {
     pub fn parsed_status(&self) -> Option<WorkOrderStatus> {
         WorkOrderStatus::from_str(&self.status)
     }
+}
+
+/// Work order with derived_status computed from operations at query time.
+/// Returned by GET /work-orders/:id and GET /work-orders.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
+pub struct WorkOrderResponse {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+    pub status: String,
+    pub item_id: Uuid,
+    pub bom_revision_id: Uuid,
+    pub routing_template_id: Option<Uuid>,
+    pub planned_quantity: i32,
+    pub completed_quantity: i32,
+    pub planned_start: Option<DateTime<Utc>>,
+    pub planned_end: Option<DateTime<Utc>>,
+    pub actual_start: Option<DateTime<Utc>>,
+    pub actual_end: Option<DateTime<Utc>>,
+    pub material_cost_minor: i64,
+    pub labor_cost_minor: i64,
+    pub overhead_cost_minor: i64,
+    pub correlation_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    #[sqlx(try_from = "String")]
+    pub derived_status: DerivedStatus,
 }
 
 // ============================================================================
@@ -366,5 +417,128 @@ impl WorkOrderRepo {
         .fetch_optional(pool)
         .await
         .map_err(WorkOrderError::Database)
+    }
+
+    /// Fetch a single work order with derived_status computed from its operations.
+    /// derived_status is: not_started (0 ops or all pending), in_progress (any started/partial),
+    /// complete (all completed).
+    pub async fn find_by_id_with_derived(
+        pool: &PgPool,
+        id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<WorkOrderResponse>, WorkOrderError> {
+        sqlx::query_as::<_, WorkOrderResponse>(
+            r#"
+            SELECT
+                wo.work_order_id,
+                wo.tenant_id,
+                wo.order_number,
+                wo.status,
+                wo.item_id,
+                wo.bom_revision_id,
+                wo.routing_template_id,
+                wo.planned_quantity,
+                wo.completed_quantity,
+                wo.planned_start,
+                wo.planned_end,
+                wo.actual_start,
+                wo.actual_end,
+                wo.material_cost_minor,
+                wo.labor_cost_minor,
+                wo.overhead_cost_minor,
+                wo.correlation_id,
+                wo.created_at,
+                wo.updated_at,
+                CASE
+                    WHEN COUNT(o.operation_id) = 0 THEN 'not_started'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status = 'completed') = COUNT(o.operation_id) THEN 'complete'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status IN ('in_progress', 'completed')) > 0 THEN 'in_progress'
+                    ELSE 'not_started'
+                END AS derived_status
+            FROM work_orders wo
+            LEFT JOIN operations o
+                ON o.work_order_id = wo.work_order_id AND o.tenant_id = wo.tenant_id
+            WHERE wo.work_order_id = $1 AND wo.tenant_id = $2
+            GROUP BY
+                wo.work_order_id, wo.tenant_id, wo.order_number, wo.status, wo.item_id,
+                wo.bom_revision_id, wo.routing_template_id, wo.planned_quantity,
+                wo.completed_quantity, wo.planned_start, wo.planned_end, wo.actual_start,
+                wo.actual_end, wo.material_cost_minor, wo.labor_cost_minor,
+                wo.overhead_cost_minor, wo.correlation_id, wo.created_at, wo.updated_at
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(WorkOrderError::Database)
+    }
+
+    /// List work orders for a tenant with derived_status, newest first.
+    pub async fn list_with_derived(
+        pool: &PgPool,
+        tenant_id: &str,
+        page: i64,
+        page_size: i64,
+    ) -> Result<(Vec<WorkOrderResponse>, i64), WorkOrderError> {
+        let offset = (page - 1) * page_size;
+
+        let rows = sqlx::query_as::<_, WorkOrderResponse>(
+            r#"
+            SELECT
+                wo.work_order_id,
+                wo.tenant_id,
+                wo.order_number,
+                wo.status,
+                wo.item_id,
+                wo.bom_revision_id,
+                wo.routing_template_id,
+                wo.planned_quantity,
+                wo.completed_quantity,
+                wo.planned_start,
+                wo.planned_end,
+                wo.actual_start,
+                wo.actual_end,
+                wo.material_cost_minor,
+                wo.labor_cost_minor,
+                wo.overhead_cost_minor,
+                wo.correlation_id,
+                wo.created_at,
+                wo.updated_at,
+                CASE
+                    WHEN COUNT(o.operation_id) = 0 THEN 'not_started'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status = 'completed') = COUNT(o.operation_id) THEN 'complete'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status IN ('in_progress', 'completed')) > 0 THEN 'in_progress'
+                    ELSE 'not_started'
+                END AS derived_status
+            FROM work_orders wo
+            LEFT JOIN operations o
+                ON o.work_order_id = wo.work_order_id AND o.tenant_id = wo.tenant_id
+            WHERE wo.tenant_id = $1
+            GROUP BY
+                wo.work_order_id, wo.tenant_id, wo.order_number, wo.status, wo.item_id,
+                wo.bom_revision_id, wo.routing_template_id, wo.planned_quantity,
+                wo.completed_quantity, wo.planned_start, wo.planned_end, wo.actual_start,
+                wo.actual_end, wo.material_cost_minor, wo.labor_cost_minor,
+                wo.overhead_cost_minor, wo.correlation_id, wo.created_at, wo.updated_at
+            ORDER BY wo.created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(WorkOrderError::Database)?;
+
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(pool)
+                .await
+                .map_err(WorkOrderError::Database)?;
+
+        Ok((rows, total.0))
     }
 }

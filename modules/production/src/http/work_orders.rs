@@ -1,19 +1,20 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Extension, Json,
 };
 use event_bus::TracingContext;
-use platform_http_contracts::ApiError;
+use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::pagination::PaginationQuery;
 use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
-    domain::work_orders::{CreateWorkOrderRequest, WorkOrder, WorkOrderRepo},
+    domain::work_orders::{CreateWorkOrderRequest, WorkOrder, WorkOrderRepo, WorkOrderResponse},
     AppState,
 };
 
@@ -117,6 +118,41 @@ pub async fn close_work_order(
     }
 }
 
+/// GET /api/production/work-orders
+#[utoipa::path(
+    get,
+    path = "/api/production/work-orders",
+    tag = "Work Orders",
+    params(PaginationQuery),
+    responses(
+        (status = 200, description = "Paginated work order list", body = PaginatedResponse<WorkOrderResponse>),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn list_work_orders(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(pq): Query<PaginationQuery>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let page = pq.page.max(1);
+    let page_size = pq.page_size.clamp(1, 200);
+    match WorkOrderRepo::list_with_derived(&state.pool, &tenant_id, page, page_size).await {
+        Ok((items, total)) => {
+            let resp = PaginatedResponse::new(items, page, page_size, total);
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}
+
 /// GET /api/production/work-orders/:id
 #[utoipa::path(
     get,
@@ -124,7 +160,7 @@ pub async fn close_work_order(
     tag = "Work Orders",
     params(("id" = Uuid, Path, description = "Work order ID")),
     responses(
-        (status = 200, description = "Work order details", body = WorkOrder),
+        (status = 200, description = "Work order details", body = WorkOrderResponse),
         (status = 404, description = "Not found", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -139,7 +175,7 @@ pub async fn get_work_order(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match WorkOrderRepo::find_by_id(&state.pool, id, &tenant_id).await {
+    match WorkOrderRepo::find_by_id_with_derived(&state.pool, id, &tenant_id).await {
         Ok(Some(wo)) => (StatusCode::OK, Json(wo)).into_response(),
         Ok(None) => {
             with_request_id(ApiError::not_found("Work order not found"), &tracing_ctx)

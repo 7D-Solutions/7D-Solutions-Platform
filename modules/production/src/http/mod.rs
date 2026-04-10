@@ -48,6 +48,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     let reads = Router::new()
         .route("/api/production/workcenters", get(workcenters::list_workcenters))
         .route("/api/production/workcenters/{id}", get(workcenters::get_workcenter))
+        .route("/api/production/work-orders", get(work_orders::list_work_orders))
         .route("/api/production/work-orders/{id}", get(work_orders::get_work_order))
         .route("/api/production/work-orders/{id}/time-entries", get(time_entries::list_time_entries))
         .route("/api/production/work-orders/{id}/operations", get(operations::list_operations))
