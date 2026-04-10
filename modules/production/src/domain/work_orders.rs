@@ -1,11 +1,14 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::operations::OperationInstance;
 use crate::domain::outbox::enqueue_event;
+use crate::domain::time_entries::TimeEntry;
 use crate::events::{self, ProductionEventType};
 
 // ============================================================================
@@ -121,6 +124,66 @@ pub struct WorkOrderResponse {
     pub updated_at: DateTime<Utc>,
     #[sqlx(try_from = "String")]
     pub derived_status: DerivedStatus,
+}
+
+/// Work order returned by the batch endpoint.  All WO fields are present;
+/// `operations` and `time_entries` are populated only when requested via
+/// `?include=operations` / `?include=time_entries`.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkOrderWithIncludes {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+    pub status: String,
+    pub item_id: Uuid,
+    pub bom_revision_id: Uuid,
+    pub routing_template_id: Option<Uuid>,
+    pub planned_quantity: i32,
+    pub completed_quantity: i32,
+    pub planned_start: Option<DateTime<Utc>>,
+    pub planned_end: Option<DateTime<Utc>>,
+    pub actual_start: Option<DateTime<Utc>>,
+    pub actual_end: Option<DateTime<Utc>>,
+    pub material_cost_minor: i64,
+    pub labor_cost_minor: i64,
+    pub overhead_cost_minor: i64,
+    pub correlation_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub derived_status: DerivedStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Vec<OperationInstance>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_entries: Option<Vec<TimeEntry>>,
+}
+
+impl From<WorkOrderResponse> for WorkOrderWithIncludes {
+    fn from(wo: WorkOrderResponse) -> Self {
+        Self {
+            work_order_id: wo.work_order_id,
+            tenant_id: wo.tenant_id,
+            order_number: wo.order_number,
+            status: wo.status,
+            item_id: wo.item_id,
+            bom_revision_id: wo.bom_revision_id,
+            routing_template_id: wo.routing_template_id,
+            planned_quantity: wo.planned_quantity,
+            completed_quantity: wo.completed_quantity,
+            planned_start: wo.planned_start,
+            planned_end: wo.planned_end,
+            actual_start: wo.actual_start,
+            actual_end: wo.actual_end,
+            material_cost_minor: wo.material_cost_minor,
+            labor_cost_minor: wo.labor_cost_minor,
+            overhead_cost_minor: wo.overhead_cost_minor,
+            correlation_id: wo.correlation_id,
+            created_at: wo.created_at,
+            updated_at: wo.updated_at,
+            derived_status: wo.derived_status,
+            operations: None,
+            time_entries: None,
+        }
+    }
 }
 
 // ============================================================================
@@ -472,6 +535,96 @@ impl WorkOrderRepo {
         .fetch_optional(pool)
         .await
         .map_err(WorkOrderError::Database)
+    }
+
+    /// Fetch up to 50 work orders by ID in a single round-trip.
+    ///
+    /// Uses `= ANY($1)` to avoid N+1 queries.  When `include_operations` or
+    /// `include_time_entries` is true a second single-IN query is issued for
+    /// each collection and the results are mapped into each WO by ID.
+    pub async fn fetch_batch(
+        pool: &PgPool,
+        ids: &[Uuid],
+        tenant_id: &str,
+        include_operations: bool,
+        include_time_entries: bool,
+    ) -> Result<Vec<WorkOrderWithIncludes>, WorkOrderError> {
+        let wos = sqlx::query_as::<_, WorkOrderResponse>(
+            r#"
+            SELECT
+                wo.work_order_id, wo.tenant_id, wo.order_number, wo.status,
+                wo.item_id, wo.bom_revision_id, wo.routing_template_id,
+                wo.planned_quantity, wo.completed_quantity, wo.planned_start,
+                wo.planned_end, wo.actual_start, wo.actual_end,
+                wo.material_cost_minor, wo.labor_cost_minor, wo.overhead_cost_minor,
+                wo.correlation_id, wo.created_at, wo.updated_at,
+                CASE
+                    WHEN COUNT(o.operation_id) = 0 THEN 'not_started'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status = 'completed') = COUNT(o.operation_id) THEN 'complete'
+                    WHEN COUNT(o.operation_id) FILTER (WHERE o.status IN ('in_progress', 'completed')) > 0 THEN 'in_progress'
+                    ELSE 'not_started'
+                END AS derived_status
+            FROM work_orders wo
+            LEFT JOIN operations o
+                ON o.work_order_id = wo.work_order_id AND o.tenant_id = wo.tenant_id
+            WHERE wo.work_order_id = ANY($1) AND wo.tenant_id = $2
+            GROUP BY
+                wo.work_order_id, wo.tenant_id, wo.order_number, wo.status, wo.item_id,
+                wo.bom_revision_id, wo.routing_template_id, wo.planned_quantity,
+                wo.completed_quantity, wo.planned_start, wo.planned_end, wo.actual_start,
+                wo.actual_end, wo.material_cost_minor, wo.labor_cost_minor,
+                wo.overhead_cost_minor, wo.correlation_id, wo.created_at, wo.updated_at
+            "#,
+        )
+        .bind(ids)
+        .bind(tenant_id)
+        .fetch_all(pool)
+        .await
+        .map_err(WorkOrderError::Database)?;
+
+        let mut result: Vec<WorkOrderWithIncludes> = wos.into_iter().map(Into::into).collect();
+
+        if include_operations && !result.is_empty() {
+            let wo_ids: Vec<Uuid> = result.iter().map(|w| w.work_order_id).collect();
+            let ops = sqlx::query_as::<_, OperationInstance>(
+                "SELECT * FROM operations WHERE work_order_id = ANY($1) AND tenant_id = $2 ORDER BY sequence_number",
+            )
+            .bind(&wo_ids[..])
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .map_err(WorkOrderError::Database)?;
+
+            let mut ops_map: HashMap<Uuid, Vec<OperationInstance>> = HashMap::new();
+            for op in ops {
+                ops_map.entry(op.work_order_id).or_default().push(op);
+            }
+            for wo in &mut result {
+                wo.operations = Some(ops_map.remove(&wo.work_order_id).unwrap_or_default());
+            }
+        }
+
+        if include_time_entries && !result.is_empty() {
+            let wo_ids: Vec<Uuid> = result.iter().map(|w| w.work_order_id).collect();
+            let entries = sqlx::query_as::<_, TimeEntry>(
+                "SELECT * FROM time_entries WHERE work_order_id = ANY($1) AND tenant_id = $2 ORDER BY start_ts",
+            )
+            .bind(&wo_ids[..])
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .map_err(WorkOrderError::Database)?;
+
+            let mut te_map: HashMap<Uuid, Vec<TimeEntry>> = HashMap::new();
+            for te in entries {
+                te_map.entry(te.work_order_id).or_default().push(te);
+            }
+            for wo in &mut result {
+                wo.time_entries = Some(te_map.remove(&wo.work_order_id).unwrap_or_default());
+            }
+        }
+
+        Ok(result)
     }
 
     /// List work orders for a tenant with derived_status, newest first.

@@ -1,11 +1,24 @@
+use axum::{
+    body::Body,
+    extract::Request as AxumRequest,
+    middleware::{self, Next},
+    response::Response,
+    Router,
+};
+use http_body_util::BodyExt;
 use production_rs::domain::operations::OperationRepo;
 use production_rs::domain::routings::{AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo};
 use production_rs::domain::work_orders::{
     CreateWorkOrderRequest, DerivedStatus, WorkOrderError, WorkOrderRepo,
 };
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
+use production_rs::metrics::ProductionMetrics;
+use production_rs::AppState;
+use security::{ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use std::sync::Arc;
+use tower::ServiceExt;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -565,4 +578,256 @@ async fn list_with_derived_includes_derived_status() {
     for item in &items {
         assert_eq!(item.derived_status, DerivedStatus::NotStarted);
     }
+}
+
+// ============================================================================
+// Helpers for HTTP-level batch tests
+// ============================================================================
+
+/// Inject VerifiedClaims from X-Tenant-Id header (test-only — no real JWT).
+async fn inject_production_claims(req: AxumRequest, next: Next) -> Response {
+    use chrono::Duration;
+    let tenant_id = req
+        .headers()
+        .get("x-tenant-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| Uuid::parse_str(s).ok());
+    match tenant_id {
+        Some(tid) => {
+            let claims = VerifiedClaims {
+                user_id: Uuid::new_v4(),
+                tenant_id: tid,
+                app_id: None,
+                roles: vec!["admin".to_string()],
+                perms: vec![
+                    "production.read".to_string(),
+                    "production.mutate".to_string(),
+                ],
+                actor_type: ActorType::User,
+                issued_at: chrono::Utc::now(),
+                expires_at: chrono::Utc::now() + Duration::hours(1),
+                token_id: Uuid::new_v4(),
+                version: "1".to_string(),
+            };
+            let mut req = req;
+            req.extensions_mut().insert(claims);
+            next.run(req).await
+        }
+        None => next.run(req).await,
+    }
+}
+
+fn build_test_app(pool: sqlx::PgPool) -> Router {
+    // Prometheus registers metrics globally — share the instance across tests.
+    static METRICS: std::sync::OnceLock<Arc<ProductionMetrics>> = std::sync::OnceLock::new();
+    let metrics = METRICS
+        .get_or_init(|| Arc::new(ProductionMetrics::new().expect("metrics init")))
+        .clone();
+    let state = Arc::new(AppState { pool, metrics });
+    production_rs::http::router(state)
+        .layer(middleware::from_fn(inject_production_claims))
+}
+
+async fn body_json(resp: axum::response::Response<Body>) -> serde_json::Value {
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null)
+}
+
+// ============================================================================
+// Batch fetch: domain-level happy path
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn batch_fetch_returns_five_work_orders() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let mut ids = Vec::new();
+    for i in 0..5 {
+        let wo = WorkOrderRepo::create(
+            &pool,
+            &wo_request(&tenant, &format!("WO-BATCH-{}", i)),
+            &corr,
+            None,
+        )
+        .await
+        .expect("create");
+        ids.push(wo.work_order_id);
+    }
+
+    let result = WorkOrderRepo::fetch_batch(&pool, &ids, &tenant, false, false)
+        .await
+        .expect("fetch_batch");
+
+    assert_eq!(result.len(), 5, "all 5 WOs returned");
+    for wo in &result {
+        assert!(ids.contains(&wo.work_order_id), "unexpected id in result");
+        assert!(wo.operations.is_none(), "operations not requested");
+    }
+}
+
+#[tokio::test]
+#[serial]
+async fn batch_fetch_with_operations_returns_nested_ops() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let (wo_id, _op_id) = setup_released_wo_with_one_op(&pool, &tenant).await;
+
+    let result = WorkOrderRepo::fetch_batch(&pool, &[wo_id], &tenant, true, false)
+        .await
+        .expect("fetch_batch");
+
+    assert_eq!(result.len(), 1);
+    let ops = result[0].operations.as_ref().expect("operations present");
+    assert_eq!(ops.len(), 1, "one operation included");
+    assert_eq!(ops[0].work_order_id, wo_id);
+}
+
+// ============================================================================
+// Batch fetch: HTTP-level validation (real routes, no mocks)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn http_batch_fetch_empty_ids_returns_400() {
+    let pool = setup_db().await;
+    let app = build_test_app(pool);
+    let tenant = Uuid::new_v4();
+
+    let resp = app
+        .oneshot(
+            axum::http::Request::get(
+                "/api/production/work-orders?ids=",
+            )
+            .header("x-tenant-id", tenant.to_string())
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .expect("request");
+
+    assert_eq!(resp.status(), 400);
+    let body = body_json(resp).await;
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("empty"),
+        "body: {}",
+        body
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn http_batch_fetch_over_50_ids_returns_400() {
+    let pool = setup_db().await;
+    let app = build_test_app(pool);
+    let tenant = Uuid::new_v4();
+
+    let ids: Vec<String> = (0..51).map(|_| Uuid::new_v4().to_string()).collect();
+    let ids_param = ids.join(",");
+    let uri = format!("/api/production/work-orders?ids={}", ids_param);
+
+    let resp = app
+        .oneshot(
+            axum::http::Request::get(uri.as_str())
+                .header("x-tenant-id", tenant.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("request");
+
+    assert_eq!(resp.status(), 400);
+    let body = body_json(resp).await;
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("50"),
+        "body: {}",
+        body
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn http_batch_fetch_five_ids_returns_all() {
+    let pool = setup_db().await;
+    // Use a UUID-format tenant so it round-trips through VerifiedClaims.tenant_id
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let corr = Uuid::new_v4().to_string();
+    let app = build_test_app(pool.clone());
+
+    let mut ids = Vec::new();
+    for i in 0..5 {
+        let wo = WorkOrderRepo::create(
+            &pool,
+            &wo_request(&tenant, &format!("WO-HTTP-BATCH-{}", i)),
+            &corr,
+            None,
+        )
+        .await
+        .expect("create");
+        ids.push(wo.work_order_id.to_string());
+    }
+
+    let ids_param = ids.join(",");
+    let uri = format!("/api/production/work-orders?ids={}", ids_param);
+
+    let resp = app
+        .oneshot(
+            axum::http::Request::get(uri.as_str())
+                .header("x-tenant-id", tenant_uuid.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .expect("request");
+
+    assert_eq!(resp.status(), 200);
+    let body = body_json(resp).await;
+    let arr = body.as_array().expect("response is an array");
+    assert_eq!(arr.len(), 5, "all 5 WOs returned in HTTP response");
+}
+
+// ============================================================================
+// Batch fetch: response-time gate for 10 WOs
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn batch_fetch_10_wos_under_200ms() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let mut ids = Vec::new();
+    for i in 0..10 {
+        let wo = WorkOrderRepo::create(
+            &pool,
+            &wo_request(&tenant, &format!("WO-PERF-{}", i)),
+            &corr,
+            None,
+        )
+        .await
+        .expect("create");
+        ids.push(wo.work_order_id);
+    }
+
+    let start = std::time::Instant::now();
+    let _result = WorkOrderRepo::fetch_batch(&pool, &ids, &tenant, true, false)
+        .await
+        .expect("fetch_batch");
+    let elapsed = start.elapsed();
+
+    assert!(
+        elapsed.as_millis() < 200,
+        "fetch_batch for 10 WOs took {}ms (expected < 200ms)",
+        elapsed.as_millis()
+    );
 }

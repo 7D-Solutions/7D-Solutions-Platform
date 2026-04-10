@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "3.2.0"
+version = "3.2.2"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -29,6 +29,7 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"
+http-body-util = "0.1"
 
 [[bin]]
 name = "openapi_dump"
