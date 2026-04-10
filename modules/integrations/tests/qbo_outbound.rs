@@ -1,4 +1,4 @@
-//! QBO outbound invoice sync integration tests (bd-yvc71).
+//! QBO outbound invoice sync integration tests (bd-yvc71, bd-xgbji).
 //!
 //! Run: ./scripts/cargo-slot.sh test -p integrations-rs -- qbo_outbound --nocapture
 //!
@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use event_bus::BusMessage;
 use integrations_rs::domain::qbo::outbound::{
-    process_ar_invoice_opened, EVENT_TYPE_QBO_INVOICE_CREATED, EVENT_TYPE_QBO_INVOICE_SYNC_FAILED,
+    process_ar_invoice_opened, process_order_ingested, EVENT_TYPE_QBO_INVOICE_CREATED,
+    EVENT_TYPE_QBO_INVOICE_SYNC_FAILED,
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -473,4 +474,278 @@ async fn qbo_outbound_consumer_shuts_down_gracefully() {
     let result = tokio::time::timeout(std::time::Duration::from_secs(5), handle).await;
     assert!(result.is_ok(), "consumer should shut down within 5 seconds");
     assert!(result.unwrap().is_ok(), "consumer task should not panic");
+}
+
+// ============================================================================
+// Helpers for order-ingested tests
+// ============================================================================
+
+/// Seed a marketplace_customer → QBO customer mapping.
+async fn seed_marketplace_customer_ref(
+    pool: &PgPool,
+    app_id: &str,
+    customer_ref: &str,
+    qbo_customer_id: &str,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO integrations_external_refs
+            (app_id, entity_type, entity_id, system, external_id, created_at, updated_at)
+        VALUES ($1, 'marketplace_customer', $2, 'qbo', $3, NOW(), NOW())
+        ON CONFLICT (app_id, system, external_id) DO NOTHING
+        "#,
+    )
+    .bind(app_id)
+    .bind(customer_ref)
+    .bind(qbo_customer_id)
+    .execute(pool)
+    .await
+    .expect("seed marketplace customer ref");
+}
+
+/// Seed an existing marketplace_order → qbo_invoice mapping (simulates already-synced state).
+async fn seed_marketplace_order_ref(
+    pool: &PgPool,
+    app_id: &str,
+    order_id: &str,
+    qbo_invoice_id: &str,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO integrations_external_refs
+            (app_id, entity_type, entity_id, system, external_id, created_at, updated_at)
+        VALUES ($1, 'marketplace_order', $2, 'qbo_invoice', $3, NOW(), NOW())
+        ON CONFLICT (app_id, system, external_id) DO NOTHING
+        "#,
+    )
+    .bind(app_id)
+    .bind(order_id)
+    .bind(qbo_invoice_id)
+    .execute(pool)
+    .await
+    .expect("seed marketplace order ref");
+}
+
+/// Build a synthetic NATS BusMessage for integrations.order.ingested.
+fn make_order_ingested_message(
+    app_id: &str,
+    order_id: &str,
+    source: &str,
+    customer_ref: Option<&str>,
+    line_items: &[(/* title */ &str, /* price */ &str, /* qty */ u32)],
+) -> BusMessage {
+    let items: Vec<serde_json::Value> = line_items
+        .iter()
+        .map(|(title, price, qty)| {
+            serde_json::json!({
+                "product_id": "prod-1",
+                "variant_id": "var-1",
+                "title": title,
+                "quantity": qty,
+                "price": price,
+                "sku": null
+            })
+        })
+        .collect();
+
+    let payload = serde_json::json!({
+        "event_id": Uuid::new_v4().to_string(),
+        "event_type": "integrations.order.ingested",
+        "occurred_at": "2026-04-09T10:00:00Z",
+        "tenant_id": app_id,
+        "source_module": "integrations",
+        "source_version": "2.3.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "payload": {
+            "tenant_id": app_id,
+            "source": source,
+            "order_id": order_id,
+            "order_number": 1001_u64,
+            "financial_status": "paid",
+            "line_items": items,
+            "customer_ref": customer_ref,
+            "file_job_id": Uuid::new_v4().to_string(),
+            "ingested_at": "2026-04-09T10:00:00Z"
+        }
+    });
+    BusMessage::new(
+        "integrations.order.ingested".to_string(),
+        serde_json::to_vec(&payload).unwrap(),
+    )
+}
+
+// ============================================================================
+// Test 6 — order.ingested happy path: creates QBO invoice and stores ext ref
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
+    let pool = setup_db().await;
+    let app_id = unique_tenant();
+    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
+    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+    let qbo_customer_id = "55";
+    let qbo_invoice_id = format!("qbo-inv-{}", Uuid::new_v4().simple());
+
+    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, qbo_customer_id).await;
+    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+
+    let (base_url, call_count) = start_qbo_mock(&realm_id, &qbo_invoice_id).await;
+
+    let msg = make_order_ingested_message(
+        &app_id,
+        &order_id,
+        "shopify",
+        Some(&customer_ref),
+        &[("Widget A", "29.99", 2), ("Widget B", "9.99", 1)],
+    );
+    let result = process_order_ingested(&pool, &msg, &base_url).await;
+    assert!(result.is_ok(), "process_order_ingested failed: {:?}", result);
+
+    assert_eq!(call_count.load(Ordering::SeqCst), 1, "expected 1 QBO API call");
+
+    // External ref stored under marketplace_order entity type
+    let stored =
+        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
+    assert_eq!(
+        stored.as_deref(),
+        Some(qbo_invoice_id.as_str()),
+        "external ref should be stored with QBO invoice Id"
+    );
+
+    // Outbox event emitted
+    let outbox = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_CREATED).await;
+    assert!(
+        !outbox.is_empty(),
+        "integrations.qbo.invoice_created outbox event should exist"
+    );
+    assert_eq!(
+        outbox[0]["payload"]["qbo_invoice_id"].as_str(),
+        Some(qbo_invoice_id.as_str())
+    );
+
+    cleanup_tenant(&pool, &app_id).await;
+}
+
+// ============================================================================
+// Test 7 — source == "qbo" is skipped (circular creation guard)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn qbo_outbound_order_ingested_skips_qbo_source() {
+    let pool = setup_db().await;
+    let app_id = unique_tenant();
+    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
+    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+
+    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, "99").await;
+    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+
+    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
+
+    let msg = make_order_ingested_message(
+        &app_id,
+        &order_id,
+        "qbo", // source is qbo — must be skipped
+        Some(&customer_ref),
+        &[("Widget", "10.00", 1)],
+    );
+    let result = process_order_ingested(&pool, &msg, &base_url).await;
+    assert!(result.is_ok(), "qbo-sourced order should return Ok: {:?}", result);
+
+    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for qbo-sourced order");
+
+    let stored =
+        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
+    assert!(stored.is_none(), "no external ref should be created for skipped order");
+
+    cleanup_tenant(&pool, &app_id).await;
+}
+
+// ============================================================================
+// Test 8 — idempotency: second order.ingested for same order is a no-op
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn qbo_outbound_order_ingested_idempotent_on_duplicate() {
+    let pool = setup_db().await;
+    let app_id = unique_tenant();
+    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
+    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+    let existing_qbo_id = "ALREADY-SYNCED-ORDER-88";
+
+    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, "42").await;
+    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    seed_marketplace_order_ref(&pool, &app_id, &order_id, existing_qbo_id).await;
+
+    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
+
+    let msg = make_order_ingested_message(
+        &app_id,
+        &order_id,
+        "shopify",
+        Some(&customer_ref),
+        &[("Widget", "20.00", 1)],
+    );
+    let result = process_order_ingested(&pool, &msg, &base_url).await;
+    assert!(result.is_ok(), "idempotent call should succeed: {:?}", result);
+
+    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for duplicate order");
+
+    let stored =
+        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
+    assert_eq!(stored.as_deref(), Some(existing_qbo_id), "existing ref must be unchanged");
+
+    cleanup_tenant(&pool, &app_id).await;
+}
+
+// ============================================================================
+// Test 9 — missing customer mapping emits error event
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn qbo_outbound_order_ingested_missing_customer_emits_error_event() {
+    let pool = setup_db().await;
+    let app_id = unique_tenant();
+    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let customer_ref = format!("unknown-{}@example.com", Uuid::new_v4().simple());
+    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+
+    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    // Deliberately NOT seeding a marketplace_customer ref
+
+    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
+
+    let msg = make_order_ingested_message(
+        &app_id,
+        &order_id,
+        "amazon",
+        Some(&customer_ref),
+        &[("Widget", "5.00", 3)],
+    );
+    let result = process_order_ingested(&pool, &msg, &base_url).await;
+    assert!(result.is_ok(), "missing customer should not propagate as error: {:?}", result);
+
+    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for unmapped customer");
+
+    let stored =
+        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
+    assert!(stored.is_none(), "no invoice ref should be stored for unmapped customer");
+
+    let errors = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_SYNC_FAILED).await;
+    assert!(!errors.is_empty(), "sync_failed outbox event should exist");
+    assert_eq!(
+        errors[0]["payload"]["reason"].as_str(),
+        Some("no_qbo_customer_mapping")
+    );
+
+    cleanup_tenant(&pool, &app_id).await;
 }

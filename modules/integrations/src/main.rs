@@ -137,7 +137,22 @@ async fn main() {
                     outbound_shutdown_rx,
                 );
                 tracing::info!("Integrations: QBO outbound consumer started");
+
+                let (_order_ingested_shutdown_tx, order_ingested_shutdown_rx) =
+                    tokio::sync::watch::channel(false);
+                integrations_rs::domain::qbo::outbound::spawn_order_ingested_consumer(
+                    ctx.pool().clone(),
+                    bus.clone(),
+                    order_ingested_shutdown_rx,
+                );
+                tracing::info!("Integrations: QBO order-ingested consumer started");
             }
+
+            integrations_rs::domain::file_jobs::ebay_fulfillment::start_ebay_fulfillment_consumer(
+                bus.clone(),
+                ctx.pool().clone(),
+            );
+            tracing::info!("Integrations: eBay fulfillment consumer started");
 
             let integrations_metrics = Arc::new(
                 metrics::IntegrationsMetrics::new()

@@ -1,6 +1,7 @@
-//! Integration tests for the eBay marketplace connector (bd-4ec8i).
+//! Integration tests for the eBay marketplace connector (bd-4ec8i) and
+//! eBay fulfillment write-back (bd-t71hs).
 //!
-//! Covers:
+//! Connector tests (1-10):
 //!  1. eBay connector registration — happy path
 //!  2. validate_config via service — all required fields present
 //!  3. validate_config via service — missing required field
@@ -11,14 +12,27 @@
 //!  8. Registry — all_connectors() includes "ebay"
 //!  9. Normalization — orders extracted with correct source="ebay"
 //! 10. Normalization — idempotency_key prefix is "ebay-fj-"
+//!
+//! Fulfillment write-back tests (11-16):
+//! 11. push_tracking_to_ebay — 204 success
+//! 12. push_tracking_to_ebay — 409 treated as success (idempotent)
+//! 13. push_tracking_to_ebay — non-409 error propagated
+//! 14. process_outbound_shipped — skips when no tracking number
+//! 15. process_outbound_shipped — skips when no ebay_order lines
+//! 16. process_outbound_shipped — pushes tracking for ebay_order line (DB + stub)
 
 use integrations_rs::domain::connectors::{
     service::{register_connector, run_test_action},
     RegisterConnectorRequest, RunTestActionRequest,
 };
+use integrations_rs::domain::file_jobs::ebay_fulfillment::{
+    process_outbound_shipped, push_tracking_to_ebay, OutboundShippedLine, OutboundShippedPayload,
+};
 use integrations_rs::domain::file_jobs::ebay_poller::{normalize_ebay_orders, next_page_cursor};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -261,4 +275,291 @@ fn next_page_cursor_returns_correct_values() {
     );
     assert!(next_page_cursor(&serde_json::json!({})).is_none());
     assert!(next_page_cursor(&serde_json::json!({ "next": "" })).is_none());
+}
+
+// ============================================================================
+// Fulfillment write-back helpers
+// ============================================================================
+
+/// Start a stub server that handles both:
+/// - POST /identity/v1/oauth2/token → returns a bearer token
+/// - POST /sell/fulfillment/v1/order/{order_id}/shipping_fulfillment → configurable status
+///
+/// Returns (token_base_url, fulfillment_base_url, fulfillment_call_count).
+async fn start_ebay_stubs(
+    fulfillment_status: u16,
+) -> (String, String, Arc<AtomicU32>) {
+    let call_count = Arc::new(AtomicU32::new(0));
+
+    #[derive(Clone)]
+    struct State {
+        call_count: Arc<AtomicU32>,
+        fulfillment_status: u16,
+    }
+
+    async fn handle_token(
+    ) -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
+        let body = serde_json::json!({ "access_token": "stub-token", "token_type": "Bearer" });
+        (axum::http::StatusCode::OK, axum::Json(body))
+    }
+
+    async fn handle_fulfillment(
+        axum::extract::State(s): axum::extract::State<State>,
+    ) -> axum::http::StatusCode {
+        s.call_count.fetch_add(1, Ordering::SeqCst);
+        axum::http::StatusCode::from_u16(s.fulfillment_status).unwrap_or(axum::http::StatusCode::NO_CONTENT)
+    }
+
+    let state = State {
+        call_count: call_count.clone(),
+        fulfillment_status,
+    };
+
+    let app = axum::Router::new()
+        .route(
+            "/identity/v1/oauth2/token",
+            axum::routing::post(handle_token),
+        )
+        .route(
+            "/sell/fulfillment/v1/order/{order_id}/shipping_fulfillment",
+            axum::routing::post(handle_fulfillment),
+        )
+        .with_state(state);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind eBay stub");
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("eBay stub server")
+    });
+
+    let base = format!("http://{}", addr);
+    (
+        format!("{}/identity/v1/oauth2/token", base),
+        format!("{}/sell/fulfillment/v1/order", base),
+        call_count,
+    )
+}
+
+fn valid_ebay_payload_with_ebay_line(
+    tenant_id: &str,
+    file_job_id: Uuid,
+    tracking_number: &str,
+) -> OutboundShippedPayload {
+    OutboundShippedPayload {
+        tenant_id: tenant_id.to_string(),
+        shipment_id: Uuid::new_v4(),
+        lines: vec![OutboundShippedLine {
+            line_id: Uuid::new_v4(),
+            sku: "SKU-001".to_string(),
+            qty_shipped: 1,
+            issue_id: None,
+            source_ref_type: Some("ebay_order".to_string()),
+            source_ref_id: Some(file_job_id),
+        }],
+        shipped_at: chrono::Utc::now(),
+        tracking_number: Some(tracking_number.to_string()),
+        carrier_party_id: None,
+    }
+}
+
+// ============================================================================
+// 11. push_tracking_to_ebay — 204 success
+// ============================================================================
+
+#[tokio::test]
+async fn ebay_push_tracking_204_returns_ok() {
+    let (_token_url, fulfillment_url, call_count) = start_ebay_stubs(204).await;
+    let http = reqwest::Client::new();
+
+    let result = push_tracking_to_ebay(
+        &http,
+        "stub-token",
+        &fulfillment_url,
+        "01-11111-22222",
+        "USPS",
+        "9400111899560003000001",
+    )
+    .await;
+
+    assert!(result.is_ok(), "204 should be success: {:?}", result.err());
+    assert_eq!(call_count.load(Ordering::SeqCst), 1, "should call eBay once");
+}
+
+// ============================================================================
+// 12. push_tracking_to_ebay — 409 treated as success (idempotent)
+// ============================================================================
+
+#[tokio::test]
+async fn ebay_push_tracking_409_is_idempotent_success() {
+    let (_token_url, fulfillment_url, call_count) = start_ebay_stubs(409).await;
+    let http = reqwest::Client::new();
+
+    let result = push_tracking_to_ebay(
+        &http,
+        "stub-token",
+        &fulfillment_url,
+        "01-99999-88888",
+        "UPS",
+        "1Z999AA10123456784",
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "409 duplicate fulfillment must not be an error: {:?}",
+        result.err()
+    );
+    assert_eq!(call_count.load(Ordering::SeqCst), 1);
+}
+
+// ============================================================================
+// 13. push_tracking_to_ebay — non-409 error propagated
+// ============================================================================
+
+#[tokio::test]
+async fn ebay_push_tracking_500_returns_error() {
+    let (_token_url, fulfillment_url, _call_count) = start_ebay_stubs(500).await;
+    let http = reqwest::Client::new();
+
+    let result = push_tracking_to_ebay(
+        &http,
+        "stub-token",
+        &fulfillment_url,
+        "01-00001-00001",
+        "FEDEX",
+        "795899742456",
+    )
+    .await;
+
+    assert!(result.is_err(), "500 should propagate as error");
+}
+
+// ============================================================================
+// 14. process_outbound_shipped — skips when no tracking number
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn ebay_fulfillment_skips_without_tracking() {
+    let pool = setup_db().await;
+    let http = reqwest::Client::new();
+
+    let payload = OutboundShippedPayload {
+        tenant_id: unique_tenant(),
+        shipment_id: Uuid::new_v4(),
+        lines: vec![OutboundShippedLine {
+            line_id: Uuid::new_v4(),
+            sku: "SKU-X".to_string(),
+            qty_shipped: 1,
+            issue_id: None,
+            source_ref_type: Some("ebay_order".to_string()),
+            source_ref_id: Some(Uuid::new_v4()),
+        }],
+        shipped_at: chrono::Utc::now(),
+        tracking_number: None,  // absent
+        carrier_party_id: None,
+    };
+
+    let result = process_outbound_shipped(&pool, &http, &payload, None, None).await;
+    assert!(result.is_ok(), "missing tracking_number should not be an error");
+}
+
+// ============================================================================
+// 15. process_outbound_shipped — skips when no ebay_order lines
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn ebay_fulfillment_skips_without_ebay_lines() {
+    let pool = setup_db().await;
+    let http = reqwest::Client::new();
+
+    let payload = OutboundShippedPayload {
+        tenant_id: unique_tenant(),
+        shipment_id: Uuid::new_v4(),
+        lines: vec![OutboundShippedLine {
+            line_id: Uuid::new_v4(),
+            sku: "SKU-Y".to_string(),
+            qty_shipped: 2,
+            issue_id: None,
+            source_ref_type: Some("sales_order".to_string()), // not ebay_order
+            source_ref_id: Some(Uuid::new_v4()),
+        }],
+        shipped_at: chrono::Utc::now(),
+        tracking_number: Some("1Z999AA10123456784".to_string()),
+        carrier_party_id: None,
+    };
+
+    let result = process_outbound_shipped(&pool, &http, &payload, None, None).await;
+    assert!(result.is_ok(), "no ebay_order lines should not be an error");
+}
+
+// ============================================================================
+// 16. process_outbound_shipped — pushes tracking for ebay_order line (DB + stub)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn process_outbound_shipped_pushes_tracking_for_ebay_line() {
+    let pool = setup_db().await;
+    let tenant = format!("ebay-fulfill-{}", Uuid::new_v4().simple());
+
+    // Register an eBay connector for the tenant.
+    let _cfg = register_connector(&pool, &tenant, &ebay_req("Fulfill Store"), corr())
+        .await
+        .expect("connector registration failed");
+
+    // Seed a file_job row simulating an ingested eBay order.
+    let ebay_order_id = format!("01-{}-{}", Uuid::new_v4().simple().to_string()[..5].to_string(), "99999");
+    let file_job_id = Uuid::new_v4();
+    sqlx::query(
+        r#"INSERT INTO integrations_file_jobs
+               (id, tenant_id, file_ref, parser_type, status, idempotency_key)
+           VALUES ($1, $2, $3, $4, $5, $6)"#,
+    )
+    .bind(file_job_id)
+    .bind(&tenant)
+    .bind(format!("ebay:order:{}", ebay_order_id))
+    .bind("ebay_order")
+    .bind("created")
+    .bind(format!("ebay-fj-{}", ebay_order_id))
+    .execute(&pool)
+    .await
+    .expect("seed file_job");
+
+    // Start stub server (204 success).
+    let (token_url, fulfillment_url, call_count) = start_ebay_stubs(204).await;
+
+    let tracking_number = "9400111899560003000099";
+    let payload = valid_ebay_payload_with_ebay_line(&tenant, file_job_id, tracking_number);
+
+    let result = process_outbound_shipped(
+        &pool,
+        &reqwest::Client::new(),
+        &payload,
+        Some(&fulfillment_url),
+        Some(&token_url),
+    )
+    .await;
+
+    assert!(result.is_ok(), "fulfillment push should succeed: {:?}", result.err());
+    assert_eq!(
+        call_count.load(Ordering::SeqCst),
+        1,
+        "should have called eBay fulfillment API once"
+    );
+
+    // Cleanup
+    sqlx::query("DELETE FROM integrations_file_jobs WHERE tenant_id = $1")
+        .bind(&tenant)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_connector_configs WHERE app_id = $1")
+        .bind(&tenant)
+        .execute(&pool)
+        .await
+        .ok();
 }

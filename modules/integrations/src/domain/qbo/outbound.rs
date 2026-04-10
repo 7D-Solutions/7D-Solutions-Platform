@@ -32,7 +32,7 @@ use super::client::{QboInvoicePayload, QboLineItem, QboClient};
 use crate::domain::external_refs::repo as refs_repo;
 use crate::domain::oauth::repo as oauth_repo;
 use crate::events::envelope::create_integrations_envelope;
-use crate::events::MUTATION_CLASS_DATA_MUTATION;
+use crate::events::{OrderIngestedPayload, MUTATION_CLASS_DATA_MUTATION};
 use crate::outbox::enqueue_event_tx;
 
 // ============================================================================
@@ -40,11 +40,14 @@ use crate::outbox::enqueue_event_tx;
 // ============================================================================
 
 pub const NATS_SUBJECT_AR_INVOICE_OPENED: &str = "ar.events.ar.invoice_opened";
+pub const NATS_SUBJECT_ORDER_INGESTED: &str = "integrations.order.ingested";
 pub const EVENT_TYPE_QBO_INVOICE_CREATED: &str = "integrations.qbo.invoice_created";
 pub const EVENT_TYPE_QBO_INVOICE_SYNC_FAILED: &str = "integrations.qbo.invoice_sync_failed";
 
 const ENTITY_TYPE_AR_INVOICE: &str = "ar_invoice";
 const ENTITY_TYPE_AR_CUSTOMER: &str = "ar_customer";
+const ENTITY_TYPE_MARKETPLACE_ORDER: &str = "marketplace_order";
+const ENTITY_TYPE_MARKETPLACE_CUSTOMER: &str = "marketplace_customer";
 const SYSTEM_QBO_INVOICE: &str = "qbo_invoice";
 const SYSTEM_QBO_CUSTOMER: &str = "qbo";
 
@@ -257,6 +260,312 @@ pub async fn process_ar_invoice_opened(
 
     tx.commit().await?;
     Ok(())
+}
+
+// ============================================================================
+// Order-ingested consumer
+// ============================================================================
+
+/// Minimal deserialization wrapper for `EventEnvelope<OrderIngestedPayload>`.
+#[derive(Debug, Deserialize)]
+struct OrderIngestedEnvelope {
+    payload: OrderIngestedPayload,
+}
+
+/// Process a single `integrations.order.ingested` NATS message.
+///
+/// Skips silently if `source == "qbo"` to prevent circular invoice creation.
+/// On success, stores a `marketplace_order → qbo_invoice` external ref and
+/// enqueues an `integrations.qbo.invoice_created` outbox event.
+pub async fn process_order_ingested(
+    pool: &PgPool,
+    msg: &BusMessage,
+    qbo_base_url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let envelope: OrderIngestedEnvelope = serde_json::from_slice(&msg.payload).map_err(|e| {
+        format!("qbo_outbound: failed to deserialize order.ingested event: {e}")
+    })?;
+
+    let p = &envelope.payload;
+    let app_id = p.tenant_id.as_str();
+    let order_id = p.order_id.as_str();
+    let source = p.source.as_str();
+
+    // ── Source guard — prevents circular creation when source is QBO ──────────
+    if source == "qbo" {
+        tracing::debug!(app_id, order_id, "qbo_outbound: skipping QBO-sourced order");
+        return Ok(());
+    }
+
+    // ── Idempotency guard ─────────────────────────────────────────────────────
+    let existing =
+        refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_MARKETPLACE_ORDER, order_id).await?;
+    if existing.iter().any(|r| r.system == SYSTEM_QBO_INVOICE) {
+        tracing::info!(
+            app_id,
+            order_id,
+            "qbo_outbound: order already synced — skipping duplicate"
+        );
+        return Ok(());
+    }
+
+    // ── Resolve marketplace customer → QBO customer ───────────────────────────
+    let customer_ref = match p.customer_ref.as_deref() {
+        Some(cr) => cr,
+        None => {
+            tracing::error!(
+                app_id,
+                order_id,
+                "qbo_outbound: order has no customer_ref — emitting sync_failed"
+            );
+            emit_order_sync_failed(pool, app_id, order_id, "", "no_customer_ref").await?;
+            return Ok(());
+        }
+    };
+
+    let customer_refs =
+        refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_MARKETPLACE_CUSTOMER, customer_ref)
+            .await?;
+    let qbo_customer_id = match customer_refs.iter().find(|r| r.system == SYSTEM_QBO_CUSTOMER) {
+        Some(r) => r.external_id.clone(),
+        None => {
+            tracing::error!(
+                app_id,
+                order_id,
+                customer_ref,
+                "qbo_outbound: no QBO customer mapping for marketplace customer — emitting sync_failed"
+            );
+            emit_order_sync_failed(pool, app_id, order_id, customer_ref, "no_qbo_customer_mapping")
+                .await?;
+            return Ok(());
+        }
+    };
+
+    // ── Resolve QBO connection (realm_id) ─────────────────────────────────────
+    let conn = oauth_repo::get_connection(pool, app_id, "quickbooks").await?;
+    let realm_id = match conn {
+        Some(c) if c.connection_status == "connected" => c.realm_id,
+        Some(c) => {
+            tracing::error!(
+                app_id,
+                status = %c.connection_status,
+                "qbo_outbound: QBO not in 'connected' state — skipping order"
+            );
+            return Ok(());
+        }
+        None => {
+            tracing::error!(app_id, "qbo_outbound: no QBO OAuth connection — skipping order");
+            return Ok(());
+        }
+    };
+
+    // ── Build QBO invoice payload from order line items ───────────────────────
+    let tokens = Arc::new(DbTokenProvider {
+        pool: pool.clone(),
+        app_id: app_id.to_string(),
+    });
+    let qbo = QboClient::new(qbo_base_url, &realm_id, tokens);
+
+    let item_ref = std::env::var("QBO_DEFAULT_ITEM_REF").unwrap_or_else(|_| "1".to_string());
+
+    let line_items: Vec<QboLineItem> = p
+        .line_items
+        .iter()
+        .map(|li| {
+            let unit_price: f64 = li.price.parse().unwrap_or(0.0);
+            let amount = unit_price * li.quantity as f64;
+            QboLineItem {
+                amount,
+                description: Some(format!("{} (qty {})", li.title, li.quantity)),
+                item_ref: Some(item_ref.clone()),
+            }
+        })
+        .collect();
+
+    let invoice_payload = QboInvoicePayload {
+        customer_ref: qbo_customer_id,
+        line_items,
+        due_date: None,
+        doc_number: Some(format!("{source}-{order_id}")),
+    };
+
+    let qbo_invoice = qbo.create_invoice(&invoice_payload).await.map_err(|e| {
+        format!("qbo_outbound: QBO create_invoice failed for order {order_id}: {e}")
+    })?;
+
+    let qbo_invoice_id = qbo_invoice["Id"]
+        .as_str()
+        .ok_or_else(|| {
+            format!("qbo_outbound: QBO response missing Invoice.Id for order {order_id}")
+        })?
+        .to_string();
+
+    tracing::info!(
+        app_id,
+        order_id,
+        qbo_invoice_id = %qbo_invoice_id,
+        "qbo_outbound: QBO invoice created for marketplace order"
+    );
+
+    // ── Atomically store ref + enqueue outbox event ───────────────────────────
+    let mut tx = pool.begin().await?;
+
+    let ref_result = refs_repo::upsert(
+        &mut tx,
+        app_id,
+        ENTITY_TYPE_MARKETPLACE_ORDER,
+        order_id,
+        SYSTEM_QBO_INVOICE,
+        &qbo_invoice_id,
+        &None,
+        &None,
+    )
+    .await;
+
+    if let Err(ref db_err) = ref_result {
+        tracing::error!(
+            app_id,
+            order_id,
+            qbo_invoice_id = %qbo_invoice_id,
+            error = %db_err,
+            "ORPHANED QBO INVOICE: created for marketplace order but external ref insert failed \
+             — manual reconciliation required"
+        );
+        return Err(Box::new(sqlx::Error::RowNotFound));
+    }
+
+    let event_id = Uuid::new_v4();
+    let correlation_id = Uuid::new_v4().to_string();
+    let created_payload = QboInvoiceCreatedPayload {
+        ar_invoice_id: order_id.to_string(),
+        qbo_invoice_id: qbo_invoice_id.clone(),
+        app_id: app_id.to_string(),
+        realm_id: realm_id.clone(),
+    };
+
+    let envelope_out = create_integrations_envelope(
+        event_id,
+        app_id.to_string(),
+        EVENT_TYPE_QBO_INVOICE_CREATED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        created_payload,
+    );
+
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_QBO_INVOICE_CREATED,
+        "qbo_invoice",
+        &qbo_invoice_id,
+        app_id,
+        &envelope_out,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Emit a `integrations.qbo.invoice_sync_failed` outbox event for marketplace order failures.
+async fn emit_order_sync_failed(
+    pool: &PgPool,
+    app_id: &str,
+    order_id: &str,
+    customer_ref: &str,
+    reason: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut tx = pool.begin().await?;
+    let event_id = Uuid::new_v4();
+    let correlation_id = Uuid::new_v4().to_string();
+
+    let error_payload = QboInvoiceSyncErrorPayload {
+        ar_invoice_id: order_id.to_string(),
+        ar_customer_id: customer_ref.to_string(),
+        app_id: app_id.to_string(),
+        reason: reason.to_string(),
+    };
+
+    let envelope = create_integrations_envelope(
+        event_id,
+        app_id.to_string(),
+        EVENT_TYPE_QBO_INVOICE_SYNC_FAILED.to_string(),
+        correlation_id,
+        None,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        error_payload,
+    );
+
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_QBO_INVOICE_SYNC_FAILED,
+        "qbo_invoice_sync",
+        order_id,
+        app_id,
+        &envelope,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(())
+}
+
+/// Spawn the QBO order-ingested consumer as a background tokio task.
+///
+/// Subscribes to [`NATS_SUBJECT_ORDER_INGESTED`] and calls
+/// [`process_order_ingested`] for each message.
+pub fn spawn_order_ingested_consumer(
+    pool: PgPool,
+    bus: Arc<dyn EventBus>,
+    mut shutdown_rx: watch::Receiver<bool>,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let qbo_url = default_qbo_base_url();
+
+        let mut stream = match bus.subscribe(NATS_SUBJECT_ORDER_INGESTED).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    subject = NATS_SUBJECT_ORDER_INGESTED,
+                    "qbo_outbound: failed to subscribe to order.ingested — consumer not started"
+                );
+                return;
+            }
+        };
+
+        tracing::info!(
+            subject = NATS_SUBJECT_ORDER_INGESTED,
+            "QBO order-ingested consumer started"
+        );
+
+        loop {
+            tokio::select! {
+                maybe_msg = stream.next() => {
+                    match maybe_msg {
+                        Some(msg) => {
+                            if let Err(e) = process_order_ingested(&pool, &msg, &qbo_url).await {
+                                tracing::error!(
+                                    error = %e,
+                                    "qbo_outbound: order.ingested processing failed"
+                                );
+                            }
+                        }
+                        None => {
+                            tracing::warn!("qbo_outbound: order.ingested stream ended");
+                            break;
+                        }
+                    }
+                }
+                _ = shutdown_rx.changed() => {
+                    tracing::info!("qbo_outbound: order.ingested consumer shutting down");
+                    break;
+                }
+            }
+        }
+    })
 }
 
 /// Emit a `integrations.qbo.invoice_sync_failed` outbox event without aborting processing.
