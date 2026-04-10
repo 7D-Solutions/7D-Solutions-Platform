@@ -31,7 +31,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 [dev-dependencies]
 serial_test = "3.3.1"
-workforce-competence-rs = { path = "../workforce-competence" }
 jsonwebtoken = "9"
 
 [[bin]]

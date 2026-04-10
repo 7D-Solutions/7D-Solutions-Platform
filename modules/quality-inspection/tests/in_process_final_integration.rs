@@ -7,10 +7,6 @@ use serde::Serialize;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
-use workforce_competence_rs::domain::{
-    models::{ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest},
-    service as wc_service,
-};
 
 #[derive(Serialize)]
 struct TestClaims {
@@ -75,61 +71,78 @@ async fn setup_db() -> sqlx::PgPool {
     pool
 }
 
-async fn setup_wc_db() -> sqlx::PgPool {
-    dotenvy::dotenv().ok();
-    let url = std::env::var("WORKFORCE_COMPETENCE_DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://wc_user:wc_pass@localhost:5458/workforce_competence_db?sslmode=require"
-            .to_string()
-    });
+/// Register a "quality_inspection" artifact and assign competence to the given operator
+/// via the running workforce-competence HTTP service.
+async fn authorize_inspector(tenant_id: &str, inspector_id: Uuid) {
+    let url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    let token = sign_jwt(tenant_id, &["service.internal"]);
+    let client = reqwest::Client::new();
 
-    let pool = PgPoolOptions::new()
-        .max_connections(2)
-        .acquire_timeout(std::time::Duration::from_secs(10))
-        .connect(&url)
+    // Register the "quality_inspection" artifact
+    let artifact_resp = client
+        .post(format!("{url}/api/workforce-competence/artifacts"))
+        .bearer_auth(&token)
+        .header("x-tenant-id", tenant_id)
+        .header("x-correlation-id", Uuid::new_v4().to_string())
+        .header("x-actor-id", Uuid::nil().to_string())
+        .json(&serde_json::json!({
+            "tenant_id": tenant_id,
+            "artifact_type": "qualification",
+            "name": "Quality Inspection Disposition Authority",
+            "code": "quality_inspection",
+            "description": "Authorization to perform inspection dispositions",
+            "valid_duration_days": null,
+            "idempotency_key": Uuid::new_v4().to_string(),
+            "correlation_id": "test",
+            "causation_id": null
+        }))
+        .send()
         .await
-        .expect("Failed to connect to workforce-competence test DB");
+        .expect("WC artifact registration HTTP call failed");
 
-    sqlx::migrate!("../workforce-competence/db/migrations")
-        .run(&pool)
+    let status = artifact_resp.status();
+    assert!(
+        status.is_success(),
+        "register_artifact failed with {status}: {}",
+        artifact_resp.text().await.unwrap_or_default()
+    );
+
+    let artifact: serde_json::Value = artifact_resp
+        .json()
         .await
-        .expect("Failed to run workforce-competence migrations");
+        .expect("parse artifact response");
+    let artifact_id = artifact["id"].as_str().expect("artifact.id must be a string");
 
-    pool
-}
-
-async fn authorize_inspector(wc_pool: &sqlx::PgPool, tenant_id: &str, inspector_id: Uuid) {
-    let artifact_req = RegisterArtifactRequest {
-        tenant_id: tenant_id.to_string(),
-        artifact_type: ArtifactType::Qualification,
-        name: "Quality Inspection Disposition Authority".to_string(),
-        code: "quality_inspection".to_string(),
-        description: Some("Authorization to perform inspection dispositions".to_string()),
-        valid_duration_days: None,
-        idempotency_key: Uuid::new_v4().to_string(),
-        correlation_id: Some("test".to_string()),
-        causation_id: None,
-    };
-
-    let (artifact, _) = wc_service::register_artifact(wc_pool, &artifact_req)
+    // Assign competence to the inspector
+    let assign_resp = client
+        .post(format!("{url}/api/workforce-competence/assignments"))
+        .bearer_auth(&token)
+        .header("x-tenant-id", tenant_id)
+        .header("x-correlation-id", Uuid::new_v4().to_string())
+        .header("x-actor-id", Uuid::nil().to_string())
+        .json(&serde_json::json!({
+            "tenant_id": tenant_id,
+            "operator_id": inspector_id,
+            "artifact_id": artifact_id,
+            "awarded_at": (Utc::now() - chrono::Duration::hours(1)).to_rfc3339(),
+            "expires_at": null,
+            "evidence_ref": "test-fixture",
+            "awarded_by": "test-harness",
+            "idempotency_key": Uuid::new_v4().to_string(),
+            "correlation_id": "test",
+            "causation_id": null
+        }))
+        .send()
         .await
-        .expect("register quality_inspection artifact");
+        .expect("WC assign competence HTTP call failed");
 
-    let assign_req = AssignCompetenceRequest {
-        tenant_id: tenant_id.to_string(),
-        operator_id: inspector_id,
-        artifact_id: artifact.id,
-        awarded_at: Utc::now() - chrono::Duration::hours(1),
-        expires_at: None,
-        evidence_ref: Some("test-fixture".to_string()),
-        awarded_by: Some("test-harness".to_string()),
-        idempotency_key: Uuid::new_v4().to_string(),
-        correlation_id: Some("test".to_string()),
-        causation_id: None,
-    };
-
-    wc_service::assign_competence(wc_pool, &assign_req)
-        .await
-        .expect("assign quality_inspection competence");
+    let status = assign_resp.status();
+    assert!(
+        status.is_success(),
+        "assign_competence failed with {status}: {}",
+        assign_resp.text().await.unwrap_or_default()
+    );
 }
 
 fn wc_client(tenant_id: &str) -> PlatformClient {
@@ -527,13 +540,12 @@ async fn events_emitted_for_in_process_and_final() {
 #[serial]
 async fn disposition_works_on_in_process_inspection() {
     let pool = setup_db().await;
-    let wc_pool = setup_wc_db().await;
     let tenant = unique_tenant();
     let wc = wc_client(&tenant);
     let corr = Uuid::new_v4().to_string();
     let inspector = Uuid::new_v4();
 
-    authorize_inspector(&wc_pool, &tenant, inspector).await;
+    authorize_inspector(&tenant, inspector).await;
 
     let inspection = service::create_in_process_inspection(
         &pool,
