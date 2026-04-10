@@ -87,12 +87,12 @@ pub async fn quote_bill_tax(
 
     // Idempotency: existing active snapshot with same hash -> return it.
     // If hash differs (bill content changed), void the old snapshot first.
-    if let Some(snap) = repo::find_active_snapshot(pool, bill_id).await? {
+    if let Some(snap) = repo::find_active_snapshot(pool, tenant_id, bill_id).await? {
         if snap.quote_hash == quote_hash {
             return Ok(snap);
         }
         // Content changed — void old snapshot before creating new one
-        repo::void_superseded_snapshot(pool, snap.id).await?;
+        repo::void_superseded_snapshot(pool, tenant_id, snap.id).await?;
     }
 
     let response = provider.quote_tax(req).await?;
@@ -116,7 +116,7 @@ pub async fn quote_bill_tax(
     .await?;
 
     // Fetch back for the complete row with DB defaults
-    let snap = repo::fetch_snapshot_by_id(pool, id).await?;
+    let snap = repo::fetch_snapshot_by_id(pool, tenant_id, id).await?;
 
     Ok(snap)
 }
@@ -134,7 +134,7 @@ pub async fn commit_bill_tax(
     bill_id: Uuid,
     correlation_id: &str,
 ) -> Result<ApTaxSnapshot, ApTaxError> {
-    let snap = repo::find_active_snapshot(pool, bill_id)
+    let snap = repo::find_active_snapshot(pool, tenant_id, bill_id)
         .await?
         .ok_or(ApTaxError::NoQuoteFound(bill_id))?;
 
@@ -154,13 +154,14 @@ pub async fn commit_bill_tax(
 
     repo::update_snapshot_committed(
         pool,
+        tenant_id,
         snap.id,
         &commit_resp.provider_commit_ref,
         commit_resp.committed_at,
     )
     .await?;
 
-    let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
+    let updated = repo::fetch_snapshot_by_id(pool, tenant_id, snap.id).await?;
 
     Ok(updated)
 }
@@ -181,15 +182,15 @@ pub async fn void_bill_tax(
     void_reason: &str,
     correlation_id: &str,
 ) -> Result<Option<ApTaxSnapshot>, ApTaxError> {
-    let snap = match repo::find_active_snapshot(pool, bill_id).await? {
+    let snap = match repo::find_active_snapshot(pool, tenant_id, bill_id).await? {
         Some(s) => s,
         None => return Ok(None), // No tax snapshot -> non-taxable bill, nothing to void
     };
 
     // Quoted but never committed: just mark voided (no provider call needed)
     if snap.status == "quoted" {
-        repo::void_snapshot_now(pool, snap.id, void_reason).await?;
-        let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
+        repo::void_snapshot_now(pool, tenant_id, snap.id, void_reason).await?;
+        let updated = repo::fetch_snapshot_by_id(pool, tenant_id, snap.id).await?;
         return Ok(Some(updated));
     }
 
@@ -206,9 +207,9 @@ pub async fn void_bill_tax(
 
     let void_resp = provider.void_tax(void_req).await?;
 
-    repo::void_snapshot_at(pool, snap.id, void_resp.voided_at, void_reason).await?;
+    repo::void_snapshot_at(pool, tenant_id, snap.id, void_resp.voided_at, void_reason).await?;
 
-    let updated = repo::fetch_snapshot_by_id(pool, snap.id).await?;
+    let updated = repo::fetch_snapshot_by_id(pool, tenant_id, snap.id).await?;
 
     Ok(Some(updated))
 }
@@ -546,5 +547,134 @@ mod tests {
         assert!(result.is_none(), "no snapshot -> None");
 
         cleanup(&db).await;
+    }
+
+    // =========================================================================
+    // Tenant isolation tests — prove cross-tenant data leakage is impossible
+    // =========================================================================
+
+    const OTHER_TENANT: &str = "other-tenant-ap-tax";
+
+    async fn cleanup_other(db: &PgPool) {
+        for q in [
+            "DELETE FROM ap_tax_snapshots WHERE bill_id IN \
+             (SELECT bill_id FROM vendor_bills WHERE tenant_id = $1)",
+            "DELETE FROM bill_lines WHERE bill_id IN \
+             (SELECT bill_id FROM vendor_bills WHERE tenant_id = $1)",
+            "DELETE FROM vendor_bills WHERE tenant_id = $1",
+            "DELETE FROM vendors WHERE tenant_id = $1",
+        ] {
+            sqlx::query(q).bind(OTHER_TENANT).execute(db).await.ok();
+        }
+    }
+
+    /// create_vendor_for inserts a vendor under an arbitrary tenant.
+    async fn create_vendor_for(db: &PgPool, tenant: &str) -> Uuid {
+        let vendor_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO vendors (vendor_id, tenant_id, name, currency, payment_terms_days, \
+             is_active, created_at, updated_at) VALUES ($1, $2, $3, 'USD', 30, TRUE, NOW(), NOW())",
+        )
+        .bind(vendor_id)
+        .bind(tenant)
+        .bind(format!("Vendor-{}", vendor_id))
+        .execute(db)
+        .await
+        .expect("insert vendor for tenant");
+        vendor_id
+    }
+
+    async fn create_bill_for(db: &PgPool, tenant: &str, vendor_id: Uuid) -> Uuid {
+        let bill_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO vendor_bills (bill_id, tenant_id, vendor_id, vendor_invoice_ref, \
+             currency, total_minor, invoice_date, due_date, status, entered_by, entered_at) \
+             VALUES ($1, $2, $3, $4, 'USD', 50000, NOW(), NOW() + interval '30 days', \
+             'open', 'system', NOW())",
+        )
+        .bind(bill_id)
+        .bind(tenant)
+        .bind(vendor_id)
+        .bind(format!("INV-{}", &bill_id.to_string()[..8]))
+        .execute(db)
+        .await
+        .expect("insert bill for tenant");
+        bill_id
+    }
+
+    /// A cross-tenant caller cannot read another tenant's tax snapshot via bill_id.
+    /// Without the tenant_id filter in the SQL, find_active_snapshot(pool, bill_a) would
+    /// return TENANT_A's snapshot even when the caller is OTHER_TENANT.
+    #[tokio::test]
+    #[serial]
+    async fn test_find_active_snapshot_tenant_isolation() {
+        let db = pool().await;
+        cleanup(&db).await;
+        cleanup_other(&db).await;
+
+        // Create a snapshot for TENANT_A's bill
+        let vendor_a = create_vendor_for(&db, TEST_TENANT).await;
+        let bill_a = create_bill_for(&db, TEST_TENANT, vendor_a).await;
+        let provider = ZeroTaxProvider;
+        let req = sample_quote_req(bill_a);
+        quote_bill_tax(&db, &provider, "zero", TEST_TENANT, bill_a, req)
+            .await
+            .expect("quote for tenant A failed");
+
+        // Attempt to read TENANT_A's snapshot as OTHER_TENANT using the same bill_id.
+        // The SQL must return None — tenant_id = OTHER_TENANT doesn't match the row.
+        let result = crate::domain::tax::repo::find_active_snapshot(&db, OTHER_TENANT, bill_a)
+            .await
+            .expect("find_active_snapshot should not fail");
+
+        assert!(
+            result.is_none(),
+            "cross-tenant read must return None — tenant isolation failure: \
+             OTHER_TENANT can see TENANT_A's snapshot via bill_id"
+        );
+
+        cleanup(&db).await;
+        cleanup_other(&db).await;
+    }
+
+    /// A cross-tenant caller cannot void another tenant's snapshot via its UUID.
+    /// With tenant_id in the WHERE clause, the UPDATE hits 0 rows instead of
+    /// modifying another tenant's data.
+    #[tokio::test]
+    #[serial]
+    async fn test_void_snapshot_tenant_isolation() {
+        let db = pool().await;
+        cleanup(&db).await;
+        cleanup_other(&db).await;
+
+        // Create snapshot for TENANT_A
+        let vendor_a = create_vendor_for(&db, TEST_TENANT).await;
+        let bill_a = create_bill_for(&db, TEST_TENANT, vendor_a).await;
+        let provider = ZeroTaxProvider;
+        let req = sample_quote_req(bill_a);
+        let snap = quote_bill_tax(&db, &provider, "zero", TEST_TENANT, bill_a, req)
+            .await
+            .expect("quote failed");
+
+        // OTHER_TENANT attempts to void TENANT_A's snapshot by its UUID.
+        // The WHERE tenant_id = $3 clause means 0 rows are affected — not an error, but no mutation.
+        crate::domain::tax::repo::void_snapshot_now(&db, OTHER_TENANT, snap.id, "attack")
+            .await
+            .expect("call should not error");
+
+        // TENANT_A's snapshot must still be 'quoted'
+        let still_active =
+            crate::domain::tax::repo::find_active_snapshot(&db, TEST_TENANT, bill_a)
+                .await
+                .expect("find failed")
+                .expect("snapshot should still exist");
+
+        assert_eq!(
+            still_active.status, "quoted",
+            "cross-tenant write must not mutate TENANT_A's snapshot"
+        );
+
+        cleanup(&db).await;
+        cleanup_other(&db).await;
     }
 }

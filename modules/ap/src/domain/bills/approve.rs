@@ -81,7 +81,7 @@ pub async fn approve_bill(
     // Tax: commit any quoted tax snapshot for this bill.
     // If no snapshot exists, the bill is non-taxable — proceed normally.
     // If a snapshot is already committed, this is idempotent.
-    let tax_snap = crate::domain::tax::repo::find_active_snapshot_tx(&mut *tx, bill_id).await?;
+    let tax_snap = crate::domain::tax::repo::find_active_snapshot_tx(&mut *tx, tenant_id, bill_id).await?;
 
     if let Some(snap) = &tax_snap {
         if snap.status == "quoted" {
@@ -98,6 +98,7 @@ pub async fn approve_bill(
 
             crate::domain::tax::repo::commit_snapshot_tx(
                 &mut *tx,
+                tenant_id,
                 snap.id,
                 &commit_resp.provider_commit_ref,
                 commit_resp.committed_at,

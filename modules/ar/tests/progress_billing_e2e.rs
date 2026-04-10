@@ -93,7 +93,7 @@ async fn milestone_invoice_e2e() {
             assert_eq!(amount_minor, 30000);
 
             // Verify invoice was created in ar_invoices
-            let inv_amount: i32 = sqlx::query_scalar(
+            let inv_amount: i64 = sqlx::query_scalar(
                 "SELECT amount_cents FROM ar_invoices WHERE id = $1 AND app_id = $2",
             )
             .bind(invoice_id)

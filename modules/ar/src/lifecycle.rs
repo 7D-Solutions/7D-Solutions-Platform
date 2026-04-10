@@ -228,7 +228,7 @@ pub async fn transition_to_attempting(
 
     // 3. EMIT: Enqueue ar.invoice_attempting event atomically within the same TX
     let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
-        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+        "SELECT ar_customer_id::TEXT, amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
     )
     .bind(invoice_id)
     .bind(app_id)
@@ -289,7 +289,7 @@ pub async fn transition_to_paid(
 
     // 3. EMIT: Enqueue ar.invoice_paid event atomically within the same TX
     let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>, Option<NaiveDateTime>) = sqlx::query_as(
-        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at, paid_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+        "SELECT ar_customer_id::TEXT, amount_cents, currency, created_at, due_at, paid_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
     )
     .bind(invoice_id)
     .bind(app_id)
@@ -350,7 +350,7 @@ pub async fn transition_to_failed_final(
 
     // 3. EMIT: Enqueue ar.invoice_failed_final event atomically within the same TX
     let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
-        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+        "SELECT ar_customer_id::TEXT, amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
     )
     .bind(invoice_id)
     .bind(app_id)
@@ -411,7 +411,7 @@ pub async fn transition_to_void(
 
     // 3. EMIT: Enqueue ar.invoice_void event atomically within the same TX
     let row: (String, i64, String, NaiveDateTime, Option<NaiveDateTime>) = sqlx::query_as(
-        "SELECT COALESCE(ar_customer_id, ''), amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
+        "SELECT ar_customer_id::TEXT, amount_cents, currency, created_at, due_at FROM ar_invoices WHERE id = $1 AND app_id = $2",
     )
     .bind(invoice_id)
     .bind(app_id)

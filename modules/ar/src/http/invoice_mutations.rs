@@ -21,15 +21,16 @@ pub async fn create_invoice(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
-    Extension(party_client): Extension<std::sync::Arc<platform_client_party::PartiesClient>>,
+    party_client_ext: Option<Extension<std::sync::Arc<platform_client_party::PartiesClient>>>,
     Json(req): Json<CreateInvoiceRequest>,
 ) -> Result<(StatusCode, Json<Invoice>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
     let verified = claims.as_ref().map(|Extension(c)| c);
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
+    let party_client = party_client_ext.as_ref().map(|Extension(c)| c.as_ref());
 
     let invoice =
-        crate::domain::invoices::service::create_invoice(&db, &app_id, verified, tracing_ctx, req, &party_client)
+        crate::domain::invoices::service::create_invoice(&db, &app_id, verified, tracing_ctx, req, party_client)
             .await?;
 
     Ok((StatusCode::CREATED, Json(invoice)))

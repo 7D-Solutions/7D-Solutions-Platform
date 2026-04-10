@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.3.1 | 2026-04-10 | bd-wocfs | Add tenant_id to all tax snapshot repo functions and thread through service layer and bill approval. Add 2 tenant isolation integration tests. | Cross-tenant data leakage prevention — tax snapshot SQL lacked tenant_id in WHERE clause | No |
 | 3.3.0 | 2026-04-09 | bd-q4kb8 | AP attachment consumer: bill_attachments migration (bill_id + attachment_id unique with IF NOT EXISTS on index), attachment_linked NATS consumer on docmgmt.attachment.created, links doc-mgmt attachments to vendor bills with idempotent upsert | AP needs to react to document uploads and link attachments to vendor bills for 3-way match workflows | No |
 | 3.2.2 | 2026-04-04 | bd-q5efi | SoC: payment_runs, po/approve, bills/approve SQL moved to repos. Fix test unwraps in tax/mod.rs. | Separation of concerns continued — all AP domain services delegate to repos | No |
 | 3.2.1 | 2026-04-04 | bd-q5efi | SoC: additional repo extraction from tax/mod.rs | Separation of concerns — SQL queries in tax module handler need to move to repo layer. | No |

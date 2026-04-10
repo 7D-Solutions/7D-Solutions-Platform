@@ -64,7 +64,7 @@ pub async fn sum_refunded<'e>(
 ) -> Result<Option<i64>, sqlx::Error> {
     sqlx::query_scalar(
         r#"
-        SELECT COALESCE(SUM(amount_cents), 0)
+        SELECT COALESCE(SUM(amount_cents)::BIGINT, 0)
         FROM ar_refunds
         WHERE charge_id = $1 AND app_id = $2 AND status IN ('pending', 'succeeded')
         "#,

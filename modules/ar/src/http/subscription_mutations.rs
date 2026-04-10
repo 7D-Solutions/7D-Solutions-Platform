@@ -23,7 +23,7 @@ use crate::models::{
 pub async fn create_subscription(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
-    Extension(party_client): Extension<std::sync::Arc<platform_client_party::PartiesClient>>,
+    party_client_ext: Option<Extension<std::sync::Arc<platform_client_party::PartiesClient>>>,
     Json(req): Json<CreateSubscriptionRequest>,
 ) -> Result<(StatusCode, Json<Subscription>), ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
@@ -49,6 +49,8 @@ pub async fn create_subscription(
     if let Some(pid) = req.party_id {
         let Extension(verified) = claims.as_ref()
             .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
+        let Extension(party_client) = party_client_ext
+            .ok_or_else(|| ApiError::new(503, "party_service_unavailable", "Party service not configured"))?;
         crate::integrations::party_client::verify_party(&party_client, pid, &app_id, verified)
             .await
             .map_err(|e| {
