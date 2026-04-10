@@ -36,8 +36,8 @@ pub use webhook_verify::{
 
 // Re-export service auth types
 pub use service_auth::{
-    generate_service_token, get_service_token, verify_service_token, ServiceAuthClaims,
-    ServiceAuthError,
+    generate_service_token, get_service_token, mint_service_jwt_with_context,
+    verify_service_token, ServiceAuthClaims, ServiceAuthError,
 };
 
 // Re-export RBAC types

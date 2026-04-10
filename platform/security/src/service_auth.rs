@@ -158,12 +158,19 @@ fn sign_claims(claims_b64: &str) -> Result<Vec<u8>, ServiceAuthError> {
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
-/// Mint a proper RSA-signed JWT that ClaimsLayer can verify.
+/// Mint a proper RSA-signed JWT that ClaimsLayer can verify, embedding caller context.
 ///
 /// Uses `JWT_PRIVATE_KEY_PEM` to sign. The resulting token contains
 /// `RawAccessClaims`-compatible fields so `JwtVerifier::verify()` can
 /// decode it into `VerifiedClaims` with `service.internal` permission.
-fn mint_rsa_service_jwt(_service_name: &str) -> Result<String, ServiceAuthError> {
+///
+/// `tenant_id` and `actor_id` come from the incoming request's `VerifiedClaims`
+/// so the receiving service sees real context, not nil UUIDs.
+fn mint_rsa_service_jwt(
+    service_name: &str,
+    tenant_id: uuid::Uuid,
+    actor_id: uuid::Uuid,
+) -> Result<String, ServiceAuthError> {
     let pem = env::var("JWT_PRIVATE_KEY_PEM")
         .map_err(|_| ServiceAuthError::MissingSigningKey)?;
     let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes())
@@ -171,25 +178,40 @@ fn mint_rsa_service_jwt(_service_name: &str) -> Result<String, ServiceAuthError>
 
     let now = Utc::now();
     let exp = now + Duration::minutes(15);
-    let nil = uuid::Uuid::nil();
 
     let claims = serde_json::json!({
-        "sub": nil.to_string(),
-        "iss": "platform-service",
-        "aud": "platform",
+        "sub": actor_id.to_string(),
+        "iss": "auth-rs",
+        "aud": "7d-platform",
         "iat": now.timestamp(),
         "exp": exp.timestamp(),
         "jti": uuid::Uuid::new_v4().to_string(),
-        "tenant_id": nil.to_string(),
+        "tenant_id": tenant_id.to_string(),
         "roles": [],
         "perms": ["service.internal"],
         "actor_type": "service",
+        "actor_name": service_name,
         "ver": "1.0",
     });
 
     let header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256);
     jsonwebtoken::encode(&header, &claims, &encoding_key)
         .map_err(|_| ServiceAuthError::MissingSigningKey)
+}
+
+/// Mint an RSA-signed JWT with caller context for cross-service calls through ClaimsLayer.
+///
+/// Call this when a service needs to call another service and must forward the
+/// original request's `tenant_id` and `actor_id` so the receiving service's
+/// `ClaimsLayer` sees real claims (not nil UUIDs).
+///
+/// Requires `JWT_PRIVATE_KEY_PEM` and `SERVICE_NAME` to be set.
+pub fn mint_service_jwt_with_context(
+    tenant_id: uuid::Uuid,
+    actor_id: uuid::Uuid,
+) -> Result<String, ServiceAuthError> {
+    let service_name = env::var("SERVICE_NAME").unwrap_or_else(|_| "service".to_string());
+    mint_rsa_service_jwt(&service_name, tenant_id, actor_id)
 }
 
 /// Get service token from environment or generate one
@@ -207,9 +229,11 @@ pub fn get_service_token() -> Result<String, ServiceAuthError> {
 
     let service_name = env::var("SERVICE_NAME").unwrap_or_else(|_| "unknown".to_string());
 
-    // Prefer RSA JWT — compatible with ClaimsLayer verification
+    // Prefer RSA JWT — compatible with ClaimsLayer verification.
+    // No request context available here; use nil UUIDs as the service principal.
+    // For context-aware tokens use mint_service_jwt_with_context().
     if env::var("JWT_PRIVATE_KEY_PEM").is_ok() {
-        return mint_rsa_service_jwt(&service_name);
+        return mint_rsa_service_jwt(&service_name, uuid::Uuid::nil(), uuid::Uuid::nil());
     }
 
     // Fallback to HMAC (legacy, not compatible with ClaimsLayer)
