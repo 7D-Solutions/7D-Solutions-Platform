@@ -149,9 +149,14 @@ pub(crate) async fn phase_a(
     // Step 4: DB pool — sizes from manifest [database] section (defaults: min=5, max=20)
     let pool_max = manifest.database.as_ref().map_or(20, |db| db.pool_max);
     let pool_min = manifest.database.as_ref().map_or(5, |db| db.pool_min);
+    let acquire_timeout_secs = manifest
+        .database
+        .as_ref()
+        .map_or(5, |db| db.pool_acquire_timeout_secs);
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(pool_max)
         .min_connections(pool_min)
+        .acquire_timeout(std::time::Duration::from_secs(acquire_timeout_secs))
         .connect(&database_url)
         .await
         .map_err(|e| StartupError::Database(e.to_string()))?;

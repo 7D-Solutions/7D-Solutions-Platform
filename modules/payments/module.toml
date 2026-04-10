@@ -10,6 +10,9 @@ port = 8088
 [database]
 migrations = "./db/migrations"
 auto_migrate = true
+pool_min = 5
+pool_max = 30
+pool_acquire_timeout_secs = 5
 
 [bus]
 type = "nats"

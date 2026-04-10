@@ -237,6 +237,15 @@ pub async fn run_outbox_publisher(
     tracing::info!(module = %module_name, "outbox publisher stopped");
 }
 
+/// Publish a batch of outbox events to the bus and mark them published.
+///
+/// Uses exactly two pool connections regardless of batch size:
+/// 1. SELECT — fetch unpublished events, connection released immediately.
+/// 2. Batch UPDATE — mark all successfully published events in one query.
+///
+/// NATS publishes happen between the two DB calls, so no connection is
+/// held while waiting for the bus.  This prevents pool starvation when
+/// the bus is slow or the HTTP handler concurrency is high.
 async fn publish_batch(
     pool: &sqlx::PgPool,
     bus: &Arc<dyn EventBus>,
@@ -249,9 +258,14 @@ async fn publish_batch(
         outbox_table
     );
 
+    // Phase 1: fetch batch — acquire one connection and release it immediately.
     let rows = sqlx::query(&select).fetch_all(pool).await?;
-    let count = rows.len();
+    if rows.is_empty() {
+        return Ok(0);
+    }
 
+    // Phase 2: publish to bus — no DB connection held during network I/O.
+    let mut published_ids: Vec<uuid::Uuid> = Vec::with_capacity(rows.len());
     for row in &rows {
         let event_id: uuid::Uuid = row.get("event_id");
         let event_type: String = row.get("event_type");
@@ -263,22 +277,35 @@ async fn publish_batch(
         };
 
         let bytes = serde_json::to_vec(&payload)?;
-        bus.publish(&subject, bytes).await.map_err(|e| {
-            tracing::error!(
-                event_id = %event_id, event_type = %event_type, error = %e,
-                "publish failed"
-            );
-            e
-        })?;
-
-        let update = format!(
-            "UPDATE \"{}\" SET published_at = NOW() WHERE event_id = $1",
-            outbox_table
-        );
-        sqlx::query(&update).bind(event_id).execute(pool).await?;
-
-        tracing::debug!(event_id = %event_id, subject = %subject, "event published");
+        match bus.publish(&subject, bytes).await {
+            Ok(_) => {
+                tracing::debug!(event_id = %event_id, subject = %subject, "event published");
+                published_ids.push(event_id);
+            }
+            Err(e) => {
+                tracing::error!(
+                    event_id = %event_id, event_type = %event_type, error = %e,
+                    "publish failed — will retry next tick"
+                );
+                // Continue; failed event is retried on the next tick.
+            }
+        }
     }
 
-    Ok(count)
+    if published_ids.is_empty() {
+        return Ok(0);
+    }
+
+    // Phase 3: batch UPDATE — acquire one connection and release it immediately.
+    let update = format!(
+        "UPDATE \"{}\" SET published_at = NOW() \
+         WHERE event_id = ANY($1) AND published_at IS NULL",
+        outbox_table
+    );
+    sqlx::query(&update)
+        .bind(&published_ids)
+        .execute(pool)
+        .await?;
+
+    Ok(published_ids.len())
 }
