@@ -147,6 +147,10 @@ async fn shipping_outbound_shipped_creates_send_request() {
         Some("Customer"),
         "recipient_name must be in payload_json"
     );
+    assert!(
+        payload_json["tracking_url"].is_string(),
+        "tracking_url must be a string in payload_json (even if empty — null crashes template rendering)"
+    );
 }
 
 /// Delivered event creates a notification_sends row with the correct template_key.
@@ -352,6 +356,10 @@ async fn shipping_missing_tracking_number_defaults_to_pending() {
         payload_json["carrier"].as_str(),
         Some("unknown"),
         "carrier_party_id = None must default to 'unknown'"
+    );
+    assert!(
+        payload_json["tracking_url"].is_string(),
+        "tracking_url must be a string in payload_json (even if empty)"
     );
 }
 

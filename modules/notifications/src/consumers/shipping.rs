@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::models::EnvelopeMetadata;
 use crate::sends::repo as sends_repo;
+use crate::templates::tracking_url as compute_tracking_url;
 
 // ── Payload types ─────────────────────────────────────────────────────────────
 
@@ -98,6 +99,11 @@ pub async fn handle_outbound_shipped(
 
     let shipped_at = payload.shipped_at.to_rfc3339();
 
+    // Compute carrier tracking URL. Returns empty string when carrier code is
+    // unrecognised (e.g. a party UUID) or tracking number is absent — the
+    // template must always receive a string value, never null or a missing key.
+    let url = compute_tracking_url(&carrier, &tracking_number).unwrap_or_default();
+
     // Resolve recipient from the first line with a source_ref_id (sales order ref).
     // Falls back to shipment-keyed ref for downstream resolution by party module.
     let recipient = payload
@@ -113,6 +119,7 @@ pub async fn handle_outbound_shipped(
         "shipped_at": shipped_at,
         "recipient_name": "Customer",
         "shipment_id": payload.shipment_id.to_string(),
+        "tracking_url": url,
     });
 
     let send = sends_repo::insert_send(
@@ -134,6 +141,7 @@ pub async fn handle_outbound_shipped(
         shipment_id = %payload.shipment_id,
         recipient = %recipient,
         tracking_number = %tracking_number,
+        tracking_url = %url,
         "order_shipped send request created"
     );
 

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.3.1 | 2026-04-10 | bd-w1o7f | Fix tracking URL population in order_shipped notification — tracking_url helper was defined but not called in the shipping consumer dispatch path | Shipped notifications were missing clickable tracking links despite the helper existing | No |
 | 3.2.0 | 2026-04-09 | bd-mozdb | Shipping notification templates (order_shipped, delivery_confirmed) + NATS consumers for sr.outbound.shipped and sr.outbound.delivered events. Seed migration for template rows. 8 integrated tests. | Verticals need platform-level shipping notifications with carrier tracking URLs instead of reimplementing per-vertical. | No |
 | 3.1.2 | 2026-04-04 | bd-1d3a4,bd-nyb7t | Replace mock payment notification handler with real implementation + envelope schema validation | Mock handler returned static responses — real implementation processes payment events and validates envelope schema | No |
 | 3.1.1 | 2026-04-04 | bd-0clpi | SoC: extract DLQ SQL into db/dlq_repo.rs | Separation of concerns — DLQ handler mixed HTTP logic with raw SQL queries | No |
