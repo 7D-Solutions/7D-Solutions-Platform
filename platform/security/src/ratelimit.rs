@@ -294,9 +294,46 @@ impl Default for RateLimiter {
 
 // ── TieredRateLimiter ─────────────────────────────────────────────────────────
 
+/// Strategy for building the rate limit key in a tiered rate limiter.
+///
+/// Determines which request attributes contribute to the per-bucket identity.
+/// Select a strategy per tier based on whether the tier serves authenticated
+/// multi-tenant traffic, public IP-gated endpoints, or something in between.
+///
+/// # Choosing a strategy
+///
+/// | Strategy      | Key includes        | Isolates per        | Use for                           |
+/// |---------------|---------------------|---------------------|-----------------------------------|
+/// | `Composite`   | tenant + IP         | (tenant, IP) pair   | Authenticated multi-tenant APIs   |
+/// | `TenantOnly`  | tenant ID           | tenant              | Per-tenant quotas, any IP          |
+/// | `IpOnly`      | IP address          | IP                  | Public/unauthenticated endpoints  |
+///
+/// `Composite` is the default. It prevents one tenant's traffic from exhausting
+/// another tenant's quota **and** isolates different IPs within the same tenant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RateLimitKeyStrategy {
+    /// Rate limit by the combination of tenant ID and IP address.
+    ///
+    /// Each `(tenant_id, ip)` pair gets its own independent token bucket.
+    /// This is the default for multi-tenant modules.
+    #[default]
+    Composite,
+    /// Rate limit by IP address only.
+    ///
+    /// All tenants behind the same IP share a single bucket. Use for
+    /// public-facing endpoints where tenant context is unavailable.
+    IpOnly,
+    /// Rate limit by tenant ID only.
+    ///
+    /// All client IPs for a given tenant share one bucket. Use when you
+    /// want per-tenant quotas regardless of how many IPs the tenant uses.
+    TenantOnly,
+}
+
 struct TierState {
     config: RateLimitConfig,
     buckets: Arc<DashMap<String, TokenBucket>>,
+    strategy: RateLimitKeyStrategy,
 }
 
 /// Multi-tier rate limiter with per-tier token buckets.
@@ -304,7 +341,10 @@ struct TierState {
 /// Each tier is fully isolated — a slow "login" tier cannot block fast "api"
 /// tier lookups because each tier owns its own `DashMap`.
 ///
-/// Rate limit key: `tier_name:tenant_id:ip`
+/// The rate limit key is derived from the tier's [`RateLimitKeyStrategy`]:
+/// - `Composite` (default): `tier_name:tenant_id:ip`
+/// - `IpOnly`: `tier_name:ip`
+/// - `TenantOnly`: `tier_name:tenant_id`
 ///
 /// Route assignment uses longest-prefix matching. Paths not matching any
 /// configured prefix fall through to the default `"api"` tier.
@@ -320,23 +360,46 @@ impl TieredRateLimiter {
     ///
     /// Each entry is `(tier_name, config, route_prefixes)`.
     ///
+    /// All tiers use the [`RateLimitKeyStrategy::Composite`] strategy (keyed
+    /// on both tenant ID and IP). Use [`with_strategies`](Self::with_strategies)
+    /// to configure per-tier strategies explicitly.
+    ///
     /// If no tier named `"api"` is provided, a default `"api"` tier using
     /// [`RateLimitConfig::normal_read`] is inserted automatically.
     pub fn new(tiers: Vec<(String, RateLimitConfig, Vec<String>)>) -> Self {
+        Self::with_strategies(
+            tiers
+                .into_iter()
+                .map(|(n, c, r)| (n, c, r, RateLimitKeyStrategy::Composite))
+                .collect(),
+        )
+    }
+
+    /// Build a tiered rate limiter with an explicit key strategy per tier.
+    ///
+    /// Each entry is `(tier_name, config, route_prefixes, key_strategy)`.
+    ///
+    /// If no tier named `"api"` is provided, a default `"api"` tier using
+    /// [`RateLimitConfig::normal_read`] and [`RateLimitKeyStrategy::Composite`]
+    /// is inserted automatically.
+    pub fn with_strategies(
+        tiers: Vec<(String, RateLimitConfig, Vec<String>, RateLimitKeyStrategy)>,
+    ) -> Self {
         let mut tier_map: std::collections::HashMap<String, TierState> =
             std::collections::HashMap::new();
         let mut route_map: Vec<(String, String)> = Vec::new();
         let default_tier_name = "api".to_string();
 
-        for (name, config, routes) in tiers {
-            for route in routes {
-                route_map.push((route, name.clone()));
+        for (name, config, routes, strategy) in tiers {
+            for route in &routes {
+                route_map.push((route.clone(), name.clone()));
             }
             tier_map.insert(
                 name,
                 TierState {
                     config,
                     buckets: Arc::new(DashMap::new()),
+                    strategy,
                 },
             );
         }
@@ -348,6 +411,7 @@ impl TieredRateLimiter {
                 TierState {
                     config: RateLimitConfig::normal_read(),
                     buckets: Arc::new(DashMap::new()),
+                    strategy: RateLimitKeyStrategy::Composite,
                 },
             );
         }
@@ -371,15 +435,40 @@ impl TieredRateLimiter {
         self.default_tier_name.as_str()
     }
 
-    fn build_key(tier_name: &str, tenant_id: &str, ip: &str) -> String {
-        let mut key =
-            String::with_capacity(tier_name.len() + 1 + tenant_id.len() + 1 + ip.len());
-        key.push_str(tier_name);
-        key.push(':');
-        key.push_str(tenant_id);
-        key.push(':');
-        key.push_str(ip);
-        key
+    fn build_key(
+        tier_name: &str,
+        tenant_id: &str,
+        ip: &str,
+        strategy: RateLimitKeyStrategy,
+    ) -> String {
+        match strategy {
+            RateLimitKeyStrategy::Composite => {
+                let mut key = String::with_capacity(
+                    tier_name.len() + 1 + tenant_id.len() + 1 + ip.len(),
+                );
+                key.push_str(tier_name);
+                key.push(':');
+                key.push_str(tenant_id);
+                key.push(':');
+                key.push_str(ip);
+                key
+            }
+            RateLimitKeyStrategy::IpOnly => {
+                let mut key = String::with_capacity(tier_name.len() + 1 + ip.len());
+                key.push_str(tier_name);
+                key.push(':');
+                key.push_str(ip);
+                key
+            }
+            RateLimitKeyStrategy::TenantOnly => {
+                let mut key =
+                    String::with_capacity(tier_name.len() + 1 + tenant_id.len());
+                key.push_str(tier_name);
+                key.push(':');
+                key.push_str(tenant_id);
+                key
+            }
+        }
     }
 
     /// Check whether a request is within its tier's rate limit.
@@ -400,7 +489,7 @@ impl TieredRateLimiter {
             None => return Ok(()),
         };
 
-        let key = Self::build_key(tier_name, tenant_id, ip);
+        let key = Self::build_key(tier_name, tenant_id, ip, tier.strategy);
 
         let consumed = if let Some(mut bucket) = tier.buckets.get_mut(&key) {
             bucket.consume()
@@ -421,13 +510,14 @@ impl TieredRateLimiter {
     /// Get the remaining quota for a path/tenant/ip combination.
     pub fn remaining_quota(&self, path: &str, tenant_id: &str, ip: &str) -> u32 {
         let tier_name = self.resolve_tier(path);
-        let key = Self::build_key(tier_name, tenant_id, ip);
         match self.tiers.get(tier_name) {
-            Some(tier) => tier
-                .buckets
-                .get(&key)
-                .map(|b| b.remaining())
-                .unwrap_or(tier.config.max_requests),
+            Some(tier) => {
+                let key = Self::build_key(tier_name, tenant_id, ip, tier.strategy);
+                tier.buckets
+                    .get(&key)
+                    .map(|b| b.remaining())
+                    .unwrap_or(tier.config.max_requests)
+            }
             None => 0,
         }
     }
