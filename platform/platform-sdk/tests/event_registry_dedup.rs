@@ -3,7 +3,7 @@
 //! Requires a running PostgreSQL instance. Set `DATABASE_URL` to run.
 
 use event_bus::EventEnvelope;
-use platform_sdk::consumer::ConsumerError;
+use platform_sdk::event_registry::RouteOutcome;
 use platform_sdk::idempotency;
 use platform_sdk::{EventRegistry, ModuleContext};
 use sqlx::PgPool;
@@ -195,7 +195,7 @@ async fn dispatch_with_dedup_processes_unique_event() {
             let count = Arc::clone(&call_count_clone);
             async move {
                 *count.lock().expect("test assertion") += 1;
-                Ok(())
+                RouteOutcome::Handled
             }
         },
     );
@@ -250,7 +250,7 @@ async fn dispatch_with_dedup_skips_duplicate_event_id() {
             let count = Arc::clone(&call_count_clone);
             async move {
                 *count.lock().expect("test assertion") += 1;
-                Ok(())
+                RouteOutcome::Handled
             }
         },
     );
@@ -317,7 +317,7 @@ async fn dispatch_with_dedup_rolls_back_on_handler_failure() {
             let count = Arc::clone(&call_count_clone);
             async move {
                 *count.lock().expect("test assertion") += 1;
-                Err(ConsumerError::Processing("intentional failure".into()))
+                RouteOutcome::Retried
             }
         },
     );

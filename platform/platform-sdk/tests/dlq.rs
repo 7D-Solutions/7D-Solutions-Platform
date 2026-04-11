@@ -5,8 +5,8 @@
 use std::sync::{Arc, Mutex};
 
 use event_bus::EventEnvelope;
-use platform_sdk::consumer::ConsumerError;
 use platform_sdk::dlq;
+use platform_sdk::event_registry::RouteOutcome;
 use platform_sdk::{EventRegistry, ModuleContext};
 use sqlx::PgPool;
 
@@ -134,9 +134,7 @@ async fn dispatch_with_dlq_inserts_entry_on_handler_failure() {
     let registry = EventRegistry::new().on(
         "order.placed",
         "1.0.0",
-        |_ctx, _env: EventEnvelope<TestPayload>| async {
-            Err(ConsumerError::Processing("intentional test failure".into()))
-        },
+        |_ctx, _env: EventEnvelope<TestPayload>| async { RouteOutcome::DeadLettered },
     );
 
     let env = make_envelope(
@@ -198,7 +196,7 @@ async fn dispatch_with_dlq_no_entry_on_success() {
     let registry = EventRegistry::new().on(
         "order.placed",
         "1.0.0",
-        |_ctx, _env: EventEnvelope<TestPayload>| async { Ok(()) },
+        |_ctx, _env: EventEnvelope<TestPayload>| async { RouteOutcome::Handled },
     );
 
     let env = make_envelope(
@@ -330,7 +328,7 @@ async fn replay_dlq_entry_and_redispatch_calls_handler() {
             let called = Arc::clone(&called_clone);
             async move {
                 *called.lock().expect("test assertion") = Some(env.payload.value.clone());
-                Ok(())
+                RouteOutcome::Handled
             }
         },
     );
@@ -343,7 +341,8 @@ async fn replay_dlq_entry_and_redispatch_calls_handler() {
 
     // Re-dispatch via the registry
     let ctx = make_ctx(pool.clone());
-    registry.dispatch(ctx, env).await.expect("re-dispatch should succeed");
+    let outcome = registry.dispatch(ctx, env).await;
+    assert_eq!(outcome, RouteOutcome::Handled, "re-dispatch should succeed");
 
     // Handler was called with the replayed payload
     let result = called.lock().expect("test assertion").clone();

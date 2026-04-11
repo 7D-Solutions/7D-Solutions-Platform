@@ -677,6 +677,30 @@ impl ModuleBuilder {
             consumer_handles.add_task(handle);
         }
 
+        // Auto-wire tenant pool resolver to handle tenant.provisioned events.
+        //
+        // When a TenantPoolResolver is registered and a bus is available, the SDK
+        // subscribes to tenant.provisioned and calls pool_for() to warm the resolver's
+        // cache. Modules no longer need a manual on_tenant_provisioned callback for
+        // this common pattern.
+        //
+        // A separate subscription is used so the auto-wire and any explicit
+        // on_tenant_provisioned handler both receive the event independently.
+        if let (Some(resolver), Some(bus)) = (self.pool_resolver.as_ref(), phase_a.bus.as_ref()) {
+            let auto_handle = crate::provisioning_hook::wire_pool_resolver_auto_register(
+                Arc::clone(resolver),
+                bus,
+                &ctx,
+                consumer_handles.shutdown_rx(),
+            )
+            .await?;
+            consumer_handles.add_task(auto_handle);
+            tracing::info!(
+                module = %manifest.module.name,
+                "tenant pool resolver auto-registered to tenant.provisioned"
+            );
+        }
+
         // Clone context for phase_b before routes_fn consumes the original.
         let phase_b_ctx = ctx.clone();
 
