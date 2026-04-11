@@ -1,6 +1,6 @@
 [package]
 name = "security"
-version = "1.6.0"
+version = "1.6.1"
 edition = "2021"
 description = "Shared security middleware: RBAC, JWT verification, rate limiting, and service auth"
 publish = ["7d-platform"]

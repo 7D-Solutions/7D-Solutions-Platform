@@ -730,12 +730,24 @@ name = "bom_lifecycle_e2e"
 path = "tests/bom_lifecycle_e2e.rs"
 
 [[test]]
+name = "bom_enrichment_e2e"
+path = "tests/bom_enrichment_e2e.rs"
+
+[[test]]
 name = "production_work_order_e2e"
 path = "tests/production_work_order_e2e.rs"
 
 [[test]]
+name = "production_composite_e2e"
+path = "tests/production_composite_e2e.rs"
+
+[[test]]
 name = "shipping_receiving_e2e"
 path = "tests/shipping_receiving_e2e.rs"
+
+[[test]]
+name = "shipping_composite_e2e"
+path = "tests/shipping_composite_e2e.rs"
 
 [[test]]
 name = "subscriptions_http_smoke"

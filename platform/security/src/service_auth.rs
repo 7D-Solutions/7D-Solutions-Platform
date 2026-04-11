@@ -173,6 +173,7 @@ fn mint_rsa_service_jwt(
 ) -> Result<String, ServiceAuthError> {
     let pem = env::var("JWT_PRIVATE_KEY_PEM")
         .map_err(|_| ServiceAuthError::MissingSigningKey)?;
+    let pem = pem.replace("\\n", "\n");
     let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes())
         .map_err(|_| ServiceAuthError::MissingSigningKey)?;
 

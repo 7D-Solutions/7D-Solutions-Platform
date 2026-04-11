@@ -170,14 +170,14 @@ impl PlatformClient {
             req = req.header("x-app-id", app_id.to_string());
         }
 
-        // Use an explicit bearer token when set; otherwise auto-mint a service JWT
-        // embedding the caller's tenant_id and user_id so the receiving service's
-        // ClaimsLayer sees real context instead of nil UUIDs / "unknown".
-        let token = self.bearer_token.clone().or_else(|| {
-            security::service_auth::mint_service_jwt_with_context(claims.tenant_id, claims.user_id)
-                .map_err(|e| tracing::warn!(error = %e, "failed to mint service JWT for cross-service call"))
-                .ok()
-        });
+        // Prefer a per-request service JWT so the receiving service sees the
+        // caller's real tenant_id and actor_id rather than the nil UUIDs that
+        // the startup bearer token carries.  Fall back to the static bearer
+        // token only when JWT minting is unavailable (e.g. no private key).
+        let token = security::service_auth::mint_service_jwt_with_context(claims.tenant_id, claims.user_id)
+            .map_err(|e| tracing::warn!(error = %e, "failed to mint service JWT for cross-service call"))
+            .ok()
+            .or_else(|| self.bearer_token.clone());
 
         if let Some(token) = token {
             req = req.header("authorization", format!("Bearer {token}"));
