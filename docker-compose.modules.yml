@@ -42,14 +42,9 @@ services:
       com.7dsolutions.env: "dev"
     develop:
       watch:
-        - action: rebuild
-          path: modules/ar/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
+        - action: sync+restart
+          path: target/aarch64-unknown-linux-musl/debug/ar-rs
+          target: /usr/local/bin/ar-rs
 
   # =========================
   # SUBSCRIPTIONS MODULE
@@ -193,14 +188,9 @@ services:
       com.7dsolutions.env: "dev"
     develop:
       watch:
-        - action: rebuild
-          path: modules/notifications/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
+        - action: sync+restart
+          path: target/aarch64-unknown-linux-musl/debug/notifications-rs
+          target: /usr/local/bin/notifications-rs
 
   # =========================
   # GL MODULE
@@ -243,14 +233,9 @@ services:
       com.7dsolutions.env: "dev"
     develop:
       watch:
-        - action: rebuild
-          path: modules/gl/src
-        - action: rebuild
-          path: Cargo.lock
-        - action: rebuild
-          path: platform/health/src
-        - action: rebuild
-          path: platform/security/src
+        - action: sync+restart
+          path: target/aarch64-unknown-linux-musl/debug/gl-rs
+          target: /usr/local/bin/gl-rs
 
   # =========================
   # INVENTORY MODULE

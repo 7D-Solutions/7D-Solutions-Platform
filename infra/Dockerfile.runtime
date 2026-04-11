@@ -1,25 +1,19 @@
 # Thin runtime base image for cross-compiled Rust services.
-# No Rust compilation — the binary is volume-mounted from the host.
-# Supervisord manages the service process + a binary watcher that
-# detects checksum changes and restarts the service automatically.
+# No Rust compilation — the binary is synced from the host via
+# Docker Compose develop.watch (action: sync+restart).
 #
 # Build once: docker build -t 7d-runtime -f infra/Dockerfile.runtime .
 #
-# Each service sets SERVICE_BINARY env var to its binary path.
+# The binary must be present at /app/service before startup.
 
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libssl3 curl supervisor \
+    ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 
-COPY infra/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY infra/watch-binary.sh /usr/local/bin/watch-binary.sh
-COPY infra/dev-entrypoint.sh /usr/local/bin/dev-entrypoint.sh
-RUN chmod +x /usr/local/bin/watch-binary.sh /usr/local/bin/dev-entrypoint.sh
-
 WORKDIR /app
 
-CMD ["/usr/local/bin/dev-entrypoint.sh"]
+CMD ["/app/service"]
