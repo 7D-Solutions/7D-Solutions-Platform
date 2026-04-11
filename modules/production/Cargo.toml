@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "3.2.2"
+version = "3.3.0"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -25,6 +25,7 @@ prometheus = "0.13"
 config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 platform-sdk = { path = "../../platform/platform-sdk" }
+platform-client-numbering = { path = "../../clients/numbering" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]

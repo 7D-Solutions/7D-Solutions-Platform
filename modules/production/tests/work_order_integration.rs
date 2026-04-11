@@ -6,10 +6,12 @@ use axum::{
     Router,
 };
 use http_body_util::BodyExt;
+use production_rs::domain::numbering_client::NumberingClient;
 use production_rs::domain::operations::OperationRepo;
 use production_rs::domain::routings::{AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo};
 use production_rs::domain::work_orders::{
-    CreateWorkOrderRequest, DerivedStatus, WorkOrderError, WorkOrderRepo,
+    CompositeCreateWorkOrderRequest, CreateWorkOrderRequest, DerivedStatus, WorkOrderError,
+    WorkOrderRepo,
 };
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use production_rs::metrics::ProductionMetrics;
@@ -40,6 +42,40 @@ async fn setup_db() -> sqlx::PgPool {
         .expect("Failed to run production migrations");
 
     pool
+}
+
+async fn setup_numbering_db() -> sqlx::PgPool {
+    dotenvy::dotenv().ok();
+    let url = std::env::var("NUMBERING_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://numbering_user:numbering_pass@localhost:5456/numbering_db".to_string()
+    });
+
+    PgPoolOptions::new()
+        .max_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(10))
+        .connect(&url)
+        .await
+        .expect("Failed to connect to numbering test DB")
+}
+
+fn make_test_claims(tenant_id: &str) -> VerifiedClaims {
+    use chrono::Duration;
+    VerifiedClaims {
+        user_id: Uuid::new_v4(),
+        tenant_id: Uuid::parse_str(tenant_id)
+            .unwrap_or_else(|_| Uuid::new_v4()),
+        app_id: None,
+        roles: vec!["admin".to_string()],
+        perms: vec![
+            "production.read".to_string(),
+            "production.mutate".to_string(),
+        ],
+        actor_type: ActorType::User,
+        issued_at: chrono::Utc::now(),
+        expires_at: chrono::Utc::now() + Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "1".to_string(),
+    }
 }
 
 fn unique_tenant() -> String {
@@ -617,13 +653,17 @@ async fn inject_production_claims(req: AxumRequest, next: Next) -> Response {
     }
 }
 
-fn build_test_app(pool: sqlx::PgPool) -> Router {
+fn build_test_app(pool: sqlx::PgPool, numbering: NumberingClient) -> Router {
     // Prometheus registers metrics globally — share the instance across tests.
     static METRICS: std::sync::OnceLock<Arc<ProductionMetrics>> = std::sync::OnceLock::new();
     let metrics = METRICS
         .get_or_init(|| Arc::new(ProductionMetrics::new().expect("metrics init")))
         .clone();
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        numbering: Arc::new(numbering),
+    });
     production_rs::http::router(state)
         .layer(middleware::from_fn(inject_production_claims))
 }
@@ -693,7 +733,8 @@ async fn batch_fetch_with_operations_returns_nested_ops() {
 #[serial]
 async fn http_batch_fetch_empty_ids_returns_400() {
     let pool = setup_db().await;
-    let app = build_test_app(pool);
+    let num_pool = setup_numbering_db().await;
+    let app = build_test_app(pool, NumberingClient::direct(num_pool));
     let tenant = Uuid::new_v4();
 
     let resp = app
@@ -724,7 +765,8 @@ async fn http_batch_fetch_empty_ids_returns_400() {
 #[serial]
 async fn http_batch_fetch_over_50_ids_returns_400() {
     let pool = setup_db().await;
-    let app = build_test_app(pool);
+    let num_pool = setup_numbering_db().await;
+    let app = build_test_app(pool, NumberingClient::direct(num_pool));
     let tenant = Uuid::new_v4();
 
     let ids: Vec<String> = (0..51).map(|_| Uuid::new_v4().to_string()).collect();
@@ -761,7 +803,8 @@ async fn http_batch_fetch_five_ids_returns_all() {
     let tenant_uuid = Uuid::new_v4();
     let tenant = tenant_uuid.to_string();
     let corr = Uuid::new_v4().to_string();
-    let app = build_test_app(pool.clone());
+    let num_pool = setup_numbering_db().await;
+    let app = build_test_app(pool.clone(), NumberingClient::direct(num_pool));
 
     let mut ids = Vec::new();
     for i in 0..5 {
@@ -830,4 +873,234 @@ async fn batch_fetch_10_wos_under_200ms() {
         "fetch_batch for 10 WOs took {}ms (expected < 200ms)",
         elapsed.as_millis()
     );
+}
+
+// ============================================================================
+// Composite create: allocates WO number and creates WO in one call
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn composite_create_allocates_wo_number() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let numbering = NumberingClient::direct(num_pool);
+
+    // Use a UUID tenant so numbering direct-mode can parse it.
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+    let idempotency_key = format!("numbering:wo:{}:1", tenant_uuid);
+    let corr = Uuid::new_v4().to_string();
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: Some(Uuid::new_v4()),
+        routing_template_id: None,
+        planned_quantity: 5,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: idempotency_key.clone(),
+    };
+
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+        .await
+        .expect("composite_create");
+
+    // WO number must be allocated (WO-NNNNN format)
+    assert!(
+        wo.order_number.starts_with("WO-"),
+        "order_number should start with WO-, got: {}",
+        wo.order_number
+    );
+    assert_eq!(wo.status, "draft");
+    assert_eq!(wo.tenant_id, tenant);
+    assert_eq!(wo.bom_revision_id, req.bom_revision_id);
+    assert_eq!(wo.routing_template_id, None);
+}
+
+#[tokio::test]
+#[serial]
+async fn composite_create_without_optional_fields_creates_number_only_wo() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let numbering = NumberingClient::direct(num_pool);
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+    let corr = Uuid::new_v4().to_string();
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: None,
+        routing_template_id: None,
+        planned_quantity: 10,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: format!("numbering:wo:{}:no-bom", tenant_uuid),
+    };
+
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+        .await
+        .expect("composite_create without BOM");
+
+    assert!(wo.order_number.starts_with("WO-"));
+    assert_eq!(wo.status, "draft");
+    assert_eq!(wo.bom_revision_id, None);
+    assert_eq!(wo.routing_template_id, None);
+}
+
+#[tokio::test]
+#[serial]
+async fn composite_create_idempotency_returns_same_number() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let numbering = NumberingClient::direct(num_pool);
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+    let idem_key = format!("numbering:wo:{}:idem", tenant_uuid);
+    let corr1 = Uuid::new_v4().to_string();
+    let corr2 = Uuid::new_v4().to_string();
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: None,
+        routing_template_id: None,
+        planned_quantity: 3,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: idem_key.clone(),
+    };
+
+    let wo1 = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr1, None)
+        .await
+        .expect("first composite_create");
+
+    // Second call with same idempotency_key allocates the SAME number.
+    // Because the number is already taken, a fresh req with the same idem key
+    // gets the same formatted number back from the numbering service, but the
+    // DB INSERT fails with duplicate order_number.  The idempotency protection
+    // for the WO itself (dedup) is a separate concern — this test verifies
+    // that numbering is idempotent (same key → same number).
+    let wo2_req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        idempotency_key: idem_key.clone(),
+        item_id: Uuid::new_v4(),
+        ..req
+    };
+    let result = WorkOrderRepo::composite_create(&pool, &numbering, &wo2_req, &claims, &corr2, None)
+        .await;
+
+    // Same number → duplicate order_number → either returns same WO or
+    // DuplicateOrderNumber error.  Both outcomes are acceptable; what matters
+    // is that the allocated number matches.
+    match result {
+        Ok(wo2) => {
+            assert_eq!(wo1.order_number, wo2.order_number, "same idempotency_key → same number");
+        }
+        Err(production_rs::domain::work_orders::WorkOrderError::DuplicateOrderNumber(num, _)) => {
+            assert_eq!(wo1.order_number, num, "duplicate error names the same number");
+        }
+        Err(e) => panic!("Unexpected error: {:?}", e),
+    }
+}
+
+#[tokio::test]
+#[serial]
+async fn composite_create_with_routing_attaches_routing() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let numbering = NumberingClient::direct(num_pool);
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+    let corr = Uuid::new_v4().to_string();
+
+    // Create a routing to attach.
+    let rt = RoutingRepo::create(
+        &pool,
+        &CreateRoutingRequest {
+            tenant_id: tenant.clone(),
+            name: "Test Routing".to_string(),
+            description: None,
+            item_id: None,
+            bom_revision_id: None,
+            revision: None,
+            effective_from_date: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create routing");
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: Some(Uuid::new_v4()),
+        routing_template_id: Some(rt.routing_template_id),
+        planned_quantity: 2,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: format!("numbering:wo:{}:with-routing", tenant_uuid),
+    };
+
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+        .await
+        .expect("composite_create with routing");
+
+    assert!(wo.order_number.starts_with("WO-"));
+    assert_eq!(wo.routing_template_id, Some(rt.routing_template_id));
+}
+
+// ============================================================================
+// Composite create: HTTP-level happy path
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn http_composite_create_returns_201_with_allocated_number() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let app = build_test_app(pool, NumberingClient::direct(num_pool));
+
+    let tenant_uuid = Uuid::new_v4();
+
+    let body = serde_json::json!({
+        "item_id": Uuid::new_v4(),
+        "bom_revision_id": Uuid::new_v4(),
+        "planned_quantity": 4,
+        "idempotency_key": format!("numbering:wo:{}:http", tenant_uuid)
+    });
+
+    let resp = app
+        .oneshot(
+            axum::http::Request::post("/api/production/work-orders/create")
+                .header("x-tenant-id", tenant_uuid.to_string())
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .expect("request");
+
+    assert_eq!(resp.status(), 201, "expected 201 Created");
+    let body = body_json(resp).await;
+    assert!(
+        body["order_number"]
+            .as_str()
+            .unwrap_or("")
+            .starts_with("WO-"),
+        "order_number should start with WO-, got: {}",
+        body
+    );
+    assert_eq!(body["status"].as_str(), Some("draft"));
 }

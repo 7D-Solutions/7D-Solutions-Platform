@@ -6,10 +6,12 @@ use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::numbering_client::NumberingClient;
 use crate::domain::operations::OperationInstance;
 use crate::domain::outbox::enqueue_event;
 use crate::domain::time_entries::TimeEntry;
 use crate::events::{self, ProductionEventType};
+use platform_sdk::VerifiedClaims;
 
 // ============================================================================
 // Status enum
@@ -77,7 +79,7 @@ pub struct WorkOrder {
     pub order_number: String,
     pub status: String,
     pub item_id: Uuid,
-    pub bom_revision_id: Uuid,
+    pub bom_revision_id: Option<Uuid>,
     pub routing_template_id: Option<Uuid>,
     pub planned_quantity: i32,
     pub completed_quantity: i32,
@@ -108,7 +110,7 @@ pub struct WorkOrderResponse {
     pub order_number: String,
     pub status: String,
     pub item_id: Uuid,
-    pub bom_revision_id: Uuid,
+    pub bom_revision_id: Option<Uuid>,
     pub routing_template_id: Option<Uuid>,
     pub planned_quantity: i32,
     pub completed_quantity: i32,
@@ -136,7 +138,7 @@ pub struct WorkOrderWithIncludes {
     pub order_number: String,
     pub status: String,
     pub item_id: Uuid,
-    pub bom_revision_id: Uuid,
+    pub bom_revision_id: Option<Uuid>,
     pub routing_template_id: Option<Uuid>,
     pub planned_quantity: i32,
     pub completed_quantity: i32,
@@ -203,6 +205,28 @@ pub struct CreateWorkOrderRequest {
     pub correlation_id: Option<String>,
 }
 
+/// Request body for `POST /api/production/work-orders/create`.
+///
+/// Allocates a WO number from the Numbering service, then creates the work
+/// order in a single call.  `bom_revision_id` and `routing_template_id` are
+/// optional; omit them to create a skeleton WO with a number only.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CompositeCreateWorkOrderRequest {
+    /// Filled automatically from the JWT tenant claim — do not send in body.
+    #[serde(default)]
+    pub tenant_id: String,
+    pub item_id: Uuid,
+    pub bom_revision_id: Option<Uuid>,
+    pub routing_template_id: Option<Uuid>,
+    pub planned_quantity: i32,
+    pub planned_start: Option<DateTime<Utc>>,
+    pub planned_end: Option<DateTime<Utc>>,
+    /// Idempotency key forwarded to the Numbering service.  Re-sending the
+    /// same key returns the previously allocated WO number (no duplicate
+    /// created).
+    pub idempotency_key: String,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
@@ -223,6 +247,9 @@ pub enum WorkOrderError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Numbering service error: {0}")]
+    NumberingService(String),
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -323,7 +350,7 @@ impl WorkOrderRepo {
                 req.tenant_id.clone(),
                 req.order_number.clone(),
                 req.item_id,
-                req.bom_revision_id,
+                Some(req.bom_revision_id),
                 req.planned_quantity,
                 correlation_id.to_string(),
                 causation_id.map(String::from),
@@ -625,6 +652,94 @@ impl WorkOrderRepo {
         }
 
         Ok(result)
+    }
+
+    /// Composite create: allocate a WO number from the Numbering service and
+    /// create the work order in a single call.
+    ///
+    /// `bom_revision_id` and `routing_template_id` are optional.
+    /// `idempotency_key` is forwarded to Numbering — re-sending the same key
+    /// returns the previously allocated number without creating a duplicate WO.
+    pub async fn composite_create(
+        pool: &PgPool,
+        numbering: &NumberingClient,
+        req: &CompositeCreateWorkOrderRequest,
+        claims: &VerifiedClaims,
+        correlation_id: &str,
+        causation_id: Option<&str>,
+    ) -> Result<WorkOrder, WorkOrderError> {
+        if req.tenant_id.trim().is_empty() {
+            return Err(WorkOrderError::Validation(
+                "tenant_id is required".to_string(),
+            ));
+        }
+        if req.planned_quantity <= 0 {
+            return Err(WorkOrderError::Validation(
+                "planned_quantity must be > 0".to_string(),
+            ));
+        }
+
+        // Allocate next WO number from the Numbering service.
+        let order_number = numbering
+            .allocate_wo_number(&req.tenant_id, &req.idempotency_key, claims)
+            .await?;
+
+        let mut tx = pool.begin().await?;
+
+        let wo = sqlx::query_as::<_, WorkOrder>(
+            r#"
+            INSERT INTO work_orders
+                (tenant_id, order_number, status, item_id, bom_revision_id,
+                 routing_template_id, planned_quantity, planned_start, planned_end)
+            VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8)
+            RETURNING *
+            "#,
+        )
+        .bind(&req.tenant_id)
+        .bind(&order_number)
+        .bind(req.item_id)
+        .bind(req.bom_revision_id)
+        .bind(req.routing_template_id)
+        .bind(req.planned_quantity)
+        .bind(req.planned_start)
+        .bind(req.planned_end)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| {
+            if let sqlx::Error::Database(ref dbe) = e {
+                if dbe.code().as_deref() == Some("23505") {
+                    return WorkOrderError::DuplicateOrderNumber(
+                        order_number.clone(),
+                        req.tenant_id.clone(),
+                    );
+                }
+            }
+            WorkOrderError::Database(e)
+        })?;
+
+        enqueue_event(
+            &mut tx,
+            &req.tenant_id,
+            ProductionEventType::WorkOrderCreated,
+            "work_order",
+            &wo.work_order_id.to_string(),
+            &events::build_work_order_created_envelope(
+                wo.work_order_id,
+                req.tenant_id.clone(),
+                order_number,
+                req.item_id,
+                req.bom_revision_id,
+                req.planned_quantity,
+                correlation_id.to_string(),
+                causation_id.map(String::from),
+            ),
+            correlation_id,
+            causation_id,
+        )
+        .await?;
+
+        tx.commit().await?;
+        Ok(wo)
     }
 
     /// List work orders for a tenant with derived_status, newest first.

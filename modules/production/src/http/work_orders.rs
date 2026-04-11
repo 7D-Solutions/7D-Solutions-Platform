@@ -13,7 +13,10 @@ use uuid::Uuid;
 use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
-    domain::work_orders::{CreateWorkOrderRequest, WorkOrder, WorkOrderRepo, WorkOrderResponse},
+    domain::work_orders::{
+        CompositeCreateWorkOrderRequest, CreateWorkOrderRequest, WorkOrder, WorkOrderRepo,
+        WorkOrderResponse,
+    },
     AppState,
 };
 
@@ -68,6 +71,65 @@ pub async fn create_work_order(
     req.tenant_id = tenant_id;
     let corr = Uuid::new_v4().to_string();
     match WorkOrderRepo::create(&state.pool, &req, &corr, None).await {
+        Ok(wo) => (StatusCode::CREATED, Json(wo)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}
+
+/// POST /api/production/work-orders/create
+///
+/// Composite endpoint: allocates a WO number from the Numbering service and
+/// creates the work order in a single call.
+///
+/// `bom_revision_id` and `routing_template_id` are optional — omit them to
+/// create a WO with an allocated number only.
+#[utoipa::path(
+    post,
+    path = "/api/production/work-orders/create",
+    tag = "Work Orders",
+    request_body = CompositeCreateWorkOrderRequest,
+    responses(
+        (status = 201, description = "Work order created with allocated number", body = WorkOrder),
+        (status = 422, description = "Validation failure", body = ApiError),
+        (status = 503, description = "Numbering service unavailable", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn composite_create_work_order(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Json(mut req): Json<CompositeCreateWorkOrderRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let verified_claims = match &claims {
+        Some(Extension(c)) => c.clone(),
+        None => {
+            return with_request_id(
+                ApiError::new(401, "unauthorized", "Authentication required"),
+                &tracing_ctx,
+            )
+            .into_response()
+        }
+    };
+    req.tenant_id = tenant_id;
+    let corr = Uuid::new_v4().to_string();
+    match WorkOrderRepo::composite_create(
+        &state.pool,
+        &state.numbering,
+        &req,
+        &verified_claims,
+        &corr,
+        None,
+    )
+    .await
+    {
         Ok(wo) => (StatusCode::CREATED, Json(wo)).into_response(),
         Err(e) => {
             let api_err: ApiError = e.into();

@@ -25,6 +25,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/production/workcenters/{id}", put(workcenters::update_workcenter))
         .route("/api/production/workcenters/{id}/deactivate", post(workcenters::deactivate_workcenter))
         .route("/api/production/work-orders", post(work_orders::create_work_order))
+        .route("/api/production/work-orders/create", post(work_orders::composite_create_work_order))
         .route("/api/production/work-orders/{id}/release", post(work_orders::release_work_order))
         .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
         .route("/api/production/work-orders/{id}/component-issues", post(component_issue::post_component_issue))

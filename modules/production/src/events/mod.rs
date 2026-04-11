@@ -176,7 +176,7 @@ pub struct WorkOrderCreatedPayload {
     pub tenant_id: String,
     pub order_number: String,
     pub item_id: Uuid,
-    pub bom_revision_id: Uuid,
+    pub bom_revision_id: Option<Uuid>,
     pub planned_quantity: i32,
 }
 
@@ -203,7 +203,7 @@ pub fn build_work_order_created_envelope(
     tenant_id: String,
     order_number: String,
     item_id: Uuid,
-    bom_revision_id: Uuid,
+    bom_revision_id: Option<Uuid>,
     planned_quantity: i32,
     correlation_id: String,
     causation_id: Option<String>,

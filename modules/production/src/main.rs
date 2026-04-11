@@ -11,11 +11,11 @@ use production_rs::domain::routings::{
     AddRoutingStepRequest,
 };
 use production_rs::domain::time_entries::{TimeEntry, StartTimerRequest, StopTimerRequest, ManualEntryRequest};
-use production_rs::domain::work_orders::{WorkOrder, WorkOrderStatus, CreateWorkOrderRequest};
+use production_rs::domain::work_orders::{WorkOrder, WorkOrderStatus, CreateWorkOrderRequest, CompositeCreateWorkOrderRequest};
 use production_rs::domain::workcenters::{Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest};
 use production_rs::http::pagination::PaginationQuery;
 use production_rs::http::routings::ItemDateQuery;
-use production_rs::{http, metrics, AppState};
+use production_rs::{http, metrics, AppState, NumberingClient};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 use platform_sdk::ModuleBuilder;
 
@@ -39,6 +39,7 @@ use platform_sdk::ModuleBuilder;
         production_rs::http::workcenters::update_workcenter,
         production_rs::http::workcenters::deactivate_workcenter,
         production_rs::http::work_orders::create_work_order,
+        production_rs::http::work_orders::composite_create_work_order,
         production_rs::http::work_orders::release_work_order,
         production_rs::http::work_orders::close_work_order,
         production_rs::http::work_orders::get_work_order,
@@ -69,7 +70,7 @@ use platform_sdk::ModuleBuilder;
     ),
     components(schemas(
         Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest,
-        WorkOrder, WorkOrderStatus, CreateWorkOrderRequest,
+        WorkOrder, WorkOrderStatus, CreateWorkOrderRequest, CompositeCreateWorkOrderRequest,
         OperationInstance,
         TimeEntry, StartTimerRequest, StopTimerRequest, ManualEntryRequest,
         WorkcenterDowntime, StartDowntimeRequest, EndDowntimeRequest,
@@ -119,9 +120,11 @@ async fn main() {
             let prod_metrics = Arc::new(
                 metrics::ProductionMetrics::new().expect("Production: failed to create metrics"),
             );
+            let numbering = ctx.platform_client::<NumberingClient>();
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: prod_metrics,
+                numbering: std::sync::Arc::new(numbering),
             });
             http::router(app_state)
                 .route("/api/openapi.json", get(openapi_json))

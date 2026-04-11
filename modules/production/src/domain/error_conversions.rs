@@ -55,6 +55,10 @@ impl From<WorkOrderError> for ApiError {
                 format!("Cannot transition from '{}' to '{}'", from, to),
             ),
             WorkOrderError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+            WorkOrderError::NumberingService(msg) => {
+                tracing::error!(error = %msg, "numbering service error");
+                ApiError::new(503, "numbering_service_error", msg)
+            }
             WorkOrderError::Database(e) => {
                 tracing::error!(error = %e, "work order database error");
                 ApiError::internal("Database error")
