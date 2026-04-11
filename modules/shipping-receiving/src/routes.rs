@@ -88,6 +88,10 @@ pub fn build_mutation_router() -> Router<Arc<AppState>> {
             post(http::shipments::deliver_shipment),
         )
         .route(
+            "/api/shipping-receiving/shipments/{id}/outbound",
+            post(http::shipments::ship_outbound),
+        )
+        .route(
             "/api/shipping-receiving/shipments/{id}/lines/{line_id}/route",
             post(http::inspection_routing::route_line),
         )

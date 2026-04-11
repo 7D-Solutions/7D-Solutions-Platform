@@ -74,6 +74,15 @@ pub struct ShipLineQtyRequest {
     pub qty_shipped: i64,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ShipOutboundRequest {
+    /// Optional timestamp to record as shipped_at. Defaults to now if omitted.
+    pub shipped_at: Option<DateTime<Utc>>,
+    /// Override reason to bypass a quality gate hold.
+    /// Requires `quality_inspection.mutate` permission — omitting when holds exist returns 403.
+    pub override_reason: Option<String>,
+}
+
 #[derive(Debug, Deserialize, IntoParams)]
 #[into_params(parameter_in = Query)]
 pub struct ListShipmentsQuery {

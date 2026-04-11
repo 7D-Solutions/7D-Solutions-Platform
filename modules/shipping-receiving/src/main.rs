@@ -13,9 +13,9 @@ use shipping_receiving_rs::{
     },
     http::shipments::types::{
         AddLineRequest, CreateShipmentRequest, ReceiveLineRequest,
-        ShipLineQtyRequest, ShipmentLineRow, TransitionStatusRequest,
+        ShipLineQtyRequest, ShipmentLineRow, ShipOutboundRequest, TransitionStatusRequest,
     },
-    metrics, routes, AppState,
+    metrics, routes, AppState, QualityGateIntegration,
 };
 use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
@@ -45,6 +45,7 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
         shipping_receiving_rs::http::shipments::ship_shipment,
         shipping_receiving_rs::http::shipments::deliver_shipment,
         shipping_receiving_rs::http::shipments::accept_line,
+        shipping_receiving_rs::http::shipments::ship_outbound,
         shipping_receiving_rs::http::inspection_routing::route_line,
         shipping_receiving_rs::http::inspection_routing::list_routings,
         shipping_receiving_rs::http::refs::shipments_by_po,
@@ -55,7 +56,7 @@ use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
         Shipment, Direction,
         CreateShipmentRequest, TransitionStatusRequest,
         AddLineRequest, ReceiveLineRequest, ShipLineQtyRequest,
-        ShipmentLineRow,
+        ShipmentLineRow, ShipOutboundRequest,
         RouteLineRequest, InspectionRoutingRow,
         ApiError, PaginatedResponse<Shipment>, PaginatedResponse<InspectionRoutingRow>, PaginationMeta,
     )),
@@ -120,6 +121,7 @@ async fn main() {
             );
 
             let inventory = ctx.platform_client::<shipping_receiving_rs::InventoryIntegration>();
+            let quality_gate = ctx.platform_client::<QualityGateIntegration>();
 
             // Start carrier dispatch consumer if a bus is configured
             if let Ok(bus) = ctx.bus_arc() {
@@ -130,6 +132,7 @@ async fn main() {
                 pool: ctx.pool().clone(),
                 metrics: sr_metrics,
                 inventory,
+                quality_gate,
             });
 
             Router::new()

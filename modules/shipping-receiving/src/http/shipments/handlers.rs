@@ -8,11 +8,12 @@ use axum::{
 use chrono::Utc;
 use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
-use security::VerifiedClaims;
+use security::{permissions, VerifiedClaims};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::db::repository::ShipmentRepository;
+use crate::domain::outbound_ship::{OutboundShipRequest, OutboundShipService};
 use crate::domain::shipments::{
     Direction, InboundStatus, OutboundStatus, ShipmentError, ShipmentService, TransitionRequest,
 };
@@ -22,7 +23,7 @@ use crate::AppState;
 use super::types::{
     idempotency_key, with_request_id, AddLineRequest, CreateShipmentRequest,
     ListShipmentsQuery, ReceiveLineRequest, ShipLineQtyRequest, ShipmentLineRow,
-    TransitionStatusRequest,
+    ShipOutboundRequest, TransitionStatusRequest,
 };
 
 #[utoipa::path(
@@ -641,5 +642,63 @@ pub async fn accept_line(
             with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
                 .into_response()
         }
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/shipping-receiving/shipments/{id}/outbound",
+    tag = "Shipments",
+    params(("id" = Uuid, Path, description = "Shipment ID")),
+    request_body = ShipOutboundRequest,
+    responses(
+        (status = 200, description = "Shipment shipped", body = crate::domain::shipments::Shipment),
+        (status = 400, description = "Invalid state or direction", body = ApiError),
+        (status = 403, description = "Quality gate hold or insufficient permissions", body = ApiError),
+        (status = 404, description = "Shipment not found", body = ApiError),
+        (status = 502, description = "Quality inspection service error", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn ship_outbound(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(req): Json<ShipOutboundRequest>,
+) -> impl IntoResponse {
+    let tenant_id: Uuid = match extract_tenant(&claims)
+        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+    {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let _idem = idempotency_key(&headers);
+
+    // Determine whether the caller holds the quality_inspection.mutate permission.
+    let caller_can_override_qi = claims
+        .as_ref()
+        .map(|Extension(c)| c.perms.iter().any(|p| p == permissions::QUALITY_INSPECTION_MUTATE))
+        .unwrap_or(false);
+
+    let domain_req = OutboundShipRequest {
+        shipment_id: id,
+        tenant_id,
+        shipped_at: req.shipped_at,
+        override_reason: req.override_reason,
+        caller_can_override_qi,
+    };
+
+    match OutboundShipService::execute(
+        &state.pool,
+        domain_req,
+        &state.inventory,
+        &state.quality_gate,
+    )
+    .await
+    {
+        Ok(shipment) => (StatusCode::OK, Json(serde_json::json!(shipment))).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
