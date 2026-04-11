@@ -13,6 +13,7 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
+COPY clients clients
 RUN cargo chef prepare --recipe-path recipe.json --bin shipping-receiving-rs
 
 # --- Stage 3: Builder (cache deps, then build) ---
@@ -27,6 +28,7 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
+COPY clients clients
 RUN cargo build --release --bin shipping-receiving-rs
 
 # --- Stage 4: Runtime (minimal image) ---
