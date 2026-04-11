@@ -31,6 +31,15 @@ pub struct ItemDateQuery {
     pub effective_date: NaiveDate,
 }
 
+/// Query parameters for routing step endpoints.
+/// Pass `include=workcenter_details` to embed the full workcenter object on each step.
+#[derive(Debug, Deserialize, IntoParams, ToSchema)]
+#[into_params(parameter_in = Query)]
+pub struct StepsQuery {
+    /// Pass `workcenter_details` to embed the workcenter object on each step.
+    pub include: Option<String>,
+}
+
 /// POST /api/production/routings
 #[utoipa::path(
     post,
@@ -288,9 +297,12 @@ pub async fn add_routing_step(
     get,
     path = "/api/production/routings/{id}/steps",
     tag = "Routings",
-    params(("id" = Uuid, Path, description = "Routing template ID")),
+    params(
+        ("id" = Uuid, Path, description = "Routing template ID"),
+        StepsQuery,
+    ),
     responses(
-        (status = 200, description = "Routing steps", body = PaginatedResponse<RoutingStep>),
+        (status = 200, description = "Routing steps (bare or enriched)", body = PaginatedResponse<RoutingStep>),
         (status = 404, description = "Routing not found", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -299,21 +311,36 @@ pub async fn list_routing_steps(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
+    Query(q): Query<StepsQuery>,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match RoutingRepo::list_steps(&state.pool, id, &tenant_id).await {
-        Ok(steps) => {
-            let total = steps.len() as i64;
-            let resp = PaginatedResponse::new(steps, 1, total, total);
-            (StatusCode::OK, Json(resp)).into_response()
+    if q.include.as_deref() == Some("workcenter_details") {
+        match RoutingRepo::list_steps_enriched(&state.pool, id, &tenant_id).await {
+            Ok(steps) => {
+                let total = steps.len() as i64;
+                let resp = PaginatedResponse::new(steps, 1, total, total);
+                (StatusCode::OK, Json(resp)).into_response()
+            }
+            Err(e) => {
+                let api_err: ApiError = e.into();
+                with_request_id(api_err, &tracing_ctx).into_response()
+            }
         }
-        Err(e) => {
-            let api_err: ApiError = e.into();
-            with_request_id(api_err, &tracing_ctx).into_response()
+    } else {
+        match RoutingRepo::list_steps(&state.pool, id, &tenant_id).await {
+            Ok(steps) => {
+                let total = steps.len() as i64;
+                let resp = PaginatedResponse::new(steps, 1, total, total);
+                (StatusCode::OK, Json(resp)).into_response()
+            }
+            Err(e) => {
+                let api_err: ApiError = e.into();
+                with_request_id(api_err, &tracing_ctx).into_response()
+            }
         }
     }
 }
@@ -326,9 +353,10 @@ pub async fn list_routing_steps(
     params(
         ("id" = Uuid, Path, description = "Routing template ID"),
         ("step_id" = Uuid, Path, description = "Routing step ID"),
+        StepsQuery,
     ),
     responses(
-        (status = 200, description = "Routing step", body = RoutingStep),
+        (status = 200, description = "Routing step (bare or enriched)", body = RoutingStep),
         (status = 404, description = "Not found", body = ApiError),
     ),
     security(("bearer" = [])),
@@ -337,21 +365,36 @@ pub async fn get_routing_step(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Path((id, step_id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<StepsQuery>,
     tracing_ctx: Option<Extension<TracingContext>>,
 ) -> impl IntoResponse {
     let tenant_id = match extract_tenant(&claims) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match RoutingRepo::find_step(&state.pool, id, step_id, &tenant_id).await {
-        Ok(Some(step)) => (StatusCode::OK, Json(step)).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Routing step not found"), &tracing_ctx)
-                .into_response()
+    if q.include.as_deref() == Some("workcenter_details") {
+        match RoutingRepo::find_step_enriched(&state.pool, id, step_id, &tenant_id).await {
+            Ok(Some(step)) => (StatusCode::OK, Json(step)).into_response(),
+            Ok(None) => {
+                with_request_id(ApiError::not_found("Routing step not found"), &tracing_ctx)
+                    .into_response()
+            }
+            Err(e) => {
+                let api_err: ApiError = e.into();
+                with_request_id(api_err, &tracing_ctx).into_response()
+            }
         }
-        Err(e) => {
-            let api_err: ApiError = e.into();
-            with_request_id(api_err, &tracing_ctx).into_response()
+    } else {
+        match RoutingRepo::find_step(&state.pool, id, step_id, &tenant_id).await {
+            Ok(Some(step)) => (StatusCode::OK, Json(step)).into_response(),
+            Ok(None) => {
+                with_request_id(ApiError::not_found("Routing step not found"), &tracing_ctx)
+                    .into_response()
+            }
+            Err(e) => {
+                let api_err: ApiError = e.into();
+                with_request_id(api_err, &tracing_ctx).into_response()
+            }
         }
     }
 }

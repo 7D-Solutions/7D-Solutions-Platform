@@ -1,6 +1,25 @@
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::{DateTime, Duration, NaiveDate, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Flat row returned by the enriched step queries.
+/// Holds all routing_steps columns plus the two aliased workcenter columns.
+#[derive(sqlx::FromRow)]
+struct EnrichedStepRow {
+    routing_step_id: Uuid,
+    routing_template_id: Uuid,
+    sequence_number: i32,
+    workcenter_id: Uuid,
+    operation_name: String,
+    description: Option<String>,
+    setup_time_minutes: Option<i32>,
+    run_time_minutes: Option<i32>,
+    is_required: bool,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    wc_name: Option<String>,
+    wc_code: Option<String>,
+}
 
 use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
@@ -8,7 +27,7 @@ use crate::events::{self, ProductionEventType};
 
 use super::types::{
     AddRoutingStepRequest, CreateRoutingRequest, RoutingError, RoutingStatus, RoutingStep,
-    RoutingTemplate, UpdateRoutingRequest,
+    RoutingStepEnriched, RoutingTemplate, UpdateRoutingRequest, WorkcenterDetails,
 };
 
 pub struct RoutingRepo;
@@ -557,6 +576,155 @@ impl RoutingRepo {
         .fetch_optional(pool)
         .await
         .map_err(RoutingError::Database)
+    }
+
+    /// List routing steps with full workcenter details embedded.
+    /// Used when the caller passes `?include=workcenter_details`.
+    pub async fn list_steps_enriched(
+        pool: &PgPool,
+        routing_template_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Vec<RoutingStepEnriched>, RoutingError> {
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT routing_template_id FROM routing_templates WHERE routing_template_id = $1 AND tenant_id = $2",
+        )
+        .bind(routing_template_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if exists.is_none() {
+            return Err(RoutingError::NotFound);
+        }
+
+        let rows = sqlx::query_as::<_, EnrichedStepRow>(
+            r#"
+            SELECT
+                rs.routing_step_id,
+                rs.routing_template_id,
+                rs.sequence_number,
+                rs.workcenter_id,
+                rs.operation_name,
+                rs.description,
+                rs.setup_time_minutes,
+                rs.run_time_minutes,
+                rs.is_required,
+                rs.created_at,
+                rs.updated_at,
+                w.name  AS wc_name,
+                w.code  AS wc_code
+            FROM routing_steps rs
+            LEFT JOIN workcenters w ON w.workcenter_id = rs.workcenter_id
+            WHERE rs.routing_template_id = $1
+              AND rs.routing_template_id IN (
+                  SELECT routing_template_id FROM routing_templates WHERE tenant_id = $2
+              )
+            ORDER BY rs.sequence_number
+            "#,
+        )
+        .bind(routing_template_id)
+        .bind(tenant_id)
+        .fetch_all(pool)
+        .await
+        .map_err(RoutingError::Database)?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let workcenter = r.wc_name.as_ref().map(|name| WorkcenterDetails {
+                    workcenter_id: r.workcenter_id,
+                    name: name.clone(),
+                    code: r.wc_code.clone().unwrap_or_default(),
+                });
+                RoutingStepEnriched {
+                    routing_step_id: r.routing_step_id,
+                    routing_template_id: r.routing_template_id,
+                    sequence_number: r.sequence_number,
+                    workcenter_id: r.workcenter_id,
+                    workcenter_name: r.wc_name,
+                    operation_name: r.operation_name,
+                    description: r.description,
+                    setup_time_minutes: r.setup_time_minutes,
+                    run_time_minutes: r.run_time_minutes,
+                    is_required: r.is_required,
+                    created_at: r.created_at,
+                    updated_at: r.updated_at,
+                    workcenter,
+                }
+            })
+            .collect())
+    }
+
+    /// Fetch a single routing step with full workcenter details embedded.
+    /// Used when the caller passes `?include=workcenter_details`.
+    pub async fn find_step_enriched(
+        pool: &PgPool,
+        routing_template_id: Uuid,
+        step_id: Uuid,
+        tenant_id: &str,
+    ) -> Result<Option<RoutingStepEnriched>, RoutingError> {
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT routing_template_id FROM routing_templates WHERE routing_template_id = $1 AND tenant_id = $2",
+        )
+        .bind(routing_template_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
+
+        if exists.is_none() {
+            return Err(RoutingError::NotFound);
+        }
+
+        let row = sqlx::query_as::<_, EnrichedStepRow>(
+            r#"
+            SELECT
+                rs.routing_step_id,
+                rs.routing_template_id,
+                rs.sequence_number,
+                rs.workcenter_id,
+                rs.operation_name,
+                rs.description,
+                rs.setup_time_minutes,
+                rs.run_time_minutes,
+                rs.is_required,
+                rs.created_at,
+                rs.updated_at,
+                w.name  AS wc_name,
+                w.code  AS wc_code
+            FROM routing_steps rs
+            LEFT JOIN workcenters w ON w.workcenter_id = rs.workcenter_id
+            WHERE rs.routing_step_id = $1
+              AND rs.routing_template_id = $2
+            "#,
+        )
+        .bind(step_id)
+        .bind(routing_template_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(RoutingError::Database)?;
+
+        Ok(row.map(|r| {
+            let workcenter = r.wc_name.as_ref().map(|name| WorkcenterDetails {
+                workcenter_id: r.workcenter_id,
+                name: name.clone(),
+                code: r.wc_code.clone().unwrap_or_default(),
+            });
+            RoutingStepEnriched {
+                routing_step_id: r.routing_step_id,
+                routing_template_id: r.routing_template_id,
+                sequence_number: r.sequence_number,
+                workcenter_id: r.workcenter_id,
+                workcenter_name: r.wc_name,
+                operation_name: r.operation_name,
+                description: r.description,
+                setup_time_minutes: r.setup_time_minutes,
+                run_time_minutes: r.run_time_minutes,
+                is_required: r.is_required,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+                workcenter,
+            }
+        }))
     }
 
     pub async fn delete_step(

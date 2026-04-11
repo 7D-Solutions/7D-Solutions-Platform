@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use production_rs::domain::routings::{
     AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo, UpdateRoutingRequest,
+    RoutingStepEnriched,
 };
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use serial_test::serial;
@@ -646,4 +647,193 @@ async fn full_routing_workflow() {
 
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].routing_template_id, rt.routing_template_id);
+}
+
+// ============================================================================
+// Workcenter details enrichment (?include=workcenter_details)
+// ============================================================================
+
+/// Without ?include, list_steps returns RoutingStep (workcenter_id + workcenter_name only).
+/// With ?include=workcenter_details, list_steps_enriched returns embedded WorkcenterDetails.
+#[tokio::test]
+#[serial]
+async fn list_steps_enriched_embeds_workcenter_details() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let wc_code = format!("WC-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
+    let wc = production_rs::domain::workcenters::WorkcenterRepo::create(
+        &pool,
+        &production_rs::domain::workcenters::CreateWorkcenterRequest {
+            tenant_id: tenant.clone(),
+            code: wc_code.clone(),
+            name: "Milling Station".to_string(),
+            description: None,
+            capacity: Some(4),
+            cost_rate_minor: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create workcenter");
+
+    let rt = RoutingRepo::create(
+        &pool,
+        &CreateRoutingRequest {
+            tenant_id: tenant.clone(),
+            name: "Enrichment Test Routing".to_string(),
+            description: None,
+            item_id: None,
+            bom_revision_id: None,
+            revision: None,
+            effective_from_date: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create routing");
+
+    RoutingRepo::add_step(
+        &pool,
+        rt.routing_template_id,
+        &AddRoutingStepRequest {
+            tenant_id: tenant.clone(),
+            sequence_number: 10,
+            workcenter_id: wc.workcenter_id,
+            operation_name: "Mill".to_string(),
+            description: Some("Milling operation".to_string()),
+            setup_time_minutes: Some(20),
+            run_time_minutes: Some(90),
+            is_required: Some(true),
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("add step");
+
+    // Without include: bare RoutingStep — workcenter_id + workcenter_name, no embedded object
+    let bare = RoutingRepo::list_steps(&pool, rt.routing_template_id, &tenant)
+        .await
+        .expect("list_steps bare");
+    assert_eq!(bare.len(), 1);
+    assert_eq!(bare[0].workcenter_id, wc.workcenter_id);
+    assert_eq!(bare[0].workcenter_name.as_deref(), Some("Milling Station"));
+
+    // With include: enriched — same fields plus embedded workcenter object
+    let enriched: Vec<RoutingStepEnriched> =
+        RoutingRepo::list_steps_enriched(&pool, rt.routing_template_id, &tenant)
+            .await
+            .expect("list_steps_enriched");
+    assert_eq!(enriched.len(), 1);
+    assert_eq!(enriched[0].workcenter_id, wc.workcenter_id);
+    assert_eq!(enriched[0].workcenter_name.as_deref(), Some("Milling Station"));
+    let wc_details = enriched[0].workcenter.as_ref().expect("workcenter details present");
+    assert_eq!(wc_details.workcenter_id, wc.workcenter_id);
+    assert_eq!(wc_details.name, "Milling Station");
+    assert_eq!(wc_details.code, wc_code);
+    // Confirm sequence/operation fields are unchanged
+    assert_eq!(enriched[0].sequence_number, 10);
+    assert_eq!(enriched[0].operation_name, "Mill");
+    assert!(enriched[0].is_required);
+}
+
+/// find_step_enriched returns None for a missing step, and the embedded object for a real one.
+#[tokio::test]
+#[serial]
+async fn find_step_enriched_returns_workcenter_details() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let wc_code = format!("WC-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
+    let wc = production_rs::domain::workcenters::WorkcenterRepo::create(
+        &pool,
+        &production_rs::domain::workcenters::CreateWorkcenterRequest {
+            tenant_id: tenant.clone(),
+            code: wc_code.clone(),
+            name: "Weld Station".to_string(),
+            description: None,
+            capacity: None,
+            cost_rate_minor: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create workcenter");
+
+    let rt = RoutingRepo::create(
+        &pool,
+        &CreateRoutingRequest {
+            tenant_id: tenant.clone(),
+            name: "Find Step Enriched Test".to_string(),
+            description: None,
+            item_id: None,
+            bom_revision_id: None,
+            revision: None,
+            effective_from_date: None,
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("create routing");
+
+    let step = RoutingRepo::add_step(
+        &pool,
+        rt.routing_template_id,
+        &AddRoutingStepRequest {
+            tenant_id: tenant.clone(),
+            sequence_number: 10,
+            workcenter_id: wc.workcenter_id,
+            operation_name: "Weld".to_string(),
+            description: None,
+            setup_time_minutes: None,
+            run_time_minutes: Some(45),
+            is_required: Some(true),
+            idempotency_key: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .expect("add step");
+
+    // Non-existent step returns None
+    let missing = RoutingRepo::find_step_enriched(
+        &pool,
+        rt.routing_template_id,
+        Uuid::new_v4(),
+        &tenant,
+    )
+    .await
+    .expect("no error for missing");
+    assert!(missing.is_none());
+
+    // Real step returns enriched details
+    let found = RoutingRepo::find_step_enriched(
+        &pool,
+        rt.routing_template_id,
+        step.routing_step_id,
+        &tenant,
+    )
+    .await
+    .expect("find_step_enriched")
+    .expect("step exists");
+
+    assert_eq!(found.routing_step_id, step.routing_step_id);
+    assert_eq!(found.operation_name, "Weld");
+    let wc_details = found.workcenter.as_ref().expect("workcenter embedded");
+    assert_eq!(wc_details.workcenter_id, wc.workcenter_id);
+    assert_eq!(wc_details.name, "Weld Station");
+    assert_eq!(wc_details.code, wc_code);
 }

@@ -105,6 +105,35 @@ pub struct AddRoutingStepRequest {
     pub idempotency_key: Option<String>,
 }
 
+/// Workcenter summary embedded in a routing step when `?include=workcenter_details` is requested.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WorkcenterDetails {
+    pub workcenter_id: Uuid,
+    pub name: String,
+    pub code: String,
+}
+
+/// Routing step with optional embedded workcenter details.
+/// Returned when `?include=workcenter_details` is passed to the steps endpoints.
+/// Without the parameter the response is identical to [`RoutingStep`].
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RoutingStepEnriched {
+    pub routing_step_id: Uuid,
+    pub routing_template_id: Uuid,
+    pub sequence_number: i32,
+    pub workcenter_id: Uuid,
+    pub workcenter_name: Option<String>,
+    pub operation_name: String,
+    pub description: Option<String>,
+    pub setup_time_minutes: Option<i32>,
+    pub run_time_minutes: Option<i32>,
+    pub is_required: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    /// Resolved workcenter object. `None` when the workcenter cannot be found.
+    pub workcenter: Option<WorkcenterDetails>,
+}
+
 // ============================================================================
 // Errors
 // ============================================================================
