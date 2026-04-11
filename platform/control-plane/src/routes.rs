@@ -62,6 +62,7 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/ready", get(ready))
+        .route("/api/health", get(ready))
         .route("/api/control/tenants", post(handlers::create_tenant))
         .route(
             "/api/control/tenants/{tenant_id}/retention",

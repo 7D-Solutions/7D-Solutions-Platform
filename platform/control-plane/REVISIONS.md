@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.3.2 | 2026-04-11 | bd-d77cl | Add `/api/health` route as an alias for `/api/ready`. Same handler and response shape, different path. | Rust Service Container Spec (AgentCore `docs/rust-service-container-spec.md` §4) requires every HTTP service to serve `/api/health`. Control-plane has its own router (not platform-sdk ModuleBuilder) so the route had to be added manually. `/api/ready` preserved as a backwards-compat alias. | No |
 | 1.3.1 | 2026-04-04 | bd-p5cnn | Fix PORT default 8092 to 8091 to match PLATFORM-SERVICE-CATALOG.md | Default port was wrong — control-plane should listen on 8091 per the service catalog. | No |
 | 1.3.0 | 2026-04-02 | bd-fdvkw | Add `GET /api/service-catalog` endpoint. Returns module_code → base_url mappings from `cp_service_catalog` table. Replaces hardcoded env vars (AR_BASE_URL, TENANT_REGISTRY_URL, DOC_MGMT_BASE_URL) with a single queryable endpoint. New migration seeds all 26 platform modules. | Modules discover each other via hardcoded env vars — adding a module means updating env vars everywhere. A central catalog simplifies service discovery. | No |
 | 1.2.1 | 2026-04-02 | bd-5a957 | Split `steps.rs` into `steps.rs` + `tracking.rs` to meet 500 LOC file size limit. No functional changes. | `steps.rs` was 543 LOC; platform requires <500 LOC per file. | No |

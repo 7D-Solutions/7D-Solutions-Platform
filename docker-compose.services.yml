@@ -1,4 +1,4 @@
-name: 7d-services
+name: 7d-solutions-platform
 
 services:
   # =========================
@@ -6,14 +6,14 @@ services:
   # =========================
   auth-1:
     container_name: 7d-auth-1
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     restart: unless-stopped
     cap_drop:
       - ALL
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -37,9 +37,8 @@ services:
       REFRESH_PER_MIN_PER_TOKEN: "20"
       TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: info,auth_rs=debug
-      SERVICE_BINARY: /usr/local/bin/identity-auth
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
+      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/app/service:ro
       - ./platform/identity-auth/db/migrations:/app/migrations:ro
       - ./platform/identity-auth/src/events/schemas:/app/schemas:ro
     networks:
@@ -54,23 +53,17 @@ services:
       com.agentcore.project: "platform"
       com.agentcore.container-role: app
       com.agentcore.service: auth-1
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   auth-2:
     container_name: 7d-auth-2
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     restart: unless-stopped
     cap_drop:
       - ALL
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -94,9 +87,8 @@ services:
       REFRESH_PER_MIN_PER_TOKEN: "20"
       TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: info,auth_rs=debug
-      SERVICE_BINARY: /usr/local/bin/identity-auth
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/usr/local/bin/identity-auth:ro
+      - ./target/aarch64-unknown-linux-musl/debug/identity-auth:/app/service:ro
       - ./platform/identity-auth/db/migrations:/app/migrations:ro
       - ./platform/identity-auth/src/events/schemas:/app/schemas:ro
     networks:
@@ -111,12 +103,6 @@ services:
       com.agentcore.project: "platform"
       com.agentcore.container-role: app
       com.agentcore.service: auth-2
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   # =========================
   # AUTH LOAD BALANCER
@@ -134,6 +120,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
       - /var/cache/nginx
       - /run
     volumes:
@@ -176,6 +163,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
       - /var/cache/nginx
       - /run
     volumes:
@@ -233,14 +221,14 @@ services:
   # =========================
   control-plane:
     container_name: 7d-control-plane
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     restart: unless-stopped
     cap_drop:
       - ALL
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     ports:
       - "127.0.0.1:8091:8091"
     environment:
@@ -253,14 +241,13 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/control-plane
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/control-plane:/usr/local/bin/control-plane:ro
+      - ./target/aarch64-unknown-linux-musl/debug/control-plane:/app/service:ro
       - ./platform/tenant-registry/db/migrations:/app/platform/tenant-registry/db/migrations:ro
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8091/api/ready"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8091/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -280,8 +267,7 @@ services:
   # =========================
   ar:
     container_name: 7d-ar
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -293,9 +279,8 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       TILLED_WEBHOOK_SECRET: ${TILLED_WEBHOOK_SECRET:-dev-placeholder-secret}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/ar-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/usr/local/bin/ar-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/ar-rs:/app/service:ro
       - ./modules/ar/module.toml:/app/module.toml:ro
       - ./modules/ar/db/migrations:/app/db/migrations:ro
     ports:
@@ -314,6 +299,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -329,8 +315,7 @@ services:
   # =========================
   subscriptions:
     container_name: 7d-subscriptions
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -342,9 +327,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/subscriptions-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/subscriptions-rs:/usr/local/bin/subscriptions-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/subscriptions-rs:/app/service:ro
       - ./modules/subscriptions/module.toml:/app/module.toml:ro
       - ./modules/subscriptions/db/migrations:/app/db/migrations:ro
     ports:
@@ -363,6 +347,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -378,8 +363,7 @@ services:
   # =========================
   payments:
     container_name: 7d-payments
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -393,9 +377,8 @@ services:
       PAYMENTS_PROVIDER: ${PAYMENTS_PROVIDER:-tilled}
       TILLED_API_KEY: ${TILLED_API_KEY:-placeholder-tilled-api-key}
       TILLED_ACCOUNT_ID: ${TILLED_ACCOUNT_ID:-placeholder-tilled-account-id}
-      SERVICE_BINARY: /usr/local/bin/payments-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/payments-rs:/usr/local/bin/payments-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/payments-rs:/app/service:ro
       - ./modules/payments/module.toml:/app/module.toml:ro
       - ./modules/payments/db/migrations:/app/db/migrations:ro
     ports:
@@ -414,6 +397,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -429,8 +413,7 @@ services:
   # =========================
   notifications:
     container_name: 7d-notifications
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -441,9 +424,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/notifications-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/notifications-rs:/usr/local/bin/notifications-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/notifications-rs:/app/service:ro
       - ./modules/notifications/module.toml:/app/module.toml:ro
       - ./modules/notifications/db/migrations:/app/db/migrations:ro
     ports:
@@ -462,6 +444,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -477,8 +460,7 @@ services:
   # =========================
   gl:
     container_name: 7d-gl
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -489,9 +471,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/gl-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/gl-rs:/usr/local/bin/gl-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/gl-rs:/app/service:ro
       - ./modules/gl/module.toml:/app/module.toml:ro
       - ./modules/gl/db/migrations:/app/db/migrations:ro
     ports:
@@ -510,6 +491,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -525,8 +507,7 @@ services:
   # =========================
   inventory:
     container_name: 7d-inventory
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -537,9 +518,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/inventory-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/inventory-rs:/usr/local/bin/inventory-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/inventory-rs:/app/service:ro
       - ./modules/inventory/module.toml:/app/module.toml:ro
       - ./modules/inventory/db/migrations:/app/db/migrations:ro
     ports:
@@ -558,6 +538,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -573,8 +554,7 @@ services:
   # =========================
   ap:
     container_name: 7d-ap
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:-ap_pass}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -585,9 +565,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/ap
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/ap:/usr/local/bin/ap:ro
+      - ./target/aarch64-unknown-linux-musl/debug/ap:/app/service:ro
       - ./modules/ap/module.toml:/app/module.toml:ro
       - ./modules/ap/db/migrations:/app/db/migrations:ro
     ports:
@@ -606,6 +585,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -621,8 +601,7 @@ services:
   # =========================
   treasury:
     container_name: 7d-treasury
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:-treasury_pass}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -633,9 +612,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/treasury
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/treasury:/usr/local/bin/treasury:ro
+      - ./target/aarch64-unknown-linux-musl/debug/treasury:/app/service:ro
       - ./modules/treasury/module.toml:/app/module.toml:ro
       - ./modules/treasury/db/migrations:/app/db/migrations:ro
     ports:
@@ -654,6 +632,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -669,8 +648,7 @@ services:
   # =========================
   fixed-assets:
     container_name: 7d-fixed-assets
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -681,9 +659,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/fixed-assets
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/fixed-assets:/usr/local/bin/fixed-assets:ro
+      - ./target/aarch64-unknown-linux-musl/debug/fixed-assets:/app/service:ro
       - ./modules/fixed-assets/module.toml:/app/module.toml:ro
       - ./modules/fixed-assets/db/migrations:/app/db/migrations:ro
     ports:
@@ -702,6 +679,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -717,8 +695,7 @@ services:
   # =========================
   consolidation:
     container_name: 7d-consolidation
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -729,9 +706,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/consolidation
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/consolidation:/usr/local/bin/consolidation:ro
+      - ./target/aarch64-unknown-linux-musl/debug/consolidation:/app/service:ro
       - ./modules/consolidation/module.toml:/app/module.toml:ro
       - ./modules/consolidation/db/migrations:/app/db/migrations:ro
     ports:
@@ -750,6 +726,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -765,8 +742,7 @@ services:
   # =========================
   timekeeping:
     container_name: 7d-timekeeping
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -777,9 +753,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/timekeeping
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/timekeeping:/usr/local/bin/timekeeping:ro
+      - ./target/aarch64-unknown-linux-musl/debug/timekeeping:/app/service:ro
       - ./modules/timekeeping/module.toml:/app/module.toml:ro
       - ./modules/timekeeping/db/migrations:/app/db/migrations:ro
     ports:
@@ -798,6 +773,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -813,8 +789,7 @@ services:
   # =========================
   party:
     container_name: 7d-party
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -825,9 +800,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/party
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/party:/usr/local/bin/party:ro
+      - ./target/aarch64-unknown-linux-musl/debug/party:/app/service:ro
       - ./modules/party/module.toml:/app/module.toml:ro
       - ./modules/party/db/migrations:/app/db/migrations:ro
     ports:
@@ -846,6 +820,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -861,8 +836,7 @@ services:
   # =========================
   integrations:
     container_name: 7d-integrations
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -873,9 +847,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/integrations
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/integrations:/usr/local/bin/integrations:ro
+      - ./target/aarch64-unknown-linux-musl/debug/integrations:/app/service:ro
       - ./modules/integrations/module.toml:/app/module.toml:ro
       - ./modules/integrations/db/migrations:/app/db/migrations:ro
     ports:
@@ -894,6 +867,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -909,8 +883,7 @@ services:
   # =========================
   ttp:
     container_name: 7d-ttp
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -922,9 +895,8 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
-      SERVICE_BINARY: /usr/local/bin/ttp
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/ttp:/usr/local/bin/ttp:ro
+      - ./target/aarch64-unknown-linux-musl/debug/ttp:/app/service:ro
       - ./modules/ttp/module.toml:/app/module.toml:ro
       - ./modules/ttp/db/migrations:/app/db/migrations:ro
     ports:
@@ -943,6 +915,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -958,8 +931,7 @@ services:
   # =========================
   pdf-editor:
     container_name: 7d-pdf-editor
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -971,9 +943,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/pdf-editor-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/usr/local/bin/pdf-editor-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/pdf-editor-rs:/app/service:ro
       - ./modules/pdf-editor/module.toml:/app/module.toml:ro
       - ./modules/pdf-editor/db/migrations:/app/db/migrations:ro
     ports:
@@ -992,6 +963,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1007,8 +979,7 @@ services:
   # =========================
   maintenance:
     container_name: 7d-maintenance
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${MAINTENANCE_POSTGRES_USER:-maintenance_user}:${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}@7d-maintenance-postgres:5432/${MAINTENANCE_POSTGRES_DB:-maintenance_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1019,9 +990,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/maintenance-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/maintenance-rs:/usr/local/bin/maintenance-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/maintenance-rs:/app/service:ro
       - ./modules/maintenance/module.toml:/app/module.toml:ro
       - ./modules/maintenance/db/migrations:/app/db/migrations:ro
     ports:
@@ -1040,6 +1010,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1055,8 +1026,7 @@ services:
   # =========================
   shipping-receiving:
     container_name: 7d-shipping-receiving
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}:${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}@7d-shipping-receiving-postgres:5432/${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1070,9 +1040,8 @@ services:
       INVENTORY_BASE_URL: http://7d-inventory:8092
       INVENTORY_DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       INTEGRATIONS_SERVICE_URL: http://7d-integrations:8099
-      SERVICE_BINARY: /usr/local/bin/shipping-receiving-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/usr/local/bin/shipping-receiving-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/app/service:ro
       - ./modules/shipping-receiving/module.toml:/app/module.toml:ro
       - ./modules/shipping-receiving/db/migrations:/app/db/migrations:ro
     ports:
@@ -1091,6 +1060,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1106,8 +1076,7 @@ services:
   # =========================
   quality-inspection:
     container_name: 7d-quality-inspection
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}:${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}@7d-quality-inspection-postgres:5432/${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}?sslmode=require
       WORKFORCE_COMPETENCE_DATABASE_URL: postgresql://${WORKFORCE_COMPETENCE_POSTGRES_USER:-wc_user}:${WORKFORCE_COMPETENCE_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WORKFORCE_COMPETENCE_POSTGRES_DB:-workforce_competence_db}?sslmode=require
@@ -1120,9 +1089,8 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
       WORKFORCE_COMPETENCE_BASE_URL: http://7d-workforce-competence:8121
-      SERVICE_BINARY: /usr/local/bin/quality-inspection-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/quality-inspection-rs:/usr/local/bin/quality-inspection-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/quality-inspection-rs:/app/service:ro
       - ./modules/quality-inspection/module.toml:/app/module.toml:ro
       - ./modules/quality-inspection/db/migrations:/app/db/migrations:ro
     ports:
@@ -1141,6 +1109,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1156,8 +1125,7 @@ services:
   # =========================
   bom:
     container_name: 7d-bom
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${BOM_POSTGRES_USER:-bom_user}:${BOM_POSTGRES_PASSWORD:-bom_pass}@7d-bom-postgres:5432/${BOM_POSTGRES_DB:-bom_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1168,9 +1136,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/bom-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/bom-rs:/usr/local/bin/bom-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/bom-rs:/app/service:ro
       - ./modules/bom/module.toml:/app/module.toml:ro
       - ./modules/bom/db/migrations:/app/db/migrations:ro
     ports:
@@ -1189,6 +1156,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1204,8 +1172,7 @@ services:
   # =========================
   production:
     container_name: 7d-production
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1216,9 +1183,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/production-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/production-rs:/usr/local/bin/production-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/production-rs:/app/service:ro
       - ./modules/production/module.toml:/app/module.toml:ro
       - ./modules/production/db/migrations:/app/db/migrations:ro
     ports:
@@ -1237,6 +1203,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1252,8 +1219,7 @@ services:
   # =========================
   workflow:
     container_name: 7d-workflow
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${WORKFLOW_POSTGRES_USER:-workflow_user}:${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}@7d-workflow-postgres:5432/${WORKFLOW_POSTGRES_DB:-workflow_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1264,9 +1230,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/workflow
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/workflow:/usr/local/bin/workflow:ro
+      - ./target/aarch64-unknown-linux-musl/debug/workflow:/app/service:ro
       - ./modules/workflow/module.toml:/app/module.toml:ro
       - ./modules/workflow/db/migrations:/app/db/migrations:ro
     ports:
@@ -1285,6 +1250,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1300,8 +1266,7 @@ services:
   # =========================
   numbering:
     container_name: 7d-numbering
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${NUMBERING_POSTGRES_USER:-numbering_user}:${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}@7d-numbering-postgres:5432/${NUMBERING_POSTGRES_DB:-numbering_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1312,9 +1277,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/numbering
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/numbering:/usr/local/bin/numbering:ro
+      - ./target/aarch64-unknown-linux-musl/debug/numbering:/app/service:ro
       - ./modules/numbering/module.toml:/app/module.toml:ro
       - ./modules/numbering/db/migrations:/app/db/migrations:ro
     ports:
@@ -1333,6 +1297,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1348,8 +1313,7 @@ services:
   # =========================
   workforce-competence:
     container_name: 7d-workforce-competence
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${WC_POSTGRES_USER:-wc_user}:${WC_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WC_POSTGRES_DB:-workforce_competence_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1358,9 +1322,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/workforce-competence-rs
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/workforce-competence-rs:/usr/local/bin/workforce-competence-rs:ro
+      - ./target/aarch64-unknown-linux-musl/debug/workforce-competence-rs:/app/service:ro
       - ./modules/workforce-competence/module.toml:/app/module.toml:ro
       - ./modules/workforce-competence/db/migrations:/app/db/migrations:ro
     ports:
@@ -1379,6 +1342,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1394,8 +1358,7 @@ services:
   # =========================
   customer-portal:
     container_name: 7d-customer-portal
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}:${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}@7d-customer-portal-postgres:5432/${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1404,9 +1367,8 @@ services:
       PORTAL_JWT_PUBLIC_KEY: ${PORTAL_JWT_PUBLIC_KEY:-}
       DOC_MGMT_BASE_URL: http://7d-doc-mgmt:8095
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/customer-portal
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/customer-portal:/usr/local/bin/customer-portal:ro
+      - ./target/aarch64-unknown-linux-musl/debug/customer-portal:/app/service:ro
       - ./modules/customer-portal/module.toml:/app/module.toml:ro
       - ./modules/customer-portal/db/migrations:/app/db/migrations:ro
     ports:
@@ -1425,6 +1387,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -1440,8 +1403,7 @@ services:
   # =========================
   doc-mgmt:
     container_name: 7d-doc-mgmt
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}:${DOC_MGMT_POSTGRES_PASSWORD:-doc_mgmt_pass}@7d-doc-mgmt-postgres:5432/${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -1456,15 +1418,14 @@ services:
       BLOB_BUCKET: ${BLOB_BUCKET:-platform-docs}
       BLOB_ACCESS_KEY_ID: ${BLOB_ACCESS_KEY_ID:-minioadmin}
       BLOB_SECRET_ACCESS_KEY: ${BLOB_SECRET_ACCESS_KEY:-minioadmin}
-      SERVICE_BINARY: /usr/local/bin/doc-mgmt
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/doc-mgmt:/usr/local/bin/doc-mgmt:ro
+      - ./target/aarch64-unknown-linux-musl/debug/doc-mgmt:/app/service:ro
     ports:
       - "127.0.0.1:8095:8095"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8095/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8095/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -1475,6 +1436,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "platform"
@@ -1490,8 +1452,7 @@ services:
   # =========================
   reporting:
     container_name: 7d-reporting
-    image: 7d-runtime
-    working_dir: /app
+    image: flywheel/rust-dev-runtime:2026-04
     environment:
       DATABASE_URL: postgres://${REPORTING_POSTGRES_USER:-reporting_user}:${REPORTING_POSTGRES_PASSWORD:-reporting_pass}@7d-reporting-postgres:5432/${REPORTING_POSTGRES_DB:-reporting_db}?sslmode=require
       HOST: 0.0.0.0
@@ -1500,9 +1461,8 @@ services:
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
-      SERVICE_BINARY: /usr/local/bin/reporting
     volumes:
-      - ./target/aarch64-unknown-linux-musl/debug/reporting:/usr/local/bin/reporting:ro
+      - ./target/aarch64-unknown-linux-musl/debug/reporting:/app/service:ro
       - ./modules/reporting/module.toml:/app/module.toml:ro
       - ./modules/reporting/db/migrations:/app/db/migrations:ro
     ports:
@@ -1521,6 +1481,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /var/run
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"

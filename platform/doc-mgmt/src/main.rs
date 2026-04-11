@@ -62,26 +62,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // JWT verifier (optional — permissive if not configured)
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
-    // Health endpoints (no auth)
+    // Health endpoints (no auth). /api/health is the spec-canonical path
+    // (Rust Service Container Spec §4); /api/ready is an alias kept for
+    // backwards compatibility, and /healthz is kept for legacy callers.
     let health_pool = pool.clone();
-    let health_router = Router::new().route("/healthz", get(health::healthz)).route(
-        "/api/ready",
-        get(move || {
-            let db = health_pool.clone();
-            async move {
-                let start = std::time::Instant::now();
-                let check = sqlx::query("SELECT 1").execute(&db).await;
-                let latency = start.elapsed().as_millis() as u64;
-                let db_check = health::db_check(latency, check.err().map(|e| e.to_string()));
-                let resp = health::build_ready_response(
-                    "doc-mgmt",
-                    env!("CARGO_PKG_VERSION"),
-                    vec![db_check],
-                );
-                health::ready_response_to_axum(resp)
-            }
-        }),
-    );
+    let health_pool2 = pool.clone();
+    let health_router = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route(
+            "/api/ready",
+            get(move || {
+                let db = health_pool.clone();
+                async move {
+                    let start = std::time::Instant::now();
+                    let check = sqlx::query("SELECT 1").execute(&db).await;
+                    let latency = start.elapsed().as_millis() as u64;
+                    let db_check = health::db_check(latency, check.err().map(|e| e.to_string()));
+                    let resp = health::build_ready_response(
+                        "doc-mgmt",
+                        env!("CARGO_PKG_VERSION"),
+                        vec![db_check],
+                    );
+                    health::ready_response_to_axum(resp)
+                }
+            }),
+        )
+        .route(
+            "/api/health",
+            get(move || {
+                let db = health_pool2.clone();
+                async move {
+                    let start = std::time::Instant::now();
+                    let check = sqlx::query("SELECT 1").execute(&db).await;
+                    let latency = start.elapsed().as_millis() as u64;
+                    let db_check = health::db_check(latency, check.err().map(|e| e.to_string()));
+                    let resp = health::build_ready_response(
+                        "doc-mgmt",
+                        env!("CARGO_PKG_VERSION"),
+                        vec![db_check],
+                    );
+                    health::ready_response_to_axum(resp)
+                }
+            }),
+        );
 
     // API router (with authz at route level in routes::api_router)
     let api = routes::api_router(app_state);
