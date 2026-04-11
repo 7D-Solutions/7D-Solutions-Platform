@@ -1,0 +1,1013 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Workforce Competence Service",
+    "description": "Competence registry: skills, certifications, training records, acceptance authorities, and authorization queries.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/workforce-competence/acceptance-authorities": {
+      "post": {
+        "tags": [
+          "Acceptance Authorities"
+        ],
+        "operationId": "post_grant_authority",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantAuthorityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceAuthority"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Authority granted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceAuthority"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/acceptance-authorities/{id}/revoke": {
+      "post": {
+        "tags": [
+          "Acceptance Authorities"
+        ],
+        "operationId": "post_revoke_authority",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Authority ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeAuthorityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Authority revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceAuthority"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/acceptance-authority-check": {
+      "get": {
+        "tags": [
+          "Acceptance Authorities"
+        ],
+        "operationId": "get_acceptance_authority_check",
+        "parameters": [
+          {
+            "name": "operator_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "capability_scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "at_time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authority check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptanceAuthorityResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/artifacts": {
+      "post": {
+        "tags": [
+          "Artifacts"
+        ],
+        "operationId": "post_artifact",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterArtifactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetenceArtifact"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Artifact created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetenceArtifact"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/artifacts/{id}": {
+      "get": {
+        "tags": [
+          "Artifacts"
+        ],
+        "operationId": "get_artifact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Artifact ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetenceArtifact"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_READ"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/assignments": {
+      "post": {
+        "tags": [
+          "Assignments"
+        ],
+        "operationId": "post_assignment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignCompetenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorCompetence"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Assignment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorCompetence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_MUTATE"
+            ]
+          }
+        ]
+      }
+    },
+    "/api/workforce-competence/authorization": {
+      "get": {
+        "tags": [
+          "Authorization"
+        ],
+        "operationId": "get_authorization",
+        "parameters": [
+          {
+            "name": "operator_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "artifact_code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "at_time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorization result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "WORKFORCE_COMPETENCE_READ"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptanceAuthority": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "operator_id",
+          "capability_scope",
+          "effective_from",
+          "is_revoked",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "capability_scope": {
+            "type": "string"
+          },
+          "constraints": {},
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "granted_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_revoked": {
+            "type": "boolean"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revocation_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AcceptanceAuthorityResult": {
+        "type": "object",
+        "required": [
+          "allowed",
+          "operator_id",
+          "capability_scope",
+          "at_time"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "at_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authority_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "capability_scope": {
+            "type": "string"
+          },
+          "denial_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ArtifactType": {
+        "type": "string",
+        "description": "The type of competence artifact in the registry.",
+        "enum": [
+          "certification",
+          "training",
+          "qualification"
+        ]
+      },
+      "AssignCompetenceRequest": {
+        "type": "object",
+        "description": "Request to assign a competence to an operator.",
+        "required": [
+          "tenant_id",
+          "operator_id",
+          "artifact_id",
+          "awarded_at",
+          "idempotency_key"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "awarded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "awarded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Explicit expiry. If absent, computed from artifact's valid_duration_days."
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthorizationResult": {
+        "type": "object",
+        "description": "Result of an authorization check.",
+        "required": [
+          "authorized",
+          "operator_id",
+          "artifact_code",
+          "at_time"
+        ],
+        "properties": {
+          "artifact_code": {
+            "type": "string"
+          },
+          "assignment_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The matching assignment, if authorized."
+          },
+          "at_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authorized": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "CompetenceArtifact": {
+        "type": "object",
+        "description": "A registered competence artifact (the \"what\").",
+        "required": [
+          "id",
+          "tenant_id",
+          "artifact_type",
+          "name",
+          "code",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "artifact_type": {
+            "$ref": "#/components/schemas/ArtifactType"
+          },
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "valid_duration_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many days this competence remains valid after award. None = never expires."
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GrantAuthorityRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "operator_id",
+          "capability_scope",
+          "effective_from",
+          "idempotency_key"
+        ],
+        "properties": {
+          "capability_scope": {
+            "type": "string"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "constraints": {},
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effective_until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "granted_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "OperatorCompetence": {
+        "type": "object",
+        "description": "An operator's competence assignment (the \"who has what\").",
+        "required": [
+          "id",
+          "tenant_id",
+          "operator_id",
+          "artifact_id",
+          "awarded_at",
+          "is_revoked",
+          "created_at"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "awarded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "awarded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "evidence_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_revoked": {
+            "type": "boolean"
+          },
+          "operator_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterArtifactRequest": {
+        "type": "object",
+        "description": "Request to register a new competence artifact.",
+        "required": [
+          "tenant_id",
+          "artifact_type",
+          "name",
+          "code",
+          "idempotency_key"
+        ],
+        "properties": {
+          "artifact_type": {
+            "$ref": "#/components/schemas/ArtifactType"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "valid_duration_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "RevokeAuthorityRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "authority_id",
+          "revocation_reason",
+          "idempotency_key"
+        ],
+        "properties": {
+          "authority_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "causation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "correlation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "revocation_reason": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

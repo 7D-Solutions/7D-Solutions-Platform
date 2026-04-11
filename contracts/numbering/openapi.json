@@ -1,0 +1,460 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Numbering Service",
+    "description": "Tenant-scoped, idempotent, atomic sequence allocation.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/allocate": {
+      "post": {
+        "tags": [
+          "Numbering"
+        ],
+        "operationId": "allocate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllocateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocateResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Number allocated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/confirm": {
+      "post": {
+        "tags": [
+          "Numbering"
+        ],
+        "operationId": "confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Confirmed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/policies/{entity}": {
+      "get": {
+        "tags": [
+          "Policies"
+        ],
+        "operationId": "get_policy",
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Policies"
+        ],
+        "operationId": "upsert_policy",
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AllocateRequest": {
+        "type": "object",
+        "required": [
+          "entity",
+          "idempotency_key"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "gap_free": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Enable gap-free mode for this sequence.  Only honoured on the first\nallocation that creates the sequence row; ignored for existing sequences."
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      },
+      "AllocateResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "entity",
+          "number_value",
+          "idempotency_key",
+          "replay",
+          "status"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present only for gap-free reservations — ISO 8601 expiry timestamp."
+          },
+          "formatted_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "number_value": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "description": "\"confirmed\" for standard allocations, \"reserved\" for gap-free."
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ConfirmRequest": {
+        "type": "object",
+        "required": [
+          "entity",
+          "idempotency_key"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        }
+      },
+      "ConfirmResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "entity",
+          "number_value",
+          "idempotency_key",
+          "status",
+          "replay"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "number_value": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "replay": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PolicyResponse": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "entity",
+          "pattern",
+          "prefix",
+          "padding",
+          "version"
+        ],
+        "properties": {
+          "entity": {
+            "type": "string"
+          },
+          "padding": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UpsertPolicyRequest": {
+        "type": "object",
+        "required": [
+          "pattern"
+        ],
+        "properties": {
+          "padding": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

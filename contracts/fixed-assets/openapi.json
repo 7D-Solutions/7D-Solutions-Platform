@@ -1,0 +1,2243 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fixed Assets Service",
+    "description": "Fixed asset lifecycle: capitalization, depreciation schedules, disposals, and impairments.",
+    "license": {
+      "name": ""
+    },
+    "version": "2.1.0"
+  },
+  "paths": {
+    "/api/fixed-assets/assets": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "list_assets",
+        "responses": {
+          "200": {
+            "description": "Asset list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Asset"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "create_asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Asset created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/assets/{id}": {
+      "get": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "get_asset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "update_asset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Asset updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Assets"
+        ],
+        "operationId": "deactivate_asset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Asset ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/categories": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "list_categories",
+        "responses": {
+          "200": {
+            "description": "Category list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Category"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "create_category",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Category created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/categories/{id}": {
+      "get": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "get_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Category ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "update_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Category ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Category updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Categories"
+        ],
+        "operationId": "deactivate_category",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Category ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category deactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/depreciation/runs": {
+      "get": {
+        "tags": [
+          "Depreciation"
+        ],
+        "operationId": "list_runs",
+        "responses": {
+          "200": {
+            "description": "Run list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_DepreciationRun"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Depreciation"
+        ],
+        "operationId": "create_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationRun"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/depreciation/runs/{id}": {
+      "get": {
+        "tags": [
+          "Depreciation"
+        ],
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepreciationRun"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/depreciation/schedule": {
+      "post": {
+        "tags": [
+          "Depreciation"
+        ],
+        "operationId": "generate_schedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Schedule generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DepreciationSchedule"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/disposals": {
+      "get": {
+        "tags": [
+          "Disposals"
+        ],
+        "operationId": "list_disposals",
+        "responses": {
+          "200": {
+            "description": "Disposal list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedResponse_Disposal"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Disposals"
+        ],
+        "operationId": "dispose_asset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisposeAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Disposal created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Disposal"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/fixed-assets/disposals/{id}": {
+      "get": {
+        "tags": [
+          "Disposals"
+        ],
+        "operationId": "get_disposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Disposal ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disposal details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Disposal"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard API error envelope.\n\n`error` is a machine-readable code (`not_found`, `validation_error`, etc.).\n`message` is human-readable.  `request_id` is populated from the tracing\ncontext already present in request extensions.  `details` carries per-field\nerrors for 422 responses.",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "details": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            }
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Asset": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "category_id",
+          "asset_tag",
+          "name",
+          "status",
+          "acquisition_date",
+          "acquisition_cost_minor",
+          "currency",
+          "depreciation_method",
+          "useful_life_months",
+          "salvage_value_minor",
+          "accum_depreciation_minor",
+          "net_book_value_minor",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "accum_depreciation_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "accum_depreciation_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "acquisition_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "acquisition_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "asset_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "asset_tag": {
+            "type": "string"
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depreciation_expense_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depreciation_method": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "in_service_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "net_book_value_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purchase_order_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "salvage_value_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "serial_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "useful_life_months": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "vendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AssetStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "active",
+          "fully_depreciated",
+          "disposed",
+          "impaired"
+        ]
+      },
+      "Category": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "code",
+          "name",
+          "default_method",
+          "default_useful_life_months",
+          "default_salvage_pct_bp",
+          "asset_account_ref",
+          "depreciation_expense_ref",
+          "accum_depreciation_ref",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "accum_depreciation_ref": {
+            "type": "string"
+          },
+          "asset_account_ref": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "default_method": {
+            "type": "string"
+          },
+          "default_salvage_pct_bp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "default_useful_life_months": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "depreciation_expense_ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gain_loss_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateAssetRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "category_id",
+          "asset_tag",
+          "name",
+          "acquisition_date",
+          "acquisition_cost_minor"
+        ],
+        "properties": {
+          "acquisition_cost_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "acquisition_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "asset_tag": {
+            "type": "string"
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depreciation_method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DepreciationMethod"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "in_service_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purchase_order_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "salvage_value_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "serial_number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "useful_life_months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "vendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "code",
+          "name",
+          "asset_account_ref",
+          "depreciation_expense_ref",
+          "accum_depreciation_ref"
+        ],
+        "properties": {
+          "accum_depreciation_ref": {
+            "type": "string"
+          },
+          "asset_account_ref": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "default_method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DepreciationMethod"
+              }
+            ]
+          },
+          "default_salvage_pct_bp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "default_useful_life_months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "depreciation_expense_ref": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gain_loss_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateRunRequest": {
+        "type": "object",
+        "description": "Request to execute a depreciation run for a tenant up to as_of_date.",
+        "required": [
+          "tenant_id",
+          "as_of_date"
+        ],
+        "properties": {
+          "as_of_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "DepreciationMethod": {
+        "type": "string",
+        "enum": [
+          "straight_line",
+          "declining_balance",
+          "units_of_production",
+          "none"
+        ]
+      },
+      "DepreciationRun": {
+        "type": "object",
+        "description": "A depreciation run: posts all unposted schedule periods up to as_of_date.",
+        "required": [
+          "id",
+          "tenant_id",
+          "as_of_date",
+          "status",
+          "assets_processed",
+          "periods_posted",
+          "total_depreciation_minor",
+          "currency",
+          "idempotency_key",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "as_of_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "assets_processed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "periods_posted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "total_depreciation_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DepreciationSchedule": {
+        "type": "object",
+        "description": "One period's planned depreciation for an asset (row in fa_depreciation_schedules).",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_id",
+          "period_number",
+          "period_start",
+          "period_end",
+          "depreciation_amount_minor",
+          "currency",
+          "cumulative_depreciation_minor",
+          "remaining_book_value_minor",
+          "is_posted",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cumulative_depreciation_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "depreciation_amount_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_posted": {
+            "type": "boolean"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "posted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "posted_by_run_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "remaining_book_value_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Disposal": {
+        "type": "object",
+        "description": "Row from fa_disposals (disposal_type cast to TEXT in queries).",
+        "required": [
+          "id",
+          "tenant_id",
+          "asset_id",
+          "disposal_type",
+          "disposal_date",
+          "net_book_value_at_disposal_minor",
+          "proceeds_minor",
+          "gain_loss_minor",
+          "currency",
+          "is_posted",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "approved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "buyer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "disposal_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "disposal_type": {
+            "type": "string"
+          },
+          "gain_loss_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_posted": {
+            "type": "boolean"
+          },
+          "journal_entry_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "net_book_value_at_disposal_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "posted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "proceeds_minor": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DisposalType": {
+        "type": "string",
+        "enum": [
+          "sale",
+          "scrap",
+          "impairment",
+          "write_off",
+          "transfer"
+        ]
+      },
+      "DisposeAssetRequest": {
+        "type": "object",
+        "description": "Request to dispose of or impair an asset.",
+        "required": [
+          "tenant_id",
+          "asset_id",
+          "disposal_type",
+          "disposal_date"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "buyer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disposal_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "disposal_type": {
+            "$ref": "#/components/schemas/DisposalType"
+          },
+          "proceeds_minor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Sale proceeds (only meaningful for disposal_type = sale). Defaults to 0."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "A single field-level validation error.",
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GenerateScheduleRequest": {
+        "type": "object",
+        "description": "Request to generate/refresh the depreciation schedule for a single asset.",
+        "required": [
+          "tenant_id",
+          "asset_id"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PaginatedResponse_Asset": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "category_id",
+                "asset_tag",
+                "name",
+                "status",
+                "acquisition_date",
+                "acquisition_cost_minor",
+                "currency",
+                "depreciation_method",
+                "useful_life_months",
+                "salvage_value_minor",
+                "accum_depreciation_minor",
+                "net_book_value_minor",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "accum_depreciation_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "accum_depreciation_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "acquisition_cost_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "acquisition_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "asset_account_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "asset_tag": {
+                  "type": "string"
+                },
+                "category_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "department": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "depreciation_expense_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "depreciation_method": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "in_service_date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "location": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "net_book_value_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "notes": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "purchase_order_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "responsible_person": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "salvage_value_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "serial_number": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "useful_life_months": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "vendor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Category": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "tenant_id",
+                "code",
+                "name",
+                "default_method",
+                "default_useful_life_months",
+                "default_salvage_pct_bp",
+                "asset_account_ref",
+                "depreciation_expense_ref",
+                "accum_depreciation_ref",
+                "is_active",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "accum_depreciation_ref": {
+                  "type": "string"
+                },
+                "asset_account_ref": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "default_method": {
+                  "type": "string"
+                },
+                "default_salvage_pct_bp": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "default_useful_life_months": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "depreciation_expense_ref": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "gain_loss_account_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_DepreciationRun": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A depreciation run: posts all unposted schedule periods up to as_of_date.",
+              "required": [
+                "id",
+                "tenant_id",
+                "as_of_date",
+                "status",
+                "assets_processed",
+                "periods_posted",
+                "total_depreciation_minor",
+                "currency",
+                "idempotency_key",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "as_of_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "assets_processed": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "completed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "error_message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "idempotency_key": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "periods_posted": {
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "started_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "total_depreciation_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginatedResponse_Disposal": {
+        "type": "object",
+        "description": "Generic paginated response envelope.\n\nEvery list endpoint returns this wrapper so consumers get consistent\npagination metadata regardless of the underlying entity type.",
+        "required": [
+          "data",
+          "pagination"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Row from fa_disposals (disposal_type cast to TEXT in queries).",
+              "required": [
+                "id",
+                "tenant_id",
+                "asset_id",
+                "disposal_type",
+                "disposal_date",
+                "net_book_value_at_disposal_minor",
+                "proceeds_minor",
+                "gain_loss_minor",
+                "currency",
+                "is_posted",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "approved_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "asset_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "buyer": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "created_by": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "disposal_date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "disposal_type": {
+                  "type": "string"
+                },
+                "gain_loss_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "is_posted": {
+                  "type": "boolean"
+                },
+                "journal_entry_ref": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "net_book_value_at_disposal_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "posted_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "proceeds_minor": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tenant_id": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/PaginationMeta"
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Pagination metadata for list endpoints.",
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "page_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_items": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_pages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "UpdateAssetRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "department": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "responsible_person": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "properties": {
+          "accum_depreciation_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "asset_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DepreciationMethod"
+              }
+            ]
+          },
+          "default_salvage_pct_bp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "default_useful_life_months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "depreciation_expense_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gain_loss_account_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ]
+}

@@ -516,3 +516,309 @@ fn test_shipping_receiving_openapi_spec_valid() {
 
     println!("✓ Shipping & Receiving spec contains all required paths with no empty schemas");
 }
+
+#[test]
+fn test_consolidation_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("consolidation/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Consolidation OpenAPI spec");
+
+    println!("✓ Consolidation OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "consolidation/openapi.json");
+
+    let required_paths = vec![
+        "/api/consolidation/groups",
+        "/api/consolidation/groups/{id}",
+        "/api/consolidation/groups/{group_id}/consolidate",
+        "/api/consolidation/groups/{group_id}/entities",
+        "/api/consolidation/groups/{group_id}/coa-mappings",
+        "/api/consolidation/groups/{group_id}/elimination-rules",
+        "/api/consolidation/groups/{group_id}/trial-balance",
+        "/api/consolidation/groups/{group_id}/balance-sheet",
+        "/api/consolidation/groups/{group_id}/pl",
+    ];
+
+    check_required_paths(&spec, &required_paths, "consolidation/openapi.json")
+        .expect("Consolidation spec missing required paths");
+
+    check_no_empty_schemas(&spec, "consolidation/openapi.json")
+        .expect("Consolidation spec has empty schemas");
+
+    println!("✓ Consolidation spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_customer_portal_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("customer-portal/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Customer Portal OpenAPI spec");
+
+    println!("✓ Customer Portal OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "customer-portal/openapi.json");
+
+    let required_paths = vec![
+        "/portal/auth/login",
+        "/portal/auth/logout",
+        "/portal/auth/refresh",
+        "/portal/me",
+        "/portal/docs",
+        "/portal/status/feed",
+        "/portal/acknowledgments",
+    ];
+
+    check_required_paths(&spec, &required_paths, "customer-portal/openapi.json")
+        .expect("Customer Portal spec missing required paths");
+
+    check_no_empty_schemas(&spec, "customer-portal/openapi.json")
+        .expect("Customer Portal spec has empty schemas");
+
+    println!("✓ Customer Portal spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_fixed_assets_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("fixed-assets/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Fixed Assets OpenAPI spec");
+
+    println!("✓ Fixed Assets OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "fixed-assets/openapi.json");
+
+    let required_paths = vec![
+        "/api/fixed-assets/assets",
+        "/api/fixed-assets/assets/{id}",
+        "/api/fixed-assets/categories",
+        "/api/fixed-assets/categories/{id}",
+        "/api/fixed-assets/depreciation/runs",
+        "/api/fixed-assets/depreciation/runs/{id}",
+        "/api/fixed-assets/depreciation/schedule",
+        "/api/fixed-assets/disposals",
+        "/api/fixed-assets/disposals/{id}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "fixed-assets/openapi.json")
+        .expect("Fixed Assets spec missing required paths");
+
+    check_no_empty_schemas(&spec, "fixed-assets/openapi.json")
+        .expect("Fixed Assets spec has empty schemas");
+
+    println!("✓ Fixed Assets spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_numbering_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("numbering/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Numbering OpenAPI spec");
+
+    println!("✓ Numbering OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "numbering/openapi.json");
+
+    let required_paths = vec![
+        "/allocate",
+        "/confirm",
+        "/policies/{entity}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "numbering/openapi.json")
+        .expect("Numbering spec missing required paths");
+
+    check_no_empty_schemas(&spec, "numbering/openapi.json")
+        .expect("Numbering spec has empty schemas");
+
+    println!("✓ Numbering spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_quality_inspection_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("quality-inspection/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Quality Inspection OpenAPI spec");
+
+    println!("✓ Quality Inspection OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "quality-inspection/openapi.json");
+
+    let required_paths = vec![
+        "/api/quality-inspection/inspections",
+        "/api/quality-inspection/inspections/{inspection_id}",
+        "/api/quality-inspection/inspections/{inspection_id}/accept",
+        "/api/quality-inspection/inspections/{inspection_id}/reject",
+        "/api/quality-inspection/inspections/{inspection_id}/hold",
+        "/api/quality-inspection/inspections/{inspection_id}/release",
+        "/api/quality-inspection/inspections/by-receipt",
+        "/api/quality-inspection/plans",
+        "/api/quality-inspection/plans/{plan_id}",
+        "/api/quality-inspection/plans/{plan_id}/activate",
+    ];
+
+    check_required_paths(&spec, &required_paths, "quality-inspection/openapi.json")
+        .expect("Quality Inspection spec missing required paths");
+
+    check_no_empty_schemas(&spec, "quality-inspection/openapi.json")
+        .expect("Quality Inspection spec has empty schemas");
+
+    println!("✓ Quality Inspection spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_reporting_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("reporting/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Reporting OpenAPI spec");
+
+    println!("✓ Reporting OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "reporting/openapi.json");
+
+    let required_paths = vec![
+        "/api/reporting/balance-sheet",
+        "/api/reporting/pl",
+        "/api/reporting/cashflow",
+        "/api/reporting/ar-aging",
+        "/api/reporting/ap-aging",
+        "/api/reporting/kpis",
+        "/api/reporting/forecast",
+    ];
+
+    check_required_paths(&spec, &required_paths, "reporting/openapi.json")
+        .expect("Reporting spec missing required paths");
+
+    check_no_empty_schemas(&spec, "reporting/openapi.json")
+        .expect("Reporting spec has empty schemas");
+
+    println!("✓ Reporting spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_timekeeping_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("timekeeping/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Timekeeping OpenAPI spec");
+
+    println!("✓ Timekeeping OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "timekeeping/openapi.json");
+
+    let required_paths = vec![
+        "/api/timekeeping/entries",
+        "/api/timekeeping/entries/void",
+        "/api/timekeeping/entries/correct",
+        "/api/timekeeping/employees",
+        "/api/timekeeping/employees/{id}",
+        "/api/timekeeping/projects",
+        "/api/timekeeping/projects/{id}",
+        "/api/timekeeping/projects/{project_id}/tasks",
+        "/api/timekeeping/approvals",
+        "/api/timekeeping/approvals/submit",
+        "/api/timekeeping/approvals/approve",
+        "/api/timekeeping/approvals/reject",
+        "/api/timekeeping/rates",
+        "/api/timekeeping/billing-runs",
+        "/api/timekeeping/rollups/by-employee",
+        "/api/timekeeping/rollups/by-project",
+    ];
+
+    check_required_paths(&spec, &required_paths, "timekeeping/openapi.json")
+        .expect("Timekeeping spec missing required paths");
+
+    check_no_empty_schemas(&spec, "timekeeping/openapi.json")
+        .expect("Timekeeping spec has empty schemas");
+
+    println!("✓ Timekeeping spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_treasury_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("treasury/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Treasury OpenAPI spec");
+
+    println!("✓ Treasury OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "treasury/openapi.json");
+
+    let required_paths = vec![
+        "/api/treasury/accounts",
+        "/api/treasury/accounts/{id}",
+        "/api/treasury/accounts/bank",
+        "/api/treasury/accounts/credit-card",
+        "/api/treasury/accounts/{id}/deactivate",
+        "/api/treasury/cash-position",
+        "/api/treasury/forecast",
+        "/api/treasury/statements/import",
+        "/api/treasury/recon/matches",
+        "/api/treasury/recon/auto-match",
+        "/api/treasury/recon/manual-match",
+        "/api/treasury/recon/unmatched",
+    ];
+
+    check_required_paths(&spec, &required_paths, "treasury/openapi.json")
+        .expect("Treasury spec missing required paths");
+
+    check_no_empty_schemas(&spec, "treasury/openapi.json")
+        .expect("Treasury spec has empty schemas");
+
+    println!("✓ Treasury spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_workflow_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("workflow/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Workflow OpenAPI spec");
+
+    println!("✓ Workflow OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "workflow/openapi.json");
+
+    let required_paths = vec![
+        "/api/workflow/definitions",
+        "/api/workflow/definitions/{def_id}",
+        "/api/workflow/instances",
+        "/api/workflow/instances/{instance_id}",
+        "/api/workflow/instances/{instance_id}/advance",
+        "/api/workflow/instances/{instance_id}/transitions",
+    ];
+
+    check_required_paths(&spec, &required_paths, "workflow/openapi.json")
+        .expect("Workflow spec missing required paths");
+
+    check_no_empty_schemas(&spec, "workflow/openapi.json")
+        .expect("Workflow spec has empty schemas");
+
+    println!("✓ Workflow spec contains all required paths with no empty schemas");
+}
+
+#[test]
+fn test_workforce_competence_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("workforce-competence/openapi.json");
+
+    let spec = validate_openapi_spec_json(&spec_path)
+        .expect("Failed to parse Workforce Competence OpenAPI spec");
+
+    println!("✓ Workforce Competence OpenAPI spec is valid JSON");
+    check_spec_version(&spec, 2, "workforce-competence/openapi.json");
+
+    let required_paths = vec![
+        "/api/workforce-competence/assignments",
+        "/api/workforce-competence/artifacts",
+        "/api/workforce-competence/artifacts/{id}",
+        "/api/workforce-competence/acceptance-authorities",
+        "/api/workforce-competence/acceptance-authorities/{id}/revoke",
+        "/api/workforce-competence/acceptance-authority-check",
+        "/api/workforce-competence/authorization",
+    ];
+
+    check_required_paths(&spec, &required_paths, "workforce-competence/openapi.json")
+        .expect("Workforce Competence spec missing required paths");
+
+    check_no_empty_schemas(&spec, "workforce-competence/openapi.json")
+        .expect("Workforce Competence spec has empty schemas");
+
+    println!("✓ Workforce Competence spec contains all required paths with no empty schemas");
+}
