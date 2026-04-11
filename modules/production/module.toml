@@ -18,7 +18,7 @@ type = "nats"
 outbox_table = "production_outbox"
 
 [platform.services]
-numbering = { enabled = true, default_url = "http://localhost:8120" }
+numbering = { enabled = true, default_url = "http://7d-numbering:8120" }
 
 [sdk]
 min_version = "0.1.0"

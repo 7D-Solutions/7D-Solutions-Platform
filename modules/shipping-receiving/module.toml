@@ -18,7 +18,7 @@ type = "nats"
 outbox_table = "sr_events_outbox"
 
 [platform.services]
-inventory = { enabled = true, default_url = "http://localhost:8092" }
+inventory = { enabled = true, default_url = "http://7d-inventory:8092" }
 quality-inspection = { enabled = true, default_url = "http://7d-quality-inspection:8106" }
 
 [sdk]
