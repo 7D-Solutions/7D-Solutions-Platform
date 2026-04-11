@@ -34,6 +34,7 @@ pub mod idempotency;
 pub mod http_client;
 pub mod manifest;
 pub mod platform_services;
+pub mod provisioning_hook;
 pub mod publisher;
 pub mod startup;
 mod startup_helpers;
@@ -41,7 +42,7 @@ pub mod tenant;
 pub mod tenant_resolver;
 
 pub use builder::ModuleBuilder;
-pub use event_registry::EventRegistry;
+pub use event_registry::{EventRegistry, RouteOutcome};
 pub use client_core::{ensure, parse_empty, parse_response, build_query_url, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};
 pub use context::{BusNotAvailable, ModuleContext, TenantPoolError, TenantPoolResolver};

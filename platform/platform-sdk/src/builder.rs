@@ -38,7 +38,7 @@ use security::ratelimit::RateLimitConfig;
 use crate::authz_gate::AuthzGateConfig;
 use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
 use crate::context::{ModuleContext, TenantPoolResolver};
-use crate::event_registry::EventRegistry;
+use crate::event_registry::{EventRegistry, RouteOutcome};
 use crate::manifest::{Manifest, ManifestError};
 use crate::platform_services::PlatformServices;
 use crate::startup::{self, StartupError};
@@ -282,7 +282,14 @@ impl ModuleBuilder {
         let registry = Arc::new(registry);
         self.consumer(subject, move |ctx, env| {
             let registry = Arc::clone(&registry);
-            async move { registry.dispatch(ctx, env).await }
+            async move {
+                match registry.dispatch(ctx, env).await {
+                    RouteOutcome::Retried => Err(ConsumerError::Processing(
+                        "event_registry: handler requested retry".into(),
+                    )),
+                    _ => Ok(()),
+                }
+            }
         })
     }
 
