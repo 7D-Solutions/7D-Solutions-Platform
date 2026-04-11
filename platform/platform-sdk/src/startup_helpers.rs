@@ -53,16 +53,21 @@ pub(crate) fn build_cors_layer(manifest: &Manifest) -> CorsLayer {
             .allow_credentials(false);
     }
 
-    // 2. Manifest cors.origins → explicit list
+    // 2. Manifest cors.origins → explicit list (or wildcard)
     if let Some(ref origins) = manifest.cors.as_ref().and_then(|c| c.origins.clone()) {
+        let is_wildcard = origins.len() == 1 && origins[0] == "*";
         tracing::info!(
             module = %manifest.module.name,
             count = origins.len(),
             "CORS origins from manifest"
         );
-        let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
-        return CorsLayer::new()
-            .allow_origin(parsed)
+        let layer = if is_wildcard {
+            CorsLayer::new().allow_origin(AllowOrigin::any())
+        } else {
+            let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
+            CorsLayer::new().allow_origin(parsed)
+        };
+        return layer
             .allow_methods(tower_http::cors::Any)
             .allow_headers(tower_http::cors::Any)
             .allow_credentials(false);

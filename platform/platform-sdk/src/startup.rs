@@ -447,9 +447,6 @@ pub(crate) async fn phase_b(
         probe_nats,
     );
 
-    // CORS
-    let cors = build_cors_layer(manifest);
-
     // Env-based overrides for host/port
     let host = std::env::var("HOST").unwrap_or_else(|_| manifest.server.host.clone());
     let port: u16 = std::env::var("PORT")
@@ -539,7 +536,7 @@ pub(crate) async fn phase_b(
     };
 
     let app = if !flags.skip_cors {
-        app.layer(cors)
+        app.layer(build_cors_layer(manifest))
     } else {
         tracing::info!(module = %module_name, "CORS middleware disabled");
         app
