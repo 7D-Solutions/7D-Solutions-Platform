@@ -1,0 +1,19 @@
+{
+  "name": "@7d/timekeeping-client",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Generated TypeScript client for the Timekeeping service",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate:file": "openapi-typescript openapi.json -o src/timekeeping.d.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "openapi-typescript": "^7.6.1",
+    "typescript": "^5.7.0"
+  }
+}

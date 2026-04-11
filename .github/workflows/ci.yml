@@ -237,6 +237,46 @@ jobs:
           chmod +x scripts/ci/check-workspace-members.sh
           scripts/ci/check-workspace-members.sh
 
+  # ---------------------------------------------------------------------------
+  # TypeScript client typecheck — verifies that openapi-typescript can generate
+  # valid types from every module's openapi.json and that tsc --noEmit passes.
+  # Runs on every PR. On version-bump commits this step also regenerates index.ts
+  # (via --regen), but the generated artefacts are not committed from CI.
+  # ---------------------------------------------------------------------------
+  ts-clients-typecheck:
+    name: "TS Clients: typecheck all modules"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "clients/bom/package-lock.json"
+
+      - name: Restore npm cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/npm-cache-codegen
+          key: ${{ runner.os }}-npm-codegen-${{ hashFiles('clients/*/package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-codegen-
+
+      - name: Generate and typecheck all TS clients
+        run: node tools/ts-codegen/ts-codegen.mjs --all --regen
+
+      - name: Verify no uncommitted drift in generated .d.ts files
+        run: |
+          if git diff --name-only | grep -E 'clients/.*/src/.*\.d\.ts'; then
+            echo "ERROR: Generated .d.ts files differ from committed versions."
+            echo "Run: node tools/ts-codegen/ts-codegen.mjs --all --regen"
+            echo "and commit the updated files."
+            git diff --stat
+            exit 1
+          fi
+          echo "✓ No drift in generated .d.ts files"
+
   openapi-drift-check:
     name: "OpenAPI Drift: contract vs runtime"
     runs-on: ubuntu-latest
