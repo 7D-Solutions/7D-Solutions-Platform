@@ -17,12 +17,41 @@ use crate::models::ApiError;
 // CREDIT NOTE HANDLER WRAPPER (bd-1gt)
 // ============================================================================
 
+/// HTTP request body for POST /api/ar/invoices/{id}/credit-notes.
+/// The `invoice_id` is taken from the path, not the request body.
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct IssueCreditNoteBody {
+    pub credit_note_id: uuid::Uuid,
+    pub app_id: String,
+    pub customer_id: String,
+    pub amount_minor: i64,
+    pub currency: String,
+    pub reason: String,
+    pub reference_id: Option<String>,
+    pub issued_by: Option<String>,
+    pub correlation_id: String,
+    pub causation_id: Option<String>,
+}
+
+/// Response for a successfully processed credit note.
+#[derive(serde::Serialize, utoipa::ToSchema)]
+pub struct CreditNoteRouteResponse {
+    pub status: &'static str,
+    pub credit_note_id: uuid::Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub credit_note_row_id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub existing_row_id: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 #[utoipa::path(post, path = "/api/ar/invoices/{id}/credit-notes", tag = "Credit Notes",
     params(("id" = i32, Path, description = "Invoice ID")),
-    request_body = serde_json::Value,
+    request_body = IssueCreditNoteBody,
     responses(
-        (status = 201, description = "Credit note issued", body = serde_json::Value),
-        (status = 200, description = "Already processed (idempotent)", body = serde_json::Value),
+        (status = 201, description = "Credit note issued", body = CreditNoteRouteResponse),
+        (status = 200, description = "Already processed (idempotent)", body = CreditNoteRouteResponse),
         (status = 400, description = "Validation error", body = platform_http_contracts::ApiError),
     ),
     security(("bearer" = [])))]
@@ -32,10 +61,22 @@ use crate::models::ApiError;
 pub async fn issue_credit_note_route(
     State(db): State<PgPool>,
     Path(invoice_id): Path<i32>,
-    Json(mut req): Json<IssueCreditNoteRequest>,
-) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    Json(body): Json<IssueCreditNoteBody>,
+) -> Result<(StatusCode, Json<CreditNoteRouteResponse>), ApiError> {
     use crate::credit_notes::IssueCreditNoteResult;
-    req.invoice_id = invoice_id;
+    let req = IssueCreditNoteRequest {
+        credit_note_id: body.credit_note_id,
+        app_id: body.app_id,
+        customer_id: body.customer_id,
+        invoice_id,
+        amount_minor: body.amount_minor,
+        currency: body.currency,
+        reason: body.reason,
+        reference_id: body.reference_id,
+        issued_by: body.issued_by,
+        correlation_id: body.correlation_id,
+        causation_id: body.causation_id,
+    };
     match issue_credit_note(&db, req).await {
         Ok(IssueCreditNoteResult::Issued {
             credit_note_row_id,
@@ -43,23 +84,26 @@ pub async fn issue_credit_note_route(
             issued_at,
         }) => Ok((
             StatusCode::CREATED,
-            Json(serde_json::json!({
-                "status": "issued",
-                "credit_note_row_id": credit_note_row_id,
-                "credit_note_id": credit_note_id,
-                "issued_at": issued_at,
-            })),
+            Json(CreditNoteRouteResponse {
+                status: "issued",
+                credit_note_id,
+                credit_note_row_id: Some(credit_note_row_id),
+                existing_row_id: None,
+                issued_at: Some(issued_at),
+            }),
         )),
         Ok(IssueCreditNoteResult::AlreadyProcessed {
             existing_row_id,
             credit_note_id,
         }) => Ok((
             StatusCode::OK,
-            Json(serde_json::json!({
-                "status": "already_processed",
-                "existing_row_id": existing_row_id,
-                "credit_note_id": credit_note_id,
-            })),
+            Json(CreditNoteRouteResponse {
+                status: "already_processed",
+                credit_note_id,
+                credit_note_row_id: None,
+                existing_row_id: Some(existing_row_id),
+                issued_at: None,
+            }),
         )),
         Err(e) => {
             tracing::error!("Credit note error: {:?}", e);

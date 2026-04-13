@@ -158,6 +158,8 @@ use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
         crate::models::UpdatePaymentMethodRequest,
         crate::models::Event,
         crate::models::ErrorResponse,
+        credit_notes::IssueCreditNoteBody,
+        credit_notes::CreditNoteRouteResponse,
         platform_http_contracts::ApiError,
         platform_http_contracts::PaginatedResponse<crate::models::Invoice>,
         platform_http_contracts::PaginatedResponse<crate::models::Subscription>,
