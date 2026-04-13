@@ -7,6 +7,7 @@
 pub mod registry;
 pub mod steps;
 pub mod tracking;
+pub mod worker;
 
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
@@ -195,6 +196,11 @@ pub async fn provision_tenant(
         tracing::warn!(tenant_id = %tenant_id, "no modules in bundle — skipping DB provisioning");
     }
 
+    // Seed per-module status rows so progress is visible immediately
+    worker::seed_module_statuses(pool, tenant_id, &module_codes)
+        .await
+        .map_err(|e| e.to_string())?;
+
     // Execute steps, resuming from the first non-completed step
     let step_sequence = [
         step_names::VALIDATE_TENANT_ID,
@@ -306,18 +312,50 @@ async fn execute_step(
 ) -> Result<StepOutcome, StepError> {
     match step_name {
         step_names::VALIDATE_TENANT_ID => steps::validate_tenant(pool, tenant_id).await,
+
+        // Steps 2-5 are handled together by the bundle worker, which provisions each
+        // module independently and tracks per-module status in cp_tenant_module_status.
+        // CREATE_TENANT_DATABASES drives all per-module work; steps 3-5 are idempotently
+        // "done" after the worker completes.
         step_names::CREATE_TENANT_DATABASES => {
-            steps::create_tenant_databases(tenant_id, module_codes, registry).await
+            let summary = worker::provision_all_modules(pool, registry, tenant_id, module_codes)
+                .await
+                .map_err(StepError::Database)?;
+
+            if summary.failed_count > 0 {
+                let failed: Vec<&str> = summary
+                    .results
+                    .iter()
+                    .filter(|r| !r.success)
+                    .map(|r| r.module_code.as_str())
+                    .collect();
+                return Err(StepError::Migration(format!(
+                    "{} module(s) failed provisioning: {}",
+                    summary.failed_count,
+                    failed.join(", ")
+                )));
+            }
+
+            let ready: Vec<&str> = summary
+                .results
+                .iter()
+                .map(|r| r.module_code.as_str())
+                .collect();
+            Ok(StepOutcome {
+                checks: serde_json::json!({"modules_provisioned": ready}),
+            })
         }
-        step_names::RUN_SCHEMA_MIGRATIONS => {
-            steps::run_schema_migrations(tenant_id, module_codes, registry).await
-        }
-        step_names::SEED_INITIAL_DATA => {
-            steps::seed_initial_data(tenant_id, module_codes, registry).await
-        }
-        step_names::VERIFY_DATABASE_CONNECTIVITY => {
-            steps::verify_database_connectivity(tenant_id, module_codes, registry).await
-        }
+
+        // Handled by the bundle worker above; mark complete if reached during resume.
+        step_names::RUN_SCHEMA_MIGRATIONS
+        | step_names::SEED_INITIAL_DATA
+        | step_names::VERIFY_DATABASE_CONNECTIVITY => Ok(StepOutcome {
+            checks: serde_json::json!({
+                "skipped": true,
+                "reason": "completed by bundle worker in create_tenant_databases"
+            }),
+        }),
+
         step_names::VERIFY_SCHEMA_VERSIONS => {
             steps::verify_schema_versions(pool, tenant_id, module_codes, registry).await
         }

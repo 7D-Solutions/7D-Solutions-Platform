@@ -79,6 +79,14 @@ impl ModuleRegistry {
         Self { modules }
     }
 
+    /// Build a registry directly from pre-constructed configs.
+    /// Used in tests and benchmarks where env-var lookup is not appropriate.
+    pub fn from_configs(configs: Vec<(String, ModuleProvisioningConfig)>) -> Self {
+        Self {
+            modules: configs.into_iter().collect(),
+        }
+    }
+
     /// Look up a module by code
     pub fn get(&self, module_code: &str) -> Option<&ModuleProvisioningConfig> {
         self.modules.get(module_code)
