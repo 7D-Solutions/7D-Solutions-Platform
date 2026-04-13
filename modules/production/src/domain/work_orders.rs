@@ -686,7 +686,7 @@ impl WorkOrderRepo {
 
         let mut tx = pool.begin().await?;
 
-        let wo = sqlx::query_as::<_, WorkOrder>(
+        let insert_result = sqlx::query_as::<_, WorkOrder>(
             r#"
             INSERT INTO work_orders
                 (tenant_id, order_number, status, item_id, bom_revision_id,
@@ -704,18 +704,26 @@ impl WorkOrderRepo {
         .bind(req.planned_start)
         .bind(req.planned_end)
         .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| {
-            if let sqlx::Error::Database(ref dbe) = e {
-                if dbe.code().as_deref() == Some("23505") {
-                    return WorkOrderError::DuplicateOrderNumber(
-                        order_number.clone(),
-                        req.tenant_id.clone(),
-                    );
-                }
+        .await;
+
+        // On unique-constraint violation the numbering service already allocated
+        // the same order number for this idempotency_key — the work order exists.
+        // Roll back and return the existing row so the call is fully idempotent.
+        if let Err(sqlx::Error::Database(ref dbe)) = insert_result {
+            if dbe.code().as_deref() == Some("23505") {
+                drop(tx); // rollback
+                return sqlx::query_as::<_, WorkOrder>(
+                    "SELECT * FROM work_orders WHERE tenant_id = $1 AND order_number = $2",
+                )
+                .bind(&req.tenant_id)
+                .bind(&order_number)
+                .fetch_one(pool)
+                .await
+                .map_err(WorkOrderError::Database);
             }
-            WorkOrderError::Database(e)
-        })?;
+        }
+
+        let wo = insert_result.map_err(WorkOrderError::Database)?;
 
         enqueue_event(
             &mut tx,
