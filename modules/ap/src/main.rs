@@ -38,6 +38,10 @@ async fn main() {
             let ap_mutations = Router::new()
                 .route("/api/ap/vendors", post(http::vendors::create_vendor))
                 .route(
+                    "/api/ap/import/vendors",
+                    post(http::imports::import_vendors),
+                )
+                .route(
                     "/api/ap/vendors/{vendor_id}",
                     put(http::vendors::update_vendor),
                 )

@@ -17,18 +17,18 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ap | ap | 3.3.3 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| ar | ar-rs | 6.3.2 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ap | ap | 3.4.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ar | ar-rs | 6.4.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | bom | bom-rs | 2.4.1 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 2.3.1 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.5.1 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | customer-portal | customer-portal | 2.3.2 | 8111 | 5464 | External customer portal auth boundary service | [Revisions](modules/customer-portal/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | doc-mgmt | doc_mgmt | 1.2.1 | 8095 | 5455 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) | [Revisions](platform/doc-mgmt/REVISIONS.md) |
 | fixed-assets | fixed-assets | 2.1.8 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md), [Revisions](modules/fixed-assets/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| gl | gl-rs | 3.1.2 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| gl | gl-rs | 3.2.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md), [Revisions](modules/gl/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | identity-auth | auth-rs | 1.10.2 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | integrations | integrations-rs | 2.7.1 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md), [Revisions](modules/integrations/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| inventory | inventory-rs | 2.6.2 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [Revisions](modules/inventory/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| inventory | inventory-rs | 2.7.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md), [Revisions](modules/inventory/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | maintenance | maintenance-rs | 2.3.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md), [Revisions](modules/maintenance/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | notifications | notifications-rs | 3.3.1 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry | [Revisions](modules/notifications/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | numbering | numbering | 2.2.2 | 8120 | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation | [Revisions](modules/numbering/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -87,6 +87,7 @@ CLI tools and test harnesses.
 | contract-tests | contract-tests | 1.0.0 | Event schema and OpenAPI contract validation tests | [Revisions](tools/contract-tests/REVISIONS.md) |
 | demo-seed | demo-seed | 1.0.0 | Deterministic demo data seeding for development and testing | [Revisions](tools/demo-seed/REVISIONS.md) |
 | projection-rebuild | projection-rebuild | 1.0.0 | Projection rebuild and blue-green swap orchestration tool | [Revisions](tools/projection-rebuild/REVISIONS.md) |
+| reconciliation | reconciliation | 1.0.0 | Nightly financial invariant reconciliation runner — real databases, no mocks |  |
 | simulation | simulation | 1.0.0 | Failure injection and load simulation for platform resilience testing | [Revisions](tools/simulation/REVISIONS.md) |
 | stabilization-gate | stabilization-gate | 1.0.0 | Stabilization Gate: benchmark harness for production readiness validation | [Revisions](tools/stabilization-gate/REVISIONS.md) |
 | tenantctl | tenantctl | 1.0.0 | CLI for tenant fleet management: list, show, bulk operations, and health checks | [Revisions](tools/tenantctl/REVISIONS.md) |

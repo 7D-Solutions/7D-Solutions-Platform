@@ -1,6 +1,6 @@
 [package]
 name = "ap"
-version = "3.3.3"
+version = "3.4.0"
 edition = "2021"
 description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
 
@@ -23,6 +23,7 @@ thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+platform-audit = { package = "audit", path = "../../platform/audit" }
 projections = { path = "../../platform/projections" }
 tax-core = { path = "../../platform/tax-core" }
 utoipa = { version = "5", features = ["uuid", "chrono"] }

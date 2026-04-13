@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod aging;
+pub mod imports;
 pub mod allocation;
 pub mod charges;
 pub mod credit_notes;
@@ -229,6 +230,10 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Customers — write
         .route("/api/ar/customers", post(customers::create_customer))
         .route("/api/ar/customers/{id}", put(customers::update_customer))
+        .route(
+            "/api/ar/import/customers",
+            post(imports::import_customers),
+        )
         // Subscriptions — write
         .route(
             "/api/ar/subscriptions",

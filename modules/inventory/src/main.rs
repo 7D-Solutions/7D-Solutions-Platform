@@ -7,6 +7,7 @@ use inventory_rs::{
     consumers::{component_issue_consumer, fg_receipt_consumer},
     http::{
         adjustments::post_adjustment,
+        imports::import_items,
         issues::post_issue,
         items::{create_item, deactivate_item, get_item, list_items, update_item},
         locations::{
@@ -267,6 +268,10 @@ async fn main() {
 
             let inv_mutations = Router::new()
                 .route("/api/inventory/items", axum::routing::post(create_item))
+                .route(
+                    "/api/inventory/import/items",
+                    axum::routing::post(import_items),
+                )
                 .route("/api/inventory/items/{id}", axum::routing::put(update_item))
                 .route(
                     "/api/inventory/items/{id}/deactivate",

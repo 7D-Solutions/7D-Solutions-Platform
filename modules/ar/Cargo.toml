@@ -1,6 +1,6 @@
 [package]
 name = "ar-rs"
-version = "6.3.2"
+version = "6.4.0"
 edition = "2021"
 description = "Invoicing, collections, payment application, dunning, and cash flow forecasting"
 
@@ -32,6 +32,7 @@ config-validator = { path = "../../platform/config-validator" }
 tax-core = { path = "../../platform/tax-core" }
 projections = { path = "../../platform/projections" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+platform-audit = { package = "audit", path = "../../platform/audit" }
 platform-sdk = { path = "../../platform/platform-sdk" }
 platform-client-party = { path = "../../clients/party" }
 async-nats = "0.38"

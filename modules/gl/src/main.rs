@@ -18,6 +18,7 @@ use gl_rs::{
     consumers::timekeeping_labor_cost::start_gl_labor_cost_consumer,
     http::account_activity::get_account_activity,
     http::accounts::create_account,
+    http::imports::import_chart_of_accounts,
     http::accruals::{
         create_accrual_handler, create_template_handler, execute_reversals_handler,
     },
@@ -150,6 +151,10 @@ async fn main() {
                 .route("/api/gl/exports", post(create_export))
                 .route("/api/gl/accounts", post(create_account))
                 .route("/api/gl/journal-entries", post(create_journal_entry))
+                .route(
+                    "/api/gl/import/chart-of-accounts",
+                    post(import_chart_of_accounts),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
                 .with_state(app_state.clone());
 
