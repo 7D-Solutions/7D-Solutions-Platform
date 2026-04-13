@@ -1,0 +1,27 @@
+[package]
+name = "reconciliation"
+version = "1.0.0"
+edition = "2021"
+description = "Nightly financial invariant reconciliation runner — real databases, no mocks"
+
+[[bin]]
+name = "reconciliation"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+prometheus = "0.13"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.5", features = ["derive"] }
+sha2 = "0.10"
+hex = "0.4"
+
+[lints]
+workspace = true

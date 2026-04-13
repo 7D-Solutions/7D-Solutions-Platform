@@ -1,0 +1,51 @@
+---
+# Prometheus alerting rules for the financial invariant reconciliation runner.
+#
+# Metric sources:
+#   platform_recon_violations_total{module, invariant}
+#     - gauge: count of violating rows found in the last run
+#     - 0 = clean; > 0 = violation
+#   platform_recon_last_success_timestamp{module}
+#     - gauge: Unix timestamp of the most recent clean run for this module
+#     - Only updated when the module had zero violations
+#
+# These metrics are written by the reconciliation binary to the Prometheus
+# node_exporter textfile directory (/var/lib/prometheus/node_exporter/recon.prom)
+# and scraped by node_exporter with --collector.textfile.directory.
+#
+# Runbook: docs/architecture/RECONCILIATION-INVARIANTS.md
+
+groups:
+  - name: financial_invariants
+    rules:
+
+      # ── Violation detected ──────────────────────────────────────────────────
+      - alert: PlatformReconViolationDetected
+        expr: platform_recon_violations_total > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Financial invariant violation: {{ $labels.module }}/{{ $labels.invariant }}"
+          description: >
+            The nightly reconciliation found {{ $value }} row(s) violating the
+            '{{ $labels.invariant }}' invariant in the '{{ $labels.module }}' module.
+            Financial data integrity is at risk. Investigate immediately.
+            Runbook: docs/architecture/RECONCILIATION-INVARIANTS.md#{{ $labels.invariant }}
+
+      # ── Runner stale — clean run overdue ───────────────────────────────────
+      - alert: PlatformReconRunnerStale
+        expr: (time() - platform_recon_last_success_timestamp) > 93600
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Reconciliation runner stale: {{ $labels.module }} last clean run > 26h ago"
+          description: >
+            The '{{ $labels.module }}' module has not had a clean reconciliation
+            run in over 26 hours. The runner may have failed, been skipped, or
+            the module has ongoing violations preventing a clean timestamp update.
+            Last clean run: {{ $value | humanizeTimestamp }}.
+            Runbook: docs/architecture/RECONCILIATION-INVARIANTS.md#runner-operations
