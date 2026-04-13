@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [[test]]
+name = "tenant_context_canary_e2e"
+path = "tests/tenant_context_canary_e2e.rs"
+
+[[test]]
 name = "tenant_lifecycle_e2e"
 path = "tests/tenant_lifecycle_e2e.rs"
 

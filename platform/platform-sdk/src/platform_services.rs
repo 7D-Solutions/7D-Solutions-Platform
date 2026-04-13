@@ -67,11 +67,19 @@ impl PlatformServices {
         };
 
         // Obtain a service token for service-to-service auth.
-        // When SERVICE_AUTH_SECRET is not set (e.g. local dev without identity
-        // services), proceed without bearer tokens — the receiving service's
-        // permissive ClaimsLayer will pass unauthenticated requests through on
-        // unprotected routes, and RequirePermissionsLayer will 401 on protected
-        // routes (which is the correct dev-mode signal).
+        //
+        // This startup token carries nil UUIDs for tenant_id/actor_id by design —
+        // `get_service_token()` has no request context available at boot time.
+        // It is stored ONLY as a last-resort fallback bearer token in each PlatformClient.
+        //
+        // inject_headers (http_client.rs) ALWAYS attempts to mint a per-request RSA JWT
+        // via `mint_service_jwt_with_context(claims.tenant_id, claims.user_id)` before
+        // falling back to this bearer token.  When `JWT_PRIVATE_KEY_PEM` is set in the
+        // environment (required in production and staging), `mint_service_jwt_with_context`
+        // will always succeed and the startup token is never used.
+        //
+        // INVARIANT: JWT_PRIVATE_KEY_PEM MUST be set in all non-local environments.
+        // The tenant_context_canary_e2e test verifies this guarantee on every PR.
         let service_token = match security::get_service_token() {
             Ok(token) => {
                 tracing::debug!(

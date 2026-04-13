@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly backup restore drill — every Sunday at 02:00 UTC
+  schedule:
+    - cron: '0 2 * * 0'
 
 jobs:
   cargo-audit:
@@ -1121,6 +1124,46 @@ jobs:
           AUDIT_DATABASE_URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db
 
   # ---------------------------------------------------------------------------
+  # Tenant context canary — required on every PR.
+  # Verifies that inject_headers propagates real tenant UUIDs (never nil) on
+  # all 10 cross-module call patterns.  No external services required — uses
+  # an in-process Axum echo server and real reqwest calls via PlatformClient.
+  # See e2e-tests/tests/tenant_context_canary_e2e.rs and
+  #     docs/audits/tenant-context-audit-2026-04-11.md for audit findings.
+  # ---------------------------------------------------------------------------
+  e2e-tenant-context-canary:
+    name: "E2E: Tenant Context Canary (nil-UUID guard)"
+    runs-on: ubuntu-latest
+    needs: [contract-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-canary-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-canary-
+            ${{ runner.os }}-cargo-
+
+      - name: Run tenant context canary
+        working-directory: e2e-tests
+        run: cargo test --test tenant_context_canary_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          # JWT_PRIVATE_KEY_PEM is intentionally NOT set here — the test generates
+          # its own ephemeral RSA keypair at runtime.  This mirrors the production
+          # requirement: the test fails if inject_headers uses the nil-UUID startup
+          # token instead of minting a per-request JWT.
+
+  # ---------------------------------------------------------------------------
   # Gate 2: CI builds and publishes immutable images on version-intent merges.
   # Only runs on push to main when a version-intent change is detected.
   # Tag format: {version}-{git-sha7}  (never 'latest', never overwritten)
@@ -1252,3 +1295,221 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Registry:** GitHub Packages (7d-platform)" >> $GITHUB_STEP_SUMMARY
+
+  # ── Weekly Backup Restore Drill ─────────────────────────────────────────────
+  # Runs every Sunday at 02:00 UTC (schedule trigger only — not on push/PR).
+  # Proves backup + restore works end-to-end against a real PostgreSQL instance.
+  # CI fails if the drill exits non-zero.  See docs/operations/backup-restore.md.
+  weekly-backup-drill:
+    name: "Weekly: Backup + Restore Drill"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    timeout-minutes: 30
+
+    services:
+      # Single postgres instance — backup_all.sh and dr_drill.sh write/restore here
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Provision drill databases
+        env:
+          PGPASSWORD: postgres
+        run: |
+          # Create one lightweight database per module for the drill.
+          for db in auth_db ar_db subscriptions_db payments_db notifications_db \
+                    gl_db projections_db audit_db tenant_registry_db inventory_db \
+                    ap_db treasury_db fixed_assets_db consolidation_db \
+                    timekeeping_db party_db integrations_db; do
+            psql -h localhost -U postgres -c "CREATE DATABASE ${db};" 2>/dev/null || true
+          done
+
+      - name: Run nightly backup against drill DBs
+        env:
+          # Point all modules at the single CI postgres instance
+          AUTH_POSTGRES_HOST: localhost
+          AUTH_POSTGRES_PORT: 5432
+          AUTH_POSTGRES_USER: postgres
+          AUTH_POSTGRES_PASSWORD: postgres
+          AR_POSTGRES_HOST: localhost
+          AR_POSTGRES_PORT: 5432
+          AR_POSTGRES_USER: postgres
+          AR_POSTGRES_PASSWORD: postgres
+          SUBSCRIPTIONS_POSTGRES_HOST: localhost
+          SUBSCRIPTIONS_POSTGRES_PORT: 5432
+          SUBSCRIPTIONS_POSTGRES_USER: postgres
+          SUBSCRIPTIONS_POSTGRES_PASSWORD: postgres
+          PAYMENTS_POSTGRES_HOST: localhost
+          PAYMENTS_POSTGRES_PORT: 5432
+          PAYMENTS_POSTGRES_USER: postgres
+          PAYMENTS_POSTGRES_PASSWORD: postgres
+          NOTIFICATIONS_POSTGRES_HOST: localhost
+          NOTIFICATIONS_POSTGRES_PORT: 5432
+          NOTIFICATIONS_POSTGRES_USER: postgres
+          NOTIFICATIONS_POSTGRES_PASSWORD: postgres
+          GL_POSTGRES_HOST: localhost
+          GL_POSTGRES_PORT: 5432
+          GL_POSTGRES_USER: postgres
+          GL_POSTGRES_PASSWORD: postgres
+          PROJECTIONS_POSTGRES_HOST: localhost
+          PROJECTIONS_POSTGRES_PORT: 5432
+          PROJECTIONS_POSTGRES_USER: postgres
+          PROJECTIONS_POSTGRES_PASSWORD: postgres
+          AUDIT_POSTGRES_HOST: localhost
+          AUDIT_POSTGRES_PORT: 5432
+          AUDIT_POSTGRES_USER: postgres
+          AUDIT_POSTGRES_PASSWORD: postgres
+          TENANT_REGISTRY_POSTGRES_HOST: localhost
+          TENANT_REGISTRY_POSTGRES_PORT: 5432
+          TENANT_REGISTRY_POSTGRES_USER: postgres
+          TENANT_REGISTRY_POSTGRES_PASSWORD: postgres
+          INVENTORY_POSTGRES_HOST: localhost
+          INVENTORY_POSTGRES_PORT: 5432
+          INVENTORY_POSTGRES_USER: postgres
+          INVENTORY_POSTGRES_PASSWORD: postgres
+          AP_POSTGRES_HOST: localhost
+          AP_POSTGRES_PORT: 5432
+          AP_POSTGRES_USER: postgres
+          AP_POSTGRES_PASSWORD: postgres
+          TREASURY_POSTGRES_HOST: localhost
+          TREASURY_POSTGRES_PORT: 5432
+          TREASURY_POSTGRES_USER: postgres
+          TREASURY_POSTGRES_PASSWORD: postgres
+          FIXED_ASSETS_POSTGRES_HOST: localhost
+          FIXED_ASSETS_POSTGRES_PORT: 5432
+          FIXED_ASSETS_POSTGRES_USER: postgres
+          FIXED_ASSETS_POSTGRES_PASSWORD: postgres
+          CONSOLIDATION_POSTGRES_HOST: localhost
+          CONSOLIDATION_POSTGRES_PORT: 5432
+          CONSOLIDATION_POSTGRES_USER: postgres
+          CONSOLIDATION_POSTGRES_PASSWORD: postgres
+          TIMEKEEPING_POSTGRES_HOST: localhost
+          TIMEKEEPING_POSTGRES_PORT: 5432
+          TIMEKEEPING_POSTGRES_USER: postgres
+          TIMEKEEPING_POSTGRES_PASSWORD: postgres
+          PARTY_POSTGRES_HOST: localhost
+          PARTY_POSTGRES_PORT: 5432
+          PARTY_POSTGRES_USER: postgres
+          PARTY_POSTGRES_PASSWORD: postgres
+          INTEGRATIONS_POSTGRES_HOST: localhost
+          INTEGRATIONS_POSTGRES_PORT: 5432
+          INTEGRATIONS_POSTGRES_USER: postgres
+          INTEGRATIONS_POSTGRES_PASSWORD: postgres
+          PROMETHEUS_TEXTFILE_DIR: /tmp/prometheus-textfiles
+        run: |
+          mkdir -p /tmp/prometheus-textfiles
+          ./scripts/backup_all.sh 2>&1 | tee /tmp/backup-drill.log
+          echo "BACKUP_DIR=$(tail -2 /tmp/backup-drill.log | grep 'Backup directory' | awk '{print $NF}')" >> "$GITHUB_ENV"
+
+      - name: Run DR drill against fresh backup
+        env:
+          AUTH_POSTGRES_HOST: localhost
+          AUTH_POSTGRES_PORT: 5432
+          AUTH_POSTGRES_USER: postgres
+          AUTH_POSTGRES_PASSWORD: postgres
+          AR_POSTGRES_HOST: localhost
+          AR_POSTGRES_PORT: 5432
+          AR_POSTGRES_USER: postgres
+          AR_POSTGRES_PASSWORD: postgres
+          SUBSCRIPTIONS_POSTGRES_HOST: localhost
+          SUBSCRIPTIONS_POSTGRES_PORT: 5432
+          SUBSCRIPTIONS_POSTGRES_USER: postgres
+          SUBSCRIPTIONS_POSTGRES_PASSWORD: postgres
+          PAYMENTS_POSTGRES_HOST: localhost
+          PAYMENTS_POSTGRES_PORT: 5432
+          PAYMENTS_POSTGRES_USER: postgres
+          PAYMENTS_POSTGRES_PASSWORD: postgres
+          NOTIFICATIONS_POSTGRES_HOST: localhost
+          NOTIFICATIONS_POSTGRES_PORT: 5432
+          NOTIFICATIONS_POSTGRES_USER: postgres
+          NOTIFICATIONS_POSTGRES_PASSWORD: postgres
+          GL_POSTGRES_HOST: localhost
+          GL_POSTGRES_PORT: 5432
+          GL_POSTGRES_USER: postgres
+          GL_POSTGRES_PASSWORD: postgres
+          PROJECTIONS_POSTGRES_HOST: localhost
+          PROJECTIONS_POSTGRES_PORT: 5432
+          PROJECTIONS_POSTGRES_USER: postgres
+          PROJECTIONS_POSTGRES_PASSWORD: postgres
+          AUDIT_POSTGRES_HOST: localhost
+          AUDIT_POSTGRES_PORT: 5432
+          AUDIT_POSTGRES_USER: postgres
+          AUDIT_POSTGRES_PASSWORD: postgres
+          TENANT_REGISTRY_POSTGRES_HOST: localhost
+          TENANT_REGISTRY_POSTGRES_PORT: 5432
+          TENANT_REGISTRY_POSTGRES_USER: postgres
+          TENANT_REGISTRY_POSTGRES_PASSWORD: postgres
+          INVENTORY_POSTGRES_HOST: localhost
+          INVENTORY_POSTGRES_PORT: 5432
+          INVENTORY_POSTGRES_USER: postgres
+          INVENTORY_POSTGRES_PASSWORD: postgres
+          AP_POSTGRES_HOST: localhost
+          AP_POSTGRES_PORT: 5432
+          AP_POSTGRES_USER: postgres
+          AP_POSTGRES_PASSWORD: postgres
+          TREASURY_POSTGRES_HOST: localhost
+          TREASURY_POSTGRES_PORT: 5432
+          TREASURY_POSTGRES_USER: postgres
+          TREASURY_POSTGRES_PASSWORD: postgres
+          FIXED_ASSETS_POSTGRES_HOST: localhost
+          FIXED_ASSETS_POSTGRES_PORT: 5432
+          FIXED_ASSETS_POSTGRES_USER: postgres
+          FIXED_ASSETS_POSTGRES_PASSWORD: postgres
+          CONSOLIDATION_POSTGRES_HOST: localhost
+          CONSOLIDATION_POSTGRES_PORT: 5432
+          CONSOLIDATION_POSTGRES_USER: postgres
+          CONSOLIDATION_POSTGRES_PASSWORD: postgres
+          TIMEKEEPING_POSTGRES_HOST: localhost
+          TIMEKEEPING_POSTGRES_PORT: 5432
+          TIMEKEEPING_POSTGRES_USER: postgres
+          TIMEKEEPING_POSTGRES_PASSWORD: postgres
+          PARTY_POSTGRES_HOST: localhost
+          PARTY_POSTGRES_PORT: 5432
+          PARTY_POSTGRES_USER: postgres
+          PARTY_POSTGRES_PASSWORD: postgres
+          INTEGRATIONS_POSTGRES_HOST: localhost
+          INTEGRATIONS_POSTGRES_PORT: 5432
+          INTEGRATIONS_POSTGRES_USER: postgres
+          INTEGRATIONS_POSTGRES_PASSWORD: postgres
+          NATS_MONITOR: "localhost:8222"
+          SUPERUSER_POSTGRES_HOST: localhost
+          SUPERUSER_POSTGRES_PORT: 5432
+          SUPERUSER_POSTGRES_USER: postgres
+          SUPERUSER_POSTGRES_PASSWORD: postgres
+        run: |
+          ./scripts/dr_drill.sh 2>&1 | tee /tmp/dr-drill.log
+
+      - name: Upload drill report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr-drill-report-${{ github.run_id }}
+          path: |
+            dr-reports/
+            /tmp/backup-drill.log
+            /tmp/dr-drill.log
+          retention-days: 90
+
+      - name: Fail if drill failed
+        if: failure()
+        run: |
+          echo "::error::Weekly backup restore drill FAILED. Review dr-drill-report artifact."
+          echo "::error::Runbook: docs/operations/backup-restore.md#incident-response"
