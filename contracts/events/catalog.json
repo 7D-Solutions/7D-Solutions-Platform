@@ -1,0 +1,3074 @@
+{
+  "$schema": "https://7dsolutions.io/schemas/event-catalog.v1.json",
+  "generated_by": "tools/event-catalog/generate.py",
+  "subjects": [
+    {
+      "subject": "ap.events.ap.payment_executed",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "reporting",
+        "treasury"
+      ],
+      "event_type": "ap.events.ap.payment_executed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.events.ap.vendor_bill_approved",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "fixed-assets"
+      ],
+      "event_type": "ap.events.ap.vendor_bill_approved",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.events.ap.vendor_bill_created",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "ap.events.ap.vendor_bill_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.events.ap.vendor_bill_voided",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "ap.events.ap.vendor_bill_voided",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.payment_executed",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.payment_executed",
+      "description": "Event emitted when a single vendor payment is executed as part of a payment run",
+      "payload_fields": [
+        "payment_id",
+        "run_id",
+        "tenant_id",
+        "vendor_id",
+        "bill_ids",
+        "amount_minor",
+        "currency",
+        "payment_method",
+        "bank_reference",
+        "bank_account_last4",
+        "executed_at"
+      ],
+      "schema_file": "contracts/events/ap-payment-executed.v1.json"
+    },
+    {
+      "subject": "ap.payment_run_created",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.payment_run_created",
+      "description": "Event emitted when a batch of vendor payments is queued for execution",
+      "payload_fields": [
+        "run_id",
+        "tenant_id",
+        "items",
+        "total_minor",
+        "currency",
+        "scheduled_date",
+        "payment_method",
+        "created_by",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/ap-payment-run-created.v1.json"
+    },
+    {
+      "subject": "ap.payment_terms_created",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.payment_terms_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.po.approved",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "shipping-receiving"
+      ],
+      "event_type": "ap.po.approved",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ap.po_approved",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.po_approved",
+      "description": "Event emitted when a purchase order is approved for fulfillment",
+      "payload_fields": [
+        "po_id",
+        "tenant_id",
+        "vendor_id",
+        "po_number",
+        "approved_amount_minor",
+        "currency",
+        "approved_by",
+        "approved_at"
+      ],
+      "schema_file": "contracts/events/ap-po-approved.v1.json"
+    },
+    {
+      "subject": "ap.po_closed",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.po_closed",
+      "description": "Event emitted when a purchase order is closed (fully received, cancelled, or manually closed)",
+      "payload_fields": [
+        "po_id",
+        "tenant_id",
+        "vendor_id",
+        "po_number",
+        "close_reason",
+        "closed_by",
+        "closed_at"
+      ],
+      "schema_file": "contracts/events/ap-po-closed.v1.json"
+    },
+    {
+      "subject": "ap.po_created",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.po_created",
+      "description": "Event emitted when a purchase order is created",
+      "payload_fields": [
+        "po_id",
+        "tenant_id",
+        "vendor_id",
+        "po_number",
+        "currency",
+        "lines",
+        "total_minor",
+        "created_by",
+        "created_at",
+        "expected_delivery_date"
+      ],
+      "schema_file": "contracts/events/ap-po-created.v1.json"
+    },
+    {
+      "subject": "ap.po_line_received_linked",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.po_line_received_linked",
+      "description": "Event emitted when a PO line is linked to a goods receipt (3-way match anchor)",
+      "payload_fields": [
+        "po_id",
+        "po_line_id",
+        "tenant_id",
+        "vendor_id",
+        "receipt_id",
+        "quantity_received",
+        "unit_of_measure",
+        "unit_price_minor",
+        "currency",
+        "gl_account_code",
+        "received_at",
+        "received_by"
+      ],
+      "schema_file": "contracts/events/ap-po-line-received-linked.v1.json"
+    },
+    {
+      "subject": "ap.vendor_bill_approved",
+      "publisher_module": "ap",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "ap.vendor_bill_approved",
+      "description": "Event emitted when a vendor bill is approved for payment",
+      "payload_fields": [
+        "bill_id",
+        "tenant_id",
+        "vendor_id",
+        "vendor_invoice_ref",
+        "approved_amount_minor",
+        "currency",
+        "due_date",
+        "approved_by",
+        "approved_at",
+        "fx_rate_id",
+        "gl_lines"
+      ],
+      "schema_file": "contracts/events/ap-vendor-bill-approved.v1.json"
+    },
+    {
+      "subject": "ap.vendor_bill_created",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.vendor_bill_created",
+      "description": "Event emitted when a vendor invoice/bill is entered into AP",
+      "payload_fields": [
+        "bill_id",
+        "tenant_id",
+        "vendor_id",
+        "vendor_invoice_ref",
+        "currency",
+        "lines",
+        "total_minor",
+        "tax_minor",
+        "invoice_date",
+        "due_date",
+        "entered_by",
+        "entered_at"
+      ],
+      "schema_file": "contracts/events/ap-vendor-bill-created.v1.json"
+    },
+    {
+      "subject": "ap.vendor_bill_matched",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.vendor_bill_matched",
+      "description": "Event emitted when a vendor bill is matched to PO lines (2-way or 3-way match)",
+      "payload_fields": [
+        "bill_id",
+        "tenant_id",
+        "vendor_id",
+        "po_id",
+        "match_type",
+        "match_lines",
+        "fully_matched",
+        "matched_by",
+        "matched_at"
+      ],
+      "schema_file": "contracts/events/ap-vendor-bill-matched.v1.json"
+    },
+    {
+      "subject": "ap.vendor_bill_voided",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.vendor_bill_voided",
+      "description": "Compensating event emitted when a vendor bill is voided (reversal)",
+      "payload_fields": [
+        "bill_id",
+        "tenant_id",
+        "vendor_id",
+        "vendor_invoice_ref",
+        "original_total_minor",
+        "currency",
+        "void_reason",
+        "voided_by",
+        "voided_at"
+      ],
+      "schema_file": "contracts/events/ap-vendor-bill-voided.v1.json"
+    },
+    {
+      "subject": "ap.vendor_created",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.vendor_created",
+      "description": "Event emitted when a new vendor is registered in the AP module",
+      "payload_fields": [
+        "vendor_id",
+        "tenant_id",
+        "name",
+        "tax_id",
+        "currency",
+        "payment_terms_days",
+        "payment_method",
+        "remittance_email",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/ap-vendor-created.v1.json"
+    },
+    {
+      "subject": "ap.vendor_updated",
+      "publisher_module": "ap",
+      "consumer_modules": [],
+      "event_type": "ap.vendor_updated",
+      "description": "Event emitted when a vendor's attributes are updated",
+      "payload_fields": [
+        "vendor_id",
+        "tenant_id",
+        "name",
+        "tax_id",
+        "currency",
+        "payment_terms_days",
+        "payment_method",
+        "remittance_email",
+        "updated_by",
+        "updated_at"
+      ],
+      "schema_file": "contracts/events/ap-vendor-updated.v1.json"
+    },
+    {
+      "subject": "ar.credit_note_issued",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "ar.credit_note_issued",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.ar_aging_updated",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "ar.events.ar.ar_aging_updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.credit_memo_approved",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.credit_memo_approved",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.credit_memo_created",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.credit_memo_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.credit_note_issued",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.credit_note_issued",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.dunning_state_changed",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.dunning_state_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_attempting",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_attempting",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_failed_final",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_failed_final",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_opened",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "notifications",
+        "reporting",
+        "vertical-proof"
+      ],
+      "event_type": "ar.invoice_opened",
+      "description": "Event emitted when an AR invoice is created and issued",
+      "payload_fields": [
+        "invoice_id",
+        "customer_id",
+        "amount_due_minor",
+        "currency",
+        "due_date"
+      ],
+      "schema_file": "contracts/events/ar-invoice-issued.v1.json"
+    },
+    {
+      "subject": "ar.events.ar.invoice_paid",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "ar.events.ar.invoice_paid",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_settled_fx",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_settled_fx",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_suspended",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_suspended",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_void",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_void",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.invoice_written_off",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.invoice_written_off",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.milestone_invoice_created",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.milestone_invoice_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.payment.applied",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.payment.applied",
+      "description": "Event emitted when a payment is applied to an AR invoice",
+      "payload_fields": [
+        "invoice_id",
+        "payment_id",
+        "amount_applied_minor",
+        "currency"
+      ],
+      "schema_file": "contracts/events/ar-payment-applied.v1.json"
+    },
+    {
+      "subject": "ar.events.ar.payment.collection.requested",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.payment.collection.requested",
+      "description": "Event emitted when AR requests payment collection for an invoice",
+      "payload_fields": [
+        "invoice_id",
+        "customer_id",
+        "amount_minor",
+        "currency",
+        "payment_method_id"
+      ],
+      "schema_file": "contracts/events/ar-payment-collection-requested.v1.json"
+    },
+    {
+      "subject": "ar.events.ar.payment_allocated",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.payment_allocated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.recon_exception_raised",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.recon_exception_raised",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.recon_match_applied",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.recon_match_applied",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.recon_run_started",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.recon_run_started",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.usage_captured",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.usage_captured",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.ar.usage_invoiced",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.usage_invoiced",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.payment.collection.requested",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "ar.events.payment.collection.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.tax.committed",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "tax.committed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.tax.quoted",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "tax.quoted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.events.tax.voided",
+      "publisher_module": "ar",
+      "consumer_modules": [],
+      "event_type": "tax.voided",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.invoice_settled_fx",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "ar.invoice_settled_fx",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ar.invoice_written_off",
+      "publisher_module": "ar",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "ar.invoice_written_off",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "clock_session.clocked_in",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "clock_session.clocked_in",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "clock_session.clocked_out",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "clock_session.clocked_out",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "definition.created",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "definition.created",
+      "description": "Event emitted when a new workflow definition is registered",
+      "payload_fields": [
+        "definition_id",
+        "tenant_id",
+        "name",
+        "version",
+        "initial_step_id",
+        "step_count"
+      ],
+      "schema_file": "contracts/events/workflow-definition-created.v1.json"
+    },
+    {
+      "subject": "delegation.created",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "delegation.created",
+      "description": "Event emitted when an actor delegates their workflow authority to another actor",
+      "payload_fields": [
+        "delegation_id",
+        "tenant_id",
+        "delegator_id",
+        "delegatee_id",
+        "definition_id",
+        "entity_type",
+        "valid_from",
+        "valid_until"
+      ],
+      "schema_file": "contracts/events/workflow-delegation-created.v1.json"
+    },
+    {
+      "subject": "delegation.revoked",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "delegation.revoked",
+      "description": "Event emitted when a delegation of workflow authority is revoked",
+      "payload_fields": [
+        "delegation_id",
+        "tenant_id",
+        "delegator_id",
+        "delegatee_id",
+        "revoked_by",
+        "revoke_reason"
+      ],
+      "schema_file": "contracts/events/workflow-delegation-revoked.v1.json"
+    },
+    {
+      "subject": "docmgmt.attachment.created",
+      "publisher_module": "unknown",
+      "consumer_modules": [
+        "ap"
+      ],
+      "event_type": "docmgmt.attachment.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "document.created",
+      "publisher_module": "doc_mgmt",
+      "consumer_modules": [],
+      "event_type": "document.created",
+      "description": "Event emitted when a controlled document is created",
+      "payload_fields": [
+        "document_id",
+        "doc_number",
+        "title",
+        "doc_type"
+      ],
+      "schema_file": "contracts/events/doc-mgmt-document-created.v1.json"
+    },
+    {
+      "subject": "document.distribution.requested",
+      "publisher_module": "doc_mgmt",
+      "consumer_modules": [],
+      "event_type": "document.distribution.requested",
+      "description": "Event emitted when a released document distribution is requested",
+      "payload_fields": [
+        "distribution_id",
+        "document_id",
+        "revision_id",
+        "doc_number",
+        "recipient_ref",
+        "channel",
+        "template_key",
+        "payload_json"
+      ],
+      "schema_file": "contracts/events/doc-mgmt-document-distribution-requested.v1.json"
+    },
+    {
+      "subject": "document.distribution.status.updated",
+      "publisher_module": "doc_mgmt",
+      "consumer_modules": [],
+      "event_type": "document.distribution.status.updated",
+      "description": "Event emitted when document distribution delivery status transitions",
+      "payload_fields": [
+        "distribution_id",
+        "document_id",
+        "status",
+        "provider_message_id",
+        "failure_reason"
+      ],
+      "schema_file": "contracts/events/doc-mgmt-document-distribution-status-updated.v1.json"
+    },
+    {
+      "subject": "document.released",
+      "publisher_module": "doc_mgmt",
+      "consumer_modules": [],
+      "event_type": "document.released",
+      "description": "Event emitted when a controlled document is released from draft to official status",
+      "payload_fields": [
+        "document_id",
+        "doc_number",
+        "revision_number"
+      ],
+      "schema_file": "contracts/events/doc-mgmt-document-released.v1.json"
+    },
+    {
+      "subject": "edi_transaction.created",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "edi_transaction.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "edi_transaction.status_changed",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "edi_transaction.status_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "escalation.fired",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "escalation.fired",
+      "description": "Event emitted when an escalation timer fires due to step timeout",
+      "payload_fields": [
+        "timer_id",
+        "instance_id",
+        "tenant_id",
+        "rule_id",
+        "step_id",
+        "escalation_count",
+        "escalate_to_step",
+        "notify_actor_ids"
+      ],
+      "schema_file": "contracts/events/workflow-escalation-fired.v1.json"
+    },
+    {
+      "subject": "export_run.completed",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "export_run.completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "external_ref.created",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "external_ref.created",
+      "description": "Event emitted when an external reference mapping is created or upserted",
+      "payload_fields": [
+        "ref_id",
+        "app_id",
+        "entity_type",
+        "entity_id",
+        "system",
+        "external_id",
+        "label",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/integrations-external-ref-created.v1.json"
+    },
+    {
+      "subject": "external_ref.deleted",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "external_ref.deleted",
+      "description": "Event emitted when an external reference mapping is deleted",
+      "payload_fields": [
+        "ref_id",
+        "app_id",
+        "entity_type",
+        "entity_id",
+        "system",
+        "external_id",
+        "deleted_at"
+      ],
+      "schema_file": "contracts/events/integrations-external-ref-deleted.v1.json"
+    },
+    {
+      "subject": "external_ref.updated",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "external_ref.updated",
+      "description": "Event emitted when an external reference mapping is updated",
+      "payload_fields": [
+        "ref_id",
+        "app_id",
+        "entity_type",
+        "entity_id",
+        "system",
+        "external_id",
+        "label",
+        "updated_at"
+      ],
+      "schema_file": "contracts/events/integrations-external-ref-updated.v1.json"
+    },
+    {
+      "subject": "fa_depreciation_run.depreciation_run_completed",
+      "publisher_module": "fixed-assets",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "fa_depreciation_run.depreciation_run_completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "file_job.created",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "file_job.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "file_job.status_changed",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "file_job.status_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "fx.rate_updated",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "fx.rate_updated",
+      "description": "Event emitted when an FX rate is published or updated",
+      "payload_fields": [
+        "rate_id",
+        "base_currency",
+        "quote_currency",
+        "rate",
+        "inverse_rate",
+        "effective_at",
+        "source"
+      ],
+      "schema_file": "contracts/events/gl-fx-rate-updated.v1.json"
+    },
+    {
+      "subject": "gl.accrual_created",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.accrual_created",
+      "description": "Event emitted when a GL accrual is created and posted",
+      "payload_fields": [
+        "accrual_id",
+        "template_id",
+        "tenant_id",
+        "name",
+        "period",
+        "posting_date",
+        "debit_account",
+        "credit_account",
+        "amount_minor",
+        "currency",
+        "cashflow_class",
+        "reversal_policy",
+        "journal_entry_id",
+        "description",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/gl-accrual-created.v1.json"
+    },
+    {
+      "subject": "gl.accrual_reversed",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.accrual_reversed",
+      "description": "Event emitted when a GL accrual is reversed",
+      "payload_fields": [
+        "reversal_id",
+        "original_accrual_id",
+        "template_id",
+        "tenant_id",
+        "reversal_period",
+        "reversal_date",
+        "debit_account",
+        "credit_account",
+        "amount_minor",
+        "currency",
+        "cashflow_class",
+        "journal_entry_id",
+        "reason",
+        "reversed_at"
+      ],
+      "schema_file": "contracts/events/gl-accrual-reversed.v1.json"
+    },
+    {
+      "subject": "gl.events.entry.reverse.requested",
+      "publisher_module": "gl",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "gl.events.entry.reverse.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "gl.events.posting.requested",
+      "publisher_module": "gl",
+      "consumer_modules": [
+        "gl",
+        "reporting"
+      ],
+      "event_type": "gl.events.posting.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "gl.export.completed",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.export.completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "gl.export.requested",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.export.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "gl.fx_realized_posted",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.fx_realized_posted",
+      "description": "Event emitted when realized FX gain/loss is posted to GL",
+      "payload_fields": [
+        "realized_id",
+        "tenant_id",
+        "source_transaction_id",
+        "source_transaction_type",
+        "transaction_currency",
+        "reporting_currency",
+        "booking_rate",
+        "settlement_rate",
+        "transaction_amount_minor",
+        "realized_gain_loss_minor",
+        "gain_loss_account",
+        "journal_entry_id",
+        "settlement_date"
+      ],
+      "schema_file": "contracts/events/gl-fx-realized-posted.v1.json"
+    },
+    {
+      "subject": "gl.fx_revaluation_posted",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "gl.fx_revaluation_posted",
+      "description": "Event emitted when unrealized FX revaluation is posted to GL",
+      "payload_fields": [
+        "revaluation_id",
+        "tenant_id",
+        "period",
+        "transaction_currency",
+        "reporting_currency",
+        "rate_used",
+        "original_amount_minor",
+        "revalued_amount_minor",
+        "unrealized_gain_loss_minor",
+        "gain_loss_account",
+        "balance_account",
+        "journal_entry_id",
+        "revaluation_date",
+        "auto_reverse"
+      ],
+      "schema_file": "contracts/events/gl-fx-revaluation-posted.v1.json"
+    },
+    {
+      "subject": "hold.applied",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "hold.applied",
+      "description": "Event emitted when a hold is applied to an entity",
+      "payload_fields": [
+        "hold_id",
+        "tenant_id",
+        "entity_type",
+        "entity_id",
+        "hold_type",
+        "reason",
+        "applied_by"
+      ],
+      "schema_file": "contracts/events/workflow-hold-applied.v1.json"
+    },
+    {
+      "subject": "hold.released",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "hold.released",
+      "description": "Event emitted when a hold is released from an entity",
+      "payload_fields": [
+        "hold_id",
+        "tenant_id",
+        "entity_type",
+        "entity_id",
+        "hold_type",
+        "released_by",
+        "release_reason"
+      ],
+      "schema_file": "contracts/events/workflow-hold-released.v1.json"
+    },
+    {
+      "subject": "instance.advanced",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "instance.advanced",
+      "description": "Event emitted when a workflow instance advances to a new step",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "transition_id",
+        "from_step_id",
+        "to_step_id",
+        "action"
+      ],
+      "schema_file": "contracts/events/workflow-instance-advanced.v1.json"
+    },
+    {
+      "subject": "instance.cancelled",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "instance.cancelled",
+      "description": "Event emitted when a workflow instance is cancelled before completion",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "step_at_cancellation"
+      ],
+      "schema_file": "contracts/events/workflow-instance-cancelled.v1.json"
+    },
+    {
+      "subject": "instance.completed",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "instance.completed",
+      "description": "Event emitted when a workflow instance reaches its terminal completed state",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "final_step_id"
+      ],
+      "schema_file": "contracts/events/workflow-instance-completed.v1.json"
+    },
+    {
+      "subject": "instance.started",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "instance.started",
+      "description": "Event emitted when a new workflow instance is started",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "definition_id",
+        "entity_type",
+        "entity_id",
+        "initial_step_id"
+      ],
+      "schema_file": "contracts/events/workflow-instance-started.v1.json"
+    },
+    {
+      "subject": "integrations.order.ingested",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "integrations.order.ingested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "integrations.poll.amazon_sp",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "integrations.poll.amazon_sp",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "integrations.poll.ebay",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "integrations.poll.ebay",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "integrations.qbo.invoice_created",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "integrations.qbo.invoice_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "integrations.qbo.invoice_sync_failed",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "integrations.qbo.invoice_sync_failed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.adjusted",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.adjusted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.classification_assigned.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.classification_assigned.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.cycle_count_approved",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.cycle_count_approved",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.cycle_count_submitted",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.cycle_count_submitted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.expiry_alert.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.expiry_alert.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.expiry_set.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.expiry_set.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_change_recorded",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_change_recorded",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_issued",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_issued",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_received",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_received",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_reserved",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_reserved",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_revision_activated",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_revision_activated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_revision_created",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_revision_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.item_revision_policy_updated",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.item_revision_policy_updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.label_generated.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.label_generated.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.lot_merged.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.lot_merged.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.lot_split.v1",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.lot_split.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.low_stock_triggered",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.low_stock_triggered",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.make_buy_changed",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.make_buy_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.reservation_fulfilled",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.reservation_fulfilled",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.reservation_released",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.reservation_released",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.status_changed",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.status_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.transfer_completed",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.transfer_completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.valuation_run_completed",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.valuation_run_completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.valuation_snapshot",
+      "publisher_module": "inventory",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "inventory.events.inventory.valuation_snapshot",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.events.inventory.valuation_snapshot_created",
+      "publisher_module": "inventory",
+      "consumer_modules": [],
+      "event_type": "inventory.valuation_snapshot_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.item_issued",
+      "publisher_module": "inventory",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "inventory.item_issued",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "inventory.item_received",
+      "publisher_module": "inventory",
+      "consumer_modules": [
+        "ap",
+        "gl",
+        "quality-inspection"
+      ],
+      "event_type": "inventory.item_received",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.asset.created",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.asset.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.asset.out_of_service_changed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.asset.out_of_service_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.asset.updated",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.asset.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.calibration.completed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.calibration.completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.calibration.created",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.calibration.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.calibration.event_recorded",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.calibration.event_recorded",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.calibration.status_changed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.calibration.status_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.downtime.recorded",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.downtime.recorded",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "maintenance.meter_reading.recorded",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.meter_reading.recorded",
+      "description": "Event emitted when a new meter reading is recorded for an asset",
+      "payload_fields": [
+        "asset_id",
+        "meter_type_id",
+        "reading_value",
+        "recorded_at"
+      ],
+      "schema_file": "contracts/events/maintenance-meter-reading-recorded.v1.json"
+    },
+    {
+      "subject": "maintenance.plan.assigned",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.plan.assigned",
+      "description": "Event emitted when a maintenance plan is assigned to an asset",
+      "payload_fields": [
+        "plan_id",
+        "asset_id",
+        "next_due_date",
+        "next_due_meter"
+      ],
+      "schema_file": "contracts/events/maintenance-plan-assigned.v1.json"
+    },
+    {
+      "subject": "maintenance.plan.due",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.plan.due",
+      "description": "Event emitted when a maintenance plan assignment becomes due (calendar or meter threshold reached)",
+      "payload_fields": [
+        "assignment_id",
+        "plan_id",
+        "asset_id",
+        "due_kind",
+        "due_value"
+      ],
+      "schema_file": "contracts/events/maintenance-plan-due.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.cancelled",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.cancelled",
+      "description": "Event emitted when a work order is cancelled",
+      "payload_fields": [
+        "wo_id",
+        "old_status",
+        "new_status"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-cancelled.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.closed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.closed",
+      "description": "Event emitted when a work order is closed (cost locked, no further edits)",
+      "payload_fields": [
+        "wo_id",
+        "asset_id"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-closed.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.completed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.completed",
+      "description": "Event emitted when a work order is completed. Carries cost data for GL integration.",
+      "payload_fields": [
+        "wo_id",
+        "asset_id",
+        "total_parts_minor",
+        "total_labor_minor",
+        "currency",
+        "downtime_minutes",
+        "fixed_asset_ref"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-completed.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.created",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.created",
+      "description": "Event emitted when a work order is created",
+      "payload_fields": [
+        "wo_id",
+        "wo_number",
+        "asset_id",
+        "wo_type",
+        "priority",
+        "plan_assignment_id"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-created.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.overdue",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.overdue",
+      "description": "Event emitted when a work order's scheduled date has passed without completion",
+      "payload_fields": [
+        "wo_id",
+        "asset_id",
+        "days_overdue",
+        "priority"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-overdue.v1.json"
+    },
+    {
+      "subject": "maintenance.work_order.status_changed",
+      "publisher_module": "maintenance",
+      "consumer_modules": [],
+      "event_type": "maintenance.work_order.status_changed",
+      "description": "Event emitted when a work order transitions between statuses",
+      "payload_fields": [
+        "wo_id",
+        "old_status",
+        "new_status"
+      ],
+      "schema_file": "contracts/events/maintenance-work-order-status-changed.v1.json"
+    },
+    {
+      "subject": "notifications.close_calendar.reminder",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.close_calendar.reminder",
+      "description": "",
+      "payload_fields": [
+        "calendar_entry_id",
+        "tenant_id",
+        "period_id",
+        "owner_role",
+        "reminder_type",
+        "expected_close_date",
+        "days_offset",
+        "message"
+      ],
+      "schema_file": "contracts/events/notifications-close-calendar-reminder.v1.json"
+    },
+    {
+      "subject": "notifications.delivery.failed",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.delivery.failed",
+      "description": "Event emitted when notification delivery fails",
+      "payload_fields": [
+        "notification_id",
+        "channel",
+        "to",
+        "template_id",
+        "template_key",
+        "status",
+        "failure_code",
+        "failure_message",
+        "attempts",
+        "attempt_no",
+        "attempt_status",
+        "scheduled_status",
+        "idempotency_key",
+        "provider_message_id",
+        "error_class",
+        "error_message"
+      ],
+      "schema_file": "contracts/events/notifications-delivery-failed.v1.json"
+    },
+    {
+      "subject": "notifications.delivery.succeeded",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.delivery.succeeded",
+      "description": "Event emitted when notification delivery succeeds",
+      "payload_fields": [
+        "notification_id",
+        "channel",
+        "to",
+        "template_id",
+        "template_key",
+        "status",
+        "attempts",
+        "attempt_no",
+        "attempt_status",
+        "scheduled_status",
+        "idempotency_key",
+        "provider_message_id",
+        "error_class",
+        "error_message"
+      ],
+      "schema_file": "contracts/events/notifications-delivery-succeeded.v1.json"
+    },
+    {
+      "subject": "notifications.dlq.abandoned",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.dlq.abandoned",
+      "description": "",
+      "payload_fields": [
+        "notification_id",
+        "action",
+        "previous_status",
+        "new_status"
+      ],
+      "schema_file": "contracts/events/notifications-dlq-abandoned.v1.json"
+    },
+    {
+      "subject": "notifications.dlq.replayed",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.dlq.replayed",
+      "description": "",
+      "payload_fields": [
+        "notification_id",
+        "action",
+        "previous_status",
+        "new_status"
+      ],
+      "schema_file": "contracts/events/notifications-dlq-replayed.v1.json"
+    },
+    {
+      "subject": "notifications.inbox.message_created",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.inbox.message_created",
+      "description": "",
+      "payload_fields": [
+        "inbox_message_id",
+        "user_id",
+        "notification_id",
+        "title"
+      ],
+      "schema_file": "contracts/events/notifications-inbox-message-created.v1.json"
+    },
+    {
+      "subject": "notifications.inbox.message_dismissed",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.inbox.message_dismissed",
+      "description": "",
+      "payload_fields": [
+        "inbox_message_id",
+        "user_id"
+      ],
+      "schema_file": "contracts/events/notifications-inbox-message-dismissed.v1.json"
+    },
+    {
+      "subject": "notifications.inbox.message_read",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.inbox.message_read",
+      "description": "",
+      "payload_fields": [
+        "inbox_message_id",
+        "user_id"
+      ],
+      "schema_file": "contracts/events/notifications-inbox-message-read.v1.json"
+    },
+    {
+      "subject": "notifications.inbox.message_undismissed",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.inbox.message_undismissed",
+      "description": "",
+      "payload_fields": [
+        "inbox_message_id",
+        "user_id"
+      ],
+      "schema_file": "contracts/events/notifications-inbox-message-undismissed.v1.json"
+    },
+    {
+      "subject": "notifications.inbox.message_unread",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.inbox.message_unread",
+      "description": "",
+      "payload_fields": [
+        "inbox_message_id",
+        "user_id"
+      ],
+      "schema_file": "contracts/events/notifications-inbox-message-unread.v1.json"
+    },
+    {
+      "subject": "notifications.low_stock.alert.created",
+      "publisher_module": "notifications",
+      "consumer_modules": [],
+      "event_type": "notifications.low_stock.alert.created",
+      "description": "",
+      "payload_fields": [
+        "notification_id",
+        "channel",
+        "to",
+        "template_id",
+        "status",
+        "provider_message_id",
+        "attempts"
+      ],
+      "schema_file": "contracts/events/notifications-low-stock-alert-created.v1.json"
+    },
+    {
+      "subject": "number.allocated",
+      "publisher_module": "numbering",
+      "consumer_modules": [],
+      "event_type": "number.allocated",
+      "description": "Event emitted when a sequential number is allocated for a tenant+entity pair",
+      "payload_fields": [
+        "tenant_id",
+        "entity",
+        "number_value",
+        "idempotency_key"
+      ],
+      "schema_file": "contracts/events/numbering-number-allocated.v1.json"
+    },
+    {
+      "subject": "number.confirmed",
+      "publisher_module": "numbering",
+      "consumer_modules": [],
+      "event_type": "number.confirmed",
+      "description": "Event emitted when a gap-free reserved number is confirmed by the caller",
+      "payload_fields": [
+        "tenant_id",
+        "entity",
+        "number_value",
+        "idempotency_key"
+      ],
+      "schema_file": "contracts/events/numbering-number-confirmed.v1.json"
+    },
+    {
+      "subject": "outbound_webhook.created",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "outbound_webhook.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "outbound_webhook.deleted",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "outbound_webhook.deleted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "outbound_webhook.updated",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "outbound_webhook.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.contact_role.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.contact_role.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.contact_role.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.contact_role.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.created",
+      "description": "Event emitted when a new party (company or individual) is created",
+      "payload_fields": [
+        "party_id",
+        "app_id",
+        "party_type",
+        "display_name",
+        "email",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/party-created.v1.json"
+    },
+    {
+      "subject": "party.credit_terms.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.credit_terms.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.credit_terms.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.credit_terms.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.deactivated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.deactivated",
+      "description": "Event emitted when a party is deactivated (soft deleted)",
+      "payload_fields": [
+        "party_id",
+        "app_id",
+        "deactivated_by",
+        "deactivated_at"
+      ],
+      "schema_file": "contracts/events/party-deactivated.v1.json"
+    },
+    {
+      "subject": "party.events.contact.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.events.contact.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.events.contact.deactivated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.events.contact.deactivated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.events.contact.primary_set",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.events.contact.primary_set",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.events.contact.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.events.contact.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.events.tags.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.events.tags.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.reactivated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.reactivated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.scorecard.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.scorecard.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.scorecard.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.scorecard.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.updated",
+      "description": "Event emitted when a party's base fields are updated",
+      "payload_fields": [
+        "party_id",
+        "app_id",
+        "display_name",
+        "email",
+        "updated_by",
+        "updated_at"
+      ],
+      "schema_file": "contracts/events/party-updated.v1.json"
+    },
+    {
+      "subject": "party.vendor_qualification.created",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.vendor_qualification.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "party.vendor_qualification.updated",
+      "publisher_module": "party",
+      "consumer_modules": [],
+      "event_type": "party.vendor_qualification.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "payments.events.payment.failed",
+      "publisher_module": "payments",
+      "consumer_modules": [
+        "notifications"
+      ],
+      "event_type": "payments.events.payment.failed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "payments.events.payment.succeeded",
+      "publisher_module": "payments",
+      "consumer_modules": [
+        "ar",
+        "notifications",
+        "reporting",
+        "treasury"
+      ],
+      "event_type": "payments.events.payment.succeeded",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "payments.events.payments.payment.failed",
+      "publisher_module": "payments",
+      "consumer_modules": [],
+      "event_type": "payments.payment.failed",
+      "description": "Event emitted when a payment fails",
+      "payload_fields": [
+        "payment_id",
+        "invoice_id",
+        "ar_customer_id",
+        "amount_minor",
+        "currency",
+        "failure_code",
+        "failure_message",
+        "processor_payment_id",
+        "attempts"
+      ],
+      "schema_file": "contracts/events/payments-payment-failed.v1.json"
+    },
+    {
+      "subject": "payments.events.payments.payment.succeeded",
+      "publisher_module": "payments",
+      "consumer_modules": [],
+      "event_type": "payments.payment.succeeded",
+      "description": "Event emitted when a payment succeeds",
+      "payload_fields": [
+        "payment_id",
+        "invoice_id",
+        "ar_customer_id",
+        "amount_minor",
+        "currency",
+        "processor_payment_id",
+        "payment_method_ref"
+      ],
+      "schema_file": "contracts/events/payments-payment-succeeded.v1.json"
+    },
+    {
+      "subject": "payments.events.payments.refund.failed",
+      "publisher_module": "payments",
+      "consumer_modules": [],
+      "event_type": "payments.refund.failed",
+      "description": "Event emitted when a refund fails",
+      "payload_fields": [
+        "refund_id",
+        "payment_id",
+        "invoice_id",
+        "ar_customer_id",
+        "amount_minor",
+        "currency",
+        "failure_code",
+        "failure_message"
+      ],
+      "schema_file": "contracts/events/payments-refund-failed.v1.json"
+    },
+    {
+      "subject": "payments.events.payments.refund.succeeded",
+      "publisher_module": "payments",
+      "consumer_modules": [],
+      "event_type": "payments.refund.succeeded",
+      "description": "Event emitted when a refund succeeds",
+      "payload_fields": [
+        "refund_id",
+        "payment_id",
+        "invoice_id",
+        "ar_customer_id",
+        "amount_minor",
+        "currency",
+        "processor_refund_id",
+        "reason"
+      ],
+      "schema_file": "contracts/events/payments-refund-succeeded.v1.json"
+    },
+    {
+      "subject": "pdf.form.generated",
+      "publisher_module": "pdf-editor",
+      "consumer_modules": [],
+      "event_type": "pdf.form.generated",
+      "description": "Event emitted when a filled PDF is generated from a submitted form",
+      "payload_fields": [
+        "tenant_id",
+        "submission_id",
+        "template_id"
+      ],
+      "schema_file": "contracts/events/pdf-editor-form-generated.v1.json"
+    },
+    {
+      "subject": "pdf.form.submitted",
+      "publisher_module": "pdf-editor",
+      "consumer_modules": [],
+      "event_type": "pdf.form.submitted",
+      "description": "Event emitted when a form submission is validated and finalized",
+      "payload_fields": [
+        "tenant_id",
+        "submission_id",
+        "template_id",
+        "submitted_by"
+      ],
+      "schema_file": "contracts/events/pdf-editor-form-submitted.v1.json"
+    },
+    {
+      "subject": "policy.updated",
+      "publisher_module": "numbering",
+      "consumer_modules": [],
+      "event_type": "policy.updated",
+      "description": "Event emitted when a numbering policy is created or updated for a tenant+entity pair",
+      "payload_fields": [
+        "tenant_id",
+        "entity",
+        "pattern",
+        "prefix",
+        "padding",
+        "version"
+      ],
+      "schema_file": "contracts/events/numbering-policy-updated.v1.json"
+    },
+    {
+      "subject": "production.component_issue.requested",
+      "publisher_module": "production",
+      "consumer_modules": [
+        "inventory"
+      ],
+      "event_type": "production.component_issue.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.component_issued",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.component_issued",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.downtime.ended",
+      "publisher_module": "production",
+      "consumer_modules": [
+        "maintenance"
+      ],
+      "event_type": "production.downtime.ended",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.downtime.started",
+      "publisher_module": "production",
+      "consumer_modules": [
+        "maintenance"
+      ],
+      "event_type": "production.downtime.started",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.fg_receipt.requested",
+      "publisher_module": "production",
+      "consumer_modules": [
+        "inventory",
+        "quality-inspection"
+      ],
+      "event_type": "production.fg_receipt.requested",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.fg_received",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.fg_received",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.operation_completed",
+      "publisher_module": "production",
+      "consumer_modules": [
+        "quality-inspection"
+      ],
+      "event_type": "production.operation_completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.operation_started",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.operation_started",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.routing_created",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.routing_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.routing_released",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.routing_released",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.routing_updated",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.routing_updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.time_entry_created",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.time_entry_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.time_entry_stopped",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.time_entry_stopped",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.work_order_closed",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.work_order_closed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.work_order_created",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.work_order_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.work_order_released",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.work_order_released",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.workcenter_created",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.workcenter_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.workcenter_deactivated",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.workcenter_deactivated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "production.workcenter_updated",
+      "publisher_module": "production",
+      "consumer_modules": [],
+      "event_type": "production.workcenter_updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "qbo.entity.synced",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "qbo.entity.synced",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "revision.created",
+      "publisher_module": "doc_mgmt",
+      "consumer_modules": [],
+      "event_type": "revision.created",
+      "description": "Event emitted when a new revision is added to a controlled document",
+      "payload_fields": [
+        "document_id",
+        "revision_id",
+        "revision_number"
+      ],
+      "schema_file": "contracts/events/doc-mgmt-revision-created.v1.json"
+    },
+    {
+      "subject": "revrec.contract_created",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "revrec.contract_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "revrec.contract_modified",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "revrec.contract_modified",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "revrec.recognition_posted",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "revrec.recognition_posted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "revrec.schedule_created",
+      "publisher_module": "gl",
+      "consumer_modules": [],
+      "event_type": "revrec.schedule_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "sales.so.released",
+      "publisher_module": "sales",
+      "consumer_modules": [
+        "shipping-receiving"
+      ],
+      "event_type": "sales.so.released",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "shipping_receiving.inbound_closed",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "shipping_receiving.inbound_closed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "shipping_receiving.outbound_delivered",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "shipping_receiving.outbound_delivered",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "shipping_receiving.outbound_shipped",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "shipping_receiving.outbound_shipped",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "shipping_receiving.shipment_created",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "shipping_receiving.shipment_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "shipping_receiving.shipment_status_changed",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "shipping_receiving.shipment_status_changed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "smoke_test.item_created",
+      "publisher_module": "smoke-test",
+      "consumer_modules": [
+        "smoke-test"
+      ],
+      "event_type": "smoke_test.item_created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "sr.carrier_request.created",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "sr.carrier_request.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "sr.receipt_routed_to_inspection.v1",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "sr.receipt_routed_to_inspection.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "sr.receipt_routed_to_stock.v1",
+      "publisher_module": "shipping-receiving",
+      "consumer_modules": [],
+      "event_type": "sr.receipt_routed_to_stock.v1",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "step.decision_recorded",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "step.decision_recorded",
+      "description": "Event emitted when an actor records a decision at a parallel routing step",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "step_id",
+        "actor_id",
+        "decision",
+        "current_count",
+        "threshold"
+      ],
+      "schema_file": "contracts/events/workflow-step-decision-recorded.v1.json"
+    },
+    {
+      "subject": "step.parallel_threshold_met",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "step.parallel_threshold_met",
+      "description": "Event emitted when a parallel step reaches its required decision threshold and auto-advances",
+      "payload_fields": [
+        "instance_id",
+        "tenant_id",
+        "step_id",
+        "decision_count",
+        "threshold",
+        "target_step"
+      ],
+      "schema_file": "contracts/events/workflow-step-parallel-threshold-met.v1.json"
+    },
+    {
+      "subject": "subscriptions.events.subscriptions.billrun.executed",
+      "publisher_module": "subscriptions",
+      "consumer_modules": [],
+      "event_type": "subscriptions.billrun.executed",
+      "description": "Event emitted when a billing cycle (bill run) is executed",
+      "payload_fields": [
+        "bill_run_id",
+        "execution_date",
+        "subscriptions_processed",
+        "invoices_created",
+        "failures",
+        "execution_time",
+        "subscription_ids",
+        "failed_subscription_ids"
+      ],
+      "schema_file": "contracts/events/subscriptions-billrun-executed.v1.json"
+    },
+    {
+      "subject": "subscriptions.events.subscriptions.created",
+      "publisher_module": "subscriptions",
+      "consumer_modules": [],
+      "event_type": "subscriptions.created",
+      "description": "Event emitted when a new subscription is created",
+      "payload_fields": [
+        "subscription_id",
+        "ar_customer_id",
+        "plan_id",
+        "schedule",
+        "price_minor",
+        "currency",
+        "start_date",
+        "next_bill_date",
+        "status"
+      ],
+      "schema_file": "contracts/events/subscriptions-created.v1.json"
+    },
+    {
+      "subject": "subscriptions.events.subscriptions.paused",
+      "publisher_module": "subscriptions",
+      "consumer_modules": [],
+      "event_type": "subscriptions.paused",
+      "description": "Event emitted when a subscription is paused",
+      "payload_fields": [
+        "subscription_id",
+        "ar_customer_id",
+        "paused_at",
+        "status",
+        "previous_status",
+        "reason"
+      ],
+      "schema_file": "contracts/events/subscriptions-paused.v1.json"
+    },
+    {
+      "subject": "subscriptions.events.subscriptions.resumed",
+      "publisher_module": "subscriptions",
+      "consumer_modules": [],
+      "event_type": "subscriptions.resumed",
+      "description": "Event emitted when a paused subscription is resumed",
+      "payload_fields": [
+        "subscription_id",
+        "ar_customer_id",
+        "resumed_at",
+        "next_bill_date",
+        "status",
+        "previous_status"
+      ],
+      "schema_file": "contracts/events/subscriptions-resumed.v1.json"
+    },
+    {
+      "subject": "tax.committed",
+      "publisher_module": "unknown",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "tax.committed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "tax.voided",
+      "publisher_module": "unknown",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "tax.voided",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "test.ingest.bus.events",
+      "publisher_module": "",
+      "consumer_modules": [
+        "reporting"
+      ],
+      "event_type": "test.ingest.bus.events",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "timekeeping.billable_time",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timekeeping.billable_time",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "timekeeping.labor_cost",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [
+        "gl"
+      ],
+      "event_type": "timekeeping.labor_cost",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "timesheet.approved",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet.approved",
+      "description": "Emitted when a reviewer approves a submitted timesheet. Approval locks the period, preventing further entry modifications.",
+      "payload_fields": [
+        "approval_id",
+        "app_id",
+        "employee_id",
+        "period_start",
+        "period_end",
+        "reviewer_id",
+        "total_minutes"
+      ],
+      "schema_file": "contracts/events/timekeeping-timesheet-approved.v1.json"
+    },
+    {
+      "subject": "timesheet.recalled",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet.recalled",
+      "description": "Emitted when an employee recalls a submitted timesheet before it is reviewed. Transitions status from submitted back to draft.",
+      "payload_fields": [
+        "approval_id",
+        "app_id",
+        "employee_id",
+        "period_start",
+        "period_end"
+      ],
+      "schema_file": "contracts/events/timekeeping-timesheet-recalled.v1.json"
+    },
+    {
+      "subject": "timesheet.rejected",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet.rejected",
+      "description": "Emitted when a reviewer rejects a submitted timesheet. Employee can correct entries and resubmit.",
+      "payload_fields": [
+        "approval_id",
+        "app_id",
+        "employee_id",
+        "period_start",
+        "period_end",
+        "reviewer_id",
+        "notes"
+      ],
+      "schema_file": "contracts/events/timekeeping-timesheet-rejected.v1.json"
+    },
+    {
+      "subject": "timesheet.submitted",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet.submitted",
+      "description": "Emitted when an employee submits a timesheet for a period. Transitions approval status from draft/rejected to submitted.",
+      "payload_fields": [
+        "approval_id",
+        "app_id",
+        "employee_id",
+        "period_start",
+        "period_end",
+        "total_minutes"
+      ],
+      "schema_file": "contracts/events/timekeeping-timesheet-submitted.v1.json"
+    },
+    {
+      "subject": "timesheet_entry.corrected",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet_entry.corrected",
+      "description": "Emitted when a timesheet entry is corrected. Append-only: the original row is marked is_current=FALSE and a new correction row is inserted with incremented version.",
+      "payload_fields": [
+        "entry_id",
+        "app_id",
+        "employee_id",
+        "work_date",
+        "old_minutes",
+        "new_minutes",
+        "version"
+      ],
+      "schema_file": "contracts/events/timekeeping-entry-corrected.v1.json"
+    },
+    {
+      "subject": "timesheet_entry.created",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet_entry.created",
+      "description": "Emitted when a new timesheet entry is created. Follows Guard-Mutation-Outbox atomicity. The entry_id identifies the logical entry; version starts at 1.",
+      "payload_fields": [
+        "entry_id",
+        "app_id",
+        "employee_id",
+        "work_date",
+        "minutes",
+        "version"
+      ],
+      "schema_file": "contracts/events/timekeeping-entry-created.v1.json"
+    },
+    {
+      "subject": "timesheet_entry.voided",
+      "publisher_module": "timekeeping",
+      "consumer_modules": [],
+      "event_type": "timesheet_entry.voided",
+      "description": "Emitted when a timesheet entry is voided (cancelled). A void row with minutes=0 is appended and the previous version is marked is_current=FALSE.",
+      "payload_fields": [
+        "entry_id",
+        "app_id",
+        "employee_id",
+        "work_date",
+        "voided_minutes",
+        "version"
+      ],
+      "schema_file": "contracts/events/timekeeping-entry-voided.v1.json"
+    },
+    {
+      "subject": "treasury.events.bank_account.created",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "bank_account.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.bank_account.deactivated",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "bank_account.deactivated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.bank_account.updated",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "bank_account.updated",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.bank_statement.imported",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "bank_statement.imported",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.recon.auto_matched",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "recon.auto_matched",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.recon.gl_linked",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "recon.gl_linked",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "treasury.events.recon.manual_matched",
+      "publisher_module": "treasury",
+      "consumer_modules": [],
+      "event_type": "recon.manual_matched",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ttp.billing_run.completed",
+      "publisher_module": "ttp",
+      "consumer_modules": [],
+      "event_type": "ttp.billing_run.completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ttp.billing_run.created",
+      "publisher_module": "ttp",
+      "consumer_modules": [],
+      "event_type": "ttp.billing_run.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ttp.billing_run.failed",
+      "publisher_module": "ttp",
+      "consumer_modules": [],
+      "event_type": "ttp.billing_run.failed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "ttp.party.invoiced",
+      "publisher_module": "ttp",
+      "consumer_modules": [],
+      "event_type": "ttp.party.invoiced",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "user.lifecycle.access_review_recorded",
+      "publisher_module": "identity",
+      "consumer_modules": [],
+      "event_type": "user.lifecycle.access_review_recorded",
+      "description": "Event emitted when an access review decision is recorded for a user",
+      "payload_fields": [
+        "user_id",
+        "reviewed_by",
+        "review_id",
+        "decision",
+        "notes"
+      ],
+      "schema_file": "contracts/events/identity-access-review-recorded.v1.json"
+    },
+    {
+      "subject": "user.lifecycle.role_assigned",
+      "publisher_module": "identity",
+      "consumer_modules": [],
+      "event_type": "user.lifecycle.role_assigned",
+      "description": "Event emitted when a role is assigned to a user",
+      "payload_fields": [
+        "user_id",
+        "role_id"
+      ],
+      "schema_file": "contracts/events/identity-role-assigned.v1.json"
+    },
+    {
+      "subject": "user.lifecycle.role_revoked",
+      "publisher_module": "identity",
+      "consumer_modules": [],
+      "event_type": "user.lifecycle.role_revoked",
+      "description": "Event emitted when a role is revoked from a user",
+      "payload_fields": [
+        "user_id",
+        "role_id"
+      ],
+      "schema_file": "contracts/events/identity-role-revoked.v1.json"
+    },
+    {
+      "subject": "user.lifecycle.user_created",
+      "publisher_module": "identity",
+      "consumer_modules": [],
+      "event_type": "user.lifecycle.user_created",
+      "description": "Event emitted when a new user identity is created in the platform",
+      "payload_fields": [
+        "user_id",
+        "reviewed_by",
+        "review_id",
+        "decision",
+        "notes"
+      ],
+      "schema_file": "contracts/events/identity-user-created.v1.json"
+    },
+    {
+      "subject": "webhook.received",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "webhook.received",
+      "description": "Event emitted when a raw webhook payload is persisted to the ingest table",
+      "payload_fields": [
+        "ingest_id",
+        "system",
+        "event_type",
+        "idempotency_key",
+        "received_at"
+      ],
+      "schema_file": "contracts/events/integrations-webhook-received.v1.json"
+    },
+    {
+      "subject": "webhook.routed",
+      "publisher_module": "integrations",
+      "consumer_modules": [],
+      "event_type": "webhook.routed",
+      "description": "Event emitted after an inbound webhook has been translated to a domain event",
+      "payload_fields": [
+        "ingest_id",
+        "system",
+        "source_event_type",
+        "domain_event_type",
+        "outbox_event_id",
+        "routed_at"
+      ],
+      "schema_file": "contracts/events/integrations-webhook-routed.v1.json"
+    },
+    {
+      "subject": "workflow.events.definition.created",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.definition.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.delegation.created",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.delegation.created",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.delegation.revoked",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.delegation.revoked",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.escalation.fired",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.escalation.fired",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.hold.applied",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.hold.applied",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.hold.released",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.hold.released",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.instance.advanced",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.instance.advanced",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.instance.cancelled",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.instance.cancelled",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.instance.completed",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.instance.completed",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.instance.started",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.instance.started",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workflow.events.step.decision_recorded",
+      "publisher_module": "workflow",
+      "consumer_modules": [],
+      "event_type": "workflow.events.step.decision_recorded",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workforce_competence.acceptance_authority_granted",
+      "publisher_module": "workforce-competence",
+      "consumer_modules": [],
+      "event_type": "workforce_competence.acceptance_authority_granted",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workforce_competence.acceptance_authority_revoked",
+      "publisher_module": "workforce-competence",
+      "consumer_modules": [],
+      "event_type": "workforce_competence.acceptance_authority_revoked",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workforce_competence.artifact_registered",
+      "publisher_module": "workforce-competence",
+      "consumer_modules": [],
+      "event_type": "workforce_competence.artifact_registered",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    },
+    {
+      "subject": "workforce_competence.competence_assigned",
+      "publisher_module": "workforce-competence",
+      "consumer_modules": [],
+      "event_type": "workforce_competence.competence_assigned",
+      "description": "",
+      "payload_fields": [],
+      "schema_file": ""
+    }
+  ]
+}
