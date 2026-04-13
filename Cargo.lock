@@ -121,9 +121,10 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.3.3"
+version = "3.4.0"
 dependencies = [
  "async-nats",
+ "audit",
  "axum",
  "chrono",
  "dotenvy",
@@ -155,9 +156,10 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.3.2"
+version = "6.4.0"
 dependencies = [
  "async-nats",
+ "audit",
  "axum",
  "axum-extra",
  "base64",
@@ -1457,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "control-plane"
-version = "1.5.1"
+version = "1.6.0"
 dependencies = [
  "axum",
  "axum-test",
@@ -1467,6 +1469,7 @@ dependencies = [
  "health",
  "jsonwebtoken",
  "rand 0.8.5",
+ "reqwest",
  "rsa",
  "security",
  "serde",
@@ -2540,9 +2543,10 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "async-nats",
+ "audit",
  "axum",
  "chrono",
  "config-validator",
@@ -3177,7 +3181,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.6.2"
+version = "2.7.0"
 dependencies = [
  "axum",
  "chrono",
@@ -4751,6 +4755,7 @@ dependencies = [
 name = "production-rs"
 version = "3.4.1"
 dependencies = [
+ "audit",
  "axum",
  "chrono",
  "config-validator",
@@ -5100,6 +5105,25 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "reconciliation"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "hex",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -5819,7 +5843,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "3.4.0"
+version = "3.4.1"
 dependencies = [
  "async-nats",
  "async-trait",

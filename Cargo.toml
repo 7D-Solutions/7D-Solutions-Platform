@@ -50,6 +50,7 @@ members = [
   "tools/demo-seed",
   "tools/stabilization-gate",
   "tools/client-codegen",
+  "tools/reconciliation",
   "clients/party",
   "clients/ar",
   "clients/platform-client-doc-mgmt",
