@@ -87,6 +87,8 @@ pub struct ModuleBuilder {
     authz_gate: Option<Arc<AuthzGateConfig>>,
     /// Named rate limit tiers registered via `.rate_limit_tier()`.
     rate_limit_tiers: Vec<(String, RateLimitConfig, Vec<String>)>,
+    /// Optional tenant readiness checker for `GET /api/ready?tenant_id=`.
+    tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
 }
 
 impl ModuleBuilder {
@@ -120,6 +122,7 @@ impl ModuleBuilder {
             csrf_protection: false,
             authz_gate: None,
             rate_limit_tiers: Vec::new(),
+            tenant_readiness: None,
         }
     }
 
@@ -519,6 +522,37 @@ impl ModuleBuilder {
         self
     }
 
+    /// Register a tenant readiness checker for `GET /api/ready?tenant_id=`.
+    ///
+    /// When registered, `/api/ready?tenant_id={uuid}` runs the global checks
+    /// (DB, NATS) and additionally calls `checker.is_ready(tenant_id)`. The
+    /// result appears in the response as `tenant: { id, status: "up"|"warming" }`.
+    ///
+    /// A warming tenant does **not** change the HTTP status code — the probe
+    /// returns 200 as long as the global checks pass.
+    ///
+    /// Without `?tenant_id=` the endpoint behaves identically to before.
+    ///
+    /// # Typical usage
+    ///
+    /// ```rust,ignore
+    /// let registry = Arc::new(TenantReadinessRegistry::new());
+    ///
+    /// // In tenant.provisioned consumer:
+    /// registry.set_ready(tenant_id);
+    ///
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .tenant_readiness_check(registry)
+    ///     ...
+    /// ```
+    pub fn tenant_readiness_check(
+        mut self,
+        checker: Arc<dyn health::TenantReadinessCheck>,
+    ) -> Self {
+        self.tenant_readiness = Some(checker);
+        self
+    }
+
     /// Enable blob storage for this module.
     ///
     /// The SDK reads the bucket name from the `[blob]` section of `module.toml`
@@ -724,6 +758,7 @@ impl ModuleBuilder {
             skip_tracing: self.skip_tracing,
             csrf_protection: self.csrf_protection,
             authz_gate: self.authz_gate,
+            tenant_readiness: self.tenant_readiness,
         };
         startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
             .await

@@ -6,9 +6,13 @@
 //!
 //! See `docs/HEALTH-CONTRACT.md` for the full specification.
 
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
+
 use axum::{http::StatusCode, Json};
 use chrono::Utc;
 use serde::Serialize;
+use uuid::Uuid;
 
 /// Status reported by a readiness check.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -50,6 +54,70 @@ pub enum ReadyStatus {
     Down,
 }
 
+/// Status of a tenant-scoped readiness probe.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TenantReadyStatus {
+    Up,
+    Warming,
+}
+
+/// Per-tenant readiness result included in `/api/ready?tenant_id=` responses.
+#[derive(Debug, Clone, Serialize)]
+pub struct TenantReadiness {
+    pub id: String,
+    pub status: TenantReadyStatus,
+}
+
+/// Trait for tenant-scoped readiness probes.
+///
+/// Implement in modules that subscribe to `tenant.provisioned` events.
+/// Call [`TenantReadinessRegistry::set_ready`] from the event consumer to
+/// signal that this module has finished setting up for that tenant.
+pub trait TenantReadinessCheck: Send + Sync {
+    /// Returns `true` when the module has finished processing this tenant.
+    fn is_ready(&self, tenant_id: Uuid) -> bool;
+}
+
+/// Thread-safe registry of tenant provisioning state.
+///
+/// Typical usage:
+/// ```rust,ignore
+/// let registry = Arc::new(TenantReadinessRegistry::new());
+///
+/// // In the tenant.provisioned consumer:
+/// registry.set_ready(tenant_id);
+///
+/// // In the module builder:
+/// ModuleBuilder::from_manifest("module.toml")
+///     .tenant_readiness_check(registry.clone())
+///     ...
+/// ```
+#[derive(Default, Clone)]
+pub struct TenantReadinessRegistry {
+    inner: Arc<Mutex<HashSet<Uuid>>>,
+}
+
+impl TenantReadinessRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Mark a tenant as ready.
+    ///
+    /// Call this when the `tenant.provisioned` consumer successfully finishes
+    /// all per-tenant setup for this module.
+    pub fn set_ready(&self, tenant_id: Uuid) {
+        self.inner.lock().expect("TenantReadinessRegistry lock poisoned").insert(tenant_id);
+    }
+}
+
+impl TenantReadinessCheck for TenantReadinessRegistry {
+    fn is_ready(&self, tenant_id: Uuid) -> bool {
+        self.inner.lock().expect("TenantReadinessRegistry lock poisoned").contains(&tenant_id)
+    }
+}
+
 /// Canonical `/api/ready` response body.
 #[derive(Debug, Clone, Serialize)]
 pub struct ReadyResponse {
@@ -59,6 +127,9 @@ pub struct ReadyResponse {
     pub degraded: bool,
     pub checks: Vec<HealthCheck>,
     pub timestamp: String,
+    /// Present only when `?tenant_id=` is supplied to `/api/ready`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant: Option<TenantReadiness>,
 }
 
 /// Canonical `/healthz` response body.
@@ -99,6 +170,7 @@ pub fn build_ready_response(
         degraded,
         checks,
         timestamp: Utc::now().to_rfc3339(),
+        tenant: None,
     }
 }
 
@@ -192,7 +264,7 @@ mod tests {
         let resp = HealthzResponse {
             status: "alive".to_string(),
         };
-        let json = serde_json::to_value(&resp).unwrap();
+        let json = serde_json::to_value(&resp).expect("serialization failed");
         assert_eq!(json["status"], "alive");
     }
 
@@ -200,18 +272,18 @@ mod tests {
     fn ready_response_serializes_correctly() {
         let checks = vec![db_check(3, None), nats_check(true, 1)];
         let resp = build_ready_response("identity-auth", "1.2.0", checks);
-        let json = serde_json::to_value(&resp).unwrap();
+        let json = serde_json::to_value(&resp).expect("serialization failed");
         assert_eq!(json["service_name"], "identity-auth");
         assert_eq!(json["status"], "ready");
         assert_eq!(json["degraded"], false);
-        assert_eq!(json["checks"].as_array().unwrap().len(), 2);
+        assert_eq!(json["checks"].as_array().expect("checks must be array").len(), 2);
         assert!(json["timestamp"].as_str().is_some());
     }
 
     #[test]
     fn db_check_without_pool_omits_pool_field() {
         let c = db_check(5, None);
-        let json = serde_json::to_value(&c).unwrap();
+        let json = serde_json::to_value(&c).expect("serialization failed");
         assert!(json.get("pool").is_none());
     }
 
@@ -223,7 +295,7 @@ mod tests {
             active: 3,
         };
         let c = db_check_with_pool(5, None, metrics);
-        let json = serde_json::to_value(&c).unwrap();
+        let json = serde_json::to_value(&c).expect("serialization failed");
         let pool = json.get("pool").expect("pool field must be present");
         assert_eq!(pool["size"], 10);
         assert_eq!(pool["idle"], 7);

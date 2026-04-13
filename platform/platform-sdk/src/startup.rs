@@ -3,7 +3,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -395,6 +395,9 @@ pub(crate) struct MiddlewareFlags {
     /// Optional route-level permission enforcement configuration.
     /// When `Some`, an AuthzGate middleware layer is inserted after JWT auth.
     pub authz_gate: Option<Arc<crate::authz_gate::AuthzGateConfig>>,
+    /// Optional tenant readiness checker wired into `GET /api/ready?tenant_id=`.
+    /// When `None`, the `?tenant_id=` parameter is silently ignored.
+    pub tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
 }
 
 /// Phase B: HTTP stack assembly and server start.
@@ -445,6 +448,7 @@ pub(crate) async fn phase_b(
         phase_a.pool.clone(),
         phase_a.bus.clone(),
         probe_nats,
+        flags.tenant_readiness.clone(),
     );
 
     // Env-based overrides for host/port
@@ -575,6 +579,14 @@ pub(crate) async fn phase_b(
     Ok(())
 }
 
+/// Query parameters for the `/api/ready` endpoint.
+#[derive(serde::Deserialize)]
+struct ReadyParams {
+    /// When provided, runs the module's `TenantReadinessCheck` in addition to global checks.
+    /// Returns a `tenant` object in the response body. Does not affect the HTTP status code.
+    tenant_id: Option<uuid::Uuid>,
+}
+
 /// Build observability routes that are always served regardless of middleware config.
 ///
 /// These are not middleware — they are endpoints that orchestrators (k8s, Docker)
@@ -585,6 +597,7 @@ pub(crate) fn build_observability_routes(
     pool: sqlx::PgPool,
     bus: Option<Arc<dyn EventBus>>,
     probe_nats: bool,
+    tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
 ) -> Router {
     if probe_nats && bus.is_none() {
         tracing::warn!(
@@ -633,7 +646,8 @@ pub(crate) fn build_observability_routes(
                 let ready_version = version.clone();
                 let ready_pool = pool.clone();
                 let ready_bus = if probe_nats { bus.clone() } else { None };
-                move || async move {
+                let ready_checker = tenant_readiness.clone();
+                move |Query(params): Query<ReadyParams>| async move {
                     let mut checks = Vec::new();
 
                     let start = std::time::Instant::now();
@@ -652,8 +666,32 @@ pub(crate) fn build_observability_routes(
                         checks.push(health::nats_check(connected, nats_latency));
                     }
 
-                    let resp =
+                    let mut resp =
                         health::build_ready_response(&ready_name, &ready_version, checks);
+
+                    // Tenant-scoped probe — only runs when ?tenant_id= is supplied.
+                    // A non-ready tenant returns `status: "warming"` but does NOT
+                    // change the global HTTP status code. If the probe times out or
+                    // the checker is absent, the field is silently omitted.
+                    if let (Some(tid), Some(checker)) = (params.tenant_id, ready_checker.as_ref()) {
+                        let checker = Arc::clone(checker);
+                        let tenant_ready = tokio::time::timeout(
+                            std::time::Duration::from_millis(500),
+                            async move { checker.is_ready(tid) },
+                        )
+                        .await
+                        .unwrap_or(false);
+
+                        resp.tenant = Some(health::TenantReadiness {
+                            id: tid.to_string(),
+                            status: if tenant_ready {
+                                health::TenantReadyStatus::Up
+                            } else {
+                                health::TenantReadyStatus::Warming
+                            },
+                        });
+                    }
+
                     health::ready_response_to_axum(resp)
                 }
             }),
