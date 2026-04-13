@@ -1,6 +1,6 @@
 [package]
 name = "control-plane"
-version = "1.5.1"
+version = "1.6.0"
 edition = "2021"
 description = "Tenant provisioning, platform billing orchestration, and data retention"
 publish = ["7d-platform"]
@@ -31,6 +31,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.6", features = ["trace"] }
 futures = "0.3"
 thiserror = "2.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 tenant-registry = { path = "../../platform/tenant-registry" }
 health = { path = "../health" }

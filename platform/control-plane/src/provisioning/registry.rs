@@ -16,6 +16,41 @@ pub struct ModuleProvisioningConfig {
     pub postgres_user: String,
     pub postgres_password: String,
     pub migrations_path: PathBuf,
+    /// HTTP base URL for the module service (e.g. http://7d-ar:8086).
+    /// Used to poll /api/ready?tenant_id= during activation.
+    pub http_base_url: String,
+}
+
+/// Return the default HTTP port for a known module code.
+pub fn default_http_port_for(module_code: &str) -> u16 {
+    match module_code {
+        "ar" => 8086,
+        "gl" => 8090,
+        "ap" => 8093,
+        "inventory" => 8084,
+        "production" => 8085,
+        "shipping-receiving" => 8087,
+        "bom" => 8088,
+        "workflow" => 8089,
+        "subscriptions" => 8092,
+        "crm" => 8094,
+        "payroll" => 8095,
+        "hr" => 8096,
+        "assets" => 8097,
+        "projects" => 8098,
+        "purchasing" => 8099,
+        "quality" => 8100,
+        "analytics" => 8101,
+        "documents" => 8102,
+        "compliance" => 8103,
+        "maintenance" => 8104,
+        "fleet" => 8105,
+        "real-estate" => 8106,
+        "pos" => 8107,
+        "ecommerce" => 8108,
+        "marketplace" => 8109,
+        _ => 8080,
+    }
 }
 
 /// Registry of all modules available for provisioning
@@ -47,10 +82,13 @@ impl ModuleRegistry {
             let port_key = format!("{upper}_POSTGRES_PORT");
             let user_key = format!("{upper}_POSTGRES_USER");
             let pass_key = format!("{upper}_POSTGRES_PASSWORD");
+            let base_url_key = format!("{upper}_BASE_URL");
 
             let default_host = format!("7d-{code}-postgres");
             let default_user = format!("{code}_user");
             let default_pass = format!("{code}_pass");
+            let default_http_port = default_http_port_for(code);
+            let default_base_url = format!("http://7d-{code}:{default_http_port}");
 
             let host = std::env::var(&host_key).unwrap_or(default_host);
             let port: u16 = std::env::var(&port_key)
@@ -59,6 +97,7 @@ impl ModuleRegistry {
                 .unwrap_or(5432);
             let user = std::env::var(&user_key).unwrap_or(default_user);
             let password = std::env::var(&pass_key).unwrap_or(default_pass);
+            let http_base_url = std::env::var(&base_url_key).unwrap_or(default_base_url);
 
             let migrations_path =
                 PathBuf::from(&migrations_root).join(format!("modules/{code}/db/migrations"));
@@ -72,6 +111,7 @@ impl ModuleRegistry {
                     postgres_user: user,
                     postgres_password: password,
                     migrations_path,
+                    http_base_url,
                 },
             );
         }
@@ -144,6 +184,7 @@ mod tests {
         assert_eq!(ar.postgres_port, 5432);
         assert_eq!(ar.postgres_user, "ar_user");
         assert!(ar.migrations_path.ends_with("modules/ar/db/migrations"));
+        assert_eq!(ar.http_base_url, "http://7d-ar:8086");
     }
 
     #[test]
@@ -155,6 +196,7 @@ mod tests {
             postgres_user: "ar_user".to_string(),
             postgres_password: "ar_pass".to_string(),
             migrations_path: PathBuf::from("./modules/ar/db/migrations"),
+            http_base_url: "http://localhost:8086".to_string(),
         };
         assert_eq!(
             config.admin_url(),
@@ -171,6 +213,7 @@ mod tests {
             postgres_user: "ar_user".to_string(),
             postgres_password: "ar_pass".to_string(),
             migrations_path: PathBuf::from("./modules/ar/db/migrations"),
+            http_base_url: "http://localhost:8086".to_string(),
         };
         assert_eq!(
             config.tenant_db_url("tenant_abc_ar_db"),
@@ -182,5 +225,13 @@ mod tests {
     fn registry_returns_none_for_unknown_module() {
         let registry = ModuleRegistry::from_env(&["ar".to_string()]);
         assert!(registry.get("unknown").is_none());
+    }
+
+    #[test]
+    fn default_http_ports_are_correct() {
+        assert_eq!(default_http_port_for("ar"), 8086);
+        assert_eq!(default_http_port_for("gl"), 8090);
+        assert_eq!(default_http_port_for("ap"), 8093);
+        assert_eq!(default_http_port_for("inventory"), 8084);
     }
 }

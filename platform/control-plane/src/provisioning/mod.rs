@@ -27,6 +27,9 @@ const MAX_RETRIES: u32 = 3;
 /// Backoff schedule for retries (seconds)
 const RETRY_BACKOFFS: [u64; 3] = [0, 2, 8];
 
+/// Total time budget for polling module /api/ready endpoints during activation
+const ACTIVATE_READY_TIMEOUT: Duration = Duration::from_secs(90);
+
 /// Interval for recovery polling (checks for stuck tenants)
 const RECOVERY_POLL_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -160,6 +163,10 @@ pub async fn provision_tenant(
     match status.as_ref().map(|s| s.0.as_str()) {
         Some("active") => {
             tracing::info!(tenant_id = %tenant_id, "already active — skipping");
+            return Ok(());
+        }
+        Some("degraded") => {
+            tracing::info!(tenant_id = %tenant_id, "tenant degraded — skipping (use retry endpoint)");
             return Ok(());
         }
         Some("failed") => {
@@ -359,7 +366,21 @@ async fn execute_step(
         step_names::VERIFY_SCHEMA_VERSIONS => {
             steps::verify_schema_versions(pool, tenant_id, module_codes, registry).await
         }
-        step_names::ACTIVATE_TENANT => steps::activate_tenant(pool, tenant_id).await,
+        step_names::ACTIVATE_TENANT => {
+            let http_client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(10))
+                .build()
+                .unwrap_or_default();
+            steps::activate_tenant(
+                pool,
+                tenant_id,
+                module_codes,
+                registry,
+                &http_client,
+                ACTIVATE_READY_TIMEOUT,
+            )
+            .await
+        }
         unknown => Err(StepError::InvalidState(format!(
             "unknown step: {unknown}"
         ))),

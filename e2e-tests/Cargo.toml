@@ -124,6 +124,10 @@ name = "provisioning_api_e2e"
 path = "tests/provisioning_api_e2e.rs"
 
 [[test]]
+name = "tenant_provisioning_api_e2e"
+path = "tests/tenant_provisioning_api_e2e.rs"
+
+[[test]]
 name = "provisioning_full_lifecycle_e2e"
 path = "tests/provisioning_full_lifecycle_e2e.rs"
 
@@ -746,6 +750,10 @@ name = "production_composite_e2e"
 path = "tests/production_composite_e2e.rs"
 
 [[test]]
+name = "composite_wo_failure_injection_e2e"
+path = "tests/composite_wo_failure_injection_e2e.rs"
+
+[[test]]
 name = "shipping_receiving_e2e"
 path = "tests/shipping_receiving_e2e.rs"
 
@@ -764,3 +772,7 @@ path = "tests/pdf_editor_http_smoke.rs"
 [[test]]
 name = "auth_rbac_coverage_e2e"
 path = "tests/auth_rbac_coverage_e2e.rs"
+
+[[test]]
+name = "tenant_activation_race_e2e"
+path = "tests/tenant_activation_race_e2e.rs"

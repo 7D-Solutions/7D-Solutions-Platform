@@ -115,5 +115,9 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
 pub fn provisioning_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/control/tenants", post(handlers::create_tenant))
+        .route(
+            "/api/control/tenants/{tenant_id}/provisioning",
+            get(handlers::provisioning_status),
+        )
         .with_state(state)
 }

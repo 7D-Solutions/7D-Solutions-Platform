@@ -18,6 +18,15 @@ pub struct ProvisioningStatusResponse {
     pub tenant_id: Uuid,
     pub status: String,
     pub steps: Vec<ProvisioningStepDto>,
+    pub module_statuses: Vec<ModuleStatusDto>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ModuleStatusDto {
+    pub module_code: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,10 +90,38 @@ pub async fn provisioning_status(
         })
         .collect();
 
+    // Get per-module status from cp_tenant_module_status.
+    // Modules in the tenant's bundle that haven't been seeded yet appear as 'pending'.
+    let module_rows: Vec<ModuleStatusRow> = sqlx::query_as(
+        "SELECT bm.module_code, \
+                COALESCE(ms.status, 'pending') AS status, \
+                ms.error_msg \
+         FROM   cp_tenant_bundle tb \
+         JOIN   cp_bundle_modules bm ON bm.bundle_id = tb.bundle_id \
+         LEFT JOIN cp_tenant_module_status ms \
+             ON ms.tenant_id = tb.tenant_id AND ms.module_code = bm.module_code \
+         WHERE  tb.tenant_id = $1 \
+         ORDER BY bm.module_code",
+    )
+    .bind(tenant_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(db_error)?;
+
+    let module_statuses: Vec<ModuleStatusDto> = module_rows
+        .into_iter()
+        .map(|r| ModuleStatusDto {
+            module_code: r.module_code,
+            status: r.status,
+            error: r.error_msg,
+        })
+        .collect();
+
     Ok(Json(ProvisioningStatusResponse {
         tenant_id,
         status: tenant_status,
         steps,
+        module_statuses,
     }))
 }
 
@@ -96,6 +133,13 @@ struct StepRow {
     started_at: Option<chrono::DateTime<chrono::Utc>>,
     completed_at: Option<chrono::DateTime<chrono::Utc>>,
     error_message: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct ModuleStatusRow {
+    module_code: String,
+    status: String,
+    error_msg: Option<String>,
 }
 
 fn db_error(e: sqlx::Error) -> (StatusCode, Json<ErrorBody>) {

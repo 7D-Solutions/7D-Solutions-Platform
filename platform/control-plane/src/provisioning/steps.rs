@@ -4,10 +4,13 @@
 //! Step status tracking lives in the sibling `tracking` module.
 
 use chrono::Utc;
+use futures::future::join_all;
 use serde_json::json;
 use sqlx::{Connection, PgConnection, PgPool};
 use std::collections::HashMap;
+use std::time::Duration;
 use tenant_registry::event_types;
+use tokio::time::{sleep, timeout_at, Instant};
 use uuid::Uuid;
 
 use super::registry::{ModuleProvisioningConfig, ModuleRegistry};
@@ -361,27 +364,38 @@ pub async fn verify_schema_versions(
 // Step 7 — Activate tenant
 // ============================================================================
 
-pub async fn activate_tenant(pool: &PgPool, tenant_id: Uuid) -> Result<StepOutcome, StepError> {
-    let now = Utc::now();
-
+/// Publish `tenant.provisioned` to the outbox, then poll every module's
+/// `/api/ready?tenant_id=` endpoint until all respond `up` or the deadline
+/// expires.
+///
+/// Returns `Ok` in both cases (active and degraded) — the tenant status is
+/// written inside this function. The caller can inspect `checks["status"]` to
+/// distinguish the two outcomes.
+pub async fn activate_tenant(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    module_codes: &[String],
+    registry: &ModuleRegistry,
+    http_client: &reqwest::Client,
+    ready_timeout: Duration,
+) -> Result<StepOutcome, StepError> {
+    // Verify tenant is in provisioning state
     let rows = sqlx::query(
-        "UPDATE tenants SET status = 'active', updated_at = $1 \
-         WHERE tenant_id = $2 AND status = 'provisioning'",
+        "SELECT 1 FROM tenants WHERE tenant_id = $1 AND status = 'provisioning'",
     )
-    .bind(now)
     .bind(tenant_id)
-    .execute(pool)
-    .await?
-    .rows_affected();
+    .fetch_optional(pool)
+    .await?;
 
-    if rows == 0 {
+    if rows.is_none() {
         return Err(StepError::InvalidState(format!(
             "tenant {tenant_id} not in provisioning status"
         )));
     }
 
-    // Write tenant.provisioned event to outbox
-    let payload = json!({
+    // Write tenant.provisioned event first — modules need it to init tenant state
+    let now = Utc::now();
+    let outbox_payload = json!({
         "tenant_id": tenant_id.to_string(),
         "activated_at": now.to_rfc3339(),
     });
@@ -391,12 +405,178 @@ pub async fn activate_tenant(pool: &PgPool, tenant_id: Uuid) -> Result<StepOutco
     )
     .bind(tenant_id)
     .bind(event_types::TENANT_PROVISIONED)
-    .bind(&payload)
+    .bind(&outbox_payload)
     .bind(now)
     .execute(pool)
     .await?;
 
-    Ok(StepOutcome {
-        checks: json!({"status": "active"}),
-    })
+    tracing::info!(tenant_id = %tenant_id, "tenant.provisioned written to outbox, polling modules");
+
+    // Poll all modules concurrently until ready or timeout
+    let failed_modules =
+        poll_module_readiness(tenant_id, module_codes, registry, http_client, ready_timeout).await;
+
+    let (new_status, checks) = if failed_modules.is_empty() {
+        (
+            "active",
+            json!({
+                "status": "active",
+                "modules_ready": module_codes,
+            }),
+        )
+    } else {
+        // Update failed module statuses in cp_tenant_module_status
+        for code in &failed_modules {
+            let _ = sqlx::query(
+                "UPDATE cp_tenant_module_status \
+                 SET status = 'failed', updated_at = $1 \
+                 WHERE tenant_id = $2 AND module_code = $3",
+            )
+            .bind(Utc::now())
+            .bind(tenant_id)
+            .bind(code)
+            .execute(pool)
+            .await;
+        }
+
+        tracing::warn!(
+            tenant_id = %tenant_id,
+            failed = ?failed_modules,
+            "some modules did not become ready — tenant degraded"
+        );
+
+        (
+            "degraded",
+            json!({
+                "status": "degraded",
+                "failed_modules": failed_modules,
+            }),
+        )
+    };
+
+    sqlx::query("UPDATE tenants SET status = $1, updated_at = $2 WHERE tenant_id = $3")
+        .bind(new_status)
+        .bind(Utc::now())
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+
+    Ok(StepOutcome { checks })
+}
+
+/// Poll all module readiness endpoints concurrently.
+///
+/// Returns the list of module codes that did NOT return `up` within the
+/// deadline. An empty vec means all modules are ready.
+pub async fn poll_module_readiness(
+    tenant_id: Uuid,
+    module_codes: &[String],
+    registry: &ModuleRegistry,
+    http_client: &reqwest::Client,
+    ready_timeout: Duration,
+) -> Vec<String> {
+    if module_codes.is_empty() {
+        return vec![];
+    }
+
+    let deadline = Instant::now() + ready_timeout;
+
+    let futures: Vec<_> = module_codes
+        .iter()
+        .map(|code| {
+            let url = registry.get(code).map(|cfg| {
+                format!("{}/api/ready?tenant_id={}", cfg.http_base_url, tenant_id)
+            });
+            let code = code.clone();
+            let client = http_client.clone();
+            async move {
+                match url {
+                    None => (code, false), // unknown module — treat as failed
+                    Some(url) => poll_single_module(code, url, client, deadline).await,
+                }
+            }
+        })
+        .collect();
+
+    let results = join_all(futures).await;
+
+    results
+        .into_iter()
+        .filter_map(|(code, ok)| if ok { None } else { Some(code) })
+        .collect()
+}
+
+/// Poll a single module's `/api/ready?tenant_id=` endpoint with exponential
+/// backoff until it returns `{ tenant: { status: "up" } }` or the deadline
+/// passes.
+async fn poll_single_module(
+    code: String,
+    url: String,
+    client: reqwest::Client,
+    deadline: Instant,
+) -> (String, bool) {
+    let mut backoff_ms: u64 = 200;
+
+    loop {
+        // Check deadline before each attempt
+        if Instant::now() >= deadline {
+            tracing::warn!(module = %code, "ready poll timed out");
+            return (code, false);
+        }
+
+        // Attempt the request with deadline as timeout
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return (code, false);
+        }
+
+        let result = timeout_at(
+            deadline,
+            Box::pin(client.get(&url).send()),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(resp)) if resp.status().is_success() => {
+                // Parse { tenant: { status: "up" } }
+                match resp.json::<serde_json::Value>().await {
+                    Ok(body) => {
+                        let status = body
+                            .get("tenant")
+                            .and_then(|t| t.get("status"))
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("");
+                        if status == "up" {
+                            tracing::debug!(module = %code, "module ready");
+                            return (code, true);
+                        }
+                        tracing::debug!(module = %code, tenant_status = %status, "module not yet ready");
+                    }
+                    Err(e) => {
+                        tracing::debug!(module = %code, error = %e, "failed to parse ready response");
+                    }
+                }
+            }
+            Ok(Ok(resp)) => {
+                tracing::debug!(module = %code, status = %resp.status(), "module ready endpoint returned non-success");
+            }
+            Ok(Err(e)) => {
+                tracing::debug!(module = %code, error = %e, "module ready request failed");
+            }
+            Err(_elapsed) => {
+                tracing::warn!(module = %code, "ready poll deadline exceeded");
+                return (code, false);
+            }
+        }
+
+        // Exponential backoff, capped at 10 seconds
+        let sleep_ms = backoff_ms.min(10_000);
+        let time_left = deadline.saturating_duration_since(Instant::now());
+        if time_left.is_zero() {
+            return (code, false);
+        }
+        let actual_sleep = Duration::from_millis(sleep_ms).min(time_left);
+        sleep(actual_sleep).await;
+        backoff_ms = (backoff_ms * 2).min(10_000);
+    }
 }
