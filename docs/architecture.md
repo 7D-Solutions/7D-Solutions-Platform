@@ -97,7 +97,7 @@ agent-runner.sh → agent-mail (register) → bv --robot-next
 
 #### coding_agent_session_search (CASS)
 - **Role**: Semantic search over agent session transcripts
-- **Technology**: <60ms RAG-based retrieval
+- **Technology**: Tantivy + SQLite hybrid index. p50 ~35ms; p95 ~120ms at 792k-message corpus (2026-04-11). Matched queries return in ≤35ms; zero-result queries require exhaustive index scan (~150–200ms) and grow with corpus size.
 - **Use Case**: Agents can search past work to avoid duplicating solutions
 
 ## System Integration

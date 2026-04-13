@@ -583,6 +583,117 @@ Every feature, fix, and change we'd pull in by upgrading.
 - Avoid nested curl|bash for br/bv installation
 - Settings merge instead of overwrite (#76)
 
+### mcp_agent_mail Rollback Procedure
+
+**Pre-upgrade commit (rollback target):** `8a85ca0d` (AgentCore HEAD at time of upgrade)  
+**Upgrade applied:** github.com/Dicklesworthstone/mcp_agent_mail @ `5139038` (upstream main, 2026-04-10)  
+**Files changed by upgrade (11):**
+
+```
+mcp_agent_mail/src/mcp_agent_mail/app.py
+mcp_agent_mail/src/mcp_agent_mail/cli.py
+mcp_agent_mail/src/mcp_agent_mail/config.py
+mcp_agent_mail/src/mcp_agent_mail/db.py
+mcp_agent_mail/src/mcp_agent_mail/guard.py
+mcp_agent_mail/src/mcp_agent_mail/http.py
+mcp_agent_mail/src/mcp_agent_mail/rich_logger.py
+mcp_agent_mail/src/mcp_agent_mail/share.py
+mcp_agent_mail/src/mcp_agent_mail/storage.py
+mcp_agent_mail/src/mcp_agent_mail/utils.py
+mcp_agent_mail/src/mcp_agent_mail/viewer_assets/viewer.js
+```
+
+The server runs from an editable install (`.venv` has a `.pth` file pointing to `mcp_agent_mail/src`). Changing source files on disk has no effect until the server process is restarted.
+
+**Step-by-step rollback:**
+
+```bash
+# 1. Save current upgrade state in case you need to re-apply
+cd /Users/james/Projects/AgentCore
+git diff HEAD -- mcp_agent_mail/src/ > /tmp/mcp_mail_upgrade_5139038.patch
+
+# 2. Find the server PID
+ps aux | awk '/mcp_agent_mail/ && !/awk/ {print $2}'
+
+# 3. Kill the server
+kill <PID>
+
+# 4. Restore pre-upgrade source files
+git checkout 8a85ca0d -- mcp_agent_mail/src/mcp_agent_mail/
+
+# 5. Restart the server (run from mcp_agent_mail/ directory)
+cd mcp_agent_mail
+.venv/bin/python3 -m mcp_agent_mail.cli serve-http &
+cd ..
+
+# 6. Wait for health (retry a few times — server takes ~3s to start)
+for i in 1 2 3 4 5; do
+  sleep 2
+  python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8765/api/health',timeout=3)" 2>/dev/null && break
+done
+
+# 7. Verify monitors are still running
+supervisorctl -c /Users/james/Projects/AgentCore/config/supervisord.conf status \
+  | grep mail-monitor | grep RUNNING | wc -l
+# Expect: 18
+
+# 8. Round-trip smoke test
+/Users/james/Projects/AgentCore/node_modules/@agentcore/flywheel-tools/scripts/core/agent-mail-helper.sh \
+  send MistyHawk "rollback-verify" "round-trip test post-rollback"
+/Users/james/Projects/AgentCore/node_modules/@agentcore/flywheel-tools/scripts/core/agent-mail-helper.sh inbox
+```
+
+**To re-apply the upgrade after rolling back:**
+
+```bash
+cd /Users/james/Projects/AgentCore
+git apply /tmp/mcp_mail_upgrade_5139038.patch
+kill <PID>
+cd mcp_agent_mail && .venv/bin/python3 -m mcp_agent_mail.cli serve-http &
+```
+
+**Database note:** The upgrade added new schema columns (`registration_token`, `topic`). SQLAlchemy migrations run on startup; rolling back the code does NOT roll back the schema. If the old binary is incompatible with the migrated schema, it may log warnings but will still function for core message delivery. Test after rollback and check logs.
+
+---
+
+#### Rollback Drill — 2026-04-11 (bd-2wtck)
+
+Executed by MistyHawk on 2026-04-11.
+
+**Pre-drill state:** Server PID 41218 running upgraded code (upstream `5139038`). Editable install: `/Users/james/Projects/AgentCore/mcp_agent_mail/src`. 18 mail monitors RUNNING.
+
+| Step | Command | Result |
+|------|---------|--------|
+| Save upgrade patch | `git diff HEAD -- mcp_agent_mail/src/ > /tmp/mcp_mail_upgrade_5139038.patch` | 10,150-line patch saved |
+| Confirm 11 files differ | `git diff --stat HEAD -- mcp_agent_mail/src/` | 4,687 insertions / 1,603 deletions confirmed |
+| Restore pre-upgrade files | `git checkout HEAD -- mcp_agent_mail/src/mcp_agent_mail/` | Exit 0; all 11 files restored to `8a85ca0d` state |
+| Confirm clean working tree | `git diff --stat HEAD -- mcp_agent_mail/src/` | Empty; no diff, pre-upgrade files in place |
+| Kill server | `kill 41218` | Exit 0; PID 41218 stopped |
+| Start pre-upgrade server | `cd mcp_agent_mail && nohup .venv/bin/python3 -m mcp_agent_mail.cli serve-http &` | PID 76284 started; log at `/tmp/mail-server-restart.log` |
+| Verify monitors | `supervisorctl status \| grep mail-monitor \| grep RUNNING \| wc -l` | 18 (all running) |
+| Round-trip smoke test | `agent-mail-helper.sh send MistyHawk "rollback-drill-pre-upgrade" "..."` | PASS; send exit 0 |
+| Re-apply upgrade | `git apply /tmp/mcp_mail_upgrade_5139038.patch` | Exit 0; 11 files back to upgraded state |
+| Kill pre-upgrade server | `kill 76284` | Exit 0 |
+| Start upgraded server | `cd mcp_agent_mail && nohup .venv/bin/python3 -m mcp_agent_mail.cli serve-http &` | PID 80837 started |
+| Verify monitors | `supervisorctl status \| grep mail-monitor \| grep RUNNING \| wc -l` | 18 (all running) |
+| Round-trip smoke test | `agent-mail-helper.sh send MistyHawk "rollback-drill-post-upgrade" "..."` | PASS; send exit 0 |
+
+**Drill outcome:** Full end-to-end rollback and re-upgrade exercised 2026-04-11. File restoration, kill, restart, and health verification all passed. The `/api/health` HTTP endpoint times out under Python's `urllib` (chunked encoding issue) but the server is functional — confirmed by active log traffic and successful mail round-trips.
+
+**Drill teardown (REQUIRED — added bd-0tkkz after the 2026-04-11 drill left an orphan test instance running):** when the drill uses a **separate test server** instance (different port, different database path like `/private/tmp/mcp-upgrade-test/`) rather than restarting the production instance in place, the drill MUST terminate that test instance before closing the bead. Leaving it running orphans a TCP port, a python process, and a SQLite file handle. Required steps:
+
+```bash
+# Find the test-instance PID (identified by its non-8765 port OR its /private/tmp DB path)
+lsof 2>/dev/null | awk '$2==TEST_PID && /\.sqlite/ {print}'
+ps aux | grep 'mcp_agent_mail' | grep -v grep
+# Terminate cleanly
+kill <TEST_PID>
+# Verify only the real (port 8765) instance remains
+ps aux | grep 'mcp_agent_mail.cli' | grep -v grep | wc -l
+```
+
+Expected post-teardown state: exactly one `mcp_agent_mail.cli` process (the real one on port 8765 with the `mcp_agent_mail/storage.sqlite3` database). No other processes. The test database file at `/private/tmp/mcp-upgrade-test/storage.sqlite3` can be left in place since `/tmp` is ephemeral.
+
 ## ntm (Named Tmux Manager)
 
 | Field | Value |

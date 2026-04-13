@@ -155,5 +155,15 @@ if command -v ubs &>/dev/null; then
     done
 fi
 
+# Pre-trust this workspace in all active Claude profiles so agents are never
+# shown the "Is this a project you trust?" prompt on startup.
+_PRE_TRUST="$SCRIPT_DIR_ABS/flywheel_tools/scripts/core/pre-trust-workspace.sh"
+if [ -f "$_PRE_TRUST" ]; then
+    # shellcheck disable=SC1090
+    source "$_PRE_TRUST"
+    pre_trust_workspace "$SCRIPT_DIR_ABS"
+fi
+unset _PRE_TRUST
+
 # Always try visual interface first - it will handle fzf installation
 ./scripts/visual-session-manager.sh "$@"

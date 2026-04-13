@@ -69,7 +69,7 @@ deactivate
 
 ### 5. CASS (Coding Agent Session Search)
 
-Semantic search for coding sessions (<60ms). Python.
+Semantic search for coding sessions. p50 ~35ms; p95 ~120ms at 792k-message corpus (zero-result queries exhaust the index). Python.
 
 ```bash
 cd ~/Projects/AgentCore/coding_agent_session_search
