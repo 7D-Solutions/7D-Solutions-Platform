@@ -11,6 +11,9 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
+
 use crate::domain::vendors::compute_due_date;
 use crate::events::{
     build_vendor_bill_created_envelope, BillLine as EventBillLine, VendorBillCreatedPayload,
@@ -151,6 +154,23 @@ pub async fn create_bill(
         });
         bill_lines.push(line);
     }
+
+    // Audit: record bill creation inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        Uuid::nil(),
+        "system".to_string(),
+        "CreateVendorBill".to_string(),
+        MutationClass::Create,
+        "VendorBill".to_string(),
+        bill_id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| match e {
+            platform_audit::writer::AuditWriterError::Database(db) => BillError::Database(db),
+            platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                BillError::Database(sqlx::Error::Protocol(msg))
+            }
+        })?;
 
     // Outbox: enqueue vendor_bill_created event
     let payload = VendorBillCreatedPayload {

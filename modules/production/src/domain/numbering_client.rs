@@ -76,6 +76,44 @@ impl NumberingClient {
             }
         }
     }
+    // -----------------------------------------------------------------------
+    // Void
+    // -----------------------------------------------------------------------
+
+    /// Best-effort compensating action: void (un-allocate) the WO number
+    /// associated with `idempotency_key` so that it can be reclaimed on
+    /// subsequent sequential allocations.
+    ///
+    /// This is called in the error path of `composite_create` when the
+    /// Postgres INSERT fails for a reason other than a duplicate-number
+    /// constraint (e.g. a transient DB error).  Failure here is non-fatal —
+    /// the idempotency_key still ensures the SAME number is returned on retry.
+    ///
+    /// In Platform mode: no-op (the Numbering service does not yet expose a
+    /// void endpoint).  A warning is logged; the allocated number remains
+    /// reserved but is returned on re-submission with the same idempotency_key.
+    ///
+    /// In Direct mode: deletes the `issued_numbers` row so the number is
+    /// immediately available for reuse.
+    pub async fn void_wo_number(
+        &self,
+        tenant_id: &str,
+        idempotency_key: &str,
+    ) -> Result<(), WorkOrderError> {
+        match &self.mode {
+            Mode::Platform { .. } => {
+                tracing::warn!(
+                    tenant_id = %tenant_id,
+                    idempotency_key = %idempotency_key,
+                    "void_wo_number: Numbering service has no void endpoint — \
+                     allocated number remains reserved; retry with same idempotency_key \
+                     will return the same number"
+                );
+                Ok(())
+            }
+            Mode::Direct { pool } => void_direct(pool, tenant_id, idempotency_key).await,
+        }
+    }
 }
 
 // ============================================================================
@@ -141,4 +179,28 @@ async fn allocate_direct(
     tx.commit().await.map_err(|e| WorkOrderError::Database(e))?;
 
     Ok(format!("WO-{:05}", next_value))
+}
+
+async fn void_direct(
+    pool: &PgPool,
+    tenant_id: &str,
+    idempotency_key: &str,
+) -> Result<(), WorkOrderError> {
+    let tenant_uuid: Uuid = tenant_id.parse().map_err(|_| {
+        WorkOrderError::Validation(format!(
+            "Invalid tenant_id for numbering void: {}",
+            tenant_id
+        ))
+    })?;
+
+    sqlx::query(
+        "DELETE FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(tenant_uuid)
+    .bind(idempotency_key)
+    .execute(pool)
+    .await
+    .map_err(WorkOrderError::Database)?;
+
+    Ok(())
 }

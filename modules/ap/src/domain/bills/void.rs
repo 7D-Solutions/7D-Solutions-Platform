@@ -18,6 +18,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
 use tax_core::TaxProvider;
 
 use crate::events::{
@@ -159,6 +161,23 @@ pub async fn void_bill(
     .bind(tenant_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    // Audit: record bill void inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        Uuid::nil(),
+        "system".to_string(),
+        "VoidBill".to_string(),
+        MutationClass::Reversal,
+        "VendorBill".to_string(),
+        bill_id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| match e {
+            platform_audit::writer::AuditWriterError::Database(db) => BillError::Database(db),
+            platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                BillError::Database(sqlx::Error::Protocol(msg))
+            }
+        })?;
 
     // Outbox: ap.vendor_bill_voided (REVERSAL class, reverses original creation event)
     let payload = VendorBillVoidedPayload {

@@ -15,7 +15,7 @@ use production_rs::domain::work_orders::{WorkOrder, WorkOrderStatus, CreateWorkO
 use production_rs::domain::workcenters::{Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest};
 use production_rs::http::pagination::PaginationQuery;
 use production_rs::http::routings::ItemDateQuery;
-use production_rs::{http, metrics, AppState, NumberingClient};
+use production_rs::{http, metrics, AppState, BomRevisionClient, NumberingClient};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 use platform_sdk::ModuleBuilder;
 
@@ -121,10 +121,12 @@ async fn main() {
                 metrics::ProductionMetrics::new().expect("Production: failed to create metrics"),
             );
             let numbering = ctx.platform_client::<NumberingClient>();
+            let bom = ctx.platform_client::<BomRevisionClient>();
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: prod_metrics,
                 numbering: std::sync::Arc::new(numbering),
+                bom: std::sync::Arc::new(bom),
             });
             http::router(app_state)
                 .route("/api/openapi.json", get(openapi_json))

@@ -1,3 +1,4 @@
+pub mod bom_client;
 pub mod component_issue;
 pub mod downtime;
 pub mod error_conversions;

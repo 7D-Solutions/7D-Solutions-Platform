@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "3.4.1"
+version = "3.5.0"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -9,6 +9,7 @@ axum = "0.8"
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
+platform-audit = { package = "audit", path = "../../platform/audit" }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }

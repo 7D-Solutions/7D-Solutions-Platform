@@ -19,6 +19,7 @@ outbox_table = "production_outbox"
 
 [platform.services]
 numbering = { enabled = true, default_url = "http://7d-numbering:8120" }
+bom = { enabled = true, default_url = "http://7d-bom:8120" }
 
 [sdk]
 min_version = "0.1.0"

@@ -4,6 +4,8 @@
 //! All writes follow Guard → Mutation → Outbox atomicity.
 
 use event_bus::TracingContext;
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
@@ -206,6 +208,21 @@ pub async fn create_invoice(
         ApiError::internal("Internal database error")
     })?;
 
+    // Audit: record invoice creation inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        uuid::Uuid::nil(),
+        "system".to_string(),
+        "CreateInvoice".to_string(),
+        MutationClass::Create,
+        "Invoice".to_string(),
+        invoice.id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| {
+            tracing::error!("Audit write failed for create_invoice: {}", e);
+            ApiError::internal("Audit write failed")
+        })?;
+
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit create_invoice transaction: {:?}", e);
         ApiError::internal("Internal database error")
@@ -394,6 +411,21 @@ pub async fn finalize_invoice(
         tracing::error!("Failed to enqueue gl.posting.requested event: {:?}", e);
         ApiError::internal("Internal database error")
     })?;
+
+    // Audit: record invoice finalization inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        uuid::Uuid::nil(),
+        "system".to_string(),
+        "FinalizeInvoice".to_string(),
+        MutationClass::StateTransition,
+        "Invoice".to_string(),
+        invoice.id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| {
+            tracing::error!("Audit write failed for finalize_invoice: {}", e);
+            ApiError::internal("Audit write failed")
+        })?;
 
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit transaction: {:?}", e);

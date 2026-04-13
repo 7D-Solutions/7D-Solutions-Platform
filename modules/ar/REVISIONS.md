@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 6.5.0 | 2026-04-13 | bd-y6gco | Wire platform-audit into AR mutation handlers: invoice create, invoice finalize. Each writes a `WriteAuditRequest` inside the existing transaction. Audit log migration creates `audit_log` table. | SOC2/compliance: financial mutations must have an append-only audit trail. | No |
 | 6.4.0 | 2026-04-13 | bd-zwf9n | Add `POST /api/ar/import/customers` bulk import endpoint. Accepts CSV or JSON, validates all rows before writing, idempotent upsert by customer_code, synthesises placeholder email when not supplied, 10K row limit, transactional. | Onboarding: customers need to bulk-load customer master data during initial setup. | No |
 | 6.3.2 | 2026-04-10 | bd-1gt | Replace `serde_json::Value` with typed `IssueCreditNoteBody` request and `CreditNoteRouteResponse` response on `POST /api/ar/invoices/{id}/credit-notes`. OpenAPI schema now accurate. | Untyped JSON body produced incorrect schema in generated clients; consumers received no field-level documentation. | No |
 | 6.3.1 | 2026-04-10 | bd-wocfs | Fix tenant isolation: COALESCE(ar_customer_id, '') → ar_customer_id::TEXT in 4 lifecycle transitions, COALESCE(SUM)::BIGINT in refunds, i32 → i64 in progress_billing test, party_client made Optional | Cross-tenant data leakage prevention + type correctness for i64 amount_cents | No |

@@ -4,6 +4,8 @@
 //! ensuring transactional consistency and validation.
 
 use chrono::{DateTime, NaiveDate, Utc};
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -163,6 +165,23 @@ pub async fn process_gl_posting_request(
             &balance_input,
         )
         .await?;
+
+        // Audit: record journal entry creation inside the same transaction
+        let audit_req = WriteAuditRequest::new(
+            Uuid::nil(),
+            "system".to_string(),
+            "PostJournalEntry".to_string(),
+            MutationClass::Create,
+            "JournalEntry".to_string(),
+            entry_id.to_string(),
+        );
+        AuditWriter::write_in_tx(&mut tx, audit_req).await
+            .map_err(|e| match e {
+                platform_audit::writer::AuditWriterError::Database(db) => JournalError::Database(db),
+                platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                    JournalError::Database(sqlx::Error::Protocol(msg))
+                }
+            })?;
 
         // Mark event as processed
         processed_repo::insert(

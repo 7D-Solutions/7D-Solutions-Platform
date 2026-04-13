@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -6,6 +8,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::bom_client::BomRevisionClient;
 use crate::domain::numbering_client::NumberingClient;
 use crate::domain::operations::OperationInstance;
 use crate::domain::outbox::enqueue_event;
@@ -360,6 +363,23 @@ impl WorkOrderRepo {
         )
         .await?;
 
+        // Audit: record work order creation inside the same transaction
+        let audit_req = WriteAuditRequest::new(
+            Uuid::nil(),
+            "system".to_string(),
+            "CreateWorkOrder".to_string(),
+            MutationClass::Create,
+            "WorkOrder".to_string(),
+            wo.work_order_id.to_string(),
+        );
+        AuditWriter::write_in_tx(&mut tx, audit_req).await
+            .map_err(|e| match e {
+                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                    WorkOrderError::Database(sqlx::Error::Protocol(msg))
+                }
+            })?;
+
         tx.commit().await?;
         Ok(wo)
     }
@@ -425,6 +445,23 @@ impl WorkOrderRepo {
         )
         .await?;
 
+        // Audit: record work order release inside the same transaction
+        let audit_req = WriteAuditRequest::new(
+            Uuid::nil(),
+            "system".to_string(),
+            "ReleaseWorkOrder".to_string(),
+            MutationClass::StateTransition,
+            "WorkOrder".to_string(),
+            work_order_id.to_string(),
+        );
+        AuditWriter::write_in_tx(&mut tx, audit_req).await
+            .map_err(|e| match e {
+                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                    WorkOrderError::Database(sqlx::Error::Protocol(msg))
+                }
+            })?;
+
         tx.commit().await?;
         Ok(updated)
     }
@@ -489,6 +526,23 @@ impl WorkOrderRepo {
             causation_id,
         )
         .await?;
+
+        // Audit: record work order close inside the same transaction
+        let audit_req = WriteAuditRequest::new(
+            Uuid::nil(),
+            "system".to_string(),
+            "CloseWorkOrder".to_string(),
+            MutationClass::StateTransition,
+            "WorkOrder".to_string(),
+            work_order_id.to_string(),
+        );
+        AuditWriter::write_in_tx(&mut tx, audit_req).await
+            .map_err(|e| match e {
+                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                    WorkOrderError::Database(sqlx::Error::Protocol(msg))
+                }
+            })?;
 
         tx.commit().await?;
         Ok(updated)
@@ -657,12 +711,21 @@ impl WorkOrderRepo {
     /// Composite create: allocate a WO number from the Numbering service and
     /// create the work order in a single call.
     ///
-    /// `bom_revision_id` and `routing_template_id` are optional.
-    /// `idempotency_key` is forwarded to Numbering — re-sending the same key
-    /// returns the previously allocated number without creating a duplicate WO.
+    /// Ordering invariant: all external HTTP calls (BOM validation, Numbering
+    /// allocation) happen BEFORE any Postgres transaction is opened so that a
+    /// slow external service never holds an open TX and starves the pool.
+    ///
+    /// Idempotency: `idempotency_key` is forwarded to Numbering — re-sending
+    /// the same key returns the previously allocated number without creating a
+    /// new one.
+    ///
+    /// Compensating action: if the Postgres INSERT fails for a reason other
+    /// than a duplicate-number constraint, we attempt to void the allocated
+    /// number via `numbering.void_wo_number()` before returning the error.
     pub async fn composite_create(
         pool: &PgPool,
         numbering: &NumberingClient,
+        bom: &BomRevisionClient,
         req: &CompositeCreateWorkOrderRequest,
         claims: &VerifiedClaims,
         correlation_id: &str,
@@ -679,11 +742,19 @@ impl WorkOrderRepo {
             ));
         }
 
-        // Allocate next WO number from the Numbering service.
+        // ── Step 1: Validate BOM revision BEFORE opening any transaction ────
+        // HTTP calls must never hold an open Postgres TX.
+        if let Some(rev_id) = req.bom_revision_id {
+            bom.validate_revision(&req.tenant_id, rev_id, claims)
+                .await?;
+        }
+
+        // ── Step 2: Allocate WO number (also before TX) ─────────────────────
         let order_number = numbering
             .allocate_wo_number(&req.tenant_id, &req.idempotency_key, claims)
             .await?;
 
+        // ── Step 3: Write to Postgres ────────────────────────────────────────
         let mut tx = pool.begin().await?;
 
         let insert_result = sqlx::query_as::<_, WorkOrder>(
@@ -706,12 +777,12 @@ impl WorkOrderRepo {
         .fetch_one(&mut *tx)
         .await;
 
-        // On unique-constraint violation the numbering service already allocated
-        // the same order number for this idempotency_key — the work order exists.
-        // Roll back and return the existing row so the call is fully idempotent.
-        if let Err(sqlx::Error::Database(ref dbe)) = insert_result {
-            if dbe.code().as_deref() == Some("23505") {
-                drop(tx); // rollback
+        match insert_result {
+            Err(sqlx::Error::Database(ref dbe)) if dbe.code().as_deref() == Some("23505") => {
+                // Duplicate order_number: the Numbering idempotency_key already
+                // points to this number and the WO was previously committed.
+                // Roll back and return the existing row — fully idempotent.
+                drop(tx);
                 return sqlx::query_as::<_, WorkOrder>(
                     "SELECT * FROM work_orders WHERE tenant_id = $1 AND order_number = $2",
                 )
@@ -721,33 +792,44 @@ impl WorkOrderRepo {
                 .await
                 .map_err(WorkOrderError::Database);
             }
+            Err(e) => {
+                // Non-unique-violation failure: attempt compensating void of the
+                // allocated number so a later sequential allocation can reuse it.
+                // This is best-effort — failure here is non-fatal since the
+                // idempotency_key still causes the same number to be returned on
+                // the next retry.
+                drop(tx);
+                let _ = numbering
+                    .void_wo_number(&req.tenant_id, &req.idempotency_key)
+                    .await;
+                return Err(WorkOrderError::Database(e));
+            }
+            Ok(wo) => {
+                enqueue_event(
+                    &mut tx,
+                    &req.tenant_id,
+                    ProductionEventType::WorkOrderCreated,
+                    "work_order",
+                    &wo.work_order_id.to_string(),
+                    &events::build_work_order_created_envelope(
+                        wo.work_order_id,
+                        req.tenant_id.clone(),
+                        order_number,
+                        req.item_id,
+                        req.bom_revision_id,
+                        req.planned_quantity,
+                        correlation_id.to_string(),
+                        causation_id.map(String::from),
+                    ),
+                    correlation_id,
+                    causation_id,
+                )
+                .await?;
+
+                tx.commit().await?;
+                Ok(wo)
+            }
         }
-
-        let wo = insert_result.map_err(WorkOrderError::Database)?;
-
-        enqueue_event(
-            &mut tx,
-            &req.tenant_id,
-            ProductionEventType::WorkOrderCreated,
-            "work_order",
-            &wo.work_order_id.to_string(),
-            &events::build_work_order_created_envelope(
-                wo.work_order_id,
-                req.tenant_id.clone(),
-                order_number,
-                req.item_id,
-                req.bom_revision_id,
-                req.planned_quantity,
-                correlation_id.to_string(),
-                causation_id.map(String::from),
-            ),
-            correlation_id,
-            causation_id,
-        )
-        .await?;
-
-        tx.commit().await?;
-        Ok(wo)
     }
 
     /// List work orders for a tenant with derived_status, newest first.

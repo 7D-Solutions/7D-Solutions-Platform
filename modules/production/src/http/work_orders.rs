@@ -123,6 +123,7 @@ pub async fn composite_create_work_order(
     match WorkOrderRepo::composite_create(
         &state.pool,
         &state.numbering,
+        &state.bom,
         &req,
         &verified_claims,
         &corr,

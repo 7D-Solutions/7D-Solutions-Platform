@@ -5,6 +5,9 @@ use thiserror::Error;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
+
 use crate::domain::idempotency::{check_idempotency, store_idempotency_key, IdempotencyError};
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, ProductionEventType};
@@ -153,6 +156,23 @@ pub async fn request_fg_receipt(
         )
         .await?;
     }
+
+    // Audit: record FG receipt request inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        Uuid::nil(),
+        "system".to_string(),
+        "RequestFgReceipt".to_string(),
+        MutationClass::Create,
+        "WorkOrder".to_string(),
+        work_order_id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| match e {
+            platform_audit::writer::AuditWriterError::Database(db) => FgReceiptError::Database(db),
+            platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                FgReceiptError::Database(sqlx::Error::Protocol(msg))
+            }
+        })?;
 
     tx.commit().await?;
     Ok(false)

@@ -11,6 +11,8 @@ use crate::contracts::period_close_v1::{
     CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity,
 };
 use chrono::{DateTime, NaiveDate, Utc};
+use platform_audit::schema::{MutationClass, WriteAuditRequest};
+use platform_audit::writer::AuditWriter;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -255,6 +257,23 @@ pub async fn close_period(
     .bind(tenant_id)
     .execute(&mut *tx)
     .await?;
+
+    // Audit: record period close inside the same transaction
+    let audit_req = WriteAuditRequest::new(
+        Uuid::nil(),
+        "system".to_string(),
+        "ClosePeriod".to_string(),
+        MutationClass::StateTransition,
+        "AccountingPeriod".to_string(),
+        period_id.to_string(),
+    );
+    AuditWriter::write_in_tx(&mut tx, audit_req).await
+        .map_err(|e| match e {
+            platform_audit::writer::AuditWriterError::Database(db) => PeriodCloseError::Database(db),
+            platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
+                PeriodCloseError::Database(sqlx::Error::Protocol(msg))
+            }
+        })?;
 
     // ========================================
     // STEP 6: COMMIT transaction

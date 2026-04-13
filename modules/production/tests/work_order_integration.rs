@@ -6,6 +6,7 @@ use axum::{
     Router,
 };
 use http_body_util::BodyExt;
+use production_rs::domain::bom_client::BomRevisionClient;
 use production_rs::domain::numbering_client::NumberingClient;
 use production_rs::domain::operations::OperationRepo;
 use production_rs::domain::routings::{AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo};
@@ -56,6 +57,27 @@ async fn setup_numbering_db() -> sqlx::PgPool {
         .connect(&url)
         .await
         .expect("Failed to connect to numbering test DB")
+}
+
+async fn setup_bom_db() -> sqlx::PgPool {
+    dotenvy::dotenv().ok();
+    let url = std::env::var("BOM_DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string()
+    });
+
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .acquire_timeout(std::time::Duration::from_secs(10))
+        .connect(&url)
+        .await
+        .expect("Failed to connect to BOM test DB");
+
+    sqlx::migrate!("../bom/db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run BOM migrations");
+
+    pool
 }
 
 fn make_test_claims(tenant_id: &str) -> VerifiedClaims {
@@ -654,6 +676,14 @@ async fn inject_production_claims(req: AxumRequest, next: Next) -> Response {
 }
 
 fn build_test_app(pool: sqlx::PgPool, numbering: NumberingClient) -> Router {
+    build_test_app_with_bom(pool, numbering, BomRevisionClient::permissive())
+}
+
+fn build_test_app_with_bom(
+    pool: sqlx::PgPool,
+    numbering: NumberingClient,
+    bom: BomRevisionClient,
+) -> Router {
     // Prometheus registers metrics globally — share the instance across tests.
     static METRICS: std::sync::OnceLock<Arc<ProductionMetrics>> = std::sync::OnceLock::new();
     let metrics = METRICS
@@ -663,6 +693,7 @@ fn build_test_app(pool: sqlx::PgPool, numbering: NumberingClient) -> Router {
         pool,
         metrics,
         numbering: Arc::new(numbering),
+        bom: Arc::new(bom),
     });
     production_rs::http::router(state)
         .layer(middleware::from_fn(inject_production_claims))
@@ -904,7 +935,8 @@ async fn composite_create_allocates_wo_number() {
         idempotency_key: idempotency_key.clone(),
     };
 
-    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+    let bom = BomRevisionClient::permissive();
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None)
         .await
         .expect("composite_create");
 
@@ -943,7 +975,8 @@ async fn composite_create_without_optional_fields_creates_number_only_wo() {
         idempotency_key: format!("numbering:wo:{}:no-bom", tenant_uuid),
     };
 
-    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+    let bom = BomRevisionClient::permissive();
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None)
         .await
         .expect("composite_create without BOM");
 
@@ -978,7 +1011,8 @@ async fn composite_create_idempotency_returns_same_number() {
         idempotency_key: idem_key.clone(),
     };
 
-    let wo1 = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr1, None)
+    let bom = BomRevisionClient::permissive();
+    let wo1 = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr1, None)
         .await
         .expect("first composite_create");
 
@@ -994,7 +1028,7 @@ async fn composite_create_idempotency_returns_same_number() {
         item_id: Uuid::new_v4(),
         ..req
     };
-    let result = WorkOrderRepo::composite_create(&pool, &numbering, &wo2_req, &claims, &corr2, None)
+    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &wo2_req, &claims, &corr2, None)
         .await;
 
     // Same number → duplicate order_number → either returns same WO or
@@ -1053,12 +1087,183 @@ async fn composite_create_with_routing_attaches_routing() {
         idempotency_key: format!("numbering:wo:{}:with-routing", tenant_uuid),
     };
 
-    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &req, &claims, &corr, None)
+    let bom = BomRevisionClient::permissive();
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None)
         .await
         .expect("composite_create with routing");
 
     assert!(wo.order_number.starts_with("WO-"));
     assert_eq!(wo.routing_template_id, Some(rt.routing_template_id));
+}
+
+// ============================================================================
+// BOM revision validation tests
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn composite_create_accepts_effective_bom_revision() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let bom_pool = setup_bom_db().await;
+
+    let numbering = NumberingClient::direct(num_pool);
+    let bom = BomRevisionClient::direct(bom_pool.clone());
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+
+    // Insert a BOM header and an effective revision directly into the BOM DB.
+    let bom_id = Uuid::new_v4();
+    let revision_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO bom_headers (id, tenant_id, part_id, created_at, updated_at) \
+         VALUES ($1, $2, $3, now(), now())",
+    )
+    .bind(bom_id)
+    .bind(tenant.clone())
+    .bind(Uuid::new_v4())
+    .execute(&bom_pool)
+    .await
+    .expect("insert bom_header");
+
+    sqlx::query(
+        "INSERT INTO bom_revisions (id, bom_id, tenant_id, revision_label, status, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, 'effective', now(), now())",
+    )
+    .bind(revision_id)
+    .bind(bom_id)
+    .bind(tenant.clone())
+    .bind("rev-001")
+    .execute(&bom_pool)
+    .await
+    .expect("insert bom_revision");
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: Some(revision_id),
+        routing_template_id: None,
+        planned_quantity: 1,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: format!("numbering:wo:{}:bom-effective", tenant_uuid),
+    };
+    let corr = Uuid::new_v4().to_string();
+
+    let wo = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None)
+        .await
+        .expect("composite_create with effective BOM revision");
+
+    assert!(wo.order_number.starts_with("WO-"));
+    assert_eq!(wo.bom_revision_id, Some(revision_id));
+}
+
+#[tokio::test]
+#[serial]
+async fn composite_create_rejects_draft_bom_revision() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let bom_pool = setup_bom_db().await;
+
+    let numbering = NumberingClient::direct(num_pool);
+    let bom = BomRevisionClient::direct(bom_pool.clone());
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+
+    let bom_id = Uuid::new_v4();
+    let revision_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO bom_headers (id, tenant_id, part_id, created_at, updated_at) \
+         VALUES ($1, $2, $3, now(), now())",
+    )
+    .bind(bom_id)
+    .bind(tenant.clone())
+    .bind(Uuid::new_v4())
+    .execute(&bom_pool)
+    .await
+    .expect("insert bom_header");
+
+    sqlx::query(
+        "INSERT INTO bom_revisions (id, bom_id, tenant_id, revision_label, status, created_at, updated_at) \
+         VALUES ($1, $2, $3, $4, 'draft', now(), now())",
+    )
+    .bind(revision_id)
+    .bind(bom_id)
+    .bind(tenant.clone())
+    .bind("rev-draft")
+    .execute(&bom_pool)
+    .await
+    .expect("insert draft bom_revision");
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: Some(revision_id),
+        routing_template_id: None,
+        planned_quantity: 1,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: format!("numbering:wo:{}:bom-draft", tenant_uuid),
+    };
+    let corr = Uuid::new_v4().to_string();
+
+    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
+
+    match result {
+        Err(WorkOrderError::Validation(msg)) => {
+            assert!(
+                msg.contains("draft"),
+                "expected error to mention 'draft', got: {msg}"
+            );
+        }
+        other => panic!("expected Validation error for draft revision, got: {other:?}"),
+    }
+}
+
+#[tokio::test]
+#[serial]
+async fn composite_create_rejects_missing_bom_revision() {
+    let pool = setup_db().await;
+    let num_pool = setup_numbering_db().await;
+    let bom_pool = setup_bom_db().await;
+
+    let numbering = NumberingClient::direct(num_pool);
+    let bom = BomRevisionClient::direct(bom_pool);
+
+    let tenant_uuid = Uuid::new_v4();
+    let tenant = tenant_uuid.to_string();
+    let claims = make_test_claims(&tenant);
+
+    // Use a random UUID that was never inserted — guaranteed not found.
+    let missing_revision_id = Uuid::new_v4();
+
+    let req = CompositeCreateWorkOrderRequest {
+        tenant_id: tenant.clone(),
+        item_id: Uuid::new_v4(),
+        bom_revision_id: Some(missing_revision_id),
+        routing_template_id: None,
+        planned_quantity: 1,
+        planned_start: None,
+        planned_end: None,
+        idempotency_key: format!("numbering:wo:{}:bom-missing", tenant_uuid),
+    };
+    let corr = Uuid::new_v4().to_string();
+
+    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
+
+    match result {
+        Err(WorkOrderError::Validation(msg)) => {
+            assert!(
+                msg.contains("not found"),
+                "expected error to mention 'not found', got: {msg}"
+            );
+        }
+        other => panic!("expected Validation error for missing revision, got: {other:?}"),
+    }
 }
 
 // ============================================================================
