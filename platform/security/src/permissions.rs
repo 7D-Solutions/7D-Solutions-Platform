@@ -143,6 +143,12 @@ pub const PRODUCTION_READ: &str = "production.read";
 /// Administer customer portal users/docs — distinct from party record management.
 pub const CUSTOMER_PORTAL_ADMIN: &str = "customer_portal.admin";
 
+// ── Platform Control Plane ───────────────────────────────────────────────────
+
+/// Create a new tenant and trigger provisioning.
+/// Required on POST /api/control/tenants.
+pub const PLATFORM_TENANTS_CREATE: &str = "platform.tenants.create";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +275,7 @@ mod tests {
             BOM_MUTATE,
             QUALITY_INSPECTION_MUTATE,
             PRODUCTION_MUTATE,
+            PLATFORM_TENANTS_CREATE,
         ];
         for perm in &mutate_perms {
             assert!(

@@ -1,6 +1,6 @@
 [package]
 name = "control-plane"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2021"
 description = "Tenant provisioning, platform billing orchestration, and data retention"
 publish = ["7d-platform"]
@@ -35,9 +35,15 @@ thiserror = "2.0"
 tenant-registry = { path = "../../platform/tenant-registry" }
 health = { path = "../health" }
 event-bus = { path = "../event-bus" }
+security = { path = "../security" }
 
 [dev-dependencies]
 axum-test = "18"
+jsonwebtoken = "9"
+rsa = "0.9"
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
 
 [lints]
 workspace = true

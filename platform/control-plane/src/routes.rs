@@ -18,6 +18,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use security::{optional_claims_mw, permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 use tenant_registry::plans_router;
 use tenant_registry::routes::{
@@ -59,11 +60,18 @@ async fn ready(
 
 /// Build the full control-plane router.
 pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> Router {
+    let verifier = state.jwt_verifier.clone();
+
     Router::new()
+        // RBAC-protected: create-tenant requires PLATFORM_TENANTS_CREATE
+        .route("/api/control/tenants", post(handlers::create_tenant))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::PLATFORM_TENANTS_CREATE,
+        ]))
+        // Unprotected routes (no per-route permission gate)
         .route("/healthz", get(health::healthz))
         .route("/api/ready", get(ready))
         .route("/api/health", get(ready))
-        .route("/api/control/tenants", post(handlers::create_tenant))
         .route(
             "/api/control/tenants/{tenant_id}/retention",
             get(handlers::get_retention).put(handlers::set_retention),
@@ -93,6 +101,14 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .merge(plans_router(summary_state.pool.clone()))
         .merge(tenant_list_router(summary_state.pool.clone()))
         .merge(tenant_detail_router(summary_state.pool.clone()))
+        // Outermost layer: extract JWT claims for all routes.
+        // optional_claims_mw inserts VerifiedClaims into extensions when a valid
+        // Bearer token is present; requests without a token pass through unchallenged,
+        // but RequirePermissionsLayer will then return 401.
+        .layer(axum::middleware::from_fn_with_state(
+            verifier,
+            optional_claims_mw,
+        ))
 }
 
 /// Build only the provisioning router (for testing without summary state)

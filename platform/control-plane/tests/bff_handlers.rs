@@ -11,14 +11,87 @@
 /// All tests run against a real Postgres database. No mocks.
 use axum::http::StatusCode;
 use axum_test::TestServer;
+use chrono::{Duration, Utc};
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::RsaPrivateKey;
+use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
 
 use control_plane::routes::build_router;
 use control_plane::state::AppState;
 use tenant_registry::routes::SummaryState;
+
+// ============================================================================
+// Test JWT helpers
+// ============================================================================
+
+struct TestKeys {
+    encoding: EncodingKey,
+    verifier: Arc<security::JwtVerifier>,
+}
+
+static TEST_KEYS: OnceLock<TestKeys> = OnceLock::new();
+
+fn test_keys() -> &'static TestKeys {
+    TEST_KEYS.get_or_init(|| {
+        let mut rng = rand::thread_rng();
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key gen");
+        let pub_key = priv_key.to_public_key();
+        let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("priv PEM");
+        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("pub PEM");
+        TestKeys {
+            encoding: EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key"),
+            verifier: Arc::new(
+                security::JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier"),
+            ),
+        }
+    })
+}
+
+#[derive(Serialize)]
+struct TestClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+/// Mint a short-lived token carrying the given permissions.
+fn mint_token(perms: Vec<String>) -> String {
+    let keys = test_keys();
+    let now = Utc::now();
+    let claims = TestClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: Uuid::new_v4().to_string(),
+        roles: vec!["platform_admin".into()],
+        perms,
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, &keys.encoding)
+        .expect("sign token")
+}
+
+/// Token with the PLATFORM_TENANTS_CREATE permission.
+fn create_tenant_token() -> String {
+    mint_token(vec![security::permissions::PLATFORM_TENANTS_CREATE.into()])
+}
 
 // ============================================================================
 // Helpers
@@ -35,7 +108,8 @@ async fn test_pool() -> PgPool {
 }
 
 fn build_test_server(pool: PgPool) -> TestServer {
-    let app_state = Arc::new(AppState::new(pool.clone(), None));
+    let keys = test_keys();
+    let app_state = Arc::new(AppState::new(pool.clone(), None).with_verifier(keys.verifier.clone()));
     let summary_state = Arc::new(SummaryState::new_local(pool));
     let router = build_router(app_state, summary_state);
     TestServer::new(router).expect("build test server")
@@ -134,6 +208,7 @@ async fn create_tenant_returns_202_with_correct_fields() {
 
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "idempotency_key": idem_key,
             "environment": "development",
@@ -171,13 +246,21 @@ async fn create_tenant_idempotency_replays_200() {
     });
 
     // First call: 202
-    let resp1 = server.post("/api/control/tenants").json(&payload).await;
+    let resp1 = server
+        .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
+        .json(&payload)
+        .await;
     resp1.assert_status(StatusCode::ACCEPTED);
     let body1: Value = resp1.json();
     let tenant_id: Uuid = body1["tenant_id"].as_str().unwrap().parse().unwrap();
 
     // Second call with same idem key: 200
-    let resp2 = server.post("/api/control/tenants").json(&payload).await;
+    let resp2 = server
+        .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
+        .json(&payload)
+        .await;
     resp2.assert_status(StatusCode::OK);
     let body2: Value = resp2.json();
 
@@ -196,6 +279,7 @@ async fn create_tenant_with_explicit_id_and_limit() {
 
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "tenant_id": tenant_id,
             "idempotency_key": idem_key,
@@ -226,6 +310,7 @@ async fn create_tenant_duplicate_id_returns_409() {
 
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "tenant_id": tenant_id,
             "idempotency_key": idem_key,
@@ -251,6 +336,7 @@ async fn create_tenant_validation_errors_return_422() {
     // Empty idempotency key
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "idempotency_key": "",
             "environment": "development",
@@ -263,6 +349,7 @@ async fn create_tenant_validation_errors_return_422() {
     // Empty product code
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "idempotency_key": "key-1",
             "environment": "development",
@@ -275,6 +362,7 @@ async fn create_tenant_validation_errors_return_422() {
     // Empty plan code
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "idempotency_key": "key-2",
             "environment": "development",
@@ -287,6 +375,7 @@ async fn create_tenant_validation_errors_return_422() {
     // Invalid concurrent_user_limit
     let resp = server
         .post("/api/control/tenants")
+        .authorization_bearer(create_tenant_token())
         .json(&json!({
             "idempotency_key": "key-3",
             "environment": "development",

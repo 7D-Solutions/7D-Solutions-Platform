@@ -14,6 +14,7 @@ use control_plane::provisioning;
 use control_plane::routes;
 use control_plane::state;
 use event_bus::{EventBus, NatsBus};
+use security::JwtVerifier;
 
 use sqlx::postgres::PgPoolOptions;
 
@@ -113,7 +114,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("NATS_URL not set — provisioning outbox relay disabled");
     }
 
-    let app_state = Arc::new(state::AppState::new(pool.clone(), ar_pool));
+    let jwt_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
+    if jwt_verifier.is_some() {
+        tracing::info!("JWT verifier loaded — RBAC enforcement active");
+    } else {
+        tracing::warn!(
+            "JWT_PUBLIC_KEY not set — all RBAC-protected routes will return 401"
+        );
+    }
+
+    let mut raw_state = state::AppState::new(pool.clone(), ar_pool);
+    if let Some(v) = jwt_verifier {
+        raw_state = raw_state.with_verifier(v);
+    }
+    let app_state = Arc::new(raw_state);
     let summary_state = Arc::new(SummaryState::new_local(pool));
 
     let app = routes::build_router(app_state, summary_state)
