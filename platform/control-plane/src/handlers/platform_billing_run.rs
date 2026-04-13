@@ -336,10 +336,7 @@ mod tests {
         .await
         .expect("insert test tenant");
 
-        let state = Arc::new(AppState {
-            pool: tr_pool.clone(),
-            ar_pool: Some(ar_pool.clone()),
-        });
+        let state = Arc::new(AppState::new(tr_pool.clone(), Some(ar_pool.clone())));
 
         let period = format!("2099-{:02}", (tenant_id.as_u128() % 12 + 1) as u32);
 
