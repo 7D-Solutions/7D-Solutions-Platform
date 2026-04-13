@@ -63,6 +63,8 @@ fn test_registry(module_codes: &[&str]) -> ModuleRegistry {
 
             let migrations_path = root.join(format!("modules/{code}/db/migrations"));
 
+            let http_port = control_plane::provisioning::registry::default_http_port_for(code);
+            let http_base_url = format!("http://localhost:{http_port}");
             let cfg = ModuleProvisioningConfig {
                 module_code: code.to_string(),
                 postgres_host: host,
@@ -70,6 +72,7 @@ fn test_registry(module_codes: &[&str]) -> ModuleRegistry {
                 postgres_user: user,
                 postgres_password: password,
                 migrations_path,
+                http_base_url,
             };
             (code.to_string(), cfg)
         })
@@ -347,6 +350,7 @@ async fn partial_failure_marks_failed_module_and_continues_others() {
         postgres_user: "ar_user".to_string(),
         postgres_password: "ar_pass".to_string(),
         migrations_path: workspace_root().join("modules/ar/db/migrations"),
+        http_base_url: "http://localhost:8086".to_string(),
     };
     let ghost_cfg = ModuleProvisioningConfig {
         module_code: "ghost".to_string(),
@@ -355,6 +359,7 @@ async fn partial_failure_marks_failed_module_and_continues_others() {
         postgres_user: "ghost_user".to_string(),
         postgres_password: "ghost_pass".to_string(),
         migrations_path: PathBuf::from("./modules/ghost/db/migrations"),
+        http_base_url: "http://127.0.0.1:19998".to_string(),
     };
     let registry = ModuleRegistry::from_configs(vec![
         ("ar".to_string(), ar_cfg),
