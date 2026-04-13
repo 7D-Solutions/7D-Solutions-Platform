@@ -321,7 +321,10 @@ impl ShipmentService {
                 continue;
             }
 
-            let warehouse_id = line.warehouse_id.unwrap_or(Uuid::nil());
+            let warehouse_id = match line.warehouse_id {
+                Some(wh) => wh,
+                None => continue, // no warehouse → not inventory-tracked, skip
+            };
 
             let ref_id = match direction {
                 Direction::Inbound => inventory
