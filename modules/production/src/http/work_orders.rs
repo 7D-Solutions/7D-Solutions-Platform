@@ -68,7 +68,28 @@ pub async fn create_work_order(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
+    let verified_claims = match &claims {
+        Some(Extension(c)) => c.clone(),
+        None => {
+            return with_request_id(
+                ApiError::new(401, "unauthorized", "Authentication required"),
+                &tracing_ctx,
+            )
+            .into_response()
+        }
+    };
     req.tenant_id = tenant_id;
+
+    // Guard: block WO creation against superseded BOM revision
+    if let Err(e) = state
+        .bom
+        .validate_revision(&req.tenant_id, req.bom_revision_id, &verified_claims)
+        .await
+    {
+        let api_err: ApiError = e.into();
+        return with_request_id(api_err, &tracing_ctx).into_response();
+    }
+
     let corr = Uuid::new_v4().to_string();
     match WorkOrderRepo::create(&state.pool, &req, &corr, None).await {
         Ok(wo) => (StatusCode::CREATED, Json(wo)).into_response(),

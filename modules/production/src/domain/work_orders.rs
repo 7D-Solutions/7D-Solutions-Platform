@@ -197,6 +197,8 @@ impl From<WorkOrderResponse> for WorkOrderWithIncludes {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWorkOrderRequest {
+    /// Filled from the JWT tenant claim — do not send in the request body.
+    #[serde(default)]
     pub tenant_id: String,
     pub order_number: String,
     pub item_id: Uuid,
@@ -250,6 +252,13 @@ pub enum WorkOrderError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("BOM revision {revision_id} was superseded by ECO {eco_number} — use revision {new_rev_id} instead")]
+    BomRevisionSuperseded {
+        revision_id: Uuid,
+        eco_number: String,
+        new_rev_id: Uuid,
+    },
 
     #[error("Numbering service error: {0}")]
     NumberingService(String),

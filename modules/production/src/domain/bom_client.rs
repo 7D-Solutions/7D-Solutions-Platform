@@ -106,13 +106,25 @@ async fn validate_revision_platform(
                 WorkOrderError::Validation(format!("BOM service response parse error: {}", e))
             })?;
             let status = body["status"].as_str().unwrap_or("unknown");
-            if status != "effective" {
-                return Err(WorkOrderError::Validation(format!(
+            match status {
+                "effective" => Ok(()),
+                "superseded" => {
+                    // Best-effort ECO info from response body.
+                    let eco_number = body["superseded_by_eco"]
+                        .as_str()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let new_rev_id = body["successor_revision_id"]
+                        .as_str()
+                        .and_then(|s| s.parse::<Uuid>().ok())
+                        .unwrap_or(Uuid::nil());
+                    Err(WorkOrderError::BomRevisionSuperseded { revision_id, eco_number, new_rev_id })
+                }
+                _ => Err(WorkOrderError::Validation(format!(
                     "BOM revision {} has status '{}' — only 'effective' revisions may be used on a work order",
                     revision_id, status
-                )));
+                ))),
             }
-            Ok(())
         }
         404 => Err(WorkOrderError::Validation(format!(
             "BOM revision {} not found",
@@ -148,6 +160,25 @@ async fn validate_revision_direct(
             "BOM revision {} not found",
             revision_id
         ))),
+        Some((status,)) if status == "superseded" => {
+            // Query the ECO that caused this supersession for a rich error message.
+            let eco_info: Option<(String, Uuid)> = sqlx::query_as(
+                r#"SELECT e.eco_number, ebr.after_revision_id
+                   FROM eco_bom_revisions ebr
+                   JOIN ecos e ON e.id = ebr.eco_id
+                   WHERE ebr.before_revision_id = $1 AND ebr.tenant_id = $2
+                   LIMIT 1"#,
+            )
+            .bind(revision_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(WorkOrderError::Database)?;
+
+            let (eco_number, new_rev_id) = eco_info
+                .unwrap_or_else(|| ("unknown".to_string(), Uuid::nil()));
+            Err(WorkOrderError::BomRevisionSuperseded { revision_id, eco_number, new_rev_id })
+        }
         Some((status,)) if status != "effective" => Err(WorkOrderError::Validation(format!(
             "BOM revision {} has status '{}' — only 'effective' revisions may be used on a work order",
             revision_id, status

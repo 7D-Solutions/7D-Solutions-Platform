@@ -54,6 +54,16 @@ impl From<WorkOrderError> for ApiError {
                 "invalid_transition",
                 format!("Cannot transition from '{}' to '{}'", from, to),
             ),
+            WorkOrderError::BomRevisionSuperseded { revision_id, eco_number, new_rev_id } => {
+                ApiError::new(
+                    422,
+                    "BOM_REVISION_SUPERSEDED",
+                    format!(
+                        "BOM revision {} was superseded by ECO {}. Use revision {} instead.",
+                        revision_id, eco_number, new_rev_id
+                    ),
+                )
+            }
             WorkOrderError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             WorkOrderError::NumberingService(msg) => {
                 tracing::error!(error = %msg, "numbering service error");
