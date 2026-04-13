@@ -1,0 +1,30 @@
+# Dev cross-compile runtime image for 7D platform services.
+# Contains supervisord + binary watcher — no Rust toolchain.
+# Cross-compiled binaries are mounted in via docker-compose.cross.yml.
+#
+# Build once per developer workstation:
+#   docker build -t 7d-runtime -f infra/Dockerfile.runtime .
+#
+# See docs/dev/CROSS-COMPILE-SETUP.md for the full developer workflow.
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl3 \
+    supervisor \
+    && rm -rf /var/lib/apt/lists/*
+
+# Supervisor config directory expected by dev-entrypoint.sh
+RUN mkdir -p /etc/supervisor/conf.d
+
+COPY infra/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY infra/dev-entrypoint.sh /usr/local/bin/dev-entrypoint.sh
+COPY infra/watch-binary.sh /usr/local/bin/watch-binary.sh
+
+RUN chmod +x /usr/local/bin/dev-entrypoint.sh /usr/local/bin/watch-binary.sh
+
+WORKDIR /app
+
+# SERVICE_BINARY must be set via environment (see docker-compose.cross.yml)
+ENTRYPOINT ["/usr/local/bin/dev-entrypoint.sh"]
