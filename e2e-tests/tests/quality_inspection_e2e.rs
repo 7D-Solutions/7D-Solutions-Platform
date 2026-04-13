@@ -10,6 +10,7 @@
 //! workforce-competence DB port 5458). No mocks, no stubs.
 
 use chrono::Utc;
+use platform_sdk::PlatformClient;
 use quality_inspection_rs::domain::models::*;
 use quality_inspection_rs::domain::service;
 use serial_test::serial;
@@ -71,6 +72,13 @@ fn tenant() -> String {
     format!("qi-e2e-{}", Uuid::new_v4())
 }
 
+fn wc_http_client() -> PlatformClient {
+    dotenvy::dotenv().ok();
+    let base_url = std::env::var("WORKFORCE_COMPETENCE_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8121".to_string());
+    PlatformClient::new(base_url)
+}
+
 async fn authorize_inspector(wc: &PgPool, tenant_id: &str, inspector_id: Uuid) {
     let artifact_req = RegisterArtifactRequest {
         tenant_id: tenant_id.to_string(),
@@ -125,6 +133,7 @@ async fn inspection_plan_create_get_activate() {
             Characteristic {
                 name: "Length".to_string(),
                 characteristic_type: "dimensional".to_string(),
+                key_characteristic: false,
                 nominal: Some(150.0),
                 tolerance_low: Some(149.5),
                 tolerance_high: Some(150.5),
@@ -133,6 +142,7 @@ async fn inspection_plan_create_get_activate() {
             Characteristic {
                 name: "Surface Roughness".to_string(),
                 characteristic_type: "surface".to_string(),
+                key_characteristic: false,
                 nominal: Some(1.6),
                 tolerance_low: None,
                 tolerance_high: Some(3.2),
@@ -243,6 +253,7 @@ async fn inspection_result_pass() {
 async fn inspection_result_fail_and_ncr_rejection() {
     let pool = qi_pool().await;
     let wc = wc_pool().await;
+    let wc_client = wc_http_client();
     let t = tenant();
     let part_id = Uuid::new_v4();
     let inspector_id = Uuid::new_v4();
@@ -273,7 +284,7 @@ async fn inspection_result_fail_and_ncr_rejection() {
     // Hold the failed inspection (quarantine)
     let held = service::hold_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -288,7 +299,7 @@ async fn inspection_result_fail_and_ncr_rejection() {
     // Reject — this is the NCR action (non-conformance disposition)
     let rejected = service::reject_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -347,6 +358,7 @@ async fn inspection_result_fail_and_ncr_rejection() {
 async fn disposition_state_machine_accept() {
     let pool = qi_pool().await;
     let wc = wc_pool().await;
+    let wc_client = wc_http_client();
     let t = tenant();
     let inspector_id = Uuid::new_v4();
     let corr = Uuid::new_v4().to_string();
@@ -374,7 +386,7 @@ async fn disposition_state_machine_accept() {
     // Invalid: pending → accepted should fail (must go through held)
     let err = service::accept_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -388,7 +400,7 @@ async fn disposition_state_machine_accept() {
     // Valid: pending → held
     let held = service::hold_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -403,7 +415,7 @@ async fn disposition_state_machine_accept() {
     // Valid: held → accepted
     let accepted = service::accept_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -418,7 +430,7 @@ async fn disposition_state_machine_accept() {
     // Terminal: accepted → anything should fail (no transitions from accepted)
     let err = service::hold_inspection(
         &pool,
-        &wc,
+        &wc_client,
         &t,
         inspection.id,
         Some(inspector_id),
@@ -536,6 +548,7 @@ async fn plan_linked_to_inspection() {
         characteristics: vec![Characteristic {
             name: "Rockwell Hardness".to_string(),
             characteristic_type: "hardness".to_string(),
+            key_characteristic: false,
             nominal: Some(60.0),
             tolerance_low: Some(58.0),
             tolerance_high: Some(62.0),
