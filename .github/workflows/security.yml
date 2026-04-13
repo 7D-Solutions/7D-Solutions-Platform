@@ -1,0 +1,110 @@
+name: Security Scanning
+
+# Runs on every PR and push to main.
+# Weekly full scan via schedule (cargo-deny + gitleaks history).
+#
+# Jobs:
+#   cargo-audit    — CVE scan of Cargo.lock (every PR, fails on any known CVE)
+#   cargo-deny     — License + advisory + ban check (every PR + weekly)
+#   gitleaks-pr    — Secret scan of PR commits (every PR)
+#   gitleaks-full  — Full git history secret scan (push to main + weekly + manual)
+#
+# Exceptions must be justified:
+#   Advisories: add to deny.toml [advisories] ignore with a comment and issue link.
+#   Licenses:   add to deny.toml [licenses] exceptions with justification.
+#   Secrets:    add a .gitleaks.toml allowlist entry with a comment explaining why.
+#
+# See docs/security/vuln-triage.md for the triage process.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly full scan — every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      scan_history:
+        description: 'Run full git history gitleaks scan'
+        required: false
+        default: 'true'
+        type: boolean
+
+jobs:
+  # ── CVE scanning ─────────────────────────────────────────────────────────────
+  cargo-audit:
+    name: "Security: cargo audit (CVE)"
+    runs-on: ubuntu-latest
+    # Run on PRs and pushes to main; skip on schedule (cargo-deny covers this weekly)
+    if: github.event_name != 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit (deny warnings)
+        # --deny warnings fails on any advisory level, not just errors.
+        # To suppress a false positive: add the RUSTSEC-XXXX-YYYY id to deny.toml
+        # [advisories] ignore with a comment linking to your triage issue.
+        run: cargo audit --deny warnings
+
+  # ── License + advisory + ban checking ────────────────────────────────────────
+  cargo-deny:
+    name: "Security: cargo deny (licenses + advisories)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Run cargo deny check
+        # Checks: advisories (RUSTSEC), licenses (allowlist), bans (blocked crates),
+        # and sources (crates.io only). Config: deny.toml at workspace root.
+        run: cargo deny check
+
+  # ── Secret scanning — PR commits only ────────────────────────────────────────
+  gitleaks-pr:
+    name: "Security: gitleaks (PR commits)"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for range scan
+
+      - name: gitleaks — scan PR commits
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Scan only commits introduced by this PR (base..head range)
+          args: --log-opts="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  # ── Secret scanning — full history ───────────────────────────────────────────
+  gitleaks-full:
+    name: "Security: gitleaks (full history)"
+    runs-on: ubuntu-latest
+    # Runs on: push to main, weekly schedule, manual dispatch
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required
+
+      - name: gitleaks — scan full history
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

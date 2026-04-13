@@ -1,0 +1,77 @@
+# cargo-deny configuration
+#
+# Enforced by: .github/workflows/security.yml (cargo-deny job)
+# Run locally: cargo deny check
+#
+# Before adding ANY exception, read docs/security/vuln-triage.md.
+# Every ignore/exception entry MUST have a comment with:
+#   1. Why this advisory does not affect our usage
+#   2. A link to the triage issue tracking rotation / fix
+
+# ── Advisory (RUSTSEC) ────────────────────────────────────────────────────────
+[advisories]
+# Deny all vulnerability advisories. Unmaintained crates generate warnings only
+# (the workspace likely has transitive deps we cannot control directly).
+vulnerability = "deny"
+unmaintained  = "warn"
+unsound       = "deny"
+yanked        = "deny"
+notice        = "warn"
+
+# Exceptions: add RUSTSEC-XXXX-YYYY here ONLY after completing triage.
+# Format:
+#   { id = "RUSTSEC-XXXX-YYYY", reason = "Not affected because ...", url = "https://..." }
+ignore = []
+
+# ── Licenses ──────────────────────────────────────────────────────────────────
+[licenses]
+# Only these SPDX identifiers are allowed without explicit exception.
+# Adding a new license requires approval from the security owner.
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",  # LLVM IR-related crates
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-DFS-2016",               # unicode-ident, etc.
+  "Zlib",                           # Deflate-related crates
+  "CC0-1.0",                        # Public domain / no restrictions
+]
+
+# Crates without a clearly machine-readable license are denied by default.
+# Add an exception below with justification if needed.
+unlicensed  = "deny"
+copyleft    = "deny"  # GPL/LGPL — requires legal sign-off before any exception
+
+# Per-crate license exceptions (e.g., dual-licensed crate where deny picks wrong SPDX):
+# [[licenses.exceptions]]
+# name = "some-crate"
+# version = "*"
+# allow = ["MIT"]
+
+# ── Crate bans ────────────────────────────────────────────────────────────────
+[bans]
+# Warn on multiple versions of the same crate (not denied — workspace size makes
+# zero-duplicates impractical; review in dependency hygiene beads).
+multiple-versions = "warn"
+
+# Deny these crates unconditionally.
+# Format: { name = "...", reason = "..." }
+deny = [
+  # openssl: we standardise on rustls. Direct openssl linkage is not allowed.
+  { name = "openssl",       reason = "Use rustls — openssl C FFI is not approved" },
+  { name = "openssl-sys",   reason = "Use rustls — openssl C FFI is not approved" },
+]
+
+# ── Source restrictions ───────────────────────────────────────────────────────
+[sources]
+# Only crates.io and explicit git allowlist are permitted.
+# git crates must be pinned to a specific rev/tag — floating branches are not allowed.
+unknown-registry = "deny"
+unknown-git      = "deny"
+
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# Allowlisted git sources (workspace internal paths, not external git):
+# allow-git = []
