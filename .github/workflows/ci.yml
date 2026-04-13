@@ -83,8 +83,16 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Contract breaking-change gate — required on every PR and push to main.
-  # Fails if an OpenAPI spec has removed endpoints or required fields without
-  # a corresponding version bump in info.version (the acknowledgment mechanism).
+  # Triggered whenever contracts/**/*.yaml, contracts/**/*.json, or modules/
+  # files are touched (the script exits 0 immediately if no spec files changed).
+  #
+  # Bypass (intentional breaking changes only):
+  #   1. Bump info.version in the modified spec to the next MAJOR
+  #      (e.g. 1.3.2 → 2.0.0)
+  #   2. Add to the PR description:
+  #        BREAKING-CHANGE: <one-line migration note>
+  #   Both conditions must be met. PATCH/MINOR bumps are NOT sufficient.
+  #
   # See scripts/ci/check-openapi-breaking-changes.sh for detection rules.
   # See docs/architecture/CONTRACT-VERSIONING-POLICY.md for the full policy.
   # ---------------------------------------------------------------------------
@@ -97,6 +105,11 @@ jobs:
           fetch-depth: 0  # Full history required for cross-branch diff
 
       - name: Check for breaking contract changes
+        env:
+          # PR_BODY enables the BREAKING-CHANGE: annotation check.
+          # On push-to-main / local runs this is empty and only the MAJOR
+          # version bump is verified.
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
         run: |
           chmod +x scripts/ci/check-openapi-breaking-changes.sh
           scripts/ci/check-openapi-breaking-changes.sh
@@ -305,6 +318,41 @@ jobs:
         run: |
           chmod +x scripts/ci/check-openapi-drift.sh
           scripts/ci/check-openapi-drift.sh
+
+  # ---------------------------------------------------------------------------
+  # Contract drift gate (bd-ke2f3 — GAP-13)
+  # Builds each module's openapi_dump binary and diffs the live JSON output
+  # against the committed contracts/{module}/openapi.json.
+  # Any diff = PR FAIL. Modules without a committed contract are warned only.
+  # ---------------------------------------------------------------------------
+  contract-drift:
+    name: "Contract Drift: openapi_dump vs contracts/"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-contract-drift-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Check OpenAPI contract drift
+        run: |
+          chmod +x tools/ci/check-contract-drift.sh
+          tools/ci/check-contract-drift.sh
 
   build-auth:
     name: Build AUTH Module
