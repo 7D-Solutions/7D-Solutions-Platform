@@ -117,3 +117,11 @@ scrape_configs:
     static_configs:
       - targets: ['7d-nats:8222']
     metrics_path: '/varz'
+
+  # ── Backup sidecar (node_exporter textfile collector) ─────────────────────
+  # node_exporter runs on the backup host and exposes backup age metrics
+  # written by scripts/backup_all.sh to /var/lib/prometheus/textfiles/backup.prom
+  - job_name: 'backup-sidecar'
+    static_configs:
+      - targets: ['7d-backup-sidecar:9100']
+    metrics_path: '/metrics'

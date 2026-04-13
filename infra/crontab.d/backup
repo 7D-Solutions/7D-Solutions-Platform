@@ -1,0 +1,20 @@
+# 7D Solutions Platform — Nightly Database Backup
+#
+# Bead: bd-3ybu7 — GAP-26
+# RPO target: 24h  |  Fires: 01:00 UTC daily (before business hours)
+#
+# Install: copy this file to /etc/cron.d/7d-backup on the backup host,
+# or load into supervisord schedule.  The PROMETHEUS_TEXTFILE_DIR env var
+# must point to the node_exporter textfile directory so backup age metrics
+# are exported to Prometheus.
+#
+# Cron format: minute hour day-of-month month day-of-week user command
+
+PROMETHEUS_TEXTFILE_DIR=/var/lib/prometheus/textfiles
+BACKUP_RETENTION_DAYS=14
+
+# Nightly backup at 01:00 UTC
+0 1 * * * root /opt/7d-platform/scripts/backup_all.sh >> /var/log/7d-backup/nightly.log 2>&1
+
+# Prune backups older than BACKUP_RETENTION_DAYS (runs 5 min after backup starts)
+5 1 * * * root find /opt/7d-platform/backups -maxdepth 1 -type d -mtime +${BACKUP_RETENTION_DAYS} -exec rm -rf {} + >> /var/log/7d-backup/prune.log 2>&1

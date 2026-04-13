@@ -197,6 +197,33 @@ if [[ $BACKUP_ERRORS -gt 0 ]]; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Prometheus textfile metric
+# Written to node_exporter's textfile directory so Prometheus can scrape it.
+# Metric: platform_backup_last_success_seconds{module} — Unix timestamp of
+# the most recent successful backup for each module.
+# Alert rule derives age: time() - platform_backup_last_success_seconds > 93600 (26h)
+# ---------------------------------------------------------------------------
+TEXTFILE_DIR="${PROMETHEUS_TEXTFILE_DIR:-/var/lib/prometheus/textfiles}"
+METRIC_FILE="${TEXTFILE_DIR}/backup.prom"
+NOW_EPOCH="$(date +%s)"
+
+if [[ -d "$TEXTFILE_DIR" ]] || mkdir -p "$TEXTFILE_DIR" 2>/dev/null; then
+  {
+    echo "# HELP platform_backup_last_success_seconds Unix timestamp of the most recent successful pg_dump per module"
+    echo "# TYPE platform_backup_last_success_seconds gauge"
+    for entry in "${DATABASES[@]}"; do
+      IFS='|' read -r name _host _port _db _user _pass <<< "$entry"
+      if [[ -f "${BACKUP_DIR}/${name}.sql.gz" ]]; then
+        echo "platform_backup_last_success_seconds{module=\"${name}\"} ${NOW_EPOCH}"
+      fi
+    done
+  } > "${METRIC_FILE}.$$" && mv "${METRIC_FILE}.$$" "${METRIC_FILE}"
+  log "INFO  Prometheus metric written: ${METRIC_FILE}"
+else
+  log "WARN  Prometheus textfile dir not writable: ${TEXTFILE_DIR} (set PROMETHEUS_TEXTFILE_DIR to override)"
+fi
+
 echo ""
 echo "Backup directory: ${BACKUP_DIR}"
 echo "Manifest:         ${MANIFEST_FILE}"

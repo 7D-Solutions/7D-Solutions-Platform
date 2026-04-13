@@ -1,0 +1,40 @@
+# Prometheus Alert Rules: Backup Age
+#
+# Bead: bd-3ybu7 — GAP-26 nightly backup automation
+#
+# Metric source: node_exporter textfile collector
+#   Written by scripts/backup_all.sh to /var/lib/prometheus/textfiles/backup.prom
+#   Metric: platform_backup_last_success_seconds{module}
+#
+# RPO target: 24h (alert fires at 26h to give 2h response window)
+# Runbook: docs/operations/backup-restore.md
+
+groups:
+  - name: backup_age
+    rules:
+      - alert: BackupStale
+        expr: (time() - platform_backup_last_success_seconds) > 93600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup stale for module {{ $labels.module }}"
+          description: >
+            Module {{ $labels.module }} last successful backup was
+            {{ $value | humanizeDuration }} ago (threshold: 26h).
+            RPO target is 24h. Run scripts/backup_all.sh immediately and
+            investigate why the nightly cron did not fire.
+          runbook_url: "docs/operations/backup-restore.md#incident-response"
+
+      - alert: BackupMetricMissing
+        expr: absent(platform_backup_last_success_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup metrics not being reported"
+          description: >
+            No platform_backup_last_success_seconds metrics received in 30m.
+            The backup sidecar (node_exporter on 7d-backup-sidecar:9100) may be down
+            or scripts/backup_all.sh has not been run since deployment.
+          runbook_url: "docs/operations/backup-restore.md#incident-response"
