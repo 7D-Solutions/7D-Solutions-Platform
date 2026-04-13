@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.6.2 | 2026-04-10 | bd-s56d3 | Add `[dev-dependencies]`: `http-body-util`, `uuid` (v4), `security` (path). Required for integration tests that validate auth middleware with real JWT tokens against the inventory HTTP router. | Integration tests for bd-s56d3 (e2e test suite) need to construct HTTP requests with bearer tokens and typed response bodies without pulling these crates into production builds. | No |
 | 2.6.1 | 2026-04-04 | bd-bxngm | SoC: wire valuation, expiry, labels, cycle_count, status repo modules | Separation of concerns — complete repo module wiring for remaining inventory domain services | No |
 | 2.6.0 | 2026-04-04 | bd-yrmmq,bd-bxngm | SoC: extract SQL from receipt, reservation, transfer, cycle_count, expiry, labels, status, valuation services into repo modules (69 queries total) | Separation of concerns — GL exemplar pattern | No |
 | 2.5.0 | 2026-04-02 | bd-fh6u1 | Add utoipa::path annotations to 3 health endpoints (health, ready, version). All 59 handlers now annotated. | OpenAPI spec completeness — codegen requires typed annotations on every endpoint. | No |

@@ -1,6 +1,6 @@
 [package]
 name = "inventory-rs"
-version = "2.6.1"
+version = "2.6.2"
 edition = "2021"
 description = "Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts"
 
@@ -42,6 +42,9 @@ path = "src/bin/openapi_dump.rs"
 
 [dev-dependencies]
 serial_test = "3.3.1"
+http-body-util = "0.1"
+uuid = { version = "1", features = ["v4"] }
+security = { path = "../../platform/security" }
 
 [lints]
 workspace = true
