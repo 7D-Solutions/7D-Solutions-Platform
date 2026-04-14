@@ -16,9 +16,9 @@ pool_acquire_timeout_secs = 5
 pool_idle_timeout_secs = 300
 
 [platform.services]
-gl = { enabled = true, default_url = "http://localhost:8090" }
-ar = { enabled = true, default_url = "http://localhost:8086" }
-ap = { enabled = true, default_url = "http://localhost:8093" }
+gl = { enabled = true, criticality = "critical", default_url = "http://localhost:8090" }
+ar = { enabled = true, criticality = "critical", default_url = "http://localhost:8086" }
+ap = { enabled = true, criticality = "critical", default_url = "http://localhost:8093" }
 
 [sdk]
 min_version = "0.1.0"

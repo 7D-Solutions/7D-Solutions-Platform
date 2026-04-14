@@ -26,11 +26,11 @@ subjects = ["ar.events.ar.invoice_opened"]
 consumer_name = "vertical-proof-ar-listener"
 
 [platform.services]
-party         = { enabled = true, default_url = "http://localhost:8098" }
-ar            = { enabled = true, default_url = "http://localhost:8086" }
-inventory     = { enabled = true, default_url = "http://localhost:8092" }
-production    = { enabled = true, default_url = "http://localhost:8108" }
-notifications = { enabled = true, default_url = "http://localhost:8089" }
+party         = { enabled = true, criticality = "critical",  default_url = "http://localhost:8098" }
+ar            = { enabled = true, criticality = "critical",  default_url = "http://localhost:8086" }
+inventory     = { enabled = true, criticality = "critical",  default_url = "http://localhost:8092" }
+production    = { enabled = true, criticality = "critical",  default_url = "http://localhost:8108" }
+notifications = { enabled = true, criticality = "degraded",  default_url = "http://localhost:8089" }
 
 [sdk]
 min_version = "0.1.0"

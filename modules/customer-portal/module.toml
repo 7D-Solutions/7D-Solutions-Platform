@@ -16,7 +16,7 @@ pool_acquire_timeout_secs = 5
 pool_idle_timeout_secs = 300
 
 [platform.services]
-doc-mgmt = { enabled = true, default_url = "http://localhost:8095" }
+doc-mgmt = { enabled = true, criticality = "critical", default_url = "http://localhost:8095" }
 
 [auth]
 required = false

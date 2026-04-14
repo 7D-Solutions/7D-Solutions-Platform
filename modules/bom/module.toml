@@ -16,8 +16,8 @@ pool_acquire_timeout_secs = 5
 pool_idle_timeout_secs = 300
 
 [platform.services]
-numbering = { enabled = true, default_url = "http://localhost:8120" }
-inventory = { enabled = true, default_url = "http://7d-inventory:8092" }
+numbering = { enabled = true, criticality = "critical", default_url = "http://localhost:8120" }
+inventory = { enabled = true, criticality = "critical", default_url = "http://7d-inventory:8092" }
 
 [sdk]
 min_version = "0.1.0"

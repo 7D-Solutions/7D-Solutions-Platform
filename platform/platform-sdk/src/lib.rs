@@ -43,6 +43,13 @@ pub mod tenant;
 pub mod tenant_quota;
 pub mod tenant_resolver;
 
+/// Re-export the feature flag crate for use in module handlers.
+///
+/// Prefer `ctx.feature_enabled(flag, &claims)` for the idiomatic SDK call.
+/// Use `feature_flags::is_enabled` and `feature_flags::set_flag` directly for
+/// consumers, background tasks, or admin tooling that hold a raw pool.
+pub use feature_flags;
+
 pub use builder::ModuleBuilder;
 pub use client_core::{build_query_url, ensure, parse_empty, parse_response, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};

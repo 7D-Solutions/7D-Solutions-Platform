@@ -23,8 +23,8 @@ stream_class = "operational"
 outbox_table = "production_outbox"
 
 [platform.services]
-numbering = { enabled = true, default_url = "http://7d-numbering:8120" }
-bom = { enabled = true, default_url = "http://7d-bom:8120" }
+numbering = { enabled = true, criticality = "critical", default_url = "http://7d-numbering:8120" }
+bom       = { enabled = true, criticality = "critical", default_url = "http://7d-bom:8120" }
 
 [sdk]
 min_version = "0.1.0"

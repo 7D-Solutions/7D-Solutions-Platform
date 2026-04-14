@@ -682,6 +682,7 @@ dotenvy = "0.15"
 party-rs = { path = "../modules/party" }
 ttp-rs = { path = "../modules/ttp" }
 platform-sdk = { path = "../platform/platform-sdk" }
+health = { path = "../platform/health" }
 platform-http-contracts = { path = "../platform/http-contracts", features = ["axum"] }
 anyhow = "1.0"
 sha2 = "0.10"
@@ -797,3 +798,11 @@ path = "tests/distributed_tracing_e2e.rs"
 [[test]]
 name = "period_close_enforcement_e2e"
 path = "tests/period_close_enforcement_e2e.rs"
+
+[[test]]
+name = "circuit_breaker_e2e"
+path = "tests/circuit_breaker_e2e.rs"
+
+[[test]]
+name = "graceful_degradation_e2e"
+path = "tests/graceful_degradation_e2e.rs"

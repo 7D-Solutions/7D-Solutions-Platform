@@ -40,8 +40,7 @@ party     = { enabled = true, default_url = "http://localhost:8098" }
 inventory = { enabled = true, timeout_secs = 60, default_url = "http://localhost:8092" }
 bom       = { enabled = false }
 "#;
-    let manifest =
-        platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
     let platform = manifest.platform.expect("platform section");
     assert_eq!(platform.services.len(), 3);
     assert!(platform.services["party"].enabled);
@@ -55,8 +54,7 @@ fn manifest_without_platform_section_parses() {
 [module]
 name = "legacy-module"
 "#;
-    let manifest =
-        platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
     assert!(manifest.platform.is_none());
 }
 

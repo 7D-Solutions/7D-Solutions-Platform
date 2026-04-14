@@ -695,8 +695,8 @@ migrations = "./db/migrations"
 
     let manifest = Manifest::from_file(&path).expect("db defaults should parse");
     let db = manifest.database.expect("database section");
-    assert_eq!(db.pool_min, 5);
-    assert_eq!(db.pool_max, 20);
+    assert_eq!(db.pool_min, 2);
+    assert_eq!(db.pool_max, 12);
 }
 
 #[test]

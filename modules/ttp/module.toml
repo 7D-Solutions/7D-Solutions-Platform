@@ -16,8 +16,8 @@ pool_acquire_timeout_secs = 5
 pool_idle_timeout_secs = 300
 
 [platform.services]
-ar = { enabled = true, default_url = "http://localhost:8086" }
-platform-client-tenant-registry = { enabled = true, default_url = "http://localhost:8092" }
+ar                               = { enabled = true, criticality = "critical", default_url = "http://localhost:8086" }
+platform-client-tenant-registry  = { enabled = true, criticality = "critical", default_url = "http://localhost:8092" }
 
 [sdk]
 min_version = "0.1.0"

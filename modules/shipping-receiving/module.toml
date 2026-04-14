@@ -23,8 +23,8 @@ stream_class = "operational"
 outbox_table = "sr_events_outbox"
 
 [platform.services]
-inventory = { enabled = true, default_url = "http://7d-inventory:8092" }
-quality-inspection = { enabled = true, default_url = "http://7d-quality-inspection:8106" }
+inventory          = { enabled = true, criticality = "critical", default_url = "http://7d-inventory:8092" }
+quality-inspection = { enabled = true, criticality = "critical", default_url = "http://7d-quality-inspection:8106" }
 
 [sdk]
 min_version = "0.1.0"

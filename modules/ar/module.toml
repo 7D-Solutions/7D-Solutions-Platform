@@ -23,7 +23,8 @@ stream_class = "financial"
 outbox_table = "events_outbox"
 
 [platform.services]
-party = { enabled = true, default_url = "http://7d-party:8098" }
+party         = { enabled = true, criticality = "critical", default_url = "http://7d-party:8098" }
+notifications = { enabled = true, criticality = "degraded", default_url = "http://7d-notifications:8089" }
 
 [sdk]
 min_version = "0.1.0"

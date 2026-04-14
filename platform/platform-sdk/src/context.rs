@@ -450,6 +450,44 @@ impl ModuleContext {
     ) -> Result<(), security::SecurityError> {
         security::check_permissions(claims, &[permission])
     }
+
+    /// Returns `true` if the named feature flag is enabled for the tenant in `claims`.
+    ///
+    /// Resolution order:
+    /// 1. Per-tenant row for `claims.tenant_id`.
+    /// 2. Global row (no tenant).
+    /// 3. `false` when neither row exists (absent = disabled by default).
+    ///
+    /// Database errors are logged and mapped to `false` so a flag-store outage
+    /// never blocks a request path.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// if ctx.feature_enabled("composite_wo_create", &claims).await {
+    ///     // new code path
+    /// } else {
+    ///     // existing code path
+    /// }
+    /// ```
+    pub async fn feature_enabled(
+        &self,
+        flag: &str,
+        claims: &security::claims::VerifiedClaims,
+    ) -> bool {
+        match feature_flags::is_enabled(self.pool(), flag, Some(claims.tenant_id)).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(
+                    flag,
+                    tenant_id = %claims.tenant_id,
+                    error = %e,
+                    "feature_enabled: DB error — defaulting to false"
+                );
+                false
+            }
+        }
+    }
 }
 
 /// Error returned when a module tries to access the event bus without one configured.
