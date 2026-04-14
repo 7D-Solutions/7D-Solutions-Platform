@@ -123,6 +123,7 @@ async fn test_platform_billing_invoices_tenant() {
     let state = Arc::new(AppState {
         pool: tr_pool.clone(),
         ar_pool: Some(ar_pool.clone()),
+        jwt_verifier: None,
     });
 
     // -----------------------------------------------------------------------

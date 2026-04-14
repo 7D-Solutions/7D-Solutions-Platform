@@ -79,7 +79,7 @@ async fn run_party_migrations(pool: &PgPool) {
 /// Builds both the read routes (no auth) and write routes (RequirePermissionsLayer).
 fn make_ap_router(pool: PgPool) -> axum::Router {
     let metrics = Arc::new(ApMetrics::new().expect("AP metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
 
     let ap_mutations = Router::new()
         .route("/api/ap/vendors", post(http::vendors::create_vendor))

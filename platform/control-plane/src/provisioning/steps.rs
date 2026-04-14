@@ -425,16 +425,19 @@ pub async fn activate_tenant(
             }),
         )
     } else {
-        // Update failed module statuses in cp_tenant_module_status
+        // Upsert failed module statuses into cp_tenant_module_status.
+        // INSERT … ON CONFLICT handles the case where no row exists yet.
         for code in &failed_modules {
             let _ = sqlx::query(
-                "UPDATE cp_tenant_module_status \
-                 SET status = 'failed', updated_at = $1 \
-                 WHERE tenant_id = $2 AND module_code = $3",
+                "INSERT INTO cp_tenant_module_status \
+                     (tenant_id, module_code, status, created_at, updated_at) \
+                 VALUES ($1, $2, 'failed', $3, $3) \
+                 ON CONFLICT (tenant_id, module_code) DO UPDATE \
+                 SET status = 'failed', updated_at = EXCLUDED.updated_at",
             )
-            .bind(Utc::now())
             .bind(tenant_id)
             .bind(code)
+            .bind(Utc::now())
             .execute(pool)
             .await;
         }

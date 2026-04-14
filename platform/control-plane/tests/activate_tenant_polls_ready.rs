@@ -65,6 +65,9 @@ async fn ensure_tables(pool: &PgPool) {
         include_str!(
             "../../tenant-registry/db/migrations/20260410000001_add_tenant_module_status.sql"
         ),
+        include_str!(
+            "../../tenant-registry/db/migrations/20260413000001_add_degraded_tenant_status.sql"
+        ),
     ];
     for sql in migrations {
         sqlx::raw_sql(sql).execute(pool).await.ok();
@@ -77,7 +80,7 @@ async fn insert_provisioning_tenant(pool: &PgPool) -> Uuid {
     sqlx::query(
         "INSERT INTO tenants \
          (tenant_id, status, environment, module_schema_versions, created_at, updated_at) \
-         VALUES ($1, 'provisioning', 'test', '{}'::jsonb, NOW(), NOW()) \
+         VALUES ($1, 'provisioning', 'development', '{}'::jsonb, NOW(), NOW()) \
          ON CONFLICT (tenant_id) DO NOTHING",
     )
     .bind(tenant_id)

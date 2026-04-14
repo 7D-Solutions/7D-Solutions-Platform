@@ -121,7 +121,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.4.0"
+version = "3.6.0"
 dependencies = [
  "async-nats",
  "audit",
@@ -133,6 +133,7 @@ dependencies = [
  "health",
  "hex",
  "http-body-util",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -156,7 +157,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.4.0"
+version = "6.6.0"
 dependencies = [
  "async-nats",
  "audit",
@@ -172,6 +173,7 @@ dependencies = [
  "hex",
  "hmac",
  "http-body-util",
+ "migration-safety-test",
  "platform-client-party",
  "platform-http-contracts",
  "platform-sdk",
@@ -1088,6 +1090,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "health",
+ "migration-safety-test",
  "platform-client-inventory",
  "platform-client-numbering",
  "platform-http-contracts",
@@ -1416,6 +1419,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "health",
+ "migration-safety-test",
  "platform-client-ap",
  "platform-client-ar",
  "platform-client-gl",
@@ -1745,6 +1749,7 @@ dependencies = [
  "health",
  "hex",
  "jsonwebtoken",
+ "migration-safety-test",
  "password-hash",
  "platform-client-doc-mgmt",
  "platform-http-contracts",
@@ -2286,6 +2291,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -2543,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "3.2.0"
+version = "3.3.0"
 dependencies = [
  "async-nats",
  "audit",
@@ -2555,6 +2561,7 @@ dependencies = [
  "futures",
  "health",
  "jsonwebtoken",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -3148,6 +3155,7 @@ dependencies = [
  "health",
  "hex",
  "hmac",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -3190,6 +3198,7 @@ dependencies = [
  "futures",
  "health",
  "http-body-util",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -3475,6 +3484,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
@@ -3537,6 +3547,15 @@ name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+
+[[package]]
+name = "migration-safety-test"
+version = "0.1.0"
+dependencies = [
+ "dotenvy",
+ "sqlx",
+ "tokio",
+]
 
 [[package]]
 name = "mime"
@@ -3679,6 +3698,7 @@ dependencies = [
  "futures",
  "health",
  "lazy_static",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -3843,6 +3863,7 @@ dependencies = [
  "http 1.4.0",
  "http-body-util",
  "jsonwebtoken",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "platform_contracts",
@@ -3961,6 +3982,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -4016,6 +4038,7 @@ dependencies = [
  "hex",
  "hmac",
  "lazy_static",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -4057,6 +4080,7 @@ dependencies = [
  "http 1.4.0",
  "image",
  "lazy_static",
+ "migration-safety-test",
  "pdfium-render",
  "platform-http-contracts",
  "platform-sdk",
@@ -4753,7 +4777,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "3.4.1"
+version = "3.5.1"
 dependencies = [
  "audit",
  "axum",
@@ -4763,6 +4787,7 @@ dependencies = [
  "event-bus",
  "health",
  "http-body-util",
+ "migration-safety-test",
  "platform-client-numbering",
  "platform-http-contracts",
  "platform-sdk",
@@ -4900,6 +4925,7 @@ dependencies = [
  "futures",
  "health",
  "jsonwebtoken",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
@@ -5203,6 +5229,7 @@ dependencies = [
  "futures",
  "health",
  "http-body-util",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "printpdf",
@@ -5612,6 +5639,7 @@ dependencies = [
  "event-bus",
  "hmac",
  "http 1.4.0",
+ "http-body-util",
  "jsonwebtoken",
  "prometheus",
  "rand 0.8.5",
@@ -5854,6 +5882,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-client-inventory",
  "platform-client-quality-inspection",
  "platform-http-contracts",
@@ -6325,6 +6354,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-client-ar",
  "platform-http-contracts",
  "platform-sdk",
@@ -6565,6 +6595,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -6979,6 +7010,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "projections",
@@ -7033,6 +7065,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-client-ar",
  "platform-client-tenant-registry",
  "platform-http-contracts",
@@ -7952,6 +7985,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "platform_contracts",
@@ -7981,6 +8015,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "health",
+ "migration-safety-test",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",

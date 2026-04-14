@@ -372,8 +372,9 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
     .expect("Failed to create UNKNOWN attempt");
 
     // Call reconciliation (uses mock PSP that returns success for "psp_succeeded_")
+    use payments_rs::processor::test_support::TestPaymentProcessor;
     use payments_rs::reconciliation::reconcile_unknown_attempt;
-    let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    let result = reconcile_unknown_attempt(&payments_pool, attempt_id, &TestPaymentProcessor)
         .await
         .expect("Reconciliation failed");
 
@@ -440,8 +441,9 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
     .expect("Failed to create UNKNOWN attempt");
 
     // Call reconciliation (mock PSP returns failure for "psp_failed_retry_")
+    use payments_rs::processor::test_support::TestPaymentProcessor;
     use payments_rs::reconciliation::reconcile_unknown_attempt;
-    let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    let result = reconcile_unknown_attempt(&payments_pool, attempt_id, &TestPaymentProcessor)
         .await
         .expect("Reconciliation failed");
 
@@ -508,17 +510,19 @@ async fn test_reconciliation_idempotency() {
     .expect("Failed to create UNKNOWN attempt");
 
     // Call reconciliation multiple times
+    use payments_rs::processor::test_support::TestPaymentProcessor;
     use payments_rs::reconciliation::reconcile_unknown_attempt;
+    let processor = TestPaymentProcessor;
 
-    let result_1 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    let result_1 = reconcile_unknown_attempt(&payments_pool, attempt_id, &processor)
         .await
         .expect("First reconciliation failed");
 
-    let result_2 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    let result_2 = reconcile_unknown_attempt(&payments_pool, attempt_id, &processor)
         .await
         .expect("Second reconciliation failed");
 
-    let result_3 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    let result_3 = reconcile_unknown_attempt(&payments_pool, attempt_id, &processor)
         .await
         .expect("Third reconciliation failed");
 

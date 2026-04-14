@@ -14,6 +14,7 @@
 //   Production: PRODUCTION_DATABASE_URL (default: localhost:5461)
 //   Numbering:  NUMBERING_DATABASE_URL  (default: localhost:5456)
 
+use production_rs::domain::bom_client::BomRevisionClient;
 use production_rs::domain::numbering_client::NumberingClient;
 use production_rs::domain::work_orders::{CompositeCreateWorkOrderRequest, WorkOrderRepo};
 use security::{ActorType, VerifiedClaims};
@@ -127,7 +128,8 @@ async fn retry_after_insert_failure_gets_same_number() {
         idempotency_key: idem_key.clone(),
     };
     let corr = Uuid::new_v4().to_string();
-    let wo = WorkOrderRepo::composite_create(&prod_pool, &numbering, &req, &claims, &corr, None)
+    let bom = BomRevisionClient::permissive();
+    let wo = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr, None)
         .await
         .expect("composite_create retry must succeed");
 
@@ -167,15 +169,16 @@ async fn idempotent_retry_returns_same_wo() {
         idempotency_key: idem_key.clone(),
     };
 
+    let bom = BomRevisionClient::permissive();
     // First call — creates WO.
     let corr1 = Uuid::new_v4().to_string();
-    let wo1 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &req, &claims, &corr1, None)
+    let wo1 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr1, None)
         .await
         .expect("first composite_create");
 
     // Second call — same idempotency_key, same tenant, same item.
     let corr2 = Uuid::new_v4().to_string();
-    let wo2 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &req, &claims, &corr2, None)
+    let wo2 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr2, None)
         .await
         .expect("second composite_create (idempotent)");
 
@@ -222,10 +225,11 @@ async fn concurrent_same_key_creates_exactly_one_wo() {
     let numbering_b = NumberingClient::direct(num_pool);
     let corr1 = Uuid::new_v4().to_string();
     let corr2 = Uuid::new_v4().to_string();
+    let bom = BomRevisionClient::permissive();
 
     let (r1, r2) = tokio::join!(
-        WorkOrderRepo::composite_create(&prod_pool, &numbering_a, &req, &claims, &corr1, None),
-        WorkOrderRepo::composite_create(&prod_pool, &numbering_b, &req, &claims, &corr2, None),
+        WorkOrderRepo::composite_create(&prod_pool, &numbering_a, &bom, &req, &claims, &corr1, None),
+        WorkOrderRepo::composite_create(&prod_pool, &numbering_b, &bom, &req, &claims, &corr2, None),
     );
 
     // Both must succeed: one creates the WO, the other returns the existing one.

@@ -27,7 +27,7 @@ use axum::{
 use common::get_tenant_registry_pool;
 use control_plane::{
     provisioning::{
-        registry::{ModuleProvisioningConfig, ModuleRegistry},
+        registry::{default_http_port_for, ModuleProvisioningConfig, ModuleRegistry},
         steps::tenant_db_name,
         worker,
     },
@@ -124,6 +124,7 @@ fn build_registry(module_codes: &[&str]) -> ModuleRegistry {
                 postgres_user: user,
                 postgres_password: password,
                 migrations_path,
+                http_base_url: format!("http://localhost:{}", default_http_port_for(code)),
             };
             (code.to_string(), cfg)
         })

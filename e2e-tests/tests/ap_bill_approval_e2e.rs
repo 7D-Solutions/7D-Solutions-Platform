@@ -67,7 +67,7 @@ const TENANT_ID: &str = "00000000-0000-4000-a000-000000000001";
 
 fn make_ap_router(pool: PgPool) -> Router {
     let metrics = Arc::new(ApMetrics::new().expect("AP metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
 
     let ap_mutations = Router::new()
         .route(

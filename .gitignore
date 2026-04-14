@@ -18,6 +18,13 @@
 /target-slot-2/
 /target-slot-3/
 /target-slot-4/
+/target-native/
+
+# Local backup snapshots
+/backups/
+
+# Performance smoke test artifacts
+/perf-smoke-gate-*.json
 
 # Cargo per-slot home dirs (registry cache created by cargo-slot.sh)
 /.cargo-slot-1/

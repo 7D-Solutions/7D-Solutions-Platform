@@ -14,7 +14,7 @@ use uuid::Uuid;
 async fn setup_pool() -> PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5441/ar_db".to_string());
+        .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string());
     PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)

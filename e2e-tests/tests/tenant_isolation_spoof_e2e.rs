@@ -87,7 +87,7 @@ fn build_ar_router(verifier: Arc<JwtVerifier>) -> Router {
 fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
     let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
     let metrics = Arc::new(ap::metrics::ApMetrics::new().unwrap());
-    let state = Arc::new(ap::AppState { pool, metrics });
+    let state = Arc::new(ap::AppState { pool, metrics, gl_pool: None });
 
     // Manually build minimal AP router for testing
     axum::Router::new()

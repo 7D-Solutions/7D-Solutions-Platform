@@ -1,0 +1,15 @@
+---
+extends: default
+
+rules:
+  # Prometheus alert rule files and CI workflows have legitimate long lines
+  # (PromQL expressions, annotation strings, dashboard URLs)
+  line-length:
+    max: 200
+    level: warning
+
+  # Prometheus alert files don't require document start markers
+  document-start: disable
+
+  # Prometheus YAML uses unquoted true/false
+  truthy: disable

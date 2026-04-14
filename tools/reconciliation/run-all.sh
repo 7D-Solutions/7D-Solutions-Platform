@@ -23,15 +23,27 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-BINARY="${SCRIPT_DIR}/../../target/debug/reconciliation"
+BINARY="${PROJECT_ROOT}/target/debug/reconciliation"
 
 # Fall back to writing metrics to stdout if no output dir configured
 export RECON_METRICS_OUTPUT="${RECON_METRICS_OUTPUT:--}"
 
 # Try to find the built binary. If not found, build it first.
+# NOTE: cargo-slot.sh builds into target-slot-N/ and nukes that dir on exit,
+# so the binary never survives at target/debug/. We bypass the slot shim and
+# build directly into target/ using the real cargo binary.
 if [[ ! -f "${BINARY}" ]]; then
   echo "[recon] Binary not found at ${BINARY}. Building..." >&2
-  "${PROJECT_ROOT}/scripts/cargo-slot.sh" build -p reconciliation >&2
+  # Find real cargo, bypassing the workspace bin/cargo shim
+  _REAL_CARGO=""
+  for _c in "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo /opt/homebrew/bin/cargo /usr/bin/cargo; do
+    if [[ -x "$_c" ]]; then _REAL_CARGO="$_c"; break; fi
+  done
+  if [[ -z "$_REAL_CARGO" ]]; then
+    echo "[recon] ERROR: cargo binary not found" >&2
+    exit 2
+  fi
+  CARGO_TARGET_DIR="${PROJECT_ROOT}/target" "$_REAL_CARGO" build -p reconciliation >&2
 fi
 
 echo "[recon] Starting reconciliation run at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >&2

@@ -75,7 +75,7 @@ async fn run_party_migrations(pool: &PgPool) {
 
 fn make_ap_router(pool: PgPool) -> Router {
     let metrics = Arc::new(ApMetrics::new().expect("AP metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
 
     let ap_mutations = Router::new()
         .route("/api/ap/vendors", post(http::vendors::create_vendor))

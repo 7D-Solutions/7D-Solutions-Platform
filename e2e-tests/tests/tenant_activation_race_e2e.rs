@@ -269,9 +269,10 @@ async fn tenant_activation_race_slow_module_causes_degraded_not_active() {
         "slow module → outcome status must be degraded, not active"
     );
 
+    let empty = vec![];
     let failed: Vec<&str> = outcome.checks["failed_modules"]
         .as_array()
-        .unwrap_or(&vec![])
+        .unwrap_or(&empty)
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
