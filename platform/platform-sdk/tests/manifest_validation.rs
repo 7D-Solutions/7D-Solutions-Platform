@@ -116,7 +116,11 @@ type = "kafka"
 
     let err = Manifest::from_file(&path).expect_err("kafka should fail");
     let msg = err.to_string();
-    assert!(msg.contains("kafka"), "expected bus type error, got: {}", msg);
+    assert!(
+        msg.contains("kafka"),
+        "expected bus type error, got: {}",
+        msg
+    );
 }
 
 #[test]
@@ -126,11 +130,7 @@ fn invalid_toml_returns_parse_error() {
 
     let err = Manifest::from_file(&path).expect_err("invalid TOML should fail");
     let msg = err.to_string();
-    assert!(
-        msg.contains("parse"),
-        "expected parse error, got: {}",
-        msg
-    );
+    assert!(msg.contains("parse"), "expected parse error, got: {}", msg);
 }
 
 #[test]
@@ -721,6 +721,31 @@ pool_max = 50
     let db = manifest.database.expect("database section");
     assert_eq!(db.pool_min, 2);
     assert_eq!(db.pool_max, 50);
+}
+
+#[test]
+fn database_section_parses_tenant_quota() {
+    let dir = TempDir::new().expect("tempdir");
+    fs::create_dir_all(dir.path().join("db/migrations")).expect("create migrations dir");
+
+    let path = write_manifest(
+        &dir,
+        r#"
+[module]
+name = "db-tenant-quota"
+
+[database]
+migrations = "./db/migrations"
+
+[database.tenant_quota]
+max_connections = 8
+"#,
+    );
+
+    let manifest = Manifest::from_file(&path).expect("tenant quota should parse");
+    let db = manifest.database.expect("database section");
+    let quota = db.tenant_quota.expect("tenant quota section");
+    assert_eq!(quota.max_connections, 8);
 }
 
 // --- Full manifest with all new sections ---

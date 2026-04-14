@@ -1995,6 +1995,7 @@ dependencies = [
  "notifications-rs",
  "party-rs",
  "payments-rs",
+ "platform-http-contracts",
  "platform-sdk",
  "production-rs",
  "projections",
@@ -4600,6 +4601,7 @@ dependencies = [
  "blob-storage",
  "chrono",
  "config-validator",
+ "dashmap 6.1.0",
  "dotenvy",
  "event-bus",
  "futures",
@@ -6463,7 +6465,7 @@ dependencies = [
 
 [[package]]
 name = "tenant-registry"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "axum",
  "chrono",

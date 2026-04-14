@@ -60,6 +60,10 @@ name = "cross_module_concurrency_safety_e2e"
 path = "tests/cross_module_concurrency_safety_e2e.rs"
 
 [[test]]
+name = "noisy_neighbor_e2e"
+path = "tests/noisy_neighbor_e2e.rs"
+
+[[test]]
 name = "audit_append_only_e2e"
 path = "tests/audit_append_only_e2e.rs"
 
@@ -678,6 +682,7 @@ dotenvy = "0.15"
 party-rs = { path = "../modules/party" }
 ttp-rs = { path = "../modules/ttp" }
 platform-sdk = { path = "../platform/platform-sdk" }
+platform-http-contracts = { path = "../platform/http-contracts", features = ["axum"] }
 anyhow = "1.0"
 sha2 = "0.10"
 hex = "0.4"

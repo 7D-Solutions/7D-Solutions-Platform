@@ -23,6 +23,10 @@ pub struct ApiError {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<Vec<FieldError>>,
 
+    /// Optional `Retry-After` header value in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after_secs: Option<u64>,
+
     /// HTTP status code — serialized for internal use but skipped in JSON output.
     #[serde(skip)]
     #[schema(ignore)]
@@ -36,6 +40,7 @@ impl ApiError {
             message: message.into(),
             request_id: None,
             details: None,
+            retry_after_secs: None,
             status,
         }
     }
@@ -47,6 +52,11 @@ impl ApiError {
 
     pub fn with_details(mut self, details: Vec<FieldError>) -> Self {
         self.details = Some(details);
+        self
+    }
+
+    pub fn with_retry_after_secs(mut self, secs: u64) -> Self {
+        self.retry_after_secs = Some(secs);
         self
     }
 
@@ -83,6 +93,10 @@ impl ApiError {
     pub fn forbidden(message: impl Into<String>) -> Self {
         Self::new(403, "forbidden", message)
     }
+
+    pub fn too_many_requests(message: impl Into<String>) -> Self {
+        Self::new(429, "too_many_requests", message)
+    }
 }
 
 impl std::fmt::Display for ApiError {
@@ -100,7 +114,14 @@ impl axum::response::IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let status = http::StatusCode::from_u16(self.status)
             .unwrap_or(http::StatusCode::INTERNAL_SERVER_ERROR);
-        (status, axum::Json(self)).into_response()
+        let retry_after_secs = self.retry_after_secs;
+        let mut response = (status, axum::Json(self)).into_response();
+        if let Some(secs) = retry_after_secs {
+            if let Ok(value) = secs.to_string().parse() {
+                response.headers_mut().insert("retry-after", value);
+            }
+        }
+        response
     }
 }
 
@@ -117,6 +138,7 @@ mod tests {
         assert_eq!(json["message"], "Item not found");
         assert!(json.get("request_id").is_none());
         assert!(json.get("details").is_none());
+        assert!(json.get("retry_after_secs").is_none());
         // status field is skip — must not appear
         assert!(json.get("status").is_none());
         Ok(())
@@ -127,8 +149,14 @@ mod tests {
         let err = ApiError::validation_error(
             "Validation failed",
             vec![
-                FieldError { field: "email".into(), message: "invalid format".into() },
-                FieldError { field: "name".into(), message: "required".into() },
+                FieldError {
+                    field: "email".into(),
+                    message: "invalid format".into(),
+                },
+                FieldError {
+                    field: "name".into(),
+                    message: "required".into(),
+                },
             ],
         )
         .with_request_id("req-abc-123");
@@ -152,6 +180,7 @@ mod tests {
         assert_eq!(deser.error, "not_found");
         assert_eq!(deser.message, "Gone");
         assert_eq!(deser.request_id.as_deref(), Some("r1"));
+        assert_eq!(deser.retry_after_secs, None);
         // status is skipped in serialization, so deserialized value is default (0)
         assert_eq!(deser.status, 0);
         Ok(())
@@ -178,6 +207,7 @@ mod tests {
         assert_eq!(ApiError::conflict("x").status_code(), 409);
         assert_eq!(ApiError::unauthorized("x").status_code(), 401);
         assert_eq!(ApiError::forbidden("x").status_code(), 403);
+        assert_eq!(ApiError::too_many_requests("x").status_code(), 429);
     }
 
     /// Test IntoResponse — only runs when the `axum` feature is active.
@@ -197,6 +227,21 @@ mod tests {
         assert_eq!(json["error"], "not_found");
         assert_eq!(json["message"], "Item 42 not found");
         assert_eq!(json["request_id"], "req-1");
+        Ok(())
+    }
+
+    #[cfg(feature = "axum")]
+    #[tokio::test]
+    async fn api_error_includes_retry_after_header() -> Result<(), Box<dyn std::error::Error>> {
+        use axum::response::IntoResponse;
+        let err = ApiError::too_many_requests("Too many requests").with_retry_after_secs(1);
+        let response = err.into_response();
+        assert_eq!(response.status(), http::StatusCode::TOO_MANY_REQUESTS);
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok());
+        assert_eq!(retry_after, Some("1"));
         Ok(())
     }
 }

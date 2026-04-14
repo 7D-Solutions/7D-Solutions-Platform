@@ -45,6 +45,8 @@ use axum::http::request::Parts;
 use platform_http_contracts::ApiError;
 use security::claims::VerifiedClaims;
 use sqlx::PgPool;
+use std::ops::{Deref, DerefMut};
+use tokio::sync::OwnedSemaphorePermit;
 use uuid::Uuid;
 
 /// Tenant ID extracted from the caller's JWT claims.
@@ -153,6 +155,60 @@ where
             .map_err(|e| ApiError::internal(format!("tenant pool error: {e}")))?;
 
         Ok(TenantPool(pool))
+    }
+}
+
+/// Guard returned by `ModuleContext::pool_for_tenant`.
+///
+/// Holds both the acquired database connection and the in-memory tenant quota
+/// permit. Releasing the guard returns the tenant's budget slot automatically.
+pub struct TenantPoolGuard {
+    tenant_id: Uuid,
+    #[allow(dead_code)]
+    permit: OwnedSemaphorePermit,
+    conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
+}
+
+impl TenantPoolGuard {
+    pub(crate) fn new(
+        tenant_id: Uuid,
+        conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
+        permit: OwnedSemaphorePermit,
+    ) -> Self {
+        Self {
+            tenant_id,
+            permit,
+            conn,
+        }
+    }
+
+    /// Tenant ID associated with this guard.
+    pub fn tenant_id(&self) -> Uuid {
+        self.tenant_id
+    }
+}
+
+impl Deref for TenantPoolGuard {
+    type Target = sqlx::pool::PoolConnection<sqlx::Postgres>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.conn
+    }
+}
+
+impl DerefMut for TenantPoolGuard {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.conn
+    }
+}
+
+impl std::fmt::Debug for TenantPoolGuard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TenantPoolGuard")
+            .field("tenant_id", &self.tenant_id)
+            .field("conn", &"<PoolConnection>")
+            .field("permit", &"<OwnedSemaphorePermit>")
+            .finish()
     }
 }
 

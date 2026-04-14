@@ -45,11 +45,11 @@ pub use auth::AuthSection;
 pub use blob::BlobSection;
 pub use bus::BusSection;
 pub use cors::CorsSection;
-pub use database::DatabaseSection;
+pub use database::{DatabaseSection, TenantQuotaSection};
 pub use events::{EventsPublishSection, EventsSection};
 pub use health_section::{HealthSection, KNOWN_HEALTH_DEPS};
 pub use module::ModuleSection;
-pub use platform_services::{PlatformSection, ServiceEntry};
+pub use platform_services::{PlatformSection, ServiceCriticality, ServiceEntry};
 pub use rate_limit::RateLimitSection;
 pub use sdk::SdkSection;
 pub use server::ServerSection;
@@ -181,6 +181,13 @@ impl Manifest {
 
         // Validate migrations path exists if specified.
         if let Some(ref db) = self.database {
+            if let Some(ref quota) = db.tenant_quota {
+                if quota.max_connections == 0 {
+                    return Err(ManifestError::Validation(
+                        "database.tenant_quota.max_connections must be greater than zero".into(),
+                    ));
+                }
+            }
             if let Some(base) = source_path.and_then(|p| p.parent()) {
                 let migrations_path = base.join(&db.migrations);
                 if !migrations_path.exists() {
@@ -215,8 +222,7 @@ impl Manifest {
         if let Some(ref cors) = self.cors {
             if cors.origins.is_some() && cors.origin_pattern.is_some() {
                 return Err(ManifestError::Validation(
-                    "cors.origins and cors.origin_pattern are mutually exclusive — pick one"
-                        .into(),
+                    "cors.origins and cors.origin_pattern are mutually exclusive — pick one".into(),
                 ));
             }
             if let Some(ref pattern) = cors.origin_pattern {
@@ -348,7 +354,12 @@ min_version = "0.1.0"
         assert_eq!(manifest.module.version.as_deref(), Some("2.3.3"));
         assert_eq!(manifest.server.port, 8098);
         assert_eq!(
-            manifest.bus.as_ref().expect("bus section").bus_type.as_str(),
+            manifest
+                .bus
+                .as_ref()
+                .expect("bus section")
+                .bus_type
+                .as_str(),
             "inmemory"
         );
     }
@@ -399,8 +410,8 @@ type = "kafka"
 
     #[test]
     fn invalid_toml_returns_parse_error() {
-        let err = Manifest::from_str("not valid toml [[[", None)
-            .expect_err("invalid TOML should fail");
+        let err =
+            Manifest::from_str("not valid toml [[[", None).expect_err("invalid TOML should fail");
         assert!(matches!(err, ManifestError::Parse(_)));
     }
 
@@ -516,8 +527,7 @@ name = "no-bus"
 [events.publish]
 outbox_table = "events_outbox"
 "#;
-        let err =
-            Manifest::from_str(toml_str, None).expect_err("outbox without bus should fail");
+        let err = Manifest::from_str(toml_str, None).expect_err("outbox without bus should fail");
         match err {
             ManifestError::Validation(msg) => assert!(msg.contains("no event bus is configured")),
             other => panic!("expected validation error, got: {}", other),
@@ -535,7 +545,12 @@ type = "none"
 "#;
         let manifest = Manifest::from_str(toml_str, None).expect("none bus type should parse");
         assert_eq!(
-            manifest.bus.as_ref().expect("bus section").bus_type.as_str(),
+            manifest
+                .bus
+                .as_ref()
+                .expect("bus section")
+                .bus_type
+                .as_str(),
             "none"
         );
     }
@@ -646,6 +661,9 @@ burst = 100
 "#;
         let manifest = Manifest::from_str(toml_str, None).expect("should parse without tiers");
         let rl = manifest.rate_limit.expect("rate_limit section");
-        assert!(rl.tiers.is_empty(), "no tiers section should yield empty map");
+        assert!(
+            rl.tiers.is_empty(),
+            "no tiers section should yield empty map"
+        );
     }
 }

@@ -35,6 +35,20 @@ pub struct DatabaseSection {
     /// from the pool. Default: 300 (5 minutes).
     #[serde(default = "default_pool_idle_timeout_secs")]
     pub pool_idle_timeout_secs: u64,
+    /// Per-tenant connection budget. Default: 5 concurrent connections.
+    #[serde(default)]
+    pub tenant_quota: Option<TenantQuotaSection>,
+
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
+/// `[database.tenant_quota]` — in-memory per-tenant connection budget.
+#[derive(Debug, Clone, Deserialize)]
+pub struct TenantQuotaSection {
+    /// Maximum concurrent DB connections allowed per tenant.
+    #[serde(default = "default_tenant_quota_max_connections")]
+    pub max_connections: u32,
 
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
@@ -54,4 +68,8 @@ fn default_pool_acquire_timeout_secs() -> u64 {
 
 fn default_pool_idle_timeout_secs() -> u64 {
     300
+}
+
+fn default_tenant_quota_max_connections() -> u32 {
+    5
 }
