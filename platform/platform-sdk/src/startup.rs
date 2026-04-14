@@ -3,21 +3,148 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::extract::{DefaultBodyLimit, Query};
+use axum::extract::{DefaultBodyLimit, Query, Request};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use event_bus::EventBus;
+use security::claims::VerifiedClaims;
 use security::middleware::{rate_limit_middleware, tiered_rate_limit_middleware};
 use security::ratelimit::{RateLimitConfig, RateLimiter, TieredRateLimiter};
 use security::{optional_claims_mw, JwtVerifier};
+use tracing::Instrument;
 use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
 
 use crate::startup_helpers::{build_cors_layer, parse_body_limit, parse_duration_str, shutdown_signal};
 
 use crate::consumer::ConsumerHandles;
 use crate::context::ModuleContext;
+
+// ── Distributed tracing task-local ───────────────────────────────────────────
+
+tokio::task_local! {
+    /// The trace ID for the current request, set by [`platform_trace_middleware`].
+    /// Used by [`crate::http_client::PlatformClient`] to propagate trace context
+    /// on every outbound HTTP call without requiring callers to thread the ID manually.
+    pub(crate) static CURRENT_TRACE_ID: String;
+}
+
+/// Parse a W3C Trace Context `traceparent` header and extract the trace ID as a UUID string.
+///
+/// Format: `{version}-{trace_id_32hex}-{parent_id_16hex}-{flags}`
+/// Example: `00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`
+fn parse_traceparent(header: &str) -> Option<String> {
+    let parts: Vec<&str> = header.splitn(4, '-').collect();
+    if parts.len() < 4 {
+        return None;
+    }
+    // parts[0] = version ("00"), parts[1] = trace_id (32 hex chars)
+    let trace_hex = parts[1];
+    if trace_hex.len() != 32 || !trace_hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    // Reformat as UUID: 8-4-4-4-12
+    Some(format!(
+        "{}-{}-{}-{}-{}",
+        &trace_hex[0..8],
+        &trace_hex[8..12],
+        &trace_hex[12..16],
+        &trace_hex[16..20],
+        &trace_hex[20..32]
+    ))
+}
+
+fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(name)
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+}
+
+/// Platform-aware request tracing middleware.
+///
+/// Extends the security tracing context with `tenant_id` and `actor_id` from JWT claims,
+/// making these fields available in every structured log line emitted during request
+/// processing. Runs AFTER JWT auth so claims are already in request extensions.
+///
+/// Additionally:
+/// - Reads a W3C `traceparent` header (falling back to `X-Trace-Id`) so that upstream
+///   services can propagate their trace context.
+/// - Stores the trace ID in [`CURRENT_TRACE_ID`] task-local so outbound
+///   [`crate::http_client::PlatformClient`] calls can propagate it automatically.
+/// - Echoes `X-Request-Id`, `X-Trace-Id`, and `X-Correlation-Id` in the response.
+pub(crate) async fn platform_trace_middleware(request: Request, next: Next) -> Response {
+    // Resolve trace_id: W3C traceparent takes precedence, then X-Trace-Id, then fresh UUID.
+    let trace_id = header_str(request.headers(), "traceparent")
+        .and_then(|tp| parse_traceparent(&tp))
+        .or_else(|| header_str(request.headers(), "x-trace-id"))
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let correlation_id = header_str(request.headers(), "x-correlation-id")
+        .unwrap_or_else(|| trace_id.clone());
+
+    // Claims are already injected by the JWT auth middleware (which runs before tracing).
+    let claims = request.extensions().get::<VerifiedClaims>().cloned();
+    let tenant_id = claims
+        .as_ref()
+        .map(|c| c.tenant_id.to_string())
+        .unwrap_or_default();
+    let actor_id = claims
+        .as_ref()
+        .map(|c| c.user_id.to_string())
+        .unwrap_or_default();
+
+    let method = request.method().clone();
+    let uri = request.uri().path().to_string();
+
+    let span = tracing::info_span!(
+        "request",
+        trace_id = %trace_id,
+        correlation_id = %correlation_id,
+        tenant_id = %tenant_id,
+        actor_id = %actor_id,
+        method = %method,
+        path = %uri,
+    );
+
+    // Also inject TracingContext extension so consumers/handlers that read it still work.
+    let tracing_ctx = event_bus::TracingContext::new()
+        .with_trace_id(trace_id.clone())
+        .with_correlation_id(correlation_id.clone());
+    let tracing_ctx = if let Some(ref c) = claims {
+        tracing_ctx.with_actor(c.user_id, "User".to_string())
+    } else {
+        tracing_ctx
+    };
+
+    let mut request = request;
+    request.extensions_mut().insert(tracing_ctx);
+
+    let trace_id_local = trace_id.clone();
+    let mut response = CURRENT_TRACE_ID
+        .scope(
+            trace_id_local,
+            next.run(request).instrument(span),
+        )
+        .await;
+
+    // Echo tracing IDs in response headers so callers can correlate.
+    if let Ok(val) = trace_id.parse() {
+        response.headers_mut().insert("x-request-id", val);
+    }
+    if let Ok(val) = trace_id.parse() {
+        response.headers_mut().insert("x-trace-id", val);
+    }
+    if let Ok(val) = correlation_id.parse() {
+        response.headers_mut().insert("x-correlation-id", val);
+    }
+
+    response
+}
 use crate::manifest::Manifest;
 use crate::publisher;
 
@@ -116,12 +243,17 @@ pub(crate) async fn phase_a(
     skip_outbox: bool,
     skip_auth: bool,
     pool_resolver: Option<Arc<dyn crate::context::TenantPoolResolver>>,
-    builder_tiers: Vec<(String, RateLimitConfig, Vec<String>)>,
+    builder_tiers: Vec<security::ratelimit::TierDef>,
 ) -> Result<PhaseAOutput, StartupError> {
     // Step 1: dotenv
     dotenvy::dotenv().ok();
 
     // Step 2: tracing — LOG_FORMAT=json enables structured JSON output
+    //
+    // OTLP export: when OTEL_EXPORTER_OTLP_ENDPOINT is set, spans are intended for
+    // export to an OpenTelemetry-compatible backend (Jaeger, Tempo, etc.). The SDK
+    // logs a startup notice here; full gRPC OTLP export is wired via the
+    // opentelemetry-otlp crate when that integration is enabled.
     let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
     if log_format.eq_ignore_ascii_case("json") {
@@ -135,6 +267,15 @@ pub(crate) async fn phase_a(
             .init();
     }
 
+    if let Ok(otlp_endpoint) = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+        tracing::info!(
+            module = %manifest.module.name,
+            otlp_endpoint = %otlp_endpoint,
+            "OTLP endpoint configured — spans are logged as structured JSON; \
+             wire opentelemetry-otlp for gRPC export"
+        );
+    }
+
     tracing::info!(
         module = %manifest.module.name,
         version = ?manifest.module.version,
@@ -146,17 +287,22 @@ pub(crate) async fn phase_a(
         StartupError::Config("DATABASE_URL is required but not set".into())
     })?;
 
-    // Step 4: DB pool — sizes from manifest [database] section (defaults: min=5, max=20)
-    let pool_max = manifest.database.as_ref().map_or(20, |db| db.pool_max);
-    let pool_min = manifest.database.as_ref().map_or(5, |db| db.pool_min);
+    // Step 4: DB pool — sizes from manifest [database] section
+    let pool_max = manifest.database.as_ref().map_or(12, |db| db.pool_max);
+    let pool_min = manifest.database.as_ref().map_or(2, |db| db.pool_min);
     let acquire_timeout_secs = manifest
         .database
         .as_ref()
         .map_or(5, |db| db.pool_acquire_timeout_secs);
+    let idle_timeout_secs = manifest
+        .database
+        .as_ref()
+        .map_or(300, |db| db.pool_idle_timeout_secs);
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(pool_max)
         .min_connections(pool_min)
         .acquire_timeout(std::time::Duration::from_secs(acquire_timeout_secs))
+        .idle_timeout(std::time::Duration::from_secs(idle_timeout_secs))
         .connect(&database_url)
         .await
         .map_err(|e| StartupError::Database(e.to_string()))?;
@@ -193,6 +339,24 @@ pub(crate) async fn phase_a(
                 .await
                 .map_err(|e| StartupError::Config(format!("NATS connection failed: {e}")))?;
             tracing::info!(module = %manifest.module.name, "NATS event bus connected");
+
+            // Ensure all platform JetStream streams exist with the correct dedup windows.
+            // This is idempotent — safe to run on every startup. Non-fatal: a failure here
+            // means streams may use the default 2-minute window rather than the configured
+            // class window, but the module can still function.
+            match event_bus::ensure_platform_streams(client.clone()).await {
+                Ok(()) => {
+                    tracing::info!(module = %manifest.module.name, "JetStream stream dedup windows applied");
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        module = %manifest.module.name,
+                        error = %e,
+                        "JetStream stream setup failed — streams may use default 2-minute dedup window"
+                    );
+                }
+            }
+
             nats_client = Some(client.clone());
             Some(Arc::new(event_bus::NatsBus::new(client)))
         }
@@ -334,7 +498,7 @@ pub(crate) async fn phase_a(
             tiers = builder_tiers.len(),
             "tiered rate limiter active"
         );
-        RateLimiterKind::Tiered(Arc::new(TieredRateLimiter::new(builder_tiers)))
+        RateLimiterKind::Tiered(Arc::new(TieredRateLimiter::from_defs(builder_tiers)))
     } else if let Some(ref rl) = manifest.rate_limit {
         let window = std::time::Duration::from_secs(1);
         RateLimiterKind::Simple(Arc::new(RateLimiter::with_configs(
@@ -479,9 +643,9 @@ pub(crate) async fn phase_b(
         }));
 
     let app = if !flags.skip_tracing {
-        app.layer(axum::middleware::from_fn(
-            security::tracing::tracing_context_middleware,
-        ))
+        // platform_trace_middleware runs AFTER JWT auth (more outer layers run first),
+        // so VerifiedClaims are available and enrich the span with tenant_id and actor_id.
+        app.layer(axum::middleware::from_fn(platform_trace_middleware))
     } else {
         tracing::info!(module = %module_name, "tracing context middleware disabled");
         app

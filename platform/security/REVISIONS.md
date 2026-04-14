@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.8.0 | 2026-04-13 | bd-397ij | Add `TierDef` struct carrying `RateLimitKeyStrategy` + optional method filters per tier. `ratelimit.rs` supports composite (tenant+ip) and ip-only key strategies. `middleware.rs` dispatches by method + path prefix. Integration test verifies tier selection and 429 responses. | Tiered rate limiting required cross-module activation; builder-side `with_rate_limiting()` needs a richer TierDef than the previous tuple. | No |
 | 1.2.0 | 2026-04-02 | bd-4lc6q | Store raw bearer token (RawBearerToken) in request extensions alongside VerifiedClaims | Verticals need raw JWT for proxying, webhooks, audit | No |
 | 1.0.0 | 2026-03-28 | bd-3ctma | Initial proof. All tests passing. | Module build complete and core logic validated via tests. | No |
 | 1.0.1 | 2026-03-28 | bd-29c9i.1 | Add PRODUCTION_MUTATE and PRODUCTION_READ permission constants. | Production module was the only module without permission constants — security audit finding. | No |

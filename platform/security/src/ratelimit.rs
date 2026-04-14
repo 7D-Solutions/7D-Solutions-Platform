@@ -9,6 +9,28 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+/// A single rate limit tier definition.
+///
+/// Used with [`TieredRateLimiter::from_defs`] to build a limiter with full
+/// per-tier control over limits, routes, key strategy, and HTTP method
+/// filtering.
+#[derive(Debug, Clone)]
+pub struct TierDef {
+    /// Unique tier name.  The tier name `"api"` is reserved as the implicit
+    /// default when no other tier matches the request path + method.
+    pub name: String,
+    /// Rate limit quota for this tier.
+    pub config: RateLimitConfig,
+    /// URL path prefixes assigned to this tier (longest-prefix wins).
+    pub routes: Vec<String>,
+    /// Key strategy that determines bucket identity.
+    pub strategy: RateLimitKeyStrategy,
+    /// Optional HTTP method filter.  When `Some`, the tier only matches
+    /// requests whose method (case-insensitive) is in the list.  When
+    /// `None`, the tier matches all methods.
+    pub methods: Option<Vec<String>>,
+}
+
 /// Errors that can occur during rate limiting
 #[derive(Debug, thiserror::Error)]
 pub enum RateLimitError {
@@ -348,10 +370,17 @@ struct TierState {
 ///
 /// Route assignment uses longest-prefix matching. Paths not matching any
 /// configured prefix fall through to the default `"api"` tier.
+///
+/// When built with [`from_defs`](Self::from_defs), each tier can also restrict
+/// matching to specific HTTP methods (e.g. only `POST`/`PUT`/`PATCH`/`DELETE`
+/// for a "write" tier).  Method-specific entries with the same prefix rank
+/// ahead of method-agnostic entries in the match order.
 pub struct TieredRateLimiter {
     tiers: std::collections::HashMap<String, TierState>,
-    /// `(path_prefix, tier_name)` sorted longest-first for greedy match.
-    route_map: Vec<(String, String)>,
+    /// `(path_prefix, Option<uppercase-methods-set>, tier_name)` sorted
+    /// longest-prefix-first; within equal prefix length, method-specific
+    /// entries sort before method-agnostic ones.
+    route_map: Vec<(String, Option<std::collections::HashSet<String>>, String)>,
     default_tier_name: String,
 }
 
@@ -385,21 +414,53 @@ impl TieredRateLimiter {
     pub fn with_strategies(
         tiers: Vec<(String, RateLimitConfig, Vec<String>, RateLimitKeyStrategy)>,
     ) -> Self {
+        Self::from_defs(
+            tiers
+                .into_iter()
+                .map(|(n, c, r, s)| TierDef {
+                    name: n,
+                    config: c,
+                    routes: r,
+                    strategy: s,
+                    methods: None,
+                })
+                .collect(),
+        )
+    }
+
+    /// Build a tiered rate limiter from [`TierDef`] definitions.
+    ///
+    /// This is the most expressive constructor — each tier can specify a key
+    /// strategy and an optional HTTP method filter in addition to route
+    /// prefixes.  Use this when you need write/read/auth differentiation.
+    ///
+    /// If no tier named `"api"` is provided, a default `"api"` tier using
+    /// [`RateLimitConfig::normal_read`] and [`RateLimitKeyStrategy::Composite`]
+    /// is inserted automatically.
+    pub fn from_defs(tiers: Vec<TierDef>) -> Self {
         let mut tier_map: std::collections::HashMap<String, TierState> =
             std::collections::HashMap::new();
-        let mut route_map: Vec<(String, String)> = Vec::new();
+        let mut route_map: Vec<(String, Option<std::collections::HashSet<String>>, String)> =
+            Vec::new();
         let default_tier_name = "api".to_string();
 
-        for (name, config, routes, strategy) in tiers {
-            for route in &routes {
-                route_map.push((route.clone(), name.clone()));
+        for tier_def in tiers {
+            let methods_set: Option<std::collections::HashSet<String>> =
+                tier_def.methods.map(|ms| {
+                    ms.into_iter()
+                        .map(|m| m.to_uppercase())
+                        .collect()
+                });
+
+            for route in &tier_def.routes {
+                route_map.push((route.clone(), methods_set.clone(), tier_def.name.clone()));
             }
             tier_map.insert(
-                name,
+                tier_def.name,
                 TierState {
-                    config,
+                    config: tier_def.config,
                     buckets: Arc::new(DashMap::new()),
-                    strategy,
+                    strategy: tier_def.strategy,
                 },
             );
         }
@@ -416,8 +477,14 @@ impl TieredRateLimiter {
             );
         }
 
-        // Longest-first so more-specific prefixes win.
-        route_map.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        // Sort: longer prefix wins; within equal prefix length, method-specific
+        // entries rank ahead of method-agnostic ones so a POST-only "write" tier
+        // on "/api/" is checked before a method-agnostic "api" tier on "/api/".
+        route_map.sort_by(|a, b| {
+            b.0.len()
+                .cmp(&a.0.len())
+                .then_with(|| b.1.is_some().cmp(&a.1.is_some()))
+        });
 
         Self {
             tiers: tier_map,
@@ -426,10 +493,32 @@ impl TieredRateLimiter {
         }
     }
 
-    fn resolve_tier(&self, path: &str) -> &str {
-        for (prefix, tier_name) in &self.route_map {
+    /// Resolve the tier name for a given path and HTTP method.
+    ///
+    /// - Method-specific tiers are tried first (within their prefix length).
+    /// - Method-agnostic tiers act as fallback for any unmatched method.
+    /// - When `method` is empty or `"*"`, method-restricted tiers are skipped.
+    fn resolve_tier(&self, path: &str, method: &str) -> &str {
+        let method_upper = method.to_uppercase();
+        for (prefix, methods_opt, tier_name) in &self.route_map {
             if path.starts_with(prefix.as_str()) {
-                return tier_name.as_str();
+                match methods_opt {
+                    Some(methods) => {
+                        // Only match if the caller provided a real method that
+                        // is in this tier's set.
+                        if !method_upper.is_empty()
+                            && method_upper != "*"
+                            && methods.contains(&method_upper)
+                        {
+                            return tier_name.as_str();
+                        }
+                        // Method not in set — keep searching.
+                    }
+                    None => {
+                        // No method restriction — matches any method.
+                        return tier_name.as_str();
+                    }
+                }
             }
         }
         self.default_tier_name.as_str()
@@ -473,6 +562,10 @@ impl TieredRateLimiter {
 
     /// Check whether a request is within its tier's rate limit.
     ///
+    /// Uses path-only tier resolution (method-agnostic). Prefer
+    /// [`check_limit_for_method`](Self::check_limit_for_method) in middleware
+    /// where the HTTP method is available.
+    ///
     /// - `path` — request URI path (used for tier resolution)
     /// - `tenant_id` — tenant identifier (from JWT claims, or IP as fallback)
     /// - `ip` — client IP (from `X-Forwarded-For` or peer addr)
@@ -482,7 +575,34 @@ impl TieredRateLimiter {
         tenant_id: &str,
         ip: &str,
     ) -> Result<(), crate::SecurityError> {
-        let tier_name = self.resolve_tier(path);
+        self.check_limit_impl(path, "", tenant_id, ip)
+    }
+
+    /// Check whether a request is within its tier's rate limit, using the
+    /// HTTP method to select between method-specific tiers (e.g. write vs read).
+    ///
+    /// - `path`      — request URI path
+    /// - `method`    — HTTP method (e.g. `"POST"`, `"GET"`)
+    /// - `tenant_id` — tenant identifier (from JWT claims, or IP as fallback)
+    /// - `ip`        — client IP (from `X-Forwarded-For` or peer addr)
+    pub fn check_limit_for_method(
+        &self,
+        path: &str,
+        method: &str,
+        tenant_id: &str,
+        ip: &str,
+    ) -> Result<(), crate::SecurityError> {
+        self.check_limit_impl(path, method, tenant_id, ip)
+    }
+
+    fn check_limit_impl(
+        &self,
+        path: &str,
+        method: &str,
+        tenant_id: &str,
+        ip: &str,
+    ) -> Result<(), crate::SecurityError> {
+        let tier_name = self.resolve_tier(path, method);
 
         let tier = match self.tiers.get(tier_name) {
             Some(t) => t,
@@ -507,9 +627,20 @@ impl TieredRateLimiter {
         }
     }
 
+    /// Return the window duration in seconds for the tier that handles the
+    /// given path and method.  Used to populate the `Retry-After` header on
+    /// 429 responses.
+    pub fn window_secs_for_path_method(&self, path: &str, method: &str) -> u64 {
+        let tier_name = self.resolve_tier(path, method);
+        match self.tiers.get(tier_name) {
+            Some(tier) => tier.config.window.as_secs(),
+            None => 60,
+        }
+    }
+
     /// Get the remaining quota for a path/tenant/ip combination.
     pub fn remaining_quota(&self, path: &str, tenant_id: &str, ip: &str) -> u32 {
-        let tier_name = self.resolve_tier(path);
+        let tier_name = self.resolve_tier(path, "");
         match self.tiers.get(tier_name) {
             Some(tier) => {
                 let key = Self::build_key(tier_name, tenant_id, ip, tier.strategy);

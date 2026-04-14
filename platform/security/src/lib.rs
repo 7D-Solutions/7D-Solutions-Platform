@@ -57,8 +57,8 @@ pub use authz_middleware::{
 // Re-export JWT claims types
 pub use claims::{ActorType, JwtVerifier, VerifiedClaims};
 
-// Re-export rate limit key strategy
-pub use ratelimit::RateLimitKeyStrategy;
+// Re-export rate limit types
+pub use ratelimit::{RateLimitKeyStrategy, TierDef};
 
 /// Error type for security operations
 #[derive(Debug, thiserror::Error)]

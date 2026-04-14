@@ -10,6 +10,10 @@ port = 8100
 [database]
 migrations = "./db/migrations"
 auto_migrate = true
+pool_min = 2
+pool_max = 12
+pool_acquire_timeout_secs = 5
+pool_idle_timeout_secs = 300
 
 [platform.services]
 ar = { enabled = true, default_url = "http://localhost:8086" }
@@ -17,3 +21,21 @@ platform-client-tenant-registry = { enabled = true, default_url = "http://localh
 
 [sdk]
 min_version = "0.1.0"
+
+[rate_limit.tiers.write]
+requests_per_window = 100
+window_seconds = 60
+routes = ["/api/"]
+methods = ["POST", "PUT", "PATCH", "DELETE"]
+
+[rate_limit.tiers.read]
+requests_per_window = 500
+window_seconds = 60
+routes = ["/api/"]
+methods = ["GET"]
+
+[rate_limit.tiers.auth]
+requests_per_window = 10
+window_seconds = 60
+routes = ["/api/auth", "/api/admin"]
+strategy = "ip_only"

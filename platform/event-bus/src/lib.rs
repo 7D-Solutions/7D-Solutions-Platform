@@ -51,8 +51,13 @@ mod envelope;
 mod inmemory_bus;
 mod nats_bus;
 pub mod outbox;
+pub mod stream_config;
 
 pub use connect::connect_nats;
+pub use stream_config::{
+    all_stream_definitions, ensure_platform_streams, EnsureStreamsError, StreamClass,
+    StreamDefinition,
+};
 
 pub use envelope::{
     validate_envelope_fields, validate_merchant_context_for_financial, EventEnvelope,

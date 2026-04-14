@@ -161,6 +161,12 @@ impl PlatformClient {
     }
 
     fn inject_headers(&self, mut req: reqwest::RequestBuilder, claims: &VerifiedClaims, correlation_id: &Uuid) -> reqwest::RequestBuilder {
+        // Propagate the current distributed trace context so downstream services
+        // produce child spans under the same trace_id.  The trace_id is stored in a
+        // task-local by platform_trace_middleware and is available here without
+        // requiring callers to thread it through every method signature.
+        req = self.inject_trace_headers(req, correlation_id);
+
         req = req
             .header("x-tenant-id", claims.tenant_id.to_string())
             .header("x-correlation-id", correlation_id.to_string())
@@ -187,9 +193,40 @@ impl PlatformClient {
     }
 
     fn inject_anon_headers(&self, mut req: reqwest::RequestBuilder, correlation_id: &Uuid) -> reqwest::RequestBuilder {
+        req = self.inject_trace_headers(req, correlation_id);
         req = req.header("x-correlation-id", correlation_id.to_string());
         if let Some(token) = &self.bearer_token {
             req = req.header("authorization", format!("Bearer {token}"));
+        }
+        req
+    }
+
+    /// Inject W3C `traceparent` and `X-Trace-Id` headers if a trace context is active.
+    ///
+    /// The trace ID comes from the [`crate::startup::CURRENT_TRACE_ID`] task-local set
+    /// by `platform_trace_middleware` on the inbound request.  If no trace context is
+    /// active (e.g. in background tasks), this is a no-op.
+    ///
+    /// `traceparent` format: `00-{trace_id_32hex}-{span_id_16hex}-01`
+    ///   - trace_id: the 128-bit request trace ID as 32 lowercase hex chars
+    ///   - span_id:  a fresh 64-bit ID for this outbound call (first 8 bytes of correlation_id)
+    ///   - flags:    `01` = sampled
+    fn inject_trace_headers(&self, mut req: reqwest::RequestBuilder, correlation_id: &Uuid) -> reqwest::RequestBuilder {
+        let trace_id = crate::startup::CURRENT_TRACE_ID.try_with(|id| id.clone()).ok();
+        if let Some(ref tid) = trace_id {
+            let trace_hex = tid.replace('-', "");
+            if trace_hex.len() == 32 {
+                // Derive a stable span_id from the first 8 bytes of the correlation UUID.
+                let bytes = correlation_id.as_bytes();
+                let span_id_val = u64::from_be_bytes([
+                    bytes[0], bytes[1], bytes[2], bytes[3],
+                    bytes[4], bytes[5], bytes[6], bytes[7],
+                ]);
+                let span_hex = format!("{:016x}", span_id_val);
+                let traceparent = format!("00-{}-{}-01", trace_hex, span_hex);
+                req = req.header("traceparent", traceparent);
+            }
+            req = req.header("x-trace-id", tid.as_str());
         }
         req
     }

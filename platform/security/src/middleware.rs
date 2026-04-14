@@ -71,14 +71,18 @@ pub async fn rate_limit_middleware(
 ///
 /// Reads `Extension<Arc<TieredRateLimiter>>` from the request.
 /// Rate limit key: `tier_name:tenant_id:ip` where:
-/// - tier is resolved by longest-prefix match on the request path
+/// - tier is resolved by longest-prefix match on the request path **and**
+///   HTTP method (enabling separate write/read tiers on the same path prefix)
 /// - tenant_id comes from `VerifiedClaims` (JWT, if available), else falls back to IP
 /// - IP comes from the `X-Forwarded-For` header (first entry) or the peer address
+///
+/// On rejection, returns HTTP 429 with a `Retry-After` header containing the
+/// tier's window duration in seconds.
 pub async fn tiered_rate_limit_middleware(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let rejected =
+    let check =
         if let Some(limiter) = request.extensions().get::<Arc<TieredRateLimiter>>() {
             // IP: prefer X-Forwarded-For (reverse-proxy environments), fall back to ConnectInfo.
             let ip = request
@@ -102,15 +106,29 @@ pub async fn tiered_rate_limit_middleware(
                 .map(|c| c.tenant_id.to_string())
                 .unwrap_or_else(|| ip.clone());
 
-            limiter
-                .check_limit(request.uri().path(), &tenant_id, &ip)
-                .is_err()
+            let path = request.uri().path().to_string();
+            let method = request.method().as_str().to_string();
+
+            let rejected = limiter
+                .check_limit_for_method(&path, &method, &tenant_id, &ip)
+                .is_err();
+            let retry_after = if rejected {
+                limiter.window_secs_for_path_method(&path, &method)
+            } else {
+                60
+            };
+            (rejected, retry_after)
         } else {
-            false
+            (false, 60)
         };
 
-    if rejected {
-        return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
+    if check.0 {
+        let mut response =
+            (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
+        if let Ok(val) = check.1.to_string().parse() {
+            response.headers_mut().insert("retry-after", val);
+        }
+        return response;
     }
 
     next.run(request).await

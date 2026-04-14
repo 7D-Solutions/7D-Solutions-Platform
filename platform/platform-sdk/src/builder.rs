@@ -33,7 +33,7 @@ use std::sync::Arc;
 use axum::Router;
 use event_bus::EventEnvelope;
 
-use security::ratelimit::RateLimitConfig;
+use security::ratelimit::{RateLimitConfig, RateLimitKeyStrategy, TierDef};
 
 use crate::authz_gate::AuthzGateConfig;
 use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
@@ -85,10 +85,13 @@ pub struct ModuleBuilder {
     use_blob_storage: bool,
     csrf_protection: bool,
     authz_gate: Option<Arc<AuthzGateConfig>>,
-    /// Named rate limit tiers registered via `.rate_limit_tier()`.
-    rate_limit_tiers: Vec<(String, RateLimitConfig, Vec<String>)>,
+    /// Named rate limit tiers registered via `.rate_limit_tier()` or `.with_rate_limiting()`.
+    rate_limit_tiers: Vec<TierDef>,
     /// Optional tenant readiness checker for `GET /api/ready?tenant_id=`.
     tenant_readiness: Option<Arc<dyn health::TenantReadinessCheck>>,
+    /// Optional OTLP endpoint override (defaults to `OTEL_EXPORTER_OTLP_ENDPOINT` env var).
+    /// When set, logged at startup as the configured trace export destination.
+    otlp_endpoint: Option<String>,
 }
 
 impl ModuleBuilder {
@@ -123,6 +126,7 @@ impl ModuleBuilder {
             authz_gate: None,
             rate_limit_tiers: Vec::new(),
             tenant_readiness: None,
+            otlp_endpoint: None,
         }
     }
 
@@ -402,6 +406,55 @@ impl ModuleBuilder {
         self
     }
 
+    /// Enable platform-standard tiered rate limiting.
+    ///
+    /// Injects three default tiers:
+    ///
+    /// | Tier    | Limit         | Key strategy  | Methods                          |
+    /// |---------|---------------|---------------|----------------------------------|
+    /// | `write` | 100 req/min   | Composite     | POST, PUT, PATCH, DELETE         |
+    /// | `read`  | 500 req/min   | Composite     | GET                              |
+    /// | `auth`  | 10 req/min    | IpOnly        | all methods on `/api/auth` paths |
+    ///
+    /// These defaults are injected as lower-priority than any tiers already
+    /// registered (builder tiers win on name collision) or declared in
+    /// `[rate_limit.tiers]` in the manifest.
+    ///
+    /// Call this once in your module's `main.rs` after `from_manifest()` to
+    /// activate standard cross-module rate limiting without duplicating the
+    /// tier config in every module.  Modules that need custom limits can still
+    /// use `.rate_limit_tier()` to override individual tiers.
+    pub fn with_rate_limiting(self) -> Self {
+        use std::time::Duration;
+        self
+            .rate_limit_tier_def(TierDef {
+                name: "write".into(),
+                config: RateLimitConfig::new(100, Duration::from_secs(60)),
+                routes: vec!["/api/".into()],
+                strategy: RateLimitKeyStrategy::Composite,
+                methods: Some(vec![
+                    "POST".into(),
+                    "PUT".into(),
+                    "PATCH".into(),
+                    "DELETE".into(),
+                ]),
+            })
+            .rate_limit_tier_def(TierDef {
+                name: "read".into(),
+                config: RateLimitConfig::new(500, Duration::from_secs(60)),
+                routes: vec!["/api/".into()],
+                strategy: RateLimitKeyStrategy::Composite,
+                methods: Some(vec!["GET".into()]),
+            })
+            .rate_limit_tier_def(TierDef {
+                name: "auth".into(),
+                config: RateLimitConfig::new(10, Duration::from_secs(60)),
+                routes: vec!["/api/auth".into(), "/api/admin".into()],
+                strategy: RateLimitKeyStrategy::IpOnly,
+                methods: None,
+            })
+    }
+
     /// Register a named rate limit tier with per-route assignment.
     ///
     /// Routes are matched by prefix (longest-first). Paths not matching any
@@ -438,11 +491,22 @@ impl ModuleBuilder {
         config: RateLimitConfig,
         routes: impl IntoIterator<Item = impl Into<String>>,
     ) -> Self {
-        self.rate_limit_tiers.push((
-            name.into(),
+        self.rate_limit_tiers.push(TierDef {
+            name: name.into(),
             config,
-            routes.into_iter().map(|r| r.into()).collect(),
-        ));
+            routes: routes.into_iter().map(|r| r.into()).collect(),
+            strategy: RateLimitKeyStrategy::Composite,
+            methods: None,
+        });
+        self
+    }
+
+    /// Register a fully-specified rate limit tier (name, config, routes, strategy, methods).
+    ///
+    /// Lower-level alternative to `.rate_limit_tier()` when you need per-tier
+    /// key strategy or method filtering.
+    pub fn rate_limit_tier_def(mut self, tier: TierDef) -> Self {
+        self.rate_limit_tiers.push(tier);
         self
     }
 
@@ -468,6 +532,30 @@ impl ModuleBuilder {
     /// endpoints) continue to operate normally.
     pub fn skip_tracing(mut self) -> Self {
         self.skip_tracing = true;
+        self
+    }
+
+    /// Configure an OTLP exporter endpoint for distributed tracing.
+    ///
+    /// When set, the SDK logs the configured endpoint at startup and spans are
+    /// emitted as structured JSON in dev. To route spans to a backend (Jaeger,
+    /// Grafana Tempo, etc.), also set `OTEL_EXPORTER_OTLP_ENDPOINT` in the
+    /// environment or wire the `opentelemetry-otlp` crate.
+    ///
+    /// Calling this overrides `OTEL_EXPORTER_OTLP_ENDPOINT` env var for the
+    /// startup log message only — actual gRPC export reads the env var directly.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// ModuleBuilder::from_manifest("module.toml")
+    ///     .otlp_endpoint("http://localhost:4317")
+    ///     .routes(|ctx| { /* ... */ })
+    ///     .run()
+    ///     .await?;
+    /// ```
+    pub fn otlp_endpoint(mut self, endpoint: impl Into<String>) -> Self {
+        self.otlp_endpoint = Some(endpoint.into());
         self
     }
 
@@ -597,22 +685,29 @@ impl ModuleBuilder {
         let manifest = self.manifest?;
 
         // Merge manifest tiers with builder tiers (builder wins on name collision).
-        let mut merged_tiers: Vec<(String, RateLimitConfig, Vec<String>)> =
+        let mut merged_tiers: Vec<TierDef> =
             if let Some(ref rl) = manifest.rate_limit {
                 rl.tiers
                     .iter()
                     .filter(|(name, _)| {
-                        !self.rate_limit_tiers.iter().any(|(n, _, _)| n == *name)
+                        !self.rate_limit_tiers.iter().any(|t| t.name == **name)
                     })
                     .map(|(name, ts)| {
-                        (
-                            name.clone(),
-                            RateLimitConfig::new(
+                        let strategy = match ts.strategy.as_deref() {
+                            Some("ip_only") => RateLimitKeyStrategy::IpOnly,
+                            Some("tenant_only") => RateLimitKeyStrategy::TenantOnly,
+                            _ => RateLimitKeyStrategy::Composite,
+                        };
+                        TierDef {
+                            name: name.clone(),
+                            config: RateLimitConfig::new(
                                 ts.requests_per_window,
                                 std::time::Duration::from_secs(ts.window_seconds),
                             ),
-                            ts.routes.clone(),
-                        )
+                            routes: ts.routes.clone(),
+                            strategy,
+                            methods: ts.methods.clone(),
+                        }
                     })
                     .collect()
             } else {
@@ -629,6 +724,22 @@ impl ModuleBuilder {
             merged_tiers,
         )
         .await?;
+
+        // Log OTLP endpoint if configured via builder or env var (tracing is now initialised).
+        let otlp_endpoint = self
+            .otlp_endpoint
+            .as_deref()
+            .or_else(|| option_env!("OTEL_EXPORTER_OTLP_ENDPOINT_DEFAULT"))
+            .map(str::to_owned)
+            .or_else(|| std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok());
+        if let Some(ref ep) = otlp_endpoint {
+            tracing::info!(
+                module = %manifest.module.name,
+                otlp_endpoint = %ep,
+                "OTLP endpoint configured — spans logged as structured JSON; \
+                 wire opentelemetry-otlp for gRPC export"
+            );
+        }
 
         // Build platform service clients from [platform.services] manifest section.
         let platform_services = PlatformServices::from_manifest(
