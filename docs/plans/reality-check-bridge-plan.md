@@ -127,7 +127,8 @@ SageDesert already validated this with bd-s56d3: the first real cross-module e2e
 ### GAP-12: Tenant pool resolver isn't wired for default isolation strategy
 **What:** `DefaultTenantResolver` exists with Moka cache. **Single-database-per-module modules (all 26 core) don't use it.** They rely on `WHERE tenant_id = $1` in every query.
 **Why it bites:** A single missed `WHERE tenant_id` = cross-tenant data leak. Row-level security would be a defense-in-depth layer that's currently missing.
-**Acceptance:** Either (a) document that RLS is not the chosen strategy and explain the defense (tenant middleware + SQL scoping + audit), or (b) add Postgres RLS policies to the 5 most-sensitive tables (journal_entries, invoices, bills, payments, audit_trail) as defense-in-depth.
+**Decision:** Deferred. See [docs/architecture/RLS-EVALUATION.md](../architecture/RLS-EVALUATION.md) for the current evaluation and revisit conditions.
+**Acceptance:** Document that RLS is not the chosen strategy right now and explain the defense (tenant middleware + SQL scoping + audit). If the pool layer later supports `SET LOCAL app.current_tenant`, add Postgres RLS policies and integration tests then.
 
 ### GAP-13: OpenAPI contract drift between modules and client code [CLARIFIED ROUND 4]
 **What:** bd-tpcki generated TS clients for all 27 modules. bd-e5yna + bd-0f1oq generated `contracts/*/openapi.json` files. **Nothing enforces that the committed `contracts/*/openapi.json` matches what `openapi_dump` produces from the live module code today.** A module developer can change a handler, forget to regenerate the contract, and ship divergent client types.
