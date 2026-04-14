@@ -17,9 +17,9 @@ use bom_rs::{
     },
     http::{
         bom_routes::{
-            delete_line, get_bom, get_bom_by_part_id, get_explosion, get_lines, get_where_used,
-            list_boms, list_revisions, post_bom, post_effectivity, post_line, post_revision,
-            put_line,
+            delete_line, get_bom, get_bom_by_part_id, get_explosion, get_lines, get_revision,
+            get_where_used, list_boms, list_revisions, post_bom, post_effectivity, post_line,
+            post_revision, put_line,
         },
         eco_routes::{
             get_bom_revision_links, get_doc_revision_links, get_eco, get_eco_audit,
@@ -57,6 +57,7 @@ use platform_sdk::ModuleBuilder;
         // BOM Revisions
         bom_rs::http::bom_routes::post_revision,
         bom_rs::http::bom_routes::list_revisions,
+        bom_rs::http::bom_routes::get_revision,
         bom_rs::http::bom_routes::post_effectivity,
         // BOM Lines
         bom_rs::http::bom_routes::post_line,
@@ -188,6 +189,10 @@ async fn main() {
                 .route(
                     "/api/bom/{bom_id}/revisions",
                     axum::routing::get(list_revisions),
+                )
+                .route(
+                    "/api/bom/revisions/{revision_id}",
+                    axum::routing::get(get_revision),
                 )
                 .route(
                     "/api/bom/revisions/{revision_id}/lines",

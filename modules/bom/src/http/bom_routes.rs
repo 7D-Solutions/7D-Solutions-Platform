@@ -9,16 +9,23 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::domain::bom_service::{self, BomError};
 use crate::domain::guards::GuardError;
 use crate::domain::models::*;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
-fn paginate_enriched(items: Vec<BomLineEnriched>, pq: &LinesQuery) -> PaginatedResponse<BomLineEnriched> {
+fn paginate_enriched(
+    items: Vec<BomLineEnriched>,
+    pq: &LinesQuery,
+) -> PaginatedResponse<BomLineEnriched> {
     let total = items.len() as i64;
     let start = ((pq.page - 1) * pq.page_size) as usize;
-    let data: Vec<BomLineEnriched> = items.into_iter().skip(start).take(pq.page_size as usize).collect();
+    let data: Vec<BomLineEnriched> = items
+        .into_iter()
+        .skip(start)
+        .take(pq.page_size as usize)
+        .collect();
     PaginatedResponse::new(data, pq.page, pq.page_size, total)
 }
 
@@ -52,10 +59,8 @@ pub fn into_api_error(err: BomError) -> ApiError {
         BomError::Database(ref e) => {
             if let sqlx::Error::Database(dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return ApiError::conflict(
-                        "A record with this identifier already exists",
-                    )
-                    .with_request_id(request_id());
+                    return ApiError::conflict("A record with this identifier already exists")
+                        .with_request_id(request_id());
                 }
                 if dbe.code().as_deref() == Some("23P01") {
                     return ApiError::conflict(
@@ -82,7 +87,11 @@ fn correlation_id() -> String {
 pub fn paginate<T: utoipa::ToSchema>(items: Vec<T>, pq: &PaginationQuery) -> PaginatedResponse<T> {
     let total = items.len() as i64;
     let start = ((pq.page - 1) * pq.page_size) as usize;
-    let data: Vec<T> = items.into_iter().skip(start).take(pq.page_size as usize).collect();
+    let data: Vec<T> = items
+        .into_iter()
+        .skip(start)
+        .take(pq.page_size as usize)
+        .collect();
     PaginatedResponse::new(data, pq.page, pq.page_size, total)
 }
 
@@ -131,10 +140,9 @@ pub async fn post_bom(
     Json(req): Json<CreateBomRequest>,
 ) -> Result<(StatusCode, Json<BomHeader>), ApiError> {
     let tenant_id = extract_tenant(&claims)?;
-    let header =
-        bom_service::create_bom(&state.pool, &tenant_id, &req, &correlation_id(), None)
-            .await
-            .map_err(into_api_error)?;
+    let header = bom_service::create_bom(&state.pool, &tenant_id, &req, &correlation_id(), None)
+        .await
+        .map_err(into_api_error)?;
     Ok((StatusCode::CREATED, Json(header)))
 }
 
@@ -242,6 +250,29 @@ pub async fn list_revisions(
         .await
         .map_err(into_api_error)?;
     Ok(Json(paginate(all, &pq)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/bom/revisions/{revision_id}",
+    tag = "BOM Revisions",
+    params(("revision_id" = Uuid, Path, description = "Revision ID")),
+    responses(
+        (status = 200, description = "Revision returned", body = BomRevision),
+        (status = 404, description = "Revision not found", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn get_revision(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(revision_id): Path<Uuid>,
+) -> Result<Json<BomRevision>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+    let rev = bom_service::get_revision(&state.pool, &tenant_id, revision_id)
+        .await
+        .map_err(into_api_error)?;
+    Ok(Json(rev))
 }
 
 #[utoipa::path(
@@ -413,7 +444,10 @@ pub async fn get_lines(
     } else {
         match bom_service::list_lines(&state.pool, &tenant_id, revision_id).await {
             Ok(all) => {
-                let pq = PaginationQuery { page: q.page, page_size: q.page_size };
+                let pq = PaginationQuery {
+                    page: q.page,
+                    page_size: q.page_size,
+                };
                 Json(paginate(all, &pq)).into_response()
             }
             Err(e) => into_api_error(e).into_response(),
