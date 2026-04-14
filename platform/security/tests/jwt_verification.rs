@@ -267,6 +267,33 @@ fn rotation_overlap_accepts_new_key_token() {
 }
 
 #[test]
+fn rotation_cutover_accepts_both_keys_then_rejects_old_token() {
+    let key_a = gen_keypair();
+    let key_b = gen_keypair();
+    let claims = valid_claims();
+    let token_a = sign(&key_a.encoding, &claims);
+    let token_b = sign(&key_b.encoding, &claims);
+
+    let mut overlap_verifier = JwtVerifier::from_public_pem(&key_b.pub_pem).unwrap();
+    overlap_verifier.with_prev_key(&key_a.pub_pem).unwrap();
+
+    assert_eq!(
+        overlap_verifier.verify(&token_a).unwrap().actor_type,
+        ActorType::User
+    );
+    assert_eq!(
+        overlap_verifier.verify(&token_b).unwrap().actor_type,
+        ActorType::User
+    );
+
+    let cutover_verifier = JwtVerifier::from_public_pem(&key_b.pub_pem).unwrap();
+    assert!(matches!(
+        cutover_verifier.verify(&token_a),
+        Err(SecurityError::InvalidToken)
+    ));
+}
+
+#[test]
 fn rotation_ended_old_key_rejected() {
     let old_kp = gen_keypair();
     let new_kp = gen_keypair();
