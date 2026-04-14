@@ -18,6 +18,7 @@ Quick navigation for agents and operators.
 | [installation.md](installation.md) | Setup guide — prerequisites, clone, install, first session |
 | [feature-reference.md](feature-reference.md) | Comprehensive reference for all AgentCore systems (beads, mail, flywheel, CASS, NTM, hooks, retros) |
 | [architecture.md](architecture.md) | System architecture — flywheel pattern, component layers, data flow, scaling, security model |
+| [COMPATIBILITY-MATRIX.md](COMPATIBILITY-MATRIX.md) | Known-good module version combinations per release train |
 | [supervisord-usage.md](supervisord-usage.md) | Process management — starting, stopping, and monitoring mail monitors and beadmonitor |
 
 ## Operational Reference
