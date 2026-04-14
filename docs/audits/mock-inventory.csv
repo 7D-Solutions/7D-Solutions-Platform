@@ -1,0 +1,41 @@
+module,file,line,name,kind,production_impact,mock_divergence_risk,risk_score,notes
+shipping-receiving,modules/shipping-receiving/src/domain/carrier_providers/stub.rs,14,StubCarrierProvider,stub,5,5,25,Production carrier stub returns canned rates labels and tracking instead of real carriers
+e2e-tests,e2e-tests/tests/tenant_isolation_spoof_e2e.rs,82,PgPool::connect_lazy(fake-db-url),fake,5,4,20,Router boundary test uses a fake lazy pool instead of a real database
+e2e-tests,e2e-tests/tests/tenant_isolation_spoof_e2e.rs,88,PgPool::connect_lazy(fake-db-url),fake,5,4,20,Second fake lazy pool path in the same tenant spoofing test
+e2e-tests,e2e-tests/tests/tenant_isolation_spoof_e2e.rs,107,PgPool::connect_lazy(fake-db-url),fake,5,4,20,Third fake lazy pool path in the tenant spoofing test
+e2e-tests,e2e-tests/tests/payments_outbox_atomicity_e2e.rs,13,TODO event emission,todo-comment,5,4,20,Test documents missing outbox emission for payments lifecycle
+e2e-tests,e2e-tests/tests/bill_run_e2e.rs,271,start_payment_consumer,mock,4,4,16,In-process mock payment consumer synthesizes payment.succeeded
+e2e-tests,e2e-tests/tests/bill_run_e2e.rs,348,start_ar_payment_consumer,mock,4,4,16,In-process mock AR consumer applies synthetic payment events
+e2e-tests,e2e-tests/tests/bill_run_e2e.rs,397,start_notification_consumer,mock,3,4,12,In-process mock notification consumer emits notification events
+integrations,modules/integrations/tests/qbo_outbound.rs,191,start_qbo_mock,mock,4,4,16,Local QBO invoice server simulates outbound API responses
+integrations,modules/integrations/tests/cross_module_flow.rs,162,start_qbo_mock,mock,4,4,16,Local QBO invoice server drives cross module flow tests
+integrations,modules/integrations/tests/ebay_connector.rs,306,start_ebay_stubs,stub,4,4,16,Stub server returns canned OAuth and fulfillment responses
+customer-portal,modules/customer-portal/tests/real_e2e.rs,202,start_doc_mgmt_mock,mock,4,4,16,Mock Doc Management service stands in for the distribution API
+integrations,modules/integrations/src/domain/qbo/client.rs,549,start_server,mock,4,3,12,In process mock server exercises SyncToken retry behavior
+notifications,modules/notifications/tests/real_e2e.rs,37,start_stub_server,stub,3,4,12,Stub email server returns canned send results
+payments,modules/payments/src/lifecycle.rs,225,NOT YET IMPLEMENTED,todo-comment,4,3,12,Comment marks missing event emission in payment lifecycle
+ar,modules/ar/src/finalization.rs,123,todo!,todo-comment,4,3,12,Example code still uses todo for invoice finalization setup
+ar,modules/ar/src/lifecycle.rs,203,NOT YET IMPLEMENTED,todo-comment,4,3,12,Comment marks missing lifecycle event emission work
+ar,modules/ar/src/lifecycle.rs,207,todo!,todo-comment,4,3,12,Example code still uses todo for lifecycle transition
+notifications,modules/notifications/src/http/admin.rs,108,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router compile test
+payments,modules/payments/src/http/admin.rs,228,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+ar,modules/ar/src/http/admin.rs,84,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+gl,modules/gl/src/http/admin.rs,109,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+fixed-assets,modules/fixed-assets/src/http/admin.rs,105,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+inventory,modules/inventory/src/http/admin.rs,135,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+consolidation,modules/consolidation/src/http/admin.rs,92,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+subscriptions,modules/subscriptions/src/admin.rs,118,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+timekeeping,modules/timekeeping/src/http/admin.rs,88,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+treasury,modules/treasury/src/http/admin.rs,89,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+reporting,modules/reporting/src/http/admin.rs,326,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+ap,modules/ap/src/http/admin.rs,99,PgPool::connect_lazy(fake-db-url),fake,2,2,4,Lazy fake DB pool used in the admin router test
+ttp,modules/ttp/src/http/billing.rs,264,fake_claims,fake,3,3,9,Synthetic claims avoid exercising auth token issuance
+ttp,modules/ttp/tests/service_agreement_integration.rs,50,fake_claims,fake,3,3,9,Synthetic claims avoid exercising auth token issuance
+e2e-tests,e2e-tests/tests/circuit_breaker_e2e.rs,129,fake_claims,fake,3,3,9,Synthetic claims isolate circuit breaker behavior from auth
+inventory,modules/inventory/src/http/issues.rs,80,placeholder_issues_module_compiles,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/receipts.rs,79,placeholder_receipts_module_compiles,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/reservations.rs,149,placeholder_reservations_module_compiles,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/reorder.rs,202,placeholder_reorder_routes_compile,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/locations.rs,232,placeholder_location_routes_compile,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/uom.rs,212,placeholder_uom_routes_compile,placeholder,1,1,1,Compile only placeholder with no runtime behavior
+inventory,modules/inventory/src/http/items.rs,190,placeholder_route_module_compiles,placeholder,1,1,1,Compile only placeholder with no runtime behavior
