@@ -8,7 +8,6 @@ use crate::{
     },
     middleware::{client_ip::get_client_meta, tracing::get_trace_id_from_extensions},
 };
-use event_bus::EventEnvelope;
 use axum::{
     extract::State,
     http::{Extensions, StatusCode},
@@ -16,6 +15,8 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use event_bus::EventEnvelope;
+use platform_contracts::event_naming::nats_subject;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::sync::Arc;
@@ -123,10 +124,11 @@ pub async fn forgot_password(
             correlation_id: String,
         }
 
+        let subject = nats_subject("auth", "password_reset_requested");
         let env = EventEnvelope::new(
             tenant_id.to_string(),
             state.producer.clone(),
-            "auth.events.password_reset_requested".to_string(),
+            subject.clone(),
             PasswordResetRequestedData {
                 user_id: user_id.to_string(),
                 email,
@@ -141,11 +143,7 @@ pub async fn forgot_password(
 
         if state
             .events
-            .publish(
-                "auth.events.password_reset_requested",
-                "auth.events.password_reset_requested.v1.json",
-                &env,
-            )
+            .publish(&subject, "auth.password_reset_requested.v1.json", &env)
             .await
             .is_err()
         {
@@ -284,10 +282,11 @@ pub async fn reset_password(
         correlation_id: String,
     }
 
+    let subject = nats_subject("auth", "password_reset_completed");
     let env = EventEnvelope::new(
         tenant_id.to_string(),
         state.producer.clone(),
-        "auth.events.password_reset_completed".to_string(),
+        subject.clone(),
         PasswordResetCompletedData {
             user_id: user_id.to_string(),
             correlation_id: trace_id.clone(),
@@ -299,11 +298,7 @@ pub async fn reset_password(
 
     if state
         .events
-        .publish(
-            "auth.events.password_reset_completed",
-            "auth.events.password_reset_completed.v1.json",
-            &env,
-        )
+        .publish(&subject, "auth.password_reset_completed.v1.json", &env)
         .await
         .is_err()
     {
