@@ -103,10 +103,31 @@ pub fn admin_router(pool: PgPool) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    async fn setup_db() -> PgPool {
+        dotenvy::dotenv().ok();
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://gl_user:gl_pass@localhost:5438/gl_db?sslmode=require".to_string()
+        });
+
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&url)
+            .await
+            .expect("Failed to connect to gl test DB");
+
+        sqlx::migrate!("db/migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run gl migrations");
+
+        pool
+    }
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").expect("test pool");
+        let pool = setup_db().await;
         let _router = admin_router(pool);
     }
 }
