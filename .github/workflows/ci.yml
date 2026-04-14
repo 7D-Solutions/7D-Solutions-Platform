@@ -6,8 +6,10 @@ on:
   pull_request:
     branches: [main]
   # Weekly backup restore drill — every Sunday at 02:00 UTC
+  # Weekly SLO configuration report — every Monday at 06:00 UTC
   schedule:
     - cron: '0 2 * * 0'
+    - cron: '0 6 * * 1'
 
 jobs:
   cargo-audit:
@@ -1212,6 +1214,350 @@ jobs:
           # token instead of minting a per-request JWT.
 
   # ---------------------------------------------------------------------------
+  # Payments health canary — required on every PR.
+  # Full happy-path: customer → payment method → charge (ATTEMPTING → SUCCEEDED)
+  # → AR charge record → refund.  Wrapped in a 60s timeout; failure means
+  # DB pool starvation or a service hang introduced by the change under review.
+  # No mocks, no stubs — real AR-postgres and Payments-postgres.
+  # Healthcheck interval is 10s so CI catches startup failures fast.
+  # See e2e-tests/tests/payments_health_canary_e2e.rs and
+  #     docs/audits/payments-health-2026-04-12.md for context.
+  # ---------------------------------------------------------------------------
+  e2e-payments-health-canary:
+    name: "E2E: Payments Health Canary (pool starvation guard)"
+    runs-on: ubuntu-latest
+    needs: [contract-tests]
+
+    services:
+      ar-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ar_user
+          POSTGRES_PASSWORD: ar_pass
+          POSTGRES_DB: ar_db
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U ar_user -d ar_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+
+      payments-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: payments_user
+          POSTGRES_PASSWORD: payments_pass
+          POSTGRES_DB: payments_db
+        ports:
+          - 5436:5432
+        options: >-
+          --health-cmd "pg_isready -U payments_user -d payments_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-payments-canary-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-payments-canary-
+            ${{ runner.os }}-cargo-
+
+      - name: Run payments health canary
+        working-directory: e2e-tests
+        run: cargo test --test payments_health_canary_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          AR_DATABASE_URL: postgresql://ar_user:ar_pass@localhost:5434/ar_db
+          PAYMENTS_DATABASE_URL: postgresql://payments_user:payments_pass@localhost:5436/payments_db
+
+  # ---------------------------------------------------------------------------
+  # Migration Safety — every proven module (version ≥ 1.0.0) must pass:
+  #   1. migrations_apply_cleanly     — all migrations run on a fresh DB
+  #   2. last_three_migrations_are_safe — FORWARD-ONLY annotated or reversible
+  #   3. forward_fix_rollback_and_reapply — drop schema + re-apply
+  #   4. tenant_isolation_enforced    — key tables carry tenant_id (where applicable)
+  #
+  # Uses a single PostgreSQL container; all 25 module databases are created
+  # within it before tests run.  Tests are run per-module binary so the schema
+  # reset in each module's rollback test cannot interfere with other modules.
+  # ---------------------------------------------------------------------------
+  migration-safety:
+    name: Migration Safety Tests (all proven modules)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-migration-safety-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-migration-safety-
+            ${{ runner.os }}-cargo-
+
+      - name: Create module databases
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres << 'SQL'
+          -- Accounts Payable
+          CREATE USER ap_user WITH PASSWORD 'ap_pass';
+          CREATE DATABASE ap_db OWNER ap_user;
+          -- Accounts Receivable
+          CREATE USER ar_user WITH PASSWORD 'ar_pass';
+          CREATE DATABASE ar_db OWNER ar_user;
+          -- BOM
+          CREATE USER bom_user WITH PASSWORD 'bom_pass';
+          CREATE DATABASE bom_db OWNER bom_user;
+          -- Consolidation
+          CREATE USER consolidation_user WITH PASSWORD 'consolidation_pass';
+          CREATE DATABASE consolidation_db OWNER consolidation_user;
+          -- Customer Portal (uses postgres superuser)
+          CREATE DATABASE customer_portal_db;
+          -- Fixed Assets
+          CREATE USER fixed_assets_user WITH PASSWORD 'fixed_assets_pass';
+          CREATE DATABASE fixed_assets_db OWNER fixed_assets_user;
+          -- GL
+          CREATE USER gl_user WITH PASSWORD 'gl_pass';
+          CREATE DATABASE gl_db OWNER gl_user;
+          -- Integrations
+          CREATE USER integrations_user WITH PASSWORD 'integrations_pass';
+          CREATE DATABASE integrations_db OWNER integrations_user;
+          -- Inventory
+          CREATE USER inventory_user WITH PASSWORD 'inventory_pass';
+          CREATE DATABASE inventory_db OWNER inventory_user;
+          -- Maintenance
+          CREATE USER maintenance_user WITH PASSWORD 'maintenance_pass';
+          CREATE DATABASE maintenance_db OWNER maintenance_user;
+          -- Notifications
+          CREATE USER notifications_user WITH PASSWORD 'notifications_pass';
+          CREATE DATABASE notifications_db OWNER notifications_user;
+          -- Numbering
+          CREATE USER numbering_user WITH PASSWORD 'numbering_pass';
+          CREATE DATABASE numbering_db OWNER numbering_user;
+          -- Party
+          CREATE USER party_user WITH PASSWORD 'party_pass';
+          CREATE DATABASE party_db OWNER party_user;
+          -- Payments
+          CREATE USER payments_user WITH PASSWORD 'payments_pass';
+          CREATE DATABASE payments_db OWNER payments_user;
+          -- PDF Editor
+          CREATE USER pdf_editor_user WITH PASSWORD 'pdf_editor_pass';
+          CREATE DATABASE pdf_editor_db OWNER pdf_editor_user;
+          -- Production
+          CREATE USER production_user WITH PASSWORD 'production_pass';
+          CREATE DATABASE production_db OWNER production_user;
+          -- Quality Inspection
+          CREATE USER quality_inspection_user WITH PASSWORD 'quality_inspection_pass';
+          CREATE DATABASE quality_inspection_db OWNER quality_inspection_user;
+          -- Reporting (shares ap_user on its own db)
+          CREATE DATABASE reporting_test OWNER ap_user;
+          -- Shipping & Receiving
+          CREATE USER shipping_receiving_user WITH PASSWORD 'shipping_receiving_pass';
+          CREATE DATABASE shipping_receiving_db OWNER shipping_receiving_user;
+          -- Subscriptions
+          CREATE USER subscriptions_user WITH PASSWORD 'subscriptions_pass';
+          CREATE DATABASE subscriptions_db OWNER subscriptions_user;
+          -- Timekeeping
+          CREATE USER timekeeping_user WITH PASSWORD 'timekeeping_pass';
+          CREATE DATABASE timekeeping_db OWNER timekeeping_user;
+          -- Treasury
+          CREATE USER treasury_user WITH PASSWORD 'treasury_pass';
+          CREATE DATABASE treasury_db OWNER treasury_user;
+          -- TTP (uses postgres superuser)
+          CREATE DATABASE ttp_db;
+          -- Workflow
+          CREATE USER workflow_user WITH PASSWORD 'workflow_pass';
+          CREATE DATABASE workflow_db OWNER workflow_user;
+          -- Workforce Competence
+          CREATE USER wc_user WITH PASSWORD 'wc_pass';
+          CREATE DATABASE workforce_competence_db OWNER wc_user;
+          SQL
+
+      - name: Run AP migration safety tests
+        working-directory: modules/ap
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://ap_user:ap_pass@localhost:5432/ap_db
+
+      - name: Run AR migration safety tests
+        working-directory: modules/ar
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://ar_user:ar_pass@localhost:5432/ar_db
+
+      - name: Run BOM migration safety tests
+        working-directory: modules/bom
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://bom_user:bom_pass@localhost:5432/bom_db
+
+      - name: Run Consolidation migration safety tests
+        working-directory: modules/consolidation
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://consolidation_user:consolidation_pass@localhost:5432/consolidation_db
+
+      - name: Run Customer Portal migration safety tests
+        working-directory: modules/customer-portal
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/customer_portal_db
+
+      - name: Run Fixed Assets migration safety tests
+        working-directory: modules/fixed-assets
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://fixed_assets_user:fixed_assets_pass@localhost:5432/fixed_assets_db
+
+      - name: Run GL migration safety tests
+        working-directory: modules/gl
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://gl_user:gl_pass@localhost:5432/gl_db
+
+      - name: Run Integrations migration safety tests
+        working-directory: modules/integrations
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://integrations_user:integrations_pass@localhost:5432/integrations_db
+
+      - name: Run Inventory migration safety tests
+        working-directory: modules/inventory
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://inventory_user:inventory_pass@localhost:5432/inventory_db
+
+      - name: Run Maintenance migration safety tests
+        working-directory: modules/maintenance
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://maintenance_user:maintenance_pass@localhost:5432/maintenance_db
+
+      - name: Run Notifications migration safety tests
+        working-directory: modules/notifications
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://notifications_user:notifications_pass@localhost:5432/notifications_db
+
+      - name: Run Numbering migration safety tests
+        working-directory: modules/numbering
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://numbering_user:numbering_pass@localhost:5432/numbering_db
+
+      - name: Run Party migration safety tests
+        working-directory: modules/party
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://party_user:party_pass@localhost:5432/party_db
+
+      - name: Run Payments migration safety tests
+        working-directory: modules/payments
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://payments_user:payments_pass@localhost:5432/payments_db
+
+      - name: Run PDF Editor migration safety tests
+        working-directory: modules/pdf-editor
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://pdf_editor_user:pdf_editor_pass@localhost:5432/pdf_editor_db
+
+      - name: Run Production migration safety tests
+        working-directory: modules/production
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://production_user:production_pass@localhost:5432/production_db
+
+      - name: Run Quality Inspection migration safety tests
+        working-directory: modules/quality-inspection
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://quality_inspection_user:quality_inspection_pass@localhost:5432/quality_inspection_db
+
+      - name: Run Reporting migration safety tests
+        working-directory: modules/reporting
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://ap_user:ap_pass@localhost:5432/reporting_test
+          REPORTING_DATABASE_URL: postgres://ap_user:ap_pass@localhost:5432/reporting_test
+
+      - name: Run Shipping & Receiving migration safety tests
+        working-directory: modules/shipping-receiving
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5432/shipping_receiving_db
+
+      - name: Run Subscriptions migration safety tests
+        working-directory: modules/subscriptions
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://subscriptions_user:subscriptions_pass@localhost:5432/subscriptions_db
+
+      - name: Run Timekeeping migration safety tests
+        working-directory: modules/timekeeping
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://timekeeping_user:timekeeping_pass@localhost:5432/timekeeping_db
+
+      - name: Run Treasury migration safety tests
+        working-directory: modules/treasury
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://treasury_user:treasury_pass@localhost:5432/treasury_db
+
+      - name: Run TTP migration safety tests
+        working-directory: modules/ttp
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ttp_db
+
+      - name: Run Workflow migration safety tests
+        working-directory: modules/workflow
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://workflow_user:workflow_pass@localhost:5432/workflow_db
+
+      - name: Run Workforce Competence migration safety tests
+        working-directory: modules/workforce-competence
+        run: cargo test --test migration_safety_test -- --test-threads=1 --nocapture
+        env:
+          DATABASE_URL: postgres://wc_user:wc_pass@localhost:5432/workforce_competence_db
+
+  # ---------------------------------------------------------------------------
   # Gate 2: CI builds and publishes immutable images on version-intent merges.
   # Only runs on push to main when a version-intent change is detected.
   # Tag format: {version}-{git-sha7}  (never 'latest', never overwritten)
@@ -1561,3 +1907,85 @@ jobs:
         run: |
           echo "::error::Weekly backup restore drill FAILED. Review dr-drill-report artifact."
           echo "::error::Runbook: docs/operations/backup-restore.md#incident-response"
+
+  # ── Weekly SLO Configuration Report ──────────────────────────────────────
+  # Runs every Monday at 06:00 UTC (schedule cron: '0 6 * * 1').
+  # Validates alert rule YAML syntax, checks SLO definitions are consistent,
+  # and uploads a summary report artifact for the on-call team.
+  slo-weekly-report:
+    name: "SLO: Weekly configuration report"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' && github.event.schedule == '0 6 * * 1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Validate SLO alert rules (YAML syntax)
+        run: |
+          yamllint -d '{extends: default, rules: {line-length: {max: 200}, truthy: disable}}' ops/alerts/
+
+      - name: Validate SLO definitions file
+        run: |
+          yamllint -d '{extends: default, rules: {line-length: {max: 200}, truthy: disable}}' ops/slo.yaml
+
+      - name: Verify required alert files exist
+        run: |
+          set -e
+          for f in ops/alerts/ap.rules.yaml ops/alerts/ar.rules.yaml ops/alerts/gl.rules.yaml \
+                   ops/alerts/production.rules.yaml ops/alerts/inventory.rules.yaml; do
+            test -f "$f" || (echo "::error::Missing alert rules file: $f" && exit 1)
+          done
+          test -f ops/slo.yaml            || (echo "::error::Missing ops/slo.yaml" && exit 1)
+          test -f docs/operations/runbook.md || (echo "::error::Missing runbook" && exit 1)
+          test -f ops/grafana/dashboards/platform-overview.json || (echo "::error::Missing Grafana dashboard" && exit 1)
+          echo "All SLO configuration files present."
+
+      - name: Generate SLO configuration summary
+        run: |
+          REPORT_DIR=slo-report
+          mkdir -p "$REPORT_DIR"
+          REPORT="$REPORT_DIR/slo-config-$(date -u +%Y-%m-%d).md"
+
+          echo "# Platform SLO Configuration Report" > "$REPORT"
+          echo "" >> "$REPORT"
+          echo "Generated: $(date -u '+%Y-%m-%d %H:%M UTC')" >> "$REPORT"
+          echo "Commit: $GITHUB_SHA" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "## SLO Targets (ops/slo.yaml)" >> "$REPORT"
+          echo '```yaml' >> "$REPORT"
+          grep -A 3 'availability\|latency' ops/slo.yaml | head -40 >> "$REPORT"
+          echo '```' >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "## Alert Rules Summary" >> "$REPORT"
+          echo "" >> "$REPORT"
+          for f in ops/alerts/*.rules.yaml; do
+            module=$(basename "$f" .rules.yaml)
+            alert_count=$(grep -c '^\s*- alert:' "$f" || true)
+            echo "- **${module}**: ${alert_count} alert rules" >> "$REPORT"
+          done
+          echo "" >> "$REPORT"
+          echo "## Fast-Burn Thresholds" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "| Module | Availability (1h) | Read Latency p95 | Write Latency p95 |" >> "$REPORT"
+          echo "|--------|-------------------|------------------|-------------------|" >> "$REPORT"
+          for module in ap ar gl production inventory; do
+            avail=$(grep -A 3 'AvailabilitySLOFastBurn' "ops/alerts/${module}.rules.yaml" | grep '>' | awk '{print $NF}' | head -1)
+            echo "| ${module} | > ${avail} error rate | > 500ms | > 1000ms |" >> "$REPORT"
+          done
+          echo "" >> "$REPORT"
+          echo "## Dashboard" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "Grafana: http://grafana:3000/d/platform-overview" >> "$REPORT"
+          echo "Runbook: docs/operations/runbook.md" >> "$REPORT"
+
+          echo "--- SLO Report ---"
+          cat "$REPORT"
+
+      - name: Upload SLO configuration report
+        uses: actions/upload-artifact@v4
+        with:
+          name: slo-config-report-${{ github.run_id }}
+          path: slo-report/
+          retention-days: 90
