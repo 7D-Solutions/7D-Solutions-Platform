@@ -1,22 +1,20 @@
-/// End-to-End Proof Test: Bill Run → Payment → Notification
+/// End-to-End Proof Test: Bill Run -> Payments -> AR -> Notifications
 ///
-/// This test orchestrates the complete happy path in-process:
+/// This test keeps the local bill-run driver but routes the downstream
+/// request through the real NATS bus and asserts on real module persistence:
 /// 1. Trigger bill-run logic (Subscriptions)
-/// 2. Wait for subscriptions.billrun.completed event
-/// 3. Wait for ar.payment.collection.requested (AR)
-/// 4. Wait for payment.succeeded (Payments)
-/// 5. Wait for notification.delivery.succeeded (Notifications)
-/// 6. Assert final state in all databases
-///
-/// Runs with BUS_TYPE=inmemory (all components in same process share one bus instance)
-/// Can also run with NATS if services are running externally
+/// 2. Observe subscriptions.billrun.completed on NATS
+/// 3. Publish ar.payment.collection.requested on real NATS
+/// 4. Wait for Payments, AR, and Notifications to persist their rows
+/// 5. Assert row counts and payloads in the real module tables
 mod common;
 
 use chrono::{NaiveDate, Utc};
-use event_bus::{EventBus, InMemoryBus};
+use event_bus::{EventBus, EventEnvelope, MerchantContext, NatsBus};
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
+use ar_rs::consumer_tasks::process_payment_succeeded;
+use payments_rs::{start_payment_collection_consumer, TestPaymentProcessor};
+use platform_contracts::event_naming::nats_subject;
 use serial_test::serial;
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -24,51 +22,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 // ============================================================================
-// Event Models
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct EventEnvelope<T> {
-    event_id: Uuid,
-    event_type: String,
-    event_version: String,
-    tenant_id: String,
-    source_module: String,
-    source_id: String,
-    correlation_id: String,
-    timestamp: String,
-    payload: T,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PaymentCollectionRequestedPayload {
-    invoice_id: String,
-    customer_id: String,
-    amount_due: i64,
-    currency: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PaymentSucceededPayload {
-    payment_id: String,
-    invoice_id: String,
-    amount: i64,
-    currency: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct NotificationDeliveryPayload {
-    notification_id: String,
-    recipient: String,
-    channel: String,
-    event_type: String,
-}
-
-// ============================================================================
 // Helper Functions
 // ============================================================================
 
-/// Create a customer in AR database
 async fn create_ar_customer(pool: &PgPool, tenant_id: &str) -> Result<i32, sqlx::Error> {
     let email = format!("test-{}@example.com", Uuid::new_v4());
     let external_id = format!("ext-{}", Uuid::new_v4());
@@ -76,7 +32,7 @@ async fn create_ar_customer(pool: &PgPool, tenant_id: &str) -> Result<i32, sqlx:
     let customer_id: i32 = sqlx::query_scalar(
         "INSERT INTO ar_customers (app_id, email, name, external_customer_id, created_at, updated_at)
          VALUES ($1, $2, $3, $4, NOW(), NOW())
-         RETURNING id"
+         RETURNING id",
     )
     .bind(tenant_id)
     .bind(&email)
@@ -88,19 +44,17 @@ async fn create_ar_customer(pool: &PgPool, tenant_id: &str) -> Result<i32, sqlx:
     Ok(customer_id)
 }
 
-/// Create a subscription in Subscriptions database
 async fn create_subscription(
     pool: &PgPool,
     tenant_id: &str,
     ar_customer_id: i32,
     next_bill_date: NaiveDate,
 ) -> Result<Uuid, sqlx::Error> {
-    // First, create a subscription plan
     let plan_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO subscription_plans
          (id, tenant_id, name, description, schedule, price_minor, currency, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())",
+         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'USD', NOW(), NOW())",
     )
     .bind(plan_id)
     .bind(tenant_id)
@@ -109,20 +63,17 @@ async fn create_subscription(
     .execute(pool)
     .await?;
 
-    // Then create the subscription
     let subscription_id = Uuid::new_v4();
-    let start_date = next_bill_date;
-
     sqlx::query(
         "INSERT INTO subscriptions
          (id, tenant_id, ar_customer_id, plan_id, status, schedule, price_minor, currency, start_date, next_bill_date, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'active', 'monthly', 2999, 'usd', $5, $6, NOW(), NOW())"
+         VALUES ($1, $2, $3, $4, 'active', 'monthly', 2999, 'USD', $5, $6, NOW(), NOW())",
     )
     .bind(subscription_id)
     .bind(tenant_id)
     .bind(ar_customer_id.to_string())
     .bind(plan_id)
-    .bind(start_date)
+    .bind(next_bill_date)
     .bind(next_bill_date)
     .execute(pool)
     .await?;
@@ -130,18 +81,73 @@ async fn create_subscription(
     Ok(subscription_id)
 }
 
-/// Simplified bill-run trigger: directly create invoice and emit event
-/// This simulates what the subscriptions module would do
-async fn trigger_bill_run_inmemory(
+fn test_payment_method_id() -> String {
+    std::env::var("E2E_PAYMENT_METHOD_ID")
+        .unwrap_or_else(|_| "pm_01HPQW9M8K5N7P1Q3R6T9V2W4X".to_string())
+}
+
+fn build_envelope<T: serde::Serialize>(
+    tenant_id: &str,
+    source_module: &str,
+    event_type: &str,
+    mutation_class: &str,
+    payload: T,
+    correlation_id: Option<String>,
+) -> EventEnvelope<T> {
+    let mut envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        source_module.to_string(),
+        event_type.to_string(),
+        payload,
+    )
+    .with_source_version("1.0.0")
+    .with_schema_version("1.0.0")
+    .with_mutation_class(Some(mutation_class.to_string()))
+    .with_correlation_id(correlation_id)
+    .with_replay_safe(true);
+
+    if source_module == "ar" || source_module == "payments" {
+        envelope =
+            envelope.with_merchant_context(Some(MerchantContext::Tenant(tenant_id.to_string())));
+    }
+
+    envelope
+}
+
+async fn publish_envelope<T: serde::Serialize>(
+    client: &async_nats::Client,
+    subject: &str,
+    envelope: &EventEnvelope<T>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = serde_json::to_vec(envelope)?;
+    client.publish(subject.to_string(), bytes.into()).await?;
+    Ok(())
+}
+
+async fn wait_for_nats_event(
+    stream: &mut async_nats::Subscriber,
+    timeout_secs: u64,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    let msg = tokio::time::timeout(Duration::from_secs(timeout_secs), stream.next())
+        .await
+        .map_err(|_| "Timeout waiting for event")?
+        .ok_or("Stream ended unexpectedly")?;
+
+    let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
+    Ok(envelope)
+}
+
+/// Trigger the local bill-run driver, then publish the AR payment request and
+/// bill-run completion events to the real NATS bus.
+async fn trigger_bill_run_real_nats(
     subscriptions_pool: &PgPool,
     ar_pool: &PgPool,
-    bus: Arc<dyn EventBus>,
+    nats_client: &async_nats::Client,
     bill_run_id: &str,
     execution_date: NaiveDate,
     tenant_id: &str,
     ar_customer_id: i32,
-) -> Result<i32, Box<dyn std::error::Error>> {
-    // Find subscriptions due for billing
+) -> Result<(i32, Uuid), Box<dyn std::error::Error>> {
     let subscriptions: Vec<(Uuid, i64, String)> = sqlx::query_as(
         "SELECT id, price_minor, currency
          FROM subscriptions
@@ -153,18 +159,16 @@ async fn trigger_bill_run_inmemory(
 
     let subscriptions_processed = subscriptions.len() as i32;
     let mut invoices_created = 0;
-
     let mut invoice_id_result = None;
+    let mut payment_request_event_id = Uuid::nil();
 
-    // Process each subscription
     for (subscription_id, price_minor, currency) in subscriptions {
-        // Create invoice in AR
         let tilled_invoice_id = format!("til_test_{}", Uuid::new_v4());
         let invoice_id: i32 = sqlx::query_scalar(
             "INSERT INTO ar_invoices
              (app_id, tilled_invoice_id, ar_customer_id, amount_cents, currency, status, due_at, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, 'draft', NOW() + interval '30 days', NOW(), NOW())
-             RETURNING id"
+             RETURNING id",
         )
         .bind(tenant_id)
         .bind(&tilled_invoice_id)
@@ -176,7 +180,6 @@ async fn trigger_bill_run_inmemory(
 
         invoice_id_result = Some(invoice_id);
 
-        // Finalize invoice - update status to 'open'
         sqlx::query(
             "UPDATE ar_invoices SET status = 'open', updated_at = NOW()
              WHERE id = $1",
@@ -185,33 +188,33 @@ async fn trigger_bill_run_inmemory(
         .execute(ar_pool)
         .await?;
 
-        // Emit ar.payment.collection.requested event
-        let event_envelope = json!({
-            "event_id": Uuid::new_v4().to_string(),
-            "event_type": "ar.payment.collection.requested",
-            "event_version": "1.0.0",
-            "tenant_id": tenant_id,
-            "source_module": "ar",
-            "source_id": invoice_id.to_string(),
-            "correlation_id": bill_run_id,
-            "timestamp": Utc::now().to_rfc3339(),
-            "payload": {
-                "invoice_id": invoice_id.to_string(),
-                "customer_id": ar_customer_id.to_string(),
-                "amount_due": price_minor,
-                "currency": currency
-            }
+        let payment_request_payload = serde_json::json!({
+            "invoice_id": invoice_id.to_string(),
+            "customer_id": ar_customer_id.to_string(),
+            "amount_minor": price_minor,
+            "currency": currency.to_uppercase(),
+            "payment_method_id": test_payment_method_id(),
         });
 
-        bus.publish(
-            "ar.events.ar.payment.collection.requested",
-            serde_json::to_vec(&event_envelope)?,
+        let payment_request_envelope = build_envelope(
+            tenant_id,
+            "ar",
+            "payment.collection.requested",
+            "DATA_MUTATION",
+            payment_request_payload,
+            Some(bill_run_id.to_string()),
+        );
+        payment_request_event_id = payment_request_envelope.event_id;
+
+        publish_envelope(
+            nats_client,
+            &nats_subject("ar", "payment.collection.requested"),
+            &payment_request_envelope,
         )
         .await?;
 
         invoices_created += 1;
 
-        // Update subscription next_bill_date
         let new_next_bill_date = execution_date + chrono::Duration::days(30);
         sqlx::query(
             "UPDATE subscriptions
@@ -224,230 +227,32 @@ async fn trigger_bill_run_inmemory(
         .await?;
     }
 
-    // Emit subscriptions.billrun.completed event
-    let billrun_event = json!({
-        "event_id": Uuid::new_v4().to_string(),
-        "event_type": "subscriptions.billrun.completed",
-        "event_version": "1.0.0",
-        "tenant_id": tenant_id,
-        "source_module": "subscriptions",
-        "source_id": bill_run_id,
-        "correlation_id": bill_run_id,
-        "timestamp": Utc::now().to_rfc3339(),
-        "payload": {
-            "bill_run_id": bill_run_id,
-            "subscriptions_processed": subscriptions_processed,
-            "invoices_created": invoices_created,
-            "failures": 0,
-            "execution_time": Utc::now().to_rfc3339()
-        }
+    let billrun_payload = serde_json::json!({
+        "bill_run_id": bill_run_id,
+        "subscriptions_processed": subscriptions_processed,
+        "invoices_created": invoices_created,
+        "failures": 0,
+        "execution_time": Utc::now().to_rfc3339()
     });
-
-    bus.publish(
-        "subscriptions.events.subscriptions.billrun.completed",
-        serde_json::to_vec(&billrun_event)?,
+    let billrun_envelope = build_envelope(
+        tenant_id,
+        "subscriptions",
+        "billrun.completed",
+        "LIFECYCLE",
+        billrun_payload,
+        Some(bill_run_id.to_string()),
+    );
+    publish_envelope(
+        nats_client,
+        &nats_subject("subscriptions", "billrun.completed"),
+        &billrun_envelope,
     )
     .await?;
 
-    Ok(invoice_id_result.ok_or("No invoice created")?)
-}
-
-/// Wait for an event with timeout
-async fn wait_for_event(
-    stream: &mut futures::stream::BoxStream<'_, event_bus::BusMessage>,
-    timeout_secs: u64,
-) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let msg = tokio::time::timeout(Duration::from_secs(timeout_secs), stream.next())
-        .await
-        .map_err(|_| "Timeout waiting for event")?
-        .ok_or("Stream ended unexpectedly")?;
-
-    let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
-    Ok(envelope)
-}
-
-/// Start mock payment consumer
-/// Listens for ar.payment.collection.requested and emits payment.succeeded
-async fn start_payment_consumer(bus: Arc<dyn EventBus>, payments_pool: PgPool) {
-    tokio::spawn(async move {
-        let mut stream = bus
-            .subscribe("ar.events.ar.payment.collection.requested")
-            .await
-            .expect("Failed to subscribe to payment collection events");
-
-        while let Some(msg) = stream.next().await {
-            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!("Failed to parse payment collection event: {}", e);
-                    continue;
-                }
-            };
-
-            let event_id = envelope["event_id"].as_str().unwrap_or("unknown");
-            let invoice_id = envelope["payload"]["invoice_id"].as_str().unwrap();
-            let amount = envelope["payload"]["amount_due"].as_i64().unwrap();
-            let currency = envelope["payload"]["currency"].as_str().unwrap();
-            let tenant_id = envelope["tenant_id"].as_str().unwrap();
-
-            tracing::info!(
-                "💳 Payment consumer: Processing payment for invoice {}",
-                invoice_id
-            );
-
-            // Create payment record in payment_attempts ledger
-            let payment_uuid = Uuid::new_v4();
-            let payment_id = payment_uuid.to_string();
-            sqlx::query(
-                "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
-                 VALUES ($1, $2, $3, 0, 'succeeded')
-                 ON CONFLICT (app_id, payment_id, attempt_no) DO NOTHING"
-            )
-            .bind(tenant_id)
-            .bind(payment_uuid)
-            .bind(invoice_id)
-            .execute(&payments_pool)
-            .await
-            .ok();
-
-            // Emit payments.payment.succeeded event
-            let payment_event = json!({
-                "event_id": Uuid::new_v4().to_string(),
-                "event_type": "payments.payment.succeeded",
-                "event_version": "1.0.0",
-                "tenant_id": tenant_id,
-                "source_module": "payments",
-                "source_id": payment_id.clone(),
-                "correlation_id": envelope["correlation_id"].as_str().unwrap_or(""),
-                "timestamp": Utc::now().to_rfc3339(),
-                "payload": {
-                    "payment_id": payment_id,
-                    "invoice_id": invoice_id,
-                    "amount": amount,
-                    "currency": currency
-                }
-            });
-
-            bus.publish(
-                "payments.events.payments.payment.succeeded",
-                serde_json::to_vec(&payment_event).unwrap(),
-            )
-            .await
-            .ok();
-
-            tracing::info!(
-                "✓ Payment consumer: Emitted payment.succeeded for {}",
-                payment_id
-            );
-        }
-    });
-}
-
-/// Start mock AR consumer for payment.succeeded
-/// Listens for payment.succeeded and updates invoice status
-async fn start_ar_payment_consumer(bus: Arc<dyn EventBus>, ar_pool: PgPool) {
-    tokio::spawn(async move {
-        let mut stream = bus
-            .subscribe("payments.events.payments.payment.succeeded")
-            .await
-            .expect("Failed to subscribe to payment succeeded events");
-
-        while let Some(msg) = stream.next().await {
-            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!("Failed to parse payment succeeded event: {}", e);
-                    continue;
-                }
-            };
-
-            let invoice_id = envelope["payload"]["invoice_id"].as_str().unwrap();
-            let payment_id = envelope["payload"]["payment_id"].as_str().unwrap();
-
-            tracing::info!(
-                "📝 AR payment consumer: Applying payment {} to invoice {}",
-                payment_id,
-                invoice_id
-            );
-
-            // Update invoice status to 'paid'
-            let invoice_id_i32 = invoice_id.parse::<i32>().unwrap();
-            sqlx::query(
-                "UPDATE ar_invoices SET status = 'paid', updated_at = NOW()
-                 WHERE id = $1",
-            )
-            .bind(invoice_id_i32)
-            .execute(&ar_pool)
-            .await
-            .ok();
-
-            tracing::info!(
-                "✓ AR payment consumer: Invoice {} marked as paid",
-                invoice_id
-            );
-        }
-    });
-}
-
-/// Start mock notification consumer
-/// Listens for payment.succeeded and emits notification.delivery.succeeded
-///
-/// Notifications is a stateless module — it does not persist to a DB table.
-/// This mock only emits the NATS event; no DB writes are performed.
-async fn start_notification_consumer(bus: Arc<dyn EventBus>) {
-    tokio::spawn(async move {
-        let mut stream = bus
-            .subscribe("payments.events.payments.payment.succeeded")
-            .await
-            .expect("Failed to subscribe to payment succeeded events");
-
-        while let Some(msg) = stream.next().await {
-            let envelope: serde_json::Value = match serde_json::from_slice(&msg.payload) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!("Failed to parse payment event for notification: {}", e);
-                    continue;
-                }
-            };
-
-            let payment_id = envelope["payload"]["payment_id"].as_str().unwrap();
-            let tenant_id = envelope["tenant_id"].as_str().unwrap();
-
-            tracing::info!(
-                "📧 Notification consumer: Sending notification for payment {}",
-                payment_id
-            );
-
-            let notification_id = format!("notif_{}", Uuid::new_v4());
-
-            // Emit notification.delivery.succeeded event
-            let notification_event = json!({
-                "event_id": Uuid::new_v4().to_string(),
-                "event_type": "notification.delivery.succeeded",
-                "event_version": "1.0.0",
-                "tenant_id": tenant_id,
-                "source_module": "notifications",
-                "source_id": notification_id.clone(),
-                "correlation_id": envelope["correlation_id"].as_str().unwrap_or(""),
-                "timestamp": Utc::now().to_rfc3339(),
-                "payload": {
-                    "notification_id": notification_id,
-                    "recipient": "test@example.com",
-                    "channel": "email",
-                    "event_type": "payment.succeeded"
-                }
-            });
-
-            bus.publish(
-                "notifications.events.notifications.delivery.succeeded",
-                serde_json::to_vec(&notification_event).unwrap(),
-            )
-            .await
-            .ok();
-
-            tracing::info!("✓ Notification consumer: Emitted notification.delivery.succeeded");
-        }
-    });
+    Ok((
+        invoice_id_result.ok_or("No invoice created")?,
+        payment_request_event_id,
+    ))
 }
 
 // ============================================================================
@@ -457,20 +262,20 @@ async fn start_notification_consumer(bus: Arc<dyn EventBus>) {
 #[tokio::test]
 #[serial]
 async fn test_bill_run_to_notification_happy_path() {
-    // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter("info")
         .try_init()
         .ok();
 
-    tracing::info!("🚀 Starting E2E proof test: Bill Run → Payment → Notification");
+    tracing::info!("Starting E2E proof test: Bill Run -> Payment -> Notification");
 
-    // Setup databases
+    let nats_client = common::setup_nats_client().await;
     let ar_pool = common::get_ar_pool().await;
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let payments_pool = common::get_payments_pool().await;
+    let notifications_pool = common::get_notifications_pool().await;
+    let bus: Arc<dyn EventBus> = Arc::new(NatsBus::new(nats_client.clone()));
 
-    // Clean up test data from previous runs
     sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE")
         .execute(&ar_pool)
         .await
@@ -485,196 +290,345 @@ async fn test_bill_run_to_notification_happy_path() {
     .execute(&payments_pool)
     .await
     .ok();
-
-    // Create shared InMemoryBus
-    let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
-
-    // Start mock consumers for each module
-    tracing::info!("🔧 Starting mock consumers...");
-    start_payment_consumer(bus.clone(), payments_pool.clone()).await;
-    start_ar_payment_consumer(bus.clone(), ar_pool.clone()).await;
-    start_notification_consumer(bus.clone()).await;
-
-    // Give consumers a moment to subscribe
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Subscribe to all events we want to track
-    let mut billrun_stream = bus
-        .subscribe("subscriptions.events.>")
+    sqlx::query("TRUNCATE TABLE events_outbox, processed_events CASCADE")
+        .execute(&ar_pool)
         .await
-        .expect("Failed to subscribe to subscriptions events");
-    let mut ar_payment_stream = bus
-        .subscribe("ar.events.ar.payment.collection.requested")
+        .ok();
+    sqlx::query("TRUNCATE TABLE events_outbox, processed_events CASCADE")
+        .execute(&notifications_pool)
         .await
-        .expect("Failed to subscribe to AR payment collection events");
-    let mut payment_stream = bus
-        .subscribe("payments.events.payments.payment.succeeded")
-        .await
-        .expect("Failed to subscribe to payment events");
-    let mut notification_stream = bus
-        .subscribe("notifications.events.>")
-        .await
-        .expect("Failed to subscribe to notification events");
+        .ok();
 
-    // SETUP: Create test data
-    let tenant_id = "test-tenant";
-    let ar_customer_id = create_ar_customer(&ar_pool, tenant_id)
+    start_payment_collection_consumer(
+        bus.clone(),
+        payments_pool.clone(),
+        Arc::new(TestPaymentProcessor::new()),
+    )
+    .await;
+    {
+        let payments_pool_pub = payments_pool.clone();
+        let bus_pub = bus.clone();
+        tokio::spawn(async move {
+            let _ = payments_rs::events::outbox::start_outbox_publisher(
+                payments_pool_pub,
+                bus_pub,
+            )
+            .await;
+        });
+    }
+    notifications_rs::consumer_tasks::start_payment_succeeded_consumer(
+        bus.clone(),
+        notifications_pool.clone(),
+    )
+    .await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let tenant_id = common::generate_test_tenant();
+    let ar_customer_id = create_ar_customer(&ar_pool, &tenant_id)
         .await
         .expect("Failed to create AR customer");
 
-    tracing::info!("✓ Created AR customer: {}", ar_customer_id);
+    tracing::info!("Created AR customer: {}", ar_customer_id);
 
-    // Create subscription due for billing today
     let today = Utc::now().date_naive();
     let subscription_id =
-        create_subscription(&subscriptions_pool, tenant_id, ar_customer_id, today)
+        create_subscription(&subscriptions_pool, &tenant_id, ar_customer_id, today)
             .await
             .expect("Failed to create subscription");
 
-    tracing::info!("✓ Created subscription: {}", subscription_id);
+    tracing::info!("Created subscription: {}", subscription_id);
 
-    // STEP 1: Trigger bill-run
-    let bill_run_id = format!("e2e-test-{}", Uuid::new_v4());
-    tracing::info!("📋 Triggering bill-run: {}", bill_run_id);
+    let bill_run_id = Uuid::new_v4().to_string();
+    let billrun_subject = nats_subject("subscriptions", "billrun.completed");
+    let mut billrun_stream = common::subscribe_to_events(&nats_client, &billrun_subject).await;
 
-    let invoice_id = trigger_bill_run_inmemory(
+    tracing::info!("Triggering bill-run: {}", bill_run_id);
+
+    let (invoice_id, payment_request_event_id) = trigger_bill_run_real_nats(
         &subscriptions_pool,
         &ar_pool,
-        bus.clone(),
+        &nats_client,
         &bill_run_id,
         today,
-        tenant_id,
+        &tenant_id,
         ar_customer_id,
     )
     .await
     .expect("Failed to trigger bill run");
 
-    tracing::info!("✓ Bill-run triggered, created invoice: {}", invoice_id);
+    tracing::info!("Bill-run triggered, created invoice: {}", invoice_id);
 
-    // STEP 2: Wait for subscriptions.billrun.completed event
-    tracing::info!("⏳ Waiting for subscriptions.billrun.completed...");
-    let billrun_event = wait_for_event(&mut billrun_stream, 10)
+    let billrun_event = wait_for_nats_event(&mut billrun_stream, 10)
         .await
         .expect("Failed to receive billrun.completed event");
+    assert_eq!(billrun_event["event_type"], "billrun.completed");
+    assert_eq!(billrun_event["payload"]["bill_run_id"], bill_run_id);
+    assert_eq!(billrun_event["payload"]["subscriptions_processed"], 1);
+    assert_eq!(billrun_event["payload"]["invoices_created"], 1);
+    assert_eq!(billrun_event["payload"]["failures"], 0);
 
-    assert_eq!(
-        billrun_event["event_type"],
-        "subscriptions.billrun.completed"
-    );
-    tracing::info!("✓ Received subscriptions.billrun.completed");
-
-    // STEP 3: Wait for ar.payment.collection.requested event
-    tracing::info!("⏳ Waiting for ar.payment.collection.requested...");
-    let payment_collection_event = wait_for_event(&mut ar_payment_stream, 10)
-        .await
-        .expect("Failed to receive payment collection requested event");
-
-    assert_eq!(
-        payment_collection_event["event_type"],
-        "ar.payment.collection.requested"
-    );
-    let event_invoice_id = payment_collection_event["payload"]["invoice_id"]
-        .as_str()
-        .expect("Missing invoice_id");
-
-    tracing::info!(
-        "✓ Received ar.payment.collection.requested for invoice: {}",
-        event_invoice_id
-    );
-    assert_eq!(event_invoice_id, invoice_id.to_string());
-
-    // STEP 4: Wait for payment.succeeded event
-    tracing::info!("⏳ Waiting for payment.succeeded...");
-    let payment_succeeded_event = wait_for_event(&mut payment_stream, 10)
-        .await
-        .expect("Failed to receive payment succeeded event");
-
-    assert_eq!(
-        payment_succeeded_event["event_type"],
-        "payments.payment.succeeded"
-    );
-    let payment_id = payment_succeeded_event["payload"]["payment_id"]
-        .as_str()
-        .expect("Missing payment_id");
-
-    tracing::info!("✓ Received payment.succeeded: {}", payment_id);
-
-    // STEP 5: Wait for notification.delivery.succeeded event
-    tracing::info!("⏳ Waiting for notification.delivery.succeeded...");
-    let notification_event = wait_for_event(&mut notification_stream, 10)
-        .await
-        .expect("Failed to receive notification event");
-
-    assert_eq!(
-        notification_event["event_type"],
-        "notification.delivery.succeeded"
-    );
-    tracing::info!("✓ Received notification.delivery.succeeded");
-
-    // STEP 6: Assert final state in databases
-    tracing::info!("🔍 Verifying final state in databases...");
-
-    // Give a moment for final state updates
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // Check AR: Invoice should be paid
-    let invoice_status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
-            .bind(invoice_id)
-            .fetch_optional(&ar_pool)
-            .await
-            .expect("Failed to query invoice status");
-
-    assert_eq!(
-        invoice_status,
-        Some("paid".to_string()),
-        "Invoice should be marked as paid"
-    );
-    tracing::info!("  ✓ AR: Invoice status = paid");
-
-    // Check Subscriptions: next_bill_date should be updated
-    let next_bill_date: NaiveDate =
-        sqlx::query_scalar("SELECT next_bill_date FROM subscriptions WHERE id = $1")
-            .bind(subscription_id)
-            .fetch_one(&subscriptions_pool)
-            .await
-            .expect("Failed to query subscription");
-
-    assert!(
-        next_bill_date > today,
-        "Subscription next_bill_date should be updated"
-    );
-    tracing::info!(
-        "  ✓ Subscriptions: next_bill_date updated to {}",
-        next_bill_date
-    );
-
-    // Check Payments: Payment record exists in payment_attempts ledger
-    let payment_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM payment_attempts WHERE payment_id = $1::uuid")
-            .bind(payment_id)
+    let payments_outbox_count = common::poll_for_record(
+        || async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM payments_events_outbox
+                 WHERE tenant_id = $1 AND event_type = 'payment.succeeded'",
+            )
+            .bind(&tenant_id)
             .fetch_one(&payments_pool)
             .await
-            .expect("Failed to query payment_attempts");
+            .ok()?;
 
-    assert_eq!(payment_count, 1, "Payment attempt record should exist");
-    tracing::info!("  ✓ Payments: Payment attempt record exists");
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe payment.succeeded outbox row");
+    assert_eq!(payments_outbox_count, 1);
 
-    // Notifications is stateless — delivery confirmed via NATS event at STEP 5 above.
-    tracing::info!("  ✓ Notifications: delivery confirmed via NATS event (stateless module)");
+    let payment_outbox_row: (Uuid, serde_json::Value) = common::poll_for_record(
+        || async {
+            sqlx::query_as::<_, (Uuid, serde_json::Value)>(
+                "SELECT event_id, payload
+                 FROM payments_events_outbox
+                 WHERE tenant_id = $1 AND event_type = 'payment.succeeded'
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+            )
+            .bind(&tenant_id)
+            .fetch_optional(&payments_pool)
+            .await
+            .ok()
+            .flatten()
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to load payment.succeeded payload");
 
-    // Cleanup
-    sqlx::query("DELETE FROM ar_customers WHERE id = $1")
-        .bind(ar_customer_id)
-        .execute(&ar_pool)
+    let (payment_succeeded_event_id, payment_payload) = payment_outbox_row;
+    assert_eq!(payment_payload["invoice_id"], invoice_id.to_string());
+    assert_eq!(
+        payment_payload["ar_customer_id"],
+        ar_customer_id.to_string()
+    );
+    assert_eq!(payment_payload["amount_minor"], 2999);
+    assert_eq!(payment_payload["currency"], "USD");
+    assert_eq!(
+        payment_payload["payment_method_ref"],
+        serde_json::Value::String(test_payment_method_id())
+    );
+
+    let payment_succeeded_msg = event_bus::BusMessage {
+        subject: "payments.events.payment.succeeded".to_string(),
+        payload: serde_json::to_vec(&serde_json::json!({
+            "event_id": payment_succeeded_event_id,
+            "event_type": "payment.succeeded",
+            "occurred_at": Utc::now().to_rfc3339(),
+            "tenant_id": tenant_id,
+            "source_module": "payments",
+            "source_version": env!("CARGO_PKG_VERSION"),
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "correlation_id": bill_run_id,
+            "payload": payment_payload,
+        }))
+        .expect("serialize payment.succeeded envelope"),
+        headers: None,
+        reply_to: None,
+    };
+
+    process_payment_succeeded(&ar_pool, &payment_succeeded_msg)
         .await
-        .ok();
+        .expect("process_payment_succeeded failed");
 
-    sqlx::query("DELETE FROM subscriptions WHERE id = $1")
-        .bind(subscription_id)
-        .execute(&subscriptions_pool)
-        .await
-        .ok();
+    let payments_processed_count = common::poll_for_record(
+        || async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM payments_processed_events WHERE event_id = $1",
+            )
+            .bind(payment_request_event_id)
+            .fetch_one(&payments_pool)
+            .await
+            .ok()?;
 
-    tracing::info!("🎉 E2E test completed successfully!");
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe payments_processed_events row");
+    assert_eq!(payments_processed_count, 1);
+
+    let invoice_status: Option<String> = common::poll_for_record(
+        || async {
+            let status: Option<String> =
+                sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+                    .bind(invoice_id)
+                    .fetch_optional(&ar_pool)
+                    .await
+                    .ok()
+                    .flatten();
+
+            match status.as_deref() {
+                Some("paid") => status,
+                _ => None,
+            }
+        },
+        100,
+        200,
+    )
+    .await;
+    assert_eq!(invoice_status, Some("paid".to_string()));
+
+    let ar_outbox_count = common::poll_for_record(
+        || async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM events_outbox
+                 WHERE aggregate_type = 'invoice' AND aggregate_id = $1
+                   AND event_type = 'ar.invoice_paid'",
+            )
+            .bind(invoice_id.to_string())
+            .fetch_one(&ar_pool)
+            .await
+            .ok()?;
+
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe ar.invoice_paid outbox row");
+    assert_eq!(ar_outbox_count, 1);
+
+    let ar_outbox_payload: serde_json::Value = common::poll_for_record(
+        || async {
+            sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT payload FROM events_outbox
+                 WHERE aggregate_type = 'invoice'
+                   AND aggregate_id = $1
+                   AND event_type = 'ar.invoice_paid'
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+            )
+            .bind(invoice_id.to_string())
+            .fetch_optional(&ar_pool)
+            .await
+            .ok()
+            .flatten()
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to load ar.invoice_paid payload");
+    let ar_outbox_payload = &ar_outbox_payload["payload"];
+    assert_eq!(ar_outbox_payload["invoice_id"], invoice_id.to_string());
+    assert_eq!(ar_outbox_payload["customer_id"], ar_customer_id.to_string());
+    assert_eq!(ar_outbox_payload["amount_cents"], 2999);
+    assert_eq!(ar_outbox_payload["currency"], "USD");
+    assert!(ar_outbox_payload["paid_at"].is_string());
+
+    let ar_processed_count = common::poll_for_record(
+        || async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+                    .bind(payment_succeeded_event_id)
+                    .fetch_one(&ar_pool)
+                    .await
+                    .ok()?;
+
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe ar processed_events row");
+    assert_eq!(ar_processed_count, 1);
+
+    let notifications_outbox_count = common::poll_for_record(
+        || async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM events_outbox
+                 WHERE subject = 'notifications.delivery.succeeded' AND tenant_id = $1",
+            )
+            .bind(&tenant_id)
+            .fetch_one(&notifications_pool)
+            .await
+            .ok()?;
+
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe notifications outbox row");
+    assert_eq!(notifications_outbox_count, 1);
+
+    let notifications_outbox_payload: serde_json::Value = common::poll_for_record(
+        || async {
+            sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT payload FROM events_outbox
+                 WHERE subject = 'notifications.delivery.succeeded' AND tenant_id = $1
+                 ORDER BY created_at DESC
+                 LIMIT 1",
+            )
+            .bind(&tenant_id)
+            .fetch_optional(&notifications_pool)
+            .await
+            .ok()
+            .flatten()
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to load notifications.delivery.succeeded payload");
+    let notifications_outbox_payload = &notifications_outbox_payload["payload"];
+    assert_eq!(
+        notifications_outbox_payload["channel"],
+        serde_json::Value::String("email".to_string())
+    );
+    assert_eq!(
+        notifications_outbox_payload["status"],
+        serde_json::Value::String("succeeded".to_string())
+    );
+    assert_eq!(
+        notifications_outbox_payload["template_id"],
+        serde_json::Value::String("payment_succeeded".to_string())
+    );
+    assert_eq!(
+        notifications_outbox_payload["attempts"],
+        serde_json::Value::Number(1.into())
+    );
+    assert_eq!(
+        notifications_outbox_payload["to"],
+        serde_json::Value::String(format!("customer-{}", ar_customer_id))
+    );
+
+    let notifications_processed_count = common::poll_for_record(
+        || async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+                    .bind(payment_succeeded_event_id)
+                    .fetch_one(&notifications_pool)
+                    .await
+                    .ok()?;
+
+            (count == 1).then_some(count)
+        },
+        100,
+        200,
+    )
+    .await
+    .expect("Failed to observe notifications processed_events row");
+    assert_eq!(notifications_processed_count, 1);
+
+    tracing::info!("E2E test completed successfully");
 }
