@@ -19,8 +19,9 @@
 //! 13. push_tracking_to_ebay — non-409 error propagated
 //! 14. process_outbound_shipped — skips when no tracking number
 //! 15. process_outbound_shipped — skips when no ebay_order lines
-//! 16. process_outbound_shipped — pushes tracking for ebay_order line (DB + stub)
+//! 16. process_outbound_shipped — pushes tracking for ebay_order line (DB + sandbox)
 
+use base64::Engine as _;
 use integrations_rs::domain::connectors::{
     service::{register_connector, run_test_action},
     RegisterConnectorRequest, RunTestActionRequest,
@@ -28,11 +29,11 @@ use integrations_rs::domain::connectors::{
 use integrations_rs::domain::file_jobs::ebay_fulfillment::{
     process_outbound_shipped, push_tracking_to_ebay, OutboundShippedLine, OutboundShippedPayload,
 };
-use integrations_rs::domain::file_jobs::ebay_poller::{normalize_ebay_orders, next_page_cursor};
+use integrations_rs::domain::file_jobs::ebay_poller::{next_page_cursor, normalize_ebay_orders};
+use serde_json::Value;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -78,6 +79,94 @@ fn ebay_req(name: &str) -> RegisterConnectorRequest {
     }
 }
 
+struct EbaySandboxCreds {
+    client_id: String,
+    client_secret: String,
+    base_url: String,
+}
+
+impl EbaySandboxCreds {
+    fn load() -> Self {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        dotenvy::from_path(root.join(".env.ebay-sandbox")).expect(".env.ebay-sandbox not found");
+
+        Self {
+            client_id: std::env::var("EBAY_CLIENT_ID").expect("EBAY_CLIENT_ID"),
+            client_secret: std::env::var("EBAY_CLIENT_SECRET").expect("EBAY_CLIENT_SECRET"),
+            base_url: std::env::var("EBAY_SANDBOX_BASE").unwrap_or_else(|_| {
+                "https://api.sandbox.ebay.com/sell/fulfillment/v1/order".to_string()
+            }),
+        }
+    }
+}
+
+fn skip_unless_sandbox() -> bool {
+    std::env::var("EBAY_SANDBOX").map_or(true, |v| v != "1")
+}
+
+async fn exchange_fulfillment_token(
+    http: &reqwest::Client,
+    creds: &EbaySandboxCreds,
+) -> Result<String, String> {
+    let credentials = base64::engine::general_purpose::STANDARD
+        .encode(format!("{}:{}", creds.client_id, creds.client_secret));
+    let resp = http
+        .post("https://api.sandbox.ebay.com/identity/v1/oauth2/token")
+        .header("Authorization", format!("Basic {}", credentials))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .form(&[
+            ("grant_type", "client_credentials"),
+            (
+                "scope",
+                "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+            ),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("eBay token exchange failed ({}): {}", status, body));
+    }
+
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    body["access_token"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "missing access_token".to_string())
+}
+
+async fn first_ebay_order_id(
+    http: &reqwest::Client,
+    token: &str,
+    creds: &EbaySandboxCreds,
+) -> Result<String, String> {
+    let filter = "lastmodifieddate:[2020-01-01T00:00:00Z..]";
+    let resp = http
+        .get(&creds.base_url)
+        .bearer_auth(token)
+        .query(&[("filter", filter)])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("eBay orders query failed ({}): {}", status, body));
+    }
+
+    let body: Value = resp.json().await.map_err(|e| e.to_string())?;
+    body["orders"]
+        .as_array()
+        .and_then(|orders| orders.first())
+        .and_then(|order| order["orderId"].as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "sandbox returned no orders".to_string())
+}
+
 // ============================================================================
 // 1. Register eBay connector — happy path
 // ============================================================================
@@ -88,7 +177,11 @@ async fn register_ebay_connector_happy_path() {
     let pool = setup_db().await;
     let tenant = unique_tenant();
     let result = register_connector(&pool, &tenant, &ebay_req("My eBay Store"), corr()).await;
-    assert!(result.is_ok(), "registration should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "registration should succeed: {:?}",
+        result.err()
+    );
     let cfg = result.unwrap();
     assert_eq!(cfg.connector_type, "ebay");
     assert_eq!(cfg.app_id, tenant);
@@ -111,14 +204,15 @@ async fn run_test_action_ebay_valid_config_succeeds() {
         idempotency_key: Uuid::new_v4().to_string(),
     };
     let result = run_test_action(&pool, &tenant, cfg.id, &req).await;
-    assert!(result.is_ok(), "test action should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "test action should succeed: {:?}",
+        result.err()
+    );
     let action = result.unwrap();
     assert!(action.success);
     assert_eq!(action.connector_type, "ebay");
-    assert_eq!(
-        action.output["environment"].as_str(),
-        Some("SANDBOX")
-    );
+    assert_eq!(action.output["environment"].as_str(), Some("SANDBOX"));
 }
 
 // ============================================================================
@@ -139,7 +233,10 @@ async fn register_ebay_connector_missing_client_id_fails() {
         config: Some(cfg),
     };
     let result = register_connector(&pool, &tenant, &req, corr()).await;
-    assert!(result.is_err(), "registration with missing client_id should fail");
+    assert!(
+        result.is_err(),
+        "registration with missing client_id should fail"
+    );
 }
 
 // ============================================================================
@@ -160,7 +257,10 @@ async fn register_ebay_connector_invalid_environment_fails() {
         config: Some(cfg),
     };
     let result = register_connector(&pool, &tenant, &req, corr()).await;
-    assert!(result.is_err(), "registration with invalid environment should fail");
+    assert!(
+        result.is_err(),
+        "registration with invalid environment should fail"
+    );
 }
 
 // ============================================================================
@@ -184,7 +284,10 @@ async fn run_test_action_ebay_after_config_corruption_returns_error() {
     };
     // Registration itself should fail validation
     let result = register_connector(&pool, &tenant, &req, corr()).await;
-    assert!(result.is_err(), "registration with corrupt config should fail");
+    assert!(
+        result.is_err(),
+        "registration with corrupt config should fail"
+    );
 }
 
 // ============================================================================
@@ -195,7 +298,10 @@ async fn run_test_action_ebay_after_config_corruption_returns_error() {
 fn registry_get_connector_ebay_returns_some() {
     use integrations_rs::domain::connectors::get_connector;
     let connector = get_connector("ebay");
-    assert!(connector.is_some(), "get_connector('ebay') should return Some");
+    assert!(
+        connector.is_some(),
+        "get_connector('ebay') should return Some"
+    );
     assert_eq!(connector.unwrap().connector_type(), "ebay");
 }
 
@@ -236,8 +342,8 @@ fn normalize_ebay_orders_source_is_ebay() {
         }]
     });
 
-    let orders = normalize_ebay_orders(&response, "tenant-norm-test")
-        .expect("normalization failed");
+    let orders =
+        normalize_ebay_orders(&response, "tenant-norm-test").expect("normalization failed");
     assert_eq!(orders.len(), 1);
     assert_eq!(orders[0].source, "ebay");
     assert_eq!(orders[0].tenant_id, "tenant-norm-test");
@@ -281,67 +387,6 @@ fn next_page_cursor_returns_correct_values() {
 // Fulfillment write-back helpers
 // ============================================================================
 
-/// Start a stub server that handles both:
-/// - POST /identity/v1/oauth2/token → returns a bearer token
-/// - POST /sell/fulfillment/v1/order/{order_id}/shipping_fulfillment → configurable status
-///
-/// Returns (token_base_url, fulfillment_base_url, fulfillment_call_count).
-async fn start_ebay_stubs(
-    fulfillment_status: u16,
-) -> (String, String, Arc<AtomicU32>) {
-    let call_count = Arc::new(AtomicU32::new(0));
-
-    #[derive(Clone)]
-    struct State {
-        call_count: Arc<AtomicU32>,
-        fulfillment_status: u16,
-    }
-
-    async fn handle_token(
-    ) -> (axum::http::StatusCode, axum::Json<serde_json::Value>) {
-        let body = serde_json::json!({ "access_token": "stub-token", "token_type": "Bearer" });
-        (axum::http::StatusCode::OK, axum::Json(body))
-    }
-
-    async fn handle_fulfillment(
-        axum::extract::State(s): axum::extract::State<State>,
-    ) -> axum::http::StatusCode {
-        s.call_count.fetch_add(1, Ordering::SeqCst);
-        axum::http::StatusCode::from_u16(s.fulfillment_status).unwrap_or(axum::http::StatusCode::NO_CONTENT)
-    }
-
-    let state = State {
-        call_count: call_count.clone(),
-        fulfillment_status,
-    };
-
-    let app = axum::Router::new()
-        .route(
-            "/identity/v1/oauth2/token",
-            axum::routing::post(handle_token),
-        )
-        .route(
-            "/sell/fulfillment/v1/order/{order_id}/shipping_fulfillment",
-            axum::routing::post(handle_fulfillment),
-        )
-        .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .expect("bind eBay stub");
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("eBay stub server")
-    });
-
-    let base = format!("http://{}", addr);
-    (
-        format!("{}/identity/v1/oauth2/token", base),
-        format!("{}/sell/fulfillment/v1/order", base),
-        call_count,
-    )
-}
-
 fn valid_ebay_payload_with_ebay_line(
     tenant_id: &str,
     file_job_id: Uuid,
@@ -370,21 +415,35 @@ fn valid_ebay_payload_with_ebay_line(
 
 #[tokio::test]
 async fn ebay_push_tracking_204_returns_ok() {
-    let (_token_url, fulfillment_url, call_count) = start_ebay_stubs(204).await;
+    if skip_unless_sandbox() {
+        eprintln!("Skipping eBay sandbox test (set EBAY_SANDBOX=1 to run)");
+        return;
+    }
+
+    let creds = EbaySandboxCreds::load();
     let http = reqwest::Client::new();
+    let token = exchange_fulfillment_token(&http, &creds)
+        .await
+        .expect("fulfillment token exchange failed");
+    let order_id = first_ebay_order_id(&http, &token, &creds)
+        .await
+        .expect("failed to fetch sandbox order id");
 
     let result = push_tracking_to_ebay(
         &http,
-        "stub-token",
-        &fulfillment_url,
-        "01-11111-22222",
+        &token,
+        &creds.base_url,
+        &order_id,
         "USPS",
         "9400111899560003000001",
     )
     .await;
 
-    assert!(result.is_ok(), "204 should be success: {:?}", result.err());
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "should call eBay once");
+    assert!(
+        result.is_ok(),
+        "sandbox push should succeed: {:?}",
+        result.err()
+    );
 }
 
 // ============================================================================
@@ -393,25 +452,51 @@ async fn ebay_push_tracking_204_returns_ok() {
 
 #[tokio::test]
 async fn ebay_push_tracking_409_is_idempotent_success() {
-    let (_token_url, fulfillment_url, call_count) = start_ebay_stubs(409).await;
+    if skip_unless_sandbox() {
+        eprintln!("Skipping eBay sandbox test (set EBAY_SANDBOX=1 to run)");
+        return;
+    }
+
+    let creds = EbaySandboxCreds::load();
     let http = reqwest::Client::new();
+    let token = exchange_fulfillment_token(&http, &creds)
+        .await
+        .expect("fulfillment token exchange failed");
+    let order_id = first_ebay_order_id(&http, &token, &creds)
+        .await
+        .expect("failed to fetch sandbox order id");
+    let tracking_number = "1Z999AA10123456784";
+
+    let first = push_tracking_to_ebay(
+        &http,
+        &token,
+        &creds.base_url,
+        &order_id,
+        "UPS",
+        tracking_number,
+    )
+    .await;
+    assert!(
+        first.is_ok(),
+        "first sandbox push should succeed: {:?}",
+        first.err()
+    );
 
     let result = push_tracking_to_ebay(
         &http,
-        "stub-token",
-        &fulfillment_url,
-        "01-99999-88888",
+        &token,
+        &creds.base_url,
+        &order_id,
         "UPS",
-        "1Z999AA10123456784",
+        tracking_number,
     )
     .await;
 
     assert!(
         result.is_ok(),
-        "409 duplicate fulfillment must not be an error: {:?}",
+        "duplicate fulfillment must not be an error: {:?}",
         result.err()
     );
-    assert_eq!(call_count.load(Ordering::SeqCst), 1);
 }
 
 // ============================================================================
@@ -420,14 +505,23 @@ async fn ebay_push_tracking_409_is_idempotent_success() {
 
 #[tokio::test]
 async fn ebay_push_tracking_500_returns_error() {
-    let (_token_url, fulfillment_url, _call_count) = start_ebay_stubs(500).await;
+    if skip_unless_sandbox() {
+        eprintln!("Skipping eBay sandbox test (set EBAY_SANDBOX=1 to run)");
+        return;
+    }
+
+    let creds = EbaySandboxCreds::load();
     let http = reqwest::Client::new();
+    let token = exchange_fulfillment_token(&http, &creds)
+        .await
+        .expect("fulfillment token exchange failed");
+    let missing_order_id = format!("missing-{}", Uuid::new_v4().simple());
 
     let result = push_tracking_to_ebay(
         &http,
-        "stub-token",
-        &fulfillment_url,
-        "01-00001-00001",
+        &token,
+        &creds.base_url,
+        &missing_order_id,
         "FEDEX",
         "795899742456",
     )
@@ -458,12 +552,15 @@ async fn ebay_fulfillment_skips_without_tracking() {
             source_ref_id: Some(Uuid::new_v4()),
         }],
         shipped_at: chrono::Utc::now(),
-        tracking_number: None,  // absent
+        tracking_number: None, // absent
         carrier_party_id: None,
     };
 
     let result = process_outbound_shipped(&pool, &http, &payload, None, None).await;
-    assert!(result.is_ok(), "missing tracking_number should not be an error");
+    assert!(
+        result.is_ok(),
+        "missing tracking_number should not be an error"
+    );
 }
 
 // ============================================================================
@@ -506,13 +603,44 @@ async fn process_outbound_shipped_pushes_tracking_for_ebay_line() {
     let pool = setup_db().await;
     let tenant = format!("ebay-fulfill-{}", Uuid::new_v4().simple());
 
+    if skip_unless_sandbox() {
+        eprintln!("Skipping eBay sandbox test (set EBAY_SANDBOX=1 to run)");
+        return;
+    }
+
+    let creds = EbaySandboxCreds::load();
+    let http = reqwest::Client::new();
+    let token = exchange_fulfillment_token(&http, &creds)
+        .await
+        .expect("fulfillment token exchange failed");
+    let ebay_order_id = first_ebay_order_id(&http, &token, &creds)
+        .await
+        .expect("failed to fetch sandbox order id");
+
     // Register an eBay connector for the tenant.
     let _cfg = register_connector(&pool, &tenant, &ebay_req("Fulfill Store"), corr())
         .await
         .expect("connector registration failed");
+    sqlx::query(
+        r#"UPDATE integrations_connector_configs
+           SET config = jsonb_set(
+                    jsonb_set(
+                        jsonb_set(config, '{client_id}', to_jsonb($2::text), true),
+                        '{client_secret}', to_jsonb($3::text), true
+                    ),
+                    '{environment}', to_jsonb($4::text), true
+               )
+           WHERE app_id = $1 AND connector_type = 'ebay'"#,
+    )
+    .bind(&tenant)
+    .bind(&creds.client_id)
+    .bind(&creds.client_secret)
+    .bind("SANDBOX")
+    .execute(&pool)
+    .await
+    .expect("update connector config for sandbox");
 
     // Seed a file_job row simulating an ingested eBay order.
-    let ebay_order_id = format!("01-{}-{}", Uuid::new_v4().simple().to_string()[..5].to_string(), "99999");
     let file_job_id = Uuid::new_v4();
     sqlx::query(
         r#"INSERT INTO integrations_file_jobs
@@ -529,26 +657,16 @@ async fn process_outbound_shipped_pushes_tracking_for_ebay_line() {
     .await
     .expect("seed file_job");
 
-    // Start stub server (204 success).
-    let (token_url, fulfillment_url, call_count) = start_ebay_stubs(204).await;
-
     let tracking_number = "9400111899560003000099";
     let payload = valid_ebay_payload_with_ebay_line(&tenant, file_job_id, tracking_number);
 
-    let result = process_outbound_shipped(
-        &pool,
-        &reqwest::Client::new(),
-        &payload,
-        Some(&fulfillment_url),
-        Some(&token_url),
-    )
-    .await;
+    let result =
+        process_outbound_shipped(&pool, &reqwest::Client::new(), &payload, None, None).await;
 
-    assert!(result.is_ok(), "fulfillment push should succeed: {:?}", result.err());
-    assert_eq!(
-        call_count.load(Ordering::SeqCst),
-        1,
-        "should have called eBay fulfillment API once"
+    assert!(
+        result.is_ok(),
+        "fulfillment push should succeed: {:?}",
+        result.err()
     );
 
     // Cleanup

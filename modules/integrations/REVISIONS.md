@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.7.3 | 2026-04-14 | bd-sw5ds | Replace local mock/stub integration harnesses with real QBO and eBay sandbox-backed helpers in qbo_outbound.rs, cross_module_flow.rs, and ebay_connector.rs. Keep the SyncToken retry test on a local axum server with an explanatory comment because the sandbox cannot deterministically reproduce the 5xx sequence. | Integration smoke tests should exercise the real provider sandboxes instead of local fakes so connector behavior matches production wiring. | No |
 | 2.3.2 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |

@@ -76,18 +76,20 @@ fn make_jwt(keys: &TestKeys, tenant_id: &str, perms: Vec<&str>) -> String {
 // Module Routers
 // ============================================================================
 
-fn build_ar_router(verifier: Arc<JwtVerifier>) -> Router {
-    // We use mock/lazy DB since we only care about the router/handler boundary.
-    // AR router expects PgPool as state.
-    let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+async fn build_ar_router(verifier: Arc<JwtVerifier>) -> Router {
+    let pool = common::get_ar_pool().await;
 
     ar_rs::http::ar_router(pool).layer(ClaimsLayer::new(verifier, true))
 }
 
-fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
-    let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+async fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
+    let pool = common::get_ap_pool().await;
     let metrics = Arc::new(ap::metrics::ApMetrics::new().unwrap());
-    let state = Arc::new(ap::AppState { pool, metrics, gl_pool: None });
+    let state = Arc::new(ap::AppState {
+        pool,
+        metrics,
+        gl_pool: None,
+    });
 
     // Manually build minimal AP router for testing
     axum::Router::new()
@@ -99,8 +101,11 @@ fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
         .with_state(state)
 }
 
-fn build_treasury_router(verifier: Arc<JwtVerifier>) -> Router {
-    let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+async fn build_treasury_router(verifier: Arc<JwtVerifier>) -> Router {
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://treasury_user:treasury_pass@localhost:5444/treasury_db".to_string()
+    });
+    let pool = common::wait_for_db_ready("treasury", &url).await;
     let metrics = Arc::new(treasury::metrics::TreasuryMetrics::new().unwrap());
     let state = Arc::new(treasury::AppState { pool, metrics });
 
@@ -124,7 +129,7 @@ async fn test_ar_ignores_spoofed_header() {
     let tenant_a = Uuid::new_v4().to_string();
     let tenant_b = Uuid::new_v4().to_string();
     let token = make_jwt(&keys, &tenant_a, vec!["ar.read"]);
-    let app = build_ar_router(keys.verifier);
+    let app = build_ar_router(keys.verifier).await;
 
     // Request with Tenant A token but spoofed Tenant B header
     let req = Request::builder()
@@ -148,7 +153,7 @@ async fn test_ap_ignores_spoofed_header() {
     let tenant_a = Uuid::new_v4().to_string();
     let tenant_b = Uuid::new_v4().to_string();
     let token = make_jwt(&keys, &tenant_a, vec!["ap.read"]);
-    let app = build_ap_router(keys.verifier);
+    let app = build_ap_router(keys.verifier).await;
 
     let req = Request::builder()
         .uri("/api/ap/vendors")
@@ -171,7 +176,7 @@ async fn test_treasury_ignores_spoofed_header() {
     let tenant_a = Uuid::new_v4().to_string();
     let tenant_b = Uuid::new_v4().to_string();
     let token = make_jwt(&keys, &tenant_a, vec!["treasury.read"]);
-    let app = build_treasury_router(keys.verifier);
+    let app = build_treasury_router(keys.verifier).await;
 
     let req = Request::builder()
         .uri("/api/treasury/accounts")

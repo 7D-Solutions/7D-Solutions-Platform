@@ -31,15 +31,20 @@ use hmac::{Hmac, Mac};
 use integrations_rs::domain::qbo::outbound::{
     process_ar_invoice_opened, EVENT_TYPE_QBO_INVOICE_CREATED,
 };
+use integrations_rs::domain::qbo::{client::QboClient, QboError, TokenProvider};
 use integrations_rs::domain::webhooks::ShopifyNormalizer;
 use integrations_rs::events::EVENT_TYPE_ORDER_INGESTED;
+use serde_json::Value;
 use serial_test::serial;
 use sha2::Sha256;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use uuid::Uuid;
+
+const QBO_OAUTH_ENCRYPTION_KEY: &str = "test-encryption-key-cross-module";
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -71,17 +76,35 @@ fn unique_tenant() -> String {
 
 async fn cleanup(pool: &PgPool, app_id: &str) {
     sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_file_jobs WHERE tenant_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_webhook_ingest WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_external_refs WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_oauth_connections WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_connector_configs WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 /// Compute the Shopify HMAC-SHA256 signature (base64-encoded) for a body.
@@ -91,9 +114,15 @@ fn shopify_hmac_b64(secret: &str, body: &[u8]) -> String {
     STANDARD.encode(mac.finalize().into_bytes())
 }
 
-/// Seed a QBO OAuth connection with a test token.
-async fn seed_qbo_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
-    std::env::set_var("OAUTH_ENCRYPTION_KEY", "test-encryption-key-cross-module");
+/// Seed a QBO OAuth connection with sandbox tokens.
+async fn seed_qbo_connection(
+    pool: &PgPool,
+    app_id: &str,
+    realm_id: &str,
+    access_token: &str,
+    refresh_token: &str,
+) {
+    std::env::set_var("OAUTH_ENCRYPTION_KEY", QBO_OAUTH_ENCRYPTION_KEY);
     sqlx::query(
         r#"INSERT INTO integrations_oauth_connections
             (app_id, provider, realm_id,
@@ -101,8 +130,8 @@ async fn seed_qbo_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
              access_token_expires_at, refresh_token_expires_at,
              scopes_granted, connection_status)
            VALUES ($1, 'quickbooks', $2,
-             pgp_sym_encrypt('test-access-token', 'test-encryption-key-cross-module'),
-             pgp_sym_encrypt('test-refresh-token', 'test-encryption-key-cross-module'),
+             pgp_sym_encrypt($3, 'test-encryption-key-cross-module'),
+             pgp_sym_encrypt($4, 'test-encryption-key-cross-module'),
              NOW() + INTERVAL '1 hour', NOW() + INTERVAL '90 days',
              'com.intuit.quickbooks.accounting', 'connected')
            ON CONFLICT (app_id, provider) DO UPDATE
@@ -114,13 +143,20 @@ async fn seed_qbo_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
     )
     .bind(app_id)
     .bind(realm_id)
+    .bind(access_token)
+    .bind(refresh_token)
     .execute(pool)
     .await
     .expect("seed QBO OAuth connection");
 }
 
 /// Seed an AR customer → QBO customer mapping.
-async fn seed_customer_ref(pool: &PgPool, app_id: &str, ar_customer_id: &str, qbo_customer_id: &str) {
+async fn seed_customer_ref(
+    pool: &PgPool,
+    app_id: &str,
+    ar_customer_id: &str,
+    qbo_customer_id: &str,
+) {
     sqlx::query(
         r#"INSERT INTO integrations_external_refs
             (app_id, entity_type, entity_id, system, external_id, created_at, updated_at)
@@ -135,32 +171,134 @@ async fn seed_customer_ref(pool: &PgPool, app_id: &str, ar_customer_id: &str, qb
     .expect("seed customer ref");
 }
 
-/// Start a minimal QBO invoice mock server.
-async fn start_qbo_mock(realm_id: &str, qbo_invoice_id: &str) -> (String, Arc<AtomicU32>) {
-    let call_count = Arc::new(AtomicU32::new(0));
+struct SandboxTokenProvider {
+    access_token: RwLock<String>,
+    refresh_tok: RwLock<String>,
+    client_id: String,
+    client_secret: String,
+    http: reqwest::Client,
+    tokens_path: PathBuf,
+}
 
-    #[derive(Clone)]
-    struct St {
-        count: Arc<AtomicU32>,
-        invoice_id: String,
+impl SandboxTokenProvider {
+    fn load() -> Self {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        dotenvy::from_path(root.join(".env.qbo-sandbox")).expect(".env.qbo-sandbox not found");
+
+        let client_id = std::env::var("QBO_CLIENT_ID").expect("QBO_CLIENT_ID");
+        let client_secret = std::env::var("QBO_CLIENT_SECRET").expect("QBO_CLIENT_SECRET");
+
+        let tokens_path = root.join(".qbo-tokens.json");
+        let content = std::fs::read_to_string(&tokens_path).expect(".qbo-tokens.json");
+        let tokens: Value = serde_json::from_str(&content).expect("invalid tokens JSON");
+
+        Self {
+            access_token: RwLock::new(tokens["access_token"].as_str().unwrap().into()),
+            refresh_tok: RwLock::new(tokens["refresh_token"].as_str().unwrap().into()),
+            client_id,
+            client_secret,
+            http: reqwest::Client::new(),
+            tokens_path,
+        }
     }
 
-    async fn handle(axum::extract::State(s): axum::extract::State<St>) -> (axum::http::StatusCode, String) {
-        s.count.fetch_add(1, Ordering::SeqCst);
-        let body = serde_json::json!({"Invoice": {"Id": s.invoice_id, "SyncToken": "0"}}).to_string();
-        (axum::http::StatusCode::OK, body)
+    fn realm_id(&self) -> String {
+        let content = std::fs::read_to_string(&self.tokens_path).unwrap();
+        let tokens: Value = serde_json::from_str(&content).unwrap();
+        tokens["realm_id"].as_str().unwrap().to_string()
     }
 
-    let state = St { count: call_count.clone(), invoice_id: qbo_invoice_id.to_string() };
-    let path = format!("/v3/company/{realm_id}/invoice");
-    let app = axum::Router::new()
-        .route(&path, axum::routing::post(handle))
-        .with_state(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind mock");
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move { axum::serve(listener, app).await.ok() });
+    async fn tokens(&self) -> (String, String) {
+        (
+            self.access_token.read().await.clone(),
+            self.refresh_tok.read().await.clone(),
+        )
+    }
+}
 
-    (format!("http://{}/v3", addr), call_count)
+#[async_trait::async_trait]
+impl TokenProvider for SandboxTokenProvider {
+    async fn get_token(&self) -> Result<String, QboError> {
+        Ok(self.access_token.read().await.clone())
+    }
+
+    async fn refresh_token(&self) -> Result<String, QboError> {
+        let rt = self.refresh_tok.read().await.clone();
+        let resp = self
+            .http
+            .post("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&[("grant_type", "refresh_token"), ("refresh_token", &rt)])
+            .send()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(QboError::TokenError(format!("Refresh failed: {}", body)));
+        }
+
+        let tr: Value = resp
+            .json()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+        let new_at = tr["access_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no access_token".into()))?
+            .to_string();
+        let new_rt = tr["refresh_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no refresh_token".into()))?
+            .to_string();
+
+        *self.access_token.write().await = new_at.clone();
+        *self.refresh_tok.write().await = new_rt.clone();
+
+        if let Ok(content) = std::fs::read_to_string(&self.tokens_path) {
+            if let Ok(mut existing) = serde_json::from_str::<Value>(&content) {
+                existing["access_token"] = Value::String(new_at.clone());
+                existing["refresh_token"] = Value::String(new_rt);
+                if let Some(v) = tr.get("expires_in") {
+                    existing["expires_in"] = v.clone();
+                }
+                if let Some(v) = tr.get("x_refresh_token_expires_in") {
+                    existing["x_refresh_token_expires_in"] = v.clone();
+                }
+                let _ = std::fs::write(
+                    &self.tokens_path,
+                    serde_json::to_string_pretty(&existing).unwrap(),
+                );
+            }
+        }
+
+        Ok(new_at)
+    }
+}
+
+fn skip_unless_sandbox() -> bool {
+    std::env::var("QBO_SANDBOX").map_or(true, |v| v != "1")
+}
+
+fn make_client() -> (QboClient, Arc<SandboxTokenProvider>) {
+    let provider = Arc::new(SandboxTokenProvider::load());
+    let base_url = std::env::var("QBO_SANDBOX_BASE")
+        .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into());
+    let realm_id = provider.realm_id();
+    let client = QboClient::new(&base_url, &realm_id, provider.clone());
+    (client, provider)
+}
+
+async fn first_customer_id(client: &QboClient) -> String {
+    let response = client
+        .query("SELECT * FROM Customer MAXRESULTS 1")
+        .await
+        .expect("customer query failed");
+    response["QueryResponse"]["Customer"]
+        .as_array()
+        .and_then(|customers| customers.first())
+        .and_then(|customer| customer["Id"].as_str())
+        .expect("sandbox should have at least one customer")
+        .to_string()
 }
 
 async fn outbox_events(pool: &PgPool, app_id: &str, event_type: &str) -> Vec<serde_json::Value> {
@@ -247,12 +385,22 @@ async fn cross_module_shopify_webhook_creates_file_job_and_order_ingested_event(
     .await
     .expect("file_job row must exist");
 
-    assert_eq!(parser_type, "shopify_order", "parser_type must be shopify_order");
-    assert!(file_ref.contains(order_id), "file_ref must include order_id");
+    assert_eq!(
+        parser_type, "shopify_order",
+        "parser_type must be shopify_order"
+    );
+    assert!(
+        file_ref.contains(order_id),
+        "file_ref must include order_id"
+    );
 
     // Verify integrations.order.ingested outbox event with correct line items
     let events = outbox_events(&pool, &app_id, EVENT_TYPE_ORDER_INGESTED).await;
-    assert_eq!(events.len(), 1, "exactly one order.ingested event must be in outbox");
+    assert_eq!(
+        events.len(),
+        1,
+        "exactly one order.ingested event must be in outbox"
+    );
 
     let payload = &events[0];
     assert_eq!(
@@ -302,30 +450,53 @@ async fn cross_module_shopify_webhook_idempotent_on_replay() {
     let normalizer = ShopifyNormalizer::new(pool.clone());
 
     let r1 = normalizer
-        .normalize(&raw_body, &order_body, &headers, &app_id, "orders/create", &connector_config)
+        .normalize(
+            &raw_body,
+            &order_body,
+            &headers,
+            &app_id,
+            "orders/create",
+            &connector_config,
+        )
         .await
         .expect("first normalize");
     assert!(!r1.is_duplicate);
 
     // Replay the same webhook
     let r2 = normalizer
-        .normalize(&raw_body, &order_body, &headers, &app_id, "orders/create", &connector_config)
+        .normalize(
+            &raw_body,
+            &order_body,
+            &headers,
+            &app_id,
+            "orders/create",
+            &connector_config,
+        )
         .await
         .expect("second normalize must not error");
-    assert!(r2.is_duplicate, "replayed webhook must be identified as duplicate");
+    assert!(
+        r2.is_duplicate,
+        "replayed webhook must be identified as duplicate"
+    );
 
     // Only one file_job and one order.ingested event
-    let (fj_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1",
-    )
-    .bind(&app_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(fj_count, 1, "idempotent: must not create duplicate file_jobs");
+    let (fj_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1")
+            .bind(&app_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        fj_count, 1,
+        "idempotent: must not create duplicate file_jobs"
+    );
 
     let events = outbox_events(&pool, &app_id, EVENT_TYPE_ORDER_INGESTED).await;
-    assert_eq!(events.len(), 1, "idempotent: must not duplicate order.ingested events");
+    assert_eq!(
+        events.len(),
+        1,
+        "idempotent: must not duplicate order.ingested events"
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -341,16 +512,24 @@ async fn cross_module_ar_invoice_opened_creates_qbo_invoice_and_outbox_event() {
     let app_id = unique_tenant();
     cleanup(&pool, &app_id).await;
 
-    let realm_id = "qbo-realm-cross-module";
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
+
+    let (client, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
     let ar_customer_id = "cust-xmod-001";
-    let qbo_customer_id = "QBO-CUST-100";
     let ar_invoice_id = "inv-xmod-001";
-    let qbo_invoice_id = "QBO-INV-9001";
+    let qbo_customer_id = first_customer_id(&client).await;
+    let (access_token, refresh_token) = provider.tokens().await;
 
-    seed_qbo_connection(&pool, &app_id, realm_id).await;
-    seed_customer_ref(&pool, &app_id, ar_customer_id, qbo_customer_id).await;
-
-    let (qbo_base_url, call_count) = start_qbo_mock(realm_id, qbo_invoice_id).await;
+    seed_qbo_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
+    seed_customer_ref(&pool, &app_id, ar_customer_id, &qbo_customer_id).await;
 
     // Build ar.events.ar.invoice_opened NATS message
     let msg_payload = serde_json::json!({
@@ -378,12 +557,14 @@ async fn cross_module_ar_invoice_opened_creates_qbo_invoice_and_outbox_event() {
         serde_json::to_vec(&msg_payload).unwrap(),
     );
 
-    process_ar_invoice_opened(&pool, &msg, &qbo_base_url)
-        .await
-        .expect("process_ar_invoice_opened must succeed");
-
-    // QBO mock called exactly once
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "QBO mock must be called once");
+    process_ar_invoice_opened(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await
+    .expect("process_ar_invoice_opened must succeed");
 
     // External ref must be stored: ar_invoice → qbo_invoice
     let (system, external_id): (String, String) = sqlx::query_as(
@@ -397,15 +578,25 @@ async fn cross_module_ar_invoice_opened_creates_qbo_invoice_and_outbox_event() {
     .expect("external_ref must be stored");
 
     assert_eq!(system, "qbo_invoice");
-    assert_eq!(external_id, qbo_invoice_id);
+    assert!(
+        !external_id.is_empty(),
+        "sandbox should return a QBO invoice id"
+    );
 
     // integrations.qbo.invoice_created event must be in outbox
     let events = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_CREATED).await;
-    assert_eq!(events.len(), 1, "qbo.invoice_created event must be in outbox");
+    assert_eq!(
+        events.len(),
+        1,
+        "qbo.invoice_created event must be in outbox"
+    );
 
     let evt_payload = &events[0]["payload"];
-    assert_eq!(evt_payload["ar_invoice_id"].as_str().unwrap(), ar_invoice_id);
-    assert_eq!(evt_payload["qbo_invoice_id"].as_str().unwrap(), qbo_invoice_id);
+    assert_eq!(
+        evt_payload["ar_invoice_id"].as_str().unwrap(),
+        ar_invoice_id
+    );
+    assert_eq!(evt_payload["qbo_invoice_id"].as_str().unwrap(), external_id);
     assert_eq!(evt_payload["realm_id"].as_str().unwrap(), realm_id);
 
     cleanup(&pool, &app_id).await;

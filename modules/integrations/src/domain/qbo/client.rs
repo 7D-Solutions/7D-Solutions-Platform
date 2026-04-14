@@ -511,7 +511,8 @@ mod tests {
         assert!(url.contains("minorversion=75"));
     }
 
-    // -- SyncToken retry tests using local axum server --
+    // These retry tests stay on a local axum server because the sandbox does
+    // not provide a deterministic way to force the same 5xx sequence on demand.
 
     struct SyncTestState {
         get_count: AtomicU32,
@@ -615,28 +616,25 @@ mod tests {
     async fn start_create_server() -> (String, Arc<AtomicU32>) {
         let call_count = Arc::new(AtomicU32::new(0));
         let count = call_count.clone();
-        let app = axum::Router::new()
-            .route(
-                "/v3/company/{realm}/invoice",
-                axum::routing::post(move || {
-                    let c = count.clone();
-                    async move {
-                        c.fetch_add(1, Ordering::SeqCst);
-                        (
-                            axum::http::StatusCode::OK,
-                            r#"{"Invoice":{"Id":"42","SyncToken":"0","DocNumber":"INV-001"}}"#,
-                        )
-                    }
-                }),
-            );
+        let app = axum::Router::new().route(
+            "/v3/company/{realm}/invoice",
+            axum::routing::post(move || {
+                let c = count.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    (
+                        axum::http::StatusCode::OK,
+                        r#"{"Invoice":{"Id":"42","SyncToken":"0","DocNumber":"INV-001"}}"#,
+                    )
+                }
+            }),
+        );
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
             .expect("bind");
         let addr = listener.local_addr().expect("addr");
-        tokio::spawn(async move {
-            axum::serve(listener, app).await.expect("server crashed")
-        });
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("server crashed") });
         (format!("http://{}/v3", addr), call_count)
     }
 
@@ -656,8 +654,15 @@ mod tests {
             doc_number: Some("INV-001".to_string()),
         };
 
-        let result = client.create_invoice(&payload).await.expect("create_invoice failed");
-        assert_eq!(result["Id"].as_str(), Some("42"), "returned invoice must have Id=42");
+        let result = client
+            .create_invoice(&payload)
+            .await
+            .expect("create_invoice failed");
+        assert_eq!(
+            result["Id"].as_str(),
+            Some("42"),
+            "returned invoice must have Id=42"
+        );
         assert_eq!(call_count.load(Ordering::SeqCst), 1, "one POST to QBO");
     }
 
@@ -680,6 +685,9 @@ mod tests {
         let lines = json["Line"].as_array().expect("Line must be array");
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0]["Amount"].as_f64(), Some(500.00));
-        assert_eq!(lines[0]["SalesItemLineDetail"]["ItemRef"]["value"].as_str(), Some("1"));
+        assert_eq!(
+            lines[0]["SalesItemLineDetail"]["ItemRef"]["value"].as_str(),
+            Some("1")
+        );
     }
 }

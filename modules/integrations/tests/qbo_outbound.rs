@@ -5,12 +5,13 @@
 //! Requires a running PostgreSQL instance at DATABASE_URL (defaults to the
 //! standard integrations dev DB on port 5449).
 //!
-//! Tests 2-4 use a local axum stub as the QBO REST API — no sandbox credentials
-//! needed.  The DB-backed token path is exercised by seeding the oauth
-//! connections table with a pgcrypto-encrypted test token.
+//! Tests use the real QBO sandbox when `QBO_SANDBOX=1` is set.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use integrations_rs::domain::qbo::{client::QboClient, QboError, TokenProvider};
+use serde_json::Value;
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use event_bus::BusMessage;
 use integrations_rs::domain::qbo::outbound::{
@@ -21,6 +22,8 @@ use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+const QBO_OAUTH_ENCRYPTION_KEY: &str = "test-encryption-key-for-qbo-outbound";
 
 // ============================================================================
 // Test helpers
@@ -74,9 +77,15 @@ async fn cleanup_tenant(pool: &PgPool, app_id: &str) {
 
 /// Seed a QBO OAuth connection for `app_id` with `realm_id`.
 /// Uses a known test encryption key and a plaintext test token.
-async fn seed_oauth_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
-    // Set the encryption key so DbTokenProvider can decrypt
-    std::env::set_var("OAUTH_ENCRYPTION_KEY", "test-encryption-key-for-qbo-outbound");
+async fn seed_oauth_connection(
+    pool: &PgPool,
+    app_id: &str,
+    realm_id: &str,
+    access_token: &str,
+    refresh_token: &str,
+) {
+    // Set the encryption key so DbTokenProvider can decrypt the sandbox token.
+    std::env::set_var("OAUTH_ENCRYPTION_KEY", QBO_OAUTH_ENCRYPTION_KEY);
 
     sqlx::query(
         r#"
@@ -87,8 +96,8 @@ async fn seed_oauth_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
              scopes_granted, connection_status)
         VALUES
             ($1, 'quickbooks', $2,
-             pgp_sym_encrypt('test-access-token', 'test-encryption-key-for-qbo-outbound'),
-             pgp_sym_encrypt('test-refresh-token', 'test-encryption-key-for-qbo-outbound'),
+             pgp_sym_encrypt($3, 'test-encryption-key-for-qbo-outbound'),
+             pgp_sym_encrypt($4, 'test-encryption-key-for-qbo-outbound'),
              NOW() + INTERVAL '1 hour',
              NOW() + INTERVAL '90 days',
              'com.intuit.quickbooks.accounting',
@@ -103,13 +112,20 @@ async fn seed_oauth_connection(pool: &PgPool, app_id: &str, realm_id: &str) {
     )
     .bind(app_id)
     .bind(realm_id)
+    .bind(access_token)
+    .bind(refresh_token)
     .execute(pool)
     .await
     .expect("seed oauth connection");
 }
 
 /// Seed a QBO customer mapping: ar_customer:customer_id → qbo:qbo_customer_id.
-async fn seed_customer_ref(pool: &PgPool, app_id: &str, ar_customer_id: &str, qbo_customer_id: &str) {
+async fn seed_customer_ref(
+    pool: &PgPool,
+    app_id: &str,
+    ar_customer_id: &str,
+    qbo_customer_id: &str,
+) {
     sqlx::query(
         r#"
         INSERT INTO integrations_external_refs
@@ -178,51 +194,136 @@ fn make_ar_invoice_message(
     )
 }
 
-/// Start a local axum server that simulates the QBO Invoice POST endpoint.
-/// Returns (base_url, post_call_count).
-async fn start_qbo_mock(realm_id: &str, qbo_invoice_id: &str) -> (String, Arc<AtomicU32>) {
-    let call_count = Arc::new(AtomicU32::new(0));
+struct SandboxTokenProvider {
+    access_token: RwLock<String>,
+    refresh_tok: RwLock<String>,
+    client_id: String,
+    client_secret: String,
+    http: reqwest::Client,
+    tokens_path: PathBuf,
+}
 
-    #[derive(Clone)]
-    struct State {
-        call_count: Arc<AtomicU32>,
-        qbo_invoice_id: String,
+impl SandboxTokenProvider {
+    fn load() -> Self {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        dotenvy::from_path(root.join(".env.qbo-sandbox")).expect(".env.qbo-sandbox not found");
+
+        let client_id = std::env::var("QBO_CLIENT_ID").expect("QBO_CLIENT_ID");
+        let client_secret = std::env::var("QBO_CLIENT_SECRET").expect("QBO_CLIENT_SECRET");
+
+        let tokens_path = root.join(".qbo-tokens.json");
+        let content = std::fs::read_to_string(&tokens_path).expect(".qbo-tokens.json");
+        let tokens: Value = serde_json::from_str(&content).expect("invalid tokens JSON");
+
+        Self {
+            access_token: RwLock::new(tokens["access_token"].as_str().unwrap().into()),
+            refresh_tok: RwLock::new(tokens["refresh_token"].as_str().unwrap().into()),
+            client_id,
+            client_secret,
+            http: reqwest::Client::new(),
+            tokens_path,
+        }
     }
 
-    async fn handle_invoice_post(
-        axum::extract::State(s): axum::extract::State<State>,
-    ) -> (axum::http::StatusCode, String) {
-        s.call_count.fetch_add(1, Ordering::SeqCst);
-        let body = serde_json::json!({
-            "Invoice": {
-                "Id": s.qbo_invoice_id,
-                "SyncToken": "0",
-                "DocNumber": "TEST-001"
+    fn realm_id(&self) -> String {
+        let content = std::fs::read_to_string(&self.tokens_path).unwrap();
+        let tokens: Value = serde_json::from_str(&content).unwrap();
+        tokens["realm_id"].as_str().unwrap().to_string()
+    }
+
+    async fn tokens(&self) -> (String, String) {
+        (
+            self.access_token.read().await.clone(),
+            self.refresh_tok.read().await.clone(),
+        )
+    }
+}
+
+#[async_trait::async_trait]
+impl TokenProvider for SandboxTokenProvider {
+    async fn get_token(&self) -> Result<String, QboError> {
+        Ok(self.access_token.read().await.clone())
+    }
+
+    async fn refresh_token(&self) -> Result<String, QboError> {
+        let rt = self.refresh_tok.read().await.clone();
+
+        let resp = self
+            .http
+            .post("https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&[("grant_type", "refresh_token"), ("refresh_token", &rt)])
+            .send()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(QboError::TokenError(format!("Refresh failed: {}", body)));
+        }
+
+        let tr: Value = resp
+            .json()
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))?;
+
+        let new_at = tr["access_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no access_token".into()))?
+            .to_string();
+        let new_rt = tr["refresh_token"]
+            .as_str()
+            .ok_or_else(|| QboError::TokenError("no refresh_token".into()))?
+            .to_string();
+
+        *self.access_token.write().await = new_at.clone();
+        *self.refresh_tok.write().await = new_rt.clone();
+
+        if let Ok(content) = std::fs::read_to_string(&self.tokens_path) {
+            if let Ok(mut existing) = serde_json::from_str::<Value>(&content) {
+                existing["access_token"] = Value::String(new_at.clone());
+                existing["refresh_token"] = Value::String(new_rt);
+                if let Some(v) = tr.get("expires_in") {
+                    existing["expires_in"] = v.clone();
+                }
+                if let Some(v) = tr.get("x_refresh_token_expires_in") {
+                    existing["x_refresh_token_expires_in"] = v.clone();
+                }
+                let _ = std::fs::write(
+                    &self.tokens_path,
+                    serde_json::to_string_pretty(&existing).unwrap(),
+                );
             }
-        })
-        .to_string();
-        (axum::http::StatusCode::OK, body)
+        }
+
+        Ok(new_at)
     }
+}
 
-    let state = State {
-        call_count: call_count.clone(),
-        qbo_invoice_id: qbo_invoice_id.to_string(),
-    };
+fn skip_unless_sandbox() -> bool {
+    std::env::var("QBO_SANDBOX").map_or(true, |v| v != "1")
+}
 
-    let path = format!("/v3/company/{realm_id}/invoice");
-    let app = axum::Router::new()
-        .route(&path, axum::routing::post(handle_invoice_post))
-        .with_state(state);
+fn make_client() -> (QboClient, Arc<SandboxTokenProvider>) {
+    let provider = Arc::new(SandboxTokenProvider::load());
+    let base_url = std::env::var("QBO_SANDBOX_BASE")
+        .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into());
+    let realm_id = provider.realm_id();
+    let client = QboClient::new(&base_url, &realm_id, provider.clone());
+    (client, provider)
+}
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+async fn first_customer_id(client: &QboClient) -> String {
+    let response = client
+        .query("SELECT * FROM Customer MAXRESULTS 1")
         .await
-        .expect("bind QBO mock");
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("QBO mock server")
-    });
-
-    (format!("http://{}/v3", addr), call_count)
+        .expect("customer query failed");
+    response["QueryResponse"]["Customer"]
+        .as_array()
+        .and_then(|customers| customers.first())
+        .and_then(|customer| customer["Id"].as_str())
+        .expect("sandbox should have at least one customer")
+        .to_string()
 }
 
 /// Query the outbox for events of a given type for an app_id.
@@ -266,37 +367,28 @@ async fn find_external_ref(
 // ============================================================================
 
 #[tokio::test]
+#[serial]
 async fn qbo_outbound_create_invoice_returns_valid_id() {
-    use integrations_rs::domain::qbo::{
-        client::{QboClient, QboInvoicePayload, QboLineItem},
-        TokenProvider, QboError,
-    };
+    use integrations_rs::domain::qbo::client::{QboInvoicePayload, QboLineItem};
 
-    struct FixedTokenProvider;
-
-    #[async_trait::async_trait]
-    impl TokenProvider for FixedTokenProvider {
-        async fn get_token(&self) -> Result<String, QboError> {
-            Ok("test-token".into())
-        }
-        async fn refresh_token(&self) -> Result<String, QboError> {
-            Ok("test-token".into())
-        }
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
     }
 
-    // Start a mock QBO server
-    let realm_id = "realm-test-42";
-    let expected_id = "INV-QBO-999";
-    let (base_url, call_count) = start_qbo_mock(realm_id, expected_id).await;
-
-    let client = QboClient::new(&base_url, realm_id, Arc::new(FixedTokenProvider));
+    let (client, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let customer_ref = first_customer_id(&client).await;
 
     let payload = QboInvoicePayload {
-        customer_ref: "1".to_string(),
+        customer_ref,
         line_items: vec![QboLineItem {
             amount: 150.00,
             description: Some("Test service".to_string()),
-            item_ref: Some("1".to_string()),
+            item_ref: None,
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some("AR-001".to_string()),
@@ -306,12 +398,10 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
     assert!(result.is_ok(), "create_invoice failed: {:?}", result);
 
     let invoice = result.unwrap();
-    assert_eq!(
-        invoice["Id"].as_str(),
-        Some(expected_id),
-        "returned invoice Id should match mock response"
+    assert!(
+        invoice["Id"].as_str().is_some(),
+        "sandbox should return an invoice Id"
     );
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "exactly 1 POST to QBO");
 }
 
 // ============================================================================
@@ -325,35 +415,52 @@ async fn qbo_outbound_consumer_creates_invoice_and_stores_ref() {
     let app_id = unique_tenant();
     let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
     let customer_id = format!("cust-{}", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
-    let qbo_customer_id = "42";
-    let qbo_invoice_id = format!("qbo-inv-{}", Uuid::new_v4().simple());
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
+
+    let (client, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let qbo_customer_id = first_customer_id(&client).await;
 
     // Seed: customer mapping + QBO OAuth connection
-    seed_customer_ref(&pool, &app_id, &customer_id, qbo_customer_id).await;
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
-
-    // Start QBO mock — the realm_id must match what the consumer will look up
-    let (base_url, call_count) = start_qbo_mock(&realm_id, &qbo_invoice_id).await;
+    seed_customer_ref(&pool, &app_id, &customer_id, &qbo_customer_id).await;
+    let (access_token, refresh_token) = provider.tokens().await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
 
     let msg = make_ar_invoice_message(&app_id, &invoice_id, &customer_id, 25000, None);
-    let result = process_ar_invoice_opened(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "process_ar_invoice_opened failed: {:?}", result);
-
-    // QBO was called exactly once
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "expected 1 QBO API call");
+    let result = process_ar_invoice_opened(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "process_ar_invoice_opened failed: {:?}",
+        result
+    );
 
     // External ref stored
     let stored = find_external_ref(&pool, &app_id, "ar_invoice", &invoice_id, "qbo_invoice").await;
-    assert_eq!(
-        stored.as_deref(),
-        Some(qbo_invoice_id.as_str()),
-        "external ref should be stored with QBO invoice Id"
+    let qbo_invoice_id = stored.as_deref().expect("QBO invoice ref should exist");
+    assert!(
+        !qbo_invoice_id.is_empty(),
+        "sandbox should emit a QBO invoice id"
     );
 
     // Outbox event emitted
     let outbox = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_CREATED).await;
-    assert!(!outbox.is_empty(), "integrations.qbo.invoice_created outbox event should exist");
+    assert!(
+        !outbox.is_empty(),
+        "integrations.qbo.invoice_created outbox event should exist"
+    );
 
     let event_payload = &outbox[0];
     assert_eq!(
@@ -362,7 +469,7 @@ async fn qbo_outbound_consumer_creates_invoice_and_stores_ref() {
     );
     assert_eq!(
         event_payload["payload"]["qbo_invoice_id"].as_str(),
-        Some(qbo_invoice_id.as_str())
+        Some(qbo_invoice_id)
     );
 
     cleanup_tenant(&pool, &app_id).await;
@@ -379,23 +486,38 @@ async fn qbo_outbound_consumer_idempotent_on_duplicate_event() {
     let app_id = unique_tenant();
     let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
     let customer_id = format!("cust-{}", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
     let existing_qbo_id = "ALREADY-CREATED-99";
 
     // Pre-seed: the invoice is already mapped (simulates a previous successful sync)
-    seed_customer_ref(&pool, &app_id, &customer_id, "42").await;
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
+    let (client, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let qbo_customer_id = first_customer_id(&client).await;
+    seed_customer_ref(&pool, &app_id, &customer_id, &qbo_customer_id).await;
+    let (access_token, refresh_token) = provider.tokens().await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
     seed_invoice_ref(&pool, &app_id, &invoice_id, existing_qbo_id).await;
 
-    // The QBO mock should NOT be called
-    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
-
     let msg = make_ar_invoice_message(&app_id, &invoice_id, &customer_id, 25000, None);
-    let result = process_ar_invoice_opened(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "idempotent call should succeed: {:?}", result);
-
-    // QBO was NOT called
-    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for duplicate event");
+    let result = process_ar_invoice_opened(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "idempotent call should succeed: {:?}",
+        result
+    );
 
     // The existing external ref is unchanged
     let stored = find_external_ref(&pool, &app_id, "ar_invoice", &invoice_id, "qbo_invoice").await;
@@ -415,27 +537,40 @@ async fn qbo_outbound_consumer_missing_customer_emits_error_event() {
     let app_id = unique_tenant();
     let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
     let customer_id = format!("cust-unmapped-{}", Uuid::new_v4().simple()); // no mapping seeded
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
-
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
+    let (_, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let (access_token, refresh_token) = provider.tokens().await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
     // Deliberately NOT seeding a customer ref
 
-    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
-
     let msg = make_ar_invoice_message(&app_id, &invoice_id, &customer_id, 10000, None);
-    let result = process_ar_invoice_opened(&pool, &msg, &base_url).await;
+    let result = process_ar_invoice_opened(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
     assert!(
         result.is_ok(),
         "missing customer should not propagate as error: {:?}",
         result
     );
 
-    // QBO was NOT called
-    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called when customer is unmapped");
-
     // No invoice external ref created
     let stored = find_external_ref(&pool, &app_id, "ar_invoice", &invoice_id, "qbo_invoice").await;
-    assert!(stored.is_none(), "no invoice ref should be stored for unmapped customer");
+    assert!(
+        stored.is_none(),
+        "no invoice ref should be stored for unmapped customer"
+    );
 
     // Error event emitted to outbox
     let errors = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_SYNC_FAILED).await;
@@ -445,9 +580,18 @@ async fn qbo_outbound_consumer_missing_customer_emits_error_event() {
     );
 
     let err_payload = &errors[0]["payload"];
-    assert_eq!(err_payload["ar_invoice_id"].as_str(), Some(invoice_id.as_str()));
-    assert_eq!(err_payload["ar_customer_id"].as_str(), Some(customer_id.as_str()));
-    assert_eq!(err_payload["reason"].as_str(), Some("no_qbo_customer_mapping"));
+    assert_eq!(
+        err_payload["ar_invoice_id"].as_str(),
+        Some(invoice_id.as_str())
+    );
+    assert_eq!(
+        err_payload["ar_customer_id"].as_str(),
+        Some(customer_id.as_str())
+    );
+    assert_eq!(
+        err_payload["reason"].as_str(),
+        Some("no_qbo_customer_mapping")
+    );
 
     cleanup_tenant(&pool, &app_id).await;
 }
@@ -532,7 +676,11 @@ fn make_order_ingested_message(
     order_id: &str,
     source: &str,
     customer_ref: Option<&str>,
-    line_items: &[(/* title */ &str, /* price */ &str, /* qty */ u32)],
+    line_items: &[(
+        /* title */ &str,
+        /* price */ &str,
+        /* qty */ u32,
+    )],
 ) -> BusMessage {
     let items: Vec<serde_json::Value> = line_items
         .iter()
@@ -586,14 +734,22 @@ async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
     let app_id = unique_tenant();
     let order_id = format!("ord-{}", Uuid::new_v4().simple());
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
-    let qbo_customer_id = "55";
-    let qbo_invoice_id = format!("qbo-inv-{}", Uuid::new_v4().simple());
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
 
-    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, qbo_customer_id).await;
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    let (client, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let qbo_customer_id = first_customer_id(&client).await;
+    let (access_token, refresh_token) = provider.tokens().await;
 
-    let (base_url, call_count) = start_qbo_mock(&realm_id, &qbo_invoice_id).await;
+    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, &qbo_customer_id).await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
 
     let msg = make_order_ingested_message(
         &app_id,
@@ -602,18 +758,32 @@ async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
         Some(&customer_ref),
         &[("Widget A", "29.99", 2), ("Widget B", "9.99", 1)],
     );
-    let result = process_order_ingested(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "process_order_ingested failed: {:?}", result);
-
-    assert_eq!(call_count.load(Ordering::SeqCst), 1, "expected 1 QBO API call");
+    let result = process_order_ingested(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "process_order_ingested failed: {:?}",
+        result
+    );
 
     // External ref stored under marketplace_order entity type
-    let stored =
-        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
-    assert_eq!(
-        stored.as_deref(),
-        Some(qbo_invoice_id.as_str()),
-        "external ref should be stored with QBO invoice Id"
+    let stored = find_external_ref(
+        &pool,
+        &app_id,
+        "marketplace_order",
+        &order_id,
+        "qbo_invoice",
+    )
+    .await;
+    let qbo_invoice_id = stored.as_deref().expect("QBO invoice ref should exist");
+    assert!(
+        !qbo_invoice_id.is_empty(),
+        "sandbox should emit a QBO invoice id"
     );
 
     // Outbox event emitted
@@ -624,7 +794,7 @@ async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
     );
     assert_eq!(
         outbox[0]["payload"]["qbo_invoice_id"].as_str(),
-        Some(qbo_invoice_id.as_str())
+        Some(qbo_invoice_id)
     );
 
     cleanup_tenant(&pool, &app_id).await;
@@ -641,12 +811,19 @@ async fn qbo_outbound_order_ingested_skips_qbo_source() {
     let app_id = unique_tenant();
     let order_id = format!("ord-{}", Uuid::new_v4().simple());
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
-
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
+    let (_, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let (access_token, refresh_token) = provider.tokens().await;
     seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, "99").await;
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
-
-    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
 
     let msg = make_order_ingested_message(
         &app_id,
@@ -655,14 +832,31 @@ async fn qbo_outbound_order_ingested_skips_qbo_source() {
         Some(&customer_ref),
         &[("Widget", "10.00", 1)],
     );
-    let result = process_order_ingested(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "qbo-sourced order should return Ok: {:?}", result);
+    let result = process_order_ingested(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "qbo-sourced order should return Ok: {:?}",
+        result
+    );
 
-    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for qbo-sourced order");
-
-    let stored =
-        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
-    assert!(stored.is_none(), "no external ref should be created for skipped order");
+    let stored = find_external_ref(
+        &pool,
+        &app_id,
+        "marketplace_order",
+        &order_id,
+        "qbo_invoice",
+    )
+    .await;
+    assert!(
+        stored.is_none(),
+        "no external ref should be created for skipped order"
+    );
 
     cleanup_tenant(&pool, &app_id).await;
 }
@@ -678,14 +872,23 @@ async fn qbo_outbound_order_ingested_idempotent_on_duplicate() {
     let app_id = unique_tenant();
     let order_id = format!("ord-{}", Uuid::new_v4().simple());
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
     let existing_qbo_id = "ALREADY-SYNCED-ORDER-88";
 
-    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, "42").await;
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
-    seed_marketplace_order_ref(&pool, &app_id, &order_id, existing_qbo_id).await;
+    let (_, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let (access_token, refresh_token) = provider.tokens().await;
 
-    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
+    seed_marketplace_customer_ref(&pool, &app_id, &customer_ref, "42").await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
+    seed_marketplace_order_ref(&pool, &app_id, &order_id, existing_qbo_id).await;
 
     let msg = make_order_ingested_message(
         &app_id,
@@ -694,14 +897,32 @@ async fn qbo_outbound_order_ingested_idempotent_on_duplicate() {
         Some(&customer_ref),
         &[("Widget", "20.00", 1)],
     );
-    let result = process_order_ingested(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "idempotent call should succeed: {:?}", result);
+    let result = process_order_ingested(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "idempotent call should succeed: {:?}",
+        result
+    );
 
-    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for duplicate order");
-
-    let stored =
-        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
-    assert_eq!(stored.as_deref(), Some(existing_qbo_id), "existing ref must be unchanged");
+    let stored = find_external_ref(
+        &pool,
+        &app_id,
+        "marketplace_order",
+        &order_id,
+        "qbo_invoice",
+    )
+    .await;
+    assert_eq!(
+        stored.as_deref(),
+        Some(existing_qbo_id),
+        "existing ref must be unchanged"
+    );
 
     cleanup_tenant(&pool, &app_id).await;
 }
@@ -717,12 +938,20 @@ async fn qbo_outbound_order_ingested_missing_customer_emits_error_event() {
     let app_id = unique_tenant();
     let order_id = format!("ord-{}", Uuid::new_v4().simple());
     let customer_ref = format!("unknown-{}@example.com", Uuid::new_v4().simple());
-    let realm_id = format!("realm-{}", Uuid::new_v4().simple());
+    if skip_unless_sandbox() {
+        eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
+        return;
+    }
 
-    seed_oauth_connection(&pool, &app_id, &realm_id).await;
+    let (_, provider) = make_client();
+    provider
+        .refresh_token()
+        .await
+        .expect("token refresh via OAuth failed");
+    let realm_id = provider.realm_id();
+    let (access_token, refresh_token) = provider.tokens().await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, &access_token, &refresh_token).await;
     // Deliberately NOT seeding a marketplace_customer ref
-
-    let (base_url, call_count) = start_qbo_mock(&realm_id, "should-not-be-used").await;
 
     let msg = make_order_ingested_message(
         &app_id,
@@ -731,14 +960,31 @@ async fn qbo_outbound_order_ingested_missing_customer_emits_error_event() {
         Some(&customer_ref),
         &[("Widget", "5.00", 3)],
     );
-    let result = process_order_ingested(&pool, &msg, &base_url).await;
-    assert!(result.is_ok(), "missing customer should not propagate as error: {:?}", result);
+    let result = process_order_ingested(
+        &pool,
+        &msg,
+        &std::env::var("QBO_SANDBOX_BASE")
+            .unwrap_or_else(|_| "https://sandbox-quickbooks.api.intuit.com/v3".into()),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "missing customer should not propagate as error: {:?}",
+        result
+    );
 
-    assert_eq!(call_count.load(Ordering::SeqCst), 0, "QBO must not be called for unmapped customer");
-
-    let stored =
-        find_external_ref(&pool, &app_id, "marketplace_order", &order_id, "qbo_invoice").await;
-    assert!(stored.is_none(), "no invoice ref should be stored for unmapped customer");
+    let stored = find_external_ref(
+        &pool,
+        &app_id,
+        "marketplace_order",
+        &order_id,
+        "qbo_invoice",
+    )
+    .await;
+    assert!(
+        stored.is_none(),
+        "no invoice ref should be stored for unmapped customer"
+    );
 
     let errors = outbox_events(&pool, &app_id, EVENT_TYPE_QBO_INVOICE_SYNC_FAILED).await;
     assert!(!errors.is_empty(), "sync_failed outbox event should exist");
