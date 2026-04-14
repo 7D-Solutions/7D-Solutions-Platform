@@ -1,6 +1,6 @@
 [package]
 name = "inventory-rs"
-version = "2.7.1"
+version = "2.7.2"
 edition = "2021"
 description = "Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts"
 

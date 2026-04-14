@@ -108,9 +108,7 @@ pub async fn create_billing_run(
 
     // Validate idempotency_key is non-empty
     if req.idempotency_key.trim().is_empty() {
-        return Err(ApiError::bad_request(
-            "idempotency_key must not be empty",
-        ));
+        return Err(ApiError::bad_request("idempotency_key must not be empty"));
     }
 
     let correlation_id = req.idempotency_key.clone();
@@ -163,14 +161,14 @@ pub async fn create_billing_run(
             }))
         }
         Err(BillingError::Registry(TenantRegistryError::TenantNotFound(tid))) => {
-            tracing::warn!("Billing run failed: tenant {} not found", tid);
+            tracing::warn!(tid = %tid, "Billing run failed: tenant not found");
             Err(ApiError::not_found(format!(
                 "Tenant {} not found in registry",
                 tid
             )))
         }
         Err(BillingError::Registry(TenantRegistryError::NoAppId(tid))) => {
-            tracing::warn!("Billing run failed: tenant {} has no app_id", tid);
+            tracing::warn!(tid = %tid, "Billing run failed: tenant has no app_id");
             Err(ApiError::new(
                 422,
                 "no_app_id",
@@ -178,7 +176,7 @@ pub async fn create_billing_run(
             ))
         }
         Err(e) => {
-            tracing::error!("Billing run error: {:?}", e);
+            tracing::error!(error = %e, "Billing run error");
 
             // Publish BillingRunFailed event (best-effort)
             let _fail_env = create_ttp_envelope(
@@ -287,8 +285,8 @@ mod tests {
         let metrics = Arc::new(TtpMetrics::new().expect("create test metrics"));
         let registry_url = std::env::var("TENANT_REGISTRY_URL")
             .unwrap_or_else(|_| "http://localhost:8092".to_string());
-        let ar_url = std::env::var("AR_BASE_URL")
-            .unwrap_or_else(|_| "http://localhost:8086".to_string());
+        let ar_url =
+            std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
         let state = Arc::new(crate::AppState {
             pool,
             metrics,
@@ -334,7 +332,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .body(Body::from(
+                        serde_json::to_vec(&body).expect("serialize json"),
+                    ))
                     .expect("build request"),
             )
             .await
@@ -359,7 +359,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .body(Body::from(
+                        serde_json::to_vec(&body).expect("serialize json"),
+                    ))
                     .expect("build request"),
             )
             .await
@@ -384,7 +386,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .body(Body::from(
+                        serde_json::to_vec(&body).expect("serialize json"),
+                    ))
                     .expect("build request"),
             )
             .await
@@ -414,7 +418,9 @@ mod tests {
                     .method("POST")
                     .uri("/api/ttp/billing-runs")
                     .header("content-type", "application/json")
-                    .body(Body::from(serde_json::to_vec(&body).expect("serialize json")))
+                    .body(Body::from(
+                        serde_json::to_vec(&body).expect("serialize json"),
+                    ))
                     .expect("build request"),
             )
             .await

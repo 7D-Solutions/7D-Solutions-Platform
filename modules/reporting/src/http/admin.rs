@@ -155,8 +155,12 @@ pub async fn rebuild(
     // Admin-gate: reject if ADMIN_TOKEN is not configured or header doesn't match
     let expected = std::env::var("ADMIN_TOKEN").unwrap_or_default();
     if expected.is_empty() {
-        return ApiError::new(403, "forbidden", "ADMIN_TOKEN is not configured; rebuild is disabled")
-            .into_response();
+        return ApiError::new(
+            403,
+            "forbidden",
+            "ADMIN_TOKEN is not configured; rebuild is disabled",
+        )
+        .into_response();
     }
     let provided = headers
         .get("x-admin-token")
@@ -237,7 +241,7 @@ pub async fn projection_status(
     let resp = proj_admin::query_projection_status(&pool, &req)
         .await
         .map_err(|e| {
-            tracing::error!("Admin projection-status error: {}", e);
+            tracing::error!(error = %e, "Admin projection-status error");
             ApiError::internal("Internal error")
         })?;
     Ok(Json(resp.into()))
@@ -263,7 +267,7 @@ pub async fn consistency_check(
     let resp = proj_admin::query_consistency_check(&pool, &req)
         .await
         .map_err(|e| {
-            tracing::error!("Admin consistency-check error: {}", e);
+            tracing::error!(error = %e, "Admin consistency-check error");
             ApiError::internal("Internal error")
         })?;
     Ok(Json(resp.into()))
@@ -288,7 +292,7 @@ pub async fn list_projections(
     let resp = proj_admin::query_projection_list(&pool)
         .await
         .map_err(|e| {
-            tracing::error!("Admin list-projections error: {}", e);
+            tracing::error!(error = %e, "Admin list-projections error");
             ApiError::internal("Internal error")
         })?;
     let items: Vec<ProjectionSummarySchema> =
@@ -318,8 +322,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake")
-            .expect("connect_lazy for test");
+        let pool =
+            PgPool::connect_lazy("postgres://localhost/fake").expect("connect_lazy for test");
         let _router = admin_router(pool);
     }
 }

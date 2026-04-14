@@ -8,9 +8,7 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::domain::{customers, payment_methods};
-use crate::models::{
-    AddPaymentMethodRequest, ApiError, PaymentMethod, UpdatePaymentMethodRequest,
-};
+use crate::models::{AddPaymentMethodRequest, ApiError, PaymentMethod, UpdatePaymentMethodRequest};
 use crate::tilled::TilledClient;
 
 /// POST /api/ar/payment-methods - Add a new payment method
@@ -29,40 +27,50 @@ pub async fn add_payment_method(
     let app_id = super::tenant::extract_tenant(&claims)?;
 
     if req.tilled_payment_method_id.is_empty() {
-        return Err(ApiError::bad_request("tilled_payment_method_id is required"));
+        return Err(ApiError::bad_request(
+            "tilled_payment_method_id is required",
+        ));
     }
 
     let _customer = customers::fetch_customer(&db, req.ar_customer_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching customer: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching customer");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", req.ar_customer_id)))?;
 
     let existing = payment_methods::find_by_tilled_id(&db, &req.tilled_payment_method_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error checking payment method: {:?}", e);
+            tracing::error!(error = %e, "Database error checking payment method");
             ApiError::internal("Internal database error")
         })?;
 
     let payment_method = if existing.is_some() {
-        payment_methods::reattach(&db, &app_id, req.ar_customer_id, &req.tilled_payment_method_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to update payment method: {:?}", e);
-                ApiError::internal("Internal database error")
-            })?
+        payment_methods::reattach(
+            &db,
+            &app_id,
+            req.ar_customer_id,
+            &req.tilled_payment_method_id,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to update payment method");
+            ApiError::internal("Internal database error")
+        })?
     } else {
-        payment_methods::insert_pending(&db, &app_id, req.ar_customer_id, &req.tilled_payment_method_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to create payment method: {:?}", e);
-                ApiError::internal("Internal database error")
-            })?
+        payment_methods::insert_pending(
+            &db,
+            &app_id,
+            req.ar_customer_id,
+            &req.tilled_payment_method_id,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to create payment method");
+            ApiError::internal("Internal database error")
+        })?
     };
 
     tracing::info!(
@@ -94,12 +102,10 @@ pub async fn update_payment_method(
     let existing = payment_methods::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching payment method: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching payment method");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Payment method {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Payment method {} not found", id)))?;
 
     if req.metadata.is_none() {
         return Err(ApiError::bad_request("No valid fields to update"));
@@ -110,7 +116,7 @@ pub async fn update_payment_method(
     let payment_method = payment_methods::update_metadata(&db, id, metadata)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update payment method: {:?}", e);
+            tracing::error!(error = %e, "Failed to update payment method");
             ApiError::internal("Internal database error")
         })?;
 
@@ -138,19 +144,18 @@ pub async fn delete_payment_method(
     let payment_method = payment_methods::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching payment method: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching payment method");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Payment method {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Payment method {} not found", id)))?;
 
-    let blocking_charge_count = payment_methods::count_blocking_charges(&db, payment_method.ar_customer_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Database error checking blocking charges: {:?}", e);
-            ApiError::internal("Internal database error")
-        })?;
+    let blocking_charge_count =
+        payment_methods::count_blocking_charges(&db, payment_method.ar_customer_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Database error checking blocking charges");
+                ApiError::internal("Internal database error")
+            })?;
 
     if blocking_charge_count.unwrap_or(0) > 0 {
         return Err(ApiError::conflict(format!(
@@ -161,7 +166,7 @@ pub async fn delete_payment_method(
 
     if !payment_method.tilled_payment_method_id.is_empty() {
         let client = TilledClient::from_env(&app_id).map_err(|e| {
-            tracing::error!("Failed to create Tilled client: {:?}", e);
+            tracing::error!(error = %e, "Failed to create Tilled client");
             ApiError::internal("Internal database error")
         })?;
 
@@ -169,7 +174,7 @@ pub async fn delete_payment_method(
             .detach_payment_method(&payment_method.tilled_payment_method_id)
             .await
         {
-            tracing::error!("Tilled detach failed for payment method {}: {:?}", id, e);
+            tracing::error!(id = %id, error = %e, "Tilled detach failed for payment method");
             return Err(ApiError::new(
                 502,
                 "provider_error",
@@ -178,12 +183,10 @@ pub async fn delete_payment_method(
         }
     }
 
-    payment_methods::soft_delete(&db, id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to delete payment method: {:?}", e);
-            ApiError::internal("Internal database error")
-        })?;
+    payment_methods::soft_delete(&db, id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to delete payment method");
+        ApiError::internal("Internal database error")
+    })?;
 
     if payment_method.is_default {
         customers::clear_default_payment_method(&db, payment_method.ar_customer_id)
@@ -221,18 +224,16 @@ pub async fn set_default_payment_method(
     let payment_method = payment_methods::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching payment method: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching payment method");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Payment method {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Payment method {} not found", id)))?;
 
     if payment_method.status != "active" {
         return Err(ApiError::bad_request(format!(
-                    "Cannot set payment method with status {} as default",
-                    payment_method.status
-                )));
+            "Cannot set payment method with status {} as default",
+            payment_method.status
+        )));
     }
 
     if payment_method.payment_type == "card" {
@@ -244,27 +245,29 @@ pub async fn set_default_payment_method(
             let current_month = now.month() as i32;
 
             if exp_year < current_year || (exp_year == current_year && exp_month < current_month) {
-                return Err(ApiError::bad_request("Card is expired and cannot be set as default"));
+                return Err(ApiError::bad_request(
+                    "Card is expired and cannot be set as default",
+                ));
             }
         }
     }
 
     let mut tx = db.begin().await.map_err(|e| {
-        tracing::error!("Failed to begin transaction: {:?}", e);
+        tracing::error!(error = %e, "Failed to begin transaction");
         ApiError::internal("Internal database error")
     })?;
 
     payment_methods::clear_default_flags(&mut *tx, payment_method.ar_customer_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to clear default flags: {:?}", e);
+            tracing::error!(error = %e, "Failed to clear default flags");
             ApiError::internal("Internal database error")
         })?;
 
     let updated_pm = payment_methods::set_default_flag(&mut *tx, id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to set default flag: {:?}", e);
+            tracing::error!(error = %e, "Failed to set default flag");
             ApiError::internal("Internal database error")
         })?;
 
@@ -276,12 +279,12 @@ pub async fn set_default_payment_method(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to update customer default: {:?}", e);
+        tracing::error!(error = %e, "Failed to update customer default");
         ApiError::internal("Internal database error")
     })?;
 
     tx.commit().await.map_err(|e| {
-        tracing::error!("Failed to commit transaction: {:?}", e);
+        tracing::error!(error = %e, "Failed to commit transaction");
         ApiError::internal("Internal database error")
     })?;
 

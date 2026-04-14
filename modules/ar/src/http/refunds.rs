@@ -37,7 +37,7 @@ pub async fn create_refund(
     let existing_refund = refunds::find_by_reference_id(&db, &app_id, &req.reference_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error checking duplicate refund: {:?}", e);
+            tracing::error!(error = %e, "Database error checking duplicate refund");
             ApiError::internal("Internal database error")
         })?;
 
@@ -53,7 +53,7 @@ pub async fn create_refund(
     let charge = refunds::fetch_charge_for_refund(&db, req.charge_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching charge: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching charge");
             ApiError::internal("Internal database error")
         })?
         .ok_or_else(|| ApiError::not_found("Charge not found"))?;
@@ -72,7 +72,7 @@ pub async fn create_refund(
     let total_refunded = refunds::sum_refunded(&db, req.charge_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error calculating refunded amount: {:?}", e);
+            tracing::error!(error = %e, "Database error calculating refunded amount");
             ApiError::internal("Internal database error")
         })?;
 
@@ -101,16 +101,16 @@ pub async fn create_refund(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to create refund: {:?}", e);
+        tracing::error!(error = %e, "Failed to create refund");
         ApiError::internal("Internal database error")
     })?;
 
     // Call Tilled API to create the refund
-    let payment_intent_id = charge.tilled_charge_id.ok_or_else(|| {
-        ApiError::internal("Internal database error")
-    })?;
+    let payment_intent_id = charge
+        .tilled_charge_id
+        .ok_or_else(|| ApiError::internal("Internal database error"))?;
     let client = TilledClient::from_env(&app_id).map_err(|e| {
-        tracing::error!("Failed to create Tilled client: {:?}", e);
+        tracing::error!(error = %e, "Failed to create Tilled client");
         ApiError::internal("Internal database error")
     })?;
 
@@ -130,12 +130,17 @@ pub async fn create_refund(
         .await
     {
         Ok(tilled_refund) => {
-            let refund = refunds::update_after_provider(&db, refund.id, &tilled_refund.status, &tilled_refund.id)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to update refund after provider call: {:?}", e);
-                    ApiError::internal("Internal database error")
-                })?;
+            let refund = refunds::update_after_provider(
+                &db,
+                refund.id,
+                &tilled_refund.status,
+                &tilled_refund.id,
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update refund after provider call");
+                ApiError::internal("Internal database error")
+            })?;
 
             tracing::info!(
                 "Created refund {} for charge {} (amount: {}, tilled_id: {})",
@@ -148,7 +153,7 @@ pub async fn create_refund(
             Ok((StatusCode::CREATED, Json(refund)))
         }
         Err(e) => {
-            tracing::error!("Tilled refund failed for charge {}: {:?}", req.charge_id, e);
+            tracing::error!(charge_id = %req.charge_id, error = %e, "Tilled refund failed for charge");
             Err(ApiError::new(
                 502,
                 "provider_error",
@@ -176,12 +181,10 @@ pub async fn get_refund(
     let refund = refunds::fetch_by_id(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching refund: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching refund");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Refund {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Refund {} not found", id)))?;
 
     Ok(Json(refund))
 }
@@ -214,7 +217,7 @@ pub async fn list_refunds(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error listing refunds: {:?}", e);
+        tracing::error!(error = %e, "Database error listing refunds");
         ApiError::internal("Internal database error")
     })?;
 
@@ -227,10 +230,15 @@ pub async fn list_refunds(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error counting refunds: {:?}", e);
+        tracing::error!(error = %e, "Database error counting refunds");
         ApiError::internal("Internal database error")
     })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(refund_list, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(
+        refund_list,
+        page,
+        limit as i64,
+        total_items,
+    )))
 }

@@ -20,9 +20,9 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================
 // CHECKLIST TYPES
@@ -78,10 +78,18 @@ pub async fn create_checklist_item(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = checklist_repo::create_checklist_item(
-        &app_state.pool, &tenant_id, period_id, &request.label,
+        &app_state.pool,
+        &tenant_id,
+        period_id,
+        &request.label,
     )
     .await
-    .map_err(|e| with_request_id(ApiError::internal(format!("Failed to create checklist item: {}", e)), &ctx))?;
+    .map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("Failed to create checklist item: {}", e)),
+            &ctx,
+        )
+    })?;
 
     Ok((StatusCode::CREATED, Json(to_checklist_response(row))))
 }
@@ -105,15 +113,22 @@ pub async fn complete_checklist_item(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = checklist_repo::complete_checklist_item(
-        &app_state.pool, &request.completed_by, item_id, period_id, &tenant_id,
+        &app_state.pool,
+        &request.completed_by,
+        item_id,
+        period_id,
+        &tenant_id,
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error: {}", e);
+        tracing::error!(error = %e, "Database error");
         with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?
     .ok_or_else(|| {
-        with_request_id(ApiError::not_found(format!("Checklist item {} not found", item_id)), &ctx)
+        with_request_id(
+            ApiError::not_found(format!("Checklist item {} not found", item_id)),
+            &ctx,
+        )
     })?;
 
     Ok(Json(to_checklist_response(row)))
@@ -138,16 +153,23 @@ pub async fn waive_checklist_item(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = checklist_repo::waive_checklist_item(
-        &app_state.pool, &request.completed_by, &request.waive_reason,
-        item_id, period_id, &tenant_id,
+        &app_state.pool,
+        &request.completed_by,
+        &request.waive_reason,
+        item_id,
+        period_id,
+        &tenant_id,
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error: {}", e);
+        tracing::error!(error = %e, "Database error");
         with_request_id(ApiError::internal("Internal database error"), &ctx)
     })?
     .ok_or_else(|| {
-        with_request_id(ApiError::not_found(format!("Checklist item {} not found", item_id)), &ctx)
+        with_request_id(
+            ApiError::not_found(format!("Checklist item {} not found", item_id)),
+            &ctx,
+        )
     })?;
 
     Ok(Json(to_checklist_response(row)))
@@ -169,7 +191,7 @@ pub async fn get_checklist_status(
     let rows = checklist_repo::list_checklist_items(&app_state.pool, &tenant_id, period_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error: {}", e);
+            tracing::error!(error = %e, "Database error");
             with_request_id(ApiError::internal("Internal database error"), &ctx)
         })?;
 
@@ -233,11 +255,20 @@ pub async fn create_approval(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let row = checklist_repo::create_approval(
-        &app_state.pool, &tenant_id, period_id,
-        &request.actor_id, &request.approval_type, request.notes.as_deref(),
+        &app_state.pool,
+        &tenant_id,
+        period_id,
+        &request.actor_id,
+        &request.approval_type,
+        request.notes.as_deref(),
     )
     .await
-    .map_err(|e| with_request_id(ApiError::internal(format!("Failed to record approval: {}", e)), &ctx))?;
+    .map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("Failed to record approval: {}", e)),
+            &ctx,
+        )
+    })?;
 
     Ok((
         StatusCode::CREATED,
@@ -269,7 +300,7 @@ pub async fn get_approvals(
     let rows = checklist_repo::list_approvals(&app_state.pool, &tenant_id, period_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error: {}", e);
+            tracing::error!(error = %e, "Database error");
             with_request_id(ApiError::internal("Internal database error"), &ctx)
         })?;
 

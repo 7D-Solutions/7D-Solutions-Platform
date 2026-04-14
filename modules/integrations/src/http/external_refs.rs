@@ -45,11 +45,9 @@ fn ext_ref_error(e: ExternalRefError) -> ApiError {
             ApiError::not_found(format!("External ref {} not found", id))
         }
         ExternalRefError::Conflict(msg) => ApiError::conflict(msg),
-        ExternalRefError::Validation(msg) => {
-            ApiError::new(422, "validation_error", msg)
-        }
+        ExternalRefError::Validation(msg) => ApiError::new(422, "validation_error", msg),
         ExternalRefError::Database(e) => {
-            tracing::error!("External ref DB error: {}", e);
+            tracing::error!(error = %e, "External ref DB error");
             ApiError::internal("Internal database error")
         }
     }

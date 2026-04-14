@@ -284,7 +284,7 @@ pub async fn lookup_cached_quote(
         )
             .into_response(),
         Err(e) => {
-            tracing::error!("Database error loading tax quote: {}", e);
+            tracing::error!(error = %e, "Database error loading tax quote");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorBody {

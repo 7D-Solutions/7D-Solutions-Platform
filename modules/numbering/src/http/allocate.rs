@@ -17,9 +17,9 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{db::numbering_repo, format, outbox, policy};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AllocateRequest {
@@ -75,7 +75,10 @@ pub async fn allocate(
     Json(req): Json<AllocateRequest>,
 ) -> Result<(StatusCode, Json<AllocateResponse>), ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .and_then(|id| {
+            id.parse()
+                .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+        })
         .map_err(|e| with_request_id(e, &ctx))?;
 
     if req.entity.is_empty() || req.entity.len() > 100 {
@@ -94,11 +97,13 @@ pub async fn allocate(
 
     // ── Idempotency check ──────────────────────────────────────────────
     let existing = numbering_repo::find_issued_by_idempotency_key(
-        &state.pool, tenant_id, &req.idempotency_key,
+        &state.pool,
+        tenant_id,
+        &req.idempotency_key,
     )
     .await
     .map_err(|e| {
-        tracing::error!("Numbering: idempotency check failed: {}", e);
+        tracing::error!(error = %e, "Numbering: idempotency check failed");
         with_request_id(ApiError::internal("Failed to check idempotency key"), &ctx)
     })?;
 
@@ -127,7 +132,7 @@ pub async fn allocate(
 
     // ── Begin transaction: Guard → Mutation → Outbox ───────────────────
     let mut tx = state.pool.begin().await.map_err(|e| {
-        tracing::error!("Numbering: failed to begin transaction: {}", e);
+        tracing::error!(error = %e, "Numbering: failed to begin transaction");
         with_request_id(ApiError::internal("Failed to begin transaction"), &ctx)
     })?;
 
@@ -135,7 +140,7 @@ pub async fn allocate(
     let alloc = allocate_next_value(&mut tx, tenant_id, &req.entity, gap_free_requested)
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: allocation failed: {}", e);
+            tracing::error!(error = %e, "Numbering: allocation failed");
             with_request_id(ApiError::internal("Failed to allocate number"), &ctx)
         })?;
 
@@ -152,22 +157,32 @@ pub async fn allocate(
     // instead of inserting a new one.
     if alloc.recycled {
         numbering_repo::update_recycled_issued_tx(
-            &mut tx, &req.idempotency_key, &issued_status, expires_at,
-            tenant_id, &req.entity, alloc.value,
+            &mut tx,
+            &req.idempotency_key,
+            &issued_status,
+            expires_at,
+            tenant_id,
+            &req.entity,
+            alloc.value,
         )
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: failed to recycle issued number: {}", e);
+            tracing::error!(error = %e, "Numbering: failed to recycle issued number");
             with_request_id(ApiError::internal("Failed to recycle issued number"), &ctx)
         })?;
     } else {
         numbering_repo::insert_issued_tx(
-            &mut tx, tenant_id, &req.entity, alloc.value,
-            &req.idempotency_key, &issued_status, expires_at,
+            &mut tx,
+            tenant_id,
+            &req.entity,
+            alloc.value,
+            &req.idempotency_key,
+            &issued_status,
+            expires_at,
         )
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: failed to insert issued number: {}", e);
+            tracing::error!(error = %e, "Numbering: failed to insert issued number");
             with_request_id(ApiError::internal("Failed to record issued number"), &ctx)
         })?;
     }
@@ -192,13 +207,16 @@ pub async fn allocate(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Numbering: failed to enqueue event: {}", e);
-        with_request_id(ApiError::internal("Failed to enqueue allocation event"), &ctx)
+        tracing::error!(error = %e, "Numbering: failed to enqueue event");
+        with_request_id(
+            ApiError::internal("Failed to enqueue allocation event"),
+            &ctx,
+        )
     })?;
 
     // ── Commit the atomic unit ─────────────────────────────────────────
     tx.commit().await.map_err(|e| {
-        tracing::error!("Numbering: failed to commit transaction: {}", e);
+        tracing::error!(error = %e, "Numbering: failed to commit transaction");
         with_request_id(ApiError::internal("Failed to commit allocation"), &ctx)
     })?;
 

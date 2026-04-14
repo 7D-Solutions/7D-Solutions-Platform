@@ -41,12 +41,14 @@ pub async fn create_customer(
     let existing = customers::check_email_exists(&db, &app_id, email)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to check duplicate email: {:?}", e);
+            tracing::error!(error = %e, "Failed to check duplicate email");
             ApiError::internal("Internal database error")
         })?;
 
     if existing.is_some() {
-        return Err(ApiError::conflict("A customer with this email already exists"));
+        return Err(ApiError::conflict(
+            "A customer with this email already exists",
+        ));
     }
 
     let customer = customers::insert_customer(
@@ -60,7 +62,7 @@ pub async fn create_customer(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to create customer: {:?}", e);
+        tracing::error!(error = %e, "Failed to create customer");
 
         // Check for unique constraint violation (duplicate email)
         if let sqlx::Error::Database(db_err) = &e {
@@ -104,12 +106,10 @@ pub async fn get_customer(
     let customer = customers::fetch_customer(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching customer: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching customer");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", id)))?;
 
     Ok(Json(customer))
 }
@@ -131,32 +131,29 @@ pub async fn list_customers(
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
 
-    let total_items = customers::count_customers(
-        &db,
-        &app_id,
-        query.external_customer_id.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error counting customers: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let total_items =
+        customers::count_customers(&db, &app_id, query.external_customer_id.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Database error counting customers");
+                ApiError::internal("Internal database error")
+            })?;
 
-    let customer_list = customers::list_customers(
-        &db,
-        &app_id,
-        query.external_customer_id,
-        limit,
-        offset,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error listing customers: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let customer_list =
+        customers::list_customers(&db, &app_id, query.external_customer_id, limit, offset)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Database error listing customers");
+                ApiError::internal("Internal database error")
+            })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(customer_list, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(
+        customer_list,
+        page,
+        limit as i64,
+        total_items,
+    )))
 }
 
 /// PUT /api/ar/customers/:id - Update customer
@@ -180,12 +177,10 @@ pub async fn update_customer(
     let existing = customers::fetch_customer(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching customer: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching customer");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", id)))?;
 
     // Validate at least one field is being updated
     if req.email.is_none() && req.name.is_none() && req.metadata.is_none() && req.party_id.is_none()
@@ -205,7 +200,7 @@ pub async fn update_customer(
     let customer = customers::update_customer(&db, id, &email, name, metadata, party_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update customer: {:?}", e);
+            tracing::error!(error = %e, "Failed to update customer");
             ApiError::internal("Internal database error")
         })?;
 

@@ -85,8 +85,7 @@ pub async fn get_payment(
     tracing_ctx: Option<Extension<TracingContext>>,
     Query(params): Query<PaymentQuery>,
 ) -> Result<Json<PaymentResponse>, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     // In production, these would be stored in AppState
     let policy = FallbackPolicy::new(5000, 200); // 5s staleness, 200ms budget
@@ -97,11 +96,8 @@ pub async fn get_payment(
     let cursor = ProjectionCursor::load(&app_state.pool, "payment_projection", &tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to load projection cursor: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Failed to load projection cursor");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     // Check if projection is stale and fallback is possible
@@ -140,11 +136,8 @@ pub async fn get_payment(
     let payment = query_projection(&app_state.pool, &tenant_id, params.payment_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to query payment projection: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Failed to query payment projection");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     Ok(Json(payment))

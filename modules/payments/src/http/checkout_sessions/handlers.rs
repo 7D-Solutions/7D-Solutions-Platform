@@ -25,13 +25,13 @@ use uuid::Uuid;
 
 use crate::webhook_signature::{validate_webhook_signature, WebhookSource};
 
-use platform_sdk::extract_tenant;
 use super::repo;
 use super::session_logic::{
     create_tilled_payment_intent, poll_tilled_intent_status, validate_https_url,
     CheckoutSessionStatusResponse, CreateCheckoutSessionRequest, CreateCheckoutSessionResponse,
     SessionStatusPollResponse,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Helpers
@@ -118,11 +118,8 @@ pub async fn create_checkout_session(
     let existing = repo::find_session_by_idempotency_key(&state.pool, &req.tenant_id, &idem_key)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to check existing checkout session: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Failed to check existing checkout session");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     if let Some(session) = existing {
@@ -145,7 +142,7 @@ pub async fn create_checkout_session(
     ) {
         (Some(k), Some(a)) => (k, a),
         _ => {
-            tracing::error!("Payment processor not configured — TILLED_API_KEY and TILLED_ACCOUNT_ID are required");
+            tracing::error!(error_code = "OPERATION_FAILED", "Payment processor not configured — TILLED_API_KEY and TILLED_ACCOUNT_ID are required");
             return Err(with_request_id(
                 ApiError::internal("Payment processor not configured"),
                 &tracing_ctx,
@@ -153,15 +150,16 @@ pub async fn create_checkout_session(
         }
     };
 
-    let (pi_id, client_secret) = create_tilled_payment_intent(api_key, account_id, req.amount, &req.currency)
-        .await
-        .map_err(|e| {
-            tracing::error!("Tilled API error: {}", e);
-            with_request_id(
-                ApiError::new(502, "bad_gateway", "Payment processor error"),
-                &tracing_ctx,
-            )
-        })?;
+    let (pi_id, client_secret) =
+        create_tilled_payment_intent(api_key, account_id, req.amount, &req.currency)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Tilled API error");
+                with_request_id(
+                    ApiError::new(502, "bad_gateway", "Payment processor error"),
+                    &tracing_ctx,
+                )
+            })?;
 
     let insert_result = repo::insert_checkout_session(
         &state.pool,
@@ -194,8 +192,10 @@ pub async fn create_checkout_session(
                 client_secret,
             }))
         }
-        Err(e) if e.to_string().contains("uq_checkout_sessions_tenant_idem_key")
-            || e.to_string().contains("duplicate key") =>
+        Err(e)
+            if e.to_string()
+                .contains("uq_checkout_sessions_tenant_idem_key")
+                || e.to_string().contains("duplicate key") =>
         {
             tracing::info!(
                 idempotency_key = %idem_key,
@@ -207,17 +207,11 @@ pub async fn create_checkout_session(
                 repo::find_session_by_idempotency_key(&state.pool, &req.tenant_id, &idem_key)
                     .await
                     .map_err(|e2| {
-                        tracing::error!("Failed to fetch race-winner session: {}", e2);
-                        with_request_id(
-                            ApiError::internal("Internal database error"),
-                            &tracing_ctx,
-                        )
+                        tracing::error!(error = %e2, "Failed to fetch race-winner session");
+                        with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
                     })?
                     .ok_or_else(|| {
-                        with_request_id(
-                            ApiError::internal("Internal database error"),
-                            &tracing_ctx,
-                        )
+                        with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
                     })?;
 
             Ok(Json(CreateCheckoutSessionResponse {
@@ -227,7 +221,7 @@ pub async fn create_checkout_session(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to insert checkout session: {}", e);
+            tracing::error!(error = %e, "Failed to insert checkout session");
             Err(with_request_id(
                 ApiError::internal("Internal database error"),
                 &tracing_ctx,
@@ -263,11 +257,8 @@ pub async fn get_checkout_session(
     let row = repo::find_session_details(&state.pool, session_id, &tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Database error");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     let session = row.ok_or_else(|| {
@@ -345,11 +336,8 @@ pub async fn present_checkout_session(
     let rows = repo::present_session(&state.pool, session_id, &tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error updating checkout session: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Database error updating checkout session");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     if rows == 0 {
@@ -357,11 +345,8 @@ pub async fn present_checkout_session(
         let exists = repo::session_exists(&state.pool, session_id, &tenant_id)
             .await
             .map_err(|e| {
-                tracing::error!("Database error checking session existence: {}", e);
-                with_request_id(
-                    ApiError::internal("Internal database error"),
-                    &tracing_ctx,
-                )
+                tracing::error!(error = %e, "Database error checking session existence");
+                with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
             })?;
 
         if !exists {
@@ -406,11 +391,8 @@ pub async fn poll_checkout_session_status(
     let status = repo::poll_session_status(&state.pool, session_id, &tenant_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error polling session status: {}", e);
-            with_request_id(
-                ApiError::internal("Internal database error"),
-                &tracing_ctx,
-            )
+            tracing::error!(error = %e, "Database error polling session status");
+            with_request_id(ApiError::internal("Internal database error"), &tracing_ctx)
         })?;
 
     let status = status.ok_or_else(|| {
@@ -466,13 +448,11 @@ pub async fn tilled_webhook(
         secrets.push(prev_str);
     }
 
-    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets).map_err(
-        |e| ApiError::unauthorized(format!("Webhook signature invalid: {}", e)),
-    )?;
+    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets)
+        .map_err(|e| ApiError::unauthorized(format!("Webhook signature invalid: {}", e)))?;
 
-    let event: serde_json::Value = serde_json::from_slice(&body).map_err(|_| {
-        ApiError::bad_request("Invalid JSON body")
-    })?;
+    let event: serde_json::Value =
+        serde_json::from_slice(&body).map_err(|_| ApiError::bad_request("Invalid JSON body"))?;
 
     let event_type = event["type"].as_str().unwrap_or("");
     let pi_id = event["data"]["object"]["id"].as_str().unwrap_or("");
@@ -494,7 +474,7 @@ pub async fn tilled_webhook(
     let rows_updated = repo::update_status_by_processor_id(&state.pool, pi_id, new_status)
         .await
         .map_err(|e| {
-            tracing::error!("Database error in webhook handler: {}", e);
+            tracing::error!(error = %e, "Database error in webhook handler");
             ApiError::internal("Internal database error")
         })?;
 

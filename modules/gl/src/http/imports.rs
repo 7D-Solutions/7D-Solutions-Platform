@@ -23,9 +23,9 @@ use std::collections::HashMap;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
-use crate::AppState;
 use super::auth::with_request_id;
+use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Public types (used by integration tests)
@@ -85,20 +85,15 @@ pub async fn import_chart_of_accounts(
         match serde_json::from_slice::<Vec<CoaRow>>(&body) {
             Ok(r) => r,
             Err(e) => {
-                return with_request_id(
-                    ApiError::bad_request(format!("Invalid JSON: {}", e)),
-                    &ctx,
-                )
-                .into_response()
+                return with_request_id(ApiError::bad_request(format!("Invalid JSON: {}", e)), &ctx)
+                    .into_response()
             }
         }
     } else {
         // Default to CSV parsing
         match parse_coa_csv(&body) {
             Ok(r) => r,
-            Err(e) => {
-                return with_request_id(ApiError::bad_request(e), &ctx).into_response()
-            }
+            Err(e) => return with_request_id(ApiError::bad_request(e), &ctx).into_response(),
         }
     };
 
@@ -120,7 +115,7 @@ pub async fn import_chart_of_accounts(
         }
         Ok(summary) => (StatusCode::OK, axum::Json(summary)).into_response(),
         Err(e) => {
-            tracing::error!("COA import DB error: {}", e);
+            tracing::error!(error = %e, "COA import DB error");
             with_request_id(ApiError::internal("Import failed"), &ctx).into_response()
         }
     }
@@ -306,9 +301,7 @@ fn parse_coa_csv(body: &[u8]) -> Result<Vec<CoaRow>, String> {
     let mut lines = text.lines();
 
     // Parse header row
-    let header_line = lines
-        .next()
-        .ok_or_else(|| "CSV is empty".to_string())?;
+    let header_line = lines.next().ok_or_else(|| "CSV is empty".to_string())?;
     let headers: Vec<String> = parse_csv_fields(header_line)
         .into_iter()
         .map(|h| h.to_lowercase())
@@ -327,7 +320,12 @@ fn parse_coa_csv(body: &[u8]) -> Result<Vec<CoaRow>, String> {
             continue;
         }
         let fields = parse_csv_fields(line);
-        let get = |i: usize| fields.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
+        let get = |i: usize| {
+            fields
+                .get(i)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
+        };
         rows.push(CoaRow {
             account_code: get(code_col),
             name: get(name_col),

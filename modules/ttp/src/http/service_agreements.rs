@@ -118,7 +118,7 @@ pub async fn list_service_agreements(
         .await
     }
     .map_err(|e| {
-        tracing::error!("service-agreements list error: {:?}", e);
+        tracing::error!(error = %e, "service-agreements list error");
         ApiError::internal(e.to_string())
     })?;
 
@@ -140,7 +140,7 @@ pub async fn list_service_agreements(
         .collect();
 
     let items = items.map_err(|e: sqlx::Error| {
-        tracing::error!("service-agreements row mapping error: {:?}", e);
+        tracing::error!(error = %e, "service-agreements row mapping error");
         ApiError::internal(e.to_string())
     })?;
 

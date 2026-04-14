@@ -39,23 +39,27 @@ pub async fn create_subscription(
     let _customer = customers::fetch_customer(&db, req.ar_customer_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching customer: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching customer");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", req.ar_customer_id)))?;
 
     if let Some(pid) = req.party_id {
-        let Extension(verified) = claims.as_ref()
+        let Extension(verified) = claims
+            .as_ref()
             .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
-        let Extension(party_client) = party_client_ext
-            .ok_or_else(|| ApiError::new(503, "party_service_unavailable", "Party service not configured"))?;
+        let Extension(party_client) = party_client_ext.ok_or_else(|| {
+            ApiError::new(
+                503,
+                "party_service_unavailable",
+                "Party service not configured",
+            )
+        })?;
         crate::integrations::party_client::verify_party(&party_client, pid, &app_id, verified)
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
-                tracing::warn!("Party validation failed for subscription create: {}", e);
+                tracing::warn!(error = %e, "Party validation failed for subscription create");
                 match &e {
                     PartyClientError::ServiceUnavailable(_) => {
                         ApiError::new(503, "party_service_unavailable", e.to_string())
@@ -94,7 +98,7 @@ pub async fn create_subscription(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to create subscription: {:?}", e);
+        tracing::error!(error = %e, "Failed to create subscription");
         ApiError::internal("Internal database error")
     })?;
 
@@ -127,12 +131,10 @@ pub async fn update_subscription(
     let existing = subscriptions::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching subscription: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching subscription");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Subscription {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Subscription {} not found", id)))?;
 
     if req.plan_id.is_none()
         && req.plan_name.is_none()
@@ -147,12 +149,13 @@ pub async fn update_subscription(
     let price_cents = req.price_cents.unwrap_or(existing.price_cents);
     let metadata = req.metadata.or(existing.metadata);
 
-    let subscription = subscriptions::update_fields(&db, id, &plan_id, &plan_name, price_cents, metadata)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to update subscription: {:?}", e);
-            ApiError::internal("Internal database error")
-        })?;
+    let subscription =
+        subscriptions::update_fields(&db, id, &plan_id, &plan_name, price_cents, metadata)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to update subscription");
+                ApiError::internal("Internal database error")
+            })?;
 
     tracing::info!("Updated subscription {}", id);
 
@@ -179,12 +182,10 @@ pub async fn cancel_subscription(
     let _existing = subscriptions::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching subscription: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching subscription");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Subscription {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Subscription {} not found", id)))?;
 
     let cancel_at_period_end = req.cancel_at_period_end.unwrap_or(false);
 
@@ -192,16 +193,14 @@ pub async fn cancel_subscription(
         subscriptions::set_cancel_at_period_end(&db, id)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to schedule subscription cancellation: {:?}", e);
+                tracing::error!(error = %e, "Failed to schedule subscription cancellation");
                 ApiError::internal("Internal database error")
             })?
     } else {
-        subscriptions::set_canceling(&db, id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to cancel subscription: {:?}", e);
-                ApiError::internal("Internal database error")
-            })?
+        subscriptions::set_canceling(&db, id).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to cancel subscription");
+            ApiError::internal("Internal database error")
+        })?
     };
 
     tracing::info!(

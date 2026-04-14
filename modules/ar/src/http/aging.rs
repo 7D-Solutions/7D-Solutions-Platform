@@ -54,7 +54,7 @@ pub async fn get_aging(
             let snapshots = crate::aging::get_aging_for_app(&db, &app_id)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to fetch aging for app: {:?}", e);
+                    tracing::error!(error = %e, "Failed to fetch aging for app");
                     ApiError::internal("Internal database error")
                 })?;
 

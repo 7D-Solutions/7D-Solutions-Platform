@@ -6,7 +6,9 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::domain::disputes;
-use crate::models::{ApiError, Dispute, ListDisputesQuery, PaginatedResponse, SubmitDisputeEvidenceRequest};
+use crate::models::{
+    ApiError, Dispute, ListDisputesQuery, PaginatedResponse, SubmitDisputeEvidenceRequest,
+};
 use crate::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
 use crate::tilled::TilledClient;
 
@@ -37,24 +39,25 @@ pub async fn list_disputes(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error listing disputes: {:?}", e);
+        tracing::error!(error = %e, "Database error listing disputes");
         ApiError::internal("Failed to list disputes")
     })?;
 
-    let total_items = disputes::count_disputes(
-        &db,
-        &app_id,
-        query.charge_id,
-        query.status.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error counting disputes: {:?}", e);
-        ApiError::internal("Failed to count disputes")
-    })?;
+    let total_items =
+        disputes::count_disputes(&db, &app_id, query.charge_id, query.status.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Database error counting disputes");
+                ApiError::internal("Failed to count disputes")
+            })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(dispute_list, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(
+        dispute_list,
+        page,
+        limit as i64,
+        total_items,
+    )))
 }
 
 /// GET /api/ar/disputes/{id} - Get a specific dispute
@@ -75,7 +78,7 @@ pub async fn get_dispute(
     let dispute = disputes::fetch_by_id(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching dispute: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching dispute");
             ApiError::internal("Failed to fetch dispute")
         })?
         .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
@@ -104,7 +107,7 @@ pub async fn submit_dispute_evidence(
     let dispute = disputes::fetch_by_id(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching dispute: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching dispute");
             ApiError::internal("Failed to fetch dispute")
         })?
         .ok_or_else(|| ApiError::not_found(format!("Dispute {} not found", id)))?;
@@ -125,11 +128,8 @@ pub async fn submit_dispute_evidence(
     }
 
     let client = TilledClient::from_env(&app_id).map_err(|e| {
-        tracing::error!("Failed to create Tilled client: {:?}", e);
-        ApiError::internal(format!(
-            "Failed to initialize payment provider: {}",
-            e
-        ))
+        tracing::error!(error = %e, "Failed to create Tilled client");
+        ApiError::internal(format!("Failed to initialize payment provider: {}", e))
     })?;
 
     let description = req
@@ -176,15 +176,13 @@ pub async fn submit_dispute_evidence(
         .await
     {
         Ok(_tilled_dispute) => {
-            let updated = disputes::set_under_review(&db, id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        "Failed to update dispute after evidence submission: {:?}",
-                        e
-                    );
-                    ApiError::internal("Failed to update dispute")
-                })?;
+            let updated = disputes::set_under_review(&db, id).await.map_err(|e| {
+                tracing::error!(
+                    "Failed to update dispute after evidence submission: {:?}",
+                    e
+                );
+                ApiError::internal("Failed to update dispute")
+            })?;
 
             tracing::info!(
                 "Submitted evidence for dispute {} (Tilled ID: {})",

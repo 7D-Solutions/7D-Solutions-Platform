@@ -37,12 +37,13 @@ pub async fn capture_usage(
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Guard: check for duplicate idempotency_key (no-op return of original)
-    let existing: Option<UsageRecord> = usage_repo::find_by_idempotency_key(&db, req.idempotency_key)
-        .await
-        .map_err(|e| {
-            tracing::error!("DB error checking usage idempotency: {:?}", e);
-            ApiError::internal("Internal database error")
-        })?;
+    let existing: Option<UsageRecord> =
+        usage_repo::find_by_idempotency_key(&db, req.idempotency_key)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "DB error checking usage idempotency");
+                ApiError::internal("Internal database error")
+            })?;
 
     if let Some(record) = existing {
         tracing::info!(
@@ -64,7 +65,7 @@ pub async fn capture_usage(
 
     // Begin transaction: insert usage + outbox event atomically
     let mut tx = db.begin().await.map_err(|e| {
-        tracing::error!("Failed to begin transaction: {:?}", e);
+        tracing::error!(error = %e, "Failed to begin transaction");
         ApiError::internal("Internal database error")
     })?;
 
@@ -83,7 +84,7 @@ pub async fn capture_usage(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to insert usage record: {:?}", e);
+        tracing::error!(error = %e, "Failed to insert usage record");
         ApiError::internal("Internal database error")
     })?;
 
@@ -123,13 +124,13 @@ pub async fn capture_usage(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to enqueue ar.usage_captured event: {:?}", e);
+        tracing::error!(error = %e, "Failed to enqueue ar.usage_captured event");
         ApiError::internal("Internal database error")
     })?;
 
     // Commit: usage insert + outbox event commit atomically
     tx.commit().await.map_err(|e| {
-        tracing::error!("Failed to commit usage transaction: {:?}", e);
+        tracing::error!(error = %e, "Failed to commit usage transaction");
         ApiError::internal("Internal database error")
     })?;
 

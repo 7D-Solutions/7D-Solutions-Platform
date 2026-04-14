@@ -30,7 +30,7 @@ pub async fn allocate_payment_route(
                 ApiError::bad_request(msg)
             }
             crate::payment_allocation::AllocationError::Database(db_err) => {
-                tracing::error!("Allocation DB error: {:?}", db_err);
+                tracing::error!(error = %db_err, "Allocation DB error");
                 ApiError::internal("Internal database error")
             }
         })?;

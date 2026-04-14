@@ -32,20 +32,18 @@ use platform_sdk::extract_tenant;
 
 fn connector_error(e: ConnectorError) -> ApiError {
     match e {
-        ConnectorError::UnknownType(t) => {
-            ApiError::new(422, "unknown_connector_type", format!("Unknown connector type: {}", t))
-        }
-        ConnectorError::InvalidConfig(msg) => {
-            ApiError::new(422, "invalid_config", msg)
-        }
-        ConnectorError::ActionFailed(msg) => {
-            ApiError::new(502, "action_failed", msg)
-        }
+        ConnectorError::UnknownType(t) => ApiError::new(
+            422,
+            "unknown_connector_type",
+            format!("Unknown connector type: {}", t),
+        ),
+        ConnectorError::InvalidConfig(msg) => ApiError::new(422, "invalid_config", msg),
+        ConnectorError::ActionFailed(msg) => ApiError::new(502, "action_failed", msg),
         ConnectorError::NotFound(id) => {
             ApiError::not_found(format!("Connector config {} not found", id))
         }
         ConnectorError::Database(e) => {
-            tracing::error!("Connector DB error: {}", e);
+            tracing::error!(error = %e, "Connector DB error");
             ApiError::internal("Internal database error")
         }
     }

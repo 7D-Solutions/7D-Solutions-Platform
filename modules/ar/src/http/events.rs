@@ -28,7 +28,7 @@ pub async fn list_events(
     let event_list = events::list_events(&db, &app_id, &query, limit, offset)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to list events: {}", e);
+            tracing::error!(error = %e, "Failed to list events");
             ApiError::internal("Failed to list events")
         })?;
 
@@ -37,7 +37,12 @@ pub async fn list_events(
         .unwrap_or(event_list.len() as i64);
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(event_list, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(
+        event_list,
+        page,
+        limit as i64,
+        total_items,
+    )))
 }
 
 /// GET /api/ar/events/{id} - Get a single event by ID
@@ -55,12 +60,10 @@ pub async fn get_event(
 ) -> Result<Json<Event>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let event = events::fetch_by_id(&db, id, &app_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fetch event {}: {}", id, e);
-            ApiError::internal("Failed to fetch event")
-        })?;
+    let event = events::fetch_by_id(&db, id, &app_id).await.map_err(|e| {
+        tracing::error!(id = %id, error = %e, "Failed to fetch event");
+        ApiError::internal("Failed to fetch event")
+    })?;
 
     match event {
         Some(e) => Ok(Json(e)),

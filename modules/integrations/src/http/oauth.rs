@@ -28,24 +28,20 @@ use platform_sdk::extract_tenant;
 fn oauth_error(e: OAuthError) -> ApiError {
     match e {
         OAuthError::NotFound => ApiError::not_found("No connection found"),
-        OAuthError::UnsupportedProvider(p) => {
-            ApiError::new(422, "unsupported_provider", format!("Provider not supported: {}", p))
-        }
-        OAuthError::TokenExchangeFailed(msg) => {
-            ApiError::new(502, "token_exchange_failed", msg)
-        }
+        OAuthError::UnsupportedProvider(p) => ApiError::new(
+            422,
+            "unsupported_provider",
+            format!("Provider not supported: {}", p),
+        ),
+        OAuthError::TokenExchangeFailed(msg) => ApiError::new(502, "token_exchange_failed", msg),
         OAuthError::MissingEncryptionKey => {
-            tracing::error!("OAUTH_ENCRYPTION_KEY not set");
+            tracing::error!(error_code = "OPERATION_FAILED", "OAUTH_ENCRYPTION_KEY not set");
             ApiError::internal("Server misconfiguration")
         }
-        OAuthError::DuplicateConnection(msg) => {
-            ApiError::conflict(msg)
-        }
-        OAuthError::AlreadyDisconnected => {
-            ApiError::conflict("Connection is already disconnected")
-        }
+        OAuthError::DuplicateConnection(msg) => ApiError::conflict(msg),
+        OAuthError::AlreadyDisconnected => ApiError::conflict("Connection is already disconnected"),
         OAuthError::Database(e) => {
-            tracing::error!("OAuth DB error: {}", e);
+            tracing::error!(error = %e, "OAuth DB error");
             ApiError::internal("Internal database error")
         }
     }
@@ -75,7 +71,7 @@ struct QboConfig {
 impl QboConfig {
     fn from_env() -> Result<Self, ApiError> {
         let missing = |var: &str| {
-            tracing::error!("{} env var not set", var);
+            tracing::error!(env_var = %var, "env var not set");
             ApiError::internal("Server misconfiguration")
         };
 

@@ -26,12 +26,10 @@ pub async fn get_payment_method(
     let payment_method = payment_methods::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching payment method: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching payment method");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Payment method {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Payment method {} not found", id)))?;
 
     Ok(Json(payment_method))
 }
@@ -61,7 +59,7 @@ pub async fn list_payment_methods(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error counting payment methods: {:?}", e);
+        tracing::error!(error = %e, "Database error counting payment methods");
         ApiError::internal("Internal database error")
     })?;
 
@@ -75,7 +73,7 @@ pub async fn list_payment_methods(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error listing payment methods: {:?}", e);
+        tracing::error!(error = %e, "Database error listing payment methods");
         ApiError::internal("Internal database error")
     })?;
 

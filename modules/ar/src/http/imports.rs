@@ -89,9 +89,7 @@ pub async fn import_customers(
     let rows = if content_type.starts_with("application/json") {
         match serde_json::from_slice::<Vec<CustomerImportRow>>(&body) {
             Ok(r) => r,
-            Err(e) => {
-                return ApiError::bad_request(format!("Invalid JSON: {}", e)).into_response()
-            }
+            Err(e) => return ApiError::bad_request(format!("Invalid JSON: {}", e)).into_response(),
         }
     } else {
         match parse_customers_csv(&body) {
@@ -115,7 +113,7 @@ pub async fn import_customers(
         }
         Ok(summary) => (StatusCode::OK, axum::Json(summary)).into_response(),
         Err(e) => {
-            tracing::error!("Customers import DB error: {}", e);
+            tracing::error!(error = %e, "Customers import DB error");
             ApiError::internal("Import failed").into_response()
         }
     }
@@ -180,7 +178,12 @@ pub async fn run_customers_import(
         let ext_id = row.customer_code.trim();
         let name = row.name.as_deref().map(str::trim).filter(|s| !s.is_empty());
         let synthesised_email;
-        let email: &str = match row.email.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let email: &str = match row
+            .email
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
             Some(e) => e,
             None => {
                 synthesised_email = format!("{}@import.placeholder", ext_id);
@@ -190,7 +193,11 @@ pub async fn run_customers_import(
 
         // Build metadata from optional fields
         let mut meta = serde_json::Map::new();
-        if let Some(pt) = row.payment_terms.as_deref().filter(|s| !s.trim().is_empty()) {
+        if let Some(pt) = row
+            .payment_terms
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
             meta.insert("payment_terms".into(), json!(pt.trim()));
         }
         if let Some(cur) = row.currency.as_deref().filter(|s| !s.trim().is_empty()) {
@@ -289,8 +296,7 @@ async fn fetch_existing_customers(
 // ============================================================================
 
 fn parse_customers_csv(body: &[u8]) -> Result<Vec<CustomerImportRow>, String> {
-    let text =
-        std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
+    let text = std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
     let mut lines = text.lines();
 
     let header_line = lines.next().ok_or_else(|| "CSV is empty".to_string())?;
@@ -314,7 +320,12 @@ fn parse_customers_csv(body: &[u8]) -> Result<Vec<CustomerImportRow>, String> {
             continue;
         }
         let fields = csv_fields(line);
-        let get = |i: usize| fields.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
+        let get = |i: usize| {
+            fields
+                .get(i)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
+        };
         let opt = |i: Option<usize>| -> Option<String> { i.map(get) };
 
         rows.push(CustomerImportRow {

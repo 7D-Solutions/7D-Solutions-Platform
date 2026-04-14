@@ -204,7 +204,7 @@ pub async fn get_close_status(
         crate::repos::period_repo::find_by_id_and_tenant(&app_state.pool, period_id, &tenant_id)
             .await
             .map_err(|e| {
-                tracing::error!("Database error: {}", e);
+                tracing::error!(error = %e, "Database error");
                 with_request_id(ApiError::internal("Internal database error"), &ctx)
             })?
             .ok_or_else(|| {

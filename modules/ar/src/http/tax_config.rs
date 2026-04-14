@@ -19,7 +19,9 @@ use uuid::Uuid;
 use crate::domain::tax_config as tax_config_repo;
 
 // Re-export domain types for use by handlers and other modules.
-pub use crate::domain::tax_config::{JurisdictionResponse, RuleResponse, row_to_jurisdiction, row_to_rule};
+pub use crate::domain::tax_config::{
+    row_to_jurisdiction, row_to_rule, JurisdictionResponse, RuleResponse,
+};
 
 // ============================================================================
 // Request / Response types — Jurisdictions
@@ -218,7 +220,8 @@ pub async fn update_jurisdiction(
             }),
         )
             .into_response(),
-        Ok(_) => match tax_config_repo::get_jurisdiction_by_id_and_tenant(&pool, id, &app_id).await {
+        Ok(_) => match tax_config_repo::get_jurisdiction_by_id_and_tenant(&pool, id, &app_id).await
+        {
             Ok(Some(j)) => (StatusCode::OK, Json(j)).into_response(),
             Ok(None) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -254,7 +257,7 @@ pub(crate) async fn get_rule_by_id_and_tenant(
 }
 
 pub(crate) fn db_error(e: sqlx::Error) -> axum::response::Response {
-    tracing::error!("Database error: {}", e);
+    tracing::error!(error = %e, "Database error");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorBody {

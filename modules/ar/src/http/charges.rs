@@ -45,12 +45,10 @@ pub async fn create_charge(
     let customer = customers::fetch_customer(&db, req.ar_customer_id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching customer: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching customer");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", req.ar_customer_id)))?;
 
     // Ensure default payment method exists
     if customer.default_payment_method_id.is_none() {
@@ -61,7 +59,7 @@ pub async fn create_charge(
     let existing_charge = charges::find_by_reference_id(&db, &app_id, &req.reference_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error checking duplicate charge: {:?}", e);
+            tracing::error!(error = %e, "Database error checking duplicate charge");
             ApiError::internal("Internal database error")
         })?;
 
@@ -91,7 +89,7 @@ pub async fn create_charge(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to create charge: {:?}", e);
+        tracing::error!(error = %e, "Failed to create charge");
         ApiError::internal("Internal database error")
     })?;
 
@@ -123,12 +121,10 @@ pub async fn get_charge(
     let charge = charges::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching charge: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching charge");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Charge {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Charge {} not found", id)))?;
 
     Ok(Json(charge))
 }
@@ -159,7 +155,7 @@ pub async fn list_charges(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error counting charges: {:?}", e);
+        tracing::error!(error = %e, "Database error counting charges");
         ApiError::internal("Internal database error")
     })?;
 
@@ -174,12 +170,17 @@ pub async fn list_charges(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error listing charges: {:?}", e);
+        tracing::error!(error = %e, "Database error listing charges");
         ApiError::internal("Internal database error")
     })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(Json(PaginatedResponse::new(charge_list, page, limit as i64, total_items)))
+    Ok(Json(PaginatedResponse::new(
+        charge_list,
+        page,
+        limit as i64,
+        total_items,
+    )))
 }
 
 /// POST /api/ar/charges/:id/capture - Capture an authorized charge
@@ -203,15 +204,16 @@ pub async fn capture_charge(
     let existing = charges::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching charge: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching charge");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Charge {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Charge {} not found", id)))?;
 
     if existing.status != "authorized" {
-        return Err(ApiError::bad_request(format!("Cannot capture charge with status {}", existing.status)));
+        return Err(ApiError::bad_request(format!(
+            "Cannot capture charge with status {}",
+            existing.status
+        )));
     }
 
     let capture_amount = req.amount_cents.unwrap_or(existing.amount_cents);
@@ -221,11 +223,13 @@ pub async fn capture_charge(
     }
 
     let tilled_charge_id = existing.tilled_charge_id.as_deref().ok_or_else(|| {
-        ApiError::conflict("Charge has no provider ID — cannot capture until provider confirms authorization")
+        ApiError::conflict(
+            "Charge has no provider ID — cannot capture until provider confirms authorization",
+        )
     })?;
 
     let client = TilledClient::from_env(&app_id).map_err(|e| {
-        tracing::error!("Failed to create Tilled client: {:?}", e);
+        tracing::error!(error = %e, "Failed to create Tilled client");
         ApiError::internal("Internal database error")
     })?;
 
@@ -245,7 +249,7 @@ pub async fn capture_charge(
             let charge = charges::update_after_capture(&db, id, new_status, capture_amount)
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to update charge after capture: {:?}", e);
+                    tracing::error!(error = %e, "Failed to update charge after capture");
                     ApiError::internal("Internal database error")
                 })?;
 
@@ -253,7 +257,7 @@ pub async fn capture_charge(
             Ok(Json(charge))
         }
         Err(e) => {
-            tracing::error!("Tilled capture failed for charge {}: {:?}", id, e);
+            tracing::error!(id = %id, error = %e, "Tilled capture failed for charge");
             Err(ApiError::new(
                 502,
                 "provider_error",

@@ -57,12 +57,10 @@ pub struct UpdateInvoiceResponse {
 
 fn qbo_error(e: QboError) -> ApiError {
     match e {
-        QboError::SyncTokenExhausted(_) => ApiError::conflict(
-            "Invoice was modified concurrently — retry the request",
-        ),
-        QboError::RateLimited => {
-            ApiError::new(429, "rate_limited", "QBO rate limit exceeded")
+        QboError::SyncTokenExhausted(_) => {
+            ApiError::conflict("Invoice was modified concurrently — retry the request")
         }
+        QboError::RateLimited => ApiError::new(429, "rate_limited", "QBO rate limit exceeded"),
         QboError::AuthFailed => ApiError::new(
             502,
             "auth_failed",
@@ -97,11 +95,11 @@ fn oauth_err(e: OAuthError) -> ApiError {
             ApiError::not_found("No QuickBooks connection found for this tenant")
         }
         OAuthError::MissingEncryptionKey => {
-            tracing::error!("OAUTH_ENCRYPTION_KEY not set");
+            tracing::error!(error_code = "OPERATION_FAILED", "OAUTH_ENCRYPTION_KEY not set");
             ApiError::internal("Server misconfiguration")
         }
         OAuthError::Database(e) => {
-            tracing::error!("OAuth DB error: {}", e);
+            tracing::error!(error = %e, "OAuth DB error");
             ApiError::internal("Internal database error")
         }
         _ => ApiError::internal("Internal error"),
@@ -176,10 +174,8 @@ pub async fn update_invoice(
         match oauth_service::get_connection_status(&state.pool, &app_id, "quickbooks").await {
             Ok(Some(c)) => c,
             Ok(None) => {
-                return ApiError::not_found(
-                    "No QuickBooks connection found for this tenant",
-                )
-                .into_response()
+                return ApiError::not_found("No QuickBooks connection found for this tenant")
+                    .into_response()
             }
             Err(e) => return oauth_err(e).into_response(),
         };

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 3.6.1 | 2026-04-14 | bd-5ea4y.1 | Add structured fields to bare tracing::error! calls in HTTP handler files (imports.rs). Error var surfaced via `error = %e`. | Structured logging standard (bd-5ea4y) requires at least one field before the message string in all HTTP handler log calls. CI check-log-fields.sh now passes. | No |
 | 3.3.3 | 2026-04-10 | bd-e5yna | Generate contracts/ap/openapi.json from openapi_dump binary. All 24 endpoints documented with typed request/response schemas, no empty schemas. Add contract-tests validation. | OpenAPI contracts batch 1 — blocks TypeScript SDK codegen and API discovery for Fireproof vertical. | No |
 | 3.3.2 | 2026-04-10 | bd-1vq9e | Standardize AP response types: allocations, payment_runs, reports now return typed structs with OpenAPI schemas. 9 new ToSchema types registered. Bonus: migration_safety_test ignore attr, outbox_atomicity_test tenant isolation fix. | Plug-and-play response standardization — typed responses instead of raw JSON for OpenAPI codegen | No |
 | 3.3.1 | 2026-04-10 | bd-wocfs | Add tenant_id to all tax snapshot repo functions and thread through service layer and bill approval. Add 2 tenant isolation integration tests. | Cross-tenant data leakage prevention — tax snapshot SQL lacked tenant_id in WHERE clause | No |

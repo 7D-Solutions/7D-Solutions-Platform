@@ -49,7 +49,7 @@ async fn process_webhook_event(
             payments::process_invoice_event(db, app_id, event).await?;
         }
         _ => {
-            tracing::warn!("Unhandled webhook event type: {}", event.event_type);
+            tracing::warn!(event_type = %event.event_type, "Unhandled webhook event type");
         }
     }
 
@@ -78,7 +78,7 @@ pub async fn receive_tilled_webhook(
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
         .or_else(|_| std::env::var("TILLED_WEBHOOK_SECRET"))
         .map_err(|_| {
-            tracing::error!("TILLED_WEBHOOK_SECRET not configured — rejecting webhook");
+            tracing::error!(error_code = "OPERATION_FAILED", "TILLED_WEBHOOK_SECRET not configured — rejecting webhook");
             ApiError::internal("Webhook secret not configured")
         })?;
 
@@ -88,12 +88,12 @@ pub async fn receive_tilled_webhook(
         .and_then(|v| v.to_str().ok());
 
     if let Err(e) = signature::verify_tilled_signature(&body, sig, &webhook_secret) {
-        tracing::warn!("Webhook signature verification failed: {}", e);
+        tracing::warn!(error = %e, "Webhook signature verification failed");
         return Err(ApiError::unauthorized(e));
     }
 
     let event: TilledWebhookEvent = serde_json::from_slice(&body).map_err(|e| {
-        tracing::error!("Failed to parse webhook event: {}", e);
+        tracing::error!(error = %e, "Failed to parse webhook event");
         ApiError::bad_request(format!("Failed to parse webhook: {}", e))
     })?;
 
@@ -107,7 +107,7 @@ pub async fn receive_tilled_webhook(
     let existing = webhook_repo::check_duplicate_event(&db, &event.id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to check for duplicate webhook: {}", e);
+            tracing::error!(error = %e, "Failed to check for duplicate webhook");
             ApiError::internal("Failed to check idempotency")
         })?;
 
@@ -123,13 +123,13 @@ pub async fn receive_tilled_webhook(
         &event.id,
         &event.event_type,
         serde_json::to_value(&event).map_err(|e| {
-            tracing::error!("Failed to serialize webhook event: {}", e);
+            tracing::error!(error = %e, "Failed to serialize webhook event");
             ApiError::internal("Failed to serialize event")
         })?,
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to store webhook: {}", e);
+        tracing::error!(error = %e, "Failed to store webhook");
         ApiError::internal("Failed to store webhook")
     })?;
 
@@ -137,7 +137,7 @@ pub async fn receive_tilled_webhook(
     webhook_repo::set_processing(&db, webhook_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update webhook status: {}", e);
+            tracing::error!(error = %e, "Failed to update webhook status");
             ApiError::internal("Failed to update webhook status")
         })?;
 
@@ -149,7 +149,7 @@ pub async fn receive_tilled_webhook(
         }
         Err(e) => {
             webhook_repo::set_failed(&db, webhook_id, &e).await.ok();
-            tracing::error!("Failed to process webhook event {}: {}", event.id, e);
+            tracing::error!(id = %event.id, error = %e, "Failed to process webhook event");
         }
     }
 

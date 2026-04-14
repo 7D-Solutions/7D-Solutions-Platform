@@ -106,7 +106,7 @@ pub async fn issue_credit_note_route(
             }),
         )),
         Err(e) => {
-            tracing::error!("Credit note error: {:?}", e);
+            tracing::error!(error = %e, "Credit note error");
             let (status, msg) = match &e {
                 crate::credit_notes::CreditNoteError::DatabaseError(_) => (
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -242,10 +242,21 @@ pub async fn issue_credit_note_handler(
         }
         Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, app_id }) => {
             tracing::warn!(invoice_id = invoice_id, app_id = %app_id, "Credit note: invoice not found");
-            Err(ApiError::not_found(format!("Invoice {} not found", invoice_id)))
+            Err(ApiError::not_found(format!(
+                "Invoice {} not found",
+                invoice_id
+            )))
         }
-        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(422, "validation_error", format!("amount_minor must be > 0, got {}", n))),
-        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(422, "validation_error", "currency must not be empty")),
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(
+            422,
+            "validation_error",
+            format!("amount_minor must be > 0, got {}", n),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(
+            422,
+            "validation_error",
+            "currency must not be empty",
+        )),
         Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
             invoice_id,
             invoice_amount_cents,
@@ -259,25 +270,35 @@ pub async fn issue_credit_note_handler(
                 requested,
                 "Credit note rejected: over-credit guard triggered"
             );
-            Err(ApiError::new(422, "validation_error", format!(
-                        "Credit of {} exceeds remaining balance {} on invoice {}",
-                        requested,
-                        invoice_amount_cents - existing_credits,
-                        invoice_id
-                    )))
+            Err(ApiError::new(
+                422,
+                "validation_error",
+                format!(
+                    "Credit of {} exceeds remaining balance {} on invoice {}",
+                    requested,
+                    invoice_amount_cents - existing_credits,
+                    invoice_id
+                ),
+            ))
         }
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
-            tracing::error!("Credit note DB error: {}", msg);
+            tracing::error!(message = %msg, "Credit note DB error");
             Err(ApiError::internal("Internal database error"))
         }
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
             expected,
             actual,
             ..
-        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
+        }) => Err(ApiError::conflict(format!(
+            "Expected status '{}', got '{}'",
+            expected, actual
+        ))),
         Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
             credit_note_id, ..
-        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
+        }) => Err(ApiError::not_found(format!(
+            "Credit memo {} not found",
+            credit_note_id
+        ))),
     }
 }
 
@@ -369,26 +390,40 @@ pub async fn create_credit_memo_handler(
                 "credit_note_id": credit_note_id,
             })),
         )),
-        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, .. }) => Err(ApiError::not_found(format!("Invoice {} not found", invoice_id))),
-        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(422, "validation_error", format!("amount_minor must be > 0, got {}", n))),
-        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(422, "validation_error", "currency must not be empty")),
+        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, .. }) => Err(
+            ApiError::not_found(format!("Invoice {} not found", invoice_id)),
+        ),
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err(ApiError::new(
+            422,
+            "validation_error",
+            format!("amount_minor must be > 0, got {}", n),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err(ApiError::new(
+            422,
+            "validation_error",
+            "currency must not be empty",
+        )),
         Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
             invoice_id,
             invoice_amount_cents,
             existing_credits,
             requested,
-        }) => Err(ApiError::new(422, "validation_error", format!(
-                    "Credit of {} exceeds remaining balance {} on invoice {}",
-                    requested,
-                    invoice_amount_cents - existing_credits,
-                    invoice_id
-                ))),
+        }) => Err(ApiError::new(
+            422,
+            "validation_error",
+            format!(
+                "Credit of {} exceeds remaining balance {} on invoice {}",
+                requested,
+                invoice_amount_cents - existing_credits,
+                invoice_id
+            ),
+        )),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
-            tracing::error!("Credit memo create DB error: {}", msg);
+            tracing::error!(message = %msg, "Credit memo create DB error");
             Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
-            tracing::error!("Credit memo create error: {:?}", e);
+            tracing::error!(error = %e, "Credit memo create error");
             Err(ApiError::internal("Internal database error"))
         }
     }
@@ -447,18 +482,24 @@ pub async fn approve_credit_memo_handler(
         )),
         Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
             credit_note_id, ..
-        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
+        }) => Err(ApiError::not_found(format!(
+            "Credit memo {} not found",
+            credit_note_id
+        ))),
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
             expected,
             actual,
             ..
-        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
+        }) => Err(ApiError::conflict(format!(
+            "Expected status '{}', got '{}'",
+            expected, actual
+        ))),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
-            tracing::error!("Credit memo approve DB error: {}", msg);
+            tracing::error!(message = %msg, "Credit memo approve DB error");
             Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
-            tracing::error!("Credit memo approve error: {:?}", e);
+            tracing::error!(error = %e, "Credit memo approve error");
             Err(ApiError::internal("Internal database error"))
         }
     }
@@ -518,18 +559,24 @@ pub async fn issue_credit_memo_handler(
         )),
         Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
             credit_note_id, ..
-        }) => Err(ApiError::not_found(format!("Credit memo {} not found", credit_note_id))),
+        }) => Err(ApiError::not_found(format!(
+            "Credit memo {} not found",
+            credit_note_id
+        ))),
         Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
             expected,
             actual,
             ..
-        }) => Err(ApiError::conflict(format!("Expected status '{}', got '{}'", expected, actual))),
+        }) => Err(ApiError::conflict(format!(
+            "Expected status '{}', got '{}'",
+            expected, actual
+        ))),
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
-            tracing::error!("Credit memo issue DB error: {}", msg);
+            tracing::error!(message = %msg, "Credit memo issue DB error");
             Err(ApiError::internal("Internal database error"))
         }
         Err(e) => {
-            tracing::error!("Credit memo issue error: {:?}", e);
+            tracing::error!(error = %e, "Credit memo issue error");
             Err(ApiError::internal("Internal database error"))
         }
     }

@@ -10,9 +10,9 @@ use std::sync::Arc;
 
 use crate::domain::reports::cash_position;
 use crate::domain::reports::{assumptions::ForecastAssumptions, forecast};
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 /// GET /api/treasury/cash-position — real-time cash position by account and currency
 #[utoipa::path(
@@ -35,7 +35,7 @@ pub async fn cash_position(
     match cash_position::get_cash_position(&state.pool, &app_id).await {
         Ok(position) => Json(position).into_response(),
         Err(e) => {
-            tracing::error!("Cash position query failed: {}", e);
+            tracing::error!(error = %e, "Cash position query failed");
             with_request_id(ApiError::internal("Failed to compute cash position"), &ctx)
                 .into_response()
         }
@@ -71,12 +71,12 @@ pub async fn forecast(
                     data
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to read AR aging: {}", e);
+                    tracing::warn!(error = %e, "Failed to read AR aging");
                     vec![]
                 }
             },
             Err(e) => {
-                tracing::warn!("Failed to connect to AR database: {}", e);
+                tracing::warn!(error = %e, "Failed to connect to AR database");
                 vec![]
             }
         },
@@ -96,7 +96,7 @@ pub async fn forecast(
                         data
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to read AP aging: {}", e);
+                        tracing::warn!(error = %e, "Failed to read AP aging");
                         vec![]
                     }
                 };
@@ -108,14 +108,14 @@ pub async fn forecast(
                         data
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to read AP scheduled payments: {}", e);
+                        tracing::warn!(error = %e, "Failed to read AP scheduled payments");
                         vec![]
                     }
                 };
                 (aging, sched)
             }
             Err(e) => {
-                tracing::warn!("Failed to connect to AP database: {}", e);
+                tracing::warn!(error = %e, "Failed to connect to AP database");
                 (vec![], vec![])
             }
         },

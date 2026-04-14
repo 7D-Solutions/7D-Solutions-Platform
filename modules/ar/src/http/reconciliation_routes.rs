@@ -42,7 +42,7 @@ pub async fn recon_run_route(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Reconciliation run failed: {}", e);
+        tracing::error!(error = %e, "Reconciliation run failed");
         ApiError::internal(format!("Reconciliation failed: {}", e))
     })?;
 
@@ -89,7 +89,7 @@ pub async fn schedule_recon_route(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Schedule recon run failed: {}", e);
+        tracing::error!(error = %e, "Schedule recon run failed");
         ApiError::internal(format!("Schedule recon failed: {}", e))
     })?;
 
@@ -115,7 +115,8 @@ pub async fn recon_poll_route(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ReconPollRequest>,
-) -> Result<Json<PaginatedResponse<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError> {
+) -> Result<Json<PaginatedResponse<crate::recon_scheduler::ScheduledRunExecutionOutcome>>, ApiError>
+{
     let app_id = super::tenant::extract_tenant(&claims)?;
     let worker_id = req.worker_id.unwrap_or_else(|| "api-worker".to_string());
     let batch_size = req.batch_size.unwrap_or(10);

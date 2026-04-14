@@ -123,7 +123,7 @@ pub async fn import_vendors(
         }
         Ok(summary) => (StatusCode::OK, axum::Json(summary)).into_response(),
         Err(e) => {
-            tracing::error!("Vendors import DB error: {}", e);
+            tracing::error!(error = %e, "Vendors import DB error");
             with_request_id(ApiError::internal("Import failed"), &tracing_ctx).into_response()
         }
     }
@@ -165,10 +165,7 @@ pub async fn run_vendors_import(
                 if pt.trim().parse::<i32>().is_err() {
                     errors.push(ImportRowError {
                         row: row_num,
-                        reason: format!(
-                            "payment_terms '{}' must be an integer (days)",
-                            pt
-                        ),
+                        reason: format!("payment_terms '{}' must be an integer (days)", pt),
                     });
                     continue;
                 }
@@ -245,9 +242,7 @@ pub async fn run_vendors_import(
                 created += 1;
             }
             Some((existing_terms, existing_currency)) => {
-                if *existing_terms == payment_terms_days
-                    && existing_currency.as_str() == currency
-                {
+                if *existing_terms == payment_terms_days && existing_currency.as_str() == currency {
                     skipped += 1;
                 } else {
                     sqlx::query(
@@ -303,10 +298,7 @@ async fn fetch_existing_vendors(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(|(n, t, c)| (n, (t, c)))
-        .collect())
+    Ok(rows.into_iter().map(|(n, t, c)| (n, (t, c))).collect())
 }
 
 // ============================================================================
@@ -314,8 +306,7 @@ async fn fetch_existing_vendors(
 // ============================================================================
 
 fn parse_vendors_csv(body: &[u8]) -> Result<Vec<VendorImportRow>, String> {
-    let text =
-        std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
+    let text = std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
     let mut lines = text.lines();
 
     let header_line = lines.next().ok_or_else(|| "CSV is empty".to_string())?;
@@ -337,7 +328,12 @@ fn parse_vendors_csv(body: &[u8]) -> Result<Vec<VendorImportRow>, String> {
             continue;
         }
         let fields = csv_fields(line);
-        let get = |i: usize| fields.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
+        let get = |i: usize| {
+            fields
+                .get(i)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
+        };
         let opt = |i: Option<usize>| -> Option<String> { i.map(get) };
 
         rows.push(VendorImportRow {

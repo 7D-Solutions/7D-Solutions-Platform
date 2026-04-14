@@ -58,21 +58,18 @@ pub async fn write_off_invoice_route(
                 "write_off_id": write_off_id,
             })),
         )),
-        Ok(WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id }) => Err(
-            ApiError::conflict(format!(
-                "Invoice {} already has a write-off applied",
-                invoice_id
-            )),
-        ),
+        Ok(WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id }) => Err(ApiError::conflict(
+            format!("Invoice {} already has a write-off applied", invoice_id),
+        )),
         Err(e) => {
-            tracing::error!("Write-off error: {:?}", e);
+            tracing::error!(error = %e, "Write-off error");
             match &e {
                 crate::write_offs::WriteOffError::DatabaseError(_) => {
                     Err(ApiError::internal("Internal database error"))
                 }
-                crate::write_offs::WriteOffError::InvalidAmount(n) => {
-                    Err(ApiError::bad_request(format!("Amount must be > 0, got {}", n)))
-                }
+                crate::write_offs::WriteOffError::InvalidAmount(n) => Err(ApiError::bad_request(
+                    format!("Amount must be > 0, got {}", n),
+                )),
                 other => Err(ApiError::bad_request(format!("{}", other))),
             }
         }

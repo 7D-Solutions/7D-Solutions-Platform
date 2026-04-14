@@ -16,9 +16,9 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{outbox, policy};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpsertPolicyRequest {
@@ -64,7 +64,10 @@ pub async fn upsert_policy(
     Json(req): Json<UpsertPolicyRequest>,
 ) -> Result<(StatusCode, Json<PolicyResponse>), ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .and_then(|id| {
+            id.parse()
+                .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+        })
         .map_err(|e| with_request_id(e, &ctx))?;
 
     validate_entity(&entity, &ctx)?;
@@ -73,7 +76,7 @@ pub async fn upsert_policy(
     validate_padding(req.padding, &ctx)?;
 
     let mut tx = state.pool.begin().await.map_err(|e| {
-        tracing::error!("Numbering: policy begin tx failed: {}", e);
+        tracing::error!(error = %e, "Numbering: policy begin tx failed");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
@@ -87,7 +90,7 @@ pub async fn upsert_policy(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Numbering: policy upsert failed: {}", e);
+        tracing::error!(error = %e, "Numbering: policy upsert failed");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
@@ -110,12 +113,12 @@ pub async fn upsert_policy(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Numbering: policy outbox failed: {}", e);
+        tracing::error!(error = %e, "Numbering: policy outbox failed");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
     tx.commit().await.map_err(|e| {
-        tracing::error!("Numbering: policy commit failed: {}", e);
+        tracing::error!(error = %e, "Numbering: policy commit failed");
         with_request_id(ApiError::internal("Database error"), &ctx)
     })?;
 
@@ -152,13 +155,16 @@ pub async fn get_policy(
     Path(entity): Path<String>,
 ) -> Result<Json<PolicyResponse>, ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .and_then(|id| {
+            id.parse()
+                .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+        })
         .map_err(|e| with_request_id(e, &ctx))?;
 
     let row = policy::get_policy(&state.pool, tenant_id, &entity)
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: get policy failed: {}", e);
+            tracing::error!(error = %e, "Numbering: get policy failed");
             with_request_id(ApiError::internal("Database error"), &ctx)
         })?
         .ok_or_else(|| {
@@ -188,7 +194,10 @@ fn validate_entity(entity: &str, ctx: &Option<Extension<TracingContext>>) -> Res
     Ok(())
 }
 
-fn validate_pattern(pattern: &str, ctx: &Option<Extension<TracingContext>>) -> Result<(), ApiError> {
+fn validate_pattern(
+    pattern: &str,
+    ctx: &Option<Extension<TracingContext>>,
+) -> Result<(), ApiError> {
     if pattern.is_empty() || pattern.len() > 255 {
         return Err(with_request_id(
             ApiError::bad_request("pattern must be 1-255 characters"),
@@ -214,10 +223,7 @@ fn validate_prefix(prefix: &str, ctx: &Option<Extension<TracingContext>>) -> Res
     Ok(())
 }
 
-fn validate_padding(
-    padding: i32,
-    ctx: &Option<Extension<TracingContext>>,
-) -> Result<(), ApiError> {
+fn validate_padding(padding: i32, ctx: &Option<Extension<TracingContext>>) -> Result<(), ApiError> {
     if !(0..=20).contains(&padding) {
         return Err(with_request_id(
             ApiError::bad_request("padding must be between 0 and 20"),

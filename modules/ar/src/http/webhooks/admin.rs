@@ -44,7 +44,7 @@ pub async fn list_webhooks(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to count webhooks: {:?}", e);
+        tracing::error!(error = %e, "Failed to count webhooks");
         ApiError::internal("Failed to count webhooks")
     })?;
 
@@ -58,11 +58,16 @@ pub async fn list_webhooks(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Failed to list webhooks: {:?}", e);
+        tracing::error!(error = %e, "Failed to list webhooks");
         ApiError::internal("Failed to list webhooks")
     })?;
 
-    Ok(Json(PaginatedResponse::new(webhooks, page.into(), limit.into(), total_items)))
+    Ok(Json(PaginatedResponse::new(
+        webhooks,
+        page.into(),
+        limit.into(),
+        total_items,
+    )))
 }
 
 #[utoipa::path(get, path = "/api/ar/webhooks/{id}", tag = "Webhooks",
@@ -83,12 +88,10 @@ pub async fn get_webhook(
     let webhook = webhook_repo::fetch_by_id(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch webhook: {:?}", e);
+            tracing::error!(error = %e, "Failed to fetch webhook");
             ApiError::internal("Failed to fetch webhook")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found("Webhook not found")
-        })?;
+        .ok_or_else(|| ApiError::not_found("Webhook not found"))?;
 
     Ok(Json(webhook))
 }
@@ -114,12 +117,10 @@ pub async fn replay_webhook(
     let webhook = webhook_repo::fetch_by_id(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch webhook: {:?}", e);
+            tracing::error!(error = %e, "Failed to fetch webhook");
             ApiError::internal("Failed to fetch webhook")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found("Webhook not found")
-        })?;
+        .ok_or_else(|| ApiError::not_found("Webhook not found"))?;
 
     let force = req.force.unwrap_or(false);
     if webhook.status != WebhookStatus::Failed && !force {
@@ -128,18 +129,20 @@ pub async fn replay_webhook(
         ));
     }
 
-    let event: TilledWebhookEvent = serde_json::from_value(webhook.payload.ok_or_else(|| {
-        ApiError::bad_request("Webhook has no payload")
-    })?)
+    let event: TilledWebhookEvent = serde_json::from_value(
+        webhook
+            .payload
+            .ok_or_else(|| ApiError::bad_request("Webhook has no payload"))?,
+    )
     .map_err(|e| {
-        tracing::error!("Failed to parse webhook payload: {}", e);
+        tracing::error!(error = %e, "Failed to parse webhook payload");
         ApiError::internal("Failed to parse webhook payload")
     })?;
 
     webhook_repo::set_replay_processing(&db, id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update webhook status: {}", e);
+            tracing::error!(error = %e, "Failed to update webhook status");
             ApiError::internal("Failed to update webhook status")
         })?;
 
@@ -151,7 +154,7 @@ pub async fn replay_webhook(
         }
         Err(e) => {
             webhook_repo::set_failed(&db, id, &e).await.ok();
-            tracing::error!("Failed to replay webhook {}: {}", id, e);
+            tracing::error!(id = %id, error = %e, "Failed to replay webhook");
             Err(ApiError::internal(format!("Webhook replay failed: {}", e)))
         }
     }

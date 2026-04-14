@@ -12,9 +12,9 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{db::numbering_repo, outbox};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ConfirmRequest {
@@ -56,7 +56,10 @@ pub async fn confirm(
     Json(req): Json<ConfirmRequest>,
 ) -> Result<(StatusCode, Json<ConfirmResponse>), ApiError> {
     let tenant_id: Uuid = extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
+        .and_then(|id| {
+            id.parse()
+                .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+        })
         .map_err(|e| with_request_id(e, &ctx))?;
 
     if req.entity.is_empty() || req.entity.len() > 100 {
@@ -74,14 +77,14 @@ pub async fn confirm(
     }
 
     let mut tx = state.pool.begin().await.map_err(|e| {
-        tracing::error!("Numbering: confirm begin tx failed: {}", e);
+        tracing::error!(error = %e, "Numbering: confirm begin tx failed");
         with_request_id(ApiError::internal("Failed to begin transaction"), &ctx)
     })?;
 
     let row = numbering_repo::find_issued_for_update_tx(&mut tx, tenant_id, &req.idempotency_key)
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: confirm lookup failed: {}", e);
+            tracing::error!(error = %e, "Numbering: confirm lookup failed");
             with_request_id(ApiError::internal("Failed to look up reservation"), &ctx)
         })?;
 
@@ -122,7 +125,7 @@ pub async fn confirm(
     numbering_repo::confirm_issued_tx(&mut tx, tenant_id, &req.idempotency_key)
         .await
         .map_err(|e| {
-            tracing::error!("Numbering: confirm update failed: {}", e);
+            tracing::error!(error = %e, "Numbering: confirm update failed");
             with_request_id(ApiError::internal("Failed to confirm reservation"), &ctx)
         })?;
 
@@ -144,12 +147,15 @@ pub async fn confirm(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Numbering: confirm outbox failed: {}", e);
-        with_request_id(ApiError::internal("Failed to enqueue confirmation event"), &ctx)
+        tracing::error!(error = %e, "Numbering: confirm outbox failed");
+        with_request_id(
+            ApiError::internal("Failed to enqueue confirmation event"),
+            &ctx,
+        )
     })?;
 
     tx.commit().await.map_err(|e| {
-        tracing::error!("Numbering: confirm commit failed: {}", e);
+        tracing::error!(error = %e, "Numbering: confirm commit failed");
         with_request_id(ApiError::internal("Failed to commit confirmation"), &ctx)
     })?;
 

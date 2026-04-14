@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.2.3 | 2026-04-14 | bd-5ea4y.1 | Add structured fields to bare tracing::error! calls in HTTP handler files (allocate.rs, confirm.rs, policy.rs). Error vars surfaced via `error = %e`. | Structured logging standard (bd-5ea4y) requires at least one field before the message string in all HTTP handler log calls. CI check-log-fields.sh now passes. | No |
 | 2.2.2 | 2026-04-04 | bd-0clpi | SoC: extract allocate + confirm SQL into db/ repos | Separation of concerns — handler files mixed HTTP logic with raw SQL queries | No |
 | 2.2.1 | 2026-04-04 | bd-85tso | Replace tenant_id.parse().expect() with ApiError::bad_request on 3 request paths | Unwrap on user-supplied input causes panic (500) instead of returning 400 Bad Request. | No |
 | 2.2.0 | 2026-04-02 | bd-binuj | Remove dead health.rs (health/ready/version/schema_version handlers). SDK ModuleBuilder provides these endpoints; the file was unreferenced dead code. | Dead code cleanup — annotation audit revealed health.rs handlers were never mounted after SDK conversion. | No |

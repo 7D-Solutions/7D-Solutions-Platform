@@ -142,7 +142,7 @@ pub async fn projection_status(
     let resp = admin::query_projection_status(&state.pool, &req)
         .await
         .map_err(|e| {
-            tracing::error!("Admin projection-status error: {}", e);
+            tracing::error!(error = %e, "Admin projection-status error");
             ApiError::internal("Internal error")
         })?;
     Ok(Json(resp.into()))
@@ -168,7 +168,7 @@ pub async fn consistency_check(
     let resp = admin::query_consistency_check(&state.pool, &req)
         .await
         .map_err(|e| {
-            tracing::error!("Admin consistency-check error: {}", e);
+            tracing::error!(error = %e, "Admin consistency-check error");
             ApiError::internal("Internal error")
         })?;
     Ok(Json(resp.into()))
@@ -193,7 +193,7 @@ pub async fn list_projections(
     let resp = admin::query_projection_list(&state.pool)
         .await
         .map_err(|e| {
-            tracing::error!("Admin list-projections error: {}", e);
+            tracing::error!(error = %e, "Admin list-projections error");
             ApiError::internal("Internal error")
         })?;
     let items: Vec<ProjectionSummarySchema> =

@@ -84,9 +84,7 @@ pub async fn ingest_events(
             return Err(ApiError::bad_request("quantity must be positive"));
         }
         if item.idempotency_key.trim().is_empty() {
-            return Err(ApiError::bad_request(
-                "idempotency_key must not be empty",
-            ));
+            return Err(ApiError::bad_request("idempotency_key must not be empty"));
         }
     }
 
@@ -106,7 +104,7 @@ pub async fn ingest_events(
     let results = metering::ingest_events(&state.pool, &inputs)
         .await
         .map_err(|e| {
-            tracing::error!("Metering ingestion error: {:?}", e);
+            tracing::error!(error = %e, "Metering ingestion error");
             ApiError::internal(e.to_string())
         })?;
 
@@ -168,11 +166,9 @@ pub async fn get_trace(
     let trace = metering::compute_price_trace(&state.pool, tenant_id, &query.period)
         .await
         .map_err(|e| match &e {
-            metering::MeteringError::InvalidPeriod(_) => {
-                ApiError::bad_request(e.to_string())
-            }
+            metering::MeteringError::InvalidPeriod(_) => ApiError::bad_request(e.to_string()),
             _ => {
-                tracing::error!("Metering trace error: {:?}", e);
+                tracing::error!(error = %e, "Metering trace error");
                 ApiError::internal(e.to_string())
             }
         })?;
@@ -198,7 +194,8 @@ mod tests {
                 "idempotency_key": "evt-001"
             }]
         });
-        let req: IngestEventRequest = serde_json::from_value(json).unwrap();
+        let req: IngestEventRequest = serde_json::from_value(json)
+            .expect("IngestEventRequest should deserialize from valid JSON");
         assert_eq!(req.events.len(), 1);
         assert_eq!(req.events[0].dimension, "api_calls");
         assert_eq!(req.events[0].quantity, 42);
@@ -209,7 +206,8 @@ mod tests {
         let json = serde_json::json!({
             "period": "2026-02"
         });
-        let q: TraceQuery = serde_json::from_value(json).unwrap();
+        let q: TraceQuery = serde_json::from_value(json)
+            .expect("TraceQuery should deserialize from valid JSON");
         assert_eq!(q.period, "2026-02");
     }
 }

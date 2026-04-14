@@ -26,12 +26,10 @@ pub async fn get_subscription(
     let subscription = subscriptions::fetch_with_tenant(&db, id, &app_id)
         .await
         .map_err(|e| {
-            tracing::error!("Database error fetching subscription: {:?}", e);
+            tracing::error!(error = %e, "Database error fetching subscription");
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Subscription {} not found", id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Subscription {} not found", id)))?;
 
     Ok(Json(subscription))
 }
@@ -53,17 +51,13 @@ pub async fn list_subscriptions(
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
 
-    let total_items = subscriptions::count_subscriptions(
-        &db,
-        &app_id,
-        query.customer_id,
-        query.status.clone(),
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error counting subscriptions: {:?}", e);
-        ApiError::internal("Internal database error")
-    })?;
+    let total_items =
+        subscriptions::count_subscriptions(&db, &app_id, query.customer_id, query.status.clone())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Database error counting subscriptions");
+                ApiError::internal("Internal database error")
+            })?;
 
     let subscription_list = subscriptions::list_subscriptions(
         &db,
@@ -75,7 +69,7 @@ pub async fn list_subscriptions(
     )
     .await
     .map_err(|e| {
-        tracing::error!("Database error listing subscriptions: {:?}", e);
+        tracing::error!(error = %e, "Database error listing subscriptions");
         ApiError::internal("Internal database error")
     })?;
 

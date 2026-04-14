@@ -126,7 +126,7 @@ pub async fn import_items(
         }
         Ok(summary) => (StatusCode::OK, axum::Json(summary)).into_response(),
         Err(e) => {
-            tracing::error!("Items import DB error: {}", e);
+            tracing::error!(error = %e, "Items import DB error");
             with_request_id(ApiError::internal("Import failed"), &tracing_ctx).into_response()
         }
     }
@@ -165,10 +165,7 @@ pub async fn run_items_import(
             if !["none", "lot", "serial"].contains(&t.as_str()) {
                 errors.push(ImportRowError {
                     row: row_num,
-                    reason: format!(
-                        "invalid tracking_mode '{}': expected none|lot|serial",
-                        tm
-                    ),
+                    reason: format!("invalid tracking_mode '{}': expected none|lot|serial", tm),
                 });
                 continue;
             }
@@ -222,9 +219,17 @@ pub async fn run_items_import(
             .map(|s| s.trim().to_lowercase())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "none".to_string());
-        let inv_ref = row.inventory_account_ref.as_deref().map(str::trim).unwrap_or("");
+        let inv_ref = row
+            .inventory_account_ref
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("");
         let cogs_ref = row.cogs_account_ref.as_deref().map(str::trim).unwrap_or("");
-        let var_ref = row.variance_account_ref.as_deref().map(str::trim).unwrap_or("");
+        let var_ref = row
+            .variance_account_ref
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("");
 
         match existing.get(sku) {
             None => {
@@ -311,8 +316,7 @@ async fn fetch_existing_items(
 // ============================================================================
 
 fn parse_items_csv(body: &[u8]) -> Result<Vec<ItemImportRow>, String> {
-    let text =
-        std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
+    let text = std::str::from_utf8(body).map_err(|_| "CSV body is not valid UTF-8".to_string())?;
     let mut lines = text.lines();
 
     let header_line = lines.next().ok_or_else(|| "CSV is empty".to_string())?;
@@ -337,7 +341,12 @@ fn parse_items_csv(body: &[u8]) -> Result<Vec<ItemImportRow>, String> {
             continue;
         }
         let fields = csv_fields(line);
-        let get = |i: usize| fields.get(i).map(|s| s.trim().to_string()).unwrap_or_default();
+        let get = |i: usize| {
+            fields
+                .get(i)
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default()
+        };
         let opt = |i: Option<usize>| -> Option<String> { i.map(get) };
 
         rows.push(ItemImportRow {
