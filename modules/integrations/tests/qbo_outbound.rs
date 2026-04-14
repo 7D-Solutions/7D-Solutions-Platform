@@ -51,6 +51,10 @@ fn unique_tenant() -> String {
     format!("qbo-ob-{}", Uuid::new_v4().simple())
 }
 
+fn short_id(prefix: &str) -> String {
+    format!("{}-{}", prefix, &Uuid::new_v4().simple().to_string()[..8])
+}
+
 /// Remove all DB state created by a qbo_outbound test for a given app_id.
 ///
 /// Must be called at the end of every DB-backed test to prevent stale OAuth
@@ -86,6 +90,17 @@ async fn seed_oauth_connection(
 ) {
     // Set the encryption key so DbTokenProvider can decrypt the sandbox token.
     std::env::set_var("OAUTH_ENCRYPTION_KEY", QBO_OAUTH_ENCRYPTION_KEY);
+
+    sqlx::query(
+        r#"
+        DELETE FROM integrations_oauth_connections
+        WHERE provider = 'quickbooks' AND realm_id = $1
+        "#,
+    )
+    .bind(realm_id)
+    .execute(pool)
+    .await
+    .expect("clear stale sandbox oauth connection");
 
     sqlx::query(
         r#"
@@ -388,7 +403,9 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
         line_items: vec![QboLineItem {
             amount: 150.00,
             description: Some("Test service".to_string()),
-            item_ref: None,
+            item_ref: Some(
+                std::env::var("QBO_DEFAULT_ITEM_REF").unwrap_or_else(|_| "1".to_string()),
+            ),
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some("AR-001".to_string()),
@@ -413,7 +430,7 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
 async fn qbo_outbound_consumer_creates_invoice_and_stores_ref() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
+    let invoice_id = short_id("inv");
     let customer_id = format!("cust-{}", Uuid::new_v4().simple());
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
@@ -484,7 +501,7 @@ async fn qbo_outbound_consumer_creates_invoice_and_stores_ref() {
 async fn qbo_outbound_consumer_idempotent_on_duplicate_event() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
+    let invoice_id = short_id("inv");
     let customer_id = format!("cust-{}", Uuid::new_v4().simple());
     let existing_qbo_id = "ALREADY-CREATED-99";
 
@@ -535,7 +552,7 @@ async fn qbo_outbound_consumer_idempotent_on_duplicate_event() {
 async fn qbo_outbound_consumer_missing_customer_emits_error_event() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let invoice_id = format!("inv-{}", Uuid::new_v4().simple());
+    let invoice_id = short_id("inv");
     let customer_id = format!("cust-unmapped-{}", Uuid::new_v4().simple()); // no mapping seeded
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
@@ -732,7 +749,7 @@ fn make_order_ingested_message(
 async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let order_id = short_id("ord");
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
@@ -809,7 +826,7 @@ async fn qbo_outbound_order_ingested_creates_invoice_and_stores_ref() {
 async fn qbo_outbound_order_ingested_skips_qbo_source() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let order_id = short_id("ord");
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
@@ -870,7 +887,7 @@ async fn qbo_outbound_order_ingested_skips_qbo_source() {
 async fn qbo_outbound_order_ingested_idempotent_on_duplicate() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let order_id = short_id("ord");
     let customer_ref = format!("buyer-{}@example.com", Uuid::new_v4().simple());
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
@@ -936,7 +953,7 @@ async fn qbo_outbound_order_ingested_idempotent_on_duplicate() {
 async fn qbo_outbound_order_ingested_missing_customer_emits_error_event() {
     let pool = setup_db().await;
     let app_id = unique_tenant();
-    let order_id = format!("ord-{}", Uuid::new_v4().simple());
+    let order_id = short_id("ord");
     let customer_ref = format!("unknown-{}@example.com", Uuid::new_v4().simple());
     if skip_unless_sandbox() {
         eprintln!("Skipping QBO sandbox test (set QBO_SANDBOX=1 to run)");
