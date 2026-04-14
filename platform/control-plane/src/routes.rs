@@ -6,6 +6,7 @@
 ///   GET  /api/control/tenants/:tenant_id/retention     — Read retention policy
 ///   PUT  /api/control/tenants/:tenant_id/retention     — Upsert retention policy
 ///   POST /api/control/tenants/:tenant_id/tombstone     — Tombstone tenant data (audited)
+///   POST /api/control/tenants/:tenant_id/gdpr-erasure  — GDPR-friendly alias for tombstone
 ///   POST /api/control/platform-billing-runs            — Run the platform billing cycle for a period
 ///   GET  /api/tenants/:tenant_id/app-id               — Resolve tenant_id → app_id (for TTP billing)
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
@@ -79,6 +80,10 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .route(
             "/api/control/tenants/{tenant_id}/tombstone",
             post(handlers::tombstone_tenant),
+        )
+        .route(
+            "/api/control/tenants/{tenant_id}/gdpr-erasure",
+            post(handlers::gdpr_erasure),
         )
         .route(
             "/api/control/platform-billing-runs",

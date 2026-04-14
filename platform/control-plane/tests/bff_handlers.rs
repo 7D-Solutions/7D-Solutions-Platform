@@ -109,7 +109,8 @@ async fn test_pool() -> PgPool {
 
 fn build_test_server(pool: PgPool) -> TestServer {
     let keys = test_keys();
-    let app_state = Arc::new(AppState::new(pool.clone(), None).with_verifier(keys.verifier.clone()));
+    let app_state =
+        Arc::new(AppState::new(pool.clone(), None).with_verifier(keys.verifier.clone()));
     let summary_state = Arc::new(SummaryState::new_local(pool));
     let router = build_router(app_state, summary_state);
     TestServer::new(router).expect("build test server")
@@ -563,4 +564,23 @@ async fn tombstone_returns_404_for_missing_tenant() {
         .post(&format!("/api/control/tenants/{missing_id}/tombstone"))
         .await;
     resp.assert_status(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn gdpr_erasure_alias_matches_tombstone_behavior() {
+    let pool = test_pool().await;
+    let server = build_test_server(pool.clone());
+    let tenant_id = seed_tenant(&pool, "deleted", "starter", "monthly").await;
+
+    let resp = server
+        .post(&format!("/api/control/tenants/{tenant_id}/gdpr-erasure"))
+        .await;
+    resp.assert_status(StatusCode::OK);
+
+    let body: Value = resp.json();
+    assert_eq!(body["tenant_id"], tenant_id.to_string());
+    assert!(body["data_tombstoned_at"].is_string());
+    assert!(body["audit_note"].as_str().unwrap().contains("tombstone"));
+
+    cleanup(&pool, tenant_id).await;
 }
