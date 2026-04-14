@@ -1,0 +1,121 @@
+# Prometheus alert rules — Accounts Payable (AP)
+# SLO: 99.9% availability, p95 reads < 500ms, p95 writes < 1000ms, error rate < 0.1%
+#
+# Burn rate thresholds (monthly error budget = 0.1% = 0.001):
+#   Fast burn: 36× nominal → consumes 5% of monthly budget in 1h
+#   Slow burn: 12× nominal → consumes 10% of monthly budget in 6h
+
+groups:
+  - name: ap_slo_availability
+    interval: 30s
+    rules:
+
+      # ── Fast burn (5% budget in 1h) ──────────────────────────────────────────
+      - alert: AP_AvailabilitySLOFastBurn
+        expr: |
+          (
+            sum(rate(ap_http_requests_total{status=~"5.."}[1h]))
+            /
+            sum(rate(ap_http_requests_total[1h]))
+          ) > 0.036
+        for: 2m
+        labels:
+          severity: critical
+          module: ap
+          slo: availability
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "AP availability SLO fast burn (5% budget at risk in 1h)"
+          description: |
+            AP error rate is burning through the error budget 36× faster than normal.
+            At this rate, 5% of the monthly error budget will be consumed in 1 hour.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#ap-availability-slo-fast-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=ap"
+
+      # ── Slow burn (10% budget in 6h) ─────────────────────────────────────────
+      - alert: AP_AvailabilitySLOSlowBurn
+        expr: |
+          (
+            sum(rate(ap_http_requests_total{status=~"5.."}[6h]))
+            /
+            sum(rate(ap_http_requests_total[6h]))
+          ) > 0.012
+        for: 15m
+        labels:
+          severity: warning
+          module: ap
+          slo: availability
+          team: platform
+          routing: slack
+        annotations:
+          summary: "AP availability SLO slow burn (10% budget at risk in 6h)"
+          description: |
+            AP error rate is burning through the error budget 12× faster than normal.
+            At this rate, 10% of the monthly error budget will be consumed in 6 hours.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#ap-availability-slo-slow-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=ap"
+
+  - name: ap_slo_latency
+    interval: 30s
+    rules:
+
+      # ── Read latency fast burn ────────────────────────────────────────────────
+      - alert: AP_ReadLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(ap_http_request_duration_seconds_bucket{method="GET"}[1h])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          module: ap
+          slo: latency_reads
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "AP read p95 latency above 500ms SLO"
+          description: |
+            AP read p95 latency is {{ $value | humanizeDuration }} (SLO: 500ms).
+          runbook: "docs/operations/runbook.md#ap-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=ap"
+
+      # ── Write latency fast burn ───────────────────────────────────────────────
+      - alert: AP_WriteLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(ap_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[1h])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          module: ap
+          slo: latency_writes
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "AP write p95 latency above 1000ms SLO"
+          description: |
+            AP write p95 latency is {{ $value | humanizeDuration }} (SLO: 1000ms).
+          runbook: "docs/operations/runbook.md#ap-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=ap"
+
+  - name: ap_health
+    interval: 30s
+    rules:
+      - alert: AP_HealthCheckFailing
+        expr: |
+          up{job="ap"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          module: ap
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "AP health endpoint not responding"
+          description: "AP service (7d-ap:8093) health check has been failing for 5+ minutes."
+          runbook: "docs/operations/runbook.md#module-health-check-failing"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=ap"

@@ -1,0 +1,108 @@
+# Prometheus alert rules — Inventory
+# SLO: 99.9% availability, p95 reads < 500ms, p95 writes < 1000ms, error rate < 0.1%
+
+groups:
+  - name: inventory_slo_availability
+    interval: 30s
+    rules:
+
+      - alert: Inventory_AvailabilitySLOFastBurn
+        expr: |
+          (
+            sum(rate(inventory_http_requests_total{status=~"5.."}[1h]))
+            /
+            sum(rate(inventory_http_requests_total[1h]))
+          ) > 0.036
+        for: 2m
+        labels:
+          severity: critical
+          module: inventory
+          slo: availability
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "Inventory availability SLO fast burn (5% budget at risk in 1h)"
+          description: |
+            Inventory error rate is burning through the error budget 36× faster than normal.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#inventory-availability-slo-fast-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=inventory"
+
+      - alert: Inventory_AvailabilitySLOSlowBurn
+        expr: |
+          (
+            sum(rate(inventory_http_requests_total{status=~"5.."}[6h]))
+            /
+            sum(rate(inventory_http_requests_total[6h]))
+          ) > 0.012
+        for: 15m
+        labels:
+          severity: warning
+          module: inventory
+          slo: availability
+          team: platform
+          routing: slack
+        annotations:
+          summary: "Inventory availability SLO slow burn (10% budget at risk in 6h)"
+          description: |
+            Inventory error rate is burning through the error budget 12× faster than normal.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#inventory-availability-slo-slow-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=inventory"
+
+  - name: inventory_slo_latency
+    interval: 30s
+    rules:
+
+      - alert: Inventory_ReadLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(inventory_http_request_duration_seconds_bucket{method="GET"}[1h])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          module: inventory
+          slo: latency_reads
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "Inventory read p95 latency above 500ms SLO"
+          description: "Inventory read p95 latency is {{ $value | humanizeDuration }} (SLO: 500ms)."
+          runbook: "docs/operations/runbook.md#inventory-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=inventory"
+
+      - alert: Inventory_WriteLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(inventory_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[1h])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          module: inventory
+          slo: latency_writes
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "Inventory write p95 latency above 1000ms SLO"
+          description: "Inventory write p95 latency is {{ $value | humanizeDuration }} (SLO: 1000ms)."
+          runbook: "docs/operations/runbook.md#inventory-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=inventory"
+
+  - name: inventory_health
+    interval: 30s
+    rules:
+      - alert: Inventory_HealthCheckFailing
+        expr: up{job="inventory"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          module: inventory
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "Inventory health endpoint not responding"
+          description: "Inventory service (7d-inventory:8092) health check has been failing for 5+ minutes."
+          runbook: "docs/operations/runbook.md#module-health-check-failing"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=inventory"

@@ -1,0 +1,109 @@
+# Prometheus alert rules — General Ledger (GL)
+# SLO: 99.9% availability, p95 reads < 500ms, p95 writes < 1000ms, error rate < 0.1%
+# GL is the accounting source of truth — availability is critical for period close.
+
+groups:
+  - name: gl_slo_availability
+    interval: 30s
+    rules:
+
+      - alert: GL_AvailabilitySLOFastBurn
+        expr: |
+          (
+            sum(rate(gl_http_requests_total{status=~"5.."}[1h]))
+            /
+            sum(rate(gl_http_requests_total[1h]))
+          ) > 0.036
+        for: 2m
+        labels:
+          severity: critical
+          module: gl
+          slo: availability
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "GL availability SLO fast burn (5% budget at risk in 1h)"
+          description: |
+            GL error rate is burning through the error budget 36× faster than normal.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#gl-availability-slo-fast-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=gl"
+
+      - alert: GL_AvailabilitySLOSlowBurn
+        expr: |
+          (
+            sum(rate(gl_http_requests_total{status=~"5.."}[6h]))
+            /
+            sum(rate(gl_http_requests_total[6h]))
+          ) > 0.012
+        for: 15m
+        labels:
+          severity: warning
+          module: gl
+          slo: availability
+          team: platform
+          routing: slack
+        annotations:
+          summary: "GL availability SLO slow burn (10% budget at risk in 6h)"
+          description: |
+            GL error rate is burning through the error budget 12× faster than normal.
+            Current error rate: {{ $value | humanizePercentage }}
+          runbook: "docs/operations/runbook.md#gl-availability-slo-slow-burn"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=gl"
+
+  - name: gl_slo_latency
+    interval: 30s
+    rules:
+
+      - alert: GL_ReadLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(gl_http_request_duration_seconds_bucket{method="GET"}[1h])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          module: gl
+          slo: latency_reads
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "GL read p95 latency above 500ms SLO"
+          description: "GL read p95 latency is {{ $value | humanizeDuration }} (SLO: 500ms)."
+          runbook: "docs/operations/runbook.md#gl-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=gl"
+
+      - alert: GL_WriteLatencySLOFastBurn
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(gl_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[1h])) by (le)
+          ) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          module: gl
+          slo: latency_writes
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "GL write p95 latency above 1000ms SLO"
+          description: "GL write p95 latency is {{ $value | humanizeDuration }} (SLO: 1000ms)."
+          runbook: "docs/operations/runbook.md#gl-latency-slo"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=gl"
+
+  - name: gl_health
+    interval: 30s
+    rules:
+      - alert: GL_HealthCheckFailing
+        expr: up{job="gl"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          module: gl
+          team: platform
+          routing: pagerduty
+        annotations:
+          summary: "GL health endpoint not responding"
+          description: "GL service (7d-gl:8090) health check has been failing for 5+ minutes."
+          runbook: "docs/operations/runbook.md#module-health-check-failing"
+          dashboard: "http://grafana:3000/d/platform-overview?var-module=gl"

@@ -1,0 +1,190 @@
+# 7D Solutions Platform — SLO Definitions
+#
+# These SLOs apply to the five critical revenue-path modules.
+# Derived from the Manufacturing Build Roadmap (docs/plans/MANUFACTURING-ROADMAP.md).
+#
+# Error budget math:
+#   availability_budget_monthly_seconds = (1 - slo) × 30d × 24h × 3600s
+#   99.9% → 43 200 s → 43.2 min / month
+
+version: "1.0"
+
+defaults:
+  evaluation_window: 30d
+  alerting:
+    fast_burn_window: 1h
+    fast_burn_budget_pct: 5        # 5% of monthly budget consumed in fast_burn_window
+    slow_burn_window: 6h
+    slow_burn_budget_pct: 10       # 10% of monthly budget consumed in slow_burn_window
+    health_down_window: 5m         # any module health endpoint → not OK for this long
+
+modules:
+  ap:
+    name: Accounts Payable
+    service: 7d-ap
+    port: 8093
+    metrics_prefix: ap
+    slos:
+      availability:
+        target: 0.999              # 99.9%
+        budget_minutes_per_month: 43.2
+        measurement: |
+          1 - (
+            sum(rate(ap_http_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(ap_http_requests_total[30d]))
+          )
+      latency_p95_reads:
+        target_ms: 500
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(ap_http_request_duration_seconds_bucket{method=~"GET"}[5m])) by (le)
+          )
+      latency_p95_writes:
+        target_ms: 1000
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(ap_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[5m])) by (le)
+          )
+      error_rate:
+        target: 0.001              # < 0.1%
+        measurement: |
+          sum(rate(ap_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(ap_http_requests_total[5m]))
+
+  ar:
+    name: Accounts Receivable
+    service: 7d-ar
+    port: 8086
+    metrics_prefix: ar
+    slos:
+      availability:
+        target: 0.999
+        budget_minutes_per_month: 43.2
+        measurement: |
+          1 - (
+            sum(rate(ar_http_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(ar_http_requests_total[30d]))
+          )
+      latency_p95_reads:
+        target_ms: 500
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(ar_http_request_duration_seconds_bucket{method=~"GET"}[5m])) by (le)
+          )
+      latency_p95_writes:
+        target_ms: 1000
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(ar_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[5m])) by (le)
+          )
+      error_rate:
+        target: 0.001
+        measurement: |
+          sum(rate(ar_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(ar_http_requests_total[5m]))
+
+  gl:
+    name: General Ledger
+    service: 7d-gl
+    port: 8090
+    metrics_prefix: gl
+    slos:
+      availability:
+        target: 0.999
+        budget_minutes_per_month: 43.2
+        measurement: |
+          1 - (
+            sum(rate(gl_http_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(gl_http_requests_total[30d]))
+          )
+      latency_p95_reads:
+        target_ms: 500
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(gl_http_request_duration_seconds_bucket{method=~"GET"}[5m])) by (le)
+          )
+      latency_p95_writes:
+        target_ms: 1000
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(gl_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[5m])) by (le)
+          )
+      error_rate:
+        target: 0.001
+        measurement: |
+          sum(rate(gl_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(gl_http_requests_total[5m]))
+
+  production:
+    name: Production Execution
+    service: 7d-production
+    port: 8108
+    metrics_prefix: production
+    slos:
+      availability:
+        target: 0.999
+        budget_minutes_per_month: 43.2
+        measurement: |
+          1 - (
+            sum(rate(production_http_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(production_http_requests_total[30d]))
+          )
+      latency_p95_reads:
+        target_ms: 500
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(production_http_request_duration_seconds_bucket{method=~"GET"}[5m])) by (le)
+          )
+      latency_p95_writes:
+        target_ms: 1000
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(production_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[5m])) by (le)
+          )
+      error_rate:
+        target: 0.001
+        measurement: |
+          sum(rate(production_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(production_http_requests_total[5m]))
+
+  inventory:
+    name: Inventory
+    service: 7d-inventory
+    port: 8092
+    metrics_prefix: inventory
+    slos:
+      availability:
+        target: 0.999
+        budget_minutes_per_month: 43.2
+        measurement: |
+          1 - (
+            sum(rate(inventory_http_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(inventory_http_requests_total[30d]))
+          )
+      latency_p95_reads:
+        target_ms: 500
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(inventory_http_request_duration_seconds_bucket{method=~"GET"}[5m])) by (le)
+          )
+      latency_p95_writes:
+        target_ms: 1000
+        measurement: |
+          histogram_quantile(0.95,
+            sum(rate(inventory_http_request_duration_seconds_bucket{method=~"POST|PUT|PATCH|DELETE"}[5m])) by (le)
+          )
+      error_rate:
+        target: 0.001
+        measurement: |
+          sum(rate(inventory_http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(inventory_http_requests_total[5m]))
