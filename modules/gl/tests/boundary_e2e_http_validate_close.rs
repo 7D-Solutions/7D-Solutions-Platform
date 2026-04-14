@@ -248,6 +248,7 @@ async fn test_boundary_http_validate_close_success() {
 
     let request_body = ValidateCloseRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
     };
 
     let response = client
@@ -331,6 +332,7 @@ async fn test_boundary_http_validate_close_fails_on_closed_period() {
 
     let request_body = ValidateCloseRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
     };
 
     let response = client

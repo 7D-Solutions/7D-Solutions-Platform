@@ -10,16 +10,15 @@ use axum::{
     http::StatusCode,
     Extension, Json,
 };
-use event_bus::TracingContext;
 use chrono::{DateTime, Utc};
+use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
-use serde::Serialize;
 use security::VerifiedClaims;
+use serde::Serialize;
 use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::config::DEFAULT_REPORTING_CURRENCY;
 use crate::contracts::period_close_v1::{
@@ -27,10 +26,11 @@ use crate::contracts::period_close_v1::{
     ValidateCloseRequest, ValidateCloseResponse,
 };
 use crate::services::period_close_service::{
-    close_period, has_blocking_errors, validate_period_can_close, PeriodCloseError,
+    close_period_with_tz, has_blocking_errors, validate_period_can_close_with_tz, PeriodCloseError,
 };
 use crate::services::period_reopen_service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 /// Map service errors to ApiError
 fn map_error(error: PeriodCloseError) -> ApiError {
@@ -66,27 +66,35 @@ pub async fn validate_close(
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(period_id): Path<Uuid>,
-    Json(_request): Json<ValidateCloseRequest>,
+    Json(request): Json<ValidateCloseRequest>,
 ) -> Result<Json<ValidateCloseResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_tz = request.tenant_tz.as_deref().unwrap_or("UTC");
 
     // Run validation in a transaction (read-only, but ensures consistency)
-    let mut tx = app_state
-        .pool
-        .begin()
-        .await
-        .map_err(|e| with_request_id(ApiError::internal(format!("Failed to begin transaction: {}", e)), &ctx))?;
+    let mut tx = app_state.pool.begin().await.map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("Failed to begin transaction: {}", e)),
+            &ctx,
+        )
+    })?;
 
-    let validation_report = validate_period_can_close(
+    let validation_report = validate_period_can_close_with_tz(
         &mut tx,
         &tenant_id,
         period_id,
         app_state.dlq_validation_enabled,
+        tenant_tz,
     )
     .await
     .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    tx.commit().await.map_err(|e| with_request_id(ApiError::internal(format!("Failed to commit transaction: {}", e)), &ctx))?;
+    tx.commit().await.map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("Failed to commit transaction: {}", e)),
+            &ctx,
+        )
+    })?;
 
     let can_close = !has_blocking_errors(&validation_report);
 
@@ -129,10 +137,12 @@ pub async fn close_period_handler(
     Json(request): Json<ClosePeriodRequest>,
 ) -> Result<Json<ClosePeriodResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_tz = request.tenant_tz.as_deref().unwrap_or("UTC");
 
-    let result = close_period(
+    let result = close_period_with_tz(
         &app_state.pool,
         &tenant_id,
+        tenant_tz,
         period_id,
         &request.closed_by,
         request.close_reason.as_deref(),
@@ -190,20 +200,22 @@ pub async fn get_close_status(
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     // Single-row query (O(1) per period)
-    let ap = crate::repos::period_repo::find_by_id_and_tenant(
-        &app_state.pool, period_id, &tenant_id,
-    )
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        with_request_id(ApiError::internal("Internal database error"), &ctx)
-    })?
-    .ok_or_else(|| {
-        with_request_id(
-            ApiError::not_found(format!("Period {} not found for tenant {}", period_id, tenant_id)),
-            &ctx,
-        )
-    })?;
+    let ap =
+        crate::repos::period_repo::find_by_id_and_tenant(&app_state.pool, period_id, &tenant_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Database error: {}", e);
+                with_request_id(ApiError::internal("Internal database error"), &ctx)
+            })?
+            .ok_or_else(|| {
+                with_request_id(
+                    ApiError::not_found(format!(
+                        "Period {} not found for tenant {}",
+                        period_id, tenant_id
+                    )),
+                    &ctx,
+                )
+            })?;
     let period = PeriodCloseStatusData {
         id: ap.id,
         tenant_id: ap.tenant_id,
@@ -308,8 +320,12 @@ pub async fn request_reopen(
     .await
     .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result)
-        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
+    let json_val = serde_json::to_value(result).map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("serialization error: {e}")),
+            &ctx,
+        )
+    })?;
     Ok((StatusCode::CREATED, Json(json_val)))
 }
 
@@ -341,8 +357,12 @@ pub async fn approve_reopen(
     .await
     .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result)
-        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
+    let json_val = serde_json::to_value(result).map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("serialization error: {e}")),
+            &ctx,
+        )
+    })?;
     Ok(Json(json_val))
 }
 
@@ -375,8 +395,12 @@ pub async fn reject_reopen(
     .await
     .map_err(|e| with_request_id(map_error(e), &ctx))?;
 
-    let json_val = serde_json::to_value(result)
-        .map_err(|e| with_request_id(ApiError::internal(format!("serialization error: {e}")), &ctx))?;
+    let json_val = serde_json::to_value(result).map_err(|e| {
+        with_request_id(
+            ApiError::internal(format!("serialization error: {e}")),
+            &ctx,
+        )
+    })?;
     Ok(Json(json_val))
 }
 

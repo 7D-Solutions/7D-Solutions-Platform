@@ -2315,6 +2315,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "feature-flags"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "http 1.4.0",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ff"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4700,6 +4715,7 @@ dependencies = [
  "dashmap 6.1.0",
  "dotenvy",
  "event-bus",
+ "feature-flags",
  "futures",
  "health",
  "http 1.4.0",
@@ -5314,7 +5330,7 @@ dependencies = [
 
 [[package]]
 name = "reporting"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "async-trait",

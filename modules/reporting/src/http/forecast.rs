@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use crate::domain::forecast::{compute_cash_forecast, CashForecastResponse};
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 // ── Query params ─────────────────────────────────────────────────────────────
 
@@ -30,6 +30,10 @@ pub struct ForecastParams {
     /// Comma-separated horizon days (e.g. "7,14,30,60,90").
     /// Defaults to "7,14,30,60,90" if omitted.
     pub horizons: Option<String>,
+
+    /// Tenant-local IANA timezone used to compute the forecast snapshot.
+    /// Defaults to UTC until the caller threads through `tenant_registry.locale_tz`.
+    pub tenant_tz: Option<String>,
 }
 
 impl ForecastParams {
@@ -77,7 +81,9 @@ pub async fn get_forecast(
         return with_request_id(api_err, &tracing_ctx).into_response();
     }
 
-    match compute_cash_forecast(&state.pool, &tenant_id, &horizons).await {
+    let tenant_tz = params.tenant_tz.as_deref().unwrap_or("UTC");
+
+    match compute_cash_forecast(&state.pool, &tenant_id, tenant_tz, &horizons).await {
         Ok(resp) => Json(resp).into_response(),
         Err(e) => {
             tracing::error!(

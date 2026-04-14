@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.2.1 | 2026-04-14 | bd-pfk8e | Add `locale_tz` to the tenant registry schema and `TenantRecord` model. New tenants default to `UTC`, with a dedicated column for tenant-local report and close boundaries. | GAP-20 needs a durable tenant-local time zone source before the report and period-close layers can stop assuming UTC. | No |
 | 1.2.0 | 2026-04-13 | bd-2mwdr | Add migration `20260413000001_add_degraded_tenant_status.sql` — adds 'degraded' to the `tenants.status` check constraint. | Control-plane GAP-16 needs to mark tenants 'degraded' when modules fail readiness polling during activation. | No |
 | 1.1.2 | 2026-04-10 | bd-k4c1h | Add migration `20260410000001_add_tenant_module_status.sql` — creates `cp_tenant_module_status` table tracking per-tenant, per-module provisioning state (pending/provisioning/ready/failed). Enables partial failure and independent retry in the provisioning bundle worker. | Per-module status table is required by the control-plane provisioning worker to report granular progress instead of a single tenant-level state. | No |
 | 1.1.1 | 2026-04-02 | bd-fdvkw | Add `cp_service_catalog` table via migration. Stores module_code → base_url mappings for service discovery. Seeded with all 26 platform modules. | Control-plane needs a queryable service catalog; the table lives in the tenant-registry database which control-plane shares. | No |

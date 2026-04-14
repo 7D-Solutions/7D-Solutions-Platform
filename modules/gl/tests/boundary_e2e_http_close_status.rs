@@ -226,6 +226,7 @@ async fn test_boundary_http_close_status_reflects_snapshot() {
     let close_url = format!("{}/api/gl/periods/{}/close", gl_service_url, period_id);
     let close_request = ClosePeriodRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
         closed_by: "admin".to_string(),
         close_reason: Some("Test close".to_string()),
     };
@@ -357,6 +358,7 @@ async fn test_boundary_http_period_close_performance_guard() {
         .post(&validate_url)
         .json(&ValidateCloseRequest {
             tenant_id: tenant_id.to_string(),
+            tenant_tz: Some("UTC".to_string()),
         })
         .send()
         .await
@@ -368,6 +370,7 @@ async fn test_boundary_http_period_close_performance_guard() {
         .post(&close_url)
         .json(&ClosePeriodRequest {
             tenant_id: tenant_id.to_string(),
+            tenant_tz: Some("UTC".to_string()),
             closed_by: "admin".to_string(),
             close_reason: None,
         })

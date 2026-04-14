@@ -107,6 +107,7 @@ pub struct TenantRecord {
     pub status: TenantStatus,
     pub environment: Environment,
     pub module_schema_versions: ModuleSchemaVersions,
+    pub locale_tz: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
@@ -234,19 +235,19 @@ mod tests {
 
     #[test]
     fn tenant_status_serialization() {
-        let json = serde_json::to_string(&TenantStatus::Active).unwrap();
+        let json = serde_json::to_string(&TenantStatus::Active).expect("serialize tenant status");
         assert_eq!(json, r#""active""#);
     }
 
     #[test]
     fn tenant_status_trial_serialization() {
-        let json = serde_json::to_string(&TenantStatus::Trial).unwrap();
+        let json = serde_json::to_string(&TenantStatus::Trial).expect("serialize tenant status");
         assert_eq!(json, r#""trial""#);
     }
 
     #[test]
     fn tenant_status_past_due_serialization() {
-        let json = serde_json::to_string(&TenantStatus::PastDue).unwrap();
+        let json = serde_json::to_string(&TenantStatus::PastDue).expect("serialize tenant status");
         assert_eq!(json, r#""past_due""#);
     }
 
@@ -264,6 +265,7 @@ mod tests {
             status: TenantStatus::Trial,
             environment: Environment::Development,
             module_schema_versions: HashMap::new(),
+            locale_tz: "UTC".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             deleted_at: None,
@@ -274,19 +276,22 @@ mod tests {
         assert_eq!(record.product_code.as_deref(), Some("starter"));
         assert_eq!(record.plan_code.as_deref(), Some("monthly"));
         assert_eq!(record.app_id.as_deref(), Some("app_abc123"));
+        assert_eq!(record.locale_tz, "UTC");
     }
 
     #[test]
     fn environment_serialization() {
-        let json = serde_json::to_string(&Environment::Production).unwrap();
+        let json = serde_json::to_string(&Environment::Production).expect("serialize environment");
         assert_eq!(json, r#""production""#);
     }
 
     #[test]
     fn bundle_status_serialization() {
-        let json = serde_json::to_string(&TenantBundleStatus::Active).unwrap();
+        let json =
+            serde_json::to_string(&TenantBundleStatus::Active).expect("serialize bundle status");
         assert_eq!(json, r#""active""#);
-        let json = serde_json::to_string(&TenantBundleStatus::InTransition).unwrap();
+        let json = serde_json::to_string(&TenantBundleStatus::InTransition)
+            .expect("serialize bundle status");
         assert_eq!(json, r#""in_transition""#);
     }
 
@@ -310,8 +315,8 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        let json = serde_json::to_string(&bundle).unwrap();
-        let decoded: Bundle = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&bundle).expect("serialize bundle");
+        let decoded: Bundle = serde_json::from_str(&json).expect("deserialize bundle");
         assert_eq!(decoded.product_code, "starter");
         assert!(decoded.is_default);
     }
@@ -335,7 +340,7 @@ mod tests {
             status: TenantBundleStatus::Active,
             effective_at: Utc::now(),
         };
-        let json = serde_json::to_string(&tb).unwrap();
+        let json = serde_json::to_string(&tb).expect("serialize tenant bundle");
         assert!(json.contains("active"));
     }
 
@@ -354,7 +359,7 @@ mod tests {
             checks_failed: vec![],
             details: HashMap::new(),
         };
-        let json = serde_json::to_string(&result).unwrap();
+        let json = serde_json::to_string(&result).expect("serialize result");
         assert!(json.contains("checks_passed"));
     }
 }

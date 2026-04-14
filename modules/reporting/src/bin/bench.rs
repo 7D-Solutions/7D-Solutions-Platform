@@ -102,7 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Cash forecast
         let t = Instant::now();
-        let _ = cash_forecast::compute_cash_forecast(&pool, &tenant_id, &[7, 30, 60]).await?;
+        let _ =
+            cash_forecast::compute_cash_forecast(&pool, &tenant_id, "UTC", &[7, 30, 60]).await?;
         forecast_times.push(elapsed_ms(t));
     }
 
@@ -120,10 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn seed_data(
-    pool: &sqlx::PgPool,
-    tenant_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn seed_data(pool: &sqlx::PgPool, tenant_id: &str) -> Result<(), Box<dyn std::error::Error>> {
     let as_of = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
 
     // Seed AP aging: 10 vendors, 2 currencies
@@ -325,9 +323,7 @@ fn print_stats(name: &str, values: &[f64]) {
     let p99 = percentile(&sorted, 99.0);
     let avg = sorted.iter().sum::<f64>() / count as f64;
 
-    println!(
-        "{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms"
-    );
+    println!("{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms");
 }
 
 fn percentile(sorted: &[f64], pct: f64) -> f64 {

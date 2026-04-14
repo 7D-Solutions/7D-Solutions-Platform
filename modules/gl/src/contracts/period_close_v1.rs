@@ -24,6 +24,11 @@ use uuid::Uuid;
 pub struct ValidateCloseRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
+
+    /// Tenant-local IANA timezone used to derive local midnight boundaries.
+    /// Defaults to UTC when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_tz: Option<String>,
 }
 
 /// Response from validate-close operation
@@ -59,6 +64,11 @@ pub struct ValidateCloseResponse {
 pub struct ClosePeriodRequest {
     /// Tenant ID for multi-tenancy isolation
     pub tenant_id: String,
+
+    /// Tenant-local IANA timezone used to derive local midnight boundaries.
+    /// Defaults to UTC when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_tz: Option<String>,
 
     /// User or system identifier performing the close
     pub closed_by: String,

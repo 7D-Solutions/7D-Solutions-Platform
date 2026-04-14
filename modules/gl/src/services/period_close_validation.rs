@@ -90,6 +90,29 @@ async fn check_pending_dlq_entries(
     Ok(result.pending_count)
 }
 
+/// Convert local period boundaries to UTC instants using a tenant time zone.
+async fn tenant_local_period_bounds(
+    tx: &mut Transaction<'_, Postgres>,
+    period_start: chrono::NaiveDate,
+    period_end: chrono::NaiveDate,
+    tenant_tz: &str,
+) -> Result<(DateTime<Utc>, DateTime<Utc>), PeriodCloseError> {
+    let bounds = sqlx::query_as::<_, (DateTime<Utc>, DateTime<Utc>)>(
+        r#"
+        SELECT
+            ($1::timestamp AT TIME ZONE $3) AS period_start_utc,
+            (($2::date + INTERVAL '1 day')::timestamp AT TIME ZONE $3) AS period_end_utc
+        "#,
+    )
+    .bind(period_start)
+    .bind(period_end)
+    .bind(tenant_tz)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(bounds)
+}
+
 /// Validate if a period can be closed (pre-close validation)
 ///
 /// **Mandatory validations:**
@@ -116,6 +139,17 @@ pub async fn validate_period_can_close(
     tenant_id: &str,
     period_id: Uuid,
     dlq_validation_enabled: bool,
+) -> Result<ValidationReport, PeriodCloseError> {
+    validate_period_can_close_with_tz(tx, tenant_id, period_id, dlq_validation_enabled, "UTC").await
+}
+
+/// Validate if a period can be closed using a tenant-local time zone.
+pub async fn validate_period_can_close_with_tz(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &str,
+    period_id: Uuid,
+    dlq_validation_enabled: bool,
+    tenant_tz: &str,
 ) -> Result<ValidationReport, PeriodCloseError> {
     let mut issues = Vec::new();
 
@@ -173,13 +207,16 @@ pub async fn validate_period_can_close(
     // ========================================
     // Query for journal entries in this period where total debits != total credits
     // This is a DEFENSIVE check (should never happen due to posting validation)
+    let (period_start_utc, period_end_utc) =
+        tenant_local_period_bounds(tx, period.period_start, period.period_end, tenant_tz).await?;
+
     let unbalanced = sqlx::query_as::<_, UnbalancedJournalCheck>(
         r#"
         SELECT COUNT(*) as unbalanced_count
         FROM journal_entries je
         WHERE je.tenant_id = $1
-          AND je.posted_at::DATE >= $2
-          AND je.posted_at::DATE <= $3
+          AND je.posted_at >= $2
+          AND je.posted_at < $3
           AND je.id IN (
               SELECT jl.journal_entry_id
               FROM journal_lines jl
@@ -190,8 +227,8 @@ pub async fn validate_period_can_close(
         "#,
     )
     .bind(tenant_id)
-    .bind(period.period_start)
-    .bind(period.period_end)
+    .bind(period_start_utc)
+    .bind(period_end_utc)
     .fetch_one(&mut **tx)
     .await?;
 

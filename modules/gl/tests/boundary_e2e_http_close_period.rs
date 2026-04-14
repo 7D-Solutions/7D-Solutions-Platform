@@ -246,6 +246,7 @@ async fn test_boundary_http_close_period_success() {
 
     let request_body = ClosePeriodRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
         closed_by: "admin".to_string(),
         close_reason: Some("Month-end close".to_string()),
     };
@@ -354,6 +355,7 @@ async fn test_boundary_http_close_period_idempotent() {
     let url = format!("{}/api/gl/periods/{}/close", gl_service_url, period_id);
     let request_body = ClosePeriodRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
         closed_by: "admin".to_string(),
         close_reason: Some("Month-end close".to_string()),
     };
@@ -471,6 +473,7 @@ async fn test_boundary_http_close_fails_on_closed_period() {
 
     let request_body = ClosePeriodRequest {
         tenant_id: tenant_id.to_string(),
+        tenant_tz: Some("UTC".to_string()),
         closed_by: "different-user".to_string(),
         close_reason: Some("Attempting re-close".to_string()),
     };

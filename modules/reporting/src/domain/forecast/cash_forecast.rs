@@ -7,7 +7,7 @@
 //!   - Builds p25/p75 confidence scenarios
 //!   - Identifies at-risk invoices (P(30) < 0.40)
 
-use chrono::Utc;
+use chrono::{NaiveDateTime, Utc};
 use sqlx::PgPool;
 use std::collections::{BTreeMap, HashMap};
 
@@ -22,14 +22,12 @@ struct OpenInvoice {
     customer_id: String,
     currency: String,
     amount_cents: i64,
-    issued_at: chrono::DateTime<Utc>,
+    issued_at: NaiveDateTime,
 }
 
 impl OpenInvoice {
-    fn age_days(&self, now: chrono::DateTime<Utc>) -> i32 {
-        (now.date_naive() - self.issued_at.date_naive())
-            .num_days()
-            .max(0) as i32
+    fn age_days(&self, now_local: NaiveDateTime) -> i32 {
+        (now_local.date() - self.issued_at.date()).num_days().max(0) as i32
     }
 }
 
@@ -37,12 +35,14 @@ impl OpenInvoice {
 pub async fn compute_cash_forecast(
     pool: &PgPool,
     tenant_id: &str,
+    tenant_tz: &str,
     horizons: &[u32],
 ) -> Result<CashForecastResponse, anyhow::Error> {
     let now = Utc::now();
+    let now_local = tenant_local_now(pool, tenant_tz).await?;
 
     // 1. Load all open invoices
-    let invoices = load_open_invoices(pool, tenant_id).await?;
+    let invoices = load_open_invoices(pool, tenant_id, tenant_tz).await?;
 
     if invoices.is_empty() {
         return Ok(CashForecastResponse {
@@ -69,7 +69,7 @@ pub async fn compute_cash_forecast(
     let mut results = Vec::new();
     for (currency, currency_invoices) in &by_currency {
         let forecast =
-            compute_currency_forecast(currency, currency_invoices, &profiles, horizons, now);
+            compute_currency_forecast(currency, currency_invoices, &profiles, horizons, now_local);
         results.push(forecast);
     }
 
@@ -84,7 +84,7 @@ fn compute_currency_forecast(
     invoices: &[&OpenInvoice],
     profiles: &HashMap<(&str, &str), PaymentProfile>,
     horizons: &[u32],
-    now: chrono::DateTime<Utc>,
+    now_local: NaiveDateTime,
 ) -> CurrencyForecast {
     let mut horizon_results = Vec::new();
 
@@ -94,7 +94,7 @@ fn compute_currency_forecast(
         let mut p75_total: i64 = 0;
 
         for inv in invoices {
-            let age = inv.age_days(now) as u32;
+            let age = inv.age_days(now_local) as u32;
             let key = (inv.customer_id.as_str(), inv.currency.as_str());
 
             if let Some(profile) = profiles.get(&key) {
@@ -128,7 +128,7 @@ fn compute_currency_forecast(
     // At-risk: P(30) < 0.40
     let mut at_risk = Vec::new();
     for inv in invoices {
-        let age = inv.age_days(now) as u32;
+        let age = inv.age_days(now_local) as u32;
         let key = (inv.customer_id.as_str(), inv.currency.as_str());
 
         let p30 = profiles
@@ -143,7 +143,7 @@ fn compute_currency_forecast(
                 currency: inv.currency.clone(),
                 amount_cents: inv.amount_cents,
                 p30,
-                age_days: inv.age_days(now),
+                age_days: inv.age_days(now_local),
             });
         }
     }
@@ -256,9 +256,9 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[7, 30])
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[7, 30])
             .await
-            .unwrap();
+            .expect("forecast computation should succeed");
         assert!(result.results.is_empty());
 
         cleanup(&pool).await;
@@ -278,7 +278,9 @@ mod tests {
         // Open invoice from cust-a, 5 days old, $500
         seed_open_invoice(&pool, "open-a1", "cust-a", "USD", 50000, 5).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[30]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[30])
+            .await
+            .expect("forecast computation should succeed");
         assert_eq!(result.results.len(), 1);
         let usd = &result.results[0];
         assert_eq!(usd.currency, "USD");
@@ -316,7 +318,9 @@ mod tests {
         // Open invoice from cust-b (uses tenant fallback), age 0
         seed_open_invoice(&pool, "open-b1", "cust-b", "USD", 30000, 0).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[30]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[30])
+            .await
+            .expect("forecast computation should succeed");
         assert_eq!(result.results.len(), 1);
         let h30 = &result.results[0].horizons[0];
 
@@ -347,7 +351,9 @@ mod tests {
         seed_open_invoice(&pool, "open-c-fresh", "cust-c", "USD", 100000, 0).await;
         seed_open_invoice(&pool, "open-c-aged", "cust-c", "USD", 100000, 30).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[14]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[14])
+            .await
+            .expect("forecast computation should succeed");
         let h14 = &result.results[0].horizons[0];
 
         // Fresh (age=0, h=14): F(14)=1/5=0.2, F(0)=0 → P=0.2 → 20000
@@ -377,7 +383,9 @@ mod tests {
         // P(30|age=10) → F(10)=1.0 → returns 0.0 → definitely at risk
         seed_open_invoice(&pool, "open-d1", "cust-d", "USD", 80000, 10).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[30]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[30])
+            .await
+            .expect("forecast computation should succeed");
         let usd = &result.results[0];
 
         assert_eq!(usd.at_risk.len(), 1);
@@ -406,7 +414,9 @@ mod tests {
         seed_open_invoice(&pool, "open-e-usd", "cust-e", "USD", 50000, 0).await;
         seed_open_invoice(&pool, "open-e-eur", "cust-e", "EUR", 60000, 0).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[30]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, "UTC", &[30])
+            .await
+            .expect("forecast computation should succeed");
 
         // Should have 2 currency groups
         assert_eq!(result.results.len(), 2);
@@ -418,19 +428,36 @@ mod tests {
     }
 }
 
+async fn tenant_local_now(pool: &PgPool, tenant_tz: &str) -> Result<NaiveDateTime, anyhow::Error> {
+    let now_local: NaiveDateTime = sqlx::query_scalar(
+        r#"
+        SELECT timezone($1, CURRENT_TIMESTAMP)
+        "#,
+    )
+    .bind(tenant_tz)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| anyhow::anyhow!("load tenant local now: {}", e))?;
+
+    Ok(now_local)
+}
+
 async fn load_open_invoices(
     pool: &PgPool,
     tenant_id: &str,
+    tenant_tz: &str,
 ) -> Result<Vec<OpenInvoice>, anyhow::Error> {
-    let rows: Vec<(String, String, String, i64, chrono::DateTime<Utc>)> = sqlx::query_as(
+    let rows: Vec<(String, String, String, i64, NaiveDateTime)> = sqlx::query_as(
         r#"
-        SELECT invoice_id, customer_id, currency, amount_cents, issued_at
+        SELECT invoice_id, customer_id, currency, amount_cents,
+               timezone($2, issued_at)
         FROM rpt_open_invoices_cache
         WHERE tenant_id = $1 AND status = 'open'
         ORDER BY amount_cents DESC
         "#,
     )
     .bind(tenant_id)
+    .bind(tenant_tz)
     .fetch_all(pool)
     .await
     .map_err(|e| anyhow::anyhow!("load open invoices: {}", e))?;

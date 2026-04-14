@@ -25,6 +25,9 @@ CREATE TABLE tenants (
     -- Stores per-module schema versions as JSON: {"ar": "20260216000001", "payments": "20260215000002", ...}
     module_schema_versions JSONB NOT NULL DEFAULT '{}'::jsonb,
 
+    -- Tenant-local presentation / report time zone
+    locale_tz VARCHAR(64) NOT NULL DEFAULT 'UTC',
+
     -- Audit timestamps
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -92,6 +95,7 @@ COMMENT ON COLUMN tenants.tenant_id IS 'Globally unique tenant identifier';
 COMMENT ON COLUMN tenants.status IS 'Current lifecycle status of the tenant';
 COMMENT ON COLUMN tenants.environment IS 'Deployment environment (development, staging, production)';
 COMMENT ON COLUMN tenants.module_schema_versions IS 'Per-module schema versions for upgrade tracking';
+COMMENT ON COLUMN tenants.locale_tz IS 'IANA time zone used for tenant-local report and close boundaries';
 COMMENT ON COLUMN tenants.created_at IS 'Timestamp when tenant was first created';
 COMMENT ON COLUMN tenants.updated_at IS 'Timestamp when tenant record was last modified';
 COMMENT ON COLUMN tenants.deleted_at IS 'Timestamp when tenant was soft-deleted (if status=deleted)';

@@ -6,13 +6,14 @@
 //!   - period_close_snapshot.rs   — PeriodCloseSnapshot, CurrencySnapshot, compute_close_hash, create_close_snapshot, verify_close_hash
 //!   - period_close_execution.rs  — ClosePeriodResult, close_period
 
-pub use super::period_close_execution::{close_period, ClosePeriodResult};
+pub use super::period_close_execution::{close_period, close_period_with_tz, ClosePeriodResult};
 pub use super::period_close_snapshot::{
     compute_close_hash, create_close_snapshot, verify_close_hash, CurrencySnapshot,
     PeriodCloseSnapshot,
 };
 pub use super::period_close_validation::{
-    has_blocking_errors, validate_period_can_close, PeriodCloseError,
+    has_blocking_errors, validate_period_can_close, validate_period_can_close_with_tz,
+    PeriodCloseError,
 };
 
 #[cfg(test)]
@@ -23,7 +24,8 @@ mod tests {
     #[test]
     fn test_compute_close_hash_deterministic() {
         let tenant_id = "tenant_123";
-        let period_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let period_id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("valid UUID");
 
         let hash1 = compute_close_hash(tenant_id, period_id, 10, 100000, 100000, 5);
         let hash2 = compute_close_hash(tenant_id, period_id, 10, 100000, 100000, 5);
@@ -38,7 +40,8 @@ mod tests {
     #[test]
     fn test_compute_close_hash_different_inputs() {
         let tenant_id = "tenant_123";
-        let period_id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let period_id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("valid UUID");
 
         let hash1 = compute_close_hash(tenant_id, period_id, 10, 100000, 100000, 5);
         let hash2 = compute_close_hash(tenant_id, period_id, 11, 100000, 100000, 5); // Different journal count
@@ -51,7 +54,8 @@ mod tests {
     fn test_compute_close_hash_stable_format() {
         // Test that hash format is stable (regression test)
         let tenant_id = "test_tenant";
-        let period_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let period_id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000000").expect("valid UUID");
 
         let hash = compute_close_hash(tenant_id, period_id, 0, 0, 0, 0);
 

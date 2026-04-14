@@ -5,7 +5,8 @@
 
 use super::period_close_snapshot::create_close_snapshot;
 use super::period_close_validation::{
-    check_close_checklist_gate, has_blocking_errors, validate_period_can_close, PeriodCloseError,
+    check_close_checklist_gate, has_blocking_errors, validate_period_can_close_with_tz,
+    PeriodCloseError,
 };
 use crate::contracts::period_close_v1::{
     CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity,
@@ -86,6 +87,30 @@ struct PeriodForClose {
 pub async fn close_period(
     pool: &PgPool,
     tenant_id: &str,
+    period_id: Uuid,
+    closed_by: &str,
+    close_reason: Option<&str>,
+    dlq_validation_enabled: bool,
+    reporting_currency: &str,
+) -> Result<ClosePeriodResult, PeriodCloseError> {
+    close_period_with_tz(
+        pool,
+        tenant_id,
+        "UTC",
+        period_id,
+        closed_by,
+        close_reason,
+        dlq_validation_enabled,
+        reporting_currency,
+    )
+    .await
+}
+
+/// Atomically close an accounting period using a tenant-local time zone.
+pub async fn close_period_with_tz(
+    pool: &PgPool,
+    tenant_id: &str,
+    tenant_tz: &str,
     period_id: Uuid,
     closed_by: &str,
     close_reason: Option<&str>,
@@ -186,8 +211,14 @@ pub async fn close_period(
     // ========================================
     // Always re-validate before close, even if client pre-validated.
     // ChatGPT guardrail: validation MUST re-run on every close attempt.
-    let validation_report =
-        validate_period_can_close(&mut tx, tenant_id, period_id, dlq_validation_enabled).await?;
+    let validation_report = validate_period_can_close_with_tz(
+        &mut tx,
+        tenant_id,
+        period_id,
+        dlq_validation_enabled,
+        tenant_tz,
+    )
+    .await?;
 
     if has_blocking_errors(&validation_report) {
         tx.rollback().await?;
@@ -267,9 +298,12 @@ pub async fn close_period(
         "AccountingPeriod".to_string(),
         period_id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| match e {
-            platform_audit::writer::AuditWriterError::Database(db) => PeriodCloseError::Database(db),
+            platform_audit::writer::AuditWriterError::Database(db) => {
+                PeriodCloseError::Database(db)
+            }
             platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                 PeriodCloseError::Database(sqlx::Error::Protocol(msg))
             }
