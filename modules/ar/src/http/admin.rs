@@ -77,11 +77,32 @@ pub fn admin_router(pool: PgPool) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::postgres::PgPoolOptions;
+    use std::env;
+
+    async fn setup_db() -> PgPool {
+        dotenvy::dotenv().ok();
+        let url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://ar_user:ar_pass@localhost:5434/ar_db?sslmode=require".to_string()
+        });
+
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&url)
+            .await
+            .expect("Failed to connect to ar test DB");
+
+        sqlx::migrate!("db/migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run ar migrations");
+
+        pool
+    }
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        // Verify the router compiles — no runtime DB needed
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").expect("test pool");
+        let pool = setup_db().await;
         let _router = admin_router(pool);
     }
 }
