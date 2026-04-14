@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::http_client::{PlatformClient, TimeoutConfig};
-use crate::manifest::{PlatformSection, ServiceEntry};
+use crate::manifest::{PlatformSection, ServiceCriticality, ServiceEntry};
 use crate::startup::StartupError;
 
 /// Trait implemented by generated typed clients to declare their service name.
@@ -44,9 +44,19 @@ pub trait PlatformService: Sized {
 ///
 /// Stored in [`ModuleContext`] extensions and used by
 /// [`ModuleContext::platform_client`] to construct typed clients on demand.
+///
+/// Services with `criticality = "degraded"` or `"best-effort"` may have a
+/// `None` entry when their URL was not resolvable at startup — this is not a
+/// startup error.  `ctx.degraded_client::<T>()` returns
+/// `Err(DegradedMode::Unavailable)` in that case so the caller can handle the
+/// absence without failing the request.
 #[derive(Debug)]
 pub struct PlatformServices {
+    /// Services that had a resolvable URL at startup.
     clients: HashMap<String, PlatformClient>,
+    /// Declared criticality for every enabled service (including those without
+    /// a resolved URL).
+    criticality: HashMap<String, ServiceCriticality>,
 }
 
 impl PlatformServices {
@@ -55,15 +65,27 @@ impl PlatformServices {
     /// For each enabled service, resolves the base URL from the env var
     /// `{SERVICE}_BASE_URL` (e.g. `PARTY_BASE_URL`), falling back to
     /// `default_url` if specified.
+    ///
+    /// **Criticality semantics:**
+    /// - `critical` (default) — startup fails if URL is unresolvable.
+    /// - `degraded` / `best-effort` — startup succeeds; the service is tracked
+    ///   in the criticality map but no client is built.  Callers use
+    ///   `ctx.degraded_client::<T>()` which returns `Err(DegradedMode::Unavailable)`.
     pub fn from_manifest(
         platform: Option<&PlatformSection>,
         module_name: &str,
     ) -> Result<Self, StartupError> {
         let mut clients = HashMap::new();
+        let mut criticality = HashMap::new();
 
         let services = match platform {
             Some(p) => &p.services,
-            None => return Ok(Self { clients }),
+            None => {
+                return Ok(Self {
+                    clients,
+                    criticality,
+                })
+            }
         };
 
         // Obtain a service token for service-to-service auth.
@@ -108,6 +130,10 @@ impl PlatformServices {
                 continue;
             }
 
+            // Always record criticality for every enabled service so that
+            // ctx.degraded_client / ctx.critical_client can enforce the policy.
+            criticality.insert(name.clone(), entry.criticality);
+
             let env_var = ServiceEntry::env_var_name(name);
             let base_url = match std::env::var(&env_var) {
                 Ok(url) => url,
@@ -123,6 +149,21 @@ impl PlatformServices {
                         url.clone()
                     }
                     None => {
+                        if entry.criticality.is_non_critical() {
+                            // Degraded / best-effort: log a warning but do NOT
+                            // fail startup.  The service stays in the criticality
+                            // map; it is absent from `clients`.  Callers use
+                            // ctx.degraded_client which returns Unavailable.
+                            tracing::warn!(
+                                module = %module_name,
+                                service = %name,
+                                env_var = %env_var,
+                                criticality = ?entry.criticality,
+                                "platform service URL unresolvable — \
+                                 marking unavailable (non-critical)"
+                            );
+                            continue;
+                        }
                         return Err(StartupError::Config(format!(
                             "platform service '{name}' requires env var {env_var} \
                              (or set default_url in [platform.services.{name}])"
@@ -151,26 +192,37 @@ impl PlatformServices {
                 module = %module_name,
                 service = %name,
                 base_url = %base_url,
+                criticality = ?entry.criticality,
                 "platform service client created"
             );
 
             clients.insert(name.clone(), client);
         }
 
-        Ok(Self { clients })
+        Ok(Self {
+            clients,
+            criticality,
+        })
     }
 
-    /// Get the pre-built client for a service, if declared.
+    /// Get the pre-built client for a service, if declared and URL-resolvable.
     pub fn get(&self, service_name: &str) -> Option<&PlatformClient> {
         self.clients.get(service_name)
     }
 
-    /// Number of registered service clients.
+    /// Get the declared criticality for a service.
+    ///
+    /// Returns `None` if the service is not declared in `[platform.services]`.
+    pub fn get_criticality(&self, service_name: &str) -> Option<ServiceCriticality> {
+        self.criticality.get(service_name).copied()
+    }
+
+    /// Number of service clients with resolved URLs.
     pub fn len(&self) -> usize {
         self.clients.len()
     }
 
-    /// Whether no service clients are registered.
+    /// Whether no service clients have resolved URLs.
     pub fn is_empty(&self) -> bool {
         self.clients.is_empty()
     }
@@ -183,10 +235,25 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn entry(enabled: bool, default_url: Option<&str>, timeout_secs: Option<u64>) -> ServiceEntry {
+        entry_with_criticality(
+            enabled,
+            default_url,
+            timeout_secs,
+            ServiceCriticality::Critical,
+        )
+    }
+
+    fn entry_with_criticality(
+        enabled: bool,
+        default_url: Option<&str>,
+        timeout_secs: Option<u64>,
+        criticality: ServiceCriticality,
+    ) -> ServiceEntry {
         ServiceEntry {
             enabled,
             timeout_secs,
             default_url: default_url.map(String::from),
+            criticality,
             extra: BTreeMap::new(),
         }
     }
@@ -258,5 +325,105 @@ mod tests {
         let err = PlatformServices::from_manifest(Some(&section), "test").unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("MYSTERY_BASE_URL"), "got: {msg}");
+    }
+
+    #[test]
+    fn degraded_service_missing_url_does_not_fail_startup() {
+        let mut services = BTreeMap::new();
+        services.insert(
+            "notifications".into(),
+            entry_with_criticality(true, None, None, ServiceCriticality::Degraded),
+        );
+        let section = PlatformSection {
+            services,
+            extra: BTreeMap::new(),
+        };
+
+        std::env::remove_var("NOTIFICATIONS_BASE_URL");
+        let svc = PlatformServices::from_manifest(Some(&section), "test")
+            .expect("degraded service without URL must not fail startup");
+
+        // No client was built, but the service is known to be degraded.
+        assert!(svc.get("notifications").is_none());
+        assert_eq!(
+            svc.get_criticality("notifications"),
+            Some(ServiceCriticality::Degraded)
+        );
+    }
+
+    #[test]
+    fn best_effort_service_missing_url_does_not_fail_startup() {
+        let mut services = BTreeMap::new();
+        services.insert(
+            "audit-log".into(),
+            entry_with_criticality(true, None, None, ServiceCriticality::BestEffort),
+        );
+        let section = PlatformSection {
+            services,
+            extra: BTreeMap::new(),
+        };
+
+        std::env::remove_var("AUDIT_LOG_BASE_URL");
+        let svc = PlatformServices::from_manifest(Some(&section), "test")
+            .expect("best-effort service without URL must not fail startup");
+
+        assert!(svc.get("audit-log").is_none());
+        assert_eq!(
+            svc.get_criticality("audit-log"),
+            Some(ServiceCriticality::BestEffort)
+        );
+    }
+
+    #[test]
+    fn degraded_service_with_url_builds_client() {
+        let mut services = BTreeMap::new();
+        services.insert(
+            "notifications".into(),
+            entry_with_criticality(
+                true,
+                Some("http://localhost:8089"),
+                None,
+                ServiceCriticality::Degraded,
+            ),
+        );
+        let section = PlatformSection {
+            services,
+            extra: BTreeMap::new(),
+        };
+
+        std::env::remove_var("NOTIFICATIONS_BASE_URL");
+        let svc = PlatformServices::from_manifest(Some(&section), "test")
+            .expect("degraded service with default_url should succeed");
+
+        assert!(svc.get("notifications").is_some());
+        assert_eq!(
+            svc.get_criticality("notifications"),
+            Some(ServiceCriticality::Degraded)
+        );
+    }
+
+    #[test]
+    fn criticality_recorded_for_critical_service() {
+        let mut services = BTreeMap::new();
+        services.insert(
+            "numbering".into(),
+            entry_with_criticality(
+                true,
+                Some("http://localhost:8120"),
+                None,
+                ServiceCriticality::Critical,
+            ),
+        );
+        let section = PlatformSection {
+            services,
+            extra: BTreeMap::new(),
+        };
+
+        std::env::remove_var("NUMBERING_BASE_URL");
+        let svc = PlatformServices::from_manifest(Some(&section), "test").expect("test");
+        assert_eq!(
+            svc.get_criticality("numbering"),
+            Some(ServiceCriticality::Critical)
+        );
     }
 }

@@ -7,8 +7,8 @@
 //!
 //! Requires 7d-party running on localhost:8098.
 
-use platform_sdk::{PlatformClient, PlatformService};
 use platform_client_party::PartiesClient;
+use platform_sdk::{PlatformClient, PlatformService};
 
 /// Proves: PlatformService trait impl compiles and constructs a typed client.
 #[test]
@@ -23,8 +23,8 @@ fn parties_client_implements_platform_service() {
 /// Proves: PlatformServices resolves a client from manifest config.
 #[test]
 fn platform_services_resolves_party_client() {
-    use platform_sdk::platform_services::PlatformServices;
     use platform_sdk::manifest::{PlatformSection, ServiceEntry};
+    use platform_sdk::platform_services::PlatformServices;
     use std::collections::BTreeMap;
 
     let mut services = BTreeMap::new();
@@ -34,6 +34,7 @@ fn platform_services_resolves_party_client() {
             enabled: true,
             timeout_secs: None,
             default_url: Some("http://localhost:8098".to_string()),
+            criticality: platform_sdk::manifest::ServiceCriticality::Critical,
             extra: BTreeMap::new(),
         },
     );
@@ -44,11 +45,13 @@ fn platform_services_resolves_party_client() {
 
     // Remove env var so it falls back to default_url
     std::env::remove_var("PARTY_BASE_URL");
-    let svc = PlatformServices::from_manifest(Some(&section), "proof-vertical")
-        .expect("should resolve");
+    let svc =
+        PlatformServices::from_manifest(Some(&section), "proof-vertical").expect("should resolve");
 
     // Now get a typed client through the trait
-    let client = svc.get(PartiesClient::SERVICE_NAME).expect("party client exists");
+    let client = svc
+        .get(PartiesClient::SERVICE_NAME)
+        .expect("party client exists");
     let _parties = PartiesClient::from_platform_client(client.clone());
     // Compiles + runs = the VerticalBuilder wiring works.
 }
@@ -77,7 +80,10 @@ async fn call_party_service_end_to_end() {
 
     match result {
         Ok(page) => {
-            eprintln!("PASS: list_parties returned {} items for new tenant", page.data.len());
+            eprintln!(
+                "PASS: list_parties returned {} items for new tenant",
+                page.data.len()
+            );
             assert!(page.data.is_empty(), "new tenant should have no parties");
         }
         Err(e) => {
@@ -88,7 +94,9 @@ async fn call_party_service_end_to_end() {
             let err_str = format!("{e}");
             // Should be an auth error, not a network error
             assert!(
-                err_str.contains("401") || err_str.contains("403") || err_str.contains("Unauthorized"),
+                err_str.contains("401")
+                    || err_str.contains("403")
+                    || err_str.contains("Unauthorized"),
                 "Expected auth error, got: {err_str}"
             );
             eprintln!("PASS: Party correctly rejected unauthenticated call — auth works");

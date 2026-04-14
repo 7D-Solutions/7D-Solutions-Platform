@@ -46,10 +46,12 @@ pub mod tenant_resolver;
 pub use builder::ModuleBuilder;
 pub use client_core::{build_query_url, ensure, parse_empty, parse_response, ClientError};
 pub use consumer::{ConsumerError, TenantProvisionedEvent};
-pub use context::{BusNotAvailable, DegradedMode, ModuleContext, TenantPoolError, TenantPoolResolver};
+pub use context::{
+    BusNotAvailable, DegradedMode, ModuleContext, TenantPoolError, TenantPoolResolver,
+};
 pub use dlq::{ensure_dlq_table, STANDARD_DLQ_DDL};
 pub use event_registry::{EventRegistry, RouteOutcome};
-pub use http_client::{PlatformClient, TimeoutConfig};
+pub use http_client::{CircuitBreakerConfig, PlatformClient, TimeoutConfig};
 pub use idempotency::{ensure_dedupe_table, STANDARD_DEDUPE_DDL};
 pub use manifest::Manifest;
 pub use platform_services::PlatformService;
@@ -63,7 +65,7 @@ pub use tenant_resolver::DefaultTenantResolver;
 // platform sub-crates directly for basic operations.
 pub use async_nats::Client as NatsClient;
 pub use event_bus::{EventBus, EventEnvelope};
-pub use health::{TenantReadinessCheck, TenantReadinessRegistry};
+pub use health::{CircuitBreakerInfo, TenantReadinessCheck, TenantReadinessRegistry};
 pub use security::claims::VerifiedClaims;
 pub use sqlx::PgPool;
 

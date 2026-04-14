@@ -18,7 +18,9 @@ use tracing::Instrument;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
-use crate::startup_helpers::{build_cors_layer, parse_body_limit, parse_duration_str, shutdown_signal};
+use crate::startup_helpers::{
+    build_cors_layer, parse_body_limit, parse_duration_str, shutdown_signal,
+};
 
 use crate::consumer::ConsumerHandles;
 use crate::context::ModuleContext;
@@ -74,18 +76,20 @@ fn header_str(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
 /// Additionally:
 /// - Reads a W3C `traceparent` header (falling back to `X-Trace-Id`) so that upstream
 ///   services can propagate their trace context.
+/// - Reads `X-Request-Id` (or generates a fresh UUID) and records it as `request_id`
+///   in the span, satisfying the platform logging standard.
 /// - Stores the trace ID in [`CURRENT_TRACE_ID`] task-local so outbound
 ///   [`crate::http_client::PlatformClient`] calls can propagate it automatically.
 /// - Echoes `X-Request-Id`, `X-Trace-Id`, and `X-Correlation-Id` in the response.
-pub(crate) async fn platform_trace_middleware(request: Request, next: Next) -> Response {
+pub async fn platform_trace_middleware(request: Request, next: Next) -> Response {
     // Resolve trace_id: W3C traceparent takes precedence, then X-Trace-Id, then fresh UUID.
     let trace_id = header_str(request.headers(), "traceparent")
         .and_then(|tp| parse_traceparent(&tp))
         .or_else(|| header_str(request.headers(), "x-trace-id"))
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let correlation_id = header_str(request.headers(), "x-correlation-id")
-        .unwrap_or_else(|| trace_id.clone());
+    let correlation_id =
+        header_str(request.headers(), "x-correlation-id").unwrap_or_else(|| trace_id.clone());
 
     // Claims are already injected by the JWT auth middleware (which runs before tracing).
     let claims = request.extensions().get::<VerifiedClaims>().cloned();
@@ -98,12 +102,17 @@ pub(crate) async fn platform_trace_middleware(request: Request, next: Next) -> R
         .map(|c| c.user_id.to_string())
         .unwrap_or_default();
 
+    // request_id: use the X-Request-Id header if present, else alias to trace_id.
+    let request_id =
+        header_str(request.headers(), "x-request-id").unwrap_or_else(|| trace_id.clone());
+
     let method = request.method().clone();
     let uri = request.uri().path().to_string();
 
     let span = tracing::info_span!(
         "request",
         trace_id = %trace_id,
+        request_id = %request_id,
         correlation_id = %correlation_id,
         tenant_id = %tenant_id,
         actor_id = %actor_id,
@@ -126,14 +135,13 @@ pub(crate) async fn platform_trace_middleware(request: Request, next: Next) -> R
 
     let trace_id_local = trace_id.clone();
     let mut response = CURRENT_TRACE_ID
-        .scope(
-            trace_id_local,
-            next.run(request).instrument(span),
-        )
+        .scope(trace_id_local, next.run(request).instrument(span))
         .await;
 
     // Echo tracing IDs in response headers so callers can correlate.
-    if let Ok(val) = trace_id.parse() {
+    // request_id is the client-visible ID (echoes the X-Request-Id the caller sent, or the
+    // generated trace_id when none was provided).  trace_id tracks the distributed trace.
+    if let Ok(val) = request_id.parse() {
         response.headers_mut().insert("x-request-id", val);
     }
     if let Ok(val) = trace_id.parse() {
@@ -262,9 +270,7 @@ pub(crate) async fn phase_a(
             .with_env_filter(env_filter)
             .init();
     } else {
-        tracing_subscriber::fmt()
-            .with_env_filter(env_filter)
-            .init();
+        tracing_subscriber::fmt().with_env_filter(env_filter).init();
     }
 
     if let Ok(otlp_endpoint) = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
@@ -283,9 +289,8 @@ pub(crate) async fn phase_a(
     );
 
     // Step 3: DATABASE_URL from environment
-    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
-        StartupError::Config("DATABASE_URL is required but not set".into())
-    })?;
+    let database_url = std::env::var("DATABASE_URL")
+        .map_err(|_| StartupError::Config("DATABASE_URL is required but not set".into()))?;
 
     // Step 4: DB pool — sizes from manifest [database] section
     let pool_max = manifest.database.as_ref().map_or(12, |db| db.pool_max);
@@ -368,10 +373,7 @@ pub(crate) async fn phase_a(
     };
 
     // Step 7: outbox publisher / undeclared outbox detection
-    let publish_section = manifest
-        .events
-        .as_ref()
-        .and_then(|e| e.publish.as_ref());
+    let publish_section = manifest.events.as_ref().and_then(|e| e.publish.as_ref());
     let outbox_table = publish_section.map(|p| p.outbox_table.clone());
     let subject_prefix = publish_section.and_then(|p| p.subject_prefix.clone());
 
@@ -405,8 +407,12 @@ pub(crate) async fn phase_a(
                 let pub_prefix = subject_prefix.clone();
                 outbox_handle = Some(tokio::spawn(async move {
                     publisher::run_multi_tenant_outbox_publisher(
-                        pub_resolver, pub_bus, &pub_table, &pub_module,
-                        pub_prefix.as_deref(), shutdown_rx,
+                        pub_resolver,
+                        pub_bus,
+                        &pub_table,
+                        &pub_module,
+                        pub_prefix.as_deref(),
+                        shutdown_rx,
                     )
                     .await;
                 }));
@@ -424,8 +430,12 @@ pub(crate) async fn phase_a(
                 let pub_prefix = subject_prefix.clone();
                 outbox_handle = Some(tokio::spawn(async move {
                     publisher::run_outbox_publisher(
-                        pub_pool, pub_bus, &pub_table, &pub_module,
-                        pub_prefix.as_deref(), shutdown_rx,
+                        pub_pool,
+                        pub_bus,
+                        &pub_table,
+                        &pub_module,
+                        pub_prefix.as_deref(),
+                        shutdown_rx,
                     )
                     .await;
                 }));
@@ -635,12 +645,14 @@ pub(crate) async fn phase_b(
         .merge(obs_routes)
         .layer(Extension(ctx))
         .layer(DefaultBodyLimit::max(body_limit))
-        .layer(axum::middleware::from_fn(move |req, next: axum::middleware::Next| async move {
-            match tokio::time::timeout(request_timeout, next.run(req)).await {
-                Ok(response) => response,
-                Err(_) => (StatusCode::REQUEST_TIMEOUT, "Request timeout\n").into_response(),
-            }
-        }));
+        .layer(axum::middleware::from_fn(
+            move |req, next: axum::middleware::Next| async move {
+                match tokio::time::timeout(request_timeout, next.run(req)).await {
+                    Ok(response) => response,
+                    Err(_) => (StatusCode::REQUEST_TIMEOUT, "Request timeout\n").into_response(),
+                }
+            },
+        ));
 
     let app = if !flags.skip_tracing {
         // platform_trace_middleware runs AFTER JWT auth (more outer layers run first),
@@ -882,7 +894,10 @@ pub(crate) fn build_observability_routes(
             match encoder.encode_to_string(&families) {
                 Ok(body) => (
                     StatusCode::OK,
-                    [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        "text/plain; version=0.0.4",
+                    )],
                     body,
                 ),
                 Err(e) => (
