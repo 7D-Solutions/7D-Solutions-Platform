@@ -24,10 +24,22 @@ async fn main() {
                 ctx.platform_client::<platform_client_party::PartiesClient>(),
             );
 
-            http::ar_router(ctx.pool().clone())
+            // Optional GL pool for period pre-validation.
+            // Connects lazily — no startup failure if GL_DATABASE_URL is absent.
+            let gl_pool_arc: Option<Arc<sqlx::PgPool>> = std::env::var("GL_DATABASE_URL")
+                .ok()
+                .and_then(|url| sqlx::PgPool::connect_lazy(&url).ok())
+                .map(Arc::new);
+
+            let router = http::ar_router(ctx.pool().clone())
                 .merge(http::tax::tax_router(ctx.pool().clone()))
                 .merge(http::admin::admin_router(ctx.pool().clone()))
-                .layer(Extension(party_client))
+                .layer(Extension(party_client));
+
+            match gl_pool_arc {
+                Some(gl_pool) => router.layer(Extension(gl_pool)),
+                None => router,
+            }
         })
         .run()
         .await

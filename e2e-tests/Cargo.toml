@@ -8,6 +8,10 @@ name = "tenant_context_canary_e2e"
 path = "tests/tenant_context_canary_e2e.rs"
 
 [[test]]
+name = "payments_health_canary_e2e"
+path = "tests/payments_health_canary_e2e.rs"
+
+[[test]]
 name = "tenant_lifecycle_e2e"
 path = "tests/tenant_lifecycle_e2e.rs"
 
@@ -776,3 +780,15 @@ path = "tests/auth_rbac_coverage_e2e.rs"
 [[test]]
 name = "tenant_activation_race_e2e"
 path = "tests/tenant_activation_race_e2e.rs"
+
+[[test]]
+name = "manufacturing_cycle_e2e"
+path = "tests/manufacturing_cycle_e2e.rs"
+
+[[test]]
+name = "distributed_tracing_e2e"
+path = "tests/distributed_tracing_e2e.rs"
+
+[[test]]
+name = "period_close_enforcement_e2e"
+path = "tests/period_close_enforcement_e2e.rs"

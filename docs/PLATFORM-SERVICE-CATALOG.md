@@ -17,8 +17,8 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ap | ap | 3.5.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| ar | ar-rs | 6.5.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ap | ap | 3.6.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ar | ar-rs | 6.6.0 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | bom | bom-rs | 2.4.1 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 2.3.1 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.6.0 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
@@ -86,6 +86,7 @@ CLI tools and test harnesses.
 | compliance-export | compliance-export | 1.0.0 | Compliance evidence pack generation for audit and regulatory export | [Revisions](tools/compliance-export/REVISIONS.md) |
 | contract-tests | contract-tests | 1.0.0 | Event schema and OpenAPI contract validation tests | [Revisions](tools/contract-tests/REVISIONS.md) |
 | demo-seed | demo-seed | 1.0.0 | Deterministic demo data seeding for development and testing | [Revisions](tools/demo-seed/REVISIONS.md) |
+| migration-safety-test | migration-safety-test | 0.1.0 | Shared helpers for per-module migration safety integration tests |  |
 | projection-rebuild | projection-rebuild | 1.0.0 | Projection rebuild and blue-green swap orchestration tool | [Revisions](tools/projection-rebuild/REVISIONS.md) |
 | reconciliation | reconciliation | 1.0.0 | Nightly financial invariant reconciliation runner — real databases, no mocks |  |
 | simulation | simulation | 1.0.0 | Failure injection and load simulation for platform resilience testing | [Revisions](tools/simulation/REVISIONS.md) |

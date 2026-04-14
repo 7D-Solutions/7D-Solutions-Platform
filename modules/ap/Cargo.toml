@@ -1,6 +1,6 @@
 [package]
 name = "ap"
-version = "3.5.0"
+version = "3.6.0"
 edition = "2021"
 description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
 
@@ -34,6 +34,7 @@ futures = "0.3"
 prometheus = "0.13"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 tax-core = { path = "../../platform/tax-core" }

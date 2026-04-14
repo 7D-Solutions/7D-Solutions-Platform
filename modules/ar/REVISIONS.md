@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 6.6.0 | 2026-04-13 | bd-w7kc5 | Period pre-validation guard on AR invoice mutations: checks that invoice date falls in an open GL period before accepting. Returns 422 `PERIOD_CLOSED`. Fails open if GL pool unreachable. Optional `gl_pool` layer wired in main.rs from `GL_DATABASE_URL`. | Backdated invoices into closed periods were accepted by AR and only failed on GL posting, leaving orphan AR state. Pre-validation fails fast. | No |
 | 6.5.0 | 2026-04-13 | bd-y6gco | Wire platform-audit into AR mutation handlers: invoice create, invoice finalize. Each writes a `WriteAuditRequest` inside the existing transaction. Audit log migration creates `audit_log` table. | SOC2/compliance: financial mutations must have an append-only audit trail. | No |
 | 6.4.0 | 2026-04-13 | bd-zwf9n | Add `POST /api/ar/import/customers` bulk import endpoint. Accepts CSV or JSON, validates all rows before writing, idempotent upsert by customer_code, synthesises placeholder email when not supplied, 10K row limit, transactional. | Onboarding: customers need to bulk-load customer master data during initial setup. | No |
 | 6.3.2 | 2026-04-10 | bd-1gt | Replace `serde_json::Value` with typed `IssueCreditNoteBody` request and `CreditNoteRouteResponse` response on `POST /api/ar/invoices/{id}/credit-notes`. OpenAPI schema now accurate. | Untyped JSON body produced incorrect schema in generated clients; consumers received no field-level documentation. | No |

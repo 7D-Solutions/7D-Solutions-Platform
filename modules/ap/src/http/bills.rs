@@ -14,6 +14,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use chrono::NaiveDate;
 use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
@@ -30,6 +31,55 @@ use crate::domain::tax::{self, ZeroTaxProvider};
 use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+
+// ============================================================================
+// GL period pre-validation
+// ============================================================================
+
+/// Guard: check that the GL period containing `date` is open for `tenant_id`.
+///
+/// Returns `Err(422 PERIOD_CLOSED)` if the period is closed.
+/// Returns `Ok(())` if open, if no period exists for the date (GL enforces on
+/// the posting event), or if the GL pool is unreachable (fail-open to avoid
+/// AP outage from GL downtime).
+async fn check_gl_period_open(
+    gl_pool: &sqlx::PgPool,
+    tenant_id: &str,
+    date: NaiveDate,
+) -> Result<(), ApiError> {
+    let result: sqlx::Result<Option<(Uuid, Option<chrono::DateTime<chrono::Utc>>)>> =
+        sqlx::query_as(
+            r#"
+            SELECT id, closed_at
+            FROM accounting_periods
+            WHERE tenant_id = $1
+              AND period_start <= $2
+              AND period_end   >= $2
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(date)
+        .fetch_optional(gl_pool)
+        .await;
+
+    match result {
+        Err(e) => {
+            tracing::warn!(tenant_id, %date, error = %e, "GL period check DB error — allowing (fail-open)");
+            Ok(())
+        }
+        Ok(None) => Ok(()), // no period for date — GL will enforce on posting
+        Ok(Some((_, None))) => Ok(()), // period exists and is open
+        Ok(Some((_, Some(_)))) => Err(ApiError::new(
+            422,
+            "PERIOD_CLOSED",
+            format!(
+                "Period for {} is closed — request reopen or adjust the effective date",
+                date
+            ),
+        )),
+    }
+}
 
 // ============================================================================
 // Shared helpers
@@ -76,6 +126,14 @@ pub async fn create_bill(
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
     let correlation_id = correlation_from_headers(&headers);
+
+    // Period pre-validation: fail fast before any DB writes.
+    if let Some(gl_pool) = state.gl_pool.as_ref() {
+        let invoice_date = req.invoice_date.date_naive();
+        if let Err(e) = check_gl_period_open(gl_pool, &tenant_id, invoice_date).await {
+            return with_request_id(e, &tracing_ctx).into_response();
+        }
+    }
 
     match service::create_bill(&state.pool, &tenant_id, &req, correlation_id).await {
         Ok(bill) => (StatusCode::CREATED, Json(bill)).into_response(),

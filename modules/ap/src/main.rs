@@ -22,9 +22,17 @@ async fn main() {
         .routes(|ctx| {
             let ap_metrics =
                 Arc::new(metrics::ApMetrics::new().expect("AP: failed to create metrics"));
+
+            // Optional GL pool for period pre-validation.
+            // Connects lazily — no startup failure if GL_DATABASE_URL is absent.
+            let gl_pool = std::env::var("GL_DATABASE_URL")
+                .ok()
+                .and_then(|url| sqlx::PgPool::connect_lazy(&url).ok());
+
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: ap_metrics,
+                gl_pool,
             });
 
             if let Ok(bus) = ctx.bus_arc() {
