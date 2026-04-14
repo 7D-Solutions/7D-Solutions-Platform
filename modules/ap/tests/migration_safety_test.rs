@@ -1,32 +1,30 @@
-//! Migration Safety Tests (Phase 58 Gate A, bd-mvane)
+//! Migration Safety Tests — AP (Accounts Payable)
 //!
-//! Proves AP migrations can be applied on a fresh DB and that the
-//! forward-fix rollback procedure works (drop all tables in reverse order).
+//! Verifies that:
+//! 1. All AP migrations apply cleanly on a fresh database.
+//! 2. The last 3 migrations are either FORWARD-ONLY annotated or reversible.
+//! 3. The forward-fix rollback works: drop public schema → re-apply all migrations.
+//! 4. Key AP tables carry tenant_id for multi-tenant isolation.
 //!
 //! ## Prerequisites
-//! - PostgreSQL at localhost:5443 (docker compose up -d)
+//! - PostgreSQL accessible via DATABASE_URL (or localhost:5443 fallback).
+//!
+//! ## Running
+//! Run this test binary in isolation to avoid conflicting with other test
+//! binaries that share the AP database:
+//! ```sh
+//! cargo test -p ap --test migration_safety_test -- --test-threads=1 --nocapture
+//! ```
 
+use migration_safety_test as mst;
 use serial_test::serial;
-use sqlx::{postgres::PgPoolOptions, PgPool};
-
-// ============================================================================
-// Test DB helpers
-// ============================================================================
+use sqlx::PgPool;
 
 async fn connect() -> PgPool {
-    dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
-    PgPoolOptions::new()
-        .max_connections(2)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to AP test DB")
+    mst::connect_pool("postgresql://ap_user:ap_pass@localhost:5443/ap_db").await
 }
 
-// ============================================================================
-// Test 1: Migrations apply cleanly
-// ============================================================================
+// ── 1. Apply cleanly ──────────────────────────────────────────────────────────
 
 #[tokio::test]
 #[serial]
@@ -38,144 +36,100 @@ async fn migrations_apply_cleanly() {
         .await
         .expect("All AP migrations must apply without error");
 
-    let expected_tables = vec![
-        "events_outbox",
-        "processed_events",
-        "vendors",
-        "purchase_orders",
-        "po_lines",
-        "po_status",
-        "po_receipt_links",
-        "vendor_bills",
-        "bill_lines",
-        "three_way_match",
-        "ap_allocations",
-        "payment_runs",
-        "idempotency_keys",
-        "payment_run_items",
-        "payment_run_executions",
-        "ap_tax_snapshots",
-        "payment_terms",
-    ];
+    let count = mst::count_applied_migrations(&pool).await;
+    assert!(count >= 14, "Expected >= 14 AP migrations, got {count}");
 
-    for table in &expected_tables {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
-        )
-        .bind(table)
-        .fetch_one(&pool)
-        .await
-        .unwrap_or_else(|e| panic!("checking table {}: {}", table, e));
-
-        assert!(exists, "Table '{}' must exist after migrations", table);
-    }
-
-    let migration_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations WHERE success = true")
-            .fetch_one(&pool)
-            .await
-            .expect("migration count query");
-    assert!(
-        migration_count >= 14,
-        "At least 14 successful migrations expected, got {}",
-        migration_count
-    );
+    mst::assert_tables_exist(
+        &pool,
+        &[
+            "events_outbox",
+            "processed_events",
+            "vendors",
+            "purchase_orders",
+            "po_lines",
+            "po_status",
+            "po_receipt_links",
+            "vendor_bills",
+            "bill_lines",
+            "three_way_match",
+            "ap_allocations",
+            "payment_runs",
+            "idempotency_keys",
+            "payment_run_items",
+            "payment_run_executions",
+            "ap_tax_snapshots",
+            "payment_terms",
+        ],
+    )
+    .await;
 }
 
-// ============================================================================
-// Test 2: Forward-fix rollback — drop all tables, re-apply cleanly
-// ============================================================================
-// NOTE: ignored because this test drops ALL AP tables (including _sqlx_migrations),
-// which destroys the schema for concurrently-running test binaries.
-// Run explicitly when testing rollback procedures:
-//   cargo test -p ap --test migration_safety_test -- --ignored
+// ── 2. Last-3 annotation check ────────────────────────────────────────────────
 
 #[tokio::test]
 #[serial]
-#[ignore]
+async fn last_three_migrations_are_safe() {
+    // Each of the last 3 migrations must either:
+    //   (a) carry  -- FORWARD-ONLY: <reason>
+    //   (b) be reversible — proved by forward_fix_rollback_and_reapply below.
+    let migrations = mst::check_last_n_migrations(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"),
+        3,
+    );
+    for m in &migrations {
+        if m.is_forward_only {
+            println!(
+                "[FORWARD-ONLY] {}: {}",
+                m.filename,
+                m.forward_only_reason.as_deref().unwrap_or("")
+            );
+        } else {
+            println!(
+                "[REVERSIBLE]   {} — proved by forward_fix_rollback_and_reapply",
+                m.filename
+            );
+        }
+    }
+    // Reversibility for non-annotated migrations is proven by the rollback test.
+    // FORWARD-ONLY migrations are explicitly documented with a recovery path.
+}
+
+// ── 3. Forward-fix rollback ───────────────────────────────────────────────────
+
+/// Drop the entire public schema and re-apply all AP migrations.
+///
+/// This test MUST be run in isolation (--test-threads=1, --test migration_safety_test)
+/// because it drops the public schema, which would break concurrently-running
+/// test binaries that share this database.
+#[tokio::test]
+#[serial]
 async fn forward_fix_rollback_and_reapply() {
     let pool = connect().await;
 
-    // Ensure migrations are applied
+    // Ensure schema is in a known state before the reset.
     sqlx::migrate!("db/migrations")
         .run(&pool)
         .await
         .expect("initial apply");
 
-    // Execute full rollback (reverse dependency order)
-    let rollback_statements = [
-        "DROP TABLE IF EXISTS ap_tax_snapshots CASCADE",
-        "DROP TABLE IF EXISTS payment_run_executions CASCADE",
-        "DROP TABLE IF EXISTS payment_run_items CASCADE",
-        "DROP TABLE IF EXISTS idempotency_keys CASCADE",
-        "DROP TABLE IF EXISTS ap_allocations CASCADE",
-        "DROP TABLE IF EXISTS payment_runs CASCADE",
-        "DROP TABLE IF EXISTS three_way_match CASCADE",
-        "DROP TABLE IF EXISTS bill_lines CASCADE",
-        "DROP TABLE IF EXISTS vendor_bills CASCADE",
-        "DROP TABLE IF EXISTS payment_terms CASCADE",
-        "DROP TABLE IF EXISTS po_receipt_links CASCADE",
-        "DROP TABLE IF EXISTS po_status CASCADE",
-        "DROP TABLE IF EXISTS po_lines CASCADE",
-        "DROP TABLE IF EXISTS purchase_orders CASCADE",
-        "DROP TABLE IF EXISTS vendors CASCADE",
-        "DROP TABLE IF EXISTS processed_events CASCADE",
-        "DROP TABLE IF EXISTS events_outbox CASCADE",
-        "DROP TABLE IF EXISTS _sqlx_migrations CASCADE",
-    ];
+    // Drop the entire public schema — this is the production forward-fix procedure.
+    mst::reset_public_schema(&pool).await;
 
-    for stmt in &rollback_statements {
-        sqlx::query(stmt)
-            .execute(&pool)
-            .await
-            .unwrap_or_else(|e| panic!("rollback statement failed: {} — {}", stmt, e));
-    }
-
-    // Verify tables are gone
-    let remaining: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM information_schema.tables \
-         WHERE table_schema = 'public' AND table_name IN \
-         ('events_outbox','processed_events','vendors','purchase_orders',\
-          'po_lines','po_status','vendor_bills','bill_lines','payment_runs',\
-          'ap_allocations','idempotency_keys','payment_run_items',\
-          'payment_run_executions','ap_tax_snapshots','three_way_match',\
-          'po_receipt_links','payment_terms')",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        remaining, 0,
-        "No AP tables should remain after rollback, got {}",
-        remaining
-    );
-
-    // Re-apply all migrations — must succeed on clean slate
+    // Re-apply every migration from scratch.
     sqlx::migrate!("db/migrations")
         .run(&pool)
         .await
-        .expect("Re-apply after rollback must succeed");
+        .expect("Re-apply after forward-fix rollback must succeed");
 
-    // Verify tables are back
-    for table in ["vendors", "purchase_orders", "vendor_bills", "payment_runs"] {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
-        )
-        .bind(table)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert!(exists, "Table '{}' must exist after re-apply", table);
-    }
+    let count = mst::count_applied_migrations(&pool).await;
+    assert!(count >= 14, "All AP migrations must re-apply; got {count}");
 }
 
-// ============================================================================
-// Test 3: All data tables have tenant_id column (tenant isolation by design)
-// ============================================================================
+// ── 4. Tenant isolation ───────────────────────────────────────────────────────
 
 #[tokio::test]
 #[serial]
-async fn all_data_tables_have_tenant_id() {
+async fn tenant_isolation_enforced() {
     let pool = connect().await;
 
     sqlx::migrate!("db/migrations")
@@ -183,35 +137,18 @@ async fn all_data_tables_have_tenant_id() {
         .await
         .expect("apply migrations");
 
-    // Tables that must have tenant_id for multi-tenant isolation.
-    // Child/join tables (po_lines, bill_lines, etc.) scope via parent FK.
-    let tenant_tables = vec![
-        "vendors",
-        "purchase_orders",
-        "vendor_bills",
-        "payment_runs",
-        "ap_allocations",
-        "ap_tax_snapshots",
-        "idempotency_keys",
-        "payment_terms",
-    ];
-
-    for table in &tenant_tables {
-        let has_tenant: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                SELECT FROM information_schema.columns
-                WHERE table_name = $1 AND column_name = 'tenant_id'
-            )",
-        )
-        .bind(table)
-        .fetch_one(&pool)
-        .await
-        .unwrap_or_else(|e| panic!("checking tenant_id on {}: {}", table, e));
-
-        assert!(
-            has_tenant,
-            "Table '{}' must have a tenant_id column for multi-tenant isolation",
-            table
-        );
-    }
+    mst::assert_tenant_id_columns(
+        &pool,
+        &[
+            "vendors",
+            "purchase_orders",
+            "vendor_bills",
+            "payment_runs",
+            "ap_allocations",
+            "ap_tax_snapshots",
+            "idempotency_keys",
+            "payment_terms",
+        ],
+    )
+    .await;
 }

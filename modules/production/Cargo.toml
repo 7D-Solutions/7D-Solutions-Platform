@@ -30,6 +30,7 @@ platform-client-numbering = { path = "../../clients/numbering" }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 http-body-util = "0.1"
 

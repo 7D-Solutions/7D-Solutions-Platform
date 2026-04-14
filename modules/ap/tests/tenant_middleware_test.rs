@@ -99,7 +99,7 @@ async fn inject_claims(req: Request, next: Next) -> Response {
 /// The `inject_claims` middleware still exercises `extract_tenant`'s 401 guard.
 fn build_test_app(pool: sqlx::PgPool) -> Router {
     let metrics = Arc::new(ApMetrics::new().expect("metrics init"));
-    let state = Arc::new(AppState { pool, metrics });
+    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
     Router::new()
         .route("/api/ap/vendors", get(ap::http::vendors::list_vendors))
         .layer(middleware::from_fn(inject_claims))

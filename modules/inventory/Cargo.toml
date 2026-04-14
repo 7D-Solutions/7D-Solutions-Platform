@@ -41,6 +41,7 @@ name = "openapi_dump"
 path = "src/bin/openapi_dump.rs"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 http-body-util = "0.1"
 uuid = { version = "1", features = ["v4"] }

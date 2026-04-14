@@ -30,6 +30,7 @@ futures = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 jsonwebtoken = "9"
 

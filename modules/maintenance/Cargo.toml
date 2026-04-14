@@ -48,6 +48,7 @@ futures = "0.3"
 prometheus = "0.13"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 
 [lints]

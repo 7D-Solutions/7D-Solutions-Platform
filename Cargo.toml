@@ -51,6 +51,7 @@ members = [
   "tools/stabilization-gate",
   "tools/client-codegen",
   "tools/reconciliation",
+  "tools/migration-safety-test",
   "clients/party",
   "clients/ar",
   "clients/platform-client-doc-mgmt",

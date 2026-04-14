@@ -52,6 +52,7 @@ config-validator = { path = "../../platform/config-validator" }
 quick-xml = "0.37"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 platform_contracts = { path = "../../platform/platform-contracts" }
 

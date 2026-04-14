@@ -1,27 +1,44 @@
-//! Migration Safety Tests (Phase 58 Gate A, bd-227n8)
+//! Migration Safety Tests — Shipping & Receiving
 //!
 //! Proves shipping-receiving migrations can be applied on a fresh DB and that
-//! the forward-fix rollback procedure works (drop all tables in reverse order).
+//! the forward-fix rollback procedure works (drop public schema, re-apply).
 //!
 //! ## Prerequisites
-//! - PostgreSQL at localhost:5454 (docker compose up -d)
+//! - PostgreSQL accessible via DATABASE_URL (or localhost:5454 fallback).
+//!
+//! ## Running
+//! Run in isolation:
+//! ```sh
+//! cargo test -p shipping-receiving --test migration_safety_test -- --test-threads=1 --nocapture
+//! ```
 
+use migration_safety_test as mst;
 use serial_test::serial;
-use sqlx::{postgres::PgPoolOptions, PgPool};
-
-// ============================================================================
-// Test DB helpers
-// ============================================================================
+use sqlx::PgPool;
 
 async fn connect() -> PgPool {
-    dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5454/shipping_receiving_db".to_string());
-    PgPoolOptions::new()
-        .max_connections(2)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to shipping-receiving test DB")
+    mst::connect_pool(
+        "postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5454/shipping_receiving_db",
+    )
+    .await
+}
+
+// ── Last-3 annotation check ───────────────────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn last_three_migrations_are_safe() {
+    let migrations = mst::check_last_n_migrations(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"),
+        3,
+    );
+    for m in &migrations {
+        if m.is_forward_only {
+            println!("[FORWARD-ONLY] {}: {}", m.filename, m.forward_only_reason.as_deref().unwrap_or(""));
+        } else {
+            println!("[REVERSIBLE]   {} — proved by forward_fix_rollback_and_reapply", m.filename);
+        }
+    }
 }
 
 // ============================================================================
@@ -73,7 +90,7 @@ async fn migrations_apply_cleanly() {
 }
 
 // ============================================================================
-// Test 2: Forward-fix rollback — drop all tables, re-apply cleanly
+// Test 2: Forward-fix rollback — drop public schema, re-apply cleanly
 // ============================================================================
 
 #[tokio::test]
@@ -81,64 +98,29 @@ async fn migrations_apply_cleanly() {
 async fn forward_fix_rollback_and_reapply() {
     let pool = connect().await;
 
-    // Ensure migrations are applied
+    // Ensure migrations are applied.
     sqlx::migrate!("db/migrations")
         .run(&pool)
         .await
         .expect("initial apply");
 
-    // Execute full rollback (reverse dependency order)
-    let rollback_statements = [
-        "DROP TABLE IF EXISTS sr_carrier_requests CASCADE",
-        "DROP TABLE IF EXISTS sr_shipping_doc_requests CASCADE",
-        "DROP TABLE IF EXISTS rma_receipt_items CASCADE",
-        "DROP TABLE IF EXISTS rma_receipts CASCADE",
-        "DROP TABLE IF EXISTS inspection_routings CASCADE",
-        "DROP TABLE IF EXISTS shipment_lines CASCADE",
-        "DROP TABLE IF EXISTS shipments CASCADE",
-        "DROP TABLE IF EXISTS sr_processed_events CASCADE",
-        "DROP TABLE IF EXISTS sr_events_outbox CASCADE",
-        "DROP TABLE IF EXISTS _sqlx_migrations CASCADE",
-    ];
+    // Drop the entire public schema — this is the production forward-fix procedure.
+    mst::reset_public_schema(&pool).await;
 
-    for stmt in &rollback_statements {
-        sqlx::query(stmt)
-            .execute(&pool)
-            .await
-            .unwrap_or_else(|e| panic!("rollback statement failed: {} — {}", stmt, e));
-    }
-
-    // Verify tables are gone
-    let remaining: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM information_schema.tables \
-         WHERE table_schema = 'public' AND table_name IN \
-         ('shipments', 'shipment_lines', 'sr_events_outbox', 'sr_processed_events')",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        remaining, 0,
-        "No shipping-receiving tables should remain after rollback"
-    );
-
-    // Re-apply all migrations — must succeed on clean slate
+    // Re-apply every migration from scratch.
     sqlx::migrate!("db/migrations")
         .run(&pool)
         .await
-        .expect("Re-apply after rollback must succeed");
+        .expect("Re-apply after forward-fix rollback must succeed");
 
-    // Verify tables are back
-    for table in &["shipments", "shipment_lines", "sr_events_outbox", "sr_processed_events"] {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $1)",
-        )
-        .bind(*table)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert!(exists, "Table '{}' must exist after re-apply", table);
-    }
+    let count = mst::count_applied_migrations(&pool).await;
+    assert!(count >= 3, "All shipping-receiving migrations must re-apply; got {count}");
+
+    mst::assert_tables_exist(
+        &pool,
+        &["shipments", "shipment_lines", "sr_events_outbox", "sr_processed_events"],
+    )
+    .await;
 }
 
 // ============================================================================

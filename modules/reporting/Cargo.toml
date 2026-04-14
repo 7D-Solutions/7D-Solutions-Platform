@@ -35,6 +35,7 @@ rust_xlsxwriter = "0.80"
 printpdf = "0.7"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 http-body-util = "0.1"

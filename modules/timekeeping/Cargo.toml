@@ -32,6 +32,7 @@ config-validator = { path = "../../platform/config-validator" }
 sha2 = "0.10"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 

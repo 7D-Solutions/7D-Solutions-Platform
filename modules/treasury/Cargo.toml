@@ -37,6 +37,7 @@ rust_decimal = { version = "1", features = ["serde-with-str"] }
 prometheus = "0.13"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 

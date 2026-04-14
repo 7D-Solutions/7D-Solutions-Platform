@@ -29,6 +29,7 @@ utoipa = { version = "5", features = ["chrono", "uuid"] }
 utoipa-axum = "0.2"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 
 [[bin]]

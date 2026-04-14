@@ -40,6 +40,7 @@ prometheus = "0.13"
 lazy_static = "1.4"
 
 [dev-dependencies]
+migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 hex = "0.4"
 hmac = "0.12"

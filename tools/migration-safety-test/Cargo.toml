@@ -1,0 +1,16 @@
+[package]
+name = "migration-safety-test"
+version = "0.1.0"
+edition = "2021"
+description = "Shared helpers for per-module migration safety integration tests"
+
+[lib]
+name = "migration_safety_test"
+
+[dependencies]
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "migrate"] }
+tokio = { version = "1", features = ["full"] }
+dotenvy = "0.15"
+
+[lints]
+workspace = true
