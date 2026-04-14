@@ -67,6 +67,34 @@ pub enum CarrierProviderError {
     CredentialsError(String),
 }
 
+/// Resolve the deployment environment name used for carrier warnings.
+///
+/// `ENVIRONMENT` takes precedence so newer deployments can use the clearer
+/// variable name. `ENV` remains supported for existing module manifests.
+pub fn deployment_environment() -> String {
+    std::env::var("ENVIRONMENT")
+        .or_else(|_| std::env::var("ENV"))
+        .unwrap_or_else(|_| "development".to_string())
+}
+
+/// Return `true` when the deployment is a local development environment.
+pub fn is_dev_environment(env: &str) -> bool {
+    matches!(env.to_ascii_lowercase().as_str(), "dev" | "development")
+}
+
+/// Warn when the module is running outside development.
+///
+/// The stub is fine for tests and local runs. Production and staging should
+/// use a real carrier adapter.
+pub fn warn_if_stub_provider_enabled(env: &str) {
+    if !is_dev_environment(env) {
+        tracing::warn!(
+            environment = %env,
+            "StubCarrierProvider should not be used outside development; use fedex, ups, or usps for real traffic"
+        );
+    }
+}
+
 // ── Trait ─────────────────────────────────────────────────────
 
 /// Contract every carrier provider implementation must satisfy.
@@ -120,6 +148,21 @@ pub fn get_provider(carrier_code: &str) -> Option<Box<dyn CarrierProvider>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dev_environment_detection_accepts_common_aliases() {
+        assert!(is_dev_environment("dev"));
+        assert!(is_dev_environment("development"));
+        assert!(is_dev_environment("DEV"));
+        assert!(is_dev_environment("Development"));
+    }
+
+    #[test]
+    fn non_dev_environment_detection_rejects_other_values() {
+        assert!(!is_dev_environment("staging"));
+        assert!(!is_dev_environment("production"));
+        assert!(!is_dev_environment("local"));
+    }
 
     #[test]
     fn registry_resolves_stub() {

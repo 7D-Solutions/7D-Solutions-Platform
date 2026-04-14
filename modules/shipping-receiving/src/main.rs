@@ -3,22 +3,25 @@ use std::sync::Arc;
 use utoipa::OpenApi;
 
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use security::{permissions, RequirePermissionsLayer};
 use shipping_receiving_rs::{
     consumers,
     db::inspection_routing_repo::InspectionRoutingRow,
     domain::{
-        carrier_providers::dispatch::start_carrier_dispatch_consumer,
+        carrier_providers::{
+            deployment_environment, dispatch::start_carrier_dispatch_consumer,
+            warn_if_stub_provider_enabled,
+        },
         inspection_routing::RouteLineRequest,
         shipments::{Direction, Shipment},
     },
     http::shipments::types::{
-        AddLineRequest, CreateShipmentRequest, ReceiveLineRequest,
-        ShipLineQtyRequest, ShipmentLineRow, ShipOutboundRequest, TransitionStatusRequest,
+        AddLineRequest, CreateShipmentRequest, ReceiveLineRequest, ShipLineQtyRequest,
+        ShipOutboundRequest, ShipmentLineRow, TransitionStatusRequest,
     },
     metrics, routes, AppState, QualityGateIntegration,
 };
-use security::{permissions, RequirePermissionsLayer};
-use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -111,6 +114,11 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
+
+    let environment = deployment_environment();
+    warn_if_stub_provider_enabled(&environment);
+
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .consumer("ap.events.ap.po_approved", on_po_approved)

@@ -2,6 +2,8 @@
 
 Manages inbound and outbound shipments with full lifecycle tracking. Automatically creates shipments from approved purchase orders and released sales orders, tracks line-level receiving/shipping quantities, and emits inventory-affecting events on close/ship/deliver.
 
+Carrier adapter setup lives in [docs/guides/carrier-adapters.md](../../docs/guides/carrier-adapters.md).
+
 ## Architecture
 
 - **Language**: Rust
