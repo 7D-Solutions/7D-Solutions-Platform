@@ -7,6 +7,7 @@
 ///   PUT  /api/control/tenants/:tenant_id/retention     — Upsert retention policy
 ///   POST /api/control/tenants/:tenant_id/tombstone     — Tombstone tenant data (audited)
 ///   POST /api/control/tenants/:tenant_id/gdpr-erasure  — GDPR-friendly alias for tombstone
+///   POST /api/control/tenants/:tenant_id/export        — Generate a deterministic offboarding bundle
 ///   POST /api/control/platform-billing-runs            — Run the platform billing cycle for a period
 ///   GET  /api/tenants/:tenant_id/app-id               — Resolve tenant_id → app_id (for TTP billing)
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
@@ -27,6 +28,7 @@ use tenant_registry::routes::{
 };
 use tenant_registry::{tenant_detail_router, tenant_list_router};
 
+use crate::export_job;
 use crate::handlers;
 use crate::state::AppState;
 
@@ -84,6 +86,10 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .route(
             "/api/control/tenants/{tenant_id}/gdpr-erasure",
             post(handlers::gdpr_erasure),
+        )
+        .route(
+            "/api/control/tenants/{tenant_id}/export",
+            post(export_job::export_tenant),
         )
         .route(
             "/api/control/platform-billing-runs",

@@ -18,8 +18,10 @@ use rsa::RsaPrivateKey;
 use serde::Serialize;
 use serde_json::{json, Value};
 use sqlx::PgPool;
+use std::io::Cursor;
 use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
+use zip::ZipArchive;
 
 use control_plane::routes::build_router;
 use control_plane::state::AppState;
@@ -581,6 +583,66 @@ async fn gdpr_erasure_alias_matches_tombstone_behavior() {
     assert_eq!(body["tenant_id"], tenant_id.to_string());
     assert!(body["data_tombstoned_at"].is_string());
     assert!(body["audit_note"].as_str().unwrap().contains("tombstone"));
+
+    cleanup(&pool, tenant_id).await;
+}
+
+#[tokio::test]
+async fn export_returns_zip_bundle_and_updates_export_ready_at() {
+    let pool = test_pool().await;
+    let server = build_test_server(pool.clone());
+    let tenant_id = seed_tenant(&pool, "deleted", "starter", "monthly").await;
+
+    sqlx::query(
+        r#"INSERT INTO cp_entitlements (tenant_id, plan_code, concurrent_user_limit, effective_at, updated_at)
+           VALUES ($1, $2, $3, NOW(), NOW())
+           ON CONFLICT (tenant_id) DO UPDATE
+               SET plan_code = EXCLUDED.plan_code,
+                   concurrent_user_limit = EXCLUDED.concurrent_user_limit,
+                   updated_at = EXCLUDED.updated_at"#,
+    )
+    .bind(tenant_id)
+    .bind("monthly")
+    .bind(7_i32)
+    .execute(&pool)
+    .await
+    .expect("seed entitlements");
+
+    let resp = server
+        .post(&format!("/api/control/tenants/{tenant_id}/export"))
+        .await;
+    resp.assert_status(StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
+        Some("application/zip")
+    );
+
+    let bytes = resp.into_bytes();
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).expect("valid zip archive");
+    let mut names = Vec::new();
+    for i in 0..archive.len() {
+        names.push(archive.by_index(i).unwrap().name().to_string());
+    }
+    assert_eq!(
+        names,
+        vec![
+            "tenant.jsonl".to_string(),
+            "retention_policy.jsonl".to_string(),
+            "entitlements.jsonl".to_string(),
+            "provisioning_requests.jsonl".to_string(),
+            "manifest.json".to_string(),
+        ]
+    );
+
+    let retention: Option<(chrono::DateTime<Utc>,)> =
+        sqlx::query_as("SELECT export_ready_at FROM cp_retention_policies WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_optional(&pool)
+            .await
+            .expect("query export_ready_at");
+    assert!(retention.and_then(|row| Some(row.0)).is_some());
 
     cleanup(&pool, tenant_id).await;
 }
