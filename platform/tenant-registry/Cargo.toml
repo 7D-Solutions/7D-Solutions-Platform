@@ -1,6 +1,6 @@
 [package]
 name = "tenant-registry"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 description = "Tenant CRUD, lifecycle management, plan tiers, and fleet summary"
 publish = ["7d-platform"]
