@@ -3,6 +3,7 @@
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::manifest::Manifest;
+use crate::startup::StartupError;
 
 /// Parse a human-readable body-limit string (e.g. "2mb", "512kb") into bytes.
 /// Falls back to 2 MiB on unrecognised input.
@@ -32,75 +33,120 @@ pub(crate) fn parse_duration_str(s: &str) -> std::time::Duration {
     }
 }
 
-/// CORS layer: manifest `[cors]` section takes priority, then `CORS_ORIGINS` env var fallback.
-pub(crate) fn build_cors_layer(manifest: &Manifest) -> CorsLayer {
-    let env_val = std::env::var("ENV").unwrap_or_else(|_| "development".to_string());
+/// Returns `true` if `pattern` is broad enough to match any origin (wildcard).
+///
+/// Checks common literal wildcards first, then compiles and tests against a
+/// deliberately diverse set of origins — if all match, the pattern is too broad.
+fn is_wildcard_regex(pattern: &str) -> bool {
+    let p = pattern.trim();
+    if matches!(p, ".*" | "^.*$" | "^.+$" | ".+" | "^.*" | ".*$") {
+        return true;
+    }
+    regex::Regex::new(pattern)
+        .map(|re| {
+            let diverse = [
+                "https://evil.com",
+                "ftp://other.net:9999",
+                "http://localhost:1",
+            ];
+            diverse.iter().all(|o| re.is_match(o))
+        })
+        .unwrap_or(false)
+}
 
-    // 1. Manifest cors.origin_pattern → regex predicate
+/// Build a fail-closed CORS layer from the module manifest.
+///
+/// Policy (fail-closed):
+///  1. Manifest `[cors]` section present:
+///     - `origin_pattern` → compile regex; wildcard pattern → `StartupError::Config`.
+///     - `origins` list → explicit allowlist; `"*"` entry → `StartupError::Config`;
+///       empty list → layer that rejects all cross-origin requests (internal-only posture).
+///  2. No manifest `[cors]` section → consult `CORS_ORIGINS` env var as operator override:
+///     - Explicit list → build layer from it.
+///     - `"*"` → `StartupError::Config`.
+///     - Unset → `StartupError::Config` (no policy declared anywhere).
+pub fn build_cors_layer(manifest: &Manifest) -> Result<CorsLayer, StartupError> {
+    let module_name = &manifest.module.name;
+
+    // 1. Manifest cors.origin_pattern takes priority.
     if let Some(ref pattern) = manifest.cors.as_ref().and_then(|c| c.origin_pattern.clone()) {
+        if is_wildcard_regex(pattern) {
+            return Err(StartupError::Config(format!(
+                "module '{module_name}': manifest.cors.origin_pattern '{pattern}' matches all \
+                 origins — use a specific domain pattern that restricts to your allowed origins"
+            )));
+        }
         let re = regex::Regex::new(pattern).expect("manifest validate() ensures valid regex");
         tracing::info!(
-            module = %manifest.module.name,
+            module = %module_name,
             pattern = %pattern,
             "CORS origin_pattern from manifest"
         );
-        return CorsLayer::new()
+        return Ok(CorsLayer::new()
             .allow_origin(AllowOrigin::predicate(move |origin, _| {
                 origin.to_str().map_or(false, |s| re.is_match(s))
             }))
             .allow_methods(tower_http::cors::Any)
             .allow_headers(tower_http::cors::Any)
-            .allow_credentials(false);
+            .allow_credentials(false));
     }
 
-    // 2. Manifest cors.origins → explicit list (or wildcard)
+    // 2. Manifest cors.origins → explicit list (including empty = internal-only).
     if let Some(ref origins) = manifest.cors.as_ref().and_then(|c| c.origins.clone()) {
-        let is_wildcard = origins.len() == 1 && origins[0] == "*";
+        if origins.iter().any(|o| o == "*") {
+            return Err(StartupError::Config(format!(
+                "module '{module_name}': manifest.cors.origins contains '*' — \
+                 wildcard is not permitted; list explicit origins or use origins = [] \
+                 for server-to-server modules"
+            )));
+        }
         tracing::info!(
-            module = %manifest.module.name,
+            module = %module_name,
             count = origins.len(),
             "CORS origins from manifest"
         );
-        let layer = if is_wildcard {
-            CorsLayer::new().allow_origin(AllowOrigin::any())
-        } else {
-            let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
-            CorsLayer::new().allow_origin(parsed)
-        };
-        return layer
+        let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
+        return Ok(CorsLayer::new()
+            .allow_origin(parsed)
             .allow_methods(tower_http::cors::Any)
             .allow_headers(tower_http::cors::Any)
-            .allow_credentials(false);
+            .allow_credentials(false));
     }
 
-    // 3. Fallback: CORS_ORIGINS env var (existing behavior)
-    let cors_env = std::env::var("CORS_ORIGINS").unwrap_or_else(|_| "*".to_string());
-    let origins: Vec<String> = cors_env
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    let is_wildcard = origins.len() == 1 && origins[0] == "*";
-
-    if is_wildcard && env_val != "development" {
-        tracing::warn!(
-            module = %manifest.module.name,
-            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
-        );
+    // 3. No manifest [cors] section — check CORS_ORIGINS env var as operator override.
+    match std::env::var("CORS_ORIGINS") {
+        Ok(cors_env) => {
+            let origins: Vec<String> = cors_env
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if origins.len() == 1 && origins[0] == "*" {
+                return Err(StartupError::Config(format!(
+                    "module '{module_name}': CORS_ORIGINS is set to '*' — \
+                     wildcard operator override is not permitted; \
+                     add a [cors] section to module.toml with explicit origins"
+                )));
+            }
+            tracing::info!(
+                module = %module_name,
+                count = origins.len(),
+                "CORS origins from CORS_ORIGINS env override"
+            );
+            let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
+            Ok(CorsLayer::new()
+                .allow_origin(parsed)
+                .allow_methods(tower_http::cors::Any)
+                .allow_headers(tower_http::cors::Any)
+                .allow_credentials(false))
+        }
+        Err(_) => Err(StartupError::Config(format!(
+            "module '{module_name}' has no [cors] section in module.toml and CORS_ORIGINS \
+             is not set — add a [cors] section: \
+             origins = [] for server-to-server modules, \
+             origins = [\"https://...\"] for browser-facing modules"
+        ))),
     }
-
-    let layer = if is_wildcard {
-        CorsLayer::new().allow_origin(AllowOrigin::any())
-    } else {
-        let parsed: Vec<_> = origins.iter().filter_map(|o| o.parse().ok()).collect();
-        CorsLayer::new().allow_origin(parsed)
-    };
-
-    layer
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any)
-        .allow_credentials(false)
 }
 
 pub(crate) async fn shutdown_signal() {

@@ -65,6 +65,7 @@ pub use platform_services::PlatformService;
 pub use publisher::{ensure_outbox_table, STANDARD_OUTBOX_DDL};
 pub use startup::platform_trace_middleware;
 pub use startup::StartupError;
+pub use startup_helpers::build_cors_layer;
 pub use tenant::{TenantId, TenantPool, TenantPoolGuard};
 pub use tenant_resolver::DefaultTenantResolver;
 

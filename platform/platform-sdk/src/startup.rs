@@ -716,7 +716,7 @@ pub(crate) async fn phase_b(
     };
 
     let app = if !flags.skip_cors {
-        app.layer(build_cors_layer(manifest))
+        app.layer(build_cors_layer(manifest)?)
     } else {
         tracing::info!(module = %module_name, "CORS middleware disabled");
         app

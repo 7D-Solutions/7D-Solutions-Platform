@@ -40,3 +40,6 @@ requests_per_window = 10
 window_seconds = 60
 routes = ["/api/auth", "/api/admin"]
 strategy = "ip_only"
+
+[cors]
+origins = []
