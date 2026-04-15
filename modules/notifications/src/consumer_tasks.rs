@@ -96,7 +96,7 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                         let envelope = envelope_clone.clone();
                         let metadata = metadata_clone.clone();
                         async move {
-                            process_invoice_issued(&consumer, &pool, &msg, &envelope, metadata)
+                            process_invoice_issued(&consumer, &pool, &msg, envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -134,7 +134,7 @@ async fn process_invoice_issued(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
-    envelope: &serde_json::Value,
+    envelope: serde_json::Value,
     metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer
@@ -226,7 +226,7 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
                         let envelope = envelope_clone.clone();
                         let metadata = metadata_clone.clone();
                         async move {
-                            process_payment_succeeded(&consumer, &pool, &msg, &envelope, metadata)
+                            process_payment_succeeded(&consumer, &pool, &msg, envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -264,7 +264,7 @@ async fn process_payment_succeeded(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
-    envelope: &serde_json::Value,
+    envelope: serde_json::Value,
     metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer
@@ -356,7 +356,7 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                         let envelope = envelope_clone.clone();
                         let metadata = metadata_clone.clone();
                         async move {
-                            process_payment_failed(&consumer, &pool, &msg, &envelope, metadata)
+                            process_payment_failed(&consumer, &pool, &msg, envelope, metadata)
                                 .await
                                 .map_err(|e| format!("{:#}", e))
                         }
@@ -394,7 +394,7 @@ async fn process_payment_failed(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
-    envelope: &serde_json::Value,
+    envelope: serde_json::Value,
     metadata: EnvelopeMetadata,
 ) -> Result<(), Box<dyn std::error::Error>> {
     consumer

@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.3.1 | 2026-04-15 | bd-g7zzj | Remove `envelope.payload.clone()` from 5 consumer dispatch arms in `main.rs`. Consumers now move the JSON Value rather than duplicating it per handler arm. | Hot-path memory: every dispatch doubled payload memory regardless of handler body size. | No |
 | 2.3.0 | 2026-04-03 | bd-j8xf6 | Add asset_id (Uuid) and out_of_service (bool) to CalibrationStatusResponse. Contract, client, and openapi.json updated. | Verticals needed extra GET /assets/{id} round-trip per calibration check — now one call returns everything. | No |
 | 2.2.1 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 2.2.0 | 2026-04-02 | bd-29n3k | Add utoipa::path annotations to all 33 HTTP handlers. openapi_dump now produces complete spec (33 paths, 26 schemas). ToSchema added to all request types, IntoParams to query param structs. | Machine-readable OpenAPI spec enables client code generation. | No |

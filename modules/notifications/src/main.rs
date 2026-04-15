@@ -222,7 +222,7 @@ async fn on_invoice_issued(
     }
 
     let payload: InvoiceIssuedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
@@ -267,7 +267,7 @@ async fn on_payment_succeeded(
     }
 
     let payload: PaymentSucceededPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
@@ -312,7 +312,7 @@ async fn on_outbound_shipped(
     }
 
     let payload: OutboundShippedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
@@ -357,7 +357,7 @@ async fn on_outbound_delivered(
     }
 
     let payload: OutboundDeliveredPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
@@ -402,7 +402,7 @@ async fn on_payment_failed(
     }
 
     let payload: PaymentFailedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {

@@ -87,7 +87,7 @@ impl EventConsumer {
         Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>,
     {
         let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
-        self.process_idempotent_with_envelope(&envelope, msg, handler)
+        self.process_idempotent_with_envelope(envelope, msg, handler)
             .await
     }
 
@@ -96,9 +96,12 @@ impl EventConsumer {
     /// Use this variant when the caller has already parsed the envelope (e.g.,
     /// to extract correlation fields for tracing spans), avoiding a redundant
     /// JSON parse per message.
+    ///
+    /// Takes the envelope by value so the payload field can be moved out for
+    /// deserialization, avoiding a deep clone of the payload on the happy path.
     pub async fn process_idempotent_with_envelope<T, F, Fut>(
         &self,
-        envelope: &serde_json::Value,
+        mut envelope: serde_json::Value,
         msg: &BusMessage,
         handler: F,
     ) -> Result<(), Box<dyn std::error::Error>>
@@ -118,12 +121,14 @@ impl EventConsumer {
             .get("source_module")
             .or_else(|| envelope.get("producer"))
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or("unknown")
+            .to_string();
 
         let tenant_id = envelope
             .get("tenant_id")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+            .unwrap_or("unknown")
+            .to_string();
 
         // Check if already processed
         if self.is_processed(event_id).await? {
@@ -135,23 +140,24 @@ impl EventConsumer {
             return Ok(());
         }
 
-        // Deserialize payload — accept both "payload" (Payments envelope) and "data" (AR envelope)
+        // Deserialize payload — accept both "payload" (Payments envelope) and "data" (AR envelope).
+        // Move the sub-value out of the envelope map instead of cloning it.
         let data_value = envelope
-            .get("payload")
-            .or_else(|| envelope.get("data"))
+            .as_object_mut()
+            .and_then(|m| m.remove("payload").or_else(|| m.remove("data")))
             .ok_or_else(|| {
                 format!(
                     "Missing 'payload' or 'data' field in event envelope for {}",
                     msg.subject
                 )
             })?;
-        let payload: T = serde_json::from_value(data_value.clone())?;
+        let payload: T = serde_json::from_value(data_value)?;
 
         // Call handler
         handler(payload).await?;
 
         // Mark as processed
-        self.mark_processed(event_id, &msg.subject, tenant_id, source_module)
+        self.mark_processed(event_id, &msg.subject, &tenant_id, &source_module)
             .await?;
 
         tracing::info!(

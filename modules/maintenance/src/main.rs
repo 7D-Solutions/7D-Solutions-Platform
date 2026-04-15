@@ -335,7 +335,7 @@ async fn on_workcenter_created(
     let pool = ctx.pool();
 
     let payload: WorkcenterCreatedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     upsert_workcenter_projection(
@@ -361,7 +361,7 @@ async fn on_workcenter_updated(
     let pool = ctx.pool();
 
     let payload: WorkcenterUpdatedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let existing_name: Option<(String,)> = sqlx::query_as(
@@ -399,7 +399,7 @@ async fn on_workcenter_deactivated(
     let pool = ctx.pool();
 
     let payload: WorkcenterDeactivatedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let existing: Option<(String, String)> = sqlx::query_as(
@@ -435,7 +435,7 @@ async fn on_downtime_started(
     let pool = ctx.pool();
 
     let payload: DowntimeStartedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     process_downtime_started(pool, envelope.event_id, &payload)
@@ -453,7 +453,7 @@ async fn on_downtime_ended(
     let pool = ctx.pool();
 
     let payload: DowntimeEndedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     process_downtime_ended(pool, envelope.event_id, &payload)
