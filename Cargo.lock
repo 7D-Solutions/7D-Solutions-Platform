@@ -132,7 +132,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.6.2"
+version = "3.6.3"
 dependencies = [
  "async-nats",
  "audit",
@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "6.6.3"
+version = "6.6.4"
 dependencies = [
  "async-nats",
  "audit",
@@ -342,7 +342,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "audit"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "chrono",
  "serde",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.11.1"
+version = "1.11.2"
 dependencies = [
  "argon2",
  "async-nats",
@@ -1095,7 +1095,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "axum",
  "chrono",
@@ -1452,7 +1452,7 @@ dependencies = [
 
 [[package]]
 name = "consolidation"
-version = "2.3.2"
+version = "2.3.3"
 dependencies = [
  "axum",
  "chrono",
@@ -1510,7 +1510,7 @@ dependencies = [
 
 [[package]]
 name = "control-plane"
-version = "1.6.3"
+version = "1.6.4"
 dependencies = [
  "axum",
  "axum-test",
@@ -1787,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "customer-portal"
-version = "2.3.2"
+version = "2.3.3"
 dependencies = [
  "argon2",
  "axum",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "doc_mgmt"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -2204,7 +2204,7 @@ dependencies = [
 
 [[package]]
 name = "event-bus"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "async-nats",
  "async-stream",
@@ -2224,7 +2224,7 @@ dependencies = [
 
 [[package]]
 name = "event-consumer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "async-nats",
  "chrono",
@@ -2355,7 +2355,7 @@ checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "fixed-assets"
-version = "2.1.9"
+version = "2.1.10"
 dependencies = [
  "async-nats",
  "axum",
@@ -2623,7 +2623,7 @@ dependencies = [
 
 [[package]]
 name = "gl-rs"
-version = "3.3.3"
+version = "3.3.4"
 dependencies = [
  "async-nats",
  "audit",
@@ -2814,7 +2814,7 @@ dependencies = [
 
 [[package]]
 name = "health"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "axum",
  "chrono",
@@ -3224,7 +3224,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.7.4"
+version = "2.7.5"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -3272,7 +3272,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.7.2"
+version = "2.7.3"
 dependencies = [
  "axum",
  "chrono",
@@ -3578,7 +3578,7 @@ dependencies = [
 
 [[package]]
 name = "maintenance-rs"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "async-nats",
  "axum",
@@ -3789,7 +3789,7 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 
 [[package]]
 name = "notifications-rs"
-version = "3.3.6"
+version = "3.3.7"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -3955,7 +3955,7 @@ dependencies = [
 
 [[package]]
 name = "numbering"
-version = "2.2.3"
+version = "2.2.4"
 dependencies = [
  "async-nats",
  "axum",
@@ -4076,7 +4076,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.2.5"
+version = "3.2.6"
 dependencies = [
  "async-nats",
  "axum",
@@ -4127,7 +4127,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "5.1.6"
+version = "5.1.7"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4178,7 +4178,7 @@ dependencies = [
 
 [[package]]
 name = "pdf-editor-rs"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4751,7 +4751,7 @@ dependencies = [
 
 [[package]]
 name = "platform_contracts"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "chrono",
  "event-bus",
@@ -4893,7 +4893,7 @@ dependencies = [
 
 [[package]]
 name = "production-rs"
-version = "3.5.2"
+version = "3.5.3"
 dependencies = [
  "audit",
  "axum",
@@ -4941,7 +4941,7 @@ dependencies = [
 
 [[package]]
 name = "projections"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "chrono",
  "futures",
@@ -5031,7 +5031,7 @@ dependencies = [
 
 [[package]]
 name = "quality-inspection-rs"
-version = "3.1.1"
+version = "3.1.2"
 dependencies = [
  "axum",
  "chrono",
@@ -5332,7 +5332,7 @@ dependencies = [
 
 [[package]]
 name = "reporting"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5987,7 +5987,7 @@ dependencies = [
 
 [[package]]
 name = "shipping-receiving-rs"
-version = "3.4.3"
+version = "3.4.4"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -6459,7 +6459,7 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "subscriptions-rs"
-version = "5.2.2"
+version = "5.2.3"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -6579,7 +6579,7 @@ dependencies = [
 
 [[package]]
 name = "tenant-registry"
-version = "1.2.2"
+version = "1.2.3"
 dependencies = [
  "axum",
  "chrono",
@@ -6701,7 +6701,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeping"
-version = "3.0.2"
+version = "3.0.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -7115,7 +7115,7 @@ dependencies = [
 
 [[package]]
 name = "treasury"
-version = "2.1.11"
+version = "2.1.12"
 dependencies = [
  "async-nats",
  "axum",
@@ -7171,7 +7171,7 @@ checksum = "49d64318d8311fc2668e48b63969f4343e0a85c4a109aa8460d6672e364b8bd1"
 
 [[package]]
 name = "ttp-rs"
-version = "4.0.2"
+version = "4.0.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -8091,7 +8091,7 @@ dependencies = [
 
 [[package]]
 name = "workflow"
-version = "2.2.2"
+version = "2.2.3"
 dependencies = [
  "async-nats",
  "axum",
@@ -8123,7 +8123,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.2.0"
+version = "2.2.1"
 dependencies = [
  "axum",
  "chrono",
