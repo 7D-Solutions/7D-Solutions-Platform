@@ -29,25 +29,6 @@ async fn setup_test_db() -> sqlx::PgPool {
         .await
         .expect("Failed to run migrations");
 
-    // `projection_cursors` is defined in platform/projections/db/migrations/ and
-    // is expected to exist in every module that uses ProjectionCursor. The payments
-    // module is missing this migration (tracked in bd-lyxal child bead). Create it
-    // here for the test environment so we can exercise the cursor staleness path.
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS projection_cursors (
-            projection_name        TEXT        NOT NULL,
-            tenant_id              TEXT        NOT NULL,
-            last_event_id          UUID        NOT NULL,
-            last_event_occurred_at TIMESTAMPTZ NOT NULL,
-            events_processed       BIGINT      NOT NULL DEFAULT 0,
-            updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-            PRIMARY KEY (projection_name, tenant_id)
-        )",
-    )
-    .execute(&pool)
-    .await
-    .expect("create projection_cursors for test");
-
     pool
 }
 
