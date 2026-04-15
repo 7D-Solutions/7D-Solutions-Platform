@@ -69,7 +69,11 @@ pub fn build_cors_layer(manifest: &Manifest) -> Result<CorsLayer, StartupError> 
     let module_name = &manifest.module.name;
 
     // 1. Manifest cors.origin_pattern takes priority.
-    if let Some(ref pattern) = manifest.cors.as_ref().and_then(|c| c.origin_pattern.clone()) {
+    if let Some(ref pattern) = manifest
+        .cors
+        .as_ref()
+        .and_then(|c| c.origin_pattern.clone())
+    {
         if is_wildcard_regex(pattern) {
             return Err(StartupError::Config(format!(
                 "module '{module_name}': manifest.cors.origin_pattern '{pattern}' matches all \

@@ -1,6 +1,6 @@
 [package]
 name = "fixed-assets"
-version = "2.1.8"
+version = "2.1.9"
 edition = "2021"
 description = "Fixed asset lifecycle: capitalization, depreciation schedules, and disposals"
 

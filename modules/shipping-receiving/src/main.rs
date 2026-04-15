@@ -98,7 +98,7 @@ async fn on_po_approved(
     let event_id = envelope.event_id;
 
     let payload: consumers::po_approved::PoApprovedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     tracing::info!(event_id = %event_id, "Processing ap.events.ap.po_approved");

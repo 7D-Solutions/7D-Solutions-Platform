@@ -2,9 +2,9 @@ use axum::{routing::get, Extension, Json, Router};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
-use subscriptions_rs::{admin, consumer, http, metrics};
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use security::{permissions, RequirePermissionsLayer};
+use subscriptions_rs::{admin, consumer, http, metrics};
 
 pub struct AppState {
     pub pool: sqlx::PgPool,
@@ -19,9 +19,8 @@ async fn on_invoice_suspended(
     let pool = ctx.pool();
     let event_id = envelope.event_id;
 
-    let payload: consumer::InvoiceSuspendedEvent =
-        serde_json::from_value(envelope.payload.clone())
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: consumer::InvoiceSuspendedEvent = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     tracing::info!(
         event_id = %event_id,
@@ -33,7 +32,9 @@ async fn on_invoice_suspended(
     let event_id_str = event_id.to_string();
     match consumer::handle_invoice_suspended(pool, &event_id_str, &payload).await {
         Ok(true) => tracing::info!(event_id = %event_id, "Processed ar.invoice_suspended"),
-        Ok(false) => tracing::debug!(event_id = %event_id, "Duplicate ar.invoice_suspended, skipped"),
+        Ok(false) => {
+            tracing::debug!(event_id = %event_id, "Duplicate ar.invoice_suspended, skipped")
+        }
         Err(e) => return Err(ConsumerError::Processing(e.to_string())),
     }
 
@@ -55,9 +56,7 @@ async fn main() {
             let subs_metrics =
                 Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
 
-            let ar_client = Arc::new(
-                ctx.platform_client::<platform_client_ar::InvoicesClient>(),
-            );
+            let ar_client = Arc::new(ctx.platform_client::<platform_client_ar::InvoicesClient>());
 
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
@@ -66,12 +65,9 @@ async fn main() {
 
             Router::new()
                 .route("/api/openapi.json", get(openapi_json))
-                .merge(
-                    http::subscriptions_router(ctx.pool().clone())
-                        .route_layer(RequirePermissionsLayer::new(&[
-                            permissions::SUBSCRIPTIONS_MUTATE,
-                        ])),
-                )
+                .merge(http::subscriptions_router(ctx.pool().clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE]),
+                ))
                 .merge(admin::admin_router(ctx.pool().clone()))
                 .layer(Extension(ar_client))
         })

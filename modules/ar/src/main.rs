@@ -1,7 +1,7 @@
 use ar_rs::{consumer_tasks, events, http, metrics, models::PaymentSucceededPayload};
 use axum::Extension;
-use std::sync::Arc;
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use std::sync::Arc;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
@@ -9,20 +9,15 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .consumer(
-            "payments.events.payment.succeeded",
-            on_payment_succeeded,
-        )
+        .consumer("payments.events.payment.succeeded", on_payment_succeeded)
         .routes(|ctx| {
             // Register AR prometheus metrics with the global registry.
             // The SDK's /metrics endpoint uses prometheus::gather() which
             // picks these up automatically.
-            let _ar_metrics =
-                metrics::ArMetrics::new().expect("AR: failed to create metrics");
+            let _ar_metrics = metrics::ArMetrics::new().expect("AR: failed to create metrics");
 
-            let party_client = Arc::new(
-                ctx.platform_client::<platform_client_party::PartiesClient>(),
-            );
+            let party_client =
+                Arc::new(ctx.platform_client::<platform_client_party::PartiesClient>());
 
             // Optional GL pool for period pre-validation.
             // Connects lazily — no startup failure if GL_DATABASE_URL is absent.
@@ -71,9 +66,8 @@ async fn on_payment_succeeded(
     }
 
     // Extract payload from typed envelope
-    let payload: PaymentSucceededPayload =
-        serde_json::from_value(envelope.payload.clone())
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: PaymentSucceededPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     tracing::info!(
         event_id = %event_id,

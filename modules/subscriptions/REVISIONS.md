@@ -22,6 +22,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 5.2.2 | 2026-04-15 | bd-p3duh | Move envelope.payload by value in on_invoice_suspended consumer — replace serde_json::from_value(envelope.payload.clone()) with from_value(envelope.payload). | Payload was heap-copied on every dispatch even though it is consumed once. Same perf fix applied by bd-g7zzj to notifications and maintenance. | No |
 | 5.2.1 | 2026-04-04 | bd-nyb7t | Envelope schema validation implemented | Constitutional envelope compliance — validate EventEnvelope schema on all outbound events | No |
 | 5.2.0 | 2026-04-04 | bd-lyhp3 | SoC: move bill_run_repo and bill_run_service from http/ to domain layers. Add utoipa annotations to health endpoints for G4 compliance. | Separation of concerns + HTTP ergonomics | No |
 | 5.1.0 | 2026-04-02 | bd-39pj0 | Adopt [platform.services] — declare peer deps in module.toml, use ctx.platform_client | VerticalBuilder adoption | No |

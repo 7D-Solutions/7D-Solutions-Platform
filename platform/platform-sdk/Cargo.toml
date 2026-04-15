@@ -13,6 +13,7 @@ platform_contracts = { path = "../platform-contracts" }
 platform-http-contracts = { path = "../http-contracts", features = ["axum"] }
 config-validator = { path = "../config-validator" }
 blob-storage = { path = "../blob-storage" }
+feature-flags = { path = "../feature-flags" }
 
 # Async runtime
 async-trait = "0.1"

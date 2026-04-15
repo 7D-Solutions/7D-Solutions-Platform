@@ -25,6 +25,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.9 | 2026-04-15 | bd-p3duh | Move envelope.payload by value in on_vendor_bill_approved consumer — replace serde_json::from_value(envelope.payload.clone()) with from_value(envelope.payload). | Payload was heap-copied on every dispatch even though it is consumed once. Same perf fix applied by bd-g7zzj to notifications and maintenance. | No |
 | 2.1.8 | 2026-04-04 | bd-xqpmn | SoC: extract 58 sqlx queries from domain services into repo modules (assets, capitalize, depreciation, disposals) | Separation of concerns — isolate persistence from business logic so domain services are testable and DB access is centralized. | No |
 | 2.1.7 | 2026-04-02 | bd-azq84 | Removed local extract_tenant (now in SDK) | Plug-and-play standardization | No |
 | 2.1.6 | 2026-04-02 | bd-9v3vx | Add body= to utoipa response annotations on 13 endpoints (categories CRUD, assets CRUD, depreciation schedule/run, disposals). | OpenAPI specs were missing response schemas, causing codegen to emit Result<(), ClientError> instead of typed responses. | No |

@@ -6,8 +6,8 @@ use std::sync::Arc;
 use utoipa::OpenApi;
 
 use fixed_assets::{consumers, http, metrics, AppState};
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use security::{permissions, RequirePermissionsLayer};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(http::ApiDoc::openapi())
@@ -24,7 +24,7 @@ async fn on_bill_approved(
     let event_id = envelope.event_id;
 
     let payload: consumers::ap_bill_approved::VendorBillApprovedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     tracing::info!(event_id = %event_id, "Processing ap.vendor_bill_approved");
@@ -43,8 +43,7 @@ async fn main() {
         .consumer("ap.events.ap.vendor_bill_approved", on_bill_approved)
         .routes(|ctx| {
             let fa_metrics = Arc::new(
-                metrics::FixedAssetsMetrics::new()
-                    .expect("Fixed Assets: failed to create metrics"),
+                metrics::FixedAssetsMetrics::new().expect("Fixed Assets: failed to create metrics"),
             );
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
