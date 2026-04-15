@@ -5,9 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::db::{
-    party_repo,
-    vendor_qualification_repo,
-    vendor_qualification_repo::UpdateVendorQualificationData,
+    party_repo, vendor_qualification_repo, vendor_qualification_repo::UpdateVendorQualificationData,
 };
 use crate::events::{
     build_vendor_qualification_created_envelope, build_vendor_qualification_updated_envelope,
@@ -130,10 +128,13 @@ pub async fn update_vendor_qualification(
 
     let mut tx = pool.begin().await?;
 
-    let current =
-        vendor_qualification_repo::fetch_vendor_qualification_for_update_tx(&mut tx, app_id, qualification_id)
-            .await?
-            .ok_or(PartyError::NotFound(qualification_id))?;
+    let current = vendor_qualification_repo::fetch_vendor_qualification_for_update_tx(
+        &mut tx,
+        app_id,
+        qualification_id,
+    )
+    .await?
+    .ok_or(PartyError::NotFound(qualification_id))?;
 
     let new_status = req
         .qualification_status

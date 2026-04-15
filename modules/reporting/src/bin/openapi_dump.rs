@@ -19,8 +19,8 @@ use reporting::domain::{
 };
 use reporting::http::{
     admin::{
-        RebuildRequest, CursorStatusSchema, ProjectionStatusSchema,
-        ConsistencyCheckSchema, ProjectionSummarySchema,
+        ConsistencyCheckSchema, CursorStatusSchema, ProjectionStatusSchema,
+        ProjectionSummarySchema, RebuildRequest,
     },
     aging::ArAgingResponse,
 };

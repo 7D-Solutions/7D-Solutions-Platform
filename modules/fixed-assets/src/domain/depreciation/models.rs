@@ -148,9 +148,7 @@ impl From<DepreciationError> for platform_http_contracts::ApiError {
             DepreciationError::UnsupportedMethod(_) => {
                 Self::new(422, "unsupported_method", err.to_string())
             }
-            DepreciationError::Validation(msg) => {
-                Self::new(422, "validation_error", msg.clone())
-            }
+            DepreciationError::Validation(msg) => Self::new(422, "validation_error", msg.clone()),
             DepreciationError::Database(e) => {
                 tracing::error!("Fixed-assets depreciation DB error: {}", e);
                 Self::internal("Internal database error")

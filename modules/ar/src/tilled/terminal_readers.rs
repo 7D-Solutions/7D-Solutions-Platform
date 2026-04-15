@@ -56,7 +56,10 @@ impl TilledClient {
     }
 
     /// Get a terminal reader by ID.
-    pub async fn get_terminal_reader(&self, reader_id: &str) -> Result<TerminalReader, TilledError> {
+    pub async fn get_terminal_reader(
+        &self,
+        reader_id: &str,
+    ) -> Result<TerminalReader, TilledError> {
         let path = format!("/v1/terminal-readers/{reader_id}");
         self.get(&path, None).await
     }
@@ -98,7 +101,7 @@ mod tests {
             "account_id": "acct_456",
             "created_at": "2026-01-01T00:00:00Z"
         });
-        let reader: TerminalReader = serde_json::from_value(value).unwrap();
+        let reader: TerminalReader = serde_json::from_value(value).expect("test fixture");
         assert_eq!(reader.id, "tr_123");
         assert_eq!(reader.label.as_deref(), Some("Front Counter"));
         assert_eq!(reader.device_type.as_deref(), Some("verifone_p400"));
@@ -108,7 +111,7 @@ mod tests {
     #[test]
     fn terminal_reader_deserializes_minimal() {
         let value = serde_json::json!({"id": "tr_min"});
-        let reader: TerminalReader = serde_json::from_value(value).unwrap();
+        let reader: TerminalReader = serde_json::from_value(value).expect("test fixture");
         assert_eq!(reader.id, "tr_min");
         assert!(reader.label.is_none());
         assert!(reader.status.is_none());
@@ -121,7 +124,7 @@ mod tests {
             "status": "online",
             "last_seen_at": "2026-01-15T12:00:00Z"
         });
-        let status: TerminalReaderConnectionStatus = serde_json::from_value(value).unwrap();
+        let status: TerminalReaderConnectionStatus = serde_json::from_value(value).expect("test fixture");
         assert_eq!(status.connected, Some(true));
         assert_eq!(status.status.as_deref(), Some("online"));
     }
@@ -129,7 +132,7 @@ mod tests {
     #[test]
     fn update_request_omits_none_label() {
         let req = UpdateTerminalReaderRequest { label: None };
-        let value = serde_json::to_value(req).unwrap();
+        let value = serde_json::to_value(req).expect("test fixture");
         assert!(value.get("label").is_none());
     }
 
@@ -138,7 +141,7 @@ mod tests {
         let req = UpdateTerminalReaderRequest {
             label: Some("Back Office".to_string()),
         };
-        let value = serde_json::to_value(req).unwrap();
-        assert_eq!(value.get("label").unwrap(), "Back Office");
+        let value = serde_json::to_value(req).expect("test fixture");
+        assert_eq!(value.get("label").expect("test fixture"), "Back Office");
     }
 }

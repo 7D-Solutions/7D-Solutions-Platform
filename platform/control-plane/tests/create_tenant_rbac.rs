@@ -39,9 +39,7 @@ fn make_test_keys() -> TestKeys {
     let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("pub PEM");
     TestKeys {
         encoding: EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key"),
-        verifier: Arc::new(
-            security::JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier"),
-        ),
+        verifier: Arc::new(security::JwtVerifier::from_public_pem(&pub_pem).expect("JWT verifier")),
     }
 }
 
@@ -154,10 +152,7 @@ async fn create_tenant_requires_permission_denied() {
     let pool = test_pool().await;
     let keys = make_test_keys();
     // Token has some other permission but not PLATFORM_TENANTS_CREATE
-    let token = mint_token(
-        &keys.encoding,
-        vec!["ar.mutate".into(), "gl.post".into()],
-    );
+    let token = mint_token(&keys.encoding, vec!["ar.mutate".into(), "gl.post".into()]);
     let server = build_authed_server(pool.clone(), keys.verifier);
 
     let resp = server

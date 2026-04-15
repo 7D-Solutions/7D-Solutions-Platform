@@ -99,7 +99,11 @@ async fn inject_claims(req: Request, next: Next) -> Response {
 /// The `inject_claims` middleware still exercises `extract_tenant`'s 401 guard.
 fn build_test_app(pool: sqlx::PgPool) -> Router {
     let metrics = Arc::new(ApMetrics::new().expect("metrics init"));
-    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        gl_pool: None,
+    });
     Router::new()
         .route("/api/ap/vendors", get(ap::http::vendors::list_vendors))
         .layer(middleware::from_fn(inject_claims))
@@ -165,9 +169,14 @@ async fn tenant_sees_own_vendors() {
     let tid_a = Uuid::new_v4();
 
     // Seed one vendor for tenant A using their UUID as tenant_id.
-    create_vendor(&pool, &tid_a.to_string(), &vendor_req("MW-AP-VendorA"), corr())
-        .await
-        .expect("seed vendor A");
+    create_vendor(
+        &pool,
+        &tid_a.to_string(),
+        &vendor_req("MW-AP-VendorA"),
+        corr(),
+    )
+    .await
+    .expect("seed vendor A");
 
     let app = build_test_app(pool);
     let resp = app

@@ -61,9 +61,8 @@ async fn setup_numbering_db() -> sqlx::PgPool {
 
 async fn setup_bom_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("BOM_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string()
-    });
+    let url = std::env::var("BOM_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(2)
@@ -84,8 +83,7 @@ fn make_test_claims(tenant_id: &str) -> VerifiedClaims {
     use chrono::Duration;
     VerifiedClaims {
         user_id: Uuid::new_v4(),
-        tenant_id: Uuid::parse_str(tenant_id)
-            .unwrap_or_else(|_| Uuid::new_v4()),
+        tenant_id: Uuid::parse_str(tenant_id).unwrap_or_else(|_| Uuid::new_v4()),
         app_id: None,
         roles: vec!["admin".to_string()],
         perms: vec![
@@ -138,19 +136,17 @@ async fn work_order_full_lifecycle() {
     assert!(wo.actual_end.is_none());
 
     // Release
-    let released =
-        WorkOrderRepo::release(&pool, wo.work_order_id, &tenant, &corr, None)
-            .await
-            .expect("release");
+    let released = WorkOrderRepo::release(&pool, wo.work_order_id, &tenant, &corr, None)
+        .await
+        .expect("release");
     assert_eq!(released.status, "released");
     assert!(released.actual_start.is_some());
     assert!(released.actual_end.is_none());
 
     // Close
-    let closed =
-        WorkOrderRepo::close(&pool, wo.work_order_id, &tenant, &corr, None)
-            .await
-            .expect("close");
+    let closed = WorkOrderRepo::close(&pool, wo.work_order_id, &tenant, &corr, None)
+        .await
+        .expect("close");
     assert_eq!(closed.status, "closed");
     assert!(closed.actual_end.is_some());
 }
@@ -375,7 +371,10 @@ async fn duplicate_correlation_id_returns_existing_wo() {
     .await
     .expect("count");
 
-    assert_eq!(count.0, 1, "Duplicate request should not produce extra events");
+    assert_eq!(
+        count.0, 1,
+        "Duplicate request should not produce extra events"
+    );
 }
 
 // ============================================================================
@@ -398,7 +397,11 @@ async fn duplicate_order_number_rejected() {
         .expect_err("should reject duplicate order number");
 
     let msg = format!("{}", err);
-    assert!(msg.contains("WO-DUP"), "Error should mention order number: {}", msg);
+    assert!(
+        msg.contains("WO-DUP"),
+        "Error should mention order number: {}",
+        msg
+    );
 }
 
 // ============================================================================
@@ -453,10 +456,7 @@ async fn create_test_workcenter_for_wo(pool: &sqlx::PgPool, tenant: &str) -> Uui
 }
 
 /// Create a released WO with a one-step routing; return (wo_id, operation_id after initialize).
-async fn setup_released_wo_with_one_op(
-    pool: &sqlx::PgPool,
-    tenant: &str,
-) -> (Uuid, Uuid) {
+async fn setup_released_wo_with_one_op(pool: &sqlx::PgPool, tenant: &str) -> (Uuid, Uuid) {
     let corr = Uuid::new_v4().to_string();
     let wc_id = create_test_workcenter_for_wo(pool, tenant).await;
 
@@ -695,8 +695,7 @@ fn build_test_app_with_bom(
         numbering: Arc::new(numbering),
         bom: Arc::new(bom),
     });
-    production_rs::http::router(state)
-        .layer(middleware::from_fn(inject_production_claims))
+    production_rs::http::router(state).layer(middleware::from_fn(inject_production_claims))
 }
 
 async fn body_json(resp: axum::response::Response<Body>) -> serde_json::Value {
@@ -770,12 +769,10 @@ async fn http_batch_fetch_empty_ids_returns_400() {
 
     let resp = app
         .oneshot(
-            axum::http::Request::get(
-                "/api/production/work-orders?ids=",
-            )
-            .header("x-tenant-id", tenant.to_string())
-            .body(Body::empty())
-            .unwrap(),
+            axum::http::Request::get("/api/production/work-orders?ids=")
+                .header("x-tenant-id", tenant.to_string())
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .expect("request");
@@ -783,10 +780,7 @@ async fn http_batch_fetch_empty_ids_returns_400() {
     assert_eq!(resp.status(), 400);
     let body = body_json(resp).await;
     assert!(
-        body["message"]
-            .as_str()
-            .unwrap_or("")
-            .contains("empty"),
+        body["message"].as_str().unwrap_or("").contains("empty"),
         "body: {}",
         body
     );
@@ -817,10 +811,7 @@ async fn http_batch_fetch_over_50_ids_returns_400() {
     assert_eq!(resp.status(), 400);
     let body = body_json(resp).await;
     assert!(
-        body["message"]
-            .as_str()
-            .unwrap_or("")
-            .contains("50"),
+        body["message"].as_str().unwrap_or("").contains("50"),
         "body: {}",
         body
     );
@@ -1028,18 +1019,25 @@ async fn composite_create_idempotency_returns_same_number() {
         item_id: Uuid::new_v4(),
         ..req
     };
-    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &wo2_req, &claims, &corr2, None)
-        .await;
+    let result =
+        WorkOrderRepo::composite_create(&pool, &numbering, &bom, &wo2_req, &claims, &corr2, None)
+            .await;
 
     // Same number → duplicate order_number → either returns same WO or
     // DuplicateOrderNumber error.  Both outcomes are acceptable; what matters
     // is that the allocated number matches.
     match result {
         Ok(wo2) => {
-            assert_eq!(wo1.order_number, wo2.order_number, "same idempotency_key → same number");
+            assert_eq!(
+                wo1.order_number, wo2.order_number,
+                "same idempotency_key → same number"
+            );
         }
         Err(production_rs::domain::work_orders::WorkOrderError::DuplicateOrderNumber(num, _)) => {
-            assert_eq!(wo1.order_number, num, "duplicate error names the same number");
+            assert_eq!(
+                wo1.order_number, num,
+                "duplicate error names the same number"
+            );
         }
         Err(e) => panic!("Unexpected error: {:?}", e),
     }
@@ -1211,7 +1209,8 @@ async fn composite_create_rejects_draft_bom_revision() {
     };
     let corr = Uuid::new_v4().to_string();
 
-    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
+    let result =
+        WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
 
     match result {
         Err(WorkOrderError::Validation(msg)) => {
@@ -1253,7 +1252,8 @@ async fn composite_create_rejects_missing_bom_revision() {
     };
     let corr = Uuid::new_v4().to_string();
 
-    let result = WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
+    let result =
+        WorkOrderRepo::composite_create(&pool, &numbering, &bom, &req, &claims, &corr, None).await;
 
     match result {
         Err(WorkOrderError::Validation(msg)) => {

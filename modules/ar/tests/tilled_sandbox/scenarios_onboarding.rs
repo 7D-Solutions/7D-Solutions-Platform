@@ -21,13 +21,13 @@ macro_rules! require_partner {
 
 /// Helper: get the merchant account ID from env.
 fn merchant_account_id() -> Option<String> {
-    std::env::var("TILLED_ACCOUNT_ID").ok().filter(|s| !s.is_empty())
+    std::env::var("TILLED_ACCOUNT_ID")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// Helper: get first user ID on partner account for auth-link tests.
-async fn first_partner_user_id(
-    client: &ar_rs::tilled::TilledClient,
-) -> Option<String> {
+async fn first_partner_user_id(client: &ar_rs::tilled::TilledClient) -> Option<String> {
     match client.list_users().await {
         Ok(list) => list.items.into_iter().next().map(|u| u.id),
         Err(e) => {
@@ -91,12 +91,7 @@ async fn create_auth_link_returns_url() {
     let result = retry
         .execute(|| async {
             client
-                .create_auth_link(
-                    user_id.clone(),
-                    "1d".to_string(),
-                    None,
-                    None,
-                )
+                .create_auth_link(user_id.clone(), "1d".to_string(), None, None)
                 .await
         })
         .await;
@@ -104,10 +99,7 @@ async fn create_auth_link_returns_url() {
     match result {
         Ok(link) => {
             assert!(!link.id.is_empty(), "auth link should have an id");
-            assert!(
-                link.url.is_some(),
-                "auth link should have a url"
-            );
+            assert!(link.url.is_some(), "auth link should have a url");
             let url = link.url.as_deref().unwrap();
             assert!(
                 url.contains("tilled.com"),
@@ -136,9 +128,7 @@ async fn get_merchant_application_returns_data() {
     };
 
     let result = retry
-        .execute(|| async {
-            client.get_merchant_application(&acct_id).await
-        })
+        .execute(|| async { client.get_merchant_application(&acct_id).await })
         .await;
 
     match result {
@@ -211,9 +201,7 @@ async fn onboarding_lifecycle_get_app_and_auth_link() {
     };
 
     let app_result = retry
-        .execute(|| async {
-            partner_client.get_merchant_application(&acct_id).await
-        })
+        .execute(|| async { partner_client.get_merchant_application(&acct_id).await })
         .await;
 
     match &app_result {

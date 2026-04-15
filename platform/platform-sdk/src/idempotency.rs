@@ -66,14 +66,9 @@ pub async fn ensure_dedupe_table(
     table_name: &str,
 ) -> Result<(), StartupError> {
     let ddl = DEDUPE_TABLE_DDL.replace("{table}", table_name);
-    sqlx::query(&ddl)
-        .execute(pool)
-        .await
-        .map_err(|e| {
-            StartupError::Database(format!(
-                "failed to create dedup table '{table_name}': {e}"
-            ))
-        })?;
+    sqlx::query(&ddl).execute(pool).await.map_err(|e| {
+        StartupError::Database(format!("failed to create dedup table '{table_name}': {e}"))
+    })?;
     tracing::info!(table = %table_name, "dedup table ensured");
     Ok(())
 }
@@ -97,9 +92,6 @@ pub async fn check_and_mark(
            VALUES ($1, NOW())
            ON CONFLICT (event_id) DO NOTHING"#
     );
-    let result = sqlx::query(&q)
-        .bind(event_id)
-        .execute(&mut **tx)
-        .await?;
+    let result = sqlx::query(&q).bind(event_id).execute(&mut **tx).await?;
     Ok(result.rows_affected() == 1)
 }

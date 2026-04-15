@@ -120,8 +120,7 @@ pub async fn run_billing(
         .await?;
 
     // Re-fetch canonical run_id (another writer may have won the conflict)
-    let canonical =
-        billing_repo::fetch_canonical_run_id(pool, tenant_id, billing_period).await?;
+    let canonical = billing_repo::fetch_canonical_run_id(pool, tenant_id, billing_period).await?;
 
     execute_run(pool, ar_client, tenant_id, canonical, billing_period).await
 }
@@ -327,7 +326,8 @@ mod tests {
         use chrono::NaiveDate;
         use metering::{PriceTrace, TraceLineItem};
 
-        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
+        let tenant_id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
         let trace = PriceTrace {
             tenant_id,
             period: "2026-02".to_string(),

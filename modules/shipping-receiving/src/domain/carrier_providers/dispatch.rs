@@ -22,10 +22,10 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::{credentials, get_provider};
 use crate::domain::carrier_requests::{
     CarrierRequestService, CarrierRequestType, TransitionCarrierRequest,
 };
-use super::{credentials, get_provider};
 
 /// NATS subject for carrier request created events (emitted by SR's own outbox).
 pub const SUBJECT_CARRIER_REQUEST_CREATED: &str = "sr.carrier_request.created";
@@ -90,12 +90,14 @@ pub async fn dispatch_carrier_request(
     payload: &Value,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Guard: idempotency — skip if already past pending
-    let current =
-        CarrierRequestService::find_by_id(pool, carrier_request_id, tenant_id)
-            .await?
-            .ok_or_else(|| {
-                format!("carrier request {} not found for tenant {}", carrier_request_id, tenant_id)
-            })?;
+    let current = CarrierRequestService::find_by_id(pool, carrier_request_id, tenant_id)
+        .await?
+        .ok_or_else(|| {
+            format!(
+                "carrier request {} not found for tenant {}",
+                carrier_request_id, tenant_id
+            )
+        })?;
 
     if current.status != "pending" {
         tracing::info!(
@@ -288,8 +290,8 @@ mod tests {
         // Default uses platform user + NATS_AUTH_TOKEN password.
         // The dev NATS server uses user/password auth (user=platform, pass=$NATS_AUTH_TOKEN).
         std::env::var("NATS_URL").unwrap_or_else(|_| {
-            let pass = std::env::var("NATS_AUTH_TOKEN")
-                .unwrap_or_else(|_| "dev-nats-token".to_string());
+            let pass =
+                std::env::var("NATS_AUTH_TOKEN").unwrap_or_else(|_| "dev-nats-token".to_string());
             format!("nats://platform:{}@localhost:4222", pass)
         })
     }
@@ -361,7 +363,10 @@ mod tests {
             .expect("find failed")
             .expect("not found");
         assert_eq!(updated.status, "completed");
-        assert!(updated.response.is_some(), "response should be set on completed request");
+        assert!(
+            updated.response.is_some(),
+            "response should be set on completed request"
+        );
 
         cleanup(&pool, tenant_id).await;
     }
@@ -448,8 +453,7 @@ mod tests {
         let nats_client = event_bus::connect_nats(&test_nats_url())
             .await
             .expect("Failed to connect to NATS — is NATS running?");
-        let bus: Arc<dyn EventBus> =
-            Arc::new(event_bus::NatsBus::new(nats_client));
+        let bus: Arc<dyn EventBus> = Arc::new(event_bus::NatsBus::new(nats_client));
 
         // Create carrier request in pending state
         let carrier_req =
@@ -477,15 +481,13 @@ mod tests {
             .expect("publish failed");
 
         // Poll until completed (max 5 seconds)
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            let updated =
-                CarrierRequestService::find_by_id(&pool, carrier_req.id, tenant_id)
-                    .await
-                    .expect("find failed")
-                    .expect("not found");
+            let updated = CarrierRequestService::find_by_id(&pool, carrier_req.id, tenant_id)
+                .await
+                .expect("find failed")
+                .expect("not found");
             if updated.status == "completed" {
                 assert!(
                     updated.response.is_some(),
@@ -541,7 +543,9 @@ mod tests {
             .expect("not found");
         assert_eq!(updated.status, "failed");
 
-        let response = updated.response.expect("response must be set on failed request");
+        let response = updated
+            .response
+            .expect("response must be set on failed request");
         let error_msg = response.get("error").and_then(|v| v.as_str()).unwrap_or("");
         assert!(
             error_msg.contains("no provider registered"),
@@ -559,13 +563,8 @@ mod tests {
         let tenant_id: Uuid = TEST_TENANT.parse().expect("valid test tenant UUID");
         cleanup(&pool, tenant_id).await;
 
-        let carrier_req = create_pending_request(
-            &pool,
-            tenant_id,
-            "rate",
-            "test-dispatch-concurrent-001",
-        )
-        .await;
+        let carrier_req =
+            create_pending_request(&pool, tenant_id, "rate", "test-dispatch-concurrent-001").await;
         assert_eq!(carrier_req.status, "pending");
 
         let id = carrier_req.id;

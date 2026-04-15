@@ -22,8 +22,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://maintenance_user:maintenance_pass@localhost:5452/maintenance_db"
-            .to_string()
+        "postgresql://maintenance_user:maintenance_pass@localhost:5452/maintenance_db".to_string()
     });
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -641,7 +640,10 @@ async fn test_calibration_event_validates_result() {
         },
     )
     .await;
-    assert!(err2.is_err(), "due_at before performed_at should be rejected");
+    assert!(
+        err2.is_err(),
+        "due_at before performed_at should be rejected"
+    );
 
     cleanup_tenant(&pool, &t).await;
 }

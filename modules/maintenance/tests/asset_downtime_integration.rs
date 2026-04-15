@@ -369,7 +369,10 @@ async fn test_tenant_isolation() {
     let cross_asset = AssetRepo::find_by_id(&pool, asset_b.id, &tid_a)
         .await
         .unwrap();
-    assert!(cross_asset.is_none(), "Tenant A must not see Tenant B's asset");
+    assert!(
+        cross_asset.is_none(),
+        "Tenant A must not see Tenant B's asset"
+    );
 
     // Tenant B cannot see tenant A's asset
     let cross_asset_rev = AssetRepo::find_by_id(&pool, asset_a.id, &tid_b)
@@ -394,14 +397,21 @@ async fn test_tenant_isolation() {
     .await
     .unwrap();
     for a in &a_assets.items {
-        assert_eq!(a.tenant_id, tid_a, "Asset list must only contain tenant A's assets");
+        assert_eq!(
+            a.tenant_id, tid_a,
+            "Asset list must only contain tenant A's assets"
+        );
     }
 
     // Downtime isolation: tenant A sees zero results when querying tenant B's asset
     let cross_dt = DowntimeRepo::list_for_asset(&pool, asset_b.id, &tid_a)
         .await
         .unwrap();
-    assert_eq!(cross_dt.len(), 0, "Tenant A must not see Tenant B's downtime");
+    assert_eq!(
+        cross_dt.len(),
+        0,
+        "Tenant A must not see Tenant B's downtime"
+    );
 
     let cross_dt_rev = DowntimeRepo::list_for_asset(&pool, asset_a.id, &tid_b)
         .await

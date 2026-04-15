@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,4 +188,3 @@ pub struct TransitionStatusRequest {
     pub shipped_at: Option<chrono::DateTime<chrono::Utc>>,
     pub status: String,
 }
-

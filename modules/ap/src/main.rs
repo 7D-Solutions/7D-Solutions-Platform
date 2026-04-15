@@ -6,8 +6,8 @@ use std::sync::Arc;
 use utoipa::OpenApi;
 
 use ap::{http, metrics, AppState};
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::ModuleBuilder;
+use security::{permissions, RequirePermissionsLayer};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(http::ApiDoc::openapi())

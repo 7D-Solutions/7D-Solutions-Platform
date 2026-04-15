@@ -22,10 +22,7 @@ pub async fn get_by_id(
     .await
 }
 
-pub async fn list_by_tenant(
-    pool: &PgPool,
-    tenant_id: &str,
-) -> Result<Vec<FileJob>, sqlx::Error> {
+pub async fn list_by_tenant(pool: &PgPool, tenant_id: &str) -> Result<Vec<FileJob>, sqlx::Error> {
     sqlx::query_as::<_, FileJob>(
         r#"SELECT id, tenant_id, file_ref, parser_type, status,
                   error_details, idempotency_key, created_at, updated_at

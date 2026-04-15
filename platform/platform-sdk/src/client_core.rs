@@ -305,10 +305,9 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_returns_get_result_when_found() {
-        let result = ensure(
-            async { Ok::<_, ClientError>(42u32) },
-            || async { Ok(99u32) },
-        )
+        let result = ensure(async { Ok::<_, ClientError>(42u32) }, || async {
+            Ok(99u32)
+        })
         .await;
         assert_eq!(result.unwrap(), 42);
     }

@@ -122,7 +122,10 @@ pub async fn insert_schedule_batch(
     let period_numbers: Vec<i32> = periods.iter().map(|p| p.period_number).collect();
     let period_starts: Vec<NaiveDate> = periods.iter().map(|p| p.period_start).collect();
     let period_ends: Vec<NaiveDate> = periods.iter().map(|p| p.period_end).collect();
-    let amounts: Vec<i64> = periods.iter().map(|p| p.depreciation_amount_minor).collect();
+    let amounts: Vec<i64> = periods
+        .iter()
+        .map(|p| p.depreciation_amount_minor)
+        .collect();
     let currencies: Vec<&str> = vec![currency; n];
     let cumulatives: Vec<i64> = periods
         .iter()

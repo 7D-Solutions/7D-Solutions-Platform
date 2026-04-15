@@ -90,18 +90,13 @@ fn create_production_envelope<T>(
     causation_id: Option<String>,
     payload: T,
 ) -> event_bus::EventEnvelope<T> {
-    event_bus::EventEnvelope::new(
-        tenant_id,
-        "production".to_string(),
-        event_type,
-        payload,
-    )
-    .with_source_version(env!("CARGO_PKG_VERSION").to_string())
-    .with_trace_id(Some(correlation_id.clone()))
-    .with_correlation_id(Some(correlation_id))
-    .with_causation_id(causation_id)
-    .with_mutation_class(Some(MUTATION_CLASS_DATA_MUTATION.to_string()))
-    .with_replay_safe(true)
+    event_bus::EventEnvelope::new(tenant_id, "production".to_string(), event_type, payload)
+        .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+        .with_trace_id(Some(correlation_id.clone()))
+        .with_correlation_id(Some(correlation_id))
+        .with_causation_id(causation_id)
+        .with_mutation_class(Some(MUTATION_CLASS_DATA_MUTATION.to_string()))
+        .with_replay_safe(true)
 }
 
 pub fn build_workcenter_created_envelope(
@@ -155,7 +150,9 @@ pub fn build_workcenter_deactivated_envelope(
 ) -> event_bus::EventEnvelope<WorkcenterDeactivatedPayload> {
     create_production_envelope(
         tenant_id.clone(),
-        ProductionEventType::WorkcenterDeactivated.as_str().to_string(),
+        ProductionEventType::WorkcenterDeactivated
+            .as_str()
+            .to_string(),
         correlation_id,
         causation_id,
         WorkcenterDeactivatedPayload {
@@ -517,7 +514,9 @@ pub fn build_component_issue_requested_envelope(
 ) -> event_bus::EventEnvelope<ComponentIssueRequestedPayload> {
     create_production_envelope(
         tenant_id.clone(),
-        ProductionEventType::ComponentIssueRequested.as_str().to_string(),
+        ProductionEventType::ComponentIssueRequested
+            .as_str()
+            .to_string(),
         correlation_id,
         causation_id,
         ComponentIssueRequestedPayload {

@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -123,7 +127,9 @@ async fn smoke_payments() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Payments returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Payments returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -177,7 +183,9 @@ async fn smoke_payments() {
     // --- 2. GET /api/payments/checkout-sessions/{id} ---
     println!("\n--- 2. GET /api/payments/checkout-sessions/{{id}} ---");
     let resp = client
-        .get(format!("{base}/api/payments/checkout-sessions/{session_id}"))
+        .get(format!(
+            "{base}/api/payments/checkout-sessions/{session_id}"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await

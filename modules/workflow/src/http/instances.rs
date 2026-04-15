@@ -19,8 +19,8 @@ use crate::domain::instances::{
 };
 use crate::AppState;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AdvanceResponse {
@@ -79,9 +79,11 @@ pub async fn advance_instance(
     };
     req.tenant_id = tenant_id;
     match InstanceRepo::advance(&state.pool, instance_id, &req).await {
-        Ok((inst, transition)) => {
-            Json(AdvanceResponse { instance: inst, transition }).into_response()
-        }
+        Ok((inst, transition)) => Json(AdvanceResponse {
+            instance: inst,
+            transition,
+        })
+        .into_response(),
         Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }
 }

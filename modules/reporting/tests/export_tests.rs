@@ -24,10 +24,39 @@ async fn csv_export_produces_valid_output_with_correct_row_count() {
     let tid_str = tid.to_string();
 
     // Seed 3 trial-balance rows
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 200_000, 0).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "4000", "Revenue", "USD", 0, 100_000).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "6000", "Rent Expense", "USD", 40_000, 0)
-        .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        200_000,
+        0,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "4000",
+        "Revenue",
+        "USD",
+        0,
+        100_000,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "6000",
+        "Rent Expense",
+        "USD",
+        40_000,
+        0,
+    )
+    .await;
 
     let run = run_export(&pool, &tid_str, "trial_balance", ExportFormat::Csv, None)
         .await
@@ -53,8 +82,28 @@ async fn xlsx_export_produces_valid_output_with_correct_row_count() {
     let tid = unique_tenant();
     let tid_str = tid.to_string();
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 150_000, 0).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "2000", "AP", "USD", 0, 50_000).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        150_000,
+        0,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "2000",
+        "AP",
+        "USD",
+        0,
+        50_000,
+    )
+    .await;
 
     let run = run_export(&pool, &tid_str, "trial_balance", ExportFormat::Xlsx, None)
         .await
@@ -80,7 +129,17 @@ async fn pdf_export_produces_valid_output_without_error() {
     let tid = unique_tenant();
     let tid_str = tid.to_string();
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 300_000, 0).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        300_000,
+        0,
+    )
+    .await;
 
     let run = run_export(&pool, &tid_str, "trial_balance", ExportFormat::Pdf, None)
         .await
@@ -107,7 +166,17 @@ async fn tenant_isolation_export_runs_invisible_across_tenants() {
     let tenant_b = unique_tenant().to_string();
 
     // Seed data and run export for tenant A
-    seed_trial_balance(&pool, &tenant_a, "2026-01-31", "1000", "Cash", "USD", 100_000, 0).await;
+    seed_trial_balance(
+        &pool,
+        &tenant_a,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        100_000,
+        0,
+    )
+    .await;
     let run_a = run_export(&pool, &tenant_a, "trial_balance", ExportFormat::Csv, None)
         .await
         .expect("Tenant A export should succeed");
@@ -142,7 +211,17 @@ async fn idempotent_export_request_does_not_create_duplicate() {
     let tid_str = tid.to_string();
     let key = format!("idem-{}", uuid::Uuid::new_v4());
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 50_000, 0).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        50_000,
+        0,
+    )
+    .await;
 
     // First request
     let run1 = run_export(
@@ -166,7 +245,10 @@ async fn idempotent_export_request_does_not_create_duplicate() {
     .await
     .expect("Second export should return existing");
 
-    assert_eq!(run1.id, run2.id, "Same idempotency key must return same run");
+    assert_eq!(
+        run1.id, run2.id,
+        "Same idempotency key must return same run"
+    );
 
     // Verify only one run exists
     let runs = list_export_runs(&pool, &tid_str)
@@ -186,8 +268,28 @@ async fn outbox_event_emitted_with_format_row_count_and_tenant_id() {
     let tid = unique_tenant();
     let tid_str = tid.to_string();
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 75_000, 0).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "4000", "Revenue", "USD", 0, 60_000).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        75_000,
+        0,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "4000",
+        "Revenue",
+        "USD",
+        0,
+        60_000,
+    )
+    .await;
 
     let run = run_export(&pool, &tid_str, "trial_balance", ExportFormat::Xlsx, None)
         .await

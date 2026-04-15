@@ -90,7 +90,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         req
     };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT -> 401 OK");
 }
 
@@ -154,15 +158,23 @@ async fn smoke_ar_tax_aging_admin() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 201, "expected 201 for jurisdiction create, got {status}: {body}");
-    let jur_id = body["id"].as_str().expect("jurisdiction.id missing").to_string();
+    assert_eq!(
+        status, 201,
+        "expected 201 for jurisdiction create, got {status}: {body}"
+    );
+    let jur_id = body["id"]
+        .as_str()
+        .expect("jurisdiction.id missing")
+        .to_string();
     println!("  created jurisdiction id={jur_id}");
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/tax/config/jurisdictions"),
         Some(jur_body),
-    ).await;
+    )
+    .await;
 
     // --- 2. GET /api/ar/tax/config/jurisdictions/{id} ---
     println!("\n--- 2. GET /api/ar/tax/config/jurisdictions/{{id}} ---");
@@ -179,10 +191,12 @@ async fn smoke_ar_tax_aging_admin() {
     println!("  retrieved jurisdiction id={jur_id}");
 
     assert_unauth(
-        &client, "GET",
+        &client,
+        "GET",
         &format!("{base}/api/ar/tax/config/jurisdictions/{jur_id}"),
         None,
-    ).await;
+    )
+    .await;
 
     // =========================================================================
     // TAX CONFIGURATION — Rules
@@ -208,15 +222,20 @@ async fn smoke_ar_tax_aging_admin() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 201, "expected 201 for rule create, got {status}: {body}");
+    assert_eq!(
+        status, 201,
+        "expected 201 for rule create, got {status}: {body}"
+    );
     let rule_id = body["id"].as_str().expect("rule.id missing").to_string();
     println!("  created rule id={rule_id}");
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/tax/config/rules"),
         Some(rule_body),
-    ).await;
+    )
+    .await;
 
     // --- 4. GET /api/ar/tax/config/rules/{id} ---
     println!("\n--- 4. GET /api/ar/tax/config/rules/{{id}} ---");
@@ -233,10 +252,12 @@ async fn smoke_ar_tax_aging_admin() {
     println!("  retrieved rule id={rule_id}");
 
     assert_unauth(
-        &client, "GET",
+        &client,
+        "GET",
         &format!("{base}/api/ar/tax/config/rules/{rule_id}"),
         None,
-    ).await;
+    )
+    .await;
 
     // =========================================================================
     // TAX REPORTS
@@ -245,7 +266,9 @@ async fn smoke_ar_tax_aging_admin() {
     // --- 5. GET /api/ar/tax/reports/export ---
     println!("\n--- 5. GET /api/ar/tax/reports/export ---");
     let resp = client
-        .get(format!("{base}/api/ar/tax/reports/export?from=2025-01-01&to=2026-12-31&format=json"))
+        .get(format!(
+            "{base}/api/ar/tax/reports/export?from=2025-01-01&to=2026-12-31&format=json"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -253,20 +276,29 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for tax export");
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(body.get("rows").is_some() || body.get("app_id").is_some(),
-        "tax export response missing expected fields: {body}");
-    println!("  tax export -> {status}, total_tax={}", body.get("total_tax_minor").unwrap_or(&json!(0)));
+    assert!(
+        body.get("rows").is_some() || body.get("app_id").is_some(),
+        "tax export response missing expected fields: {body}"
+    );
+    println!(
+        "  tax export -> {status}, total_tax={}",
+        body.get("total_tax_minor").unwrap_or(&json!(0))
+    );
 
     assert_unauth(
-        &client, "GET",
+        &client,
+        "GET",
         &format!("{base}/api/ar/tax/reports/export?from=2025-01-01&to=2026-12-31"),
         None,
-    ).await;
+    )
+    .await;
 
     // --- 6. GET /api/ar/tax/reports/summary ---
     println!("\n--- 6. GET /api/ar/tax/reports/summary ---");
     let resp = client
-        .get(format!("{base}/api/ar/tax/reports/summary?from=2025-01-01&to=2026-12-31"))
+        .get(format!(
+            "{base}/api/ar/tax/reports/summary?from=2025-01-01&to=2026-12-31"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -274,14 +306,22 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for tax summary");
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(body.get("rows").is_some(), "tax summary missing rows field: {body}");
-    println!("  tax summary -> {status}, total_invoices={}", body.get("total_invoices").unwrap_or(&json!(0)));
+    assert!(
+        body.get("rows").is_some(),
+        "tax summary missing rows field: {body}"
+    );
+    println!(
+        "  tax summary -> {status}, total_invoices={}",
+        body.get("total_invoices").unwrap_or(&json!(0))
+    );
 
     assert_unauth(
-        &client, "GET",
+        &client,
+        "GET",
         &format!("{base}/api/ar/tax/reports/summary?from=2025-01-01&to=2026-12-31"),
         None,
-    ).await;
+    )
+    .await;
 
     // =========================================================================
     // AGING
@@ -298,11 +338,17 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for aging report");
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(body.get("aging").is_some(), "aging response missing 'aging' field: {body}");
-    println!("  aging report -> {status}, buckets={}", match body.get("aging") {
-        Some(Value::Array(a)) => a.len(),
-        _ => 0,
-    });
+    assert!(
+        body.get("aging").is_some(),
+        "aging response missing 'aging' field: {body}"
+    );
+    println!(
+        "  aging report -> {status}, buckets={}",
+        match body.get("aging") {
+            Some(Value::Array(a)) => a.len(),
+            _ => 0,
+        }
+    );
 
     assert_unauth(&client, "GET", &format!("{base}/api/ar/aging"), None).await;
 
@@ -331,13 +377,18 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for aging refresh, got {status}");
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    println!("  aging refresh -> {status}, customer_id={customer_id}, snapshot={}", body.get("customer_id").unwrap_or(&json!(null)));
+    println!(
+        "  aging refresh -> {status}, customer_id={customer_id}, snapshot={}",
+        body.get("customer_id").unwrap_or(&json!(null))
+    );
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/aging/refresh"),
         Some(refresh_body),
-    ).await;
+    )
+    .await;
 
     // =========================================================================
     // RECONCILIATION
@@ -356,16 +407,21 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for recon poll, got {status}");
     let body: Value = resp.json().await.unwrap_or(json!([]));
-    println!("  recon poll -> {status}, outcomes={}", match &body {
-        Value::Array(a) => a.len(),
-        _ => 0,
-    });
+    println!(
+        "  recon poll -> {status}, outcomes={}",
+        match &body {
+            Value::Array(a) => a.len(),
+            _ => 0,
+        }
+    );
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/recon/poll"),
         Some(poll_body),
-    ).await;
+    )
+    .await;
 
     // --- 10. POST /api/ar/recon/run ---
     println!("\n--- 10. POST /api/ar/recon/run ---");
@@ -380,18 +436,25 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for recon run, got {status}");
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    println!("  recon run -> {status}, matched={}", body.get("matched_count").unwrap_or(&json!(0)));
+    println!(
+        "  recon run -> {status}, matched={}",
+        body.get("matched_count").unwrap_or(&json!(0))
+    );
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/recon/run"),
         Some(run_body),
-    ).await;
+    )
+    .await;
 
     // --- 11. POST /api/ar/recon/schedule ---
     println!("\n--- 11. POST /api/ar/recon/schedule ---");
     let now = Utc::now().naive_utc();
-    let window_start = (now - chrono::Duration::hours(1)).format("%Y-%m-%dT%H:%M:%S").to_string();
+    let window_start = (now - chrono::Duration::hours(1))
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
     let window_end = now.format("%Y-%m-%dT%H:%M:%S").to_string();
     let schedule_body = json!({
         "scheduled_run_id": Uuid::new_v4(),
@@ -411,10 +474,12 @@ async fn smoke_ar_tax_aging_admin() {
     println!("  recon schedule -> {status}");
 
     assert_unauth(
-        &client, "POST",
+        &client,
+        "POST",
         &format!("{base}/api/ar/recon/schedule"),
         Some(schedule_body),
-    ).await;
+    )
+    .await;
 
     // =========================================================================
     // EVENTS
@@ -431,10 +496,13 @@ async fn smoke_ar_tax_aging_admin() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for events list");
     let body: Value = resp.json().await.unwrap_or(json!([]));
-    println!("  events list -> {status}, count={}", match &body {
-        Value::Array(a) => a.len(),
-        _ => 0,
-    });
+    println!(
+        "  events list -> {status}, count={}",
+        match &body {
+            Value::Array(a) => a.len(),
+            _ => 0,
+        }
+    );
 
     assert_unauth(&client, "GET", &format!("{base}/api/ar/events"), None).await;
 
@@ -450,7 +518,13 @@ async fn smoke_ar_tax_aging_admin() {
     assert_eq!(status, 404, "expected 404 for nonexistent event");
     println!("  nonexistent event -> 404 OK");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/events/999999"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/events/999999"),
+        None,
+    )
+    .await;
 
     // =========================================================================
     // ADMIN (X-Admin-Token protected, not JWT)
@@ -473,8 +547,10 @@ async fn smoke_ar_tax_aging_admin() {
             .await
             .unwrap();
         let status = resp.status().as_u16();
-        assert!(status == 200 || status == 500,
-            "expected 200/500 for consistency-check, got {status}");
+        assert!(
+            status == 200 || status == 500,
+            "expected 200/500 for consistency-check, got {status}"
+        );
         println!("  consistency-check -> {status}");
     }
     // No token -> 403
@@ -484,7 +560,11 @@ async fn smoke_ar_tax_aging_admin() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status().as_u16(), 403, "expected 403 without admin token");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "expected 403 without admin token"
+    );
     println!("  no admin token -> 403 OK");
 
     // --- 15. POST /api/ar/admin/projection-status ---
@@ -499,8 +579,10 @@ async fn smoke_ar_tax_aging_admin() {
             .await
             .unwrap();
         let status = resp.status().as_u16();
-        assert!(status == 200 || status == 500,
-            "expected 200/500 for projection-status, got {status}");
+        assert!(
+            status == 200 || status == 500,
+            "expected 200/500 for projection-status, got {status}"
+        );
         println!("  projection-status -> {status}");
     }
     let resp = client
@@ -509,7 +591,11 @@ async fn smoke_ar_tax_aging_admin() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status().as_u16(), 403, "expected 403 without admin token");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "expected 403 without admin token"
+    );
     println!("  no admin token -> 403 OK");
 
     // --- 16. GET /api/ar/admin/projections ---
@@ -522,8 +608,10 @@ async fn smoke_ar_tax_aging_admin() {
             .await
             .unwrap();
         let status = resp.status().as_u16();
-        assert!(status == 200 || status == 500,
-            "expected 200/500 for projections list, got {status}");
+        assert!(
+            status == 200 || status == 500,
+            "expected 200/500 for projections list, got {status}"
+        );
         println!("  projections list -> {status}");
     }
     let resp = client
@@ -531,7 +619,11 @@ async fn smoke_ar_tax_aging_admin() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status().as_u16(), 403, "expected 403 without admin token");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "expected 403 without admin token"
+    );
     println!("  no admin token -> 403 OK");
 
     println!("\n=== All 16 AR tax/aging/recon/admin smoke tests passed ===");

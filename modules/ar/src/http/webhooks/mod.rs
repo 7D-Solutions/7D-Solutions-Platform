@@ -78,7 +78,10 @@ pub async fn receive_tilled_webhook(
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
         .or_else(|_| std::env::var("TILLED_WEBHOOK_SECRET"))
         .map_err(|_| {
-            tracing::error!(error_code = "OPERATION_FAILED", "TILLED_WEBHOOK_SECRET not configured — rejecting webhook");
+            tracing::error!(
+                error_code = "OPERATION_FAILED",
+                "TILLED_WEBHOOK_SECRET not configured — rejecting webhook"
+            );
             ApiError::internal("Webhook secret not configured")
         })?;
 

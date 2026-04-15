@@ -229,10 +229,7 @@ pub async fn update_metadata<'e>(
 }
 
 /// Soft-delete a payment method.
-pub async fn soft_delete<'e>(
-    executor: impl PgExecutor<'e>,
-    id: i32,
-) -> Result<(), sqlx::Error> {
+pub async fn soft_delete<'e>(executor: impl PgExecutor<'e>, id: i32) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE ar_payment_methods

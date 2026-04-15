@@ -11,7 +11,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::pagination::PaginationQuery;
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::workcenters::{
@@ -19,6 +18,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 /// POST /api/production/workcenters
 #[utoipa::path(
@@ -78,10 +78,8 @@ pub async fn get_workcenter(
     };
     match WorkcenterRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(wc)) => (StatusCode::OK, Json(wc)).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Workcenter not found"), &tracing_ctx)
-                .into_response()
-        }
+        Ok(None) => with_request_id(ApiError::not_found("Workcenter not found"), &tracing_ctx)
+            .into_response(),
         Err(e) => {
             let api_err: ApiError = e.into();
             with_request_id(api_err, &tracing_ctx).into_response()

@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying income statement (P&L) reports.
 
 use crate::AppState;
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -11,9 +14,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize)]
 pub struct IncomeStatementQuery {

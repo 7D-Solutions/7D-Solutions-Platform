@@ -14,10 +14,10 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::domain::config::{self, models::*, service, service_rules};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Groups

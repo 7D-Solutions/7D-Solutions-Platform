@@ -83,15 +83,13 @@ pub async fn get_allocation(
     id: Uuid,
     app_id: &str,
 ) -> Result<Option<Allocation>, AllocationError> {
-    Ok(
-        sqlx::query_as::<_, Allocation>(
-            "SELECT * FROM tk_allocations WHERE id = $1 AND app_id = $2",
-        )
-        .bind(id)
-        .bind(app_id)
-        .fetch_optional(pool)
-        .await?,
+    Ok(sqlx::query_as::<_, Allocation>(
+        "SELECT * FROM tk_allocations WHERE id = $1 AND app_id = $2",
     )
+    .bind(id)
+    .bind(app_id)
+    .fetch_optional(pool)
+    .await?)
 }
 
 pub async fn list_allocations(

@@ -473,11 +473,18 @@ async fn test_idempotency_explicit_key_returns_existing() {
     .await
     .expect("Failed to query existing session");
 
-    assert!(existing.is_some(), "Must find existing session by idempotency_key");
+    assert!(
+        existing.is_some(),
+        "Must find existing session by idempotency_key"
+    );
     let (found_id, found_pi, found_secret) = existing.unwrap();
     assert_eq!(found_id, session_id, "Must return same session_id");
     assert_eq!(found_pi, pi_id, "Must return same payment_intent_id");
-    assert_eq!(found_secret.as_deref(), Some(secret.as_str()), "Must return stored client_secret");
+    assert_eq!(
+        found_secret.as_deref(),
+        Some(secret.as_str()),
+        "Must return stored client_secret"
+    );
 
     cleanup_sessions(&pool, &tenant_id).await;
 }
@@ -539,7 +546,8 @@ async fn test_idempotency_invoice_id_as_natural_key() {
     );
     let err_msg = dup_result.unwrap_err().to_string();
     assert!(
-        err_msg.contains("duplicate key") || err_msg.contains("uq_checkout_sessions_tenant_idem_key"),
+        err_msg.contains("duplicate key")
+            || err_msg.contains("uq_checkout_sessions_tenant_idem_key"),
         "Error must reference the unique constraint, got: {err_msg}"
     );
 
@@ -615,15 +623,17 @@ async fn test_idempotency_different_keys_create_separate_sessions() {
     .await
     .expect("Failed to insert session B");
 
-    assert_ne!(session_a, session_b, "Different keys must produce different sessions");
+    assert_ne!(
+        session_a, session_b,
+        "Different keys must produce different sessions"
+    );
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM checkout_sessions WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM checkout_sessions WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count");
     assert_eq!(count, 2);
 
     cleanup_sessions(&pool, &tenant_id).await;

@@ -105,7 +105,11 @@ pub async fn seed_numbering_policies(
         }
 
         tracker.record_numbering_policy(policy.entity, policy.prefix);
-        info!(entity = policy.entity, prefix = policy.prefix, "Created numbering policy");
+        info!(
+            entity = policy.entity,
+            prefix = policy.prefix,
+            "Created numbering policy"
+        );
         entities.push(policy.entity.to_string());
     }
 
@@ -150,6 +154,10 @@ mod tests {
         let mut entities: Vec<&str> = POLICIES.iter().map(|p| p.entity).collect();
         entities.sort();
         entities.dedup();
-        assert_eq!(entities.len(), POLICIES.len(), "Duplicate entity names found");
+        assert_eq!(
+            entities.len(),
+            POLICIES.len(),
+            "Duplicate entity names found"
+        );
     }
 }

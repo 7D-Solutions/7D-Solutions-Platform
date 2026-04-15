@@ -104,7 +104,9 @@ async fn dispose_sale_computes_gain() {
         created_by: None,
     };
 
-    let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
+    let d = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("dispose failed");
     assert_eq!(d.disposal_type, "sale");
     assert_eq!(d.net_book_value_at_disposal_minor, 60000);
     assert_eq!(d.proceeds_minor, 80000);
@@ -141,7 +143,9 @@ async fn dispose_scrap_computes_loss() {
         created_by: None,
     };
 
-    let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
+    let d = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("dispose failed");
     assert_eq!(d.disposal_type, "scrap");
     assert_eq!(d.gain_loss_minor, -60000);
 
@@ -167,8 +171,12 @@ async fn dispose_is_idempotent() {
         created_by: None,
     };
 
-    let d1 = DisposalService::dispose(&pool, &req).await.expect("dispose d1 failed");
-    let d2 = DisposalService::dispose(&pool, &req).await.expect("dispose d2 failed");
+    let d1 = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("dispose d1 failed");
+    let d2 = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("dispose d2 failed");
     assert_eq!(d1.id, d2.id, "idempotent — same disposal returned");
 
     cleanup(&pool).await;
@@ -193,7 +201,9 @@ async fn impairment_sets_impaired_status() {
         created_by: None,
     };
 
-    let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
+    let d = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("dispose failed");
     assert_eq!(d.disposal_type, "impairment");
     assert_eq!(d.gain_loss_minor, -60000);
 

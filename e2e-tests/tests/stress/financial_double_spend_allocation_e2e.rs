@@ -56,7 +56,12 @@ async fn create_customer(pool: &PgPool, tenant_id: &str) -> i32 {
 }
 
 /// Insert a test invoice and return its ID.
-async fn create_invoice(pool: &PgPool, tenant_id: &str, customer_id: i32, amount_cents: i64) -> i32 {
+async fn create_invoice(
+    pool: &PgPool,
+    tenant_id: &str,
+    customer_id: i32,
+    amount_cents: i64,
+) -> i32 {
     sqlx::query_scalar::<_, i32>(
         r#"
         INSERT INTO ar_invoices (
@@ -185,16 +190,20 @@ async fn financial_double_spend_allocation_e2e() {
     let elapsed = start.elapsed();
 
     // --- Analyze results ---
-    let total_allocated_from_responses: i64 = outcomes
-        .iter()
-        .map(|o| o.allocated_cents as i64)
-        .sum();
+    let total_allocated_from_responses: i64 =
+        outcomes.iter().map(|o| o.allocated_cents as i64).sum();
     let successful_count = outcomes.iter().filter(|o| o.allocated_cents > 0).count();
-    let zero_count = outcomes.iter().filter(|o| o.allocated_cents == 0 && !o.is_error).count();
+    let zero_count = outcomes
+        .iter()
+        .filter(|o| o.allocated_cents == 0 && !o.is_error)
+        .count();
     let error_count = outcomes.iter().filter(|o| o.is_error).count();
 
     println!("completed in {:?}", elapsed);
-    println!("  successful allocations: {} (allocated > 0)", successful_count);
+    println!(
+        "  successful allocations: {} (allocated > 0)",
+        successful_count
+    );
     println!("  zero allocations (SKIP LOCKED): {}", zero_count);
     println!("  errors: {}", error_count);
     println!(
@@ -272,7 +281,8 @@ async fn financial_double_spend_allocation_e2e() {
 
     // --- Assertion 5: Response totals match DB totals ---
     assert_eq!(
-        total_allocated_from_responses, db_total_allocated,
+        total_allocated_from_responses,
+        db_total_allocated,
         "response total (${:.2}) must match DB total (${:.2})",
         total_allocated_from_responses as f64 / 100.0,
         db_total_allocated as f64 / 100.0
@@ -286,7 +296,10 @@ async fn financial_double_spend_allocation_e2e() {
         remaining as f64 / 100.0
     );
 
-    println!("\n  invoice remaining balance: ${:.2}", remaining as f64 / 100.0);
+    println!(
+        "\n  invoice remaining balance: ${:.2}",
+        remaining as f64 / 100.0
+    );
     println!("  conservation invariant: PASSED");
 
     cleanup_tenant(pool.as_ref(), &tenant_id).await;

@@ -1,8 +1,6 @@
 use crate::{
-    clients::tenant_registry::TenantGate,
-    middleware::tracing::get_trace_id_from_extensions,
+    clients::tenant_registry::TenantGate, middleware::tracing::get_trace_id_from_extensions,
 };
-use event_bus::EventEnvelope;
 use axum::{
     extract::State,
     http::{Extensions, StatusCode},
@@ -10,6 +8,7 @@ use axum::{
     Json,
 };
 use chrono::{Duration, Utc};
+use event_bus::EventEnvelope;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::sync::Arc;
@@ -352,11 +351,7 @@ pub async fn refresh(
 
     if state
         .events
-        .publish(
-            "auth.token_refreshed",
-            "auth.token.refreshed.v1.json",
-            &env,
-        )
+        .publish("auth.token_refreshed", "auth.token.refreshed.v1.json", &env)
         .await
         .is_err()
     {

@@ -29,11 +29,7 @@ async fn nats_client() -> async_nats::Client {
 
 /// Create a short-lived test stream with the given dedup window.
 /// Returns the stream name.
-async fn create_test_stream(
-    js: &jetstream::Context,
-    tag: &str,
-    dedup_window: Duration,
-) -> String {
+async fn create_test_stream(js: &jetstream::Context, tag: &str, dedup_window: Duration) -> String {
     let name = format!("TEST_DEDUP_{}", tag.to_uppercase());
     let subject = format!("test.dedup.{}.>", tag);
 
@@ -93,9 +89,7 @@ async fn duplicate_within_window_is_flagged() {
     let ack2 = js
         .send_publish(
             subject.clone(),
-            Publish::build()
-                .payload(payload.into())
-                .message_id(&msg_id),
+            Publish::build().payload(payload.into()).message_id(&msg_id),
         )
         .await
         .expect("publish 2")
@@ -169,9 +163,7 @@ async fn after_window_expiry_same_id_is_processed_again() {
     let ack3 = js
         .send_publish(
             subject.clone(),
-            Publish::build()
-                .payload(payload.into())
-                .message_id(&msg_id),
+            Publish::build().payload(payload.into()).message_id(&msg_id),
         )
         .await
         .expect("publish 3 (post-window)")
@@ -217,7 +209,8 @@ async fn platform_streams_have_configured_dedup_windows() {
         let expected_window = def.class.dedup_window();
 
         assert_eq!(
-            configured_window, expected_window,
+            configured_window,
+            expected_window,
             "stream '{}' (class={}) has dedup_window={:?}, expected {:?}",
             def.name,
             def.class.label(),

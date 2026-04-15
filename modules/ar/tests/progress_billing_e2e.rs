@@ -104,13 +104,12 @@ async fn milestone_invoice_e2e() {
             assert_eq!(inv_amount, 30000);
 
             // Verify milestone reference in invoice metadata
-            let metadata: serde_json::Value = sqlx::query_scalar(
-                "SELECT metadata FROM ar_invoices WHERE id = $1",
-            )
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch metadata");
+            let metadata: serde_json::Value =
+                sqlx::query_scalar("SELECT metadata FROM ar_invoices WHERE id = $1")
+                    .bind(invoice_id)
+                    .fetch_one(&pool)
+                    .await
+                    .expect("fetch metadata");
             assert_eq!(metadata["milestone_name"], "Foundation");
         }
         _ => panic!("Expected Invoiced result"),
@@ -275,13 +274,7 @@ async fn tenant_isolation() {
 
     // Create contract and milestone under tenant A
     let _cust_a = common::seed_customer(&pool, app_a).await;
-    setup_contract_with_milestones(
-        &pool,
-        app_a,
-        100000,
-        &[(m1, "Milestone A", 50, 50000)],
-    )
-    .await;
+    setup_contract_with_milestones(&pool, app_a, 100000, &[(m1, "Milestone A", 50, 50000)]).await;
 
     // Query milestones as tenant B — should find nothing
     let contract_b_result = sqlx::query_scalar::<_, i64>(
@@ -300,7 +293,10 @@ async fn tenant_isolation() {
     .fetch_one(&pool)
     .await
     .expect("count milestones for tenant b");
-    assert_eq!(milestones_b_result, 0, "tenant B should see zero milestones");
+    assert_eq!(
+        milestones_b_result, 0,
+        "tenant B should see zero milestones"
+    );
 }
 
 // ============================================================================
@@ -313,13 +309,9 @@ async fn idempotency_no_duplicate_invoice() {
     let app_id = "tenant-pb-idem";
     let m1 = Uuid::new_v4();
     let idem_key = Uuid::new_v4();
-    let contract_id = setup_contract_with_milestones(
-        &pool,
-        app_id,
-        100000,
-        &[(m1, "Milestone 1", 30, 30000)],
-    )
-    .await;
+    let contract_id =
+        setup_contract_with_milestones(&pool, app_id, 100000, &[(m1, "Milestone 1", 30, 30000)])
+            .await;
 
     // First billing
     let r1 = bill_milestone(
@@ -366,7 +358,10 @@ async fn idempotency_no_duplicate_invoice() {
     .fetch_one(&pool)
     .await
     .expect("count invoices");
-    assert_eq!(invoice_count, 1, "should have exactly 1 invoice, not a duplicate");
+    assert_eq!(
+        invoice_count, 1,
+        "should have exactly 1 invoice, not a duplicate"
+    );
 }
 
 // ============================================================================

@@ -4,10 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use crate::{
-    domain::lots_serials::issue as ls_issue,
-    events::contracts::ConsumedLayer,
-};
+use crate::{domain::lots_serials::issue as ls_issue, events::contracts::ConsumedLayer};
 
 use super::types::{IdempotencyRecord, IssueError, IssueRequest, IssueResult};
 
@@ -192,10 +189,16 @@ mod tests {
         ];
         let consumed = build_consumed_from_serials(&locked);
         assert_eq!(consumed.len(), 2);
-        let entry_a = consumed.iter().find(|c| c.layer_id == layer_a).expect("layer_a");
+        let entry_a = consumed
+            .iter()
+            .find(|c| c.layer_id == layer_a)
+            .expect("layer_a");
         assert_eq!(entry_a.quantity, 2);
         assert_eq!(entry_a.extended_cost_minor, 2000);
-        let entry_b = consumed.iter().find(|c| c.layer_id == layer_b).expect("layer_b");
+        let entry_b = consumed
+            .iter()
+            .find(|c| c.layer_id == layer_b)
+            .expect("layer_b");
         assert_eq!(entry_b.quantity, 1);
         assert_eq!(entry_b.extended_cost_minor, 2000);
     }

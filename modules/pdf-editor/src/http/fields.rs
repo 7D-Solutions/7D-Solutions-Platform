@@ -22,8 +22,8 @@ use crate::domain::forms::{
     CreateFieldRequest, FieldRepo, FormField, ReorderFieldsRequest, UpdateFieldRequest,
 };
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 /// POST /api/pdf/forms/templates/:id/fields
 #[utoipa::path(
@@ -43,8 +43,7 @@ pub async fn create_field(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateFieldRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let field = FieldRepo::create(&pool, template_id, &tenant_id, &req)
         .await
@@ -69,8 +68,7 @@ pub async fn list_fields(
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<Vec<FormField>>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let fields = FieldRepo::list(&pool, template_id, &tenant_id)
         .await
@@ -100,8 +98,7 @@ pub async fn update_field(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<UpdateFieldRequest>,
 ) -> Result<Json<FormField>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let field = FieldRepo::update(&pool, field_id, template_id, &tenant_id, &req)
         .await
@@ -128,8 +125,7 @@ pub async fn reorder_fields(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<ReorderFieldsRequest>,
 ) -> Result<Json<Vec<FormField>>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let fields = FieldRepo::reorder(&pool, template_id, &tenant_id, &req)
         .await

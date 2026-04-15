@@ -39,7 +39,11 @@ async fn wait_for_service(client: &Client) -> bool {
         match client.get(&url).send().await {
             Ok(resp) if resp.status().is_success() => return true,
             Ok(resp) => {
-                eprintln!("  health check attempt {}/20: status {}", attempt, resp.status());
+                eprintln!(
+                    "  health check attempt {}/20: status {}",
+                    attempt,
+                    resp.status()
+                );
             }
             Err(e) => {
                 eprintln!("  health check attempt {}/20: {}", attempt, e);
@@ -184,7 +188,10 @@ async fn auth_rate_limit_under_load_e2e() {
     // Expected: first ~5 pass limiter and get 401, rest get 429.
     // Critical: ZERO 200 responses.
     // =====================================================================
-    println!("\n--- Phase A: {} concurrent wrong-password logins ---", CONCURRENCY);
+    println!(
+        "\n--- Phase A: {} concurrent wrong-password logins ---",
+        CONCURRENCY
+    );
 
     let batch_start = Instant::now();
     let handles: Vec<_> = (0..CONCURRENCY)
@@ -192,9 +199,7 @@ async fn auth_rate_limit_under_load_e2e() {
             let c = client.clone();
             let em = email.clone();
             let tid = tenant_id;
-            tokio::spawn(async move {
-                fire_login(&c, tid, &em, WRONG_PASSWORD, false).await
-            })
+            tokio::spawn(async move { fire_login(&c, tid, &em, WRONG_PASSWORD, false).await })
         })
         .collect();
 
@@ -212,11 +217,16 @@ async fn auth_rate_limit_under_load_e2e() {
     };
 
     let pa_duration = batch_start.elapsed();
-    println!("Phase A done in {:?} ({} results):", pa_duration, results.len());
+    println!(
+        "Phase A done in {:?} ({} results):",
+        pa_duration,
+        results.len()
+    );
     summarize_login_outcomes(&results);
 
     // CRITICAL: no wrong-password login ever gets 200
-    let wrong_pw_successes: Vec<_> = results.iter()
+    let wrong_pw_successes: Vec<_> = results
+        .iter()
         .filter(|o| o.status == Some(200) && !o.used_correct_password)
         .collect();
     assert!(
@@ -234,22 +244,22 @@ async fn auth_rate_limit_under_load_e2e() {
         pa_429_count > 0,
         "Phase A: expected at least one 429 (rate limited) but got none — limiter may not be active"
     );
-    println!("Phase A: {} of {} got 429 — limiter is active", pa_429_count, CONCURRENCY);
+    println!(
+        "Phase A: {} of {} got 429 — limiter is active",
+        pa_429_count, CONCURRENCY
+    );
 
     // All responses should be 401 or 429 (or bounded timeout/conn error)
     for (i, o) in results.iter().enumerate() {
         match o.status {
-            Some(401) | Some(429) => {} // expected
-            Some(500) | Some(503) => {} // acceptable under extreme load
+            Some(401) | Some(429) => {}                         // expected
+            Some(500) | Some(503) => {}                         // acceptable under extreme load
             None if o.is_timeout || o.is_connection_error => {} // bounded failure
             Some(s) => panic!(
                 "Phase A request {}: unexpected status {} (expected 401/429)",
                 i, s
             ),
-            None => panic!(
-                "Phase A request {}: unresolved after {:?}",
-                i, o.duration
-            ),
+            None => panic!("Phase A request {}: unresolved after {:?}", i, o.duration),
         }
     }
 
@@ -299,9 +309,7 @@ async fn auth_rate_limit_under_load_e2e() {
                 (WRONG_PASSWORD, false)
             };
             let password = pw.to_string();
-            tokio::spawn(async move {
-                fire_login(&c, tid, &em, &password, correct).await
-            })
+            tokio::spawn(async move { fire_login(&c, tid, &em, &password, correct).await })
         })
         .collect();
 
@@ -319,13 +327,18 @@ async fn auth_rate_limit_under_load_e2e() {
     };
 
     let pb_duration = batch_start.elapsed();
-    println!("Phase B done in {:?} ({} results):", pb_duration, results.len());
+    println!(
+        "Phase B done in {:?} ({} results):",
+        pb_duration,
+        results.len()
+    );
     summarize_login_outcomes(&results);
 
     assert_eq!(results.len(), CONCURRENCY);
 
     // CRITICAL: no wrong-password login ever gets 200
-    let wrong_pw_successes: Vec<_> = results.iter()
+    let wrong_pw_successes: Vec<_> = results
+        .iter()
         .filter(|o| o.status == Some(200) && !o.used_correct_password)
         .collect();
     assert!(
@@ -335,7 +348,8 @@ async fn auth_rate_limit_under_load_e2e() {
     );
 
     // Correct-password requests that passed the limiter should get 200
-    let correct_successes = results.iter()
+    let correct_successes = results
+        .iter()
         .filter(|o| o.status == Some(200) && o.used_correct_password)
         .count();
     println!(
@@ -349,7 +363,10 @@ async fn auth_rate_limit_under_load_e2e() {
         pb_429_count > 0,
         "Phase B: expected at least one 429 but got none — limiter inactive under mixed load"
     );
-    println!("Phase B: {} of {} got 429 — limiter active under mixed load", pb_429_count, CONCURRENCY);
+    println!(
+        "Phase B: {} of {} got 429 — limiter active under mixed load",
+        pb_429_count, CONCURRENCY
+    );
 
     // =====================================================================
     // Phase C: Post-burst health check
@@ -372,8 +389,13 @@ async fn auth_rate_limit_under_load_e2e() {
 
     println!("service healthy after burst — rate limiting held under load");
     println!("\nSummary:");
-    println!("  Phase A (wrong-pw burst):  {:?}, {} 429s, 0 bypasses", pa_duration, pa_429_count);
-    println!("  Phase B (mixed burst):     {:?}, {} 429s, {} correct logins, 0 bypasses",
-        pb_duration, pb_429_count, correct_successes);
+    println!(
+        "  Phase A (wrong-pw burst):  {:?}, {} 429s, 0 bypasses",
+        pa_duration, pa_429_count
+    );
+    println!(
+        "  Phase B (mixed burst):     {:?}, {} 429s, {} correct logins, 0 bypasses",
+        pb_duration, pb_429_count, correct_successes
+    );
     println!("  Phase C (health):          200 OK");
 }

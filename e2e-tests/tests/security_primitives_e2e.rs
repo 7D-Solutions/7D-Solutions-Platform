@@ -24,15 +24,22 @@ use uuid::Uuid;
 fn portal_db_url() -> String {
     std::env::var("CUSTOMER_PORTAL_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/customer_portal_db".to_string())
+        .unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5432/customer_portal_db".to_string()
+        })
 }
 
 fn make_test_keys() -> (String, String) {
     let mut rng = thread_rng();
     let private_key = RsaPrivateKey::new(&mut rng, 2048).expect("generate RSA key");
     let public_key = private_key.to_public_key();
-    let private_pem = private_key.to_pkcs8_pem(LineEnding::LF).expect("private pem").to_string();
-    let public_pem = public_key.to_public_key_pem(LineEnding::LF).expect("public pem");
+    let private_pem = private_key
+        .to_pkcs8_pem(LineEnding::LF)
+        .expect("private pem")
+        .to_string();
+    let public_pem = public_key
+        .to_public_key_pem(LineEnding::LF)
+        .expect("public pem");
     (private_pem, public_pem)
 }
 
@@ -50,7 +57,10 @@ async fn portal_test_app() -> Option<(axum::Router, sqlx::PgPool, Arc<PortalJwt>
         }
     };
 
-    if let Err(err) = sqlx::migrate!("../modules/customer-portal/db/migrations").run(&pool).await {
+    if let Err(err) = sqlx::migrate!("../modules/customer-portal/db/migrations")
+        .run(&pool)
+        .await
+    {
         eprintln!("skipping security_primitives e2e: migration failed ({err})");
         return None;
     }
@@ -235,7 +245,11 @@ async fn security_primitives_osrng_refresh_tokens_unique() {
     );
     // base64url(32 bytes) = 43 characters
     for t in &tokens {
-        assert_eq!(t.len(), 43, "refresh token length must be 43 chars (base64url of 32 bytes)");
+        assert_eq!(
+            t.len(),
+            43,
+            "refresh token length must be 43 chars (base64url of 32 bytes)"
+        );
     }
 }
 

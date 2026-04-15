@@ -148,9 +148,8 @@ async fn run_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
 
 async fn process_message(pool: &PgPool, msg: &BusMessage) -> Result<(), ConsumerError> {
     let envelope: EventEnvelope<ComponentIssueRequestedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            ConsumerError::Validation(format!("Failed to parse envelope: {}", e))
-        })?;
+        serde_json::from_slice(&msg.payload)
+            .map_err(|e| ConsumerError::Validation(format!("Failed to parse envelope: {}", e)))?;
 
     tracing::info!(
         event_id = %envelope.event_id,

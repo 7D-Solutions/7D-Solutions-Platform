@@ -102,17 +102,37 @@ async fn run() -> Result<bool> {
     let run_ar = should_run("ar", &requested, config.ar_database_url.is_some());
     let run_ap = should_run("ap", &requested, config.ap_database_url.is_some());
     let run_gl = should_run("gl", &requested, config.gl_database_url.is_some());
-    let run_inventory = should_run("inventory", &requested, config.inventory_database_url.is_some());
+    let run_inventory = should_run(
+        "inventory",
+        &requested,
+        config.inventory_database_url.is_some(),
+    );
     let run_bom = should_run("bom", &requested, config.bom_database_url.is_some());
-    let run_production = should_run("production", &requested, config.production_database_url.is_some());
+    let run_production = should_run(
+        "production",
+        &requested,
+        config.production_database_url.is_some(),
+    );
 
     let mut run_modules: Vec<&str> = Vec::new();
-    if run_ar { run_modules.push("ar"); }
-    if run_ap { run_modules.push("ap"); }
-    if run_gl { run_modules.push("gl"); }
-    if run_inventory { run_modules.push("inventory"); }
-    if run_bom { run_modules.push("bom"); }
-    if run_production { run_modules.push("production"); }
+    if run_ar {
+        run_modules.push("ar");
+    }
+    if run_ap {
+        run_modules.push("ap");
+    }
+    if run_gl {
+        run_modules.push("gl");
+    }
+    if run_inventory {
+        run_modules.push("inventory");
+    }
+    if run_bom {
+        run_modules.push("bom");
+    }
+    if run_production {
+        run_modules.push("production");
+    }
 
     info!("Reconciliation run: modules={:?}", run_modules);
 
@@ -294,6 +314,9 @@ fn log_module_result(module: &str, violations: &[Violation]) {
     if violations.is_empty() {
         info!("{module}: all invariants PASSED");
     } else {
-        warn!("{module}: {} invariant violation(s) found", violations.len());
+        warn!(
+            "{module}: {} invariant violation(s) found",
+            violations.len()
+        );
     }
 }

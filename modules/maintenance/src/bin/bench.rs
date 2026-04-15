@@ -15,9 +15,7 @@ use maintenance_rs::domain::{
     assets::{AssetRepo, CreateAssetRequest},
     meters::{CreateMeterTypeRequest, MeterReadingRepo, MeterTypeRepo, RecordReadingRequest},
     plans::{AssignPlanRequest, AssignmentRepo, CreatePlanRequest, PlanRepo},
-    work_orders::{
-        CreateWorkOrderRequest, TransitionRequest, WorkOrderRepo,
-    },
+    work_orders::{CreateWorkOrderRequest, TransitionRequest, WorkOrderRepo},
 };
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -145,18 +143,15 @@ async fn create_test_asset(pool: &PgPool, tenant_id: &str) -> Uuid {
         maintenance_schedule: None,
         idempotency_key: None,
     };
-    let asset = AssetRepo::create(pool, &req).await.expect("create bench asset");
+    let asset = AssetRepo::create(pool, &req)
+        .await
+        .expect("create bench asset");
     asset.id
 }
 
 // ── Benchmark functions ──────────────────────────────────────────────
 
-async fn bench_wo_create(
-    pool: &PgPool,
-    tenant_id: &str,
-    asset_id: Uuid,
-    bench: &mut BenchResult,
-) {
+async fn bench_wo_create(pool: &PgPool, tenant_id: &str, asset_id: Uuid, bench: &mut BenchResult) {
     let req = CreateWorkOrderRequest {
         tenant_id: tenant_id.to_string(),
         asset_id,
@@ -210,7 +205,9 @@ async fn bench_wo_transition(
         checklist: None,
         notes: None,
     };
-    let wo = WorkOrderRepo::create(pool, &req).await.expect("create wo for transition");
+    let wo = WorkOrderRepo::create(pool, &req)
+        .await
+        .expect("create wo for transition");
 
     // draft → scheduled
     WorkOrderRepo::transition(
@@ -270,12 +267,7 @@ async fn bench_meter_reading(
     bench.record(start.elapsed());
 }
 
-async fn bench_plan_assign(
-    pool: &PgPool,
-    tenant_id: &str,
-    plan_id: Uuid,
-    bench: &mut BenchResult,
-) {
+async fn bench_plan_assign(pool: &PgPool, tenant_id: &str, plan_id: Uuid, bench: &mut BenchResult) {
     // Each iteration needs a fresh asset (unique assignment per plan+asset)
     let asset_id = create_test_asset(pool, tenant_id).await;
     let req = AssignPlanRequest {
@@ -358,7 +350,13 @@ async fn main() {
 
     while Instant::now() < deadline && iter < max_iter {
         bench_wo_create(&pool, &tenant_id, wo_create_asset, &mut wo_create_bench).await;
-        bench_wo_transition(&pool, &tenant_id, wo_transition_asset, &mut wo_transition_bench).await;
+        bench_wo_transition(
+            &pool,
+            &tenant_id,
+            wo_transition_asset,
+            &mut wo_transition_bench,
+        )
+        .await;
         bench_meter_reading(
             &pool,
             &tenant_id,

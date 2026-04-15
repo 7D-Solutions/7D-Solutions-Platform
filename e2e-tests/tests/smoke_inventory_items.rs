@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PUT" => client.put(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -112,11 +116,7 @@ async fn smoke_inventory_items_crud() {
     };
 
     let tenant_id = Uuid::new_v4().to_string();
-    let jwt = make_jwt(
-        &key,
-        &tenant_id,
-        &["inventory.mutate", "inventory.read"],
-    );
+    let jwt = make_jwt(&key, &tenant_id, &["inventory.mutate", "inventory.read"]);
     let base = inv_url();
 
     // Gate: verify the Inventory service accepts our JWT
@@ -150,7 +150,10 @@ async fn smoke_inventory_items_crud() {
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "Create UOM failed: {status} - {body}");
-    let ea_uom_id = body["id"].as_str().expect("No id in UOM response").to_string();
+    let ea_uom_id = body["id"]
+        .as_str()
+        .expect("No id in UOM response")
+        .to_string();
     println!("  created UOM: {body}");
 
     assert_unauth(
@@ -185,7 +188,10 @@ async fn smoke_inventory_items_crud() {
         .unwrap();
     let status = resp.status();
     let created: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Create item failed: {status} - {created}");
+    assert!(
+        status.is_success(),
+        "Create item failed: {status} - {created}"
+    );
     let item_id = created["id"].as_str().expect("No id in create response");
     println!("  created item id={item_id}");
 
@@ -205,7 +211,11 @@ async fn smoke_inventory_items_crud() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Get item failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Get item failed: {}",
+        resp.status()
+    );
     let fetched: Value = resp.json().await.unwrap();
     assert_eq!(fetched["name"], "Smoke Test Item");
     println!("  retrieved item name={}", fetched["name"]);
@@ -233,7 +243,10 @@ async fn smoke_inventory_items_crud() {
         .unwrap();
     let status = resp.status();
     let body_text = resp.text().await.unwrap_or_default();
-    assert!(status.is_success(), "Set make/buy failed: {status} - {body_text}");
+    assert!(
+        status.is_success(),
+        "Set make/buy failed: {status} - {body_text}"
+    );
     println!("  set make/buy to 'make'");
 
     assert_unauth(
@@ -266,7 +279,10 @@ async fn smoke_inventory_items_crud() {
         .unwrap();
     let status = resp.status();
     let rev: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Create revision failed: {status} - {rev}");
+    assert!(
+        status.is_success(),
+        "Create revision failed: {status} - {rev}"
+    );
     let revision_id = rev["id"]
         .as_str()
         .or(rev["revision_id"].as_str())
@@ -357,7 +373,10 @@ async fn smoke_inventory_items_crud() {
         .unwrap();
     let status = resp.status();
     let label: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Generate label failed: {status} - {label}");
+    assert!(
+        status.is_success(),
+        "Generate label failed: {status} - {label}"
+    );
     let label_id = label["id"]
         .as_str()
         .or(label["label_id"].as_str())
@@ -372,7 +391,11 @@ async fn smoke_inventory_items_crud() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Get label failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Get label failed: {}",
+        resp.status()
+    );
     println!("  retrieved label");
 
     // --- 11. GET /api/inventory/items/{item_id}/history ---
@@ -407,8 +430,14 @@ async fn smoke_inventory_items_crud() {
         .unwrap();
     let dz_status = resp.status();
     let dz_body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(dz_status.is_success(), "Create UOM2 failed: {dz_status} - {dz_body}");
-    let dz_uom_id = dz_body["id"].as_str().expect("No id in UOM2 response").to_string();
+    assert!(
+        dz_status.is_success(),
+        "Create UOM2 failed: {dz_status} - {dz_body}"
+    );
+    let dz_uom_id = dz_body["id"]
+        .as_str()
+        .expect("No id in UOM2 response")
+        .to_string();
 
     let resp = client
         .post(format!(

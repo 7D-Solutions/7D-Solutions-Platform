@@ -23,7 +23,6 @@ use std::sync::Arc;
 use utoipa::IntoParams;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::uom::models::{
@@ -31,6 +30,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params
@@ -112,7 +112,11 @@ pub async fn list_uoms(
             let page_size = pq.page_size.clamp(1, 200);
             let page = pq.page.max(1);
             let offset = ((page - 1) * page_size) as usize;
-            let uoms: Vec<_> = all_uoms.into_iter().skip(offset).take(page_size as usize).collect();
+            let uoms: Vec<_> = all_uoms
+                .into_iter()
+                .skip(offset)
+                .take(page_size as usize)
+                .collect();
             let resp = PaginatedResponse::new(uoms, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }
@@ -183,7 +187,11 @@ pub async fn list_conversions(
             let page_size = pq.page_size.clamp(1, 200);
             let page = pq.page.max(1);
             let offset = ((page - 1) * page_size) as usize;
-            let convs: Vec<_> = all_convs.into_iter().skip(offset).take(page_size as usize).collect();
+            let convs: Vec<_> = all_convs
+                .into_iter()
+                .skip(offset)
+                .take(page_size as usize)
+                .collect();
             let resp = PaginatedResponse::new(convs, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }

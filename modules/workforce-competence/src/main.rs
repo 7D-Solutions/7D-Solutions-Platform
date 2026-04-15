@@ -2,6 +2,7 @@ use axum::Router;
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
+use platform_sdk::ModuleBuilder;
 use workforce_competence_rs::{
     http::handlers::{
         get_acceptance_authority_check, get_artifact, get_authorization, post_artifact,
@@ -10,7 +11,6 @@ use workforce_competence_rs::{
     metrics::WcMetrics,
     AppState,
 };
-use platform_sdk::ModuleBuilder;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 

@@ -14,13 +14,12 @@ use std::sync::Arc;
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{EventBus, EventEnvelope, TracingContext};
 use futures::StreamExt;
-use tracing::Instrument;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+use tracing::Instrument;
 
 use crate::context::ModuleContext;
 use crate::startup::StartupError;
-
 
 // Re-export provisioning-hook types so callers that imported them via
 // `consumer::` continue to compile without changes.

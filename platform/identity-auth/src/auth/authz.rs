@@ -80,21 +80,17 @@ impl FromRequestParts<Arc<AuthState>> for AdminUsersRead {
 
         // 4. Resolve current effective permissions from DB.
         //    Do NOT trust `claims.perms` — the JWT can drift behind role changes.
-        let perms =
-            crate::db::rbac::effective_permissions_for_user(&state.db, tenant_id, user_id)
-                .await
-                .map_err(|e| {
-                    tracing::error!(
-                        error = %e,
-                        user_id = %user_id,
-                        tenant_id = %tenant_id,
-                        "authz: db error resolving permissions for admin.users.read"
-                    );
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "db error".to_string(),
-                    )
-                })?;
+        let perms = crate::db::rbac::effective_permissions_for_user(&state.db, tenant_id, user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    error = %e,
+                    user_id = %user_id,
+                    tenant_id = %tenant_id,
+                    "authz: db error resolving permissions for admin.users.read"
+                );
+                (StatusCode::INTERNAL_SERVER_ERROR, "db error".to_string())
+            })?;
 
         if !perms.contains(&PERM.to_string()) {
             return Err((

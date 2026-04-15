@@ -315,8 +315,8 @@ async fn tenant_context_canary() {
     {
         // The static bearer is the startup-time nil-UUID token (safe fallback;
         // inject_headers always tries per-request JWT first).
-        let startup_token = security::get_service_token()
-            .unwrap_or_else(|_| "no-startup-token".to_string());
+        let startup_token =
+            security::get_service_token().unwrap_or_else(|_| "no-startup-token".to_string());
         let client = PlatformClient::new(base_url.clone()).with_bearer_token(startup_token);
         // service_claims carries real tenant_id — inject_headers mints JWT from this.
         assert_tenant_context(
@@ -344,8 +344,20 @@ async fn tenant_context_canary() {
         let forwarded_jwt = "eyJhbGciOiJSUzI1NiJ9.dummy-inbound-jwt.sig";
         let client =
             PlatformClient::new(base_url.clone()).with_bearer_token(forwarded_jwt.to_string());
-        assert_tenant_context("Shipping→QI (tenant A, forwarded JWT)", &client, &claims_a, tenant_a).await;
-        assert_tenant_context("Shipping→QI (tenant B, forwarded JWT)", &client, &claims_b, tenant_b).await;
+        assert_tenant_context(
+            "Shipping→QI (tenant A, forwarded JWT)",
+            &client,
+            &claims_a,
+            tenant_a,
+        )
+        .await;
+        assert_tenant_context(
+            "Shipping→QI (tenant B, forwarded JWT)",
+            &client,
+            &claims_b,
+            tenant_b,
+        )
+        .await;
     }
 
     // ── 7. AR → Party ────────────────────────────────────────────────────────
@@ -520,10 +532,6 @@ async fn nil_uuid_danger_documented() {
     println!(
         "✅ nil_uuid_danger_documented: startup token tenant_id={token_tenant_id} (nil, as expected)"
     );
-    println!(
-        "   Per-request JWT minting via JWT_PRIVATE_KEY_PEM is the required defence."
-    );
-    println!(
-        "   inject_headers in platform-sdk/src/http_client.rs ensures this on every call."
-    );
+    println!("   Per-request JWT minting via JWT_PRIVATE_KEY_PEM is the required defence.");
+    println!("   inject_headers in platform-sdk/src/http_client.rs ensures this on every call.");
 }

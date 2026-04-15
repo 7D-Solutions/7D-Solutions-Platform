@@ -43,24 +43,19 @@ impl EscalationRepo {
             ));
         }
         if req.step_id.is_empty() {
-            return Err(EscalationError::Validation(
-                "step_id is required".into(),
-            ));
+            return Err(EscalationError::Validation("step_id is required".into()));
         }
 
         // Guard: definition exists
-        let def_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM workflow_definitions WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(req.definition_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let def_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM workflow_definitions WHERE id = $1 AND tenant_id = $2")
+                .bind(req.definition_id)
+                .bind(&req.tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         if def_exists.is_none() {
-            return Err(EscalationError::Validation(
-                "definition not found".into(),
-            ));
+            return Err(EscalationError::Validation("definition not found".into()));
         }
 
         let id = Uuid::new_v4();

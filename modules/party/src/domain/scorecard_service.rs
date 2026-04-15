@@ -1,8 +1,8 @@
 //! Scorecard service — Guard→Mutation→Outbox atomicity.
 
 use chrono::Utc;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use sqlx::PgPool;
 use uuid::Uuid;
 

@@ -68,12 +68,11 @@ async fn ap_import_creates_new_vendors() {
     assert_eq!(summary.skipped, 0);
     assert!(summary.errors.is_empty());
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vendors WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vendors WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 2);
 
     cleanup(&pool, &tenant).await;
@@ -153,14 +152,16 @@ async fn ap_import_validates_all_before_insert() {
 
     assert_eq!(summary.errors.len(), 1);
     assert_eq!(summary.errors[0].row, 2);
-    assert_eq!(summary.created, 0, "No rows should be inserted when any row fails validation");
+    assert_eq!(
+        summary.created, 0,
+        "No rows should be inserted when any row fails validation"
+    );
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vendors WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vendors WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 0);
 
     cleanup(&pool, &tenant).await;

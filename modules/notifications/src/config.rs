@@ -113,9 +113,7 @@ impl Config {
         let mut v = ConfigValidator::new("notifications");
 
         // Required: DATABASE_URL
-        let database_url = v
-            .require("DATABASE_URL")
-            .unwrap_or_default();
+        let database_url = v.require("DATABASE_URL").unwrap_or_default();
 
         // Optional: BUS_TYPE (default: inmemory)
         let bus_type_str = v.optional("BUS_TYPE").or_default("inmemory");
@@ -151,22 +149,18 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let email_sender_type = EmailSenderType::from_str(
-            &v.optional("EMAIL_SENDER_TYPE").or_default("logging"),
-        )?;
+        let email_sender_type =
+            EmailSenderType::from_str(&v.optional("EMAIL_SENDER_TYPE").or_default("logging"))?;
         let email_http_endpoint = env::var("EMAIL_HTTP_ENDPOINT").ok();
         let email_from = v
             .optional("EMAIL_FROM")
             .or_default("no-reply@notifications.local");
         let email_api_key = env::var("EMAIL_API_KEY").ok();
         let sendgrid_api_key = env::var("SENDGRID_API_KEY").ok();
-        let sms_sender_type = SmsSenderType::from_str(
-            &v.optional("SMS_SENDER_TYPE").or_default("logging"),
-        )?;
+        let sms_sender_type =
+            SmsSenderType::from_str(&v.optional("SMS_SENDER_TYPE").or_default("logging"))?;
         let sms_http_endpoint = env::var("SMS_HTTP_ENDPOINT").ok();
-        let sms_from_number = v
-            .optional("SMS_FROM_NUMBER")
-            .or_default("+10000000000");
+        let sms_from_number = v.optional("SMS_FROM_NUMBER").or_default("+10000000000");
         let sms_api_key = env::var("SMS_API_KEY").ok();
         let retry_max_attempts = v
             .optional_parse::<i32>("NOTIFICATIONS_RETRY_MAX_ATTEMPTS")
@@ -184,12 +178,10 @@ impl Config {
         v.finish().map_err(|e| e.to_string())?;
 
         if env_val == "production" && cors_origins.iter().any(|o| o == "*") {
-            return Err(
-                "CORS_ORIGINS=* is not allowed in production. \
+            return Err("CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
-                    .to_string(),
-            );
+                .to_string());
         }
         Ok(Config {
             database_url,
@@ -250,9 +242,7 @@ impl Config {
                 .map(|s| s.trim().is_empty())
                 .unwrap_or(true)
         {
-            return Err(
-                "SENDGRID_API_KEY is required when EMAIL_SENDER_TYPE=sendgrid".to_string(),
-            );
+            return Err("SENDGRID_API_KEY is required when EMAIL_SENDER_TYPE=sendgrid".to_string());
         }
         if self.sms_sender_type == SmsSenderType::Http
             && self

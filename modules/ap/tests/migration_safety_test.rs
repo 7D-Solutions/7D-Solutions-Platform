@@ -72,10 +72,8 @@ async fn last_three_migrations_are_safe() {
     // Each of the last 3 migrations must either:
     //   (a) carry  -- FORWARD-ONLY: <reason>
     //   (b) be reversible — proved by forward_fix_rollback_and_reapply below.
-    let migrations = mst::check_last_n_migrations(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"),
-        3,
-    );
+    let migrations =
+        mst::check_last_n_migrations(concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"), 3);
     for m in &migrations {
         if m.is_forward_only {
             println!(

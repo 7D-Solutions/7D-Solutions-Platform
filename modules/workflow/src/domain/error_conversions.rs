@@ -8,9 +8,9 @@ impl From<DefError> for ApiError {
         match err {
             DefError::NotFound => ApiError::not_found("Workflow definition not found"),
             DefError::Validation(msg) => ApiError::new(422, "validation_error", msg),
-            DefError::Duplicate => ApiError::conflict(
-                "Definition with this name+version already exists",
-            ),
+            DefError::Duplicate => {
+                ApiError::conflict("Definition with this name+version already exists")
+            }
             DefError::Database(e) => {
                 tracing::error!(error = %e, "workflow definition database error");
                 ApiError::internal("Database error")
@@ -27,9 +27,7 @@ impl From<InstanceError> for ApiError {
                 ApiError::not_found("Workflow definition not found")
             }
             InstanceError::Validation(msg) => ApiError::new(422, "validation_error", msg),
-            InstanceError::InvalidTransition(msg) => {
-                ApiError::new(422, "invalid_transition", msg)
-            }
+            InstanceError::InvalidTransition(msg) => ApiError::new(422, "invalid_transition", msg),
             InstanceError::NotActive(status) => ApiError::new(
                 422,
                 "not_active",

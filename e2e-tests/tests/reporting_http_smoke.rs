@@ -76,7 +76,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -123,7 +127,9 @@ async fn smoke_reporting() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Reporting returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Reporting returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -168,7 +174,10 @@ async fn smoke_reporting() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Balance sheet failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Balance sheet failed: {status} - {body}"
+    );
     println!("  balance sheet ok: {status}");
     assert_unauth(
         &client,

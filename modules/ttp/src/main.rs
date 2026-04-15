@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use ttp_rs::{http, metrics, AppState};
+use platform_sdk::ModuleBuilder;
 use ttp_rs::clients::ar::ArClient;
 use ttp_rs::clients::tenant_registry::TenantRegistryClient;
-use platform_sdk::ModuleBuilder;
+use ttp_rs::{http, metrics, AppState};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 

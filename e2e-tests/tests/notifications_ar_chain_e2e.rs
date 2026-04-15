@@ -134,15 +134,11 @@ async fn payment_succeeded_triggers_delivery_succeeded_on_nats() {
     // 5. Build and publish payments.events.payment.succeeded to NATS
     let payment_id = format!("pay-{}", Uuid::new_v4());
     let invoice_id = format!("inv-{}", Uuid::new_v4());
-    let envelope =
-        build_payment_succeeded_envelope(&tenant_id, &payment_id, &invoice_id, 15_000);
+    let envelope = build_payment_succeeded_envelope(&tenant_id, &payment_id, &invoice_id, 15_000);
     let payload_bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
-    nats.publish(
-        "payments.events.payment.succeeded",
-        payload_bytes.into(),
-    )
-    .await
-    .expect("Failed to publish payments.events.payment.succeeded");
+    nats.publish("payments.events.payment.succeeded", payload_bytes.into())
+        .await
+        .expect("Failed to publish payments.events.payment.succeeded");
 
     // 6. Wait up to 5s for notifications.delivery.succeeded on NATS
     let received_msg = timeout(Duration::from_secs(5), notif_sub.next())

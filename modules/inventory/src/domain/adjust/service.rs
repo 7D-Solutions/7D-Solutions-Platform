@@ -23,10 +23,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    domain::{
-        guards::guard_item_active,
-        reorder::evaluator,
-    },
+    domain::{guards::guard_item_active, reorder::evaluator},
     events::{build_adjusted_envelope, AdjustedPayload, EVENT_TYPE_ADJUSTED},
 };
 

@@ -90,7 +90,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         req
     };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT -> 401 OK");
 }
 
@@ -128,7 +132,9 @@ async fn seed_customer_and_invoices(
     *invoice_id_credit = inv["id"].as_i64().unwrap();
 
     let resp = client
-        .post(format!("{base}/api/ar/invoices/{invoice_id_credit}/finalize"))
+        .post(format!(
+            "{base}/api/ar/invoices/{invoice_id_credit}/finalize"
+        ))
         .bearer_auth(jwt)
         .json(&json!({}))
         .send()
@@ -149,7 +155,9 @@ async fn seed_customer_and_invoices(
     *invoice_id_writeoff = inv["id"].as_i64().unwrap();
 
     let resp = client
-        .post(format!("{base}/api/ar/invoices/{invoice_id_writeoff}/finalize"))
+        .post(format!(
+            "{base}/api/ar/invoices/{invoice_id_writeoff}/finalize"
+        ))
         .bearer_auth(jwt)
         .json(&json!({}))
         .send()
@@ -202,9 +210,14 @@ async fn smoke_ar_credits_disputes() {
     let mut invoice_id_credit: i64 = 0;
     let mut invoice_id_writeoff: i64 = 0;
     seed_customer_and_invoices(
-        &client, &base, &jwt,
-        &mut customer_id, &mut invoice_id_credit, &mut invoice_id_writeoff,
-    ).await;
+        &client,
+        &base,
+        &jwt,
+        &mut customer_id,
+        &mut invoice_id_credit,
+        &mut invoice_id_writeoff,
+    )
+    .await;
 
     // --- 1. POST /api/ar/invoices/{id}/credit-notes ---
     println!("\n--- 1. POST /api/ar/invoices/{{id}}/credit-notes ---");
@@ -220,7 +233,9 @@ async fn smoke_ar_credits_disputes() {
         "correlation_id": Uuid::new_v4().to_string()
     });
     let resp = client
-        .post(format!("{base}/api/ar/invoices/{invoice_id_credit}/credit-notes"))
+        .post(format!(
+            "{base}/api/ar/invoices/{invoice_id_credit}/credit-notes"
+        ))
         .bearer_auth(&jwt)
         .json(&cn_body)
         .send()
@@ -228,13 +243,19 @@ async fn smoke_ar_credits_disputes() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(status == 200 || status == 201,
-        "expected 200/201 for credit note, got {status}: {body}");
+    assert!(
+        status == 200 || status == 201,
+        "expected 200/201 for credit note, got {status}: {body}"
+    );
     println!("  credit note issued -> {status}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/invoices/{invoice_id_credit}/credit-notes"),
-        Some(cn_body.clone())).await;
+        Some(cn_body.clone()),
+    )
+    .await;
 
     // --- 2. POST /api/ar/invoices/{id}/write-off ---
     println!("\n--- 2. POST /api/ar/invoices/{{id}}/write-off ---");
@@ -249,7 +270,9 @@ async fn smoke_ar_credits_disputes() {
         "correlation_id": Uuid::new_v4().to_string()
     });
     let resp = client
-        .post(format!("{base}/api/ar/invoices/{invoice_id_writeoff}/write-off"))
+        .post(format!(
+            "{base}/api/ar/invoices/{invoice_id_writeoff}/write-off"
+        ))
         .bearer_auth(&jwt)
         .json(&wo_body)
         .send()
@@ -257,13 +280,19 @@ async fn smoke_ar_credits_disputes() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(status == 200 || status == 201,
-        "expected 200/201 for write-off, got {status}: {body}");
+    assert!(
+        status == 200 || status == 201,
+        "expected 200/201 for write-off, got {status}: {body}"
+    );
     println!("  write-off -> {status}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/invoices/{invoice_id_writeoff}/write-off"),
-        Some(wo_body.clone())).await;
+        Some(wo_body.clone()),
+    )
+    .await;
 
     // --- 3. POST /api/ar/credit-memos ---
     println!("\n--- 3. POST /api/ar/credit-memos ---");
@@ -288,14 +317,20 @@ async fn smoke_ar_credits_disputes() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(status == 200 || status == 201,
-        "expected 200/201 for credit memo create, got {status}: {body}");
+    assert!(
+        status == 200 || status == 201,
+        "expected 200/201 for credit memo create, got {status}: {body}"
+    );
     let memo_uuid = body["credit_note_id"].as_str().map(|s| s.to_string());
     println!("  credit memo created -> {status}, uuid={memo_uuid:?}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/credit-memos"),
-        Some(memo_body.clone())).await;
+        Some(memo_body.clone()),
+    )
+    .await;
 
     // --- 4. POST /api/ar/credit-memos/{id}/approve ---
     println!("\n--- 4. POST /api/ar/credit-memos/{{id}}/approve ---");
@@ -313,13 +348,19 @@ async fn smoke_ar_credits_disputes() {
             .unwrap();
         let status = resp.status().as_u16();
         let body: Value = resp.json().await.unwrap_or(json!(null));
-        assert!(status == 200 || status == 201 || status == 409,
-            "expected 200/201/409 for approve, got {status}: {body}");
+        assert!(
+            status == 200 || status == 201 || status == 409,
+            "expected 200/201/409 for approve, got {status}: {body}"
+        );
         println!("  approve -> {status}");
 
-        assert_unauth(&client, "POST",
+        assert_unauth(
+            &client,
+            "POST",
             &format!("{base}/api/ar/credit-memos/{mid}/approve"),
-            Some(approve_body)).await;
+            Some(approve_body),
+        )
+        .await;
 
         // --- 5. POST /api/ar/credit-memos/{id}/issue ---
         println!("\n--- 5. POST /api/ar/credit-memos/{{id}}/issue ---");
@@ -337,24 +378,40 @@ async fn smoke_ar_credits_disputes() {
             .unwrap();
         let status = resp.status().as_u16();
         let body: Value = resp.json().await.unwrap_or(json!(null));
-        assert!(status == 200 || status == 201 || status == 409,
-            "expected 200/201/409 for issue, got {status}: {body}");
+        assert!(
+            status == 200 || status == 201 || status == 409,
+            "expected 200/201/409 for issue, got {status}: {body}"
+        );
         println!("  issue -> {status}");
 
-        assert_unauth(&client, "POST",
+        assert_unauth(
+            &client,
+            "POST",
             &format!("{base}/api/ar/credit-memos/{mid}/issue"),
-            Some(issue_body)).await;
+            Some(issue_body),
+        )
+        .await;
     } else {
         println!("  skipping approve/issue -- no memo id returned");
-        assert_unauth(&client, "POST",
+        assert_unauth(
+            &client,
+            "POST",
             &format!("{base}/api/ar/credit-memos/999999/approve"),
-            Some(json!({"approved_by": "x", "correlation_id": Uuid::new_v4().to_string()}))).await;
+            Some(json!({"approved_by": "x", "correlation_id": Uuid::new_v4().to_string()})),
+        )
+        .await;
 
         println!("\n--- 5. POST /api/ar/credit-memos/{{id}}/issue ---");
-        assert_unauth(&client, "POST",
+        assert_unauth(
+            &client,
+            "POST",
             &format!("{base}/api/ar/credit-memos/999999/issue"),
-            Some(json!({"issued_by": "x", "issue_idempotency_key": Uuid::new_v4().to_string(),
-                        "correlation_id": Uuid::new_v4().to_string()}))).await;
+            Some(
+                json!({"issued_by": "x", "issue_idempotency_key": Uuid::new_v4().to_string(),
+                        "correlation_id": Uuid::new_v4().to_string()}),
+            ),
+        )
+        .await;
     }
 
     // --- 6. GET /api/ar/disputes (list) ---
@@ -368,10 +425,13 @@ async fn smoke_ar_credits_disputes() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for disputes list");
     let disputes: Value = resp.json().await.unwrap_or(json!([]));
-    println!("  disputes list -> {status}, count={}", match &disputes {
-        Value::Array(a) => a.len(),
-        _ => 0,
-    });
+    println!(
+        "  disputes list -> {status}, count={}",
+        match &disputes {
+            Value::Array(a) => a.len(),
+            _ => 0,
+        }
+    );
 
     assert_unauth(&client, "GET", &format!("{base}/api/ar/disputes"), None).await;
 
@@ -387,7 +447,13 @@ async fn smoke_ar_credits_disputes() {
     assert_eq!(status, 404, "expected 404 for nonexistent dispute");
     println!("  nonexistent dispute -> 404 OK");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/disputes/999999"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/disputes/999999"),
+        None,
+    )
+    .await;
 
     // --- 8. POST /api/ar/disputes/{id}/evidence ---
     println!("\n--- 8. POST /api/ar/disputes/{{id}}/evidence ---");
@@ -404,13 +470,19 @@ async fn smoke_ar_credits_disputes() {
         .await
         .unwrap();
     let status = resp.status().as_u16();
-    assert!(status == 404 || status == 400 || status == 409 || status == 422,
-        "expected 404/400/409/422 for evidence on nonexistent dispute, got {status}");
+    assert!(
+        status == 404 || status == 400 || status == 409 || status == 422,
+        "expected 404/400/409/422 for evidence on nonexistent dispute, got {status}"
+    );
     println!("  evidence on nonexistent -> {status} OK");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/disputes/999999/evidence"),
-        Some(evidence_body)).await;
+        Some(evidence_body),
+    )
+    .await;
 
     // --- 9. POST /api/ar/refunds ---
     println!("\n--- 9. POST /api/ar/refunds ---");
@@ -429,13 +501,19 @@ async fn smoke_ar_credits_disputes() {
         .await
         .unwrap();
     let status = resp.status().as_u16();
-    assert!(status == 404 || status == 409 || status == 400 || status == 502,
-        "expected 404/409/400/502 for refund without settled charge, got {status}");
+    assert!(
+        status == 404 || status == 409 || status == 400 || status == 502,
+        "expected 404/409/400/502 for refund without settled charge, got {status}"
+    );
     println!("  refund without settled charge -> {status} OK");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/refunds"),
-        Some(refund_body)).await;
+        Some(refund_body),
+    )
+    .await;
 
     // --- 10. GET /api/ar/refunds/{id} ---
     println!("\n--- 10. GET /api/ar/refunds/{{id}} ---");
@@ -449,7 +527,13 @@ async fn smoke_ar_credits_disputes() {
     assert_eq!(status, 404, "expected 404 for nonexistent refund");
     println!("  nonexistent refund -> 404 OK");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/refunds/999999"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/refunds/999999"),
+        None,
+    )
+    .await;
 
     println!("\n=== All 10 AR credits/disputes/refunds smoke tests passed ===");
 }

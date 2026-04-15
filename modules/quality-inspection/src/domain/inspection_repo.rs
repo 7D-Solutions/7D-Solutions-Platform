@@ -273,13 +273,12 @@ pub async fn list_by_receipt_paginated(
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND receipt_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(receipt_id)
-    .fetch_one(pool)
-    .await?;
+    let total: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND receipt_id = $2")
+            .bind(tenant_id)
+            .bind(receipt_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok((rows, total.0))
 }
@@ -364,13 +363,12 @@ pub async fn list_by_wo_paginated(
         .fetch_all(pool)
         .await?;
 
-        let total: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2",
-        )
-        .bind(tenant_id)
-        .bind(wo_id)
-        .fetch_one(pool)
-        .await?;
+        let total: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND wo_id = $2")
+                .bind(tenant_id)
+                .bind(wo_id)
+                .fetch_one(pool)
+                .await?;
 
         Ok((rows, total.0))
     }
@@ -414,13 +412,12 @@ pub async fn list_by_lot_paginated(
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND lot_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(lot_id)
-    .fetch_one(pool)
-    .await?;
+    let total: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM inspections WHERE tenant_id = $1 AND lot_id = $2")
+            .bind(tenant_id)
+            .bind(lot_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok((rows, total.0))
 }

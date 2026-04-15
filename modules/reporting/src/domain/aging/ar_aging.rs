@@ -202,10 +202,16 @@ mod tests {
 
         assert_eq!(summary.len(), 2);
 
-        let usd = summary.iter().find(|s| s.currency == "USD").expect("USD row");
+        let usd = summary
+            .iter()
+            .find(|s| s.currency == "USD")
+            .expect("USD row");
         assert_eq!(usd.total_minor, 150000);
 
-        let eur = summary.iter().find(|s| s.currency == "EUR").expect("EUR row");
+        let eur = summary
+            .iter()
+            .find(|s| s.currency == "EUR")
+            .expect("EUR row");
         assert_eq!(eur.total_minor, 80000);
 
         cleanup(&pool).await;

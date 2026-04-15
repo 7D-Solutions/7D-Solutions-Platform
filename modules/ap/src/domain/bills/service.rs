@@ -164,7 +164,8 @@ pub async fn create_bill(
         "VendorBill".to_string(),
         bill_id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| match e {
             platform_audit::writer::AuditWriterError::Database(db) => BillError::Database(db),
             platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
@@ -500,12 +501,14 @@ mod tests {
             .expect("create failed");
 
         // Manually void the bill
-        sqlx::query("UPDATE vendor_bills SET status = 'voided' WHERE bill_id = $1 AND tenant_id = $2")
-            .bind(created.bill.bill_id)
-            .bind(TEST_TENANT)
-            .execute(&pool)
-            .await
-            .expect("void update failed");
+        sqlx::query(
+            "UPDATE vendor_bills SET status = 'voided' WHERE bill_id = $1 AND tenant_id = $2",
+        )
+        .bind(created.bill.bill_id)
+        .bind(TEST_TENANT)
+        .execute(&pool)
+        .await
+        .expect("void update failed");
 
         let active = list_bills(&pool, TEST_TENANT, None, false)
             .await

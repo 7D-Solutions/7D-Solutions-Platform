@@ -39,11 +39,15 @@ use super::valuation::snapshot_service::SnapshotError;
 impl From<GuardError> for ApiError {
     fn from(err: GuardError) -> Self {
         match err {
-            GuardError::ItemNotFound => ApiError::not_found("Item not found or does not belong to this tenant"),
+            GuardError::ItemNotFound => {
+                ApiError::not_found("Item not found or does not belong to this tenant")
+            }
             GuardError::ItemInactive => ApiError::new(422, "item_inactive", err.to_string()),
             GuardError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             GuardError::NoBaseUom => ApiError::new(422, "no_base_uom", err.to_string()),
-            GuardError::UomConversion(e) => ApiError::new(422, "uom_conversion_error", e.to_string()),
+            GuardError::UomConversion(e) => {
+                ApiError::new(422, "uom_conversion_error", e.to_string())
+            }
             GuardError::Database(e) => {
                 tracing::error!(error = %e, "guard database error");
                 ApiError::internal("Database error")
@@ -57,9 +61,10 @@ impl From<GuardError> for ApiError {
 impl From<ItemError> for ApiError {
     fn from(err: ItemError) -> Self {
         match err {
-            ItemError::DuplicateSku(sku, tenant) => {
-                ApiError::conflict(format!("SKU '{}' already exists for tenant '{}'", sku, tenant))
-            }
+            ItemError::DuplicateSku(sku, tenant) => ApiError::conflict(format!(
+                "SKU '{}' already exists for tenant '{}'",
+                sku, tenant
+            )),
             ItemError::NotFound => ApiError::not_found("Item not found"),
             ItemError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             ItemError::Database(e) => {
@@ -98,7 +103,9 @@ impl From<LabelError> for ApiError {
                 ApiError::not_found(err.to_string())
             }
             LabelError::ItemInactive => ApiError::conflict(err.to_string()),
-            LabelError::RevisionMismatch => ApiError::new(422, "revision_mismatch", err.to_string()),
+            LabelError::RevisionMismatch => {
+                ApiError::new(422, "revision_mismatch", err.to_string())
+            }
             LabelError::ConflictingIdempotencyKey => ApiError::conflict(err.to_string()),
             LabelError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             LabelError::Serialization(e) => {
@@ -169,12 +176,8 @@ impl From<SnapshotError> for ApiError {
             SnapshotError::MissingTenant | SnapshotError::MissingIdempotencyKey => {
                 ApiError::new(422, "validation_error", err.to_string())
             }
-            SnapshotError::ConcurrentSnapshot => {
-                ApiError::conflict(err.to_string())
-            }
-            SnapshotError::ConflictingIdempotencyKey => {
-                ApiError::conflict(err.to_string())
-            }
+            SnapshotError::ConcurrentSnapshot => ApiError::conflict(err.to_string()),
+            SnapshotError::ConflictingIdempotencyKey => ApiError::conflict(err.to_string()),
             SnapshotError::Serialization(e) => {
                 tracing::error!(error = %e, "serialization error in valuation snapshot");
                 ApiError::internal("Serialization error")
@@ -342,9 +345,7 @@ impl From<TransferError> for ApiError {
     fn from(err: TransferError) -> Self {
         match err {
             TransferError::Guard(ge) => ge.into(),
-            TransferError::SameWarehouse => {
-                ApiError::new(422, "validation_error", err.to_string())
-            }
+            TransferError::SameWarehouse => ApiError::new(422, "validation_error", err.to_string()),
             TransferError::InsufficientQuantity { .. } => {
                 ApiError::new(422, "insufficient_stock", err.to_string())
             }

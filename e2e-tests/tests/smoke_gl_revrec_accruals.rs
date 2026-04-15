@@ -37,8 +37,7 @@ fn dev_private_key_pem() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env")
+    std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env")
 }
 
 fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
@@ -70,12 +69,7 @@ fn make_client() -> Client {
         .expect("failed to create HTTP client")
 }
 
-async fn post_json(
-    client: &Client,
-    url: &str,
-    token: &str,
-    body: &Value,
-) -> (u16, String) {
+async fn post_json(client: &Client, url: &str, token: &str, body: &Value) -> (u16, String) {
     let resp = client
         .post(url)
         .header("Authorization", format!("Bearer {}", token))
@@ -140,7 +134,11 @@ async fn smoke_gl_revrec_accruals() {
             ]
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("1. POST revrec/contracts: {} body_len={}", s, resp_body.len());
+        println!(
+            "1. POST revrec/contracts: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 || s == 409 {
             passed += 1;
         } else {
@@ -156,7 +154,11 @@ async fn smoke_gl_revrec_accruals() {
             "obligation_id": obligation_id
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("2. POST revrec/schedules: {} body_len={}", s, resp_body.len());
+        println!(
+            "2. POST revrec/schedules: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 || s == 409 {
             passed += 1;
         } else {
@@ -189,7 +191,11 @@ async fn smoke_gl_revrec_accruals() {
             "modified_at": Utc::now().to_rfc3339()
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("3. POST revrec/amendments: {} body_len={}", s, resp_body.len());
+        println!(
+            "3. POST revrec/amendments: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 || s == 409 {
             passed += 1;
         } else {
@@ -205,7 +211,11 @@ async fn smoke_gl_revrec_accruals() {
             "posting_date": "2026-01-31"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("4. POST revrec/recognition-runs: {} body_len={}", s, resp_body.len());
+        println!(
+            "4. POST revrec/recognition-runs: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 || s == 201 {
             passed += 1;
         } else {
@@ -232,13 +242,15 @@ async fn smoke_gl_revrec_accruals() {
             "cashflow_class": "operating"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("5. POST accruals/templates: {} body_len={}", s, resp_body.len());
+        println!(
+            "5. POST accruals/templates: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
-            template_id = v["template_id"]
-                .as_str()
-                .and_then(|s| s.parse().ok());
+            template_id = v["template_id"].as_str().and_then(|s| s.parse().ok());
         } else {
             println!("   body: {}", &resp_body[..resp_body.len().min(300)]);
             template_id = None;
@@ -257,7 +269,11 @@ async fn smoke_gl_revrec_accruals() {
                 "correlation_id": Uuid::new_v4().to_string()
             });
             let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-            println!("6. POST accruals/create: {} body_len={}", s, resp_body.len());
+            println!(
+                "6. POST accruals/create: {} body_len={}",
+                s,
+                resp_body.len()
+            );
             if s == 200 || s == 201 {
                 passed += 1;
             } else {
@@ -277,7 +293,11 @@ async fn smoke_gl_revrec_accruals() {
             "reversal_date": "2026-02-01"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("7. POST accruals/reversals/execute: {} body_len={}", s, resp_body.len());
+        println!(
+            "7. POST accruals/reversals/execute: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {

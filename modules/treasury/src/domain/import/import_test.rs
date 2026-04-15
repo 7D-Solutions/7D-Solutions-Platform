@@ -98,13 +98,14 @@ async fn test_import_creates_statement_and_lines() {
     assert!(result.errors.is_empty());
 
     // Verify statement exists
-    let stmt_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM treasury_bank_statements WHERE id = $1 AND app_id = $2")
-            .bind(result.statement_id)
-            .bind(TEST_APP)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let stmt_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM treasury_bank_statements WHERE id = $1 AND app_id = $2",
+    )
+    .bind(result.statement_id)
+    .bind(TEST_APP)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(stmt_count, 1);
 
     // Verify transaction lines

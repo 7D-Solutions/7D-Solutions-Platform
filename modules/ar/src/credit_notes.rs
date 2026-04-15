@@ -39,9 +39,9 @@
 
 use crate::events::{
     build_credit_memo_approved_envelope, build_credit_memo_created_envelope,
-    build_credit_note_issued_envelope, CreditNoteIssuedPayload, EVENT_TYPE_CREDIT_NOTE_ISSUED,
-    CreditMemoApprovedPayload, CreditMemoCreatedPayload, EVENT_TYPE_CREDIT_MEMO_APPROVED,
-    EVENT_TYPE_CREDIT_MEMO_CREATED,
+    build_credit_note_issued_envelope, CreditMemoApprovedPayload, CreditMemoCreatedPayload,
+    CreditNoteIssuedPayload, EVENT_TYPE_CREDIT_MEMO_APPROVED, EVENT_TYPE_CREDIT_MEMO_CREATED,
+    EVENT_TYPE_CREDIT_NOTE_ISSUED,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -198,7 +198,10 @@ pub enum CreditNoteError {
         actual: String,
     },
     /// Credit memo not found in tenant
-    CreditMemoNotFound { credit_note_id: Uuid, app_id: String },
+    CreditMemoNotFound {
+        credit_note_id: Uuid,
+        app_id: String,
+    },
     /// Total credits (existing + new) would exceed the invoice amount — financial integrity guard
     OverCreditBalance {
         invoice_id: i32,
@@ -528,26 +531,42 @@ pub async fn issue_credit_memo(
         });
     }
 
-    let row: Option<(i32, String, String, i32, i64, String, String, Option<String>)> =
-        sqlx::query_as(
-            "SELECT id, status, customer_id, invoice_id, amount_minor, currency, reason, reference_id
+    let row: Option<(
+        i32,
+        String,
+        String,
+        i32,
+        i64,
+        String,
+        String,
+        Option<String>,
+    )> = sqlx::query_as(
+        "SELECT id, status, customer_id, invoice_id, amount_minor, currency, reason, reference_id
              FROM ar_credit_notes WHERE app_id = $1 AND credit_note_id = $2 FOR UPDATE",
-        )
-        .bind(&req.app_id)
-        .bind(req.credit_note_id)
-        .fetch_optional(&mut *tx)
-        .await?;
-    let (credit_note_row_id, status, customer_id, invoice_id, amount_minor, currency, reason, reference_id) =
-        match row {
-            Some(v) => v,
-            None => {
-                tx.rollback().await?;
-                return Err(CreditNoteError::CreditMemoNotFound {
-                    credit_note_id: req.credit_note_id,
-                    app_id: req.app_id,
-                });
-            }
-        };
+    )
+    .bind(&req.app_id)
+    .bind(req.credit_note_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let (
+        credit_note_row_id,
+        status,
+        customer_id,
+        invoice_id,
+        amount_minor,
+        currency,
+        reason,
+        reference_id,
+    ) = match row {
+        Some(v) => v,
+        None => {
+            tx.rollback().await?;
+            return Err(CreditNoteError::CreditMemoNotFound {
+                credit_note_id: req.credit_note_id,
+                app_id: req.app_id,
+            });
+        }
+    };
 
     if status == "issued" {
         tx.rollback().await?;
@@ -705,7 +724,8 @@ pub async fn issue_credit_note(
     .await?;
 
     match create {
-        CreateCreditMemoResult::Created { .. } | CreateCreditMemoResult::AlreadyProcessed { .. } => {
+        CreateCreditMemoResult::Created { .. }
+        | CreateCreditMemoResult::AlreadyProcessed { .. } => {
             let _ = approve_credit_memo(
                 pool,
                 ApproveCreditMemoRequest {

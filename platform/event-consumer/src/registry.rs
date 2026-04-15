@@ -20,7 +20,10 @@ pub enum HandlerError {
 ///
 /// Takes extracted [`HandlerContext`] and the event payload as a JSON value.
 pub type HandlerFn = Arc<
-    dyn Fn(HandlerContext, serde_json::Value) -> Pin<Box<dyn Future<Output = Result<(), HandlerError>> + Send>>
+    dyn Fn(
+            HandlerContext,
+            serde_json::Value,
+        ) -> Pin<Box<dyn Future<Output = Result<(), HandlerError>> + Send>>
         + Send
         + Sync,
 >;

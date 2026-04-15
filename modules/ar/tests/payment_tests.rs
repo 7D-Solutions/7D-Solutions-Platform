@@ -193,7 +193,11 @@ async fn test_list_charges_by_customer() {
 
     let json = common::body_json(response).await;
     assert!(json["data"].is_array(), "Response.data should be array");
-    assert_eq!(json["data"].as_array().unwrap().len(), 2, "Should have 2 charges");
+    assert_eq!(
+        json["data"].as_array().unwrap().len(),
+        2,
+        "Should have 2 charges"
+    );
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -436,7 +440,11 @@ async fn test_list_refunds_by_customer() {
 
     let json = common::body_json(response).await;
     assert!(json["data"].is_array(), "Response.data should be array");
-    assert_eq!(json["data"].as_array().unwrap().len(), 3, "Should have 3 refunds");
+    assert_eq!(
+        json["data"].as_array().unwrap().len(),
+        3,
+        "Should have 3 refunds"
+    );
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -482,7 +490,11 @@ async fn test_list_refunds_by_charge() {
 
     let json = common::body_json(response).await;
     assert!(json["data"].is_array(), "Response.data should be array");
-    assert_eq!(json["data"].as_array().unwrap().len(), 1, "Should have 1 refund");
+    assert_eq!(
+        json["data"].as_array().unwrap().len(),
+        1,
+        "Should have 1 refund"
+    );
     assert_eq!(json["data"][0]["charge_id"], charge_id);
 
     common::cleanup_customers(&pool, &[customer_id]).await;

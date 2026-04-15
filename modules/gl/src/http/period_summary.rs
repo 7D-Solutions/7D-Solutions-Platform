@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying period summary reports.
 
 use crate::AppState;
-use axum::{extract::{Path, Query, State}, Extension, Json};
+use axum::{
+    extract::{Path, Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -11,9 +14,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::period_summary_service::{self, PeriodSummaryResponse};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize)]
 pub struct PeriodSummaryQuery {
@@ -46,16 +49,15 @@ pub async fn get_period_summary(
             | period_summary_service::PeriodSummaryServiceError::InvalidCurrency(_) => {
                 ApiError::bad_request(e.to_string())
             }
-            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => {
-                match repo_err {
-                    crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
-                        ApiError::not_found(e.to_string())
-                    }
-                    crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
-                        ApiError::internal(e.to_string())
-                    }
+            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => match repo_err
+            {
+                crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
+                    ApiError::not_found(e.to_string())
                 }
-            }
+                crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
+                    ApiError::internal(e.to_string())
+                }
+            },
         };
         with_request_id(api_err, &ctx)
     })?;

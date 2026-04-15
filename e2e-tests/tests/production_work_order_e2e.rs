@@ -44,11 +44,7 @@ fn make_jwt(tenant_id: &str) -> Option<String> {
 /// Wait for the service health endpoint to respond OK.
 async fn wait_for_health(client: &Client) -> bool {
     for _ in 0..15 {
-        if let Ok(r) = client
-            .get(format!("{BASE_URL}/api/health"))
-            .send()
-            .await
-        {
+        if let Ok(r) = client.get(format!("{BASE_URL}/api/health")).send().await {
             if r.status().is_success() {
                 return true;
             }
@@ -152,7 +148,9 @@ async fn add_routing_step(
         "is_required": true
     });
     let resp = client
-        .post(format!("{BASE_URL}/api/production/routings/{routing_id}/steps"))
+        .post(format!(
+            "{BASE_URL}/api/production/routings/{routing_id}/steps"
+        ))
         .header("Authorization", auth)
         .json(&body)
         .send()
@@ -170,7 +168,9 @@ async fn add_routing_step(
 /// Release a routing template (makes it usable on work orders).
 async fn release_routing(client: &Client, auth: &str, routing_id: Uuid) {
     let resp = client
-        .post(format!("{BASE_URL}/api/production/routings/{routing_id}/release"))
+        .post(format!(
+            "{BASE_URL}/api/production/routings/{routing_id}/release"
+        ))
         .header("Authorization", auth)
         .json(&json!({}))
         .send()
@@ -247,7 +247,11 @@ async fn work_order_full_lifecycle_state_machine() {
     assert_eq!(resp.status(), StatusCode::CREATED, "create WO -> 201");
     let wo: Value = resp.json().await.expect("WO JSON");
     let wo_id = extract_id(&wo);
-    assert_eq!(wo["status"].as_str().unwrap_or(""), "draft", "new WO status = draft");
+    assert_eq!(
+        wo["status"].as_str().unwrap_or(""),
+        "draft",
+        "new WO status = draft"
+    );
 
     // ── Step 2: GET verifies draft ──
     let resp = client
@@ -262,7 +266,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 3: Close draft -> 422 (invalid transition) ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/close"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/close"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -276,7 +282,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 4: Release ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/release"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/release"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -288,7 +296,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 5: Re-release -> 422 ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/release"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/release"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -302,17 +312,25 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 6: Initialize operations ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations/initialize"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations/initialize"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
         .await
         .expect("initialize operations");
-    assert_eq!(resp.status(), StatusCode::OK, "initialize operations -> 200");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "initialize operations -> 200"
+    );
 
     // ── Step 7: List operations -> 2 pending ──
     let resp = client
-        .get(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations"))
+        .get(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations"
+        ))
         .header("Authorization", &auth)
         .send()
         .await
@@ -337,7 +355,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 8: Start op2 before op1 complete -> 422 (sequencing guard) ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op2_id}/start"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op2_id}/start"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -351,7 +371,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 9: Start op1 ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op1_id}/start"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op1_id}/start"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -377,7 +399,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 11: Start op2 ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op2_id}/start"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations/{op2_id}/start"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -403,7 +427,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 13: GET ops -> all completed ──
     let resp = client
-        .get(format!("{BASE_URL}/api/production/work-orders/{wo_id}/operations"))
+        .get(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/operations"
+        ))
         .header("Authorization", &auth)
         .send()
         .await
@@ -420,7 +446,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 14: Finished-goods receipt ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/fg-receipt"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/fg-receipt"
+        ))
         .header("Authorization", &auth)
         .json(&json!({ "quantity_received": 100, "location_id": Uuid::new_v4() }))
         .send()
@@ -436,7 +464,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 15: Close WO ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/close"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/close"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -459,7 +489,9 @@ async fn work_order_full_lifecycle_state_machine() {
 
     // ── Step 17: Release closed -> 422 ──
     let resp = client
-        .post(format!("{BASE_URL}/api/production/work-orders/{wo_id}/release"))
+        .post(format!(
+            "{BASE_URL}/api/production/work-orders/{wo_id}/release"
+        ))
         .header("Authorization", &auth)
         .json(&json!({}))
         .send()
@@ -525,10 +557,7 @@ async fn work_order_crud_fields_round_trip() {
     let wo_id = extract_id(&created);
 
     // Verify returned fields
-    assert_eq!(
-        created["order_number"].as_str().unwrap_or(""),
-        order_number
-    );
+    assert_eq!(created["order_number"].as_str().unwrap_or(""), order_number);
     assert_eq!(
         created["item_id"].as_str().unwrap_or(""),
         item_id.to_string()
@@ -549,10 +578,7 @@ async fn work_order_crud_fields_round_trip() {
         .expect("GET WO");
     assert_eq!(resp.status(), StatusCode::OK, "GET WO -> 200");
     let fetched: Value = resp.json().await.expect("fetched WO JSON");
-    assert_eq!(
-        fetched["order_number"].as_str().unwrap_or(""),
-        order_number
-    );
+    assert_eq!(fetched["order_number"].as_str().unwrap_or(""), order_number);
     assert_eq!(
         fetched["item_id"].as_str().unwrap_or(""),
         item_id.to_string()
@@ -572,7 +598,11 @@ async fn work_order_crud_fields_round_trip() {
         .send()
         .await
         .expect("GET unknown WO");
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND, "GET unknown WO -> 404");
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "GET unknown WO -> 404"
+    );
 
     // ── Duplicate order_number -> 409 ──
     let dup_body = json!({

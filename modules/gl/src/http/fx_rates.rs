@@ -1,4 +1,7 @@
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use chrono::{DateTime, Utc};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
@@ -8,10 +11,10 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::fx_rate_service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateFxRateRequest {

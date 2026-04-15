@@ -159,9 +159,7 @@ pub async fn provision_all_modules(
 
         match provision_one_module(pool, registry, tenant_id, code).await {
             Ok(()) => {
-                set_status(pool, tenant_id, code, "ready", None)
-                    .await
-                    .ok();
+                set_status(pool, tenant_id, code, "ready", None).await.ok();
                 tracing::info!(tenant_id = %tenant_id, module = %code, "module ready");
                 results.push(ModuleResult {
                     module_code: code.clone(),
@@ -237,7 +235,9 @@ async fn create_module_db(
 ) -> Result<(), StepError> {
     let mut conn = PgConnection::connect(&config.admin_url())
         .await
-        .map_err(|e| StepError::Migration(format!("connect admin for {}: {e}", config.module_code)))?;
+        .map_err(|e| {
+            StepError::Migration(format!("connect admin for {}: {e}", config.module_code))
+        })?;
 
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)")
@@ -280,10 +280,9 @@ async fn run_module_migrations(
             ))
         })?;
 
-    migrator
-        .run(&pool)
-        .await
-        .map_err(|e| StepError::Migration(format!("run migrations for {}: {e}", config.module_code)))?;
+    migrator.run(&pool).await.map_err(|e| {
+        StepError::Migration(format!("run migrations for {}: {e}", config.module_code))
+    })?;
 
     pool.close().await;
     tracing::info!(module = %config.module_code, db = %db_name, "migrations applied");
@@ -345,14 +344,16 @@ async fn seed_module(
 }
 
 async fn verify_module_connectivity(db_url: &str, module_code: &str) -> Result<(), StepError> {
-    let mut conn = PgConnection::connect(db_url)
-        .await
-        .map_err(|e| StepError::Migration(format!("connectivity check connect {module_code}: {e}")))?;
+    let mut conn = PgConnection::connect(db_url).await.map_err(|e| {
+        StepError::Migration(format!("connectivity check connect {module_code}: {e}"))
+    })?;
 
     sqlx::query("SELECT 1")
         .execute(&mut conn)
         .await
-        .map_err(|e| StepError::Migration(format!("connectivity ping failed for {module_code}: {e}")))?;
+        .map_err(|e| {
+            StepError::Migration(format!("connectivity ping failed for {module_code}: {e}"))
+        })?;
 
     conn.close().await.ok();
     Ok(())

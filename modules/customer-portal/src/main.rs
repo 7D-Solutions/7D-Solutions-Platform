@@ -1,7 +1,9 @@
 use axum::Extension;
-use customer_portal::{auth::PortalJwt, build_router, config::Config, metrics::PortalMetrics, AppState};
-use std::sync::Arc;
+use customer_portal::{
+    auth::PortalJwt, build_router, config::Config, metrics::PortalMetrics, AppState,
+};
 use platform_sdk::ModuleBuilder;
+use std::sync::Arc;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
@@ -29,12 +31,10 @@ async fn main() {
                 config,
             });
 
-            let doc_mgmt_client = Arc::new(
-                ctx.platform_client::<platform_client_doc_mgmt::DistributionsClient>(),
-            );
+            let doc_mgmt_client =
+                Arc::new(ctx.platform_client::<platform_client_doc_mgmt::DistributionsClient>());
 
-            build_router(state)
-                .layer(Extension(doc_mgmt_client))
+            build_router(state).layer(Extension(doc_mgmt_client))
         })
         .run()
         .await

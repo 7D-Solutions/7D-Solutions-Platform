@@ -16,12 +16,12 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::transfer_service::{process_transfer, TransferRequest, TransferResult},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Handler

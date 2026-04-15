@@ -18,12 +18,12 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::labels::{generate_label, get_label, list_labels, GenerateLabelRequest, Label},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

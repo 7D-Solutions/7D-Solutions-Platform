@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::{
     domain::entries::{
         models::{
@@ -22,6 +21,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params
@@ -52,9 +52,7 @@ fn map_entry_error(err: EntryError) -> ApiError {
         EntryError::NotFound => ApiError::not_found("Entry not found"),
         EntryError::Validation(msg) => ApiError::new(422, "validation_error", msg),
         EntryError::PeriodLocked(msg) => ApiError::conflict(msg),
-        EntryError::Overlap => {
-            ApiError::conflict("Duplicate entry for employee/date/project/task")
-        }
+        EntryError::Overlap => ApiError::conflict("Duplicate entry for employee/date/project/task"),
         EntryError::IdempotentReplay { status_code, body } => {
             // Preserve idempotent replay semantics — construct with original status
             let mut err = ApiError::new(status_code, "idempotent_replay", "Idempotent replay");

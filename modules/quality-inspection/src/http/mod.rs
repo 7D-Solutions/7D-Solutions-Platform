@@ -75,8 +75,8 @@ mod tests {
     #[test]
     fn openapi_spec_is_valid_json() {
         let spec = ApiDoc::openapi();
-        let json = serde_json::to_string_pretty(&spec)
-            .expect("OpenAPI spec must serialize to JSON");
+        let json =
+            serde_json::to_string_pretty(&spec).expect("OpenAPI spec must serialize to JSON");
         assert!(json.contains("\"openapi\""), "must contain openapi version");
         assert!(
             json.contains("/api/quality-inspection/plans"),
@@ -94,9 +94,6 @@ mod tests {
             json.contains("\"Inspection\""),
             "must have Inspection schema"
         );
-        assert!(
-            json.contains("\"ApiError\""),
-            "must have ApiError schema"
-        );
+        assert!(json.contains("\"ApiError\""), "must have ApiError schema");
     }
 }

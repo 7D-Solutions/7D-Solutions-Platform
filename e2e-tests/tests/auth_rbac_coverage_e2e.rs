@@ -50,7 +50,14 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/inventory/locations/00000000-0000-0000-0000-000000000000",
             ],
             mutation_endpoints: &[("POST", "/api/inventory/items")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics", "/api/openapi.json"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+                "/api/openapi.json",
+            ],
         },
         ModuleInfo {
             name: "ar",
@@ -67,7 +74,13 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/ar/aging",
             ],
             mutation_endpoints: &[("POST", "/api/ar/customers")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "gl",
@@ -80,7 +93,14 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/gl/cash-flow",
             ],
             mutation_endpoints: &[("POST", "/api/gl/journals")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "party",
@@ -90,7 +110,13 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/party/parties/00000000-0000-0000-0000-000000000000",
             ],
             mutation_endpoints: &[("POST", "/api/party/companies")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "ap",
@@ -101,7 +127,14 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/ap/purchase-orders",
             ],
             mutation_endpoints: &[("POST", "/api/ap/vendors")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "treasury",
@@ -114,7 +147,14 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/treasury/recon/unmatched",
             ],
             mutation_endpoints: &[("POST", "/api/treasury/accounts")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "timekeeping",
@@ -129,7 +169,13 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/timekeeping/rates",
             ],
             mutation_endpoints: &[("POST", "/api/timekeeping/employees")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "fixed-assets",
@@ -141,25 +187,42 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/fixed-assets/disposals",
             ],
             mutation_endpoints: &[("POST", "/api/fixed-assets/categories")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "consolidation",
             port: 8093,
-            read_endpoints: &[
-                "/api/consolidation/groups",
-            ],
+            read_endpoints: &["/api/consolidation/groups"],
             mutation_endpoints: &[("POST", "/api/consolidation/groups")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "shipping-receiving",
             port: 8097,
-            read_endpoints: &[
-                "/api/shipping-receiving/shipments",
-            ],
+            read_endpoints: &["/api/shipping-receiving/shipments"],
             mutation_endpoints: &[("POST", "/api/shipping-receiving/shipments")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "ttp",
@@ -169,50 +232,82 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/metering/trace?period=2026-01",
             ],
             mutation_endpoints: &[("POST", "/api/ttp/billing-runs")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "bom",
             port: 8107,
-            read_endpoints: &[
-                "/api/bom/boms",
-            ],
+            read_endpoints: &["/api/bom/boms"],
             mutation_endpoints: &[("POST", "/api/bom/boms")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "production",
             port: 8108,
-            read_endpoints: &[
-                "/api/production/work-orders",
-            ],
+            read_endpoints: &["/api/production/work-orders"],
             mutation_endpoints: &[("POST", "/api/production/work-orders")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "maintenance",
             port: 8109,
-            read_endpoints: &[
-                "/api/maintenance/assets",
-            ],
+            read_endpoints: &["/api/maintenance/assets"],
             mutation_endpoints: &[("POST", "/api/maintenance/assets")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "quality-inspection",
             port: 8110,
-            read_endpoints: &[
-                "/api/quality-inspection/inspections/by-part-rev",
-            ],
+            read_endpoints: &["/api/quality-inspection/inspections/by-part-rev"],
             mutation_endpoints: &[("POST", "/api/quality-inspection/plans")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "notifications",
             port: 8085,
             read_endpoints: &[],
             mutation_endpoints: &[],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "reporting",
@@ -224,16 +319,28 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/reporting/kpis",
             ],
             mutation_endpoints: &[("POST", "/api/reporting/rebuild")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "workflow",
             port: 8102,
-            read_endpoints: &[
-                "/api/workflow/instances",
-            ],
+            read_endpoints: &["/api/workflow/instances"],
             mutation_endpoints: &[("POST", "/api/workflow/definitions")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "integrations",
@@ -243,47 +350,84 @@ fn modules() -> Vec<ModuleInfo> {
                 "/api/integrations/external-refs/by-entity",
             ],
             mutation_endpoints: &[("POST", "/api/integrations/connectors")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "pdf-editor",
             port: 8104,
-            read_endpoints: &[
-                "/api/pdf/forms/templates",
-                "/api/pdf/forms/submissions",
-            ],
+            read_endpoints: &["/api/pdf/forms/templates", "/api/pdf/forms/submissions"],
             mutation_endpoints: &[("POST", "/api/pdf/forms/templates")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "numbering",
             port: 8105,
             read_endpoints: &[],
             mutation_endpoints: &[("POST", "/allocate")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/schema-version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/schema-version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "workforce-competence",
             port: 8111,
-            read_endpoints: &[
-                "/api/workforce-competence/authorization",
-            ],
+            read_endpoints: &["/api/workforce-competence/authorization"],
             mutation_endpoints: &[("POST", "/api/workforce-competence/artifacts")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/schema-version", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/schema-version",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "payments",
             port: 8088,
             read_endpoints: &[],
             mutation_endpoints: &[("POST", "/api/payments/checkout-sessions")],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
         ModuleInfo {
             name: "subscriptions",
             port: 8087,
             read_endpoints: &[],
             mutation_endpoints: &[],
-            exempt_endpoints: &["/healthz", "/api/health", "/api/ready", "/api/version", "/api/openapi.json", "/metrics"],
+            exempt_endpoints: &[
+                "/healthz",
+                "/api/health",
+                "/api/ready",
+                "/api/version",
+                "/api/openapi.json",
+                "/metrics",
+            ],
         },
     ]
 }
@@ -337,9 +481,7 @@ async fn assert_get_requires_auth(
     let json_body_ok = has_error_field && has_message_field;
 
     if !got_401 {
-        eprintln!(
-            "  🚨 FAIL {module} GET {path}: expected 401, got {status}"
-        );
+        eprintln!("  🚨 FAIL {module} GET {path}: expected 401, got {status}");
     } else if !json_body_ok {
         eprintln!(
             "  ⚠️  WARN {module} GET {path}: 401 but missing JSON fields (error={}, message={})",
@@ -380,9 +522,7 @@ async fn assert_post_requires_auth(
     let json_body_ok = has_error_field && has_message_field;
 
     if !got_401 {
-        eprintln!(
-            "  🚨 FAIL {module} POST {path}: expected 401, got {status}"
-        );
+        eprintln!("  🚨 FAIL {module} POST {path}: expected 401, got {status}");
     } else if !json_body_ok {
         eprintln!(
             "  ⚠️  WARN {module} POST {path}: 401 but missing JSON fields (error={}, message={})",
@@ -412,9 +552,7 @@ async fn assert_invalid_jwt_rejected(
 
     let got_401 = status == StatusCode::UNAUTHORIZED;
     if !got_401 {
-        eprintln!(
-            "  🚨 FAIL {module} GET {path} (invalid JWT): expected 401, got {status}"
-        );
+        eprintln!("  🚨 FAIL {module} GET {path} (invalid JWT): expected 401, got {status}");
     } else {
         eprintln!("  ✅ {module} GET {path} (invalid JWT): 401");
     }
@@ -593,25 +731,85 @@ fn every_module_has_read_permission_constant() {
     let modules_with_data: Vec<(&str, &str, &str)> = vec![
         ("ar", permissions::AR_MUTATE, permissions::AR_READ),
         ("gl", permissions::GL_POST, permissions::GL_READ),
-        ("inventory", permissions::INVENTORY_MUTATE, permissions::INVENTORY_READ),
+        (
+            "inventory",
+            permissions::INVENTORY_MUTATE,
+            permissions::INVENTORY_READ,
+        ),
         ("ap", permissions::AP_MUTATE, permissions::AP_READ),
         ("party", permissions::PARTY_MUTATE, permissions::PARTY_READ),
-        ("treasury", permissions::TREASURY_MUTATE, permissions::TREASURY_READ),
-        ("timekeeping", permissions::TIMEKEEPING_MUTATE, permissions::TIMEKEEPING_READ),
-        ("fixed-assets", permissions::FIXED_ASSETS_MUTATE, permissions::FIXED_ASSETS_READ),
-        ("consolidation", permissions::CONSOLIDATION_MUTATE, permissions::CONSOLIDATION_READ),
-        ("shipping-receiving", permissions::SHIPPING_RECEIVING_MUTATE, permissions::SHIPPING_RECEIVING_READ),
+        (
+            "treasury",
+            permissions::TREASURY_MUTATE,
+            permissions::TREASURY_READ,
+        ),
+        (
+            "timekeeping",
+            permissions::TIMEKEEPING_MUTATE,
+            permissions::TIMEKEEPING_READ,
+        ),
+        (
+            "fixed-assets",
+            permissions::FIXED_ASSETS_MUTATE,
+            permissions::FIXED_ASSETS_READ,
+        ),
+        (
+            "consolidation",
+            permissions::CONSOLIDATION_MUTATE,
+            permissions::CONSOLIDATION_READ,
+        ),
+        (
+            "shipping-receiving",
+            permissions::SHIPPING_RECEIVING_MUTATE,
+            permissions::SHIPPING_RECEIVING_READ,
+        ),
         ("ttp", permissions::TTP_MUTATE, permissions::TTP_READ),
         ("bom", permissions::BOM_MUTATE, permissions::BOM_READ),
-        ("production", permissions::PRODUCTION_MUTATE, permissions::PRODUCTION_READ),
-        ("maintenance", permissions::MAINTENANCE_MUTATE, permissions::MAINTENANCE_READ),
-        ("quality-inspection", permissions::QUALITY_INSPECTION_MUTATE, permissions::QUALITY_INSPECTION_READ),
-        ("reporting", permissions::REPORTING_MUTATE, permissions::REPORTING_READ),
-        ("notifications", permissions::NOTIFICATIONS_MUTATE, permissions::NOTIFICATIONS_READ),
-        ("integrations", permissions::INTEGRATIONS_MUTATE, permissions::INTEGRATIONS_READ),
-        ("pdf-editor", permissions::PDF_EDITOR_MUTATE, permissions::PDF_EDITOR_READ),
-        ("workforce-competence", permissions::WORKFORCE_COMPETENCE_MUTATE, permissions::WORKFORCE_COMPETENCE_READ),
-        ("workflow", permissions::WORKFLOW_MUTATE, permissions::WORKFLOW_READ),
+        (
+            "production",
+            permissions::PRODUCTION_MUTATE,
+            permissions::PRODUCTION_READ,
+        ),
+        (
+            "maintenance",
+            permissions::MAINTENANCE_MUTATE,
+            permissions::MAINTENANCE_READ,
+        ),
+        (
+            "quality-inspection",
+            permissions::QUALITY_INSPECTION_MUTATE,
+            permissions::QUALITY_INSPECTION_READ,
+        ),
+        (
+            "reporting",
+            permissions::REPORTING_MUTATE,
+            permissions::REPORTING_READ,
+        ),
+        (
+            "notifications",
+            permissions::NOTIFICATIONS_MUTATE,
+            permissions::NOTIFICATIONS_READ,
+        ),
+        (
+            "integrations",
+            permissions::INTEGRATIONS_MUTATE,
+            permissions::INTEGRATIONS_READ,
+        ),
+        (
+            "pdf-editor",
+            permissions::PDF_EDITOR_MUTATE,
+            permissions::PDF_EDITOR_READ,
+        ),
+        (
+            "workforce-competence",
+            permissions::WORKFORCE_COMPETENCE_MUTATE,
+            permissions::WORKFORCE_COMPETENCE_READ,
+        ),
+        (
+            "workflow",
+            permissions::WORKFLOW_MUTATE,
+            permissions::WORKFLOW_READ,
+        ),
     ];
 
     for (name, mutate, read) in &modules_with_data {

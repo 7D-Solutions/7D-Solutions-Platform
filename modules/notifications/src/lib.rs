@@ -5,18 +5,18 @@
 
 pub mod broadcast;
 pub mod config;
-pub mod consumers;
 pub mod consumer_tasks;
+pub mod consumers;
 pub mod db;
 pub mod dlq;
 pub mod envelope_validation;
 pub mod escalation;
 pub mod event_bus;
 pub mod handlers;
+pub mod http;
 pub mod inbox;
 pub mod metrics;
 pub mod models;
-pub mod http;
 pub mod scheduled;
 pub mod sends;
 pub mod template_store;

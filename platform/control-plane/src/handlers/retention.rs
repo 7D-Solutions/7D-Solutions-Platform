@@ -352,8 +352,8 @@ mod retention_tests {
     /// RetentionConfig serialises to the expected JSON shape.
     #[tokio::test]
     async fn retention_config_serialises() {
-        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
-            .expect("valid UUID literal");
+        let tenant_id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID literal");
         let now = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
             .expect("valid RFC 3339 date")
             .with_timezone(&Utc);

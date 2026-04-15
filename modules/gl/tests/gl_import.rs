@@ -72,12 +72,11 @@ async fn gl_import_creates_new_accounts() {
     assert!(summary.errors.is_empty());
 
     // Verify rows are in the DB
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM accounts WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM accounts WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 2);
 
     cleanup(&pool, &tenant).await;
@@ -140,13 +139,12 @@ async fn gl_import_updates_changed_name() {
     assert!(s2.errors.is_empty());
 
     // Verify name updated in DB
-    let name: String = sqlx::query_scalar(
-        "SELECT name FROM accounts WHERE tenant_id = $1 AND code = '5000'",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let name: String =
+        sqlx::query_scalar("SELECT name FROM accounts WHERE tenant_id = $1 AND code = '5000'")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(name, "New Name");
 
     cleanup(&pool, &tenant).await;
@@ -183,13 +181,15 @@ async fn gl_import_validates_all_before_insert() {
     assert_eq!(summary.created, 0);
 
     // DB must be empty — validate-all-before-insert invariant
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM accounts WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(count, 0, "No rows should be inserted when any row fails validation");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM accounts WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "No rows should be inserted when any row fails validation"
+    );
 
     cleanup(&pool, &tenant).await;
 }

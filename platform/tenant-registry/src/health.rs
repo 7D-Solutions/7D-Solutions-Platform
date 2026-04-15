@@ -186,8 +186,8 @@ pub async fn activate_tenant_atomic(
     )
     .with_mutation_class(Some("LIFECYCLE".to_string()));
 
-    let envelope_json = serde_json::to_value(&envelope)
-        .expect("EventEnvelope serialization cannot fail");
+    let envelope_json =
+        serde_json::to_value(&envelope).expect("EventEnvelope serialization cannot fail");
 
     sqlx::query(
         r#"

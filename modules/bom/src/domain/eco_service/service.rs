@@ -6,8 +6,8 @@ use crate::domain::guards::GuardError;
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, BomEventType};
 
-use crate::domain::bom_service::BomError;
 use super::{get_eco, insert_audit};
+use crate::domain::bom_service::BomError;
 
 // ============================================================================
 // ECO linkage

@@ -286,8 +286,7 @@ pub async fn assign_terms_to_bill(
     .fetch_optional(pool)
     .await?;
 
-    let (invoice_date, total_minor) =
-        bill_row.ok_or(PaymentTermsError::BillNotFound(bill_id))?;
+    let (invoice_date, total_minor) = bill_row.ok_or(PaymentTermsError::BillNotFound(bill_id))?;
 
     let invoice_naive = invoice_date.date_naive();
     let due_naive = compute_due_date(invoice_naive, terms.days_due);

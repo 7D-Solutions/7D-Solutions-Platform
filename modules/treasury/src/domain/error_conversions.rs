@@ -82,11 +82,9 @@ impl From<ImportError> for ApiError {
             ImportError::EmptyImport => {
                 ApiError::new(422, "empty_import", "CSV contains no transaction lines")
             }
-            ImportError::AllLinesFailed(_) => ApiError::new(
-                422,
-                "all_lines_failed",
-                "Every CSV line failed validation",
-            ),
+            ImportError::AllLinesFailed(_) => {
+                ApiError::new(422, "all_lines_failed", "Every CSV line failed validation")
+            }
             ImportError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             ImportError::Database(e) => {
                 tracing::error!(error = %e, "treasury import database error");

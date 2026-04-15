@@ -114,7 +114,10 @@ pub async fn seed_boms(
     tracker: &mut DigestTracker,
 ) -> Result<BomIds> {
     // Build SKU -> UUID map
-    let sku_map: HashMap<&str, Uuid> = items.iter().map(|(id, sku, _)| (sku.as_str(), *id)).collect();
+    let sku_map: HashMap<&str, Uuid> = items
+        .iter()
+        .map(|(id, sku, _)| (sku.as_str(), *id))
+        .collect();
 
     let mut result = BomIds {
         boms: Vec::with_capacity(BOMS.len()),
@@ -158,7 +161,10 @@ pub async fn seed_boms(
             })?;
 
             if existing_component_ids.contains(&component_item_id) {
-                info!(component = comp.component_sku, "BOM line already exists — skipping");
+                info!(
+                    component = comp.component_sku,
+                    "BOM line already exists — skipping"
+                );
                 let existing = existing_lines
                     .iter()
                     .find(|l| l.component_item_id == component_item_id)
@@ -205,7 +211,11 @@ mod tests {
 
     #[test]
     fn five_bom_definitions() {
-        assert_eq!(BOMS.len(), 5, "Expected 5 BOM definitions (one per make item)");
+        assert_eq!(
+            BOMS.len(),
+            5,
+            "Expected 5 BOM definitions (one per make item)"
+        );
     }
 
     #[test]
@@ -236,7 +246,10 @@ mod tests {
 
     #[test]
     fn turbine_blade_has_one_component() {
-        let bom = BOMS.iter().find(|b| b.make_item_sku == "TBB-ASSY-001").unwrap();
+        let bom = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "TBB-ASSY-001")
+            .unwrap();
         assert_eq!(bom.components.len(), 1);
         assert_eq!(bom.components[0].component_sku, "TI64-BAR-001");
         assert_eq!(bom.components[0].quantity, 1.0);
@@ -245,7 +258,10 @@ mod tests {
 
     #[test]
     fn engine_mount_has_four_components() {
-        let bom = BOMS.iter().find(|b| b.make_item_sku == "EMB-ASSY-001").unwrap();
+        let bom = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "EMB-ASSY-001")
+            .unwrap();
         assert_eq!(bom.components.len(), 4);
         let comp_skus: Vec<&str> = bom.components.iter().map(|c| c.component_sku).collect();
         assert!(comp_skus.contains(&"AL7075-SHT-001"));
@@ -256,7 +272,10 @@ mod tests {
 
     #[test]
     fn structural_rib_has_two_components() {
-        let bom = BOMS.iter().find(|b| b.make_item_sku == "SRA-ASSY-001").unwrap();
+        let bom = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "SRA-ASSY-001")
+            .unwrap();
         assert_eq!(bom.components.len(), 2);
         assert_eq!(bom.components[0].component_sku, "4130-TUB-001");
         assert_eq!(bom.components[1].component_sku, "INC718-FRG-001");
@@ -265,7 +284,10 @@ mod tests {
 
     #[test]
     fn fuel_line_has_two_components() {
-        let bom = BOMS.iter().find(|b| b.make_item_sku == "FLC-ASSY-001").unwrap();
+        let bom = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "FLC-ASSY-001")
+            .unwrap();
         assert_eq!(bom.components.len(), 2);
         let comp_skus: Vec<&str> = bom.components.iter().map(|c| c.component_sku).collect();
         assert!(comp_skus.contains(&"4130-TUB-001"));
@@ -274,7 +296,10 @@ mod tests {
 
     #[test]
     fn landing_gear_has_two_components() {
-        let bom = BOMS.iter().find(|b| b.make_item_sku == "LGA-ASSY-001").unwrap();
+        let bom = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "LGA-ASSY-001")
+            .unwrap();
         assert_eq!(bom.components.len(), 2);
         let comp_skus: Vec<&str> = bom.components.iter().map(|c| c.component_sku).collect();
         assert!(comp_skus.contains(&"INC718-FRG-001"));
@@ -284,7 +309,10 @@ mod tests {
     #[test]
     fn fasteners_only_on_assembly_types() {
         let fastener_skus = ["AN3-BOLT", "MS21042-NUT", "NAS1149-WASH"];
-        let turbine = BOMS.iter().find(|b| b.make_item_sku == "TBB-ASSY-001").unwrap();
+        let turbine = BOMS
+            .iter()
+            .find(|b| b.make_item_sku == "TBB-ASSY-001")
+            .unwrap();
         for comp in turbine.components {
             assert!(
                 !fastener_skus.contains(&comp.component_sku),

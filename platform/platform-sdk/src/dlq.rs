@@ -111,20 +111,12 @@ CREATE INDEX IF NOT EXISTS "idx_{table}_pending"
 ///
 /// Each DDL statement is executed separately to avoid the PostgreSQL
 /// "cannot insert multiple commands into a prepared statement" restriction.
-pub async fn ensure_dlq_table(
-    pool: &sqlx::PgPool,
-    table_name: &str,
-) -> Result<(), StartupError> {
+pub async fn ensure_dlq_table(pool: &sqlx::PgPool, table_name: &str) -> Result<(), StartupError> {
     for template in [DLQ_TABLE_DDL, DLQ_INDEX_DDL] {
         let ddl = template.replace("{table}", table_name);
-        sqlx::query(&ddl)
-            .execute(pool)
-            .await
-            .map_err(|e| {
-                StartupError::Database(format!(
-                    "failed to create DLQ table '{table_name}': {e}"
-                ))
-            })?;
+        sqlx::query(&ddl).execute(pool).await.map_err(|e| {
+            StartupError::Database(format!("failed to create DLQ table '{table_name}': {e}"))
+        })?;
     }
     tracing::info!(table = %table_name, "DLQ table ensured");
     Ok(())
@@ -227,10 +219,7 @@ pub async fn replay_dlq_entry(
            FROM "{table}"
            WHERE id = $1"#
     );
-    let row_opt = sqlx::query(&select)
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    let row_opt = sqlx::query(&select).bind(id).fetch_optional(pool).await?;
 
     let row = match row_opt {
         Some(r) => r,

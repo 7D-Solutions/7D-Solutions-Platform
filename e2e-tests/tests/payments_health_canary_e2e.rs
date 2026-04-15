@@ -28,9 +28,7 @@
 
 mod common;
 
-use payments_rs::lifecycle::{
-    status, transition_to_succeeded,
-};
+use payments_rs::lifecycle::{status, transition_to_succeeded};
 use serial_test::serial;
 use sqlx::PgPool;
 use std::time::Duration;
@@ -99,11 +97,7 @@ async fn insert_payment_method(pool: &PgPool, app_id: &str, customer_id: i32) ->
 }
 
 /// Insert a payment attempt in ATTEMPTING state and return its UUID.
-async fn insert_payment_attempt(
-    pool: &PgPool,
-    app_id: &str,
-    invoice_ref: &str,
-) -> Uuid {
+async fn insert_payment_attempt(pool: &PgPool, app_id: &str, invoice_ref: &str) -> Uuid {
     let payment_id = Uuid::new_v4();
     sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO payment_attempts
@@ -123,13 +117,11 @@ async fn insert_payment_attempt(
 
 /// Fetch payment attempt status as string.
 async fn fetch_attempt_status(pool: &PgPool, attempt_id: Uuid) -> String {
-    sqlx::query_scalar::<_, String>(
-        "SELECT status::text FROM payment_attempts WHERE id = $1",
-    )
-    .bind(attempt_id)
-    .fetch_one(pool)
-    .await
-    .expect("fetch attempt status failed")
+    sqlx::query_scalar::<_, String>("SELECT status::text FROM payment_attempts WHERE id = $1")
+        .bind(attempt_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch attempt status failed")
 }
 
 /// Insert a succeeded AR charge and return its SERIAL id.
@@ -159,13 +151,11 @@ async fn insert_charge(
 
 /// Fetch charge status as string.
 async fn fetch_charge_status(pool: &PgPool, charge_id: i32) -> String {
-    sqlx::query_scalar::<_, String>(
-        "SELECT status FROM ar_charges WHERE id = $1",
-    )
-    .bind(charge_id)
-    .fetch_one(pool)
-    .await
-    .expect("fetch charge status failed")
+    sqlx::query_scalar::<_, String>("SELECT status FROM ar_charges WHERE id = $1")
+        .bind(charge_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch charge status failed")
 }
 
 /// Insert a succeeded AR refund for the given charge and return its SERIAL id.
@@ -197,13 +187,11 @@ async fn insert_refund(
 
 /// Fetch refund status as string.
 async fn fetch_refund_status(pool: &PgPool, refund_id: i32) -> String {
-    sqlx::query_scalar::<_, String>(
-        "SELECT status FROM ar_refunds WHERE id = $1",
-    )
-    .bind(refund_id)
-    .fetch_one(pool)
-    .await
-    .expect("fetch refund status failed")
+    sqlx::query_scalar::<_, String>("SELECT status FROM ar_refunds WHERE id = $1")
+        .bind(refund_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch refund status failed")
 }
 
 // ============================================================================
@@ -269,11 +257,7 @@ async fn cleanup(ar_pool: &PgPool, payments_pool: &PgPool, app_id: &str) {
 async fn test_payments_health_canary() {
     dotenvy::dotenv().ok();
 
-    let result = tokio::time::timeout(
-        Duration::from_secs(CANARY_TIMEOUT_SECS),
-        run_canary(),
-    )
-    .await;
+    let result = tokio::time::timeout(Duration::from_secs(CANARY_TIMEOUT_SECS), run_canary()).await;
 
     match result {
         Ok(()) => println!("PASS: payments health canary completed within {}s", CANARY_TIMEOUT_SECS),
@@ -362,6 +346,8 @@ async fn run_canary() {
     cleanup(&ar_pool, &payments_pool, &app_id).await;
 
     println!("\n=== Payments health canary PASSED ===");
-    println!("  customer={} pm={} attempt={} charge={} refund={}",
-             customer_id, pm_id, attempt_id, charge_id, refund_id);
+    println!(
+        "  customer={} pm={} attempt={} charge={} refund={}",
+        customer_id, pm_id, attempt_id, charge_id, refund_id
+    );
 }

@@ -9,9 +9,7 @@ impl From<ShipmentError> for ApiError {
         match err {
             ShipmentError::NotFound => ApiError::not_found("Shipment not found"),
             ShipmentError::Validation(msg) => ApiError::new(422, "validation_error", msg),
-            ShipmentError::Transition(t) => {
-                ApiError::new(400, "invalid_transition", t.to_string())
-            }
+            ShipmentError::Transition(t) => ApiError::new(400, "invalid_transition", t.to_string()),
             ShipmentError::Guard(g) => ApiError::new(400, "guard_failed", g.to_string()),
             ShipmentError::Database(e) => {
                 tracing::error!(error = %e, "database error");
@@ -35,9 +33,7 @@ impl From<OutboundShipError> for ApiError {
             OutboundShipError::NotPackable { ref current } => ApiError::new(
                 400,
                 "invalid_state",
-                format!(
-                    "Shipment must be in packed state to ship outbound (current: {current})"
-                ),
+                format!("Shipment must be in packed state to ship outbound (current: {current})"),
             ),
             OutboundShipError::QualityGateHold { hold_count } => ApiError::new(
                 403,
@@ -54,7 +50,11 @@ impl From<OutboundShipError> for ApiError {
             OutboundShipError::Shipment(e) => ApiError::from(e),
             OutboundShipError::QiIntegration(msg) => {
                 tracing::error!(error = %msg, "quality inspection integration error");
-                ApiError::new(502, "qi_integration_error", "Quality inspection service error")
+                ApiError::new(
+                    502,
+                    "qi_integration_error",
+                    "Quality inspection service error",
+                )
             }
         }
     }
@@ -73,9 +73,7 @@ impl From<RoutingError> for ApiError {
             RoutingError::NotReceiving { ref current } => ApiError::new(
                 400,
                 "validation_error",
-                format!(
-                    "Shipment must be in receiving status to route (current: {current})"
-                ),
+                format!("Shipment must be in receiving status to route (current: {current})"),
             ),
             RoutingError::AlreadyRouted { decision, .. } => {
                 ApiError::conflict(format!("Line is already routed as '{decision}'"))

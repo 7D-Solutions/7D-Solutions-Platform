@@ -28,8 +28,8 @@ fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.env"),
     )
     .ok();
-    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env");
+    let pem =
+        std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env");
     let encoding =
         EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
     let now = Utc::now();
@@ -119,11 +119,10 @@ async fn authorize_inspector(tenant_id: &str, inspector_id: Uuid) {
         artifact_resp.text().await.unwrap_or_default()
     );
 
-    let artifact: serde_json::Value = artifact_resp
-        .json()
-        .await
-        .expect("parse artifact response");
-    let artifact_id = artifact["id"].as_str().expect("artifact.id must be a string");
+    let artifact: serde_json::Value = artifact_resp.json().await.expect("parse artifact response");
+    let artifact_id = artifact["id"]
+        .as_str()
+        .expect("artifact.id must be a string");
 
     // Assign competence to the inspector
     let assign_resp = client
@@ -270,15 +269,21 @@ async fn disposition_without_inspector_id_returns_validation_error() {
     .unwrap();
 
     let err = service::hold_inspection(
-        &qi_pool, &wc, &tenant, inspection.id, None, None, &corr, None,
+        &qi_pool,
+        &wc,
+        &tenant,
+        inspection.id,
+        None,
+        None,
+        &corr,
+        None,
     )
     .await;
     assert!(err.is_err());
-    assert!(
-        err.unwrap_err()
-            .to_string()
-            .contains("inspector_id is required")
-    );
+    assert!(err
+        .unwrap_err()
+        .to_string()
+        .contains("inspector_id is required"));
 }
 
 // ============================================================================

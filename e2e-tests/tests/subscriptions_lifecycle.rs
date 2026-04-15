@@ -283,9 +283,14 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     );
 
     // 4. Transition to SUSPENDED (cancellation) → outbox event emitted
-    subscriptions_rs::transition_to_suspended(subscription_id, &tenant_id, "cancelled", &subscriptions_pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("transition_to_suspended: {:?}", e))?;
+    subscriptions_rs::transition_to_suspended(
+        subscription_id,
+        &tenant_id,
+        "cancelled",
+        &subscriptions_pool,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("transition_to_suspended: {:?}", e))?;
 
     assert_eq!(
         get_status(&subscriptions_pool, subscription_id).await?,

@@ -117,7 +117,9 @@ pub async fn process_transfer(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency fast-path ---
-    if let Some(record) = transfer_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        transfer_repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(TransferError::ConflictingIdempotencyKey);
         }
@@ -138,7 +140,13 @@ pub async fn process_transfer(
     let mut tx = pool.begin().await?;
 
     // --- Lock FIFO layers on source warehouse (deterministic FIFO order) ---
-    let layer_rows = transfer_repo::lock_fifo_layers(&mut tx, &req.tenant_id, req.item_id, req.from_warehouse_id).await?;
+    let layer_rows = transfer_repo::lock_fifo_layers(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.from_warehouse_id,
+    )
+    .await?;
 
     let available_layers: Vec<AvailableLayer> = layer_rows
         .iter()
@@ -152,7 +160,13 @@ pub async fn process_transfer(
     let sum_remaining: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
 
     // Available = total remaining − reserved
-    let quantity_reserved = transfer_repo::fetch_quantity_reserved(&mut tx, &req.tenant_id, req.item_id, req.from_warehouse_id).await?;
+    let quantity_reserved = transfer_repo::fetch_quantity_reserved(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.from_warehouse_id,
+    )
+    .await?;
 
     let net_available = sum_remaining - quantity_reserved;
     if net_available < req.quantity {
@@ -191,7 +205,8 @@ pub async fn process_transfer(
         EVENT_TYPE_TRANSFER_COMPLETED,
         &transfer_id.to_string(),
         transferred_at,
-    ).await?;
+    )
+    .await?;
 
     // --- Step 2: FIFO layer consumptions + decrement source layer quantities ---
     for c in &consumed {
@@ -202,7 +217,8 @@ pub async fn process_transfer(
             c.quantity,
             c.unit_cost_minor,
             transferred_at,
-        ).await?;
+        )
+        .await?;
 
         transfer_repo::decrement_layer(&mut tx, c.quantity, transferred_at, c.layer_id).await?;
     }
@@ -254,7 +270,8 @@ pub async fn process_transfer(
         EVENT_TYPE_TRANSFER_COMPLETED,
         &transfer_id.to_string(),
         transferred_at,
-    ).await?;
+    )
+    .await?;
 
     // --- Step 5: Create new FIFO layer at destination ---
     transfer_repo::insert_destination_fifo_layer(
@@ -267,7 +284,8 @@ pub async fn process_transfer(
         req.quantity,
         avg_unit_cost,
         &req.currency,
-    ).await?;
+    )
+    .await?;
 
     // --- Step 6: Update destination on-hand projection ---
     on_hand::upsert_after_receipt(
@@ -307,7 +325,8 @@ pub async fn process_transfer(
         issue_ledger_id,
         receipt_ledger_id,
         transferred_at,
-    ).await?;
+    )
+    .await?;
 
     // --- Step 8: Enqueue outbox event ---
     let payload = TransferCompletedPayload {
@@ -342,7 +361,8 @@ pub async fn process_transfer(
         &envelope_json,
         &correlation_id,
         req.causation_id.as_deref(),
-    ).await?;
+    )
+    .await?;
 
     // --- Step 9: Build result and store idempotency key ---
     let result = TransferResult {
@@ -371,7 +391,8 @@ pub async fn process_transfer(
         &request_hash,
         &response_json,
         expires_at,
-    ).await?;
+    )
+    .await?;
 
     tx.commit().await?;
 

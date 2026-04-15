@@ -37,11 +37,10 @@ pub(super) async fn get_revision_lines(
     revision_id: Uuid,
 ) -> Result<Vec<LineResponse>> {
     let url = format!("{}/api/bom/revisions/{}/lines", bom_url, revision_id);
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .with_context(|| format!("GET /api/bom/revisions/{}/lines network error", revision_id))?;
+    let resp =
+        client.get(&url).send().await.with_context(|| {
+            format!("GET /api/bom/revisions/{}/lines network error", revision_id)
+        })?;
 
     if !resp.status().is_success() {
         let status = resp.status();

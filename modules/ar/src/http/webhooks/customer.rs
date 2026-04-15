@@ -29,16 +29,10 @@ pub(super) async fn process_customer_event(
         .unwrap_or("active");
 
     // First: try to bind a pending_sync customer by email (provider ID not yet set).
-    let bound = customers::bind_pending_by_email(
-        db,
-        tilled_customer_id,
-        name,
-        &event.data,
-        app_id,
-        email,
-    )
-    .await
-    .map_err(|e| format!("Failed to bind pending customer: {}", e))?;
+    let bound =
+        customers::bind_pending_by_email(db, tilled_customer_id, name, &event.data, app_id, email)
+            .await
+            .map_err(|e| format!("Failed to bind pending customer: {}", e))?;
 
     if bound > 0 {
         tracing::info!(

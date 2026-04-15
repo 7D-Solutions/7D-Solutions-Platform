@@ -6,7 +6,10 @@ const DEFAULT_DB_URL: &str = "postgresql://doc_mgmt_user:doc_mgmt_pass@localhost
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
-    let pool = PgPoolOptions::new().max_connections(5).connect(&db_url).await?;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await?;
     sqlx::migrate!("./db/migrations").run(&pool).await?;
 
     let event_a = format!("drill-{}", Uuid::new_v4());

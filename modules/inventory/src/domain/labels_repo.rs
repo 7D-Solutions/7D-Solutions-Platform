@@ -102,13 +102,11 @@ pub(crate) async fn find_item(
     item_id: Uuid,
     tenant_id: &str,
 ) -> Result<Option<ItemRow>, sqlx::Error> {
-    sqlx::query_as::<_, ItemRow>(
-        "SELECT sku, active FROM items WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(item_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, ItemRow>("SELECT sku, active FROM items WHERE id = $1 AND tenant_id = $2")
+        .bind(item_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// Fetch an item revision. Returns None if not found for tenant.

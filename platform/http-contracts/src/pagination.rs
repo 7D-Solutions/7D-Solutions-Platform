@@ -59,8 +59,14 @@ mod tests {
     fn paginated_response_round_trip() -> Result<(), Box<dyn std::error::Error>> {
         let resp = PaginatedResponse::new(
             vec![
-                TestItem { id: 1, name: "alpha".into() },
-                TestItem { id: 2, name: "beta".into() },
+                TestItem {
+                    id: 1,
+                    name: "alpha".into(),
+                },
+                TestItem {
+                    id: 2,
+                    name: "beta".into(),
+                },
             ],
             1,
             10,

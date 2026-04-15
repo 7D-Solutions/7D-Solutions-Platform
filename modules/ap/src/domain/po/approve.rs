@@ -112,9 +112,7 @@ pub async fn approve_po(
 mod tests {
     use super::*;
     use crate::domain::po::{
-        queries::get_po,
-        service::create_po,
-        ApprovePoRequest, CreatePoLineRequest, CreatePoRequest,
+        queries::get_po, service::create_po, ApprovePoRequest, CreatePoLineRequest, CreatePoRequest,
     };
     use serial_test::serial;
 
@@ -413,12 +411,14 @@ mod tests {
         .expect("create_po failed");
 
         // Force-cancel the PO via raw SQL
-        sqlx::query("UPDATE purchase_orders SET status = 'cancelled' WHERE po_id = $1 AND tenant_id = $2")
-            .bind(created.po.po_id)
-            .bind(TEST_TENANT)
-            .execute(&pool)
-            .await
-            .expect("status update failed");
+        sqlx::query(
+            "UPDATE purchase_orders SET status = 'cancelled' WHERE po_id = $1 AND tenant_id = $2",
+        )
+        .bind(created.po.po_id)
+        .bind(TEST_TENANT)
+        .execute(&pool)
+        .await
+        .expect("status update failed");
 
         let result = approve_po(
             &pool,

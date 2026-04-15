@@ -1,6 +1,6 @@
 use super::models::{
-    DashboardLayout, DashboardLayoutCreatedPayload, DashboardLayoutUpdatedPayload,
-    DashboardWidget, WidgetInput,
+    DashboardLayout, DashboardLayoutCreatedPayload, DashboardLayoutUpdatedPayload, DashboardWidget,
+    WidgetInput,
 };
 use event_bus::outbox::validate_and_serialize_envelope;
 use event_bus::EventEnvelope;
@@ -125,13 +125,12 @@ pub async fn create_layout(
     tx.commit().await?;
 
     // ── Return created layout ─────────────────────────────────────────
-    let layout: DashboardLayout = sqlx::query_as(
-        "SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(layout_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let layout: DashboardLayout =
+        sqlx::query_as("SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2")
+            .bind(layout_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(layout)
 }
@@ -142,13 +141,11 @@ pub async fn get_layout(
     tenant_id: &str,
     layout_id: Uuid,
 ) -> Result<Option<DashboardLayout>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(layout_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as("SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2")
+        .bind(layout_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// List all dashboard layouts for a tenant.
@@ -193,13 +190,12 @@ pub async fn update_widget_positions(
     updates: &[(Uuid, i32, i32)], // (widget_id, new_x, new_y)
 ) -> Result<DashboardLayout, anyhow::Error> {
     // ── Guard: verify layout ownership ──────────────────────────────
-    let layout: Option<DashboardLayout> = sqlx::query_as(
-        "SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(layout_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let layout: Option<DashboardLayout> =
+        sqlx::query_as("SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2")
+            .bind(layout_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     let layout = layout.ok_or_else(|| anyhow::anyhow!("Layout not found or access denied"))?;
 
@@ -285,13 +281,12 @@ pub async fn update_widget_positions(
     tx.commit().await?;
 
     // ── Return updated layout ─────────────────────────────────────────
-    let updated: DashboardLayout = sqlx::query_as(
-        "SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(layout_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let updated: DashboardLayout =
+        sqlx::query_as("SELECT * FROM rpt_dashboard_layouts WHERE id = $1 AND tenant_id = $2")
+            .bind(layout_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(updated)
 }

@@ -39,11 +39,26 @@ pub(super) struct UomDef {
 }
 
 pub(super) const UOMS: &[UomDef] = &[
-    UomDef { code: "EA", name: "Each" },
-    UomDef { code: "KG", name: "Kilogram" },
-    UomDef { code: "LB", name: "Pound" },
-    UomDef { code: "M", name: "Meter" },
-    UomDef { code: "IN", name: "Inch" },
+    UomDef {
+        code: "EA",
+        name: "Each",
+    },
+    UomDef {
+        code: "KG",
+        name: "Kilogram",
+    },
+    UomDef {
+        code: "LB",
+        name: "Pound",
+    },
+    UomDef {
+        code: "M",
+        name: "Meter",
+    },
+    UomDef {
+        code: "IN",
+        name: "Inch",
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -88,7 +103,10 @@ async fn create_uom(
     }
 
     let text = resp.text().await.unwrap_or_default();
-    bail!("POST /api/inventory/uoms ({}) failed {status}: {text}", uom.code);
+    bail!(
+        "POST /api/inventory/uoms ({}) failed {status}: {text}",
+        uom.code
+    );
 }
 
 /// Fetch all UoMs and find one by exact code match.
@@ -122,7 +140,10 @@ async fn find_uom_by_code(
         }
     }
 
-    bail!("UoM with code '{}' returned 409 but could not be found via list", code);
+    bail!(
+        "UoM with code '{}' returned 409 but could not be found via list",
+        code
+    );
 }
 
 // ---------------------------------------------------------------------------

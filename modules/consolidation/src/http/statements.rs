@@ -39,8 +39,11 @@ pub async fn get_consolidated_pl(
         Ok(result) => Json(result).into_response(),
         Err(e) => {
             tracing::error!(group_id = %group_id, error = %e, "Consolidated P&L failed");
-            with_request_id(ApiError::internal("Consolidated P&L computation failed"), &ctx)
-                .into_response()
+            with_request_id(
+                ApiError::internal("Consolidated P&L computation failed"),
+                &ctx,
+            )
+            .into_response()
         }
     }
 }

@@ -241,7 +241,11 @@ pub async fn process_receipt(
     // Step 2: Upsert lot if lot-tracked (must precede layer insert to get lot_id)
     let lot_id: Option<Uuid> = if item.tracking_mode == TrackingMode::Lot {
         // validated above: lot_code is Some and non-empty
-        let code = req.lot_code.as_deref().ok_or_else(|| ReceiptError::Guard(GuardError::Validation("lot_code required for lot-tracked item".into())))?;
+        let code = req.lot_code.as_deref().ok_or_else(|| {
+            ReceiptError::Guard(GuardError::Validation(
+                "lot_code required for lot-tracked item".into(),
+            ))
+        })?;
         let id = upsert_lot(
             &mut tx,
             &req.tenant_id,
@@ -274,7 +278,11 @@ pub async fn process_receipt(
     // Step 3b: Insert serial instances if serial-tracked
     let serial_instance_ids: Vec<Uuid> = if item.tracking_mode == TrackingMode::Serial {
         // validated above: serial_codes is Some and len == quantity
-        let codes = req.serial_codes.as_deref().ok_or_else(|| ReceiptError::Guard(GuardError::Validation("serial_codes required for serial-tracked item".into())))?;
+        let codes = req.serial_codes.as_deref().ok_or_else(|| {
+            ReceiptError::Guard(GuardError::Validation(
+                "serial_codes required for serial-tracked item".into(),
+            ))
+        })?;
         insert_serial_instances(
             &mut tx,
             &req.tenant_id,

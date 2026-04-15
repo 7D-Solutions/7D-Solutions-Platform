@@ -61,15 +61,37 @@ mod tests {
     #[test]
     fn openapi_spec_is_valid_json() {
         let spec = ApiDoc::openapi();
-        let json = serde_json::to_string_pretty(&spec).expect("OpenAPI spec must serialize to JSON");
+        let json =
+            serde_json::to_string_pretty(&spec).expect("OpenAPI spec must serialize to JSON");
         assert!(json.contains("\"openapi\""), "must contain openapi version");
-        assert!(json.contains("/api/workforce-competence/artifacts"), "must contain artifacts path");
-        assert!(json.contains("/api/workforce-competence/assignments"), "must contain assignments path");
-        assert!(json.contains("/api/workforce-competence/authorization"), "must contain authorization path");
-        assert!(json.contains("/api/workforce-competence/acceptance-authorities"), "must contain acceptance-authorities path");
-        assert!(json.contains("/api/workforce-competence/acceptance-authority-check"), "must contain authority-check path");
-        assert!(json.contains("\"CompetenceArtifact\""), "must have CompetenceArtifact schema");
+        assert!(
+            json.contains("/api/workforce-competence/artifacts"),
+            "must contain artifacts path"
+        );
+        assert!(
+            json.contains("/api/workforce-competence/assignments"),
+            "must contain assignments path"
+        );
+        assert!(
+            json.contains("/api/workforce-competence/authorization"),
+            "must contain authorization path"
+        );
+        assert!(
+            json.contains("/api/workforce-competence/acceptance-authorities"),
+            "must contain acceptance-authorities path"
+        );
+        assert!(
+            json.contains("/api/workforce-competence/acceptance-authority-check"),
+            "must contain authority-check path"
+        );
+        assert!(
+            json.contains("\"CompetenceArtifact\""),
+            "must have CompetenceArtifact schema"
+        );
         assert!(json.contains("\"ApiError\""), "must have ApiError schema");
-        assert!(json.contains("\"AcceptanceAuthority\""), "must have AcceptanceAuthority schema");
+        assert!(
+            json.contains("\"AcceptanceAuthority\""),
+            "must have AcceptanceAuthority schema"
+        );
     }
 }

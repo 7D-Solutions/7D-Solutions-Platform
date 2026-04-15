@@ -85,8 +85,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake")
-            .expect("pool should create lazily");
+        let pool =
+            PgPool::connect_lazy("postgres://localhost/fake").expect("pool should create lazily");
         let _router = admin_router(pool);
     }
 }

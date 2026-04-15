@@ -212,10 +212,9 @@ async fn shutdown_drains_consumers() {
     let manifest = test_manifest();
     let ctx = ModuleContext::new(pool, manifest, Some(bus.clone()));
 
-    let consumers = vec![ConsumerDef::new(
-        "test.shutdown",
-        |_ctx, _env| async { Ok(()) },
-    )];
+    let consumers = vec![ConsumerDef::new("test.shutdown", |_ctx, _env| async {
+        Ok(())
+    })];
 
     let handles = platform_sdk::consumer::wire_consumers(consumers, &bus, &ctx)
         .await
@@ -328,14 +327,9 @@ async fn provisioning_hook_receives_event() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let handle = platform_sdk::consumer::wire_provisioning_hook(
-        handler,
-        &bus,
-        &ctx,
-        shutdown_rx,
-    )
-    .await
-    .expect("wire_provisioning_hook should succeed");
+    let handle = platform_sdk::consumer::wire_provisioning_hook(handler, &bus, &ctx, shutdown_rx)
+        .await
+        .expect("wire_provisioning_hook should succeed");
 
     // Publish a raw JSON payload (matching what the provisioning outbox relay sends)
     let tenant_id = uuid::Uuid::new_v4();
@@ -398,14 +392,9 @@ async fn provisioning_hook_retries() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let handle = platform_sdk::consumer::wire_provisioning_hook(
-        handler,
-        &bus,
-        &ctx,
-        shutdown_rx,
-    )
-    .await
-    .expect("wire_provisioning_hook should succeed");
+    let handle = platform_sdk::consumer::wire_provisioning_hook(handler, &bus, &ctx, shutdown_rx)
+        .await
+        .expect("wire_provisioning_hook should succeed");
 
     let payload = serde_json::json!({
         "tenant_id": uuid::Uuid::new_v4().to_string(),
@@ -454,14 +443,9 @@ async fn provisioning_hook_skips_bad_payload() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let handle = platform_sdk::consumer::wire_provisioning_hook(
-        handler,
-        &bus,
-        &ctx,
-        shutdown_rx,
-    )
-    .await
-    .expect("wire_provisioning_hook should succeed");
+    let handle = platform_sdk::consumer::wire_provisioning_hook(handler, &bus, &ctx, shutdown_rx)
+        .await
+        .expect("wire_provisioning_hook should succeed");
 
     // Publish malformed payload (missing tenant_id)
     bus.publish(
@@ -538,12 +522,9 @@ async fn malformed_envelope_routed_to_dlq() {
 
     // Publish a valid event after the malformed one
     let envelope = test_envelope("test.dlq.check");
-    bus.publish(
-        "test.dlq.check",
-        serde_json::to_vec(&envelope).unwrap(),
-    )
-    .await
-    .unwrap();
+    bus.publish("test.dlq.check", serde_json::to_vec(&envelope).unwrap())
+        .await
+        .unwrap();
 
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
@@ -555,24 +536,30 @@ async fn malformed_envelope_routed_to_dlq() {
     );
 
     // The DLQ should have received one message for the malformed event
-    let dlq_msg = tokio::time::timeout(
-        std::time::Duration::from_millis(500),
-        async {
-            use futures::StreamExt;
-            dlq_stream.next().await
-        },
-    )
+    let dlq_msg = tokio::time::timeout(std::time::Duration::from_millis(500), async {
+        use futures::StreamExt;
+        dlq_stream.next().await
+    })
     .await
     .expect("DLQ message should arrive within timeout")
     .expect("DLQ stream should produce a message");
 
     // Verify the DLQ payload contains the expected fields
-    let dlq_value: serde_json::Value = serde_json::from_slice(&dlq_msg.payload)
-        .expect("DLQ payload should be valid JSON");
+    let dlq_value: serde_json::Value =
+        serde_json::from_slice(&dlq_msg.payload).expect("DLQ payload should be valid JSON");
     assert_eq!(dlq_value["original_subject"], "test.dlq.check");
-    assert!(dlq_value["error"].is_string(), "DLQ payload must include error");
-    assert!(dlq_value["failed_at"].is_string(), "DLQ payload must include failed_at");
-    assert!(dlq_value["raw_payload"].is_array(), "DLQ payload must include raw_payload bytes");
+    assert!(
+        dlq_value["error"].is_string(),
+        "DLQ payload must include error"
+    );
+    assert!(
+        dlq_value["failed_at"].is_string(),
+        "DLQ payload must include failed_at"
+    );
+    assert!(
+        dlq_value["raw_payload"].is_array(),
+        "DLQ payload must include raw_payload bytes"
+    );
 
     handles.shutdown().await;
 }
@@ -606,8 +593,7 @@ async fn consumer_span_carries_correlation_id() {
             let span = tracing::Span::current();
             if let Some(meta) = span.metadata() {
                 *name.lock().await = Some(meta.name().to_string());
-                *fields.lock().await =
-                    meta.fields().iter().map(|f| f.name().to_string()).collect();
+                *fields.lock().await = meta.fields().iter().map(|f| f.name().to_string()).collect();
             }
             Ok(())
         }

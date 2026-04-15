@@ -9,8 +9,8 @@ use event_bus::{EventBus, InMemoryBus};
 use futures::StreamExt;
 use platform_sdk::publisher;
 use platform_sdk::{TenantPoolError, TenantPoolResolver};
-use tokio::sync::watch;
 use sqlx::PgPool;
+use tokio::sync::watch;
 use uuid::Uuid;
 
 /// Connect to the test database or skip.
@@ -47,7 +47,10 @@ async fn create_outbox_table(pool: &PgPool, table: &str) {
         )
         "#,
     );
-    sqlx::query(&ddl).execute(pool).await.expect("create outbox table");
+    sqlx::query(&ddl)
+        .execute(pool)
+        .await
+        .expect("create outbox table");
 }
 
 /// Drop a test table.
@@ -59,9 +62,8 @@ async fn drop_table(pool: &PgPool, table: &str) {
 /// Insert a test event row.
 async fn insert_event(pool: &PgPool, table: &str, event_type: &str) -> uuid::Uuid {
     let id = uuid::Uuid::new_v4();
-    let q = format!(
-        r#"INSERT INTO "{table}" (event_id, event_type, payload) VALUES ($1, $2, $3)"#,
-    );
+    let q =
+        format!(r#"INSERT INTO "{table}" (event_id, event_type, payload) VALUES ($1, $2, $3)"#,);
     sqlx::query(&q)
         .bind(id)
         .bind(event_type)
@@ -74,9 +76,7 @@ async fn insert_event(pool: &PgPool, table: &str, event_type: &str) -> uuid::Uui
 
 /// Count unpublished events.
 async fn count_unpublished(pool: &PgPool, table: &str) -> i64 {
-    let q = format!(
-        r#"SELECT COUNT(*) as cnt FROM "{table}" WHERE published_at IS NULL"#,
-    );
+    let q = format!(r#"SELECT COUNT(*) as cnt FROM "{table}" WHERE published_at IS NULL"#,);
     let row: (i64,) = sqlx::query_as(&q)
         .fetch_one(pool)
         .await
@@ -115,7 +115,8 @@ async fn publisher_drains_outbox() {
     let pub_table = table.to_string();
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
-        publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx).await;
+        publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx)
+            .await;
     });
 
     // Wait for events to be published (up to 5 seconds)
@@ -208,10 +209,7 @@ type = "none"
 "#;
     let manifest =
         platform_sdk::Manifest::from_str(toml_str, None).expect("none bus type should parse");
-    assert_eq!(
-        manifest.bus.as_ref().unwrap().bus_type.as_str(),
-        "none"
-    );
+    assert_eq!(manifest.bus.as_ref().unwrap().bus_type.as_str(), "none");
     // No events section → no publisher would be spawned
     assert!(manifest.events.is_none());
 }
@@ -311,7 +309,10 @@ async fn publisher_prepends_subject_prefix() {
 
     let bus = Arc::new(InMemoryBus::new());
     // Subscribe to the prefixed subject
-    let mut stream = bus.subscribe("trashtech.events.>").await.expect("subscribe");
+    let mut stream = bus
+        .subscribe("trashtech.events.>")
+        .await
+        .expect("subscribe");
 
     let pub_pool = pool.clone();
     let pub_bus: Arc<dyn EventBus> = bus.clone();
@@ -319,8 +320,12 @@ async fn publisher_prepends_subject_prefix() {
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
         publisher::run_outbox_publisher(
-            pub_pool, pub_bus, &pub_table, "test",
-            Some("trashtech.events"), shutdown_rx,
+            pub_pool,
+            pub_bus,
+            &pub_table,
+            "test",
+            Some("trashtech.events"),
+            shutdown_rx,
         )
         .await;
     });
@@ -329,7 +334,10 @@ async fn publisher_prepends_subject_prefix() {
     let received = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
         .await
         .expect("should receive within timeout");
-    assert!(received.is_some(), "expected prefixed event to be published");
+    assert!(
+        received.is_some(),
+        "expected prefixed event to be published"
+    );
 
     assert_eq!(
         count_unpublished(&pool, table).await,
@@ -437,7 +445,12 @@ async fn multi_tenant_publisher_drains_outbox() {
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
         publisher::run_multi_tenant_outbox_publisher(
-            pub_resolver, pub_bus, &pub_table, "test", None, shutdown_rx,
+            pub_resolver,
+            pub_bus,
+            &pub_table,
+            "test",
+            None,
+            shutdown_rx,
         )
         .await;
     });
@@ -454,7 +467,10 @@ async fn multi_tenant_publisher_drains_outbox() {
         }
     }
 
-    assert_eq!(received, 2, "expected 2 events to be published via multi-tenant publisher");
+    assert_eq!(
+        received, 2,
+        "expected 2 events to be published via multi-tenant publisher"
+    );
     assert_eq!(
         count_unpublished(&pool, table).await,
         0,
@@ -488,7 +504,10 @@ async fn tenant_pool_resolver_resolves_known_and_rejects_unknown() {
     };
 
     // Known tenant resolves to a working pool
-    let resolved = resolver.pool_for(tenant_a).await.expect("known tenant should resolve");
+    let resolved = resolver
+        .pool_for(tenant_a)
+        .await
+        .expect("known tenant should resolve");
     let row: (i64,) = sqlx::query_as("SELECT 1")
         .fetch_one(&resolved)
         .await
@@ -537,13 +556,28 @@ async fn ensure_outbox_table_creates_and_is_idempotent() {
     let col_names: Vec<&str> = cols.iter().map(|r| r.0.as_str()).collect();
     assert!(col_names.contains(&"id"), "missing id column");
     assert!(col_names.contains(&"event_id"), "missing event_id column");
-    assert!(col_names.contains(&"event_type"), "missing event_type column");
-    assert!(col_names.contains(&"aggregate_type"), "missing aggregate_type column");
-    assert!(col_names.contains(&"aggregate_id"), "missing aggregate_id column");
+    assert!(
+        col_names.contains(&"event_type"),
+        "missing event_type column"
+    );
+    assert!(
+        col_names.contains(&"aggregate_type"),
+        "missing aggregate_type column"
+    );
+    assert!(
+        col_names.contains(&"aggregate_id"),
+        "missing aggregate_id column"
+    );
     assert!(col_names.contains(&"tenant_id"), "missing tenant_id column");
     assert!(col_names.contains(&"payload"), "missing payload column");
-    assert!(col_names.contains(&"created_at"), "missing created_at column");
-    assert!(col_names.contains(&"published_at"), "missing published_at column");
+    assert!(
+        col_names.contains(&"created_at"),
+        "missing created_at column"
+    );
+    assert!(
+        col_names.contains(&"published_at"),
+        "missing published_at column"
+    );
 
     // Second call is idempotent — no error
     publisher::ensure_outbox_table(&pool, table)
@@ -580,7 +614,10 @@ fn standard_outbox_ddl_contains_required_columns() {
     assert!(ddl.contains("created_at"), "DDL must have created_at");
     assert!(ddl.contains("published_at"), "DDL must have published_at");
     assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
-    assert!(ddl.contains("{table}"), "DDL must use {{table}} placeholder");
+    assert!(
+        ddl.contains("{table}"),
+        "DDL must use {{table}} placeholder"
+    );
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -599,8 +636,7 @@ type = "inmemory"
 [events.publish]
 outbox_table = "events_outbox"
 "#;
-    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
-        .expect("manifest should parse");
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
     let publish = manifest.events.unwrap().publish.unwrap();
     assert!(!publish.auto_create, "auto_create should default to false");
 }
@@ -618,8 +654,7 @@ type = "inmemory"
 outbox_table = "events_outbox"
 auto_create = true
 "#;
-    let manifest = platform_sdk::Manifest::from_str(toml_str, None)
-        .expect("manifest should parse");
+    let manifest = platform_sdk::Manifest::from_str(toml_str, None).expect("manifest should parse");
     let publish = manifest.events.unwrap().publish.unwrap();
     assert!(publish.auto_create, "auto_create should be true");
 }
@@ -655,10 +690,8 @@ async fn publisher_works_with_auto_created_table() {
     let pub_table = table.to_string();
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let handle = tokio::spawn(async move {
-        publisher::run_outbox_publisher(
-            pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx,
-        )
-        .await;
+        publisher::run_outbox_publisher(pub_pool, pub_bus, &pub_table, "test", None, shutdown_rx)
+            .await;
     });
 
     let received = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())

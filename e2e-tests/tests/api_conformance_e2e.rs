@@ -55,89 +55,289 @@ impl ServiceSpec {
 fn services() -> Vec<ServiceSpec> {
     vec![
         // --- Standard services (platform JWT, /healthz present) ---
-        ServiceSpec { name: "ap", env_var: "AP_URL", default_port: 8093,
-            mutation_route: "/api/ap/vendors", perm: "ap.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "ar", env_var: "AR_URL", default_port: 8086,
-            mutation_route: "/api/ar/customers", perm: "ar.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "bom", env_var: "BOM_URL", default_port: 8107,
-            mutation_route: "/api/bom", perm: "bom.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "consolidation", env_var: "CONSOLIDATION_URL", default_port: 8105,
-            mutation_route: "/api/consolidation/groups", perm: "consolidation.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "fixed-assets", env_var: "FIXED_ASSETS_URL", default_port: 8104,
-            mutation_route: "/api/fixed-assets/assets", perm: "fixed_assets.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "gl", env_var: "GL_URL", default_port: 8090,
-            mutation_route: "/api/gl/accounts", perm: "gl.post",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "ap",
+            env_var: "AP_URL",
+            default_port: 8093,
+            mutation_route: "/api/ap/vendors",
+            perm: "ap.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "ar",
+            env_var: "AR_URL",
+            default_port: 8086,
+            mutation_route: "/api/ar/customers",
+            perm: "ar.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "bom",
+            env_var: "BOM_URL",
+            default_port: 8107,
+            mutation_route: "/api/bom",
+            perm: "bom.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "consolidation",
+            env_var: "CONSOLIDATION_URL",
+            default_port: 8105,
+            mutation_route: "/api/consolidation/groups",
+            perm: "consolidation.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "fixed-assets",
+            env_var: "FIXED_ASSETS_URL",
+            default_port: 8104,
+            mutation_route: "/api/fixed-assets/assets",
+            perm: "fixed_assets.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "gl",
+            env_var: "GL_URL",
+            default_port: 8090,
+            mutation_route: "/api/gl/accounts",
+            perm: "gl.post",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
         // integrations: no /metrics endpoint yet
-        ServiceSpec { name: "integrations", env_var: "INTEGRATIONS_URL", default_port: 8099,
-            mutation_route: "/api/integrations/external-refs", perm: "integrations.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: true },
-        ServiceSpec { name: "inventory", env_var: "INVENTORY_URL", default_port: 8092,
-            mutation_route: "/api/inventory/items", perm: "inventory.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "maintenance", env_var: "MAINTENANCE_URL", default_port: 8101,
-            mutation_route: "/api/maintenance/assets", perm: "maintenance.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "notifications", env_var: "NOTIFICATIONS_URL", default_port: 8089,
-            mutation_route: "/api/notifications/templates", perm: "notifications.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "numbering", env_var: "NUMBERING_URL", default_port: 8120,
-            mutation_route: "/allocate", perm: "numbering.allocate",
-            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: true },
+        ServiceSpec {
+            name: "integrations",
+            env_var: "INTEGRATIONS_URL",
+            default_port: 8099,
+            mutation_route: "/api/integrations/external-refs",
+            perm: "integrations.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: false,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "inventory",
+            env_var: "INVENTORY_URL",
+            default_port: 8092,
+            mutation_route: "/api/inventory/items",
+            perm: "inventory.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "maintenance",
+            env_var: "MAINTENANCE_URL",
+            default_port: 8101,
+            mutation_route: "/api/maintenance/assets",
+            perm: "maintenance.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "notifications",
+            env_var: "NOTIFICATIONS_URL",
+            default_port: 8089,
+            mutation_route: "/api/notifications/templates",
+            perm: "notifications.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "numbering",
+            env_var: "NUMBERING_URL",
+            default_port: 8120,
+            mutation_route: "/allocate",
+            perm: "numbering.allocate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: false,
+            expect_cors: true,
+        },
         // party: no /metrics endpoint yet
-        ServiceSpec { name: "party", env_var: "PARTY_URL", default_port: 8098,
-            mutation_route: "/api/party/companies", perm: "party.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: true },
-        ServiceSpec { name: "payments", env_var: "PAYMENTS_URL", default_port: 8088,
-            mutation_route: "/api/payments/checkout-sessions", perm: "payments.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "party",
+            env_var: "PARTY_URL",
+            default_port: 8098,
+            mutation_route: "/api/party/companies",
+            perm: "party.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: false,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "payments",
+            env_var: "PAYMENTS_URL",
+            default_port: 8088,
+            mutation_route: "/api/payments/checkout-sessions",
+            perm: "payments.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
         // pdf-editor: no /metrics, no CORS
-        ServiceSpec { name: "pdf-editor", env_var: "PDF_EDITOR_URL", default_port: 8102,
-            mutation_route: "/api/pdf/forms/templates", perm: "pdf_editor.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: false },
-        ServiceSpec { name: "quality-inspection", env_var: "QI_URL", default_port: 8106,
-            mutation_route: "/api/quality-inspection/plans", perm: "quality_inspection.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "reporting", env_var: "REPORTING_URL", default_port: 8096,
-            mutation_route: "/api/reporting/rebuild", perm: "reporting.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "shipping-receiving", env_var: "SR_URL", default_port: 8103,
-            mutation_route: "/api/shipping-receiving/shipments", perm: "shipping_receiving.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "subscriptions", env_var: "SUBSCRIPTIONS_URL", default_port: 8087,
-            mutation_route: "/api/bill-runs/execute", perm: "subscriptions.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "timekeeping", env_var: "TIMEKEEPING_URL", default_port: 8097,
-            mutation_route: "/api/timekeeping/employees", perm: "timekeeping.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
-        ServiceSpec { name: "treasury", env_var: "TREASURY_URL", default_port: 8094,
-            mutation_route: "/api/treasury/accounts/bank", perm: "treasury.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "pdf-editor",
+            env_var: "PDF_EDITOR_URL",
+            default_port: 8102,
+            mutation_route: "/api/pdf/forms/templates",
+            perm: "pdf_editor.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: false,
+            expect_cors: false,
+        },
+        ServiceSpec {
+            name: "quality-inspection",
+            env_var: "QI_URL",
+            default_port: 8106,
+            mutation_route: "/api/quality-inspection/plans",
+            perm: "quality_inspection.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "reporting",
+            env_var: "REPORTING_URL",
+            default_port: 8096,
+            mutation_route: "/api/reporting/rebuild",
+            perm: "reporting.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "shipping-receiving",
+            env_var: "SR_URL",
+            default_port: 8103,
+            mutation_route: "/api/shipping-receiving/shipments",
+            perm: "shipping_receiving.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "subscriptions",
+            env_var: "SUBSCRIPTIONS_URL",
+            default_port: 8087,
+            mutation_route: "/api/bill-runs/execute",
+            perm: "subscriptions.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "timekeeping",
+            env_var: "TIMEKEEPING_URL",
+            default_port: 8097,
+            mutation_route: "/api/timekeeping/employees",
+            perm: "timekeeping.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "treasury",
+            env_var: "TREASURY_URL",
+            default_port: 8094,
+            mutation_route: "/api/treasury/accounts/bank",
+            perm: "treasury.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
         // ttp: no /metrics endpoint yet
-        ServiceSpec { name: "ttp", env_var: "TTP_URL", default_port: 8100,
-            mutation_route: "/api/ttp/billing-runs", perm: "ttp.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: false, expect_cors: true },
-        ServiceSpec { name: "workflow", env_var: "WORKFLOW_URL", default_port: 8110,
-            mutation_route: "/api/workflow/definitions", perm: "workflow.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "ttp",
+            env_var: "TTP_URL",
+            default_port: 8100,
+            mutation_route: "/api/ttp/billing-runs",
+            perm: "ttp.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: false,
+            expect_cors: true,
+        },
+        ServiceSpec {
+            name: "workflow",
+            env_var: "WORKFLOW_URL",
+            default_port: 8110,
+            mutation_route: "/api/workflow/definitions",
+            perm: "workflow.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
         // --- Deviations ---
         // customer-portal: PortalJwt auth, no /healthz, no /metrics
-        ServiceSpec { name: "customer-portal", env_var: "CUSTOMER_PORTAL_URL", default_port: 8111,
-            mutation_route: "/portal/admin/users", perm: "",
-            expect_healthz: false, expect_auth: false, expect_metrics: false, expect_cors: true },
+        ServiceSpec {
+            name: "customer-portal",
+            env_var: "CUSTOMER_PORTAL_URL",
+            default_port: 8111,
+            mutation_route: "/portal/admin/users",
+            perm: "",
+            expect_healthz: false,
+            expect_auth: false,
+            expect_metrics: false,
+            expect_cors: true,
+        },
         // production: now has RequirePermissionsLayer (fixed in bd-29c9i.1)
-        ServiceSpec { name: "production", env_var: "PRODUCTION_URL", default_port: 8108,
-            mutation_route: "/api/production/workcenters", perm: "production.mutate",
-            expect_healthz: true, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "production",
+            env_var: "PRODUCTION_URL",
+            default_port: 8108,
+            mutation_route: "/api/production/workcenters",
+            perm: "production.mutate",
+            expect_healthz: true,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
         // workforce-competence: missing /healthz (has /api/schema-version instead)
-        ServiceSpec { name: "workforce-competence", env_var: "WC_URL", default_port: 8121,
-            mutation_route: "/api/workforce-competence/artifacts", perm: "workforce_competence.mutate",
-            expect_healthz: false, expect_auth: true, expect_metrics: true, expect_cors: true },
+        ServiceSpec {
+            name: "workforce-competence",
+            env_var: "WC_URL",
+            default_port: 8121,
+            mutation_route: "/api/workforce-competence/artifacts",
+            perm: "workforce_competence.mutate",
+            expect_healthz: false,
+            expect_auth: true,
+            expect_metrics: true,
+            expect_cors: true,
+        },
     ]
 }
 
@@ -163,19 +363,52 @@ struct TestClaims {
 
 fn all_permissions() -> Vec<String> {
     [
-        "ap.mutate", "ap.read", "ar.mutate", "ar.read", "bom.mutate", "bom.read",
-        "consolidation.mutate", "consolidation.read", "fixed_assets.mutate",
-        "fixed_assets.read", "gl.post", "gl.read", "integrations.mutate",
-        "integrations.read", "inventory.mutate", "inventory.read", "maintenance.mutate",
-        "maintenance.read", "notifications.mutate", "notifications.read",
-        "numbering.allocate", "numbering.read", "party.mutate", "party.read",
-        "payments.mutate", "payments.read", "pdf_editor.mutate", "pdf_editor.read",
-        "production.mutate", "production.read",
-        "quality_inspection.mutate", "quality_inspection.read", "reporting.mutate",
-        "reporting.read", "shipping_receiving.mutate", "shipping_receiving.read",
-        "subscriptions.mutate", "timekeeping.mutate", "timekeeping.read",
-        "treasury.mutate", "treasury.read", "ttp.mutate", "ttp.read",
-        "workflow.mutate", "workflow.read", "workforce_competence.mutate",
+        "ap.mutate",
+        "ap.read",
+        "ar.mutate",
+        "ar.read",
+        "bom.mutate",
+        "bom.read",
+        "consolidation.mutate",
+        "consolidation.read",
+        "fixed_assets.mutate",
+        "fixed_assets.read",
+        "gl.post",
+        "gl.read",
+        "integrations.mutate",
+        "integrations.read",
+        "inventory.mutate",
+        "inventory.read",
+        "maintenance.mutate",
+        "maintenance.read",
+        "notifications.mutate",
+        "notifications.read",
+        "numbering.allocate",
+        "numbering.read",
+        "party.mutate",
+        "party.read",
+        "payments.mutate",
+        "payments.read",
+        "pdf_editor.mutate",
+        "pdf_editor.read",
+        "production.mutate",
+        "production.read",
+        "quality_inspection.mutate",
+        "quality_inspection.read",
+        "reporting.mutate",
+        "reporting.read",
+        "shipping_receiving.mutate",
+        "shipping_receiving.read",
+        "subscriptions.mutate",
+        "timekeeping.mutate",
+        "timekeeping.read",
+        "treasury.mutate",
+        "treasury.read",
+        "ttp.mutate",
+        "ttp.read",
+        "workflow.mutate",
+        "workflow.read",
+        "workforce_competence.mutate",
         "workforce_competence.read",
     ]
     .iter()
@@ -245,11 +478,7 @@ async fn check_api_health(client: &Client, base_url: &str) -> Result<(), String>
     }
 }
 
-async fn check_auth_rejection(
-    client: &Client,
-    base_url: &str,
-    route: &str,
-) -> Result<(), String> {
+async fn check_auth_rejection(client: &Client, base_url: &str, route: &str) -> Result<(), String> {
     let url = format!("{base_url}{route}");
     let resp = client
         .post(&url)
@@ -367,9 +596,9 @@ async fn api_conformance() {
         .build()
         .expect("HTTP client");
 
-    let key = std::env::var("JWT_PRIVATE_KEY_PEM").ok().and_then(|pem| {
-        EncodingKey::from_rsa_pem(pem.replace("\\n", "\n").as_bytes()).ok()
-    });
+    let key = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .ok()
+        .and_then(|pem| EncodingKey::from_rsa_pem(pem.replace("\\n", "\n").as_bytes()).ok());
     if key.is_none() {
         eprintln!("WARNING: JWT_PRIVATE_KEY_PEM not set or invalid — auth tests will be skipped");
     }
@@ -402,7 +631,10 @@ async fn api_conformance() {
         if svc.expect_healthz {
             checked += 1;
             match check_healthz(&client, &base).await {
-                Ok(()) => { passed += 1; println!("  PASS  healthz"); }
+                Ok(()) => {
+                    passed += 1;
+                    println!("  PASS  healthz");
+                }
                 Err(e) => {
                     println!("  FAIL  healthz: {e}");
                     failures.push(format!("{}: healthz — {e}", svc.name));
@@ -415,7 +647,10 @@ async fn api_conformance() {
         // 2. GET /api/health → JSON {status: ...}
         checked += 1;
         match check_api_health(&client, &base).await {
-            Ok(()) => { passed += 1; println!("  PASS  api/health"); }
+            Ok(()) => {
+                passed += 1;
+                println!("  PASS  api/health");
+            }
             Err(e) => {
                 println!("  FAIL  api/health: {e}");
                 failures.push(format!("{}: api/health — {e}", svc.name));
@@ -428,7 +663,10 @@ async fn api_conformance() {
                 // 3. No JWT → 401
                 checked += 1;
                 match check_auth_rejection(&client, &base, svc.mutation_route).await {
-                    Ok(()) => { passed += 1; println!("  PASS  auth rejection (no JWT → 401)"); }
+                    Ok(()) => {
+                        passed += 1;
+                        println!("  PASS  auth rejection (no JWT → 401)");
+                    }
                     Err(e) => {
                         println!("  FAIL  auth rejection: {e}");
                         failures.push(format!("{}: auth rejection — {e}", svc.name));
@@ -437,7 +675,10 @@ async fn api_conformance() {
                 // 4. Valid JWT → non-401
                 checked += 1;
                 match check_auth_acceptance(&client, &base, svc.mutation_route, token).await {
-                    Ok(()) => { passed += 1; println!("  PASS  auth acceptance (JWT → non-401)"); }
+                    Ok(()) => {
+                        passed += 1;
+                        println!("  PASS  auth acceptance (JWT → non-401)");
+                    }
                     Err(e) => {
                         println!("  FAIL  auth acceptance: {e}");
                         failures.push(format!("{}: auth acceptance — {e}", svc.name));
@@ -446,7 +687,10 @@ async fn api_conformance() {
                 // 5. 4xx → JSON {error/message}
                 checked += 1;
                 match check_error_format(&client, &base, svc.mutation_route, token).await {
-                    Ok(()) => { passed += 1; println!("  PASS  error format"); }
+                    Ok(()) => {
+                        passed += 1;
+                        println!("  PASS  error format");
+                    }
                     Err(e) => {
                         println!("  FAIL  error format: {e}");
                         failures.push(format!("{}: error format — {e}", svc.name));
@@ -463,7 +707,10 @@ async fn api_conformance() {
         if svc.expect_cors {
             checked += 1;
             match check_cors(&client, &base).await {
-                Ok(()) => { passed += 1; println!("  PASS  CORS"); }
+                Ok(()) => {
+                    passed += 1;
+                    println!("  PASS  CORS");
+                }
                 Err(e) => {
                     println!("  FAIL  CORS: {e}");
                     failures.push(format!("{}: CORS — {e}", svc.name));
@@ -477,7 +724,10 @@ async fn api_conformance() {
         if svc.expect_metrics {
             checked += 1;
             match check_metrics(&client, &base).await {
-                Ok(()) => { passed += 1; println!("  PASS  metrics"); }
+                Ok(()) => {
+                    passed += 1;
+                    println!("  PASS  metrics");
+                }
                 Err(e) => {
                     println!("  FAIL  metrics: {e}");
                     failures.push(format!("{}: metrics — {e}", svc.name));

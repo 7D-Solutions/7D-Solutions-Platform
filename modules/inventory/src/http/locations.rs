@@ -22,12 +22,12 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::locations::{CreateLocationRequest, Location, LocationRepo, UpdateLocationRequest},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

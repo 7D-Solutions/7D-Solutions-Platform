@@ -146,11 +146,7 @@ impl EventRegistry {
     ///
     /// Payload deserialization failure yields [`RouteOutcome::DeadLettered`]
     /// without calling the handler.
-    pub fn on_any_version<T, F, Fut>(
-        mut self,
-        event_type: impl Into<String>,
-        handler: F,
-    ) -> Self
+    pub fn on_any_version<T, F, Fut>(mut self, event_type: impl Into<String>, handler: F) -> Self
     where
         T: DeserializeOwned + Send + 'static,
         F: Fn(ModuleContext, EventEnvelope<T>) -> Fut + Send + Sync + 'static,
@@ -299,24 +295,17 @@ impl EventRegistry {
     ) -> Result<(), ConsumerError> {
         let event_id = env.event_id;
 
-        let mut tx = ctx
-            .pool()
-            .begin()
+        let mut tx = ctx.pool().begin().await.map_err(|e| {
+            ConsumerError::Processing(format!("dedup: failed to begin transaction: {e}"))
+        })?;
+
+        let is_new = crate::idempotency::check_and_mark(&mut tx, dedupe_table, event_id)
             .await
             .map_err(|e| {
                 ConsumerError::Processing(format!(
-                    "dedup: failed to begin transaction: {e}"
+                    "dedup: check_and_mark failed for event {event_id}: {e}"
                 ))
             })?;
-
-        let is_new =
-            crate::idempotency::check_and_mark(&mut tx, dedupe_table, event_id)
-                .await
-                .map_err(|e| {
-                    ConsumerError::Processing(format!(
-                        "dedup: check_and_mark failed for event {event_id}: {e}"
-                    ))
-                })?;
 
         if !is_new {
             tracing::debug!(
@@ -603,7 +592,11 @@ mod tests {
         registry.dispatch(make_ctx(), env).await;
 
         let log = called.lock().expect("test assertion").clone();
-        assert_eq!(log, vec!["second"], "second registration should replace first");
+        assert_eq!(
+            log,
+            vec!["second"],
+            "second registration should replace first"
+        );
     }
 
     #[tokio::test]
@@ -697,7 +690,10 @@ mod tests {
                 move |_ctx, _env: EventEnvelope<OrderPlaced>| {
                     let called = Arc::clone(&called_exact);
                     async move {
-                        called.lock().expect("test assertion").push("exact-v1".into());
+                        called
+                            .lock()
+                            .expect("test assertion")
+                            .push("exact-v1".into());
                         RouteOutcome::Handled
                     }
                 },
@@ -707,7 +703,10 @@ mod tests {
                 move |_ctx, _env: EventEnvelope<OrderPlaced>| {
                     let called = Arc::clone(&called_any);
                     async move {
-                        called.lock().expect("test assertion").push("wildcard".into());
+                        called
+                            .lock()
+                            .expect("test assertion")
+                            .push("wildcard".into());
                         RouteOutcome::Handled
                     }
                 },

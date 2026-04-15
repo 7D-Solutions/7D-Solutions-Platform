@@ -76,7 +76,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -161,7 +165,10 @@ async fn smoke_ttp() {
     let ingested = body["ingested"].as_u64().unwrap_or(0);
     let results_len = body["results"].as_array().map(|a| a.len()).unwrap_or(0);
     assert!(results_len >= 1, "results array should be non-empty");
-    println!("  ingested={ingested} duplicates={} results={results_len}", body["duplicates"]);
+    println!(
+        "  ingested={ingested} duplicates={} results={results_len}",
+        body["duplicates"]
+    );
     assert_unauth(
         &client,
         "POST",
@@ -239,7 +246,10 @@ async fn smoke_ttp() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "List service agreements failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "List service agreements failed: {status} - {body}"
+    );
     assert!(
         body["items"].is_array(),
         "items should be an array, got: {body}"

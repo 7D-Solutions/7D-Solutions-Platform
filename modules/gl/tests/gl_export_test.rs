@@ -135,7 +135,9 @@ async fn test_xero_journal_export() {
     .await
     .expect("Xero journal export should succeed");
 
-    assert!(result.output.contains("*Date,*Description,*AccountCode,*Debit,*Credit,Reference"));
+    assert!(result
+        .output
+        .contains("*Date,*Description,*AccountCode,*Debit,*Credit,Reference"));
     assert!(result.output.contains("1100"));
     assert!(result.output.contains("2500.00"));
     assert!(result.output.contains("inv-1001"));
@@ -191,7 +193,11 @@ async fn test_tenant_isolation() {
     .expect("Journal export for tenant B should succeed");
 
     let je_lines: Vec<&str> = result_b_je.output.lines().collect();
-    assert_eq!(je_lines.len(), 1, "Tenant B journal export should have header only");
+    assert_eq!(
+        je_lines.len(),
+        1,
+        "Tenant B journal export should have header only"
+    );
 
     cleanup_export_data(&pool, tenant_a).await;
     cleanup_export_data(&pool, tenant_b).await;
@@ -223,7 +229,11 @@ async fn test_empty_coa_export() {
     .expect("Empty COA export should succeed");
 
     let lines: Vec<&str> = result.output.lines().collect();
-    assert_eq!(lines.len(), 1, "Empty QB export should have only the header");
+    assert_eq!(
+        lines.len(),
+        1,
+        "Empty QB export should have only the header"
+    );
     assert!(result.output.contains("!ACCNT"));
 
     cleanup_export_data(&pool, tenant).await;
@@ -262,7 +272,11 @@ async fn test_empty_journal_export() {
     .expect("Empty journal export should succeed");
 
     let lines: Vec<&str> = result.output.lines().collect();
-    assert_eq!(lines.len(), 1, "Empty Xero journal export should have only the header");
+    assert_eq!(
+        lines.len(),
+        1,
+        "Empty Xero journal export should have only the header"
+    );
     assert!(result.output.contains("*Date,*Description,*AccountCode"));
 
     cleanup_export_data(&pool, tenant).await;

@@ -116,13 +116,12 @@ pub async fn create_schedule(
 
     tx.commit().await?;
 
-    let schedule: DeliverySchedule = sqlx::query_as(
-        "SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(schedule_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let schedule: DeliverySchedule =
+        sqlx::query_as("SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2")
+            .bind(schedule_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(schedule)
 }
@@ -147,13 +146,12 @@ pub async fn update_schedule_interval(
     .execute(pool)
     .await?;
 
-    let schedule: DeliverySchedule = sqlx::query_as(
-        "SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(schedule_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let schedule: DeliverySchedule =
+        sqlx::query_as("SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2")
+            .bind(schedule_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(schedule)
 }
@@ -183,13 +181,11 @@ pub async fn get_schedule(
     tenant_id: &str,
     schedule_id: Uuid,
 ) -> Result<Option<DeliverySchedule>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(schedule_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as("SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2")
+        .bind(schedule_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await
 }
 
 /// List all schedules for a tenant.
@@ -219,13 +215,12 @@ pub async fn trigger_schedule(
     schedule_id: Uuid,
 ) -> Result<Option<ScheduleExecution>, anyhow::Error> {
     // ── Guard: schedule must be active ──────────────────────────────
-    let schedule: DeliverySchedule = sqlx::query_as(
-        "SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(schedule_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let schedule: DeliverySchedule =
+        sqlx::query_as("SELECT * FROM rpt_delivery_schedules WHERE id = $1 AND tenant_id = $2")
+            .bind(schedule_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     if schedule.status != "active" {
         return Ok(None);
@@ -323,13 +318,12 @@ pub async fn trigger_schedule(
 
     tx.commit().await?;
 
-    let execution: ScheduleExecution = sqlx::query_as(
-        "SELECT * FROM rpt_schedule_executions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(execution_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let execution: ScheduleExecution =
+        sqlx::query_as("SELECT * FROM rpt_schedule_executions WHERE id = $1 AND tenant_id = $2")
+            .bind(execution_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(Some(execution))
 }

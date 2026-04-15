@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::event_bus::{create_pdf_editor_envelope, enqueue_event};
 
 use super::{
-    render_table, validate_render_request, RenderTableRequest, TableError,
-    TableRenderRequest, TableRenderedPayload,
+    render_table, validate_render_request, RenderTableRequest, TableError, TableRenderRequest,
+    TableRenderedPayload,
 };
 
 pub struct TableRenderRepo;
@@ -42,10 +42,9 @@ impl TableRenderRepo {
         }
 
         // ── Render the table ─────────────────────────────────
-        let table_def_json =
-            serde_json::to_value(&req.table_definition).map_err(|e| {
-                TableError::Render(format!("failed to serialize table definition: {}", e))
-            })?;
+        let table_def_json = serde_json::to_value(&req.table_definition).map_err(|e| {
+            TableError::Render(format!("failed to serialize table definition: {}", e))
+        })?;
 
         let (pdf_output, status, error_message) =
             match render_table(&req.pdf_template, &req.table_definition) {

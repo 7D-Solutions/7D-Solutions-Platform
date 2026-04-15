@@ -2,10 +2,10 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use utoipa::OpenApi;
 use maintenance_rs::{config::Config, http, metrics, AppState};
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 use maintenance_rs::consumers::production_downtime_bridge::{
     process_downtime_ended, process_downtime_started, DowntimeEndedPayload, DowntimeStartedPayload,
@@ -126,14 +126,8 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .consumer(
-            "production.workcenter_created",
-            on_workcenter_created,
-        )
-        .consumer(
-            "production.workcenter_updated",
-            on_workcenter_updated,
-        )
+        .consumer("production.workcenter_created", on_workcenter_created)
+        .consumer("production.workcenter_updated", on_workcenter_updated)
         .consumer(
             "production.workcenter_deactivated",
             on_workcenter_deactivated,
@@ -149,21 +143,13 @@ async fn main() {
 
             // Initialize metrics and register with global prometheus registry
             let app_metrics = Arc::new(
-                metrics::MaintenanceMetrics::new()
-                    .expect("Maintenance: failed to create metrics"),
+                metrics::MaintenanceMetrics::new().expect("Maintenance: failed to create metrics"),
             );
-            let _ = prometheus::register(Box::new(
-                app_metrics.http_request_duration_seconds.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                app_metrics.http_requests_total.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                app_metrics.outbox_queue_depth.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                app_metrics.events_enqueued_total.clone(),
-            ));
+            let _ =
+                prometheus::register(Box::new(app_metrics.http_request_duration_seconds.clone()));
+            let _ = prometheus::register(Box::new(app_metrics.http_requests_total.clone()));
+            let _ = prometheus::register(Box::new(app_metrics.outbox_queue_depth.clone()));
+            let _ = prometheus::register(Box::new(app_metrics.events_enqueued_total.clone()));
 
             // Spawn scheduler tick loop
             let scheduler_pool = pool.clone();
@@ -189,10 +175,7 @@ async fn main() {
                 // Read-only endpoints (MAINTENANCE_READ)
                 .merge(
                     Router::new()
-                        .route(
-                            "/api/maintenance/assets",
-                            get(http::assets::list_assets),
-                        )
+                        .route("/api/maintenance/assets", get(http::assets::list_assets))
                         .route(
                             "/api/maintenance/assets/{asset_id}",
                             get(http::assets::get_asset),
@@ -205,10 +188,7 @@ async fn main() {
                             "/api/maintenance/assets/{asset_id}/readings",
                             get(http::meters::list_readings),
                         )
-                        .route(
-                            "/api/maintenance/plans",
-                            get(http::plans::list_plans),
-                        )
+                        .route("/api/maintenance/plans", get(http::plans::list_plans))
                         .route(
                             "/api/maintenance/plans/{plan_id}",
                             get(http::plans::get_plan),
@@ -256,10 +236,7 @@ async fn main() {
                 // Mutation endpoints (MAINTENANCE_MUTATE)
                 .merge(
                     Router::new()
-                        .route(
-                            "/api/maintenance/assets",
-                            post(http::assets::create_asset),
-                        )
+                        .route("/api/maintenance/assets", post(http::assets::create_asset))
                         .route(
                             "/api/maintenance/assets/{asset_id}",
                             axum::routing::patch(http::assets::update_asset),
@@ -272,10 +249,7 @@ async fn main() {
                             "/api/maintenance/assets/{asset_id}/readings",
                             post(http::meters::record_reading),
                         )
-                        .route(
-                            "/api/maintenance/plans",
-                            post(http::plans::create_plan),
-                        )
+                        .route("/api/maintenance/plans", post(http::plans::create_plan))
                         .route(
                             "/api/maintenance/plans/{plan_id}",
                             axum::routing::patch(http::plans::update_plan),
@@ -334,9 +308,8 @@ async fn on_workcenter_created(
 ) -> Result<(), ConsumerError> {
     let pool = ctx.pool();
 
-    let payload: WorkcenterCreatedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: WorkcenterCreatedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     upsert_workcenter_projection(
         pool,
@@ -360,17 +333,15 @@ async fn on_workcenter_updated(
 ) -> Result<(), ConsumerError> {
     let pool = ctx.pool();
 
-    let payload: WorkcenterUpdatedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: WorkcenterUpdatedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    let existing_name: Option<(String,)> = sqlx::query_as(
-        "SELECT name FROM workcenter_projections WHERE workcenter_id = $1",
-    )
-    .bind(payload.workcenter_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+    let existing_name: Option<(String,)> =
+        sqlx::query_as("SELECT name FROM workcenter_projections WHERE workcenter_id = $1")
+            .bind(payload.workcenter_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
 
     let name = existing_name
         .map(|r| r.0)
@@ -398,17 +369,15 @@ async fn on_workcenter_deactivated(
 ) -> Result<(), ConsumerError> {
     let pool = ctx.pool();
 
-    let payload: WorkcenterDeactivatedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: WorkcenterDeactivatedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
-    let existing: Option<(String, String)> = sqlx::query_as(
-        "SELECT code, name FROM workcenter_projections WHERE workcenter_id = $1",
-    )
-    .bind(payload.workcenter_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
+    let existing: Option<(String, String)> =
+        sqlx::query_as("SELECT code, name FROM workcenter_projections WHERE workcenter_id = $1")
+            .bind(payload.workcenter_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ConsumerError::Processing(format!("DB error: {e}")))?;
 
     let (code, name) = existing.unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
 
@@ -434,9 +403,8 @@ async fn on_downtime_started(
 ) -> Result<(), ConsumerError> {
     let pool = ctx.pool();
 
-    let payload: DowntimeStartedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: DowntimeStartedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     process_downtime_started(pool, envelope.event_id, &payload)
         .await
@@ -452,9 +420,8 @@ async fn on_downtime_ended(
 ) -> Result<(), ConsumerError> {
     let pool = ctx.pool();
 
-    let payload: DowntimeEndedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: DowntimeEndedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     process_downtime_ended(pool, envelope.event_id, &payload)
         .await

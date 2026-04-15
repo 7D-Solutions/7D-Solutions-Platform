@@ -84,24 +84,21 @@ pub async fn capitalize_from_ap_line(
     }
 
     // Guard: look up active category by asset_account_ref
-    let category = match repo::find_category_by_asset_account(
-        &mut *tx,
-        &req.tenant_id,
-        &req.gl_account_code,
-    )
-    .await?
-    {
-        Some(c) => c,
-        None => {
-            tracing::debug!(
-                tenant_id = %req.tenant_id,
-                gl_account_code = %req.gl_account_code,
-                "capitalize: no active category for gl_account_code; non-capex line"
-            );
-            tx.commit().await?;
-            return Ok(None);
-        }
-    };
+    let category =
+        match repo::find_category_by_asset_account(&mut *tx, &req.tenant_id, &req.gl_account_code)
+            .await?
+        {
+            Some(c) => c,
+            None => {
+                tracing::debug!(
+                    tenant_id = %req.tenant_id,
+                    gl_account_code = %req.gl_account_code,
+                    "capitalize: no active category for gl_account_code; non-capex line"
+                );
+                tx.commit().await?;
+                return Ok(None);
+            }
+        };
 
     // Compute asset parameters from category defaults
     let method = DepreciationMethod::try_from(category.default_method.clone())

@@ -175,9 +175,12 @@ pub async fn process_gl_posting_request(
             "JournalEntry".to_string(),
             entry_id.to_string(),
         );
-        AuditWriter::write_in_tx(&mut tx, audit_req).await
+        AuditWriter::write_in_tx(&mut tx, audit_req)
+            .await
             .map_err(|e| match e {
-                platform_audit::writer::AuditWriterError::Database(db) => JournalError::Database(db),
+                platform_audit::writer::AuditWriterError::Database(db) => {
+                    JournalError::Database(db)
+                }
                 platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                     JournalError::Database(sqlx::Error::Protocol(msg))
                 }

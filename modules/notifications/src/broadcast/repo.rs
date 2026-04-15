@@ -191,12 +191,10 @@ pub async fn list_broadcasts(
     limit: i64,
     offset: i64,
 ) -> Result<(Vec<Broadcast>, i64), sqlx::Error> {
-    let (total,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM broadcasts WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let (total,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM broadcasts WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await?;
 
     let rows = sqlx::query_as::<_, Broadcast>(
         r#"

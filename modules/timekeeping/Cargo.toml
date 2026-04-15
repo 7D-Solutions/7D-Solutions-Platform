@@ -1,6 +1,6 @@
 [package]
 name = "timekeeping"
-version = "3.0.2"
+version = "3.0.3"
 edition = "2021"
 description = "Time entry, approval workflows, project billing, and AR/GL integration"
 

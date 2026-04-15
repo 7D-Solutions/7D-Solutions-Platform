@@ -102,12 +102,11 @@ pub async fn list_inspection_plans(
     .fetch_all(pool)
     .await?;
 
-    let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM inspection_plans WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let total: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM inspection_plans WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok((rows, total.0))
 }

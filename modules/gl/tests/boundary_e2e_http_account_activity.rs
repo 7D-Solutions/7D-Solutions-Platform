@@ -23,8 +23,8 @@ use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::account_activity_service::AccountActivityResponse;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use serial_test::serial;
 use serde::Serialize;
+use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -54,8 +54,8 @@ fn sign_test_jwt(tenant_id: &Uuid) -> String {
     dotenvy::dotenv().ok();
     let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
         .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
-    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
-        .expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
 
     let now = Utc::now();
     let claims = TestJwtClaims {
@@ -73,8 +73,7 @@ fn sign_test_jwt(tenant_id: &Uuid) -> String {
     };
 
     let header = Header::new(Algorithm::RS256);
-    jsonwebtoken::encode(&header, &claims, &encoding_key)
-        .expect("Failed to sign test JWT")
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
 }
 
 /// Build a reqwest Client that sends the Bearer token on every request.
@@ -632,10 +631,7 @@ async fn test_boundary_http_account_activity_error_handling() {
     );
 
     // Test 2: Missing both period_id and date range (should return 400)
-    let url_no_date_filter = format!(
-        "{}/api/gl/accounts/1000/activity",
-        gl_service_url
-    );
+    let url_no_date_filter = format!("{}/api/gl/accounts/1000/activity", gl_service_url);
 
     let response_no_date = client
         .get(&url_no_date_filter)
@@ -761,7 +757,11 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
         gl_service_url, account_code, period_id
     );
 
-    let response = client.get(&url).send().await.expect("Failed to make request");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to make request");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON first to validate structure

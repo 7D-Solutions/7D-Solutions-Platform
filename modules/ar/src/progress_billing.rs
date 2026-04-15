@@ -79,9 +79,17 @@ pub enum BillMilestoneResult {
 
 #[derive(Debug)]
 pub enum ProgressBillingError {
-    ContractNotFound { contract_id: Uuid, app_id: String },
-    MilestoneNotFound { milestone_id: Uuid, app_id: String },
-    MilestoneAlreadyBilled { milestone_id: Uuid },
+    ContractNotFound {
+        contract_id: Uuid,
+        app_id: String,
+    },
+    MilestoneNotFound {
+        milestone_id: Uuid,
+        app_id: String,
+    },
+    MilestoneAlreadyBilled {
+        milestone_id: Uuid,
+    },
     OverBilling {
         contract_id: Uuid,
         contract_total: i64,
@@ -96,11 +104,25 @@ pub enum ProgressBillingError {
 impl fmt::Display for ProgressBillingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ContractNotFound { contract_id, app_id } => {
-                write!(f, "Contract {} not found for tenant {}", contract_id, app_id)
+            Self::ContractNotFound {
+                contract_id,
+                app_id,
+            } => {
+                write!(
+                    f,
+                    "Contract {} not found for tenant {}",
+                    contract_id, app_id
+                )
             }
-            Self::MilestoneNotFound { milestone_id, app_id } => {
-                write!(f, "Milestone {} not found for tenant {}", milestone_id, app_id)
+            Self::MilestoneNotFound {
+                milestone_id,
+                app_id,
+            } => {
+                write!(
+                    f,
+                    "Milestone {} not found for tenant {}",
+                    milestone_id, app_id
+                )
             }
             Self::MilestoneAlreadyBilled { milestone_id } => {
                 write!(f, "Milestone {} is already billed", milestone_id)
@@ -327,12 +349,11 @@ pub async fn bill_milestone(
 
     // We need an ar_customer_id. Look up by app_id + external customer_id.
     // For progress billing, seed or find a customer row.
-    let ar_customer_id: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_customers WHERE app_id = $1 LIMIT 1",
-    )
-    .bind(&req.app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let ar_customer_id: Option<i32> =
+        sqlx::query_scalar("SELECT id FROM ar_customers WHERE app_id = $1 LIMIT 1")
+            .bind(&req.app_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     let ar_customer_id = ar_customer_id.unwrap_or(0);
 

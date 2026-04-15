@@ -14,9 +14,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};
+use platform_sdk::extract_tenant;
 
 /// Query parameters for trial balance endpoint
 #[derive(Debug, Deserialize)]

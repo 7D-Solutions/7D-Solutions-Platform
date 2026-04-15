@@ -205,7 +205,9 @@ mod tests {
     #[test]
     fn missing_client_id_fails_validation() {
         let mut cfg = valid_config();
-        cfg.as_object_mut().expect("config must be object").remove("client_id");
+        cfg.as_object_mut()
+            .expect("config must be object")
+            .remove("client_id");
         let err = EbayConnector.validate_config(&cfg).unwrap_err();
         assert!(matches!(err, ConnectorError::InvalidConfig(_)));
         assert!(err.to_string().contains("client_id"));
@@ -214,7 +216,9 @@ mod tests {
     #[test]
     fn missing_client_secret_fails_validation() {
         let mut cfg = valid_config();
-        cfg.as_object_mut().expect("config must be object").remove("client_secret");
+        cfg.as_object_mut()
+            .expect("config must be object")
+            .remove("client_secret");
         let err = EbayConnector.validate_config(&cfg).unwrap_err();
         assert!(matches!(err, ConnectorError::InvalidConfig(_)));
         assert!(err.to_string().contains("client_secret"));
@@ -223,7 +227,9 @@ mod tests {
     #[test]
     fn missing_ru_name_fails_validation() {
         let mut cfg = valid_config();
-        cfg.as_object_mut().expect("config must be object").remove("ru_name");
+        cfg.as_object_mut()
+            .expect("config must be object")
+            .remove("ru_name");
         let err = EbayConnector.validate_config(&cfg).unwrap_err();
         assert!(matches!(err, ConnectorError::InvalidConfig(_)));
         assert!(err.to_string().contains("ru_name"));
@@ -252,7 +258,12 @@ mod tests {
         let err = EbayConnector.validate_config(&cfg).unwrap_err();
         let msg = err.to_string();
         for &field in REQUIRED_FIELDS {
-            assert!(msg.contains(field), "missing field '{}' not in error: {}", field, msg);
+            assert!(
+                msg.contains(field),
+                "missing field '{}' not in error: {}",
+                field,
+                msg
+            );
         }
     }
 
@@ -268,7 +279,9 @@ mod tests {
         assert_eq!(result.connector_type, "ebay");
         assert_eq!(result.idempotency_key, "idem-key-001");
         assert_eq!(
-            result.output["environment"].as_str().expect("environment should be a string"),
+            result.output["environment"]
+                .as_str()
+                .expect("environment should be a string"),
             "SANDBOX"
         );
     }
@@ -286,7 +299,10 @@ mod tests {
     #[test]
     fn registry_returns_ebay_connector() {
         let connector = get_connector("ebay");
-        assert!(connector.is_some(), "get_connector('ebay') should return Some");
+        assert!(
+            connector.is_some(),
+            "get_connector('ebay') should return Some"
+        );
         assert_eq!(connector.unwrap().connector_type(), "ebay");
     }
 

@@ -209,10 +209,14 @@ async fn inventory_idempotency_duplicate_receipt_is_replay() {
         uom_id: None,
     };
 
-    let (r1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first receipt");
+    let (r1, is_replay1) = process_receipt(&pool, &req, None)
+        .await
+        .expect("first receipt");
     assert!(!is_replay1, "first call must not be replay");
 
-    let (r2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second receipt");
+    let (r2, is_replay2) = process_receipt(&pool, &req, None)
+        .await
+        .expect("second receipt");
     assert!(is_replay2, "second call must be replay");
 
     // Stored result must be identical
@@ -421,7 +425,9 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
         serial_codes: None,
     };
 
-    let (i1, is_replay1) = process_issue(&pool, &issue_req, None).await.expect("first issue");
+    let (i1, is_replay1) = process_issue(&pool, &issue_req, None)
+        .await
+        .expect("first issue");
     assert!(!is_replay1);
     assert_eq!(i1.quantity, 25);
 
@@ -553,7 +559,9 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         lot_code: None,
         serial_codes: None,
     };
-    let (issue1, _) = process_issue(&inv_pool, &issue_req, None).await.expect("issue");
+    let (issue1, _) = process_issue(&inv_pool, &issue_req, None)
+        .await
+        .expect("issue");
     assert_eq!(
         issue1.total_cost_minor, 30_000,
         "10 × $30 = $300 (30000 minor units)"
@@ -698,7 +706,9 @@ async fn inventory_idempotency_conflicting_key_rejected() {
         serial_codes: None,
         uom_id: None,
     };
-    let (_, is_replay) = process_receipt(&pool, &req1, None).await.expect("first call");
+    let (_, is_replay) = process_receipt(&pool, &req1, None)
+        .await
+        .expect("first call");
     assert!(!is_replay);
 
     // Second call: different quantity (conflicting payload)
@@ -818,7 +828,9 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
     };
 
     // Issue twice (same idempotency_key)
-    let (i1, _) = process_issue(&inv_pool, &issue_req, None).await.expect("issue 1");
+    let (i1, _) = process_issue(&inv_pool, &issue_req, None)
+        .await
+        .expect("issue 1");
     let (i2, is_replay) = process_issue(&inv_pool, &issue_req, None)
         .await
         .expect("issue 2 (replay)");

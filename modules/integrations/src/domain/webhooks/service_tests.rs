@@ -6,8 +6,7 @@ const TEST_APP: &str = "test-webhook-svc";
 
 fn test_db_url() -> String {
     std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db"
-            .to_string()
+        "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db".to_string()
     })
 }
 
@@ -35,10 +34,7 @@ async fn cleanup(pool: &PgPool) {
         .ok();
 }
 
-fn internal_req(
-    idempotency_key: Option<&str>,
-    event_type: Option<&str>,
-) -> IngestWebhookRequest {
+fn internal_req(idempotency_key: Option<&str>, event_type: Option<&str>) -> IngestWebhookRequest {
     IngestWebhookRequest {
         app_id: TEST_APP.to_string(),
         system: "internal".to_string(),

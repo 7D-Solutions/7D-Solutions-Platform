@@ -9,8 +9,8 @@
 ///   POST {base_url}/api/ar/invoices
 ///   POST {base_url}/api/ar/invoices/{id}/finalize
 use platform_client_ar::{
-    CreateCustomerRequest, CreateInvoiceRequest, Customer, CustomersClient,
-    FinalizeInvoiceRequest, Invoice, InvoicesClient,
+    CreateCustomerRequest, CreateInvoiceRequest, Customer, CustomersClient, FinalizeInvoiceRequest,
+    Invoice, InvoicesClient,
 };
 use platform_sdk::{ClientError, PlatformClient, VerifiedClaims};
 use uuid::Uuid;
@@ -66,9 +66,7 @@ impl platform_sdk::PlatformService for ArClient {
 
 impl ArClient {
     pub fn new(base_url: impl Into<String>) -> Self {
-        let client = PlatformClient::new(
-            base_url.into().trim_end_matches('/').to_string(),
-        );
+        let client = PlatformClient::new(base_url.into().trim_end_matches('/').to_string());
         Self {
             customers: CustomersClient::new(client.clone()),
             invoices: InvoicesClient::new(client.clone()),
@@ -88,10 +86,7 @@ impl ArClient {
         email: &str,
     ) -> Result<i32, ArClientError> {
         // Search by external_customer_id
-        let search_path = format!(
-            "/api/ar/customers?external_customer_id={}",
-            party_id
-        );
+        let search_path = format!("/api/ar/customers?external_customer_id={}", party_id);
         let resp = self.client.get(&search_path, claims).await?;
 
         if resp.status().as_u16() == 200 {
@@ -149,9 +144,16 @@ impl ArClient {
     }
 
     /// Finalize an existing draft AR invoice (draft -> open).
-    pub async fn finalize_invoice(&self, claims: &VerifiedClaims, invoice_id: i32) -> Result<ArInvoice, ArClientError> {
+    pub async fn finalize_invoice(
+        &self,
+        claims: &VerifiedClaims,
+        invoice_id: i32,
+    ) -> Result<ArInvoice, ArClientError> {
         let body = FinalizeInvoiceRequest { paid_at: None };
-        let invoice = self.invoices.finalize_invoice(claims, invoice_id, &body).await?;
+        let invoice = self
+            .invoices
+            .finalize_invoice(claims, invoice_id, &body)
+            .await?;
         Ok(invoice.into())
     }
 }

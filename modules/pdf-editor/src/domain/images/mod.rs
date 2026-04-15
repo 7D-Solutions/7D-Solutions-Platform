@@ -88,9 +88,7 @@ pub fn validate_upload(req: &UploadImageRequest) -> Result<(), ImageError> {
         return Err(ImageError::Validation("tenant_id is required".into()));
     }
     if req.idempotency_key.trim().is_empty() {
-        return Err(ImageError::Validation(
-            "idempotency_key is required".into(),
-        ));
+        return Err(ImageError::Validation("idempotency_key is required".into()));
     }
     if req.name.trim().is_empty() {
         return Err(ImageError::Validation("name is required".into()));

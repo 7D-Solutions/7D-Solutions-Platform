@@ -16,12 +16,12 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::lots_serials::{models::InventoryLot, queries::list_lots_for_item},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

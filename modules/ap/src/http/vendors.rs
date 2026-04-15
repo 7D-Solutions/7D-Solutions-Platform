@@ -17,9 +17,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::vendors::{service, CreateVendorRequest, UpdateVendorRequest};
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Shared helpers

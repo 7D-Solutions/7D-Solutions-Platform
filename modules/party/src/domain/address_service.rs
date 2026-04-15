@@ -60,15 +60,7 @@ pub async fn create_address(
     }
 
     let address = address_repo::insert_address_tx(
-        &mut tx,
-        address_id,
-        party_id,
-        app_id,
-        req,
-        addr_type,
-        country,
-        is_primary,
-        now,
+        &mut tx, address_id, party_id, app_id, req, addr_type, country, is_primary, now,
     )
     .await?;
 

@@ -240,21 +240,33 @@ async fn full_floor_loop_wo_issue_ops_fg_receipt() {
     .await
     .expect("add assembly step");
 
-    RoutingRepo::release(&prod_pool, routing.routing_template_id, &tenant, &corr_id, None)
-        .await
-        .expect("release routing");
+    RoutingRepo::release(
+        &prod_pool,
+        routing.routing_template_id,
+        &tenant,
+        &corr_id,
+        None,
+    )
+    .await
+    .expect("release routing");
 
     // ---- Step 3: Create inventory items and stock components ----
     let comp_a = ItemRepo::create(
         &inv_pool,
-        &create_item_req(&tenant, &format!("COMP-A-{}", &Uuid::new_v4().to_string()[..8])),
+        &create_item_req(
+            &tenant,
+            &format!("COMP-A-{}", &Uuid::new_v4().to_string()[..8]),
+        ),
     )
     .await
     .expect("create component A");
 
     let comp_b = ItemRepo::create(
         &inv_pool,
-        &create_item_req(&tenant, &format!("COMP-B-{}", &Uuid::new_v4().to_string()[..8])),
+        &create_item_req(
+            &tenant,
+            &format!("COMP-B-{}", &Uuid::new_v4().to_string()[..8]),
+        ),
     )
     .await
     .expect("create component B");
@@ -302,15 +314,9 @@ async fn full_floor_loop_wo_issue_ops_fg_receipt() {
         .expect("release work order");
 
     // ---- Step 5: Initialize and complete operations ----
-    let ops = OperationRepo::initialize(
-        &prod_pool,
-        wo.work_order_id,
-        &tenant,
-        &corr_id,
-        None,
-    )
-    .await
-    .expect("initialize operations from routing");
+    let ops = OperationRepo::initialize(&prod_pool, wo.work_order_id, &tenant, &corr_id, None)
+        .await
+        .expect("initialize operations from routing");
 
     assert_eq!(ops.len(), 2, "2 operations from 2 routing steps");
     assert_eq!(ops[0].workcenter_id, wc_machining.workcenter_id);
@@ -514,7 +520,10 @@ async fn full_floor_loop_wo_issue_ops_fg_receipt() {
     .fetch_one(&inv_pool)
     .await
     .expect("count issued ledger entries");
-    assert!(issued_count >= 2, "At least 2 issued ledger entries (one per component)");
+    assert!(
+        issued_count >= 2,
+        "At least 2 issued ledger entries (one per component)"
+    );
 
     // 8c. Inventory ledger: received entry for FG
     let received_count: i64 = sqlx::query_scalar(
@@ -525,7 +534,10 @@ async fn full_floor_loop_wo_issue_ops_fg_receipt() {
     .fetch_one(&inv_pool)
     .await
     .expect("count FG received ledger entries");
-    assert_eq!(received_count, 1, "Exactly 1 production receipt for FG item");
+    assert_eq!(
+        received_count, 1,
+        "Exactly 1 production receipt for FG item"
+    );
 
     // 8d. Correlation chain on production outbox events
     let prod_events: Vec<(String, serde_json::Value)> = sqlx::query_as(
@@ -690,9 +702,15 @@ async fn workcenter_definitions_used_by_operations() {
     .await
     .expect("add step");
 
-    RoutingRepo::release(&prod_pool, routing.routing_template_id, &tenant, &corr_id, None)
-        .await
-        .expect("release routing");
+    RoutingRepo::release(
+        &prod_pool,
+        routing.routing_template_id,
+        &tenant,
+        &corr_id,
+        None,
+    )
+    .await
+    .expect("release routing");
 
     // Create WO with this routing
     let wo = WorkOrderRepo::create(
@@ -806,21 +824,33 @@ async fn correlation_chain_wo_through_issue_and_receipt() {
     .await
     .expect("add step");
 
-    RoutingRepo::release(&prod_pool, routing.routing_template_id, &tenant, &corr_id, None)
-        .await
-        .expect("release routing");
+    RoutingRepo::release(
+        &prod_pool,
+        routing.routing_template_id,
+        &tenant,
+        &corr_id,
+        None,
+    )
+    .await
+    .expect("release routing");
 
     // Inventory: create items + stock
     let comp = ItemRepo::create(
         &inv_pool,
-        &create_item_req(&tenant, &format!("CC-COMP-{}", &Uuid::new_v4().to_string()[..8])),
+        &create_item_req(
+            &tenant,
+            &format!("CC-COMP-{}", &Uuid::new_v4().to_string()[..8]),
+        ),
     )
     .await
     .expect("create component");
 
     let fg = ItemRepo::create(
         &inv_pool,
-        &create_item_req(&tenant, &format!("CC-FG-{}", &Uuid::new_v4().to_string()[..8])),
+        &create_item_req(
+            &tenant,
+            &format!("CC-FG-{}", &Uuid::new_v4().to_string()[..8]),
+        ),
     )
     .await
     .expect("create FG");
@@ -856,13 +886,27 @@ async fn correlation_chain_wo_through_issue_and_receipt() {
         .await
         .expect("init ops");
 
-    OperationRepo::start(&prod_pool, wo.work_order_id, ops[0].operation_id, &tenant, &corr_id, None)
-        .await
-        .expect("start op");
+    OperationRepo::start(
+        &prod_pool,
+        wo.work_order_id,
+        ops[0].operation_id,
+        &tenant,
+        &corr_id,
+        None,
+    )
+    .await
+    .expect("start op");
 
-    OperationRepo::complete(&prod_pool, wo.work_order_id, ops[0].operation_id, &tenant, &corr_id, None)
-        .await
-        .expect("complete op");
+    OperationRepo::complete(
+        &prod_pool,
+        wo.work_order_id,
+        ops[0].operation_id,
+        &tenant,
+        &corr_id,
+        None,
+    )
+    .await
+    .expect("complete op");
 
     // Component issue
     request_component_issue(
@@ -961,7 +1005,10 @@ async fn cost_arithmetic_fifo_layers_spot_check() {
     // Create items
     let comp = ItemRepo::create(
         &inv_pool,
-        &create_item_req(&tenant, &format!("FIFO-{}", &Uuid::new_v4().to_string()[..8])),
+        &create_item_req(
+            &tenant,
+            &format!("FIFO-{}", &Uuid::new_v4().to_string()[..8]),
+        ),
     )
     .await
     .expect("create component");

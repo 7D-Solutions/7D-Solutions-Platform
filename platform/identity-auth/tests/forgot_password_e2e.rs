@@ -241,10 +241,7 @@ async fn test_nats_event_contains_raw_token() {
         received["tenant_id"].is_string(),
         "tenant_id must be a String"
     );
-    assert_eq!(
-        received["replay_safe"], true,
-        "replay_safe must be set"
-    );
+    assert_eq!(received["replay_safe"], true, "replay_safe must be set");
     assert!(
         received.get("source_version").is_some(),
         "source_version must be present"

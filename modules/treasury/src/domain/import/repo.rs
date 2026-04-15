@@ -41,13 +41,11 @@ pub async fn fetch_account_currency(
     app_id: &str,
     account_id: Uuid,
 ) -> Result<String, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT currency FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(account_id)
-    .bind(app_id)
-    .fetch_one(pool)
-    .await
+    sqlx::query_scalar("SELECT currency FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
+        .bind(account_id)
+        .bind(app_id)
+        .fetch_one(pool)
+        .await
 }
 
 pub async fn insert_statement_header(

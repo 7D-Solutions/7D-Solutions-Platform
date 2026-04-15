@@ -189,8 +189,9 @@ pub fn check_last_n_migrations(migrations_dir: &str, n: usize) -> Vec<MigrationI
         .into_iter()
         .map(|path| {
             let filename = path.file_name().unwrap().to_string_lossy().to_string();
-            let content = std::fs::read_to_string(path)
-                .unwrap_or_else(|e| panic!("check_last_n_migrations: cannot read '{filename}': {e}"));
+            let content = std::fs::read_to_string(path).unwrap_or_else(|e| {
+                panic!("check_last_n_migrations: cannot read '{filename}': {e}")
+            });
 
             let forward_only_line = content
                 .lines()

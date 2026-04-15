@@ -100,7 +100,13 @@ pub async fn process_operation_completed(
             "In-process inspection already exists for this WO+op — skipping"
         );
         // Record event as processed so we don't re-check next time
-        record_processed_event(pool, event_id, "production.operation_completed", PROCESSOR_IN_PROCESS).await?;
+        record_processed_event(
+            pool,
+            event_id,
+            "production.operation_completed",
+            PROCESSOR_IN_PROCESS,
+        )
+        .await?;
         return Ok(None);
     }
 
@@ -119,16 +125,17 @@ pub async fn process_operation_completed(
         )),
     };
 
-    let inspection = service::create_in_process_inspection(
+    let inspection =
+        service::create_in_process_inspection(pool, tenant_id, &req, correlation_id, causation_id)
+            .await?;
+
+    record_processed_event(
         pool,
-        tenant_id,
-        &req,
-        correlation_id,
-        causation_id,
+        event_id,
+        "production.operation_completed",
+        PROCESSOR_IN_PROCESS,
     )
     .await?;
-
-    record_processed_event(pool, event_id, "production.operation_completed", PROCESSOR_IN_PROCESS).await?;
 
     tracing::info!(
         event_id = %event_id,
@@ -188,16 +195,17 @@ pub async fn process_fg_receipt_requested(
         )),
     };
 
-    let inspection = service::create_final_inspection(
+    let inspection =
+        service::create_final_inspection(pool, tenant_id, &req, correlation_id, causation_id)
+            .await?;
+
+    record_processed_event(
         pool,
-        tenant_id,
-        &req,
-        correlation_id,
-        causation_id,
+        event_id,
+        "production.fg_receipt.requested",
+        PROCESSOR_FINAL,
     )
     .await?;
-
-    record_processed_event(pool, event_id, "production.fg_receipt.requested", PROCESSOR_FINAL).await?;
 
     tracing::info!(
         event_id = %event_id,

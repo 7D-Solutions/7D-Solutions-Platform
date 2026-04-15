@@ -18,7 +18,6 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
@@ -27,6 +26,7 @@ use crate::revrec::{
     ContractCreatedPayload, ContractModifiedPayload, PerformanceObligation, RecognitionPattern,
 };
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Request / Response types

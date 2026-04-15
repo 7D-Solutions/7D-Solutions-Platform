@@ -10,7 +10,6 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::{
     domain::employees::{
         models::{CreateEmployeeRequest, Employee, EmployeeError, UpdateEmployeeRequest},
@@ -18,6 +17,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Error mapping

@@ -114,7 +114,9 @@ pub async fn approve_cycle_count(
 
     // --- Idempotency check (fast path for replays) ---
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) = repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(ApproveError::ConflictingIdempotencyKey);
         }
@@ -178,7 +180,8 @@ pub async fn approve_cycle_count(
             adj_event_id,
             EVENT_TYPE_ADJUSTED,
             approved_at,
-        ).await?;
+        )
+        .await?;
 
         // Step 2: Insert inv_adjustments business-key row
         let adjustment_id = repo::insert_adjustment(
@@ -191,7 +194,8 @@ pub async fn approve_cycle_count(
             adj_event_id,
             ledger_entry_id,
             approved_at,
-        ).await?;
+        )
+        .await?;
 
         // Step 3: Upsert item_on_hand (location-specific)
         repo::upsert_on_hand(
@@ -202,7 +206,8 @@ pub async fn approve_cycle_count(
             task.location_id,
             variance_qty,
             ledger_entry_id,
-        ).await?;
+        )
+        .await?;
 
         // Step 4: Upsert item_on_hand_by_status (available bucket)
         repo::upsert_available_bucket(
@@ -211,7 +216,8 @@ pub async fn approve_cycle_count(
             line.item_id,
             task.warehouse_id,
             variance_qty,
-        ).await?;
+        )
+        .await?;
 
         // Step 5: Outbox — inventory.adjusted (one per adjusted line)
         let adj_payload = AdjustedPayload {
@@ -243,7 +249,8 @@ pub async fn approve_cycle_count(
             &adj_envelope_json,
             &correlation_id,
             req.causation_id.as_deref(),
-        ).await?;
+        )
+        .await?;
 
         adjustment_count += 1;
         approved_lines.push(ApprovedLine {
@@ -299,7 +306,8 @@ pub async fn approve_cycle_count(
         &approve_envelope_json,
         &correlation_id,
         req.causation_id.as_deref(),
-    ).await?;
+    )
+    .await?;
 
     // --- Store idempotency key (expires in 7 days) ---
     let result = ApproveResult {
@@ -321,7 +329,8 @@ pub async fn approve_cycle_count(
         &request_hash,
         &response_json,
         expires_at,
-    ).await?;
+    )
+    .await?;
 
     tx.commit().await?;
 

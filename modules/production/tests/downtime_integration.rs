@@ -309,7 +309,9 @@ async fn list_active_and_per_workcenter() {
     .unwrap();
 
     // List active: only wc2 should be active
-    let (active, active_total) = DowntimeRepo::list_active(&pool, &tenant, 1, 50).await.unwrap();
+    let (active, active_total) = DowntimeRepo::list_active(&pool, &tenant, 1, 50)
+        .await
+        .unwrap();
     assert_eq!(active.len(), 1);
     assert_eq!(active_total, 1);
     assert_eq!(active[0].workcenter_id, wc2);

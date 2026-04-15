@@ -123,7 +123,11 @@ async fn create_workcenter_rejects_duplicate_code() {
     .expect_err("should reject duplicate");
 
     let msg = format!("{}", err);
-    assert!(msg.contains("DUP-001"), "Error should mention code: {}", msg);
+    assert!(
+        msg.contains("DUP-001"),
+        "Error should mention code: {}",
+        msg
+    );
 }
 
 // ============================================================================
@@ -235,8 +239,12 @@ async fn list_workcenters_returns_tenant_scoped_results() {
     .await
     .expect("create b");
 
-    let (list_a, total_a) = WorkcenterRepo::list(&pool, &tenant_a, 1, 50, None).await.expect("list a");
-    let (list_b, total_b) = WorkcenterRepo::list(&pool, &tenant_b, 1, 50, None).await.expect("list b");
+    let (list_a, total_a) = WorkcenterRepo::list(&pool, &tenant_a, 1, 50, None)
+        .await
+        .expect("list a");
+    let (list_b, total_b) = WorkcenterRepo::list(&pool, &tenant_b, 1, 50, None)
+        .await
+        .expect("list b");
 
     assert_eq!(list_a.len(), 2);
     assert_eq!(total_a, 2);
@@ -277,10 +285,9 @@ async fn deactivate_workcenter_sets_inactive_and_emits_event() {
 
     assert!(wc.is_active);
 
-    let deactivated =
-        WorkcenterRepo::deactivate(&pool, wc.workcenter_id, &tenant, &corr, None)
-            .await
-            .expect("deactivate");
+    let deactivated = WorkcenterRepo::deactivate(&pool, wc.workcenter_id, &tenant, &corr, None)
+        .await
+        .expect("deactivate");
 
     assert!(!deactivated.is_active);
 

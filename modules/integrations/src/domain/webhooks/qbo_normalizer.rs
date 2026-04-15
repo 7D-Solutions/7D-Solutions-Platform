@@ -99,14 +99,9 @@ impl QboNormalizer {
         let headers_json = serde_json::to_value(headers)
             .map_err(|e| WebhookError::Serialization(e.to_string()))?;
 
-        let batch_result = repo::insert_batch_ingest(
-            &mut tx,
-            raw_payload,
-            &headers_json,
-            Utc::now(),
-            &body_hash,
-        )
-        .await?;
+        let batch_result =
+            repo::insert_batch_ingest(&mut tx, raw_payload, &headers_json, Utc::now(), &body_hash)
+                .await?;
 
         let batch_ingest_id = match batch_result {
             Some((id,)) => id,

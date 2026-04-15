@@ -9,7 +9,9 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::models::{ApiError, CreateInvoiceRequest, FinalizeInvoiceRequest, Invoice, UpdateInvoiceRequest};
+use crate::models::{
+    ApiError, CreateInvoiceRequest, FinalizeInvoiceRequest, Invoice, UpdateInvoiceRequest,
+};
 
 // ============================================================================
 // GL period pre-validation
@@ -25,9 +27,8 @@ async fn check_gl_period_open(
     tenant_id: &str,
     date: NaiveDate,
 ) -> Result<(), ApiError> {
-    let result: sqlx::Result<Option<(Uuid, Option<chrono::DateTime<Utc>>)>> =
-        sqlx::query_as(
-            r#"
+    let result: sqlx::Result<Option<(Uuid, Option<chrono::DateTime<Utc>>)>> = sqlx::query_as(
+        r#"
             SELECT id, closed_at
             FROM accounting_periods
             WHERE tenant_id = $1
@@ -35,11 +36,11 @@ async fn check_gl_period_open(
               AND period_end   >= $2
             LIMIT 1
             "#,
-        )
-        .bind(tenant_id)
-        .bind(date)
-        .fetch_optional(gl_pool)
-        .await;
+    )
+    .bind(tenant_id)
+    .bind(date)
+    .fetch_optional(gl_pool)
+    .await;
 
     match result {
         Err(e) => {
@@ -91,9 +92,15 @@ pub async fn create_invoice(
         check_gl_period_open(gl_pool.as_ref(), &app_id, effective_date).await?;
     }
 
-    let invoice =
-        crate::domain::invoices::service::create_invoice(&db, &app_id, verified, tracing_ctx, req, party_client)
-            .await?;
+    let invoice = crate::domain::invoices::service::create_invoice(
+        &db,
+        &app_id,
+        verified,
+        tracing_ctx,
+        req,
+        party_client,
+    )
+    .await?;
 
     Ok((StatusCode::CREATED, Json(invoice)))
 }
@@ -115,8 +122,7 @@ pub async fn update_invoice(
 ) -> Result<Json<Invoice>, ApiError> {
     let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let invoice =
-        crate::domain::invoices::service::update_invoice(&db, &app_id, id, req).await?;
+    let invoice = crate::domain::invoices::service::update_invoice(&db, &app_id, id, req).await?;
 
     Ok(Json(invoice))
 }

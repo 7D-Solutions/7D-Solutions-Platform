@@ -6,8 +6,8 @@
 use utoipa::OpenApi;
 
 use integrations_rs::domain::connectors::{
-    ConfigField, ConfigFieldType, ConnectorCapabilities, ConnectorConfig,
-    RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
+    ConfigField, ConfigFieldType, ConnectorCapabilities, ConnectorConfig, RegisterConnectorRequest,
+    RunTestActionRequest, TestActionResult,
 };
 use integrations_rs::domain::external_refs::{
     CreateExternalRefRequest, ExternalRef, UpdateExternalRefRequest,

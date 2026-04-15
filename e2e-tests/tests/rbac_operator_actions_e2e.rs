@@ -63,7 +63,11 @@ fn admin_with_all_permissions_granted() {
     // Multiple permissions at once
     assert!(check_permissions(
         &claims,
-        &[PERM_TENANT_SUSPEND, PERM_TENANT_DEPROVISION, PERM_FLEET_MIGRATE]
+        &[
+            PERM_TENANT_SUSPEND,
+            PERM_TENANT_DEPROVISION,
+            PERM_FLEET_MIGRATE
+        ]
     )
     .is_ok());
 
@@ -165,9 +169,7 @@ fn superset_permissions_granted() {
 
     // Checking a subset should succeed
     assert!(check_permissions(&claims, &[PERM_TENANT_SUSPEND]).is_ok());
-    assert!(
-        check_permissions(&claims, &[PERM_TENANT_SUSPEND, PERM_FLEET_MIGRATE]).is_ok()
-    );
+    assert!(check_permissions(&claims, &[PERM_TENANT_SUSPEND, PERM_FLEET_MIGRATE]).is_ok());
 
     println!("✓ Superset permissions are correctly granted");
 }
@@ -256,14 +258,8 @@ fn deprecated_types_still_compile() {
         Operation::ProjectionRebuild.as_str(),
         PERM_PROJECTION_REBUILD
     );
-    assert_eq!(
-        Operation::ProjectionVerify.as_str(),
-        PERM_PROJECTION_VERIFY
-    );
-    assert_eq!(
-        Operation::ProjectionStatus.as_str(),
-        PERM_PROJECTION_STATUS
-    );
+    assert_eq!(Operation::ProjectionVerify.as_str(), PERM_PROJECTION_VERIFY);
+    assert_eq!(Operation::ProjectionStatus.as_str(), PERM_PROJECTION_STATUS);
     assert_eq!(Operation::ProjectionList.as_str(), PERM_PROJECTION_LIST);
     assert_eq!(Operation::FleetMigrate.as_str(), PERM_FLEET_MIGRATE);
 

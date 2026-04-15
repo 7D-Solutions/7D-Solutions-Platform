@@ -238,11 +238,7 @@ fn make_claims(tenant_id: &str) -> VerifiedClaims {
 // ============================================================================
 
 /// Build a POST /api/ap/bills request with invoice_date in the closed period.
-fn ap_create_bill_request(
-    tenant_id: &str,
-    vendor_id: Uuid,
-    inv_ref: &str,
-) -> Request<Body> {
+fn ap_create_bill_request(tenant_id: &str, vendor_id: Uuid, inv_ref: &str) -> Request<Body> {
     let body = json!({
         "vendor_id": vendor_id,
         "vendor_invoice_ref": inv_ref,
@@ -326,7 +322,10 @@ async fn test_period_close_enforcement() {
     let vendor_id = seed_ap_vendor(&ap_pool, &tenant_id).await;
     let ar_customer_id = seed_ar_customer(&ar_pool, &tenant_id).await;
 
-    println!("tenant={} period={} vendor={} ar_customer={}", tenant_id, period_id, vendor_id, ar_customer_id);
+    println!(
+        "tenant={} period={} vendor={} ar_customer={}",
+        tenant_id, period_id, vendor_id, ar_customer_id
+    );
 
     // ── Phase 1: Close the GL period ─────────────────────────────────────────
     close_gl_period(&gl_pool, period_id).await;
@@ -350,7 +349,10 @@ async fn test_period_close_enforcement() {
             "AP: error code must be PERIOD_CLOSED; body={}",
             body
         );
-        println!("AP: closed period correctly returns 422 PERIOD_CLOSED ({})", status);
+        println!(
+            "AP: closed period correctly returns 422 PERIOD_CLOSED ({})",
+            status
+        );
     }
 
     // ── Phase 3: AR invoice → must return 422 ────────────────────────────────
@@ -371,7 +373,10 @@ async fn test_period_close_enforcement() {
             "AR: error code must be PERIOD_CLOSED; body={}",
             body
         );
-        println!("AR: closed period correctly returns 422 PERIOD_CLOSED ({})", status);
+        println!(
+            "AR: closed period correctly returns 422 PERIOD_CLOSED ({})",
+            status
+        );
     }
 
     // ── Phase 4: Reopen the GL period ────────────────────────────────────────

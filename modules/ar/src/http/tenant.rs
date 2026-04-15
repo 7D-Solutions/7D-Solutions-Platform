@@ -11,8 +11,6 @@ pub fn extract_tenant(
 ) -> Result<String, ApiError> {
     match claims {
         Some(axum::Extension(c)) => Ok(c.tenant_id.to_string()),
-        None => Err(ApiError::unauthorized(
-            "Missing or invalid authentication",
-        )),
+        None => Err(ApiError::unauthorized("Missing or invalid authentication")),
     }
 }

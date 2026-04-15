@@ -34,7 +34,13 @@ pub async fn transition_to_past_due(
     transition_guard(current_status, SubscriptionStatus::PastDue, reason)?;
 
     // Mutation: Update status (within transaction, scoped by tenant_id)
-    update_status_tx(&mut tx, subscription_id, tenant_id, SubscriptionStatus::PastDue).await?;
+    update_status_tx(
+        &mut tx,
+        subscription_id,
+        tenant_id,
+        SubscriptionStatus::PastDue,
+    )
+    .await?;
 
     // Side Effect: Emit subscriptions.status.changed event atomically within the same TX
     let status_payload = crate::models::SubscriptionStatusChangedPayload {
@@ -86,7 +92,13 @@ pub async fn transition_to_suspended(
     transition_guard(current_status, SubscriptionStatus::Suspended, reason)?;
 
     // Mutation: Update status (within transaction, scoped by tenant_id)
-    update_status_tx(&mut tx, subscription_id, tenant_id, SubscriptionStatus::Suspended).await?;
+    update_status_tx(
+        &mut tx,
+        subscription_id,
+        tenant_id,
+        SubscriptionStatus::Suspended,
+    )
+    .await?;
 
     // Side Effect: Emit subscriptions.status.changed event atomically
     let status_payload = crate::models::SubscriptionStatusChangedPayload {
@@ -158,11 +170,12 @@ async fn fetch_current_status(
     tenant_id: &str,
     pool: &PgPool,
 ) -> Result<SubscriptionStatus, TransitionError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
-        .bind(subscription_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
+            .bind(subscription_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     match row {
         Some((status,)) => SubscriptionStatus::from_str(&status),
@@ -177,14 +190,15 @@ async fn update_status(
     new_status: SubscriptionStatus,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
-    let rows_affected =
-        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3")
-            .bind(new_status.as_str())
-            .bind(subscription_id)
-            .bind(tenant_id)
-            .execute(pool)
-            .await?
-            .rows_affected();
+    let rows_affected = sqlx::query(
+        "UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(new_status.as_str())
+    .bind(subscription_id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
 
     if rows_affected == 0 {
         return Err(TransitionError::SubscriptionNotFound { subscription_id });
@@ -202,11 +216,12 @@ pub(super) async fn fetch_current_status_tx(
     subscription_id: Uuid,
     tenant_id: &str,
 ) -> Result<SubscriptionStatus, TransitionError> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
-        .bind(subscription_id)
-        .bind(tenant_id)
-        .fetch_optional(&mut **tx)
-        .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM subscriptions WHERE id = $1 AND tenant_id = $2")
+            .bind(subscription_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?;
 
     match row {
         Some((status,)) => SubscriptionStatus::from_str(&status),
@@ -224,14 +239,15 @@ pub(super) async fn update_status_tx(
     tenant_id: &str,
     new_status: SubscriptionStatus,
 ) -> Result<(), TransitionError> {
-    let rows_affected =
-        sqlx::query("UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3")
-            .bind(new_status.as_str())
-            .bind(subscription_id)
-            .bind(tenant_id)
-            .execute(&mut **tx)
-            .await?
-            .rows_affected();
+    let rows_affected = sqlx::query(
+        "UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(new_status.as_str())
+    .bind(subscription_id)
+    .bind(tenant_id)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
 
     if rows_affected == 0 {
         return Err(TransitionError::SubscriptionNotFound { subscription_id });

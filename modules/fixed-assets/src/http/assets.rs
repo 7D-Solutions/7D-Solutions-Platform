@@ -19,8 +19,8 @@ use crate::domain::assets::{
 };
 use crate::AppState;
 
-use platform_sdk::extract_tenant;
 use super::helpers::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Category endpoints

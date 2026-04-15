@@ -78,16 +78,13 @@ pub async fn execute_payment_run(
     }
 
     // Load all items
-    let items: Vec<PaymentRunItemRow> =
-        super::repo::fetch_run_items_tx(&mut *tx, run_id).await?;
+    let items: Vec<PaymentRunItemRow> = super::repo::fetch_run_items_tx(&mut *tx, run_id).await?;
 
     let mut executions: Vec<ExecutionRecord> = Vec::with_capacity(items.len());
 
     for item in &items {
         // Idempotency: skip if already executed
-        if let Some(exec) =
-            super::repo::fetch_execution_by_item(&mut *tx, run_id, item.id).await?
-        {
+        if let Some(exec) = super::repo::fetch_execution_by_item(&mut *tx, run_id, item.id).await? {
             executions.push(exec);
             continue;
         }

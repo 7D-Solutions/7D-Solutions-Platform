@@ -114,7 +114,9 @@ async fn test_transition_open_to_attempting() {
     let invoice_id = create_test_invoice(&pool, status::OPEN).await;
 
     // Transition to ATTEMPTING should succeed
-    let result = transition_to_attempting(&pool, invoice_id, "app-test", "Starting payment collection").await;
+    let result =
+        transition_to_attempting(&pool, invoice_id, "app-test", "Starting payment collection")
+            .await;
     assert!(result.is_ok(), "Should allow OPEN → ATTEMPTING transition");
 
     // Verify status was updated
@@ -166,7 +168,8 @@ async fn test_transition_attempting_to_failed_final() {
     let invoice_id = create_test_invoice(&pool, status::ATTEMPTING).await;
 
     // Transition to FAILED_FINAL should succeed
-    let result = transition_to_failed_final(&pool, invoice_id, "app-test", "Max retries exceeded").await;
+    let result =
+        transition_to_failed_final(&pool, invoice_id, "app-test", "Max retries exceeded").await;
     assert!(
         result.is_ok(),
         "Should allow ATTEMPTING → FAILED_FINAL transition"

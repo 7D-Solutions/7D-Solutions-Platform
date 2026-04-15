@@ -374,7 +374,9 @@ mod tests {
     #[test]
     fn require_parse_reports_errors_and_returns_default() {
         let key = unique_key("PARSE");
-        unsafe { env::set_var(key, "not-a-number"); }
+        unsafe {
+            env::set_var(key, "not-a-number");
+        }
 
         let mut validator = ConfigValidator::new("parse");
         let port = validator.require_parse::<u16>(key).unwrap_or(8090);
@@ -384,7 +386,9 @@ mod tests {
         assert!(err.to_string().contains("u16"));
         assert!(err.to_string().contains("not-a-number"));
 
-        unsafe { env::remove_var(key); }
+        unsafe {
+            env::remove_var(key);
+        }
     }
 
     #[test]
@@ -406,11 +410,7 @@ mod tests {
     fn require_when_condition_false_does_not_error() {
         let key = unique_key("COND");
         let mut validator = ConfigValidator::new("conditional-false");
-        let value = validator.require_when(
-            key,
-            || false,
-            "should not fire",
-        );
+        let value = validator.require_when(key, || false, "should not fire");
         assert!(value.is_none());
         assert!(validator.finish().is_ok());
     }
@@ -418,7 +418,9 @@ mod tests {
     #[test]
     fn require_reports_empty_value() {
         let key = unique_key("REQ");
-        unsafe { env::set_var(key, "  "); }
+        unsafe {
+            env::set_var(key, "  ");
+        }
 
         let mut validator = ConfigValidator::new("empty");
         assert!(validator.require(key).is_none());
@@ -428,7 +430,9 @@ mod tests {
             err.to_string().contains("empty"),
             "Expected 'empty' in error, got: {err}"
         );
-        unsafe { env::remove_var(key); }
+        unsafe {
+            env::remove_var(key);
+        }
     }
 
     #[test]
@@ -448,14 +452,18 @@ mod tests {
     #[test]
     fn optional_parse_returns_value_when_valid() {
         let key = unique_key("PARSE");
-        unsafe { env::set_var(key, "8092"); }
+        unsafe {
+            env::set_var(key, "8092");
+        }
 
         let mut validator = ConfigValidator::new("opt-parse-ok");
         let port = validator.optional_parse::<u16>(key).unwrap_or(9999);
         assert_eq!(port, 8092);
         assert!(validator.finish().is_ok());
 
-        unsafe { env::remove_var(key); }
+        unsafe {
+            env::remove_var(key);
+        }
     }
 
     #[test]
@@ -470,7 +478,9 @@ mod tests {
     #[test]
     fn optional_parse_reports_error_on_bad_value() {
         let key = unique_key("PARSE");
-        unsafe { env::set_var(key, "notanumber"); }
+        unsafe {
+            env::set_var(key, "notanumber");
+        }
 
         let mut validator = ConfigValidator::new("opt-parse-bad");
         let port = validator.optional_parse::<u16>(key).unwrap_or(8092);
@@ -479,7 +489,9 @@ mod tests {
         let err = validator.finish().unwrap_err();
         assert!(err.to_string().contains("notanumber"));
 
-        unsafe { env::remove_var(key); }
+        unsafe {
+            env::remove_var(key);
+        }
     }
 
     #[test]

@@ -38,8 +38,14 @@ struct TestClaims {
 
 fn dev_private_key() -> Option<EncodingKey> {
     let pem = std::env::var("JWT_PRIVATE_KEY_PEM").ok()?;
-    EncodingKey::from_rsa_pem(pem.replace("\n", "
-").as_bytes()).ok()
+    EncodingKey::from_rsa_pem(
+        pem.replace(
+            "\n", "
+",
+        )
+        .as_bytes(),
+    )
+    .ok()
 }
 
 fn make_jwt(key: &EncodingKey, tenant_id: &str, perms: &[&str]) -> String {
@@ -80,7 +86,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -128,12 +138,16 @@ async fn smoke_notifications() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Notifications returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Notifications returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
-    println!("
---- 1. POST /api/templates ---");
+    println!(
+        "
+--- 1. POST /api/templates ---"
+    );
     let template_key = format!("smoke-{}", &Uuid::new_v4().to_string()[..8]);
     let resp = client
         .post(format!("{base}/api/templates"))
@@ -158,22 +172,39 @@ async fn smoke_notifications() {
     assert_unauth(&client, "POST", &format!("{base}/api/templates"),
         Some(json!({"template_key": "x", "channel": "email", "subject": "X", "body": "X", "required_vars": []}))).await;
 
-    println!("
---- 2. GET /api/templates/{{key}} ---");
+    println!(
+        "
+--- 2. GET /api/templates/{{key}} ---"
+    );
     let resp = client
         .get(format!("{base}/api/templates/{template_key}"))
         .bearer_auth(&jwt)
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Get template failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Get template failed: {}",
+        resp.status()
+    );
     let tpl_detail: Value = resp.json().await.unwrap();
     assert_eq!(tpl_detail["latest"]["template_key"], template_key);
-    println!("  retrieved template key={}", tpl_detail["latest"]["template_key"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/templates/{template_key}"), None).await;
+    println!(
+        "  retrieved template key={}",
+        tpl_detail["latest"]["template_key"]
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/templates/{template_key}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 3. POST /api/notifications/send ---");
+    println!(
+        "
+--- 3. POST /api/notifications/send ---"
+    );
     let user_id = format!("smoke-user-{}", &Uuid::new_v4().to_string()[..8]);
     let resp = client
         .post(format!("{base}/api/notifications/send"))
@@ -196,38 +227,71 @@ async fn smoke_notifications() {
     );
     let send_id = send_body["id"].as_str().expect("No id in send response");
     println!("  sent notification id={send_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/notifications/send"),
-        Some(json!({"template_key": "x", "channel": "email", "recipients": [], "payload_json": {}}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/notifications/send"),
+        Some(
+            json!({"template_key": "x", "channel": "email", "recipients": [], "payload_json": {}}),
+        ),
+    )
+    .await;
 
-    println!("
---- 4. GET /api/notifications/{{id}} ---");
+    println!(
+        "
+--- 4. GET /api/notifications/{{id}} ---"
+    );
     let resp = client
         .get(format!("{base}/api/notifications/{send_id}"))
         .bearer_auth(&jwt)
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Get send detail failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Get send detail failed: {}",
+        resp.status()
+    );
     let detail: Value = resp.json().await.unwrap();
     assert_eq!(detail["template_key"], template_key);
-    println!("  retrieved send detail template_key={}", detail["template_key"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/notifications/{send_id}"), None).await;
+    println!(
+        "  retrieved send detail template_key={}",
+        detail["template_key"]
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/notifications/{send_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 5. GET /api/deliveries ---");
+    println!(
+        "
+--- 5. GET /api/deliveries ---"
+    );
     let resp = client
         .get(format!("{base}/api/deliveries"))
         .bearer_auth(&jwt)
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "List deliveries failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "List deliveries failed: {}",
+        resp.status()
+    );
     let deliveries: Value = resp.json().await.unwrap();
-    println!("  listed {} delivery receipt(s)", deliveries["receipts"].as_array().map_or(0, |a| a.len()));
+    println!(
+        "  listed {} delivery receipt(s)",
+        deliveries["receipts"].as_array().map_or(0, |a| a.len())
+    );
     assert_unauth(&client, "GET", &format!("{base}/api/deliveries"), None).await;
 
-    println!("
---- 6. GET /api/inbox?user_id= ---");
+    println!(
+        "
+--- 6. GET /api/inbox?user_id= ---"
+    );
     let mut inbox_item_id: Option<String> = None;
     for attempt in 1..=6 {
         let resp = client
@@ -237,7 +301,11 @@ async fn smoke_notifications() {
             .send()
             .await
             .unwrap();
-        assert!(resp.status().is_success(), "List inbox failed: {}", resp.status());
+        assert!(
+            resp.status().is_success(),
+            "List inbox failed: {}",
+            resp.status()
+        );
         let inbox_body: Value = resp.json().await.unwrap();
         let items = inbox_body["items"].as_array();
         let count = items.map_or(0, |a| a.len());
@@ -256,156 +324,339 @@ async fn smoke_notifications() {
     if inbox_item_id.is_none() {
         println!("  inbox empty after polling (async delivery subscriber may not be running)");
     }
-    assert_unauth(&client, "GET", &format!("{base}/api/inbox?user_id={user_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/inbox?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    let item_id = inbox_item_id.clone().unwrap_or_else(|| Uuid::new_v4().to_string());
+    let item_id = inbox_item_id
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
     let has_real_item = inbox_item_id.is_some();
 
-    println!("
---- 7. GET /api/inbox/{{id}}?user_id= ---");
-    let resp = client.get(format!("{base}/api/inbox/{item_id}"))
-        .bearer_auth(&jwt).query(&[("user_id", &user_id)]).send().await.unwrap();
+    println!(
+        "
+--- 7. GET /api/inbox/{{id}}?user_id= ---"
+    );
+    let resp = client
+        .get(format!("{base}/api/inbox/{item_id}"))
+        .bearer_auth(&jwt)
+        .query(&[("user_id", &user_id)])
+        .send()
+        .await
+        .unwrap();
     let s7 = resp.status();
-    assert!(s7.is_success() || s7 == StatusCode::NOT_FOUND, "inbox get unexpected: {s7}");
-    if has_real_item { assert!(s7.is_success(), "Get inbox item failed: {s7}"); }
+    assert!(
+        s7.is_success() || s7 == StatusCode::NOT_FOUND,
+        "inbox get unexpected: {s7}"
+    );
+    if has_real_item {
+        assert!(s7.is_success(), "Get inbox item failed: {s7}");
+    }
     println!("  get inbox item -> {s7}");
-    assert_unauth(&client, "GET", &format!("{base}/api/inbox/{item_id}?user_id={user_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/inbox/{item_id}?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 8. POST /api/inbox/{{id}}/read ---");
-    let resp = client.post(format!("{base}/api/inbox/{item_id}/read"))
-        .bearer_auth(&jwt).query(&[("user_id", &user_id)]).send().await.unwrap();
+    println!(
+        "
+--- 8. POST /api/inbox/{{id}}/read ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/inbox/{item_id}/read"))
+        .bearer_auth(&jwt)
+        .query(&[("user_id", &user_id)])
+        .send()
+        .await
+        .unwrap();
     let s8 = resp.status();
-    assert!(s8.is_success() || s8 == StatusCode::NOT_FOUND, "inbox read unexpected: {s8}");
+    assert!(
+        s8.is_success() || s8 == StatusCode::NOT_FOUND,
+        "inbox read unexpected: {s8}"
+    );
     if has_real_item {
         assert!(s8.is_success(), "Read inbox item failed: {s8}");
         let rb: Value = resp.json().await.unwrap();
         assert_eq!(rb["action"], "read");
         println!("  marked read, is_read={}", rb["is_read"]);
-    } else { println!("  read inbox item -> {s8} (no real item)"); }
-    assert_unauth(&client, "POST", &format!("{base}/api/inbox/{item_id}/read?user_id={user_id}"), None).await;
+    } else {
+        println!("  read inbox item -> {s8} (no real item)");
+    }
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inbox/{item_id}/read?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 9. POST /api/inbox/{{id}}/dismiss ---");
-    let resp = client.post(format!("{base}/api/inbox/{item_id}/dismiss"))
-        .bearer_auth(&jwt).query(&[("user_id", &user_id)]).send().await.unwrap();
+    println!(
+        "
+--- 9. POST /api/inbox/{{id}}/dismiss ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/inbox/{item_id}/dismiss"))
+        .bearer_auth(&jwt)
+        .query(&[("user_id", &user_id)])
+        .send()
+        .await
+        .unwrap();
     let s9 = resp.status();
-    assert!(s9.is_success() || s9 == StatusCode::NOT_FOUND, "inbox dismiss unexpected: {s9}");
+    assert!(
+        s9.is_success() || s9 == StatusCode::NOT_FOUND,
+        "inbox dismiss unexpected: {s9}"
+    );
     if has_real_item {
         assert!(s9.is_success(), "Dismiss inbox item failed: {s9}");
         let db: Value = resp.json().await.unwrap();
         assert_eq!(db["action"], "dismiss");
         println!("  dismissed, is_dismissed={}", db["is_dismissed"]);
-    } else { println!("  dismiss inbox item -> {s9} (no real item)"); }
-    assert_unauth(&client, "POST", &format!("{base}/api/inbox/{item_id}/dismiss?user_id={user_id}"), None).await;
+    } else {
+        println!("  dismiss inbox item -> {s9} (no real item)");
+    }
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inbox/{item_id}/dismiss?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 10. POST /api/inbox/{{id}}/undismiss ---");
-    let resp = client.post(format!("{base}/api/inbox/{item_id}/undismiss"))
-        .bearer_auth(&jwt).query(&[("user_id", &user_id)]).send().await.unwrap();
+    println!(
+        "
+--- 10. POST /api/inbox/{{id}}/undismiss ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/inbox/{item_id}/undismiss"))
+        .bearer_auth(&jwt)
+        .query(&[("user_id", &user_id)])
+        .send()
+        .await
+        .unwrap();
     let s10 = resp.status();
-    assert!(s10.is_success() || s10 == StatusCode::NOT_FOUND, "inbox undismiss unexpected: {s10}");
-    if has_real_item { assert!(s10.is_success(), "Undismiss inbox item failed: {s10}"); }
+    assert!(
+        s10.is_success() || s10 == StatusCode::NOT_FOUND,
+        "inbox undismiss unexpected: {s10}"
+    );
+    if has_real_item {
+        assert!(s10.is_success(), "Undismiss inbox item failed: {s10}");
+    }
     println!("  undismiss inbox item -> {s10}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inbox/{item_id}/undismiss?user_id={user_id}"), None).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inbox/{item_id}/undismiss?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 11. POST /api/inbox/{{id}}/unread ---");
-    let resp = client.post(format!("{base}/api/inbox/{item_id}/unread"))
-        .bearer_auth(&jwt).query(&[("user_id", &user_id)]).send().await.unwrap();
+    println!(
+        "
+--- 11. POST /api/inbox/{{id}}/unread ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/inbox/{item_id}/unread"))
+        .bearer_auth(&jwt)
+        .query(&[("user_id", &user_id)])
+        .send()
+        .await
+        .unwrap();
     let s11 = resp.status();
-    assert!(s11.is_success() || s11 == StatusCode::NOT_FOUND, "inbox unread unexpected: {s11}");
+    assert!(
+        s11.is_success() || s11 == StatusCode::NOT_FOUND,
+        "inbox unread unexpected: {s11}"
+    );
     if has_real_item {
         assert!(s11.is_success(), "Unread inbox item failed: {s11}");
         let ub: Value = resp.json().await.unwrap();
         assert_eq!(ub["action"], "unread");
         println!("  unread, is_read={}", ub["is_read"]);
-    } else { println!("  unread inbox item -> {s11} (no real item)"); }
-    assert_unauth(&client, "POST", &format!("{base}/api/inbox/{item_id}/unread?user_id={user_id}"), None).await;
+    } else {
+        println!("  unread inbox item -> {s11} (no real item)");
+    }
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inbox/{item_id}/unread?user_id={user_id}"),
+        None,
+    )
+    .await;
 
-    println!("
---- 12. GET /api/dlq ---");
-    let resp = client.get(format!("{base}/api/dlq")).bearer_auth(&jwt).send().await.unwrap();
-    assert!(resp.status().is_success(), "List DLQ failed: {}", resp.status());
+    println!(
+        "
+--- 12. GET /api/dlq ---"
+    );
+    let resp = client
+        .get(format!("{base}/api/dlq"))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        resp.status().is_success(),
+        "List DLQ failed: {}",
+        resp.status()
+    );
     let dlq_list: Value = resp.json().await.unwrap();
-    println!("  listed {} DLQ item(s)", dlq_list["items"].as_array().map_or(0, |a| a.len()));
+    println!(
+        "  listed {} DLQ item(s)",
+        dlq_list["items"].as_array().map_or(0, |a| a.len())
+    );
     assert_unauth(&client, "GET", &format!("{base}/api/dlq"), None).await;
 
-    let dlq_id = dlq_list["items"].as_array()
-        .and_then(|a| a.first()).and_then(|i| i["id"].as_str())
-        .map(|s| s.to_string()).unwrap_or_else(|| Uuid::new_v4().to_string());
+    let dlq_id = dlq_list["items"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(|i| i["id"].as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    println!("
---- 13. GET /api/dlq/{{id}} ---");
-    let resp = client.get(format!("{base}/api/dlq/{dlq_id}")).bearer_auth(&jwt).send().await.unwrap();
+    println!(
+        "
+--- 13. GET /api/dlq/{{id}} ---"
+    );
+    let resp = client
+        .get(format!("{base}/api/dlq/{dlq_id}"))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     let s13 = resp.status();
-    assert!(s13.is_success() || s13 == StatusCode::NOT_FOUND, "DLQ get unexpected: {s13}");
+    assert!(
+        s13.is_success() || s13 == StatusCode::NOT_FOUND,
+        "DLQ get unexpected: {s13}"
+    );
     println!("  get DLQ item -> {s13}");
     assert_unauth(&client, "GET", &format!("{base}/api/dlq/{dlq_id}"), None).await;
 
-    println!("
---- 14. POST /api/dlq/{{id}}/replay ---");
-    let resp = client.post(format!("{base}/api/dlq/{dlq_id}/replay")).bearer_auth(&jwt).send().await.unwrap();
+    println!(
+        "
+--- 14. POST /api/dlq/{{id}}/replay ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/dlq/{dlq_id}/replay"))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     let s14 = resp.status();
-    assert!(s14.is_success() || s14 == StatusCode::NOT_FOUND, "DLQ replay unexpected: {s14}");
+    assert!(
+        s14.is_success() || s14 == StatusCode::NOT_FOUND,
+        "DLQ replay unexpected: {s14}"
+    );
     println!("  replay DLQ item -> {s14}");
-    assert_unauth(&client, "POST", &format!("{base}/api/dlq/{dlq_id}/replay"), None).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/dlq/{dlq_id}/replay"),
+        None,
+    )
+    .await;
 
-    println!("
---- 15. POST /api/dlq/{{id}}/abandon ---");
+    println!(
+        "
+--- 15. POST /api/dlq/{{id}}/abandon ---"
+    );
     let abandon_id = Uuid::new_v4().to_string();
-    let resp = client.post(format!("{base}/api/dlq/{abandon_id}/abandon")).bearer_auth(&jwt).send().await.unwrap();
+    let resp = client
+        .post(format!("{base}/api/dlq/{abandon_id}/abandon"))
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     let s15 = resp.status();
-    assert!(s15.is_success() || s15 == StatusCode::NOT_FOUND, "DLQ abandon unexpected: {s15}");
+    assert!(
+        s15.is_success() || s15 == StatusCode::NOT_FOUND,
+        "DLQ abandon unexpected: {s15}"
+    );
     println!("  abandon DLQ item -> {s15}");
-    assert_unauth(&client, "POST", &format!("{base}/api/dlq/{abandon_id}/abandon"), None).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/dlq/{abandon_id}/abandon"),
+        None,
+    )
+    .await;
 
     let admin_token = std::env::var("ADMIN_TOKEN").unwrap_or_default();
 
-    println!("
---- 16. POST /api/notifications/admin/projection-status ---");
-    let resp = client.post(format!("{base}/api/notifications/admin/projection-status"))
+    println!(
+        "
+--- 16. POST /api/notifications/admin/projection-status ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/notifications/admin/projection-status"))
         .header("X-Admin-Token", &admin_token)
         .json(&json!({"projection_name": "notifications_sends"}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let s16 = resp.status();
     if admin_token.is_empty() {
-        assert!(s16.as_u16() == 401 || s16.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s16}");
+        assert!(
+            s16.as_u16() == 401 || s16.as_u16() == 403,
+            "Expected 401 or 403 when ADMIN_TOKEN not set, got {s16}"
+        );
         println!("  projection-status -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s16.is_success(), "projection-status failed: {s16}");
         println!("  projection-status -> {s16}");
     }
 
-    println!("
---- 17. POST /api/notifications/admin/consistency-check ---");
-    let resp = client.post(format!("{base}/api/notifications/admin/consistency-check"))
+    println!(
+        "
+--- 17. POST /api/notifications/admin/consistency-check ---"
+    );
+    let resp = client
+        .post(format!("{base}/api/notifications/admin/consistency-check"))
         .header("X-Admin-Token", &admin_token)
         .json(&json!({"projection_name": "notifications_sends"}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let s17 = resp.status();
     if admin_token.is_empty() {
-        assert!(s17.as_u16() == 401 || s17.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s17}");
+        assert!(
+            s17.as_u16() == 401 || s17.as_u16() == 403,
+            "Expected 401 or 403 when ADMIN_TOKEN not set, got {s17}"
+        );
         println!("  consistency-check -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s17.is_success(), "consistency-check failed: {s17}");
         println!("  consistency-check -> {s17}");
     }
 
-    println!("
---- 18. GET /api/notifications/admin/projections ---");
-    let resp = client.get(format!("{base}/api/notifications/admin/projections"))
+    println!(
+        "
+--- 18. GET /api/notifications/admin/projections ---"
+    );
+    let resp = client
+        .get(format!("{base}/api/notifications/admin/projections"))
         .header("X-Admin-Token", &admin_token)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let s18 = resp.status();
     if admin_token.is_empty() {
-        assert!(s18.as_u16() == 401 || s18.as_u16() == 403, "Expected 401 or 403 when ADMIN_TOKEN not set, got {s18}");
+        assert!(
+            s18.as_u16() == 401 || s18.as_u16() == 403,
+            "Expected 401 or 403 when ADMIN_TOKEN not set, got {s18}"
+        );
         println!("  projections -> 403 (ADMIN_TOKEN not set, expected)");
     } else {
         assert!(s18.is_success(), "projections failed: {s18}");
         println!("  projections -> {s18}");
     }
 
-    println!("
-=== All 18 Notifications routes passed ===");
+    println!(
+        "
+=== All 18 Notifications routes passed ==="
+    );
 }

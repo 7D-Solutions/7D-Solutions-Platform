@@ -224,8 +224,13 @@ impl ShipmentService {
                     carrier_party_id: current.carrier_party_id,
                 };
                 outbox::enqueue_event_tx(
-                    &mut tx, event_id, event_type, "shipment",
-                    &shipment_id.to_string(), &tenant_str, &payload,
+                    &mut tx,
+                    event_id,
+                    event_type,
+                    "shipment",
+                    &shipment_id.to_string(),
+                    &tenant_str,
+                    &payload,
                 )
                 .await?;
             }
@@ -247,8 +252,13 @@ impl ShipmentService {
                     closed_at: req.closed_at.unwrap_or(now),
                 };
                 outbox::enqueue_event_tx(
-                    &mut tx, event_id, event_type, "shipment",
-                    &shipment_id.to_string(), &tenant_str, &payload,
+                    &mut tx,
+                    event_id,
+                    event_type,
+                    "shipment",
+                    &shipment_id.to_string(),
+                    &tenant_str,
+                    &payload,
                 )
                 .await?;
             }
@@ -259,8 +269,13 @@ impl ShipmentService {
                     delivered_at: req.delivered_at.unwrap_or(now),
                 };
                 outbox::enqueue_event_tx(
-                    &mut tx, event_id, event_type, "shipment",
-                    &shipment_id.to_string(), &tenant_str, &payload,
+                    &mut tx,
+                    event_id,
+                    event_type,
+                    "shipment",
+                    &shipment_id.to_string(),
+                    &tenant_str,
+                    &payload,
                 )
                 .await?;
             }
@@ -276,8 +291,13 @@ impl ShipmentService {
                     changed_at: now,
                 };
                 outbox::enqueue_event_tx(
-                    &mut tx, event_id, event_type, "shipment",
-                    &shipment_id.to_string(), &tenant_str, &payload,
+                    &mut tx,
+                    event_id,
+                    event_type,
+                    "shipment",
+                    &shipment_id.to_string(),
+                    &tenant_str,
+                    &payload,
                 )
                 .await?;
             }

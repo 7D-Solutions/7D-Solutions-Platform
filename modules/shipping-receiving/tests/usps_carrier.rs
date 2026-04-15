@@ -38,7 +38,9 @@ fn sandbox_config() -> Option<serde_json::Value> {
 #[ignore]
 async fn usps_carrier_get_rates_returns_quotes_for_domestic_package() {
     let provider = get_provider("usps").expect("usps provider must be registered");
-    let Some(config) = sandbox_config() else { return; };
+    let Some(config) = sandbox_config() else {
+        return;
+    };
 
     let req = serde_json::json!({
         "origin_zip":  "10001",
@@ -61,7 +63,10 @@ async fn usps_carrier_get_rates_returns_quotes_for_domestic_package() {
 
     for rate in &rates {
         assert_eq!(rate.carrier_code, "usps");
-        assert!(!rate.service_level.is_empty(), "service_level must be non-empty");
+        assert!(
+            !rate.service_level.is_empty(),
+            "service_level must be non-empty"
+        );
         assert!(rate.total_charge_minor > 0, "charge must be positive");
         assert_eq!(rate.currency, "USD");
     }
@@ -71,7 +76,11 @@ async fn usps_carrier_get_rates_returns_quotes_for_domestic_package() {
         rates.len()
     );
     for r in &rates {
-        println!("  {} — ${:.2}", r.service_level, r.total_charge_minor as f64 / 100.0);
+        println!(
+            "  {} — ${:.2}",
+            r.service_level,
+            r.total_charge_minor as f64 / 100.0
+        );
     }
 }
 
@@ -81,7 +90,9 @@ async fn usps_carrier_get_rates_returns_quotes_for_domestic_package() {
 #[ignore]
 async fn usps_carrier_create_label_returns_tracking_and_label_bytes() {
     let provider = get_provider("usps").expect("usps provider must be registered");
-    let Some(config) = sandbox_config() else { return; };
+    let Some(config) = sandbox_config() else {
+        return;
+    };
 
     let req = serde_json::json!({
         "from_name":    "Acme Corp",
@@ -129,7 +140,9 @@ async fn usps_carrier_create_label_returns_tracking_and_label_bytes() {
 #[ignore]
 async fn usps_carrier_track_known_number_returns_valid_status() {
     let provider = get_provider("usps").expect("usps provider must be registered");
-    let Some(config) = sandbox_config() else { return; };
+    let Some(config) = sandbox_config() else {
+        return;
+    };
 
     let result = provider
         .track(USPS_TEST_TRACKING_NUMBER, &config)
@@ -138,10 +151,7 @@ async fn usps_carrier_track_known_number_returns_valid_status() {
 
     assert_eq!(result.carrier_code, "usps");
     assert_eq!(result.tracking_number, USPS_TEST_TRACKING_NUMBER);
-    assert!(
-        !result.status.is_empty(),
-        "status must be non-empty"
-    );
+    assert!(!result.status.is_empty(), "status must be non-empty");
 
     println!(
         "USPS tracking {}: status={}, events={}",
@@ -164,6 +174,9 @@ async fn usps_carrier_track_known_number_returns_valid_status() {
 #[test]
 fn usps_carrier_registry_resolves_usps_provider() {
     let provider = get_provider("usps");
-    assert!(provider.is_some(), "usps must be registered in get_provider()");
+    assert!(
+        provider.is_some(),
+        "usps must be registered in get_provider()"
+    );
     assert_eq!(provider.expect("usps provider").carrier_code(), "usps");
 }

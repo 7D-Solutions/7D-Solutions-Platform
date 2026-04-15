@@ -8,13 +8,13 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::domain::eco_models::*;
-use crate::domain::models::PaginationQuery;
 use crate::domain::eco_service;
+use crate::domain::models::PaginationQuery;
 use crate::http::bom_routes::{into_api_error, paginate};
 use crate::AppState;
 use platform_http_contracts::ApiError;
+use platform_sdk::extract_tenant;
 
 fn correlation_id() -> String {
     Uuid::new_v4().to_string()
@@ -42,7 +42,8 @@ pub async fn post_eco(
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .map(String::from);
-    let Extension(verified) = claims.as_ref()
+    let Extension(verified) = claims
+        .as_ref()
         .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
     let eco = eco_service::create_eco(
         &state.pool,

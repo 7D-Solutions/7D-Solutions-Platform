@@ -59,8 +59,10 @@ async fn post_oversized_payload(
             println!("  {}: status={}, body_len={}", label, status, body.len());
 
             // Check body doesn't contain stack traces
-            let has_stack_trace = body.contains("at /") || body.contains("panicked at")
-                || body.contains("thread '") || body.contains("RUST_BACKTRACE");
+            let has_stack_trace = body.contains("at /")
+                || body.contains("panicked at")
+                || body.contains("thread '")
+                || body.contains("RUST_BACKTRACE");
             if has_stack_trace {
                 println!("    WARNING: response body contains stack trace info");
             }
@@ -94,7 +96,10 @@ async fn check_health(client: &Client, base_url: &str, service_name: &str) -> bo
             let status = r.status().as_u16();
             let ok = status == 200;
             if !ok {
-                println!("  {} health check: status {} (expected 200)", service_name, status);
+                println!(
+                    "  {} health check: status {} (expected 200)",
+                    service_name, status
+                );
             }
             ok
         }
@@ -117,7 +122,10 @@ async fn large_payload_rejection_e2e() {
     let inv_healthy = check_health(&client, INVENTORY_BASE, "inventory").await;
     let pdf_healthy = check_health(&client, PDF_EDITOR_BASE, "pdf-editor").await;
     assert!(inv_healthy, "inventory service must be healthy before test");
-    assert!(pdf_healthy, "pdf-editor service must be healthy before test");
+    assert!(
+        pdf_healthy,
+        "pdf-editor service must be healthy before test"
+    );
 
     let mut all_clean = true;
     let mut all_healthy_after = true;
@@ -131,7 +139,10 @@ async fn large_payload_rejection_e2e() {
     let inv_url = format!("{}/api/inventory/items", INVENTORY_BASE);
 
     for size in [SIZE_5MB, SIZE_10MB] {
-        let label = format!("inventory POST {} to /api/inventory/items", size_label(size));
+        let label = format!(
+            "inventory POST {} to /api/inventory/items",
+            size_label(size)
+        );
         println!("\n--- {} ---", label);
 
         let payload = make_payload(size);
@@ -141,7 +152,10 @@ async fn large_payload_rejection_e2e() {
         // 422, or connection closed (0). NOT 500/502/503.
         let not_server_error = !matches!(status, 500 | 502 | 503);
         if !not_server_error {
-            println!("  UNEXPECTED server error: {} (service may have crashed)", status);
+            println!(
+                "  UNEXPECTED server error: {} (service may have crashed)",
+                status
+            );
             all_clean = false;
         }
         if !clean {
@@ -152,7 +166,10 @@ async fn large_payload_rejection_e2e() {
         if !healthy {
             all_healthy_after = false;
         }
-        println!("  post-rejection health: {}", if healthy { "OK" } else { "FAILED" });
+        println!(
+            "  post-rejection health: {}",
+            if healthy { "OK" } else { "FAILED" }
+        );
     }
 
     // ===================================================================
@@ -161,7 +178,10 @@ async fn large_payload_rejection_e2e() {
     let pdf_url = format!("{}/api/pdf/forms/templates", PDF_EDITOR_BASE);
 
     for size in [SIZE_5MB, SIZE_10MB] {
-        let label = format!("pdf-editor POST {} to /api/pdf/forms/templates", size_label(size));
+        let label = format!(
+            "pdf-editor POST {} to /api/pdf/forms/templates",
+            size_label(size)
+        );
         println!("\n--- {} ---", label);
 
         let payload = make_payload(size);
@@ -169,7 +189,10 @@ async fn large_payload_rejection_e2e() {
 
         let not_server_error = !matches!(status, 500 | 502 | 503);
         if !not_server_error {
-            println!("  UNEXPECTED server error: {} (service may have crashed)", status);
+            println!(
+                "  UNEXPECTED server error: {} (service may have crashed)",
+                status
+            );
             all_clean = false;
         }
         if !clean {
@@ -180,7 +203,10 @@ async fn large_payload_rejection_e2e() {
         if !healthy {
             all_healthy_after = false;
         }
-        println!("  post-rejection health: {}", if healthy { "OK" } else { "FAILED" });
+        println!(
+            "  post-rejection health: {}",
+            if healthy { "OK" } else { "FAILED" }
+        );
     }
 
     // ===================================================================
@@ -196,7 +222,8 @@ async fn large_payload_rejection_e2e() {
         println!("\n--- {} ---", label);
 
         let payload = make_payload(SIZE_50MB);
-        let (status, clean) = post_oversized_payload(&client, &pdf_upload_url, payload, label).await;
+        let (status, clean) =
+            post_oversized_payload(&client, &pdf_upload_url, payload, label).await;
 
         let not_server_error = !matches!(status, 500 | 502 | 503);
         if !not_server_error {
@@ -211,7 +238,10 @@ async fn large_payload_rejection_e2e() {
         if !healthy {
             all_healthy_after = false;
         }
-        println!("  post-rejection health: {}", if healthy { "OK" } else { "FAILED" });
+        println!(
+            "  post-rejection health: {}",
+            if healthy { "OK" } else { "FAILED" }
+        );
     }
 
     // ===================================================================
@@ -219,7 +249,10 @@ async fn large_payload_rejection_e2e() {
     // ===================================================================
     println!("\n--- Summary ---");
     println!("  all rejections clean (no stack traces): {}", all_clean);
-    println!("  all services healthy after rejections: {}", all_healthy_after);
+    println!(
+        "  all services healthy after rejections: {}",
+        all_healthy_after
+    );
 
     assert!(
         all_clean,

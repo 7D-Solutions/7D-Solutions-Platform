@@ -598,7 +598,10 @@ async fn cross_tenant_sod_isolation() {
     let policies_b = sod::list_policies(&pool, tenant_b, "release.approve")
         .await
         .expect("list tenant_b");
-    assert!(policies_b.is_empty(), "tenant_b must not see tenant_a policies");
+    assert!(
+        policies_b.is_empty(),
+        "tenant_b must not see tenant_a policies"
+    );
 
     // Evaluating in tenant_b with same actor should always allow (no policy)
     let eval_b = sod::evaluate_decision(

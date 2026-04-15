@@ -167,8 +167,7 @@ async fn render_template_substitutes_variables() {
         .expect("publish");
 
     let payload = serde_json::json!({"name": "Alice", "order_id": "ORD-42"});
-    let (subject, body) =
-        tpl_repo::render_template(&tpl, &payload).expect("render should succeed");
+    let (subject, body) = tpl_repo::render_template(&tpl, &payload).expect("render should succeed");
 
     assert_eq!(subject, "Hello Alice");
     assert_eq!(body, "<p>Your order ORD-42 is ready</p>");
@@ -194,7 +193,11 @@ async fn render_template_missing_required_var_fails() {
 
     let payload = serde_json::json!({"name": "Bob"});
     let err = tpl_repo::render_template(&tpl, &payload).unwrap_err();
-    assert!(err.contains("age"), "error should mention missing var: {}", err);
+    assert!(
+        err.contains("age"),
+        "error should mention missing var: {}",
+        err
+    );
 }
 
 // ── Notification sends + delivery receipts ────────────────────────────
@@ -224,7 +227,10 @@ async fn send_creates_record_and_receipts() {
         Some("send_test"),
         Some(tpl.version),
         "email",
-        &["alice@example.com".to_string(), "bob@example.com".to_string()],
+        &[
+            "alice@example.com".to_string(),
+            "bob@example.com".to_string(),
+        ],
         &serde_json::json!({"x": "hello"}),
         Some("corr-123"),
         Some("cause-456"),
@@ -323,18 +329,10 @@ async fn query_receipts_by_correlation_id() {
     .await
     .expect("insert receipt");
 
-    let results = sends_repo::query_receipts(
-        &pool,
-        &tenant,
-        Some(&corr_id),
-        None,
-        None,
-        None,
-        50,
-        0,
-    )
-    .await
-    .expect("query receipts");
+    let results =
+        sends_repo::query_receipts(&pool, &tenant, Some(&corr_id), None, None, None, 50, 0)
+            .await
+            .expect("query receipts");
 
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].recipient, "user@test.com");
@@ -366,7 +364,10 @@ async fn cross_tenant_template_access_denied() {
     let result = tpl_repo::get_latest(&pool, &tenant_b, "private_tpl")
         .await
         .expect("query should succeed");
-    assert!(result.is_none(), "tenant B must not see tenant A's template");
+    assert!(
+        result.is_none(),
+        "tenant B must not see tenant A's template"
+    );
 }
 
 #[tokio::test]
@@ -436,18 +437,9 @@ async fn cross_tenant_receipt_query_isolated() {
     .expect("insert receipt A");
 
     // Tenant B queries same correlation_id — should see nothing
-    let results = sends_repo::query_receipts(
-        &pool,
-        &tenant_b,
-        Some(corr),
-        None,
-        None,
-        None,
-        50,
-        0,
-    )
-    .await
-    .expect("query receipts");
+    let results = sends_repo::query_receipts(&pool, &tenant_b, Some(corr), None, None, None, 50, 0)
+        .await
+        .expect("query receipts");
 
     assert!(
         results.is_empty(),

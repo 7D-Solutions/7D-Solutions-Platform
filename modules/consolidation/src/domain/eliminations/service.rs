@@ -172,8 +172,7 @@ async fn check_existing_posting(
     period_id: Uuid,
     idempotency_key: &str,
 ) -> Result<Option<EliminationPostResult>, EngineError> {
-    let row =
-        repo::fetch_existing_posting(pool, group_id, period_id, idempotency_key).await?;
+    let row = repo::fetch_existing_posting(pool, group_id, period_id, idempotency_key).await?;
 
     match row {
         Some((posted_at, ids_json, as_of_date)) => {

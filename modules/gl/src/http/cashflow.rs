@@ -6,7 +6,10 @@
 //! into operating / investing / financing via account tagging.
 //! Includes reconciliation check against cash account balance deltas.
 
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -14,10 +17,10 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::cashflow_service::{self, CashFlowResponse};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 /// Query parameters for the cash flow endpoint.
 #[derive(Debug, Deserialize)]

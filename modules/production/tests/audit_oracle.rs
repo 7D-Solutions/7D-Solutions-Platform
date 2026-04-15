@@ -100,7 +100,10 @@ async fn audit_oracle_create_work_order() {
     let entity_id = wo.work_order_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "CreateWorkOrder").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for CreateWorkOrder");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for CreateWorkOrder"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "CreateWorkOrder").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");
@@ -142,10 +145,16 @@ async fn audit_oracle_release_work_order() {
     let entity_id = wo.work_order_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "ReleaseWorkOrder").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for ReleaseWorkOrder");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for ReleaseWorkOrder"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "ReleaseWorkOrder").await;
-    assert_eq!(mc, "STATE_TRANSITION", "mutation_class should be STATE_TRANSITION");
+    assert_eq!(
+        mc, "STATE_TRANSITION",
+        "mutation_class should be STATE_TRANSITION"
+    );
 }
 
 // ============================================================================
@@ -174,10 +183,16 @@ async fn audit_oracle_close_work_order() {
     let entity_id = wo.work_order_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "CloseWorkOrder").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for CloseWorkOrder");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for CloseWorkOrder"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "CloseWorkOrder").await;
-    assert_eq!(mc, "STATE_TRANSITION", "mutation_class should be STATE_TRANSITION");
+    assert_eq!(
+        mc, "STATE_TRANSITION",
+        "mutation_class should be STATE_TRANSITION"
+    );
 }
 
 // ============================================================================
@@ -219,7 +234,10 @@ async fn audit_oracle_component_issue() {
     let entity_id = wo.work_order_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "RequestComponentIssue").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for RequestComponentIssue");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for RequestComponentIssue"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "RequestComponentIssue").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");
@@ -262,7 +280,10 @@ async fn audit_oracle_fg_receipt() {
     let entity_id = wo.work_order_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "RequestFgReceipt").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for RequestFgReceipt");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for RequestFgReceipt"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "RequestFgReceipt").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");

@@ -1,6 +1,6 @@
 //! Emit client structs with methods for each tag group.
 
-use crate::spec::{Endpoint, HttpMethod, ParsedSpec, Param, ResponseKind};
+use crate::spec::{Endpoint, HttpMethod, Param, ParsedSpec, ResponseKind};
 
 /// Methods with this many query params or more get a public query struct
 /// instead of individual parameters.
@@ -10,13 +10,16 @@ pub fn emit(parsed: &ParsedSpec, tag: &str, indices: &[usize]) -> String {
     let struct_name = tag_to_client_name(tag);
     // Determine which imports are needed
     let eps: Vec<&Endpoint> = indices.iter().map(|&i| &parsed.endpoints[i]).collect();
-    let needs_types = eps.iter().any(|ep| {
-        ep.request_body.is_some()
-            || matches!(&ep.response, ResponseKind::Json(_))
-    });
+    let needs_types = eps
+        .iter()
+        .any(|ep| ep.request_body.is_some() || matches!(&ep.response, ResponseKind::Json(_)));
     let needs_query = eps.iter().any(|ep| !ep.query_params.is_empty());
-    let needs_parse_response = eps.iter().any(|ep| matches!(&ep.response, ResponseKind::Json(_)));
-    let needs_parse_empty = eps.iter().any(|ep| matches!(&ep.response, ResponseKind::Empty));
+    let needs_parse_response = eps
+        .iter()
+        .any(|ep| matches!(&ep.response, ResponseKind::Json(_)));
+    let needs_parse_empty = eps
+        .iter()
+        .any(|ep| matches!(&ep.response, ResponseKind::Empty));
 
     let mut out = String::with_capacity(2048);
     out.push_str(&format!(
@@ -95,7 +98,11 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         params.push("claims: &VerifiedClaims".to_string());
     }
     for p in &ep.path_params {
-        params.push(format!("{}: {}", sanitize_param(&p.name), param_arg_type(&p.rust_type)));
+        params.push(format!(
+            "{}: {}",
+            sanitize_param(&p.name),
+            param_arg_type(&p.rust_type)
+        ));
     }
     let use_public_query = ep.query_params.len() >= QUERY_STRUCT_THRESHOLD;
     if use_public_query {
@@ -127,10 +134,7 @@ fn emit_method(out: &mut String, ep: &Endpoint) {
         HttpMethod::Delete => "DELETE",
     };
 
-    out.push_str(&format!(
-        "    /// {method_name} `{path}`\n",
-        path = ep.path
-    ));
+    out.push_str(&format!("    /// {method_name} `{path}`\n", path = ep.path));
     out.push_str(&format!(
         "    pub async fn {fn_name}({params_str}) -> {return_type} {{\n"
     ));
@@ -236,9 +240,7 @@ fn emit_inline_query_struct(out: &mut String, params: &[Param]) {
         // Query structs use owned types to avoid lifetime issues
         let owned_type = query_owned_type(&p.rust_type);
         if !p.required {
-            out.push_str(
-                "            #[serde(skip_serializing_if = \"Option::is_none\")]\n",
-            );
+            out.push_str("            #[serde(skip_serializing_if = \"Option::is_none\")]\n");
             out.push_str(&format!(
                 "            {}: Option<{owned_type}>,\n",
                 sanitize_param(&p.name),
@@ -319,15 +321,16 @@ fn sanitize_param(name: &str) -> String {
 /// Placed at module level so callers can construct and pass it.
 fn emit_public_query_struct(out: &mut String, ep: &Endpoint) {
     let struct_name = op_id_to_query_struct(&ep.operation_id);
-    out.push_str(&format!("/// Query parameters for [`{}`].\n", ep.operation_id));
+    out.push_str(&format!(
+        "/// Query parameters for [`{}`].\n",
+        ep.operation_id
+    ));
     out.push_str("#[derive(Debug, Clone, Default, serde::Serialize)]\n");
     out.push_str(&format!("pub struct {struct_name} {{\n"));
     for p in &ep.query_params {
         let owned_type = query_owned_type(&p.rust_type);
         if !p.required {
-            out.push_str(
-                "    #[serde(skip_serializing_if = \"Option::is_none\")]\n",
-            );
+            out.push_str("    #[serde(skip_serializing_if = \"Option::is_none\")]\n");
             out.push_str(&format!(
                 "    pub {}: Option<{owned_type}>,\n",
                 sanitize_param(&p.name),
@@ -499,7 +502,8 @@ fn emit_list_all_method(out: &mut String, ep: &Endpoint, inner_type: &str) {
                 // Required params with non-Copy Option types (e.g. Option<String>) must be
                 // cloned on each loop iteration to avoid a move error.
                 let name = sanitize_param(&p.name);
-                let needs_clone = p.required && p.rust_type.starts_with("Option<")
+                let needs_clone = p.required
+                    && p.rust_type.starts_with("Option<")
                     && (p.rust_type.contains("String") || p.rust_type.contains("Vec<"));
                 let _ = is_option;
                 if needs_clone {

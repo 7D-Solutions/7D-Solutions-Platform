@@ -124,8 +124,8 @@ pub async fn upsert_fx_policy(
     validate_rate_type(pl, "pl_rate_type")?;
     validate_rate_type(eq, "equity_rate_type")?;
 
-    let row = repo::upsert_fx_policy_row(pool, group_id, &req.entity_tenant_id, bs, pl, eq, src)
-        .await?;
+    let row =
+        repo::upsert_fx_policy_row(pool, group_id, &req.entity_tenant_id, bs, pl, eq, src).await?;
     Ok(row)
 }
 

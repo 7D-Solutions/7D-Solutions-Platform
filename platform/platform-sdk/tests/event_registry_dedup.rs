@@ -163,7 +163,10 @@ async fn check_and_mark_duplicate_returns_false() {
         .await
         .expect("second check_and_mark");
     tx2.commit().await.expect("commit tx2");
-    assert!(!second, "second call with same event_id should return false");
+    assert!(
+        !second,
+        "second call with same event_id should return false"
+    );
 
     drop_table(&pool, table).await;
 }
@@ -337,12 +340,14 @@ async fn dispatch_with_dedup_rolls_back_on_handler_failure() {
     assert!(result.is_err(), "handler failure must propagate as Err");
 
     // Verify dedup entry was rolled back (table should be empty)
-    let row: (i64,) =
-        sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{table}""#))
-            .fetch_one(&pool)
-            .await
-            .expect("count query");
-    assert_eq!(row.0, 0, "dedup entry must be rolled back on handler failure");
+    let row: (i64,) = sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{table}""#))
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
+    assert_eq!(
+        row.0, 0,
+        "dedup entry must be rolled back on handler failure"
+    );
 
     // Second dispatch with the same event_id — must NOT be treated as duplicate
     // (dedup was rolled back, so the event should be processed again)
@@ -374,7 +379,13 @@ fn standard_dedupe_ddl_contains_required_columns() {
     let ddl = platform_sdk::STANDARD_DEDUPE_DDL;
     assert!(ddl.contains("event_id"), "DDL must have event_id");
     assert!(ddl.contains("processed_at"), "DDL must have processed_at");
-    assert!(ddl.contains("PRIMARY KEY"), "DDL must have PRIMARY KEY on event_id");
+    assert!(
+        ddl.contains("PRIMARY KEY"),
+        "DDL must have PRIMARY KEY on event_id"
+    );
     assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
-    assert!(ddl.contains("{table}"), "DDL must use {{table}} placeholder");
+    assert!(
+        ddl.contains("{table}"),
+        "DDL must use {{table}} placeholder"
+    );
 }

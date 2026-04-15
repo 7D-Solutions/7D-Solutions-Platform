@@ -20,9 +20,7 @@ use serde::{Deserialize, Serialize};
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use auth_kit::{
-    AuthKit, ClaimsLayer, JwtVerifier, RequirePermissionsLayer, VerifiedClaims,
-};
+use auth_kit::{AuthKit, ClaimsLayer, JwtVerifier, RequirePermissionsLayer, VerifiedClaims};
 
 // ── Test helpers ──────────────────────────────────────────────────
 
@@ -46,7 +44,9 @@ fn make_keys() -> (EncodingKey, String) {
     let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key gen");
     let pub_key = priv_key.to_public_key();
     let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("PEM encode");
-    let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("public PEM");
+    let pub_pem = pub_key
+        .to_public_key_pem(LineEnding::LF)
+        .expect("public PEM");
     let enc = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key");
     (enc, pub_pem)
 }
@@ -117,9 +117,7 @@ async fn valid_jwt_produces_verified_claims() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(resp.into_body(), 1024)
-        .await
-        .unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
     let who: WhoAmI = serde_json::from_slice(&body).unwrap();
     assert_eq!(who.user_id, claims.sub);
     assert_eq!(who.tenant_id, claims.tenant_id);

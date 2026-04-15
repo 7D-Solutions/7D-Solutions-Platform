@@ -55,8 +55,7 @@ async fn insert_and_send(pool: &PgPool, tenant_id: &str) -> Uuid {
     .await
     .expect("insert pending");
 
-    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
-        Arc::new(LoggingSender);
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(LoggingSender);
     dispatch_once(pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch_once");
@@ -299,20 +298,18 @@ async fn tenant_isolation_escalation_rules() {
     .expect("create rule for tenant A");
 
     // Query rules as tenant B — should get zero results
-    let rules_b =
-        notifications_rs::escalation::get_rules_for_type(&pool, &tenant_b, TEMPLATE_KEY)
-            .await
-            .expect("get rules for tenant B");
+    let rules_b = notifications_rs::escalation::get_rules_for_type(&pool, &tenant_b, TEMPLATE_KEY)
+        .await
+        .expect("get rules for tenant B");
     assert!(
         rules_b.is_empty(),
         "tenant B must not see tenant A's escalation rules"
     );
 
     // Query rules as tenant A — should get exactly 1
-    let rules_a =
-        notifications_rs::escalation::get_rules_for_type(&pool, &tenant_a, TEMPLATE_KEY)
-            .await
-            .expect("get rules for tenant A");
+    let rules_a = notifications_rs::escalation::get_rules_for_type(&pool, &tenant_a, TEMPLATE_KEY)
+        .await
+        .expect("get rules for tenant A");
     assert_eq!(rules_a.len(), 1, "tenant A should see their own rule");
 
     // Send notification for tenant B (with same template) — should NOT escalate
@@ -388,13 +385,12 @@ async fn idempotent_escalation_no_duplicates() {
     );
 
     // Verify only 1 escalation send exists
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM escalation_sends WHERE source_notification_id = $1",
-    )
-    .bind(notif_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count sends");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM escalation_sends WHERE source_notification_id = $1")
+            .bind(notif_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count sends");
     assert_eq!(count.0, 1, "exactly 1 escalation send should exist");
 }
 

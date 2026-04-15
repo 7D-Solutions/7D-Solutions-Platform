@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,7 +102,7 @@ pub struct ApproveBody {
 }
 
 /// One FIFO layer consumed during an issue.
-/// 
+///
 /// `extended_cost_minor` is precomputed: `quantity * unit_cost_minor`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsumedLayer {
@@ -351,7 +351,7 @@ pub enum InvItemStatus {
 }
 
 /// A named lot grouping a batch of items received together.
-/// 
+///
 /// Lots are unique per (tenant_id, item_id, lot_code).
 /// Created on receipt; immutable thereafter (lot_code and item_id never change).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -430,4 +430,3 @@ pub struct IssueResult {
     pub total_cost_minor: i64,
     pub warehouse_id: uuid::Uuid,
 }
-

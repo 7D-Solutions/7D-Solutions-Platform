@@ -55,7 +55,13 @@ async fn workcenter_projection_created_from_production_event() {
     let event_id = Uuid::new_v4();
 
     upsert_workcenter_projection(
-        &pool, event_id, wc_id, &tid, "WC-001", "Assembly Line 1", true,
+        &pool,
+        event_id,
+        wc_id,
+        &tid,
+        "WC-001",
+        "Assembly Line 1",
+        true,
     )
     .await
     .expect("upsert projection");
@@ -162,15 +168,19 @@ async fn workcenter_projection_dedup_skips_duplicate() {
     let wc_id = Uuid::new_v4();
     let event_id = Uuid::new_v4();
 
-    upsert_workcenter_projection(
-        &pool, event_id, wc_id, &tid, "WC-DUP", "First", true,
-    )
-    .await
-    .unwrap();
+    upsert_workcenter_projection(&pool, event_id, wc_id, &tid, "WC-DUP", "First", true)
+        .await
+        .unwrap();
 
     // Same event_id again — should be skipped, name stays "First"
     upsert_workcenter_projection(
-        &pool, event_id, wc_id, &tid, "WC-DUP", "Should Not Update", true,
+        &pool,
+        event_id,
+        wc_id,
+        &tid,
+        "WC-DUP",
+        "Should Not Update",
+        true,
     )
     .await
     .unwrap();

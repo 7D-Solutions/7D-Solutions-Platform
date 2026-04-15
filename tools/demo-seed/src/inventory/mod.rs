@@ -59,7 +59,8 @@ pub async fn seed_inventory(
     let (uoms, uom_count) = uoms::seed_uoms(client, inventory_url, tenant, tracker).await?;
 
     // --- Locations ---
-    let locations = locations::seed_locations(client, inventory_url, tenant, wh_id, tracker).await?;
+    let locations =
+        locations::seed_locations(client, inventory_url, tenant, wh_id, tracker).await?;
 
     // --- Items ---
     let items = items::seed_items(client, inventory_url, tenant, tracker).await?;
@@ -85,20 +86,29 @@ mod tests {
     fn warehouse_uuid_is_deterministic() {
         let id1 = warehouse_uuid("t1", 42);
         let id2 = warehouse_uuid("t1", 42);
-        assert_eq!(id1, id2, "Same tenant+seed should produce same warehouse UUID");
+        assert_eq!(
+            id1, id2,
+            "Same tenant+seed should produce same warehouse UUID"
+        );
     }
 
     #[test]
     fn warehouse_uuid_differs_by_tenant() {
         let id1 = warehouse_uuid("t1", 42);
         let id2 = warehouse_uuid("t2", 42);
-        assert_ne!(id1, id2, "Different tenants should produce different warehouse UUIDs");
+        assert_ne!(
+            id1, id2,
+            "Different tenants should produce different warehouse UUIDs"
+        );
     }
 
     #[test]
     fn warehouse_uuid_differs_by_seed() {
         let id1 = warehouse_uuid("t1", 42);
         let id2 = warehouse_uuid("t1", 99);
-        assert_ne!(id1, id2, "Different seeds should produce different warehouse UUIDs");
+        assert_ne!(
+            id1, id2,
+            "Different seeds should produce different warehouse UUIDs"
+        );
     }
 }

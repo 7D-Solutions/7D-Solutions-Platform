@@ -514,9 +514,7 @@ async fn test_get_primary_contacts() {
         .await
         .unwrap();
 
-    let entries = get_primary_contacts(&pool, &app, party_id)
-        .await
-        .unwrap();
+    let entries = get_primary_contacts(&pool, &app, party_id).await.unwrap();
 
     assert_eq!(entries.len(), 2, "expected 2 primary contacts");
 

@@ -7,11 +7,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
-    domain::{
-        fifo::FifoError,
-        guards::GuardError,
-        lots_serials::issue::LotSerialError,
-    },
+    domain::{fifo::FifoError, guards::GuardError, lots_serials::issue::LotSerialError},
     events::contracts::{ConsumedLayer, SourceRef},
 };
 

@@ -26,9 +26,7 @@ async fn setup_bom_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("BOM_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| {
-            "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string()
-        });
+        .unwrap_or_else(|_| "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(2)
@@ -96,7 +94,12 @@ async fn insert_inventory_item(
 }
 
 /// Insert a standard-cost valuation config for an item.
-async fn insert_standard_cost(inv_pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, cost_minor: i64) {
+async fn insert_standard_cost(
+    inv_pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: Uuid,
+    cost_minor: i64,
+) {
     sqlx::query(
         r#"
         INSERT INTO item_valuation_configs (tenant_id, item_id, method, standard_cost_minor)
@@ -128,7 +131,10 @@ async fn list_lines_without_include_returns_bare_lines() {
     let bom = bom_service::create_bom(
         &bom_pool,
         &tenant,
-        &CreateBomRequest { part_id: Uuid::new_v4(), description: None },
+        &CreateBomRequest {
+            part_id: Uuid::new_v4(),
+            description: None,
+        },
         &corr,
         None,
     )
@@ -139,7 +145,9 @@ async fn list_lines_without_include_returns_bare_lines() {
         &bom_pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-A".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-A".to_string(),
+        },
         &corr,
         None,
     )
@@ -197,7 +205,10 @@ async fn list_lines_enriched_includes_item_details() {
     let bom = bom_service::create_bom(
         &bom_pool,
         &tenant,
-        &CreateBomRequest { part_id: Uuid::new_v4(), description: None },
+        &CreateBomRequest {
+            part_id: Uuid::new_v4(),
+            description: None,
+        },
         &corr,
         None,
     )
@@ -208,7 +219,9 @@ async fn list_lines_enriched_includes_item_details() {
         &bom_pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-B".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-B".to_string(),
+        },
         &corr,
         None,
     )
@@ -243,7 +256,11 @@ async fn list_lines_enriched_includes_item_details() {
     assert_eq!(item.sku, "SKU-001");
     assert_eq!(item.name, "Bolt M6");
     assert_eq!(item.description.as_deref(), Some("Stainless M6 bolt"));
-    assert_eq!(item.unit_cost_minor, Some(150), "standard cost should be 150 minor units");
+    assert_eq!(
+        item.unit_cost_minor,
+        Some(150),
+        "standard cost should be 150 minor units"
+    );
 }
 
 /// An unresolvable `component_item_id` (no matching inventory item) must produce
@@ -261,7 +278,10 @@ async fn unresolvable_part_id_returns_null_item() {
     let bom = bom_service::create_bom(
         &bom_pool,
         &tenant,
-        &CreateBomRequest { part_id: Uuid::new_v4(), description: None },
+        &CreateBomRequest {
+            part_id: Uuid::new_v4(),
+            description: None,
+        },
         &corr,
         None,
     )
@@ -272,7 +292,9 @@ async fn unresolvable_part_id_returns_null_item() {
         &bom_pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-C".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-C".to_string(),
+        },
         &corr,
         None,
     )
@@ -319,19 +341,15 @@ async fn item_without_standard_cost_has_null_unit_cost() {
     let claims = dummy_claims();
 
     // Create item without valuation config
-    let item_id = insert_inventory_item(
-        &inv_pool,
-        &tenant,
-        "SKU-NO-COST",
-        "Widget",
-        None,
-    )
-    .await;
+    let item_id = insert_inventory_item(&inv_pool, &tenant, "SKU-NO-COST", "Widget", None).await;
 
     let bom = bom_service::create_bom(
         &bom_pool,
         &tenant,
-        &CreateBomRequest { part_id: Uuid::new_v4(), description: None },
+        &CreateBomRequest {
+            part_id: Uuid::new_v4(),
+            description: None,
+        },
         &corr,
         None,
     )
@@ -342,7 +360,9 @@ async fn item_without_standard_cost_has_null_unit_cost() {
         &bom_pool,
         &tenant,
         bom.id,
-        &CreateRevisionRequest { revision_label: "Rev-D".to_string() },
+        &CreateRevisionRequest {
+            revision_label: "Rev-D".to_string(),
+        },
         &corr,
         None,
     )

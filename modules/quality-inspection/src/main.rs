@@ -1,6 +1,7 @@
 use axum::Router;
 use std::sync::Arc;
 
+use platform_sdk::ModuleBuilder;
 use quality_inspection_rs::{
     consumers::production_event_bridge::start_production_event_bridge,
     consumers::receipt_event_bridge::start_receipt_event_bridge,
@@ -18,7 +19,6 @@ use quality_inspection_rs::{
     AppState,
 };
 use security::{permissions, RequirePermissionsLayer};
-use platform_sdk::ModuleBuilder;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 

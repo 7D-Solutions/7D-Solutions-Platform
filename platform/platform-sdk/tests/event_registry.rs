@@ -7,8 +7,8 @@ use event_bus::EventEnvelope;
 use platform_sdk::dlq;
 use platform_sdk::event_registry::RouteOutcome;
 use platform_sdk::{EventRegistry, ModuleContext};
-use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
@@ -50,11 +50,9 @@ fn make_envelope_with_id(
 fn make_ctx_lazy() -> ModuleContext {
     let pool = sqlx::PgPool::connect_lazy("postgres://dummy:dummy@localhost/dummy")
         .expect("connect_lazy does not establish a connection");
-    let manifest = platform_sdk::Manifest::from_str(
-        "[module]\nname = \"test\"\nversion = \"0.1.0\"",
-        None,
-    )
-    .expect("valid minimal manifest");
+    let manifest =
+        platform_sdk::Manifest::from_str("[module]\nname = \"test\"\nversion = \"0.1.0\"", None)
+            .expect("valid minimal manifest");
     ModuleContext::new(pool, manifest, None)
 }
 
@@ -145,7 +143,11 @@ async fn version_specific_handlers_dispatch_to_correct_version() {
     assert_eq!(outcome_v2, RouteOutcome::Handled, "v2 must return Handled");
 
     let log = called.lock().expect("lock").clone();
-    assert_eq!(log, vec!["v1", "v2"], "each version must fire its own handler");
+    assert_eq!(
+        log,
+        vec!["v1", "v2"],
+        "each version must fire its own handler"
+    );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -263,15 +265,11 @@ async fn skipped_outcome_does_not_write_dlq_and_does_not_error() {
     assert!(result.is_ok(), "Skipped must not return an error");
 
     // DLQ table must be empty — nothing was dead-lettered
-    let row: (i64,) =
-        sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{dlq_table}""#))
-            .fetch_one(&pool)
-            .await
-            .expect("count query");
-    assert_eq!(
-        row.0, 0,
-        "Skipped outcome must not write a DLQ entry"
-    );
+    let row: (i64,) = sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{dlq_table}""#))
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
+    assert_eq!(row.0, 0, "Skipped outcome must not write a DLQ entry");
 
     drop_table(&pool, dlq_table).await;
 }
@@ -317,11 +315,10 @@ async fn dead_lettered_outcome_writes_to_dlq_table() {
 
     // Exactly one DLQ entry must exist with the correct event_id.
     // Note: PostgreSQL has no MIN(uuid) aggregate, so we use two queries.
-    let count: (i64,) =
-        sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{dlq_table}""#))
-            .fetch_one(&pool)
-            .await
-            .expect("count query");
+    let count: (i64,) = sqlx::query_as(&format!(r#"SELECT COUNT(*) FROM "{dlq_table}""#))
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
     assert_eq!(count.0, 1, "exactly one DLQ entry must be written");
 
     let stored_id: (uuid::Uuid,) =
@@ -329,7 +326,10 @@ async fn dead_lettered_outcome_writes_to_dlq_table() {
             .fetch_one(&pool)
             .await
             .expect("event_id query");
-    assert_eq!(stored_id.0, event_id, "DLQ entry must record the original event_id");
+    assert_eq!(
+        stored_id.0, event_id,
+        "DLQ entry must record the original event_id"
+    );
 
     drop_table(&pool, dlq_table).await;
 }

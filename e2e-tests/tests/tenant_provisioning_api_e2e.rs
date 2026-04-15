@@ -263,10 +263,7 @@ async fn get_provisioning_status(router: &axum::Router, tenant_id: Uuid) -> (Sta
 /// Poll GET /provisioning until all module_statuses reach a terminal state
 /// (all ready, or at least one failed with the rest ready/failed).
 /// Returns the final response body. Fails after 60s.
-async fn poll_until_modules_terminal(
-    router: &axum::Router,
-    tenant_id: Uuid,
-) -> Value {
+async fn poll_until_modules_terminal(router: &axum::Router, tenant_id: Uuid) -> Value {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     loop {
         let (status, body) = get_provisioning_status(router, tenant_id).await;
@@ -444,14 +441,14 @@ async fn tenant_provisioning_api_full_lifecycle_provision_and_verify_connectivit
     // accessible after provisioning completes.
     let gl_db_name = tenant_db_name(tenant_id, "gl");
     let upper = "GL";
-    let host = std::env::var(format!("{upper}_POSTGRES_HOST"))
-        .unwrap_or_else(|_| "localhost".to_string());
+    let host =
+        std::env::var(format!("{upper}_POSTGRES_HOST")).unwrap_or_else(|_| "localhost".to_string());
     let port: u16 = std::env::var(format!("{upper}_POSTGRES_PORT"))
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(5438);
-    let user = std::env::var(format!("{upper}_POSTGRES_USER"))
-        .unwrap_or_else(|_| "gl_user".to_string());
+    let user =
+        std::env::var(format!("{upper}_POSTGRES_USER")).unwrap_or_else(|_| "gl_user".to_string());
     let password = std::env::var(format!("{upper}_POSTGRES_PASSWORD"))
         .unwrap_or_else(|_| "gl_pass".to_string());
     let tenant_gl_url = format!("postgres://{user}:{password}@{host}:{port}/{gl_db_name}");
@@ -460,11 +457,10 @@ async fn tenant_provisioning_api_full_lifecycle_provision_and_verify_connectivit
         .await
         .expect("tenant GL DB must be reachable after provisioning");
 
-    let migrations_applied: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations")
-            .fetch_one(&mut conn)
-            .await
-            .expect("_sqlx_migrations table must exist after migrations ran");
+    let migrations_applied: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM _sqlx_migrations")
+        .fetch_one(&mut conn)
+        .await
+        .expect("_sqlx_migrations table must exist after migrations ran");
 
     assert!(
         migrations_applied > 0,

@@ -114,28 +114,18 @@ async fn concurrent_vendor_bill_writes_are_tenant_isolated() {
         let ta = tenant_a.clone();
         let va = vendor_a;
         handles.push(tokio::spawn(async move {
-            create_bill(
-                &p,
-                &ta,
-                &bill_req(va, &format!("INV-A-{}", i)),
-                corr(),
-            )
-            .await
-            .expect("bill A")
+            create_bill(&p, &ta, &bill_req(va, &format!("INV-A-{}", i)), corr())
+                .await
+                .expect("bill A")
         }));
 
         let p = pool.clone();
         let tb = tenant_b.clone();
         let vb = vendor_b;
         handles.push(tokio::spawn(async move {
-            create_bill(
-                &p,
-                &tb,
-                &bill_req(vb, &format!("INV-B-{}", i)),
-                corr(),
-            )
-            .await
-            .expect("bill B")
+            create_bill(&p, &tb, &bill_req(vb, &format!("INV-B-{}", i)), corr())
+                .await
+                .expect("bill B")
         }));
     }
     for h in handles {
@@ -153,10 +143,14 @@ async fn concurrent_vendor_bill_writes_are_tenant_isolated() {
     assert_eq!(b_vendors[0].name, "Vendor-B-Boundary");
 
     // Verify bill counts
-    let a_bills = list_bills(&pool, &tenant_a, None, true).await.expect("bills A");
+    let a_bills = list_bills(&pool, &tenant_a, None, true)
+        .await
+        .expect("bills A");
     assert_eq!(a_bills.len(), 5, "Tenant A should have 5 bills");
 
-    let b_bills = list_bills(&pool, &tenant_b, None, true).await.expect("bills B");
+    let b_bills = list_bills(&pool, &tenant_b, None, true)
+        .await
+        .expect("bills B");
     assert_eq!(b_bills.len(), 5, "Tenant B should have 5 bills");
 
     // Cross-tenant bill access: tenant B must not see tenant A's bills
@@ -258,20 +252,18 @@ async fn reads_during_writes_are_tenant_isolated() {
     }
 
     // Final verification
-    let a_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vendor_bills WHERE tenant_id = $1")
-            .bind(&tenant_a)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let a_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vendor_bills WHERE tenant_id = $1")
+        .bind(&tenant_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(a_count, 5, "Tenant A should have 5 bills");
 
-    let b_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM vendor_bills WHERE tenant_id = $1")
-            .bind(&tenant_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vendor_bills WHERE tenant_id = $1")
+        .bind(&tenant_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_count, 3, "Tenant B should have 3 bills");
 }
 
@@ -306,10 +298,7 @@ async fn all_core_tables_scope_queries_by_tenant() {
         .expect("bill B");
 
     // Verify each tenant-scoped table scopes correctly
-    let tables_with_tenant = vec![
-        "vendors",
-        "vendor_bills",
-    ];
+    let tables_with_tenant = vec!["vendors", "vendor_bills"];
 
     for table in &tables_with_tenant {
         let query = format!("SELECT COUNT(*) FROM {} WHERE tenant_id = $1", table);
@@ -329,12 +318,14 @@ async fn all_core_tables_scope_queries_by_tenant() {
         assert!(count_b > 0, "{} should have rows for tenant B", table);
 
         // Rows for A don't appear under B's tenant_id
-        let rows_a: Vec<sqlx::postgres::PgRow> =
-            sqlx::query(&format!("SELECT tenant_id FROM {} WHERE tenant_id = $1", table))
-                .bind(&tenant_a)
-                .fetch_all(&pool)
-                .await
-                .unwrap();
+        let rows_a: Vec<sqlx::postgres::PgRow> = sqlx::query(&format!(
+            "SELECT tenant_id FROM {} WHERE tenant_id = $1",
+            table
+        ))
+        .bind(&tenant_a)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
         for row in &rows_a {
             let tid: &str = row.get("tenant_id");
             assert_eq!(tid, tenant_a, "{} row must belong to tenant A", table);

@@ -16,9 +16,9 @@ use crate::domain::recon::{
     models::{AutoMatchRequest, AutoMatchResult, ListMatchesQuery, ManualMatchRequest, ReconMatch},
     service,
 };
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Helpers

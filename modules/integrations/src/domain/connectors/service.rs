@@ -75,18 +75,24 @@ pub async fn register_connector(
     let event_id = Uuid::new_v4();
     let mut tx = pool.begin().await?;
 
-    let row = repo::insert(&mut tx, app_id, req.connector_type.trim(), req.name.trim(), &config)
-        .await
-        .map_err(|e| {
-            if e.to_string().contains("unique") || e.to_string().contains("duplicate") {
-                ConnectorError::InvalidConfig(format!(
-                    "A '{}' connector named '{}' already exists for this tenant",
-                    req.connector_type, req.name
-                ))
-            } else {
-                ConnectorError::Database(e)
-            }
-        })?;
+    let row = repo::insert(
+        &mut tx,
+        app_id,
+        req.connector_type.trim(),
+        req.name.trim(),
+        &config,
+    )
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("unique") || e.to_string().contains("duplicate") {
+            ConnectorError::InvalidConfig(format!(
+                "A '{}' connector named '{}' already exists for this tenant",
+                req.connector_type, req.name
+            ))
+        } else {
+            ConnectorError::Database(e)
+        }
+    })?;
 
     // Outbox: connector.registered
     let payload = serde_json::json!({

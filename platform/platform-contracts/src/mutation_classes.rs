@@ -40,7 +40,8 @@ pub const ADMINISTRATIVE: &str = "ADMINISTRATIVE";
 pub const FINANCIAL_MUTATION_CLASSES: &[&str] = &[DATA_MUTATION, REVERSAL, CORRECTION];
 
 /// Modules whose financial mutations require `merchant_context`.
-pub const FINANCIAL_MODULES: &[&str] = &["ar", "gl", "payments", "ap", "treasury", "billing", "ttp"];
+pub const FINANCIAL_MODULES: &[&str] =
+    &["ar", "gl", "payments", "ap", "treasury", "billing", "ttp"];
 
 /// Check whether a mutation class value is valid.
 pub fn is_valid(class: &str) -> bool {

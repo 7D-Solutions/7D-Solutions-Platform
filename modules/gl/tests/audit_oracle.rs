@@ -56,7 +56,15 @@ async fn audit_oracle_journal_entry() {
     cleanup_test_tenant(&pool, &tenant).await;
 
     // Set up accounts
-    setup_test_account(&pool, &tenant, "1100", "Accounts Receivable", "asset", "debit").await;
+    setup_test_account(
+        &pool,
+        &tenant,
+        "1100",
+        "Accounts Receivable",
+        "asset",
+        "debit",
+    )
+    .await;
     setup_test_account(&pool, &tenant, "4000", "Revenue", "revenue", "credit").await;
 
     // Set up an open accounting period covering the posting date
@@ -108,7 +116,10 @@ async fn audit_oracle_journal_entry() {
     let entity_id = entry_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "PostJournalEntry").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for PostJournalEntry");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for PostJournalEntry"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "PostJournalEntry").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");
@@ -162,7 +173,11 @@ async fn audit_oracle_close_period() {
     .await
     .expect("close_period");
 
-    assert!(result.success, "Period close should succeed: {:?}", result.validation_report);
+    assert!(
+        result.success,
+        "Period close should succeed: {:?}",
+        result.validation_report
+    );
 
     let entity_id = period_id.to_string();
 
@@ -170,7 +185,10 @@ async fn audit_oracle_close_period() {
     assert_eq!(count, 1, "Expected exactly 1 audit record for ClosePeriod");
 
     let mc = fetch_mutation_class(&pool, &entity_id, "ClosePeriod").await;
-    assert_eq!(mc, "STATE_TRANSITION", "mutation_class should be STATE_TRANSITION");
+    assert_eq!(
+        mc, "STATE_TRANSITION",
+        "mutation_class should be STATE_TRANSITION"
+    );
 
     cleanup_test_tenant(&pool, &tenant).await;
     pool.close().await;

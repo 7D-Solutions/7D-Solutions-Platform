@@ -49,8 +49,8 @@ fn sign_test_jwt(tenant_id: &str) -> String {
     dotenvy::dotenv().ok();
     let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
         .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
-    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
-        .expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
 
     let now = Utc::now();
     let claims = TestJwtClaims {
@@ -68,8 +68,7 @@ fn sign_test_jwt(tenant_id: &str) -> String {
     };
 
     let header = Header::new(Algorithm::RS256);
-    jsonwebtoken::encode(&header, &claims, &encoding_key)
-        .expect("Failed to sign test JWT")
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
 }
 
 /// Build a reqwest Client that sends the Bearer token on every request.

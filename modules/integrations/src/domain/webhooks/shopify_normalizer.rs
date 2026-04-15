@@ -290,11 +290,9 @@ pub fn verify_shopify_hmac(
         ));
     }
 
-    let sig_b64 = headers
-        .get("x-shopify-hmac-sha256")
-        .ok_or_else(|| WebhookError::SignatureVerification(
-            "missing X-Shopify-Hmac-SHA256 header".to_string(),
-        ))?;
+    let sig_b64 = headers.get("x-shopify-hmac-sha256").ok_or_else(|| {
+        WebhookError::SignatureVerification("missing X-Shopify-Hmac-SHA256 header".to_string())
+    })?;
 
     let provided = STANDARD.decode(sig_b64).map_err(|_| {
         WebhookError::SignatureVerification("invalid base64 in X-Shopify-Hmac-SHA256".to_string())
@@ -393,10 +391,7 @@ fn parse_line_items(payload: &serde_json::Value) -> Result<Vec<LineItem>, Webhoo
                 .unwrap_or("")
                 .to_string();
 
-            let quantity = item
-                .get("quantity")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0) as u32;
+            let quantity = item.get("quantity").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
 
             let price = item
                 .get("price")
@@ -544,7 +539,10 @@ mod tests {
         let headers = signed_headers(body);
         // Tamper: different body
         let result = verify_shopify_hmac(b"{\"id\":9999}", &headers, &connector_config());
-        assert!(matches!(result, Err(WebhookError::SignatureVerification(_))));
+        assert!(matches!(
+            result,
+            Err(WebhookError::SignatureVerification(_))
+        ));
     }
 
     #[test]
@@ -554,7 +552,10 @@ mod tests {
             &std::collections::HashMap::new(),
             &connector_config(),
         );
-        assert!(matches!(result, Err(WebhookError::SignatureVerification(_))));
+        assert!(matches!(
+            result,
+            Err(WebhookError::SignatureVerification(_))
+        ));
     }
 
     #[test]
@@ -563,7 +564,10 @@ mod tests {
         let mut headers = std::collections::HashMap::new();
         headers.insert("x-shopify-hmac-sha256".to_string(), "dGVzdA==".to_string());
         let result = verify_shopify_hmac(b"{}", &headers, &config);
-        assert!(matches!(result, Err(WebhookError::SignatureVerification(_))));
+        assert!(matches!(
+            result,
+            Err(WebhookError::SignatureVerification(_))
+        ));
     }
 
     // ── Unit: order parsing ────────────────────────────────────────────────────
@@ -629,13 +633,12 @@ mod tests {
         assert_ne!(result.file_job_id, Uuid::nil());
 
         // File job was created
-        let job: Option<(String, String)> = sqlx::query_as(
-            "SELECT parser_type, status FROM integrations_file_jobs WHERE id = $1",
-        )
-        .bind(result.file_job_id)
-        .fetch_optional(&pool)
-        .await
-        .expect("file_job query failed");
+        let job: Option<(String, String)> =
+            sqlx::query_as("SELECT parser_type, status FROM integrations_file_jobs WHERE id = $1")
+                .bind(result.file_job_id)
+                .fetch_optional(&pool)
+                .await
+                .expect("file_job query failed");
 
         let (parser_type, status) = job.expect("file_job should exist");
         assert_eq!(parser_type, "shopify_order");
@@ -671,13 +674,27 @@ mod tests {
         let normalizer = ShopifyNormalizer::new(pool.clone());
 
         let r1 = normalizer
-            .normalize(&body, &payload, &headers, TEST_APP, "orders/create", &connector_config())
+            .normalize(
+                &body,
+                &payload,
+                &headers,
+                TEST_APP,
+                "orders/create",
+                &connector_config(),
+            )
             .await
             .expect("first normalize failed");
         assert!(!r1.is_duplicate);
 
         let r2 = normalizer
-            .normalize(&body, &payload, &headers, TEST_APP, "orders/create", &connector_config())
+            .normalize(
+                &body,
+                &payload,
+                &headers,
+                TEST_APP,
+                "orders/create",
+                &connector_config(),
+            )
             .await
             .expect("second normalize failed");
         assert!(r2.is_duplicate);
@@ -712,17 +729,34 @@ mod tests {
         let normalizer = ShopifyNormalizer::new(pool.clone());
 
         let r1 = normalizer
-            .normalize(&body, &payload, &headers, TEST_APP, "orders/create", &connector_config())
+            .normalize(
+                &body,
+                &payload,
+                &headers,
+                TEST_APP,
+                "orders/create",
+                &connector_config(),
+            )
             .await
             .expect("orders/create normalize failed");
         assert!(!r1.is_duplicate);
 
         // orders/updated has a different idempotency key — should NOT be a duplicate
         let r2 = normalizer
-            .normalize(&body, &payload, &headers, TEST_APP, "orders/updated", &connector_config())
+            .normalize(
+                &body,
+                &payload,
+                &headers,
+                TEST_APP,
+                "orders/updated",
+                &connector_config(),
+            )
             .await
             .expect("orders/updated normalize failed");
-        assert!(!r2.is_duplicate, "orders/updated should not be flagged as duplicate of orders/create");
+        assert!(
+            !r2.is_duplicate,
+            "orders/updated should not be flagged as duplicate of orders/create"
+        );
         assert_ne!(r2.file_job_id, Uuid::nil());
 
         cleanup(&pool).await;
@@ -745,7 +779,14 @@ mod tests {
 
         let normalizer = ShopifyNormalizer::new(pool.clone());
         let result = normalizer
-            .normalize(&body, &payload, &bad_headers, TEST_APP, "orders/create", &connector_config())
+            .normalize(
+                &body,
+                &payload,
+                &bad_headers,
+                TEST_APP,
+                "orders/create",
+                &connector_config(),
+            )
             .await;
 
         assert!(
@@ -768,6 +809,9 @@ mod tests {
 
         let order = parse_shopify_order(&payload).expect("should parse successfully");
         assert_eq!(order.order_id, "1234567890");
-        assert!(order.line_items.is_empty(), "empty line_items should yield empty vec");
+        assert!(
+            order.line_items.is_empty(),
+            "empty line_items should yield empty vec"
+        );
     }
 }

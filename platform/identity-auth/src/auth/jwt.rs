@@ -157,7 +157,14 @@ impl JwtKeys {
         ttl_minutes: i64,
     ) -> Result<String, String> {
         self.sign_access_token_enriched(
-            tenant_id, user_id, roles, perms, actor_type, ttl_minutes, None, None,
+            tenant_id,
+            user_id,
+            roles,
+            perms,
+            actor_type,
+            ttl_minutes,
+            None,
+            None,
         )
     }
 
@@ -327,7 +334,10 @@ mod tests {
             .expect("test");
 
         let decoded = keys.validate_access_token(&token).expect("test");
-        assert_eq!(decoded.session_id.as_deref(), Some(session.to_string().as_str()));
+        assert_eq!(
+            decoded.session_id.as_deref(),
+            Some(session.to_string().as_str())
+        );
         assert_eq!(decoded.role_snapshot_id.as_deref(), Some(snapshot.as_str()));
     }
 
@@ -451,7 +461,8 @@ mod tests {
         let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
         // Old signer issues a token before rotation completes
-        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
+        let old_keys =
+            JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
         let token_from_old_key = old_keys
             .sign_access_token(
                 Uuid::new_v4(),
@@ -471,7 +482,9 @@ mod tests {
             .expect("test");
 
         // Token issued by old key must be accepted during overlap
-        let claims = new_keys.validate_access_token(&token_from_old_key).expect("test");
+        let claims = new_keys
+            .validate_access_token(&token_from_old_key)
+            .expect("test");
         assert_eq!(claims.actor_type, "user");
 
         // Token issued by new key must also be accepted
@@ -485,7 +498,9 @@ mod tests {
                 15,
             )
             .expect("test");
-        new_keys.validate_access_token(&token_from_new_key).expect("test");
+        new_keys
+            .validate_access_token(&token_from_new_key)
+            .expect("test");
     }
 
     /// After overlap ends (prev key removed), tokens signed by the old key
@@ -507,7 +522,8 @@ mod tests {
         let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
         let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
-        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
+        let old_keys =
+            JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
         let token_from_old_key = old_keys
             .sign_access_token(
                 Uuid::new_v4(),
@@ -520,7 +536,8 @@ mod tests {
             .expect("test");
 
         // New keys WITHOUT prev key (overlap ended)
-        let new_keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
+        let new_keys =
+            JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
 
         // Old token must now be rejected
         assert!(new_keys.validate_access_token(&token_from_old_key).is_err());
@@ -546,8 +563,10 @@ mod tests {
             .expect("test");
         let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
 
-        let mut keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
-        keys.with_prev_key(&old_pub_pem, "old-kid".into()).expect("test");
+        let mut keys =
+            JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
+        keys.with_prev_key(&old_pub_pem, "old-kid".into())
+            .expect("test");
 
         let jwks = keys.to_jwks().expect("test");
         assert_eq!(

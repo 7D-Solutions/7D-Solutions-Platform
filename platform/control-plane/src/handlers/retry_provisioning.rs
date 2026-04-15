@@ -42,12 +42,11 @@ pub async fn retry_provisioning(
     State(state): State<Arc<AppState>>,
     Path(tenant_id): Path<Uuid>,
 ) -> Result<(StatusCode, Json<RetryResponse>), (StatusCode, Json<ErrorBody>)> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT status FROM tenants WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .fetch_optional(&state.pool)
-            .await
-            .map_err(db_error)?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(db_error)?;
 
     match row {
         None => {
@@ -165,16 +164,14 @@ async fn retry_degraded(
     }
 
     // Load registry (module base URLs come from env vars via cp_bundle_modules)
-    let registry = load_registry_from_db(&state.pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: format!("Failed to load module registry: {e}"),
-                }),
-            )
-        })?;
+    let registry = load_registry_from_db(&state.pool).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody {
+                error: format!("Failed to load module registry: {e}"),
+            }),
+        )
+    })?;
 
     let http_client = reqwest::Client::new();
 

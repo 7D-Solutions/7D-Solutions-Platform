@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PUT" => client.put(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -91,7 +95,10 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
 #[tokio::test]
 async fn smoke_inventory_lots_serials_reservations() {
     dotenvy::dotenv().ok();
-    let client = Client::builder().timeout(Duration::from_secs(10)).build().unwrap();
+    let client = Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .unwrap();
     if !wait_for_inventory(&client).await {
         eprintln!("Inventory service not reachable — skipping smoke test");
         return;
@@ -126,10 +133,18 @@ async fn smoke_inventory_lots_serials_reservations() {
         "code": "EA",
         "name": "Each"
     });
-    let r = client.post(format!("{base}/api/inventory/uoms"))
-        .bearer_auth(&jwt).json(&uom_body).send().await.unwrap();
-    assert!(r.status() == 201 || r.status() == 200 || r.status() == 409,
-        "seed uom status: {}", r.status());
+    let r = client
+        .post(format!("{base}/api/inventory/uoms"))
+        .bearer_auth(&jwt)
+        .json(&uom_body)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        r.status() == 201 || r.status() == 200 || r.status() == 409,
+        "seed uom status: {}",
+        r.status()
+    );
 
     // ========== Seed: lot-tracked item ==========
     let item_body = serde_json::json!({
@@ -142,11 +157,20 @@ async fn smoke_inventory_lots_serials_reservations() {
         "uom": "EA",
         "tracking_mode": "lot"
     });
-    let r = client.post(format!("{base}/api/inventory/items"))
-        .bearer_auth(&jwt).json(&item_body).send().await.unwrap();
+    let r = client
+        .post(format!("{base}/api/inventory/items"))
+        .bearer_auth(&jwt)
+        .json(&item_body)
+        .send()
+        .await
+        .unwrap();
     let status = r.status();
     let item_json: serde_json::Value = r.json().await.unwrap();
-    assert!(status == 201 || status == 200, "seed item status: {}", status);
+    assert!(
+        status == 201 || status == 200,
+        "seed item status: {}",
+        status
+    );
     let item_id = item_json["id"].as_str().unwrap().to_string();
     let _item_uuid: Uuid = item_id.parse().unwrap();
 
@@ -158,10 +182,18 @@ async fn smoke_inventory_lots_serials_reservations() {
         "code": format!("BIN-{}", &tid.to_string()[..6]),
         "name": "Smoke bin"
     });
-    let r = client.post(format!("{base}/api/inventory/locations"))
-        .bearer_auth(&jwt).json(&loc_body).send().await.unwrap();
+    let r = client
+        .post(format!("{base}/api/inventory/locations"))
+        .bearer_auth(&jwt)
+        .json(&loc_body)
+        .send()
+        .await
+        .unwrap();
     let loc_json: serde_json::Value = r.json().await.unwrap();
-    let loc_id = loc_json["id"].as_str().unwrap_or("00000000-0000-0000-0000-000000000000").to_string();
+    let loc_id = loc_json["id"]
+        .as_str()
+        .unwrap_or("00000000-0000-0000-0000-000000000000")
+        .to_string();
 
     // ========== Seed: receipt with lot (qty=100) ==========
     let lot_code = format!("LOT-{}", &tid.to_string()[..8]);
@@ -176,9 +208,18 @@ async fn smoke_inventory_lots_serials_reservations() {
         "lot_code": lot_code,
         "idempotency_key": Uuid::new_v4().to_string()
     });
-    let r = client.post(format!("{base}/api/inventory/receipts"))
-        .bearer_auth(&jwt).json(&rcpt_body).send().await.unwrap();
-    assert!(r.status() == 201 || r.status() == 200, "seed receipt: {}", r.status());
+    let r = client
+        .post(format!("{base}/api/inventory/receipts"))
+        .bearer_auth(&jwt)
+        .json(&rcpt_body)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        r.status() == 201 || r.status() == 200,
+        "seed receipt: {}",
+        r.status()
+    );
 
     // ========== Route 1: GET lots for item ==========
     let url = format!("{base}/api/inventory/items/{}/lots", item_id);
@@ -190,7 +231,10 @@ async fn smoke_inventory_lots_serials_reservations() {
     eprintln!("  [1] GET lots — OK");
 
     // ========== Route 2: GET lot trace ==========
-    let url = format!("{base}/api/inventory/items/{}/lots/{}/trace", item_id, lot_code);
+    let url = format!(
+        "{base}/api/inventory/items/{}/lots/{}/trace",
+        item_id, lot_code
+    );
     assert_unauth(&client, "GET", &url, None).await;
     let r = client.get(&url).bearer_auth(&jwt).send().await.unwrap();
     assert_eq!(r.status(), 200, "lot trace");
@@ -213,7 +257,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &split_url, Some(split_body.clone())).await;
-    let r = client.post(&split_url).bearer_auth(&jwt).json(&split_body).send().await.unwrap();
+    let r = client
+        .post(&split_url)
+        .bearer_auth(&jwt)
+        .json(&split_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 201 || st == 200, "lot split: {}", st);
     eprintln!("  [3] POST lot split — OK ({})", st);
@@ -232,7 +282,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &merge_url, Some(merge_body.clone())).await;
-    let r = client.post(&merge_url).bearer_auth(&jwt).json(&merge_body).send().await.unwrap();
+    let r = client
+        .post(&merge_url)
+        .bearer_auth(&jwt)
+        .json(&merge_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 201 || st == 200, "lot merge: {}", st);
     eprintln!("  [4] POST lot merge — OK ({})", st);
@@ -240,21 +296,47 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 5: GET lot children ==========
     // We need a lot_id (UUID) — get it from the lots list
     let lots_url = format!("{base}/api/inventory/items/{}/lots", item_id);
-    let r = client.get(&lots_url).bearer_auth(&jwt).send().await.unwrap();
+    let r = client
+        .get(&lots_url)
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     let lots_json: serde_json::Value = r.json().await.unwrap();
-    let first_lot_id = lots_json["lots"][0]["id"].as_str().unwrap_or(&item_id).to_string();
+    let first_lot_id = lots_json["lots"][0]["id"]
+        .as_str()
+        .unwrap_or(&item_id)
+        .to_string();
     let children_url = format!("{base}/api/inventory/lots/{}/children", first_lot_id);
     assert_unauth(&client, "GET", &children_url, None).await;
-    let r = client.get(&children_url).bearer_auth(&jwt).send().await.unwrap();
+    let r = client
+        .get(&children_url)
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     // May be 200 with edges or 500 if lot_id format mismatch — accept both for smoke
-    assert!(r.status() == 200 || r.status() == 500, "lot children: {}", r.status());
+    assert!(
+        r.status() == 200 || r.status() == 500,
+        "lot children: {}",
+        r.status()
+    );
     eprintln!("  [5] GET lot children — OK ({})", r.status());
 
     // ========== Route 6: GET lot parents ==========
     let parents_url = format!("{base}/api/inventory/lots/{}/parents", first_lot_id);
     assert_unauth(&client, "GET", &parents_url, None).await;
-    let r = client.get(&parents_url).bearer_auth(&jwt).send().await.unwrap();
-    assert!(r.status() == 200 || r.status() == 500, "lot parents: {}", r.status());
+    let r = client
+        .get(&parents_url)
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        r.status() == 200 || r.status() == 500,
+        "lot parents: {}",
+        r.status()
+    );
     eprintln!("  [6] GET lot parents — OK ({})", r.status());
 
     // ========== Route 7: PUT lot expiry ==========
@@ -265,9 +347,19 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "PUT", &expiry_url, Some(expiry_body.clone())).await;
-    let r = client.put(&expiry_url).bearer_auth(&jwt).json(&expiry_body).send().await.unwrap();
+    let r = client
+        .put(&expiry_url)
+        .bearer_auth(&jwt)
+        .json(&expiry_body)
+        .send()
+        .await
+        .unwrap();
     // 200 or 422 (lot not found by UUID) — both acceptable at smoke level
-    assert!(r.status() == 200 || r.status() == 422 || r.status() == 404, "put expiry: {}", r.status());
+    assert!(
+        r.status() == 200 || r.status() == 422 || r.status() == 404,
+        "put expiry: {}",
+        r.status()
+    );
     eprintln!("  [7] PUT lot expiry — OK ({})", r.status());
 
     // ========== Seed: serial-tracked item + receipt ==========
@@ -281,8 +373,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "uom": "EA",
         "tracking_mode": "serial"
     });
-    let r = client.post(format!("{base}/api/inventory/items"))
-        .bearer_auth(&jwt).json(&ser_item_body).send().await.unwrap();
+    let r = client
+        .post(format!("{base}/api/inventory/items"))
+        .bearer_auth(&jwt)
+        .json(&ser_item_body)
+        .send()
+        .await
+        .unwrap();
     let ser_item_json: serde_json::Value = r.json().await.unwrap();
     let ser_item_id = ser_item_json["id"].as_str().unwrap().to_string();
 
@@ -298,9 +395,18 @@ async fn smoke_inventory_lots_serials_reservations() {
         "serial_codes": [serial_code],
         "idempotency_key": Uuid::new_v4().to_string()
     });
-    let r = client.post(format!("{base}/api/inventory/receipts"))
-        .bearer_auth(&jwt).json(&ser_rcpt).send().await.unwrap();
-    assert!(r.status() == 201 || r.status() == 200, "seed serial receipt: {}", r.status());
+    let r = client
+        .post(format!("{base}/api/inventory/receipts"))
+        .bearer_auth(&jwt)
+        .json(&ser_rcpt)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        r.status() == 201 || r.status() == 200,
+        "seed serial receipt: {}",
+        r.status()
+    );
 
     // ========== Route 8: GET serials for item ==========
     let url = format!("{base}/api/inventory/items/{}/serials", ser_item_id);
@@ -312,7 +418,10 @@ async fn smoke_inventory_lots_serials_reservations() {
     eprintln!("  [8] GET serials — OK");
 
     // ========== Route 9: GET serial trace ==========
-    let url = format!("{base}/api/inventory/items/{}/serials/{}/trace", ser_item_id, serial_code);
+    let url = format!(
+        "{base}/api/inventory/items/{}/serials/{}/trace",
+        ser_item_id, serial_code
+    );
     assert_unauth(&client, "GET", &url, None).await;
     let r = client.get(&url).bearer_auth(&jwt).send().await.unwrap();
     assert_eq!(r.status(), 200, "serial trace");
@@ -333,9 +442,18 @@ async fn smoke_inventory_lots_serials_reservations() {
         "lot_code": format!("WH-LOT-{}", &tid.to_string()[..6]),
         "idempotency_key": Uuid::new_v4().to_string()
     });
-    let r = client.post(format!("{base}/api/inventory/receipts"))
-        .bearer_auth(&jwt).json(&wh_rcpt).send().await.unwrap();
-    assert!(r.status() == 201 || r.status() == 200, "seed wh receipt: {}", r.status());
+    let r = client
+        .post(format!("{base}/api/inventory/receipts"))
+        .bearer_auth(&jwt)
+        .json(&wh_rcpt)
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        r.status() == 201 || r.status() == 200,
+        "seed wh receipt: {}",
+        r.status()
+    );
 
     // ========== Route 10: POST reserve ==========
     let reserve_url = format!("{base}/api/inventory/reservations/reserve");
@@ -349,7 +467,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &reserve_url, Some(reserve_body.clone())).await;
-    let r = client.post(&reserve_url).bearer_auth(&jwt).json(&reserve_body).send().await.unwrap();
+    let r = client
+        .post(&reserve_url)
+        .bearer_auth(&jwt)
+        .json(&reserve_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 201 || st == 200, "reserve: {}", st);
     let res_json: serde_json::Value = r.json().await.unwrap();
@@ -367,7 +491,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "reference_id": Uuid::new_v4().to_string(),
         "idempotency_key": Uuid::new_v4().to_string()
     });
-    let r = client.post(&reserve_url).bearer_auth(&jwt).json(&reserve_body2).send().await.unwrap();
+    let r = client
+        .post(&reserve_url)
+        .bearer_auth(&jwt)
+        .json(&reserve_body2)
+        .send()
+        .await
+        .unwrap();
     let res2: serde_json::Value = r.json().await.unwrap();
     let res2_id = res2["reservation_id"].as_str().unwrap().to_string();
 
@@ -378,12 +508,21 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &release_url, Some(release_body.clone())).await;
-    let r = client.post(&release_url).bearer_auth(&jwt).json(&release_body).send().await.unwrap();
+    let r = client
+        .post(&release_url)
+        .bearer_auth(&jwt)
+        .json(&release_body)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200, "release");
     eprintln!("  [11] POST release — OK");
 
     // ========== Route 12: POST fulfill ==========
-    let fulfill_url = format!("{base}/api/inventory/reservations/{}/fulfill", reservation_id);
+    let fulfill_url = format!(
+        "{base}/api/inventory/reservations/{}/fulfill",
+        reservation_id
+    );
     let fulfill_body = serde_json::json!({
         "tenant_id": tid.to_string(),
         "reservation_id": reservation_id,
@@ -392,7 +531,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &fulfill_url, Some(fulfill_body.clone())).await;
-    let r = client.post(&fulfill_url).bearer_auth(&jwt).json(&fulfill_body).send().await.unwrap();
+    let r = client
+        .post(&fulfill_url)
+        .bearer_auth(&jwt)
+        .json(&fulfill_body)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200, "fulfill");
     eprintln!("  [12] POST fulfill — OK");
 
@@ -406,7 +551,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "item_ids": [item_id]
     });
     assert_unauth(&client, "POST", &cc_url, Some(cc_body.clone())).await;
-    let r = client.post(&cc_url).bearer_auth(&jwt).json(&cc_body).send().await.unwrap();
+    let r = client
+        .post(&cc_url)
+        .bearer_auth(&jwt)
+        .json(&cc_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 201 || st == 200, "cycle-count create: {}", st);
     let cc_json: serde_json::Value = r.json().await.unwrap();
@@ -420,9 +571,19 @@ async fn smoke_inventory_lots_serials_reservations() {
         "lines": []
     });
     assert_unauth(&client, "POST", &submit_url, Some(submit_body.clone())).await;
-    let r = client.post(&submit_url).bearer_auth(&jwt).json(&submit_body).send().await.unwrap();
+    let r = client
+        .post(&submit_url)
+        .bearer_auth(&jwt)
+        .json(&submit_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
-    assert!(st == 201 || st == 200 || st == 422, "cycle-count submit: {}", st);
+    assert!(
+        st == 201 || st == 200 || st == 422,
+        "cycle-count submit: {}",
+        st
+    );
     eprintln!("  [14] POST cycle-count submit — OK ({})", st);
 
     // ========== Route 15: POST cycle-count approve ==========
@@ -431,10 +592,20 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &approve_url, Some(approve_body.clone())).await;
-    let r = client.post(&approve_url).bearer_auth(&jwt).json(&approve_body).send().await.unwrap();
+    let r = client
+        .post(&approve_url)
+        .bearer_auth(&jwt)
+        .json(&approve_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     // May fail if submit didnt go through — accept 200, 201, 409, 422
-    assert!(st == 200 || st == 201 || st == 409 || st == 422, "cycle-count approve: {}", st);
+    assert!(
+        st == 200 || st == 201 || st == 409 || st == 422,
+        "cycle-count approve: {}",
+        st
+    );
     eprintln!("  [15] POST cycle-count approve — OK ({})", st);
 
     // ========== Route 16: POST expiry-alerts scan ==========
@@ -445,7 +616,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &scan_url, Some(scan_body.clone())).await;
-    let r = client.post(&scan_url).bearer_auth(&jwt).json(&scan_body).send().await.unwrap();
+    let r = client
+        .post(&scan_url)
+        .bearer_auth(&jwt)
+        .json(&scan_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 200 || st == 201, "expiry scan: {}", st);
     eprintln!("  [16] POST expiry-alerts scan — OK ({})", st);
@@ -460,7 +637,13 @@ async fn smoke_inventory_lots_serials_reservations() {
         "idempotency_key": Uuid::new_v4().to_string()
     });
     assert_unauth(&client, "POST", &val_url, Some(val_body.clone())).await;
-    let r = client.post(&val_url).bearer_auth(&jwt).json(&val_body).send().await.unwrap();
+    let r = client
+        .post(&val_url)
+        .bearer_auth(&jwt)
+        .json(&val_body)
+        .send()
+        .await
+        .unwrap();
     let st = r.status();
     assert!(st == 201 || st == 200, "valuation snapshot create: {}", st);
     let snap_json: serde_json::Value = r.json().await.unwrap();
@@ -470,7 +653,12 @@ async fn smoke_inventory_lots_serials_reservations() {
     // ========== Route 18: GET valuation snapshot by id ==========
     let snap_get_url = format!("{base}/api/inventory/valuation-snapshots/{}", snap_id);
     assert_unauth(&client, "GET", &snap_get_url, None).await;
-    let r = client.get(&snap_get_url).bearer_auth(&jwt).send().await.unwrap();
+    let r = client
+        .get(&snap_get_url)
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(r.status(), 200, "valuation snapshot get");
     let j: serde_json::Value = r.json().await.unwrap();
     assert!(j["id"].is_string(), "snapshot has id");

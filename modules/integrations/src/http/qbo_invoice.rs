@@ -95,7 +95,10 @@ fn oauth_err(e: OAuthError) -> ApiError {
             ApiError::not_found("No QuickBooks connection found for this tenant")
         }
         OAuthError::MissingEncryptionKey => {
-            tracing::error!(error_code = "OPERATION_FAILED", "OAUTH_ENCRYPTION_KEY not set");
+            tracing::error!(
+                error_code = "OPERATION_FAILED",
+                "OAUTH_ENCRYPTION_KEY not set"
+            );
             ApiError::internal("Server misconfiguration")
         }
         OAuthError::Database(e) => {

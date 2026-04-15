@@ -26,8 +26,7 @@ async fn auth_pool() -> sqlx::PgPool {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    let url = std::env::var("AUTH_DATABASE_URL")
-        .unwrap_or_else(|_| AUTH_DB_DEFAULT.to_string());
+    let url = std::env::var("AUTH_DATABASE_URL").unwrap_or_else(|_| AUTH_DB_DEFAULT.to_string());
     PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
@@ -105,9 +104,15 @@ async fn identity_auth_http_smoke() {
             "password": password
         });
         let (s, body_text) = post_json(&client, &url, &body).await;
-        println!("SETUP: POST register: {} (tenant={} user={})", s, tenant_id, user_id);
+        println!(
+            "SETUP: POST register: {} (tenant={} user={})",
+            s, tenant_id, user_id
+        );
         if s != 200 && s != 409 {
-            println!("  WARNING: registration failed: {}", &body_text[..body_text.len().min(300)]);
+            println!(
+                "  WARNING: registration failed: {}",
+                &body_text[..body_text.len().min(300)]
+            );
         }
     }
 
@@ -248,7 +253,11 @@ async fn identity_auth_http_smoke() {
             base, tenant_id, action_key
         );
         let (s, resp_body) = get_json(&client, &url).await;
-        println!("5. GET sod/policies by-action: {} body_len={}", s, resp_body.len());
+        println!(
+            "5. GET sod/policies by-action: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -261,7 +270,12 @@ async fn identity_auth_http_smoke() {
         if let Some(pid) = sod_policy_id {
             let url = format!("{}/api/auth/sod/policies/{}/{}", base, tenant_id, pid);
             let (s, resp_body) = delete_req(&client, &url).await;
-            println!("6. DELETE sod/policies/{}: {} body_len={}", pid, s, resp_body.len());
+            println!(
+                "6. DELETE sod/policies/{}: {} body_len={}",
+                pid,
+                s,
+                resp_body.len()
+            );
             if s == 200 {
                 passed += 1;
             } else {
@@ -278,7 +292,11 @@ async fn identity_auth_http_smoke() {
         let url = format!("{}/api/auth/forgot-password", base);
         let body = json!({"email": email});
         let (s, resp_body) = post_json(&client, &url, &body).await;
-        println!("7. POST forgot-password: {} body_len={}", s, resp_body.len());
+        println!(
+            "7. POST forgot-password: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
             // Non-existent email must also return 200
@@ -304,7 +322,11 @@ async fn identity_auth_http_smoke() {
             "new_password": "NewPassword1!Secure"
         });
         let (s, resp_body) = post_json(&client, &url, &body).await;
-        println!("8. POST reset-password (invalid token): {} body_len={}", s, resp_body.len());
+        println!(
+            "8. POST reset-password (invalid token): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         let lower = resp_body.to_lowercase();
         assert!(
             !lower.contains("syntax error") && !lower.contains("pg_"),

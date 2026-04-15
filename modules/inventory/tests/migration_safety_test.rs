@@ -39,7 +39,10 @@ async fn migrations_apply_cleanly() {
         .expect("All inventory migrations must apply without error");
 
     let count = mst::count_applied_migrations(&pool).await;
-    assert!(count >= 25, "Expected >= 25 inventory migrations, got {count}");
+    assert!(
+        count >= 25,
+        "Expected >= 25 inventory migrations, got {count}"
+    );
 
     mst::assert_tables_exist(
         &pool,
@@ -78,10 +81,8 @@ async fn migrations_apply_cleanly() {
 #[tokio::test]
 #[serial]
 async fn last_three_migrations_are_safe() {
-    let migrations = mst::check_last_n_migrations(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"),
-        3,
-    );
+    let migrations =
+        mst::check_last_n_migrations(concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"), 3);
     for m in &migrations {
         if m.is_forward_only {
             println!(
@@ -118,7 +119,10 @@ async fn forward_fix_rollback_and_reapply() {
         .expect("Re-apply after forward-fix rollback must succeed");
 
     let count = mst::count_applied_migrations(&pool).await;
-    assert!(count >= 25, "All inventory migrations must re-apply; got {count}");
+    assert!(
+        count >= 25,
+        "All inventory migrations must re-apply; got {count}"
+    );
 }
 
 // ── 4. Tenant isolation ───────────────────────────────────────────────────────

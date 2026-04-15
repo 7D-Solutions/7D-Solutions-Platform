@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Input for PUT /api/inventory/items/:id/make-buy
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +108,7 @@ pub enum TaskScope {
 }
 
 /// How stock movements are tracked for this SKU.
-/// 
+///
 /// Set at item creation; immutable thereafter (changing tracking_mode after
 /// stock exists would invalidate historical layer associations).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -236,7 +236,7 @@ pub struct UpdateRevisionPolicyRequest {
 }
 
 /// One line under a `ValuationSnapshot` — value for a single item/location.
-/// 
+///
 /// `total_value_minor = quantity_on_hand * unit_cost_minor` (pre-computed).
 /// `unit_cost_minor` is the weighted-average unit cost of remaining FIFO layers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -258,7 +258,7 @@ pub struct ValuationLine {
 }
 
 /// A point-in-time valuation roll-up for a tenant's warehouse (or location).
-/// 
+///
 /// `total_value_minor` is the pre-computed sum of all associated
 /// `ValuationLine.total_value_minor` entries.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -276,4 +276,3 @@ pub struct ValuationSnapshot {
     pub total_value_minor: i64,
     pub warehouse_id: uuid::Uuid,
 }
-

@@ -11,12 +11,14 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use super::pagination::PaginationQuery;
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
-    domain::downtime::{DowntimeRepo, EndDowntimeRequest, StartDowntimeRequest, WorkcenterDowntime},
+    domain::downtime::{
+        DowntimeRepo, EndDowntimeRequest, StartDowntimeRequest, WorkcenterDowntime,
+    },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 /// POST /api/production/workcenters/:id/downtime/start
 #[utoipa::path(

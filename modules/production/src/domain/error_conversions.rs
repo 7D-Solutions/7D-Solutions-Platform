@@ -45,25 +45,27 @@ impl From<WorkOrderError> for ApiError {
                 "Order number '{}' already exists for tenant '{}'",
                 num, tenant
             )),
-            WorkOrderError::DuplicateCorrelation => ApiError::conflict(
-                "Work order with this correlation_id already exists",
-            ),
+            WorkOrderError::DuplicateCorrelation => {
+                ApiError::conflict("Work order with this correlation_id already exists")
+            }
             WorkOrderError::NotFound => ApiError::not_found("Work order not found"),
             WorkOrderError::InvalidTransition { from, to } => ApiError::new(
                 422,
                 "invalid_transition",
                 format!("Cannot transition from '{}' to '{}'", from, to),
             ),
-            WorkOrderError::BomRevisionSuperseded { revision_id, eco_number, new_rev_id } => {
-                ApiError::new(
-                    422,
-                    "BOM_REVISION_SUPERSEDED",
-                    format!(
-                        "BOM revision {} was superseded by ECO {}. Use revision {} instead.",
-                        revision_id, eco_number, new_rev_id
-                    ),
-                )
-            }
+            WorkOrderError::BomRevisionSuperseded {
+                revision_id,
+                eco_number,
+                new_rev_id,
+            } => ApiError::new(
+                422,
+                "BOM_REVISION_SUPERSEDED",
+                format!(
+                    "BOM revision {} was superseded by ECO {}. Use revision {} instead.",
+                    revision_id, eco_number, new_rev_id
+                ),
+            ),
             WorkOrderError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             WorkOrderError::NumberingService(msg) => {
                 tracing::error!(error = %msg, "numbering service error");
@@ -94,9 +96,9 @@ impl From<OperationError> for ApiError {
                 "no_routing_template",
                 "Work order has no routing template assigned",
             ),
-            OperationError::AlreadyInitialized => ApiError::conflict(
-                "Operations already initialized for this work order",
-            ),
+            OperationError::AlreadyInitialized => {
+                ApiError::conflict("Operations already initialized for this work order")
+            }
             OperationError::InvalidTransition { from, to } => ApiError::new(
                 422,
                 "invalid_transition",
@@ -127,9 +129,7 @@ impl From<TimeEntryError> for ApiError {
                 "operation_not_found",
                 "Operation not found or does not belong to work order",
             ),
-            TimeEntryError::AlreadyStopped => {
-                ApiError::conflict("Timer has already been stopped")
-            }
+            TimeEntryError::AlreadyStopped => ApiError::conflict("Timer has already been stopped"),
             TimeEntryError::InvalidTimeRange => ApiError::new(
                 422,
                 "invalid_time_range",
@@ -152,12 +152,8 @@ impl From<DowntimeError> for ApiError {
     fn from(err: DowntimeError) -> Self {
         match err {
             DowntimeError::NotFound => ApiError::not_found("Downtime record not found"),
-            DowntimeError::WorkcenterNotFound => {
-                ApiError::not_found("Workcenter not found")
-            }
-            DowntimeError::AlreadyEnded => {
-                ApiError::conflict("Downtime already ended")
-            }
+            DowntimeError::WorkcenterNotFound => ApiError::not_found("Workcenter not found"),
+            DowntimeError::AlreadyEnded => ApiError::conflict("Downtime already ended"),
             DowntimeError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             DowntimeError::ConflictingIdempotencyKey => {
                 ApiError::new(409, "conflict", "Conflicting idempotency key")
@@ -190,10 +186,9 @@ impl From<RoutingError> for ApiError {
             ),
             RoutingError::NotFound => ApiError::not_found("Routing not found"),
             RoutingError::StepNotFound => ApiError::not_found("Routing step not found"),
-            RoutingError::InvalidTransition { from, to } => ApiError::conflict(format!(
-                "Cannot transition from '{}' to '{}'",
-                from, to
-            )),
+            RoutingError::InvalidTransition { from, to } => {
+                ApiError::conflict(format!("Cannot transition from '{}' to '{}'", from, to))
+            }
             RoutingError::ReleasedImmutable => {
                 ApiError::conflict("Cannot modify a released routing")
             }
@@ -220,9 +215,7 @@ impl From<ComponentIssueError> for ApiError {
                 "not_released",
                 "Work order must be in 'released' status",
             ),
-            ComponentIssueError::Validation(msg) => {
-                ApiError::new(422, "validation_error", msg)
-            }
+            ComponentIssueError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             ComponentIssueError::ConflictingIdempotencyKey => {
                 ApiError::new(409, "conflict", "Conflicting idempotency key")
             }
@@ -245,9 +238,7 @@ impl From<FgReceiptError> for ApiError {
                 "not_released",
                 "Work order must be in 'released' status",
             ),
-            FgReceiptError::Validation(msg) => {
-                ApiError::new(422, "validation_error", msg)
-            }
+            FgReceiptError::Validation(msg) => ApiError::new(422, "validation_error", msg),
             FgReceiptError::ConflictingIdempotencyKey => {
                 ApiError::new(409, "conflict", "Conflicting idempotency key")
             }

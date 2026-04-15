@@ -176,11 +176,10 @@ pub async fn list_parties(
     let offset = (page - 1).max(0) * page_size;
 
     let (parties, total): (Vec<Party>, i64) = if include_inactive {
-        let total: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM party_parties WHERE app_id = $1")
-                .bind(app_id)
-                .fetch_one(pool)
-                .await?;
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM party_parties WHERE app_id = $1")
+            .bind(app_id)
+            .fetch_one(pool)
+            .await?;
 
         let rows = sqlx::query_as(
             r#"

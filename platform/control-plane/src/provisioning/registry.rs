@@ -72,8 +72,8 @@ impl ModuleRegistry {
     /// `migrations_root` comes from `PROVISIONING_MIGRATIONS_ROOT` env var,
     /// defaulting to `.` (the working directory).
     pub fn from_env(module_codes: &[String]) -> Self {
-        let migrations_root = std::env::var("PROVISIONING_MIGRATIONS_ROOT")
-            .unwrap_or_else(|_| ".".to_string());
+        let migrations_root =
+            std::env::var("PROVISIONING_MIGRATIONS_ROOT").unwrap_or_else(|_| ".".to_string());
 
         let mut modules = HashMap::new();
         for code in module_codes {
@@ -166,7 +166,10 @@ impl ModuleProvisioningConfig {
     pub fn tenant_db_url(&self, db_name: &str) -> String {
         format!(
             "postgres://{}:{}@{}:{}/{}",
-            self.postgres_user, self.postgres_password, self.postgres_host, self.postgres_port,
+            self.postgres_user,
+            self.postgres_password,
+            self.postgres_host,
+            self.postgres_port,
             db_name
         )
     }

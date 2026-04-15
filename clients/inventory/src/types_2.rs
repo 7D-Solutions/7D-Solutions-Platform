@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// A unique item (SKU) per tenant with GL account references.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,7 +65,7 @@ pub struct ItemRevision {
 }
 
 /// A directional conversion factor between two UoMs for a specific item.
-/// 
+///
 /// Semantics: `quantity_in_from_uom * factor = quantity_in_to_uom`
 /// Example: 1 box = 12 ea → from=box, to=ea, factor=12.0
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,7 +140,7 @@ pub struct LotExpiryRecord {
 }
 
 /// Input for a lot merge operation.
-/// 
+///
 /// A merge takes multiple parent lots and combines their quantity into a
 /// single child lot. The child lot is created if it doesn't already exist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,7 +161,7 @@ pub struct LotMergeRequest {
 }
 
 /// Input for a lot split operation.
-/// 
+///
 /// A split takes one parent lot and distributes quantity to one or more
 /// child lots. Child lots are created if they don't already exist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -188,7 +188,7 @@ pub struct MergeParent {
 }
 
 /// A single ledger movement returned by the history query.
-/// 
+///
 /// Includes both the business reference (`reference_type` / `reference_id`)
 /// and the originating event reference (`source_event_id` / `source_event_type`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -416,4 +416,3 @@ pub struct SetLotExpiryRequest {
     pub reference_at: Option<chrono::DateTime<chrono::Utc>>,
     pub tenant_id: String,
 }
-

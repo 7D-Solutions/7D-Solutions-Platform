@@ -66,9 +66,7 @@ pub fn render(run_modules: &[&str], violations: &[Violation]) -> String {
 
     // Also emit any extra violations that might not be in the known list (defensive).
     for ((module, invariant), count) in &violation_counts {
-        if !run_modules.contains(module)
-            || !invariants_for_module(module).contains(invariant)
-        {
+        if !run_modules.contains(module) || !invariants_for_module(module).contains(invariant) {
             out.push_str(&format!(
                 "platform_recon_violations_total{{module=\"{module}\",invariant=\"{invariant}\"}} {count}\n"
             ));
@@ -119,7 +117,9 @@ mod tests {
         let violations: Vec<Violation> = vec![];
         let output = render(&modules, &violations);
 
-        assert!(output.contains("platform_recon_violations_total{module=\"gl\",invariant=\"journal_entry_balanced\"} 0"));
+        assert!(output.contains(
+            "platform_recon_violations_total{module=\"gl\",invariant=\"journal_entry_balanced\"} 0"
+        ));
         assert!(output.contains("platform_recon_last_success_timestamp{module=\"gl\"}"));
     }
 
@@ -129,7 +129,9 @@ mod tests {
         let violations = vec![Violation::new("gl", "journal_entry_balanced", 3, "test")];
         let output = render(&modules, &violations);
 
-        assert!(output.contains("platform_recon_violations_total{module=\"gl\",invariant=\"journal_entry_balanced\"} 3"));
+        assert!(output.contains(
+            "platform_recon_violations_total{module=\"gl\",invariant=\"journal_entry_balanced\"} 3"
+        ));
         // No success timestamp when there's a violation
         assert!(!output.contains("platform_recon_last_success_timestamp{module=\"gl\"}"));
     }
@@ -141,7 +143,11 @@ mod tests {
         let output = render(&modules, &violations);
 
         // Both AR invariants should appear with count 0
-        assert!(output.contains("platform_recon_violations_total{module=\"ar\",invariant=\"invoice_line_total\"} 0"));
-        assert!(output.contains("platform_recon_violations_total{module=\"ar\",invariant=\"payment_allocation_cap\"} 0"));
+        assert!(output.contains(
+            "platform_recon_violations_total{module=\"ar\",invariant=\"invoice_line_total\"} 0"
+        ));
+        assert!(output.contains(
+            "platform_recon_violations_total{module=\"ar\",invariant=\"payment_allocation_cap\"} 0"
+        ));
     }
 }

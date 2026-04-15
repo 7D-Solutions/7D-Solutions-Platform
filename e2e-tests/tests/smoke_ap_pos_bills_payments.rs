@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PUT" => client.put(url),
         _ => panic!("unsupported method: {method}"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -98,10 +102,7 @@ async fn smoke_ap_pos_bills_payments() {
         .unwrap();
 
     if !wait_for_ap(&client).await {
-        eprintln!(
-            "AP service not reachable at {} -- skipping",
-            ap_url()
-        );
+        eprintln!("AP service not reachable at {} -- skipping", ap_url());
         return;
     }
     println!("AP service healthy at {}", ap_url());
@@ -123,9 +124,7 @@ async fn smoke_ap_pos_bills_payments() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!(
-            "AP returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
-        );
+        eprintln!("AP returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
         return;
     }
 
@@ -153,7 +152,13 @@ async fn smoke_ap_pos_bills_payments() {
         .as_str()
         .expect("No vendor_id in create vendor response");
     println!("  created vendor id={vendor_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/ap/vendors"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/ap/vendors"),
+        Some(json!({})),
+    )
+    .await;
 
     // 2. GET /api/ap/vendors/{vendor_id}
     println!("\n--- 2. GET /api/ap/vendors/{{vendor_id}} ---");
@@ -257,7 +262,13 @@ async fn smoke_ap_pos_bills_payments() {
         .as_str()
         .expect("No po_id in create PO response");
     println!("  created PO id={po_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/ap/pos"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/ap/pos"),
+        Some(json!({})),
+    )
+    .await;
 
     // 6. GET /api/ap/pos/{po_id}
     println!("\n--- 6. GET /api/ap/pos/{{po_id}} ---");
@@ -353,7 +364,13 @@ async fn smoke_ap_pos_bills_payments() {
         .as_str()
         .expect("No bill_id in create bill response");
     println!("  created bill id={bill_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/ap/bills"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/ap/bills"),
+        Some(json!({})),
+    )
+    .await;
 
     // 10. POST /api/ap/bills/{bill_id}/match
     println!("\n--- 10. POST /api/ap/bills/{{bill_id}}/match ---");

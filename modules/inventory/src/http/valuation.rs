@@ -26,7 +26,6 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::valuation::{
@@ -36,6 +35,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

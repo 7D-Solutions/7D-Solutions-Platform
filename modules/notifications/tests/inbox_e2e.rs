@@ -1,18 +1,18 @@
-/// E2E integration tests for the per-user in-app inbox.
-///
-/// Covers: creation, idempotent dedup, pagination, read/unread,
-/// dismiss/undismiss, tenant boundary isolation, and outbox event emission.
-use chrono::Utc;
 use axum::{
     body::{to_bytes, Body},
     http::{Request, StatusCode},
     Extension, Router,
 };
+/// E2E integration tests for the per-user in-app inbox.
+///
+/// Covers: creation, idempotent dedup, pagination, read/unread,
+/// dismiss/undismiss, tenant boundary isolation, and outbox event emission.
+use chrono::Utc;
+use notifications_rs::http::inbox;
 use notifications_rs::inbox::{
     create_inbox_message, dismiss_message, get_message, list_messages, mark_read, mark_unread,
     undismiss_message, InboxListParams,
 };
-use notifications_rs::http::inbox;
 use notifications_rs::scheduled::insert_pending;
 use security::{ActorType, VerifiedClaims};
 use serial_test::serial;

@@ -54,7 +54,10 @@ async fn test_idempotency() {
     .await
     .expect("Second export with same key should succeed (idempotent)");
 
-    assert_eq!(result1.export_id, result2.export_id, "Same export ID returned");
+    assert_eq!(
+        result1.export_id, result2.export_id,
+        "Same export ID returned"
+    );
     assert_eq!(result1.output, result2.output, "Same output returned");
 
     let count: i64 = sqlx::query_scalar(
@@ -124,7 +127,11 @@ async fn test_outbox_event() {
         .get("payload")
         .and_then(|p| p.get("tenant_id"))
         .and_then(|t| t.as_str());
-    assert_eq!(tenant_in_payload, Some(tenant), "Event should contain tenant_id");
+    assert_eq!(
+        tenant_in_payload,
+        Some(tenant),
+        "Event should contain tenant_id"
+    );
 
     cleanup_export_data(&pool, tenant).await;
     pool.close().await;

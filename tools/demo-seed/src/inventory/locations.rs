@@ -43,13 +43,41 @@ pub(super) struct LocationDef {
 }
 
 pub(super) const LOCATIONS: &[LocationDef] = &[
-    LocationDef { code: "RECV-DOCK", name: "Receiving Dock", description: "Inbound material receiving area" },
-    LocationDef { code: "RAW-WH", name: "Raw Material Warehouse", description: "Bulk raw material storage" },
-    LocationDef { code: "WIP-FLOOR", name: "WIP Production Floor", description: "Active production work-in-progress area" },
-    LocationDef { code: "FG-WH", name: "Finished Goods Warehouse", description: "Completed product storage" },
-    LocationDef { code: "SHIP-DOCK", name: "Shipping Dock", description: "Outbound shipping and dispatch area" },
-    LocationDef { code: "QA-HOLD", name: "Quality Hold Area", description: "Quarantine area for quality inspection" },
-    LocationDef { code: "MRB", name: "Material Review Board", description: "Non-conforming material review and disposition" },
+    LocationDef {
+        code: "RECV-DOCK",
+        name: "Receiving Dock",
+        description: "Inbound material receiving area",
+    },
+    LocationDef {
+        code: "RAW-WH",
+        name: "Raw Material Warehouse",
+        description: "Bulk raw material storage",
+    },
+    LocationDef {
+        code: "WIP-FLOOR",
+        name: "WIP Production Floor",
+        description: "Active production work-in-progress area",
+    },
+    LocationDef {
+        code: "FG-WH",
+        name: "Finished Goods Warehouse",
+        description: "Completed product storage",
+    },
+    LocationDef {
+        code: "SHIP-DOCK",
+        name: "Shipping Dock",
+        description: "Outbound shipping and dispatch area",
+    },
+    LocationDef {
+        code: "QA-HOLD",
+        name: "Quality Hold Area",
+        description: "Quarantine area for quality inspection",
+    },
+    LocationDef {
+        code: "MRB",
+        name: "Material Review Board",
+        description: "Non-conforming material review and disposition",
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -83,9 +111,11 @@ async fn create_location(
     let status = resp.status();
 
     if status == reqwest::StatusCode::CONFLICT {
-        info!(code = loc.code, "Location already exists — retrieving real UUID");
-        let real_id =
-            find_location_by_code(client, inventory_url, wh_id, loc.code).await?;
+        info!(
+            code = loc.code,
+            "Location already exists — retrieving real UUID"
+        );
+        let real_id = find_location_by_code(client, inventory_url, wh_id, loc.code).await?;
         return Ok(Some(real_id));
     }
 
@@ -116,13 +146,12 @@ async fn find_location_by_code(
         inventory_url, warehouse_id
     );
 
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .with_context(|| {
-            format!("GET /api/inventory/warehouses/{}/locations network error", warehouse_id)
-        })?;
+    let resp = client.get(&url).send().await.with_context(|| {
+        format!(
+            "GET /api/inventory/warehouses/{}/locations network error",
+            warehouse_id
+        )
+    })?;
 
     if !resp.status().is_success() {
         let status = resp.status();
@@ -191,7 +220,11 @@ mod tests {
         let mut codes: Vec<&str> = LOCATIONS.iter().map(|l| l.code).collect();
         codes.sort();
         codes.dedup();
-        assert_eq!(codes.len(), LOCATIONS.len(), "Duplicate location codes found");
+        assert_eq!(
+            codes.len(),
+            LOCATIONS.len(),
+            "Duplicate location codes found"
+        );
     }
 
     #[test]

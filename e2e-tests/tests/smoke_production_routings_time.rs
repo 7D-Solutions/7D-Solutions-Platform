@@ -50,7 +50,10 @@ fn make_jwt(key: &EncodingKey, tenant_id: &str) -> String {
         tenant_id: tenant_id.to_string(),
         app_id: Some(tenant_id.to_string()),
         roles: vec!["operator".to_string()],
-        perms: vec!["production.mutate".to_string(), "production.read".to_string()],
+        perms: vec![
+            "production.mutate".to_string(),
+            "production.read".to_string(),
+        ],
         actor_type: "user".to_string(),
         ver: "1".to_string(),
     };
@@ -76,7 +79,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("Unsupported method: {}", method),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -265,9 +272,7 @@ async fn smoke_production_routings_time() {
     // 4. GET /api/production/routings/{id}/steps
     println!("\n--- 4. GET /api/production/routings/{{id}}/steps ---");
     let resp = client
-        .get(format!(
-            "{base}/api/production/routings/{routing_id}/steps"
-        ))
+        .get(format!("{base}/api/production/routings/{routing_id}/steps"))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -301,10 +306,7 @@ async fn smoke_production_routings_time() {
         .unwrap();
     let status = resp.status();
     let by_item: Value = resp.json().await.unwrap_or(json!([]));
-    assert!(
-        status.is_success(),
-        "GET routings by-item failed: {status}"
-    );
+    assert!(status.is_success(), "GET routings by-item failed: {status}");
     assert!(by_item.is_array(), "by-item should return an array");
     println!(
         "  {} routings for item",
@@ -313,9 +315,7 @@ async fn smoke_production_routings_time() {
     assert_unauth(
         &client,
         "GET",
-        &format!(
-            "{base}/api/production/routings/by-item?item_id={item_id}&effective_date={today}"
-        ),
+        &format!("{base}/api/production/routings/by-item?item_id={item_id}&effective_date={today}"),
         None,
     )
     .await;
@@ -421,9 +421,7 @@ async fn smoke_production_routings_time() {
     // 8. POST /api/production/time-entries/{id}/stop
     println!("\n--- 8. POST /api/production/time-entries/{{id}}/stop ---");
     let resp = client
-        .post(format!(
-            "{base}/api/production/time-entries/{te_id}/stop"
-        ))
+        .post(format!("{base}/api/production/time-entries/{te_id}/stop"))
         .bearer_auth(&jwt)
         .json(&json!({}))
         .send()
@@ -543,10 +541,7 @@ async fn smoke_production_routings_time() {
         .unwrap();
     let status = resp.status();
     let active: Value = resp.json().await.unwrap_or(json!([]));
-    assert!(
-        status.is_success(),
-        "GET active downtime failed: {status}"
-    );
+    assert!(status.is_success(), "GET active downtime failed: {status}");
     assert!(active.is_array(), "Active downtime should be an array");
     println!(
         "  {} active downtime records",

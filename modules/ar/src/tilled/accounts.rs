@@ -136,10 +136,7 @@ impl TilledClient {
 
     /// Delete an account capability.
     /// Tilled may return 204 with empty body. May fail if onboarding is already submitted.
-    pub async fn delete_account_capability(
-        &self,
-        capability_id: &str,
-    ) -> Result<(), TilledError> {
+    pub async fn delete_account_capability(&self, capability_id: &str) -> Result<(), TilledError> {
         let path = format!("/v1/accounts/capabilities/{capability_id}");
         let url = format!("{}{}", self.config.base_path, path);
         let response = self
@@ -190,7 +187,7 @@ mod tests {
 
     #[test]
     fn pagination_params_include_only_present_values() {
-        let params = build_pagination_params(Some(10), None).unwrap();
+        let params = build_pagination_params(Some(10), None).expect("test fixture");
         assert_eq!(params.get("offset").map(String::as_str), Some("10"));
         assert!(!params.contains_key("limit"));
     }
@@ -202,9 +199,9 @@ mod tests {
             name: Some("Test".to_string()),
             email: None,
         };
-        let value = serde_json::to_value(&req).unwrap();
+        let value = serde_json::to_value(&req).expect("test fixture");
         assert!(value.get("metadata").is_none());
-        assert_eq!(value.get("name").unwrap(), "Test");
+        assert_eq!(value.get("name").expect("test fixture"), "Test");
         assert!(value.get("email").is_none());
     }
 
@@ -215,10 +212,10 @@ mod tests {
             name: None,
             email: None,
         };
-        let value = serde_json::to_value(&req).unwrap();
-        let meta = value.get("metadata").unwrap();
-        assert_eq!(meta.get("keep").unwrap(), "yes");
-        assert!(meta.get("remove").unwrap().is_null());
+        let value = serde_json::to_value(&req).expect("test fixture");
+        let meta = value.get("metadata").expect("test fixture");
+        assert_eq!(meta.get("keep").expect("test fixture"), "yes");
+        assert!(meta.get("remove").expect("test fixture").is_null());
     }
 
     #[test]
@@ -226,8 +223,8 @@ mod tests {
         let req = AddCapabilityRequest {
             pricing_template_id: "pt_123".to_string(),
         };
-        let value = serde_json::to_value(req).unwrap();
-        assert_eq!(value.get("pricing_template_id").unwrap(), "pt_123");
+        let value = serde_json::to_value(req).expect("test fixture");
+        assert_eq!(value.get("pricing_template_id").expect("test fixture"), "pt_123");
     }
 
     #[test]
@@ -235,7 +232,7 @@ mod tests {
         let req = UpdateCapabilityRequest {
             pricing_template_id: "pt_456".to_string(),
         };
-        let value = serde_json::to_value(req).unwrap();
-        assert_eq!(value.get("pricing_template_id").unwrap(), "pt_456");
+        let value = serde_json::to_value(req).expect("test fixture");
+        assert_eq!(value.get("pricing_template_id").expect("test fixture"), "pt_456");
     }
 }

@@ -18,7 +18,11 @@ use crate::processor::PaymentProcessor;
 /// 1. Subscribes to AR payment collection events
 /// 2. Processes payments using the configured processor
 /// 3. Emits payment succeeded/failed events
-pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgPool, processor: Arc<dyn PaymentProcessor>) {
+pub async fn start_payment_collection_consumer(
+    bus: Arc<dyn EventBus>,
+    pool: PgPool,
+    processor: Arc<dyn PaymentProcessor>,
+) {
     tokio::spawn(async move {
         tracing::info!("Starting payment collection consumer");
 
@@ -82,9 +86,14 @@ pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgP
                         let msg = msg_clone.clone();
                         let proc = processor_clone.clone();
                         async move {
-                            process_payment_collection_request(&consumer, &pool, proc.as_ref(), &msg)
-                                .await
-                                .map_err(|e| format!("{:#}", e))
+                            process_payment_collection_request(
+                                &consumer,
+                                &pool,
+                                proc.as_ref(),
+                                &msg,
+                            )
+                            .await
+                            .map_err(|e| format!("{:#}", e))
                         }
                     },
                     &retry_config,

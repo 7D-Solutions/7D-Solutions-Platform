@@ -84,7 +84,17 @@ async fn trigger_execution_creates_export_run_and_delivery_request() {
 
     // Seed report data
     seed_trial_balance(&pool, &tid, "2026-01-31", "1000", "Cash", "USD", 200_000, 0).await;
-    seed_trial_balance(&pool, &tid, "2026-01-31", "4000", "Revenue", "USD", 0, 100_000).await;
+    seed_trial_balance(
+        &pool,
+        &tid,
+        "2026-01-31",
+        "4000",
+        "Revenue",
+        "USD",
+        0,
+        100_000,
+    )
+    .await;
 
     // Create schedule
     let schedule = create_schedule(
@@ -120,7 +130,9 @@ async fn trigger_execution_creates_export_run_and_delivery_request() {
         .expect("List export runs should succeed");
 
     assert!(
-        export_runs.iter().any(|r| r.id == execution.export_run_id.unwrap()),
+        export_runs
+            .iter()
+            .any(|r| r.id == execution.export_run_id.unwrap()),
         "Export run from trigger should exist"
     );
 
@@ -218,13 +230,20 @@ async fn idempotent_schedule_creation_no_duplicate() {
     .await
     .expect("Second creation should return existing");
 
-    assert_eq!(sched1.id, sched2.id, "Same idempotency key must return same schedule");
+    assert_eq!(
+        sched1.id, sched2.id,
+        "Same idempotency key must return same schedule"
+    );
 
     // Verify only one schedule exists
     let schedules = list_schedules(&pool, &tid)
         .await
         .expect("List should succeed");
-    assert_eq!(schedules.len(), 1, "No duplicate schedule should be created");
+    assert_eq!(
+        schedules.len(),
+        1,
+        "No duplicate schedule should be created"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -349,9 +368,10 @@ async fn disabled_schedule_trigger_produces_no_execution() {
     );
 
     // Verify no execution was logged
-    let executions = reporting::domain::schedules::service::list_executions(&pool, &tid, schedule.id)
-        .await
-        .expect("List executions should succeed");
+    let executions =
+        reporting::domain::schedules::service::list_executions(&pool, &tid, schedule.id)
+            .await
+            .expect("List executions should succeed");
     assert!(
         executions.is_empty(),
         "No executions should exist for disabled schedule"

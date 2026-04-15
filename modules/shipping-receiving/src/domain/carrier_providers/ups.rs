@@ -164,10 +164,9 @@ async fn fetch_oauth_token(
         .map_err(|e| CarrierProviderError::ApiError(format!("UPS OAuth HTTP error: {e}")))?;
 
     let status = resp.status();
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| CarrierProviderError::ApiError(format!("UPS OAuth response read error: {e}")))?;
+    let body = resp.text().await.map_err(|e| {
+        CarrierProviderError::ApiError(format!("UPS OAuth response read error: {e}"))
+    })?;
 
     let json: Value = serde_json::from_str(&body).unwrap_or_else(|_| serde_json::json!({}));
 
@@ -182,9 +181,7 @@ async fn fetch_oauth_token(
         .as_str()
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
-            CarrierProviderError::ApiError(
-                "UPS OAuth response missing access_token".to_string(),
-            )
+            CarrierProviderError::ApiError("UPS OAuth response missing access_token".to_string())
         })?
         .to_string();
 
@@ -228,11 +225,7 @@ async fn ups_post(
     Ok(json)
 }
 
-async fn ups_get(
-    client: &Client,
-    token: &str,
-    url: &str,
-) -> Result<Value, CarrierProviderError> {
+async fn ups_get(client: &Client, token: &str, url: &str) -> Result<Value, CarrierProviderError> {
     let resp = client
         .get(url)
         .bearer_auth(token)
@@ -358,9 +351,7 @@ pub(crate) fn parse_rate_response(json: &Value) -> Result<Vec<RateQuote>, Carrie
                 .or_else(|| s["TotalCharges"]["MonetaryValue"].as_str())
                 .unwrap_or("0.00");
 
-            let currency = s["TotalCharges"]["CurrencyCode"]
-                .as_str()
-                .unwrap_or("USD");
+            let currency = s["TotalCharges"]["CurrencyCode"].as_str().unwrap_or("USD");
 
             let charge_cents = (charge.parse::<f64>().unwrap_or(0.0) * 100.0).round() as i64;
 
@@ -570,29 +561,19 @@ pub(crate) fn parse_track_response(
     let shipments = json["trackResponse"]["shipment"]
         .as_array()
         .ok_or_else(|| {
-            CarrierProviderError::ApiError(
-                "UPS Track response missing shipment array".to_string(),
-            )
+            CarrierProviderError::ApiError("UPS Track response missing shipment array".to_string())
         })?;
 
     let shipment = shipments.first().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "UPS Track response has empty shipment array".to_string(),
-        )
+        CarrierProviderError::ApiError("UPS Track response has empty shipment array".to_string())
     })?;
 
-    let packages = shipment["package"]
-        .as_array()
-        .ok_or_else(|| {
-            CarrierProviderError::ApiError(
-                "UPS Track response missing package array".to_string(),
-            )
-        })?;
+    let packages = shipment["package"].as_array().ok_or_else(|| {
+        CarrierProviderError::ApiError("UPS Track response missing package array".to_string())
+    })?;
 
     let pkg = packages.first().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "UPS Track response has empty package array".to_string(),
-        )
+        CarrierProviderError::ApiError("UPS Track response has empty package array".to_string())
     })?;
 
     let activities = pkg["activity"].as_array().cloned().unwrap_or_default();
@@ -605,7 +586,9 @@ pub(crate) fn parse_track_response(
 
     let location = activities.first().and_then(|a| {
         let city = a["location"]["address"]["city"].as_str().unwrap_or("");
-        let state = a["location"]["address"]["stateProvince"].as_str().unwrap_or("");
+        let state = a["location"]["address"]["stateProvince"]
+            .as_str()
+            .unwrap_or("");
         if city.is_empty() && state.is_empty() {
             None
         } else {
@@ -635,7 +618,9 @@ pub(crate) fn parse_track_response(
                 .unwrap_or("Unknown")
                 .to_string();
             let city = a["location"]["address"]["city"].as_str().unwrap_or("");
-            let state = a["location"]["address"]["stateProvince"].as_str().unwrap_or("");
+            let state = a["location"]["address"]["stateProvince"]
+                .as_str()
+                .unwrap_or("");
             let evt_location = if city.is_empty() && state.is_empty() {
                 None
             } else {
@@ -831,10 +816,7 @@ mod tests {
     #[test]
     fn build_rate_request_applies_defaults() {
         let body = build_rate_request("ACCT", &serde_json::json!({}));
-        assert_eq!(
-            body["RateRequest"]["Request"]["RequestOption"],
-            "Shop"
-        );
+        assert_eq!(body["RateRequest"]["Request"]["RequestOption"], "Shop");
         assert_eq!(
             body["RateRequest"]["Shipment"]["Package"]["PackageWeight"]["Weight"],
             "1"
@@ -978,8 +960,7 @@ mod tests {
                 }]
             }
         });
-        let result =
-            parse_track_response(&json, "1Z12345E0291980793").expect("parse failed");
+        let result = parse_track_response(&json, "1Z12345E0291980793").expect("parse failed");
         assert_eq!(result.tracking_number, "1Z12345E0291980793");
         assert_eq!(result.carrier_code, "ups");
         assert_eq!(result.status, "Delivered");

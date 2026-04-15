@@ -106,8 +106,7 @@ async fn wrong_db_pool() -> Option<sqlx::PgPool> {
 
 /// Build an AR router (permissive = no JWT enforcement) with body limit.
 fn build_test_ar_router(pool: sqlx::PgPool) -> axum::Router {
-    ar_rs::http::ar_router_permissive(pool)
-        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+    ar_rs::http::ar_router_permissive(pool).layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
 }
 
 /// Assert that a response body string contains none of the forbidden DB substrings.

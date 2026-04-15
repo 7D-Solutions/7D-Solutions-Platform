@@ -201,7 +201,10 @@ async fn revocation_test() {
         .unwrap();
     assert!(revoked.is_revoked);
     assert!(revoked.revoked_at.is_some());
-    assert_eq!(revoked.revocation_reason.as_deref(), Some("Certification lapsed"));
+    assert_eq!(
+        revoked.revocation_reason.as_deref(),
+        Some("Certification lapsed")
+    );
 
     // Verify denied after revocation
     let result = acceptance_authority::check_acceptance_authority(&pool, &check)
@@ -263,13 +266,18 @@ async fn idempotency_test() {
     let pool = setup_db().await;
     let req = grant_req("tenant-aa-5", "source-inspection");
 
-    let (first, first_replay) =
-        acceptance_authority::grant_acceptance_authority(&pool, &req).await.unwrap();
+    let (first, first_replay) = acceptance_authority::grant_acceptance_authority(&pool, &req)
+        .await
+        .unwrap();
     assert!(!first_replay);
 
-    let (second, second_replay) =
-        acceptance_authority::grant_acceptance_authority(&pool, &req).await.unwrap();
-    assert!(second_replay, "second call with same key should be a replay");
+    let (second, second_replay) = acceptance_authority::grant_acceptance_authority(&pool, &req)
+        .await
+        .unwrap();
+    assert!(
+        second_replay,
+        "second call with same key should be a replay"
+    );
     assert_eq!(first.id, second.id, "replayed result should have same ID");
 
     // Verify no duplicate rows
@@ -379,7 +387,9 @@ async fn authorization_query_combos() {
         correlation_id: None,
         causation_id: None,
     };
-    acceptance_authority::grant_acceptance_authority(&pool, &req_a_x).await.unwrap();
+    acceptance_authority::grant_acceptance_authority(&pool, &req_a_x)
+        .await
+        .unwrap();
 
     // Grant operator_a → scope_y (not yet effective)
     let req_a_y = GrantAuthorityRequest {
@@ -394,7 +404,9 @@ async fn authorization_query_combos() {
         correlation_id: None,
         causation_id: None,
     };
-    acceptance_authority::grant_acceptance_authority(&pool, &req_a_y).await.unwrap();
+    acceptance_authority::grant_acceptance_authority(&pool, &req_a_y)
+        .await
+        .unwrap();
 
     // Test 1: operator_a + scope_x + now → allowed
     let r1 = acceptance_authority::check_acceptance_authority(
@@ -405,7 +417,9 @@ async fn authorization_query_combos() {
             capability_scope: scope_x.clone(),
             at_time: Utc::now(),
         },
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     assert!(r1.allowed, "operator_a should be allowed for scope_x now");
 
     // Test 2: operator_a + scope_y + now → denied (not yet effective)
@@ -417,7 +431,9 @@ async fn authorization_query_combos() {
             capability_scope: scope_y.clone(),
             at_time: Utc::now(),
         },
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     assert!(!r2.allowed, "operator_a should be denied for scope_y now");
 
     // Test 3: operator_b + scope_x + now → denied (no grant)
@@ -429,7 +445,9 @@ async fn authorization_query_combos() {
             capability_scope: scope_x.clone(),
             at_time: Utc::now(),
         },
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
     assert!(!r3.allowed, "operator_b should be denied for scope_x");
     assert_eq!(r3.denial_reason.as_deref(), Some("no_authority_found"));
 
@@ -442,8 +460,13 @@ async fn authorization_query_combos() {
             capability_scope: scope_y.clone(),
             at_time: Utc::now() + Duration::days(60),
         },
-    ).await.unwrap();
-    assert!(r4.allowed, "operator_a should be allowed for scope_y in future");
+    )
+    .await
+    .unwrap();
+    assert!(
+        r4.allowed,
+        "operator_a should be allowed for scope_y in future"
+    );
 
     // Test 5: idempotency conflict — same key, different body
     let mut conflicting = req_a_x.clone();

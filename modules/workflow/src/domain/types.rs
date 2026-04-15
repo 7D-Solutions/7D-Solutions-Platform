@@ -53,13 +53,9 @@ pub enum RoutingMode {
     #[default]
     Sequential,
     /// N-of-M actors must decide before advancing.
-    Parallel {
-        threshold: u32,
-    },
+    Parallel { threshold: u32 },
     /// Evaluate conditions against instance context to pick a branch.
-    Conditional {
-        conditions: Vec<BranchCondition>,
-    },
+    Conditional { conditions: Vec<BranchCondition> },
 }
 
 /// A single condition→target mapping for conditional routing.

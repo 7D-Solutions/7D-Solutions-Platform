@@ -147,9 +147,7 @@ pub async fn create_payment_run(
 }
 
 /// Group eligible bills by vendor, returning (vendor_id, total_amount, bill_ids).
-fn group_by_vendor(
-    bills: Vec<super::repo::EligibleBill>,
-) -> Vec<(Uuid, i64, Vec<Uuid>)> {
+fn group_by_vendor(bills: Vec<super::repo::EligibleBill>) -> Vec<(Uuid, i64, Vec<Uuid>)> {
     let mut groups: Vec<(Uuid, i64, Vec<Uuid>)> = Vec::new();
 
     for bill in bills {

@@ -352,7 +352,12 @@ impl MeterReadingRepo {
         .map_err(MeterError::Database)
     }
 
-    pub async fn count(pool: &PgPool, tenant_id: &str, asset_id: Uuid, q: &ListReadingsQuery) -> Result<i64, MeterError> {
+    pub async fn count(
+        pool: &PgPool,
+        tenant_id: &str,
+        asset_id: Uuid,
+        q: &ListReadingsQuery,
+    ) -> Result<i64, MeterError> {
         let row: (i64,) = sqlx::query_as(r#"SELECT COUNT(*) FROM meter_readings WHERE tenant_id = $1 AND asset_id = $2 AND ($3::UUID IS NULL OR meter_type_id = $3)"#)
             .bind(tenant_id).bind(asset_id).bind(q.meter_type_id).fetch_one(pool).await.map_err(MeterError::Database)?;
         Ok(row.0)

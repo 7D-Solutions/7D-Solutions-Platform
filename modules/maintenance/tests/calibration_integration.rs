@@ -186,7 +186,10 @@ async fn test_calibration_completion() {
         },
     )
     .await;
-    assert!(err.is_err(), "Completing an already-completed calibration must fail");
+    assert!(
+        err.is_err(),
+        "Completing an already-completed calibration must fail"
+    );
 
     cleanup_tenant(&pool, &t).await;
 }
@@ -262,10 +265,17 @@ async fn test_overdue_detection() {
     let overdue = CalibrationRepo::find_overdue(&pool, &t).await.unwrap();
 
     // Should find exactly the one overdue scheduled record
-    assert_eq!(overdue.len(), 1, "should find exactly 1 overdue calibration");
+    assert_eq!(
+        overdue.len(),
+        1,
+        "should find exactly 1 overdue calibration"
+    );
     assert_eq!(overdue[0].id, overdue_rec.id);
     assert_eq!(overdue[0].calibration_type, "micrometer");
-    assert!(overdue[0].days_overdue >= 5, "should be at least 5 days overdue");
+    assert!(
+        overdue[0].days_overdue >= 5,
+        "should be at least 5 days overdue"
+    );
 
     cleanup_tenant(&pool, &t).await;
 }
@@ -336,7 +346,9 @@ async fn test_tenant_isolation() {
     .await
     .unwrap();
 
-    let b_overdue = CalibrationRepo::find_overdue(&pool, &tenant_b).await.unwrap();
+    let b_overdue = CalibrationRepo::find_overdue(&pool, &tenant_b)
+        .await
+        .unwrap();
     for item in &b_overdue {
         assert_ne!(
             item.tenant_id, tenant_a,
@@ -403,7 +415,10 @@ async fn test_idempotency() {
     .await
     .unwrap();
 
-    assert_eq!(first.id, second.id, "idempotent create must return same record");
+    assert_eq!(
+        first.id, second.id,
+        "idempotent create must return same record"
+    );
 
     // Verify only one row exists
     let count: i64 = sqlx::query_scalar(
@@ -414,7 +429,10 @@ async fn test_idempotency() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(count, 1, "must have exactly 1 record for the idempotency key");
+    assert_eq!(
+        count, 1,
+        "must have exactly 1 record for the idempotency key"
+    );
 
     cleanup_tenant(&pool, &t).await;
 }
@@ -464,10 +482,7 @@ async fn test_outbox_events() {
     .unwrap();
     assert_eq!(payload["source_module"], "maintenance");
     assert_eq!(payload["event_type"], "maintenance.calibration.created");
-    assert_eq!(
-        payload["payload"]["calibration_id"],
-        record.id.to_string()
-    );
+    assert_eq!(payload["payload"]["calibration_id"], record.id.to_string());
 
     // Complete the calibration
     CalibrationRepo::complete(
@@ -508,10 +523,7 @@ async fn test_outbox_events() {
         comp_payload["event_type"],
         "maintenance.calibration.completed"
     );
-    assert_eq!(
-        comp_payload["payload"]["certificate_ref"],
-        "CERT-EVT-001"
-    );
+    assert_eq!(comp_payload["payload"]["certificate_ref"], "CERT-EVT-001");
 
     cleanup_tenant(&pool, &t).await;
 }

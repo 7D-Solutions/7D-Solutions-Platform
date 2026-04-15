@@ -103,7 +103,10 @@ async fn component_issue_request_creates_outbox_event() {
     assert_eq!(event_type, "production.component_issue.requested");
 
     let p = &payload["payload"];
-    assert_eq!(p["work_order_id"].as_str(), Some(wo_id.to_string().as_str()));
+    assert_eq!(
+        p["work_order_id"].as_str(),
+        Some(wo_id.to_string().as_str())
+    );
     assert_eq!(p["tenant_id"].as_str(), Some(tenant.as_str()));
     assert_eq!(p["items"].as_array().map(|a| a.len()), Some(1));
     assert_eq!(p["items"][0]["quantity"].as_i64(), Some(5));

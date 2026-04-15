@@ -1,13 +1,12 @@
+use crate::db::party_repo::{self, UpdatePartyData};
 use crate::domain::party::models::{PartyError, PartyView, UpdatePartyRequest};
 use crate::events::{
     build_party_deactivated_envelope, build_party_reactivated_envelope,
     build_party_updated_envelope, build_tags_updated_envelope, PartyDeactivatedPayload,
-    PartyReactivatedPayload, PartyUpdatedPayload, TagsUpdatedPayload,
-    EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_REACTIVATED, EVENT_TYPE_PARTY_UPDATED,
-    EVENT_TYPE_TAGS_UPDATED,
+    PartyReactivatedPayload, PartyUpdatedPayload, TagsUpdatedPayload, EVENT_TYPE_PARTY_DEACTIVATED,
+    EVENT_TYPE_PARTY_REACTIVATED, EVENT_TYPE_PARTY_UPDATED, EVENT_TYPE_TAGS_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
-use crate::db::party_repo::{self, UpdatePartyData};
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;

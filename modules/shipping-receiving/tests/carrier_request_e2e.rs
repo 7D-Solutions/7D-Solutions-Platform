@@ -177,7 +177,10 @@ async fn label_request_lifecycle_and_status_tracking() {
         &pool,
         cr.id,
         tenant_id,
-        &make_transition("failed", Some(serde_json::json!({"error": "invalid address"}))),
+        &make_transition(
+            "failed",
+            Some(serde_json::json!({"error": "invalid address"})),
+        ),
     )
     .await
     .expect("to failed");
@@ -391,8 +394,7 @@ async fn outbox_events_emitted_on_each_lifecycle_transition() {
     let cr_id_str = cr.id.to_string();
 
     // Verify creation outbox event
-    let created_events =
-        count_outbox_events(&pool, &cr_id_str, "sr.carrier_request.created").await;
+    let created_events = count_outbox_events(&pool, &cr_id_str, "sr.carrier_request.created").await;
     assert_eq!(
         created_events, 1,
         "must have exactly 1 carrier_request.created outbox event"
@@ -463,10 +465,7 @@ async fn outbox_events_emitted_on_each_lifecycle_transition() {
     // First: pending → submitted
     assert_eq!(transition_events[0].0["from_status"], "pending");
     assert_eq!(transition_events[0].0["to_status"], "submitted");
-    assert_eq!(
-        transition_events[0].0["tenant_id"],
-        tenant_id.to_string()
-    );
+    assert_eq!(transition_events[0].0["tenant_id"], tenant_id.to_string());
 
     // Second: submitted → completed
     assert_eq!(transition_events[1].0["from_status"], "submitted");

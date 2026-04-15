@@ -64,8 +64,7 @@ pub async fn seed_parties(
         };
 
         // Check existing contacts/addresses before adding
-        let (has_contacts, has_addresses) =
-            party_has_children(client, party_url, party_id).await?;
+        let (has_contacts, has_addresses) = party_has_children(client, party_url, party_id).await?;
 
         if !has_contacts {
             add_contact(client, party_url, party_id, data).await?;
@@ -80,12 +79,8 @@ pub async fn seed_parties(
         tracker.record_party(party_id, data.display_name, data.role);
 
         match data.role {
-            "customer" => ids
-                .customers
-                .push((party_id, data.legal_name.to_string())),
-            "supplier" => ids
-                .suppliers
-                .push((party_id, data.legal_name.to_string())),
+            "customer" => ids.customers.push((party_id, data.legal_name.to_string())),
+            "supplier" => ids.suppliers.push((party_id, data.legal_name.to_string())),
             _ => {}
         }
     }

@@ -117,7 +117,10 @@ pub fn validate_event_type(event_type: &str) -> Result<(), String> {
 
     for seg in &segments {
         if seg.is_empty() {
-            return Err(format!("event_type '{}' contains an empty segment", event_type));
+            return Err(format!(
+                "event_type '{}' contains an empty segment",
+                event_type
+            ));
         }
         if *seg != seg.to_lowercase() {
             return Err(format!(
@@ -150,7 +153,10 @@ mod tests {
     fn subject_constants_match_wire_format() {
         assert_eq!(SUBJECT_AR_INVOICE_OPENED, "ar.events.ar.invoice_opened");
         assert_eq!(SUBJECT_AR_INVOICE_PAID, "ar.events.ar.invoice_paid");
-        assert_eq!(SUBJECT_PAYMENT_SUCCEEDED, "payments.events.payment.succeeded");
+        assert_eq!(
+            SUBJECT_PAYMENT_SUCCEEDED,
+            "payments.events.payment.succeeded"
+        );
         assert_eq!(SUBJECT_PAYMENT_FAILED, "payments.events.payment.failed");
     }
 

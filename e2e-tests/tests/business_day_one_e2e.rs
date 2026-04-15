@@ -170,8 +170,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
         pool: party_pool,
         metrics,
     });
-    let router = party_http::router(state)
-        .layer(axum::middleware::from_fn(inject_party_claims));
+    let router = party_http::router(state).layer(axum::middleware::from_fn(inject_party_claims));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

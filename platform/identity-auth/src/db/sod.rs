@@ -413,13 +413,11 @@ pub async fn delete_policy(
         });
     }
 
-    let res = sqlx::query(
-        "DELETE FROM sod_policies WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(req.policy_id)
-    .bind(req.tenant_id)
-    .execute(&mut *tx)
-    .await?;
+    let res = sqlx::query("DELETE FROM sod_policies WHERE id = $1 AND tenant_id = $2")
+        .bind(req.policy_id)
+        .bind(req.tenant_id)
+        .execute(&mut *tx)
+        .await?;
 
     let deleted = res.rows_affected() > 0;
 

@@ -133,11 +133,13 @@ async fn fetch_direct(
     .await
     .map_err(BomError::Database)?;
 
-    Ok(row.map(|(sku, name, description, unit_cost_minor)| ItemDetails {
-        item_id,
-        sku,
-        name,
-        description,
-        unit_cost_minor,
-    }))
+    Ok(
+        row.map(|(sku, name, description, unit_cost_minor)| ItemDetails {
+            item_id,
+            sku,
+            name,
+            description,
+            unit_cost_minor,
+        }),
+    )
 }

@@ -79,11 +79,7 @@ async fn wait_for_service(client: &Client) -> bool {
 }
 
 async fn assert_unauth(client: &Client, url: &str) {
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .expect("unauth request failed");
+    let resp = client.get(url).send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
         401,
@@ -134,10 +130,7 @@ async fn smoke_gl_reporting() {
         .unwrap();
 
     if !wait_for_service(&client).await {
-        eprintln!(
-            "GL service not reachable at {} -- skipping",
-            gl_url()
-        );
+        eprintln!("GL service not reachable at {} -- skipping", gl_url());
         return;
     }
     println!("GL service healthy at {}", gl_url());
@@ -202,7 +195,10 @@ async fn smoke_gl_reporting() {
     let resp = client
         .get(format!("{base}/api/gl/balance-sheet"))
         .bearer_auth(&jwt)
-        .query(&[("period_id", period_id.to_string()), ("currency", "USD".to_string())])
+        .query(&[
+            ("period_id", period_id.to_string()),
+            ("currency", "USD".to_string()),
+        ])
         .send()
         .await
         .unwrap();
@@ -225,7 +221,10 @@ async fn smoke_gl_reporting() {
     let resp = client
         .get(format!("{base}/api/gl/income-statement"))
         .bearer_auth(&jwt)
-        .query(&[("period_id", period_id.to_string()), ("currency", "USD".to_string())])
+        .query(&[
+            ("period_id", period_id.to_string()),
+            ("currency", "USD".to_string()),
+        ])
         .send()
         .await
         .unwrap();
@@ -248,7 +247,10 @@ async fn smoke_gl_reporting() {
     let resp = client
         .get(format!("{base}/api/gl/cash-flow"))
         .bearer_auth(&jwt)
-        .query(&[("period_id", period_id.to_string()), ("currency", "USD".to_string())])
+        .query(&[
+            ("period_id", period_id.to_string()),
+            ("currency", "USD".to_string()),
+        ])
         .send()
         .await
         .unwrap();

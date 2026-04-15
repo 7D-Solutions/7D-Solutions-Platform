@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "DELETE" => client.delete(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -198,7 +202,10 @@ async fn smoke_consolidation() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Validate group failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Validate group failed: {status} - {body}"
+    );
     println!("  validation result: is_complete={}", body["is_complete"]);
     assert_unauth(
         &client,
@@ -232,7 +239,9 @@ async fn smoke_consolidation() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create entity failed: {status} - {body}"
     );
-    let entity_id = body["id"].as_str().expect("No id in create entity response");
+    let entity_id = body["id"]
+        .as_str()
+        .expect("No id in create entity response");
     println!("  created entity id={entity_id}");
     assert_unauth(
         &client,
@@ -332,7 +341,9 @@ async fn smoke_consolidation() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create elimination rule failed: {status} - {body}"
     );
-    let rule_id = body["id"].as_str().expect("No id in elimination rule response");
+    let rule_id = body["id"]
+        .as_str()
+        .expect("No id in elimination rule response");
     println!("  created elimination rule id={rule_id}");
     assert_unauth(
         &client,
@@ -372,7 +383,10 @@ async fn smoke_consolidation() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!([]));
-    assert!(status.is_success(), "List elimination rules failed: {status}");
+    assert!(
+        status.is_success(),
+        "List elimination rules failed: {status}"
+    );
     assert!(body.is_array(), "Elimination rules should be array");
     println!(
         "  listed {} elimination rules",
@@ -629,10 +643,7 @@ async fn smoke_consolidation() {
         );
         println!("  admin projections: 403 (ADMIN_TOKEN not set, expected)");
     } else {
-        assert!(
-            status.is_success(),
-            "Admin projections failed: {status}"
-        );
+        assert!(status.is_success(), "Admin projections failed: {status}");
         println!("  admin projections: {status}");
     }
     let resp = client

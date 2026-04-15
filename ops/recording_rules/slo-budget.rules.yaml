@@ -1,0 +1,223 @@
+# Prometheus recording rules — SLO Error Budget Tracking
+#
+# These rules pre-compute error budget metrics so the Grafana dashboard
+# (ops/grafana/dashboards/slo-budget.json) can query them cheaply.
+#
+# Error budget math (availability SLO = 99.9%, budget = 0.001):
+#   burn_rate     = error_rate / 0.001  (1.0 = sustainable, 36 = fast-burn threshold)
+#   budget_remaining = 1 - (error_rate_30d / 0.001)   clamped to [0, 1]
+#
+# Release freeze threshold: any module with budget_remaining < 0.10 (10%).
+#
+# Modules: ap (8093), ar (8086), gl, production, inventory
+# SLO target: 99.9% availability → error budget = 0.001
+
+# ── Accounts Payable (AP) ─────────────────────────────────────────────────────
+groups:
+  - name: slo_error_budget_ap
+    interval: 1m
+    rules:
+      # Fraction of the 30-day availability error budget still remaining.
+      # Value 1.0 = full budget; 0.0 = exhausted; clamped at 0 (can't go negative).
+      - record: slo:error_budget_remaining:ratio
+        labels:
+          module: ap
+          slo: availability
+        expr: |
+          clamp_min(
+            1 - (
+              sum(rate(ap_http_requests_total{status=~"5.."}[30d]))
+              / sum(rate(ap_http_requests_total[30d]))
+            ) / 0.001,
+            0
+          )
+
+      # Burn rate relative to the sustainable rate (1h window).
+      # 1.0 = consuming budget at exactly the SLO pace.
+      # 36  = fast-burn threshold (5% budget in 1h).
+      - record: slo:burn_rate:1h
+        labels:
+          module: ap
+          slo: availability
+        expr: |
+          (
+            sum(rate(ap_http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(ap_http_requests_total[1h]))
+          ) / 0.001
+
+      # Burn rate relative to the sustainable rate (6h window).
+      # 12 = slow-burn threshold (10% budget in 6h).
+      - record: slo:burn_rate:6h
+        labels:
+          module: ap
+          slo: availability
+        expr: |
+          (
+            sum(rate(ap_http_requests_total{status=~"5.."}[6h]))
+            / sum(rate(ap_http_requests_total[6h]))
+          ) / 0.001
+
+# ── Accounts Receivable (AR) ──────────────────────────────────────────────────
+  - name: slo_error_budget_ar
+    interval: 1m
+    rules:
+      - record: slo:error_budget_remaining:ratio
+        labels:
+          module: ar
+          slo: availability
+        expr: |
+          clamp_min(
+            1 - (
+              sum(rate(ar_http_requests_total{status=~"5.."}[30d]))
+              / sum(rate(ar_http_requests_total[30d]))
+            ) / 0.001,
+            0
+          )
+
+      - record: slo:burn_rate:1h
+        labels:
+          module: ar
+          slo: availability
+        expr: |
+          (
+            sum(rate(ar_http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(ar_http_requests_total[1h]))
+          ) / 0.001
+
+      - record: slo:burn_rate:6h
+        labels:
+          module: ar
+          slo: availability
+        expr: |
+          (
+            sum(rate(ar_http_requests_total{status=~"5.."}[6h]))
+            / sum(rate(ar_http_requests_total[6h]))
+          ) / 0.001
+
+# ── General Ledger (GL) ───────────────────────────────────────────────────────
+  - name: slo_error_budget_gl
+    interval: 1m
+    rules:
+      - record: slo:error_budget_remaining:ratio
+        labels:
+          module: gl
+          slo: availability
+        expr: |
+          clamp_min(
+            1 - (
+              sum(rate(gl_http_requests_total{status=~"5.."}[30d]))
+              / sum(rate(gl_http_requests_total[30d]))
+            ) / 0.001,
+            0
+          )
+
+      - record: slo:burn_rate:1h
+        labels:
+          module: gl
+          slo: availability
+        expr: |
+          (
+            sum(rate(gl_http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(gl_http_requests_total[1h]))
+          ) / 0.001
+
+      - record: slo:burn_rate:6h
+        labels:
+          module: gl
+          slo: availability
+        expr: |
+          (
+            sum(rate(gl_http_requests_total{status=~"5.."}[6h]))
+            / sum(rate(gl_http_requests_total[6h]))
+          ) / 0.001
+
+# ── Production Execution ──────────────────────────────────────────────────────
+  - name: slo_error_budget_production
+    interval: 1m
+    rules:
+      - record: slo:error_budget_remaining:ratio
+        labels:
+          module: production
+          slo: availability
+        expr: |
+          clamp_min(
+            1 - (
+              sum(rate(production_http_requests_total{status=~"5.."}[30d]))
+              / sum(rate(production_http_requests_total[30d]))
+            ) / 0.001,
+            0
+          )
+
+      - record: slo:burn_rate:1h
+        labels:
+          module: production
+          slo: availability
+        expr: |
+          (
+            sum(rate(production_http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(production_http_requests_total[1h]))
+          ) / 0.001
+
+      - record: slo:burn_rate:6h
+        labels:
+          module: production
+          slo: availability
+        expr: |
+          (
+            sum(rate(production_http_requests_total{status=~"5.."}[6h]))
+            / sum(rate(production_http_requests_total[6h]))
+          ) / 0.001
+
+# ── Inventory ─────────────────────────────────────────────────────────────────
+  - name: slo_error_budget_inventory
+    interval: 1m
+    rules:
+      - record: slo:error_budget_remaining:ratio
+        labels:
+          module: inventory
+          slo: availability
+        expr: |
+          clamp_min(
+            1 - (
+              sum(rate(inventory_http_requests_total{status=~"5.."}[30d]))
+              / sum(rate(inventory_http_requests_total[30d]))
+            ) / 0.001,
+            0
+          )
+
+      - record: slo:burn_rate:1h
+        labels:
+          module: inventory
+          slo: availability
+        expr: |
+          (
+            sum(rate(inventory_http_requests_total{status=~"5.."}[1h]))
+            / sum(rate(inventory_http_requests_total[1h]))
+          ) / 0.001
+
+      - record: slo:burn_rate:6h
+        labels:
+          module: inventory
+          slo: availability
+        expr: |
+          (
+            sum(rate(inventory_http_requests_total{status=~"5.."}[6h]))
+            / sum(rate(inventory_http_requests_total[6h]))
+          ) / 0.001
+
+# ── Composite signals ─────────────────────────────────────────────────────────
+  - name: slo_error_budget_composite
+    interval: 1m
+    rules:
+      # Lowest availability budget remaining across all five modules.
+      # When this hits 0.10 the release freeze signal fires.
+      - record: slo:min_availability_error_budget_remaining:ratio
+        expr: |
+          min(slo:error_budget_remaining:ratio{slo="availability"})
+
+      # Binary release freeze signal: 1 when any module budget < 10%, else 0.
+      # Grafana dashboard: alert panel turns red when this == 1.
+      # Release process: do not ship until all modules are back above 10%.
+      - record: slo:release_freeze_recommended
+        expr: |
+          min(slo:error_budget_remaining:ratio{slo="availability"}) < bool 0.10

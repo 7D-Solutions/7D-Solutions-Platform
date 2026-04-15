@@ -470,10 +470,7 @@ async fn test_nats_completion_event_published() {
         received["tenant_id"].is_string(),
         "tenant_id must be a String"
     );
-    assert_eq!(
-        received["replay_safe"], true,
-        "replay_safe must be set"
-    );
+    assert_eq!(received["replay_safe"], true, "replay_safe must be set");
     assert!(
         received.get("source_version").is_some(),
         "source_version must be present"
@@ -533,10 +530,7 @@ async fn test_canonical_envelope_publish_deserialize_roundtrip() {
     assert_eq!(deserialized.schema_version, "auth.test.roundtrip/v1");
     assert_eq!(deserialized.source_version, "1.0.0");
     assert_eq!(deserialized.trace_id, Some("roundtrip-trace".to_string()));
-    assert_eq!(
-        deserialized.mutation_class,
-        Some("user-data".to_string())
-    );
+    assert_eq!(deserialized.mutation_class, Some("user-data".to_string()));
     assert!(deserialized.replay_safe);
     assert_eq!(deserialized.payload.user_id, user_id.to_string());
     assert_eq!(deserialized.payload.action, "password_reset");

@@ -29,10 +29,19 @@ pub fn validate_carrier_status(
 
     let allowed = matches!(
         (from, to),
-        (CarrierRequestStatus::Pending, CarrierRequestStatus::Submitted)
-            | (CarrierRequestStatus::Submitted, CarrierRequestStatus::Completed)
-            | (CarrierRequestStatus::Submitted, CarrierRequestStatus::Failed)
-            | (CarrierRequestStatus::Failed, CarrierRequestStatus::Submitted)
+        (
+            CarrierRequestStatus::Pending,
+            CarrierRequestStatus::Submitted
+        ) | (
+            CarrierRequestStatus::Submitted,
+            CarrierRequestStatus::Completed
+        ) | (
+            CarrierRequestStatus::Submitted,
+            CarrierRequestStatus::Failed
+        ) | (
+            CarrierRequestStatus::Failed,
+            CarrierRequestStatus::Submitted
+        )
     );
 
     if !allowed {

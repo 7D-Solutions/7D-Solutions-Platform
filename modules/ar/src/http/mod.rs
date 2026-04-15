@@ -1,6 +1,5 @@
 pub mod admin;
 pub mod aging;
-pub mod imports;
 pub mod allocation;
 pub mod charges;
 pub mod credit_notes;
@@ -9,6 +8,7 @@ pub mod disputes;
 pub mod dunning_routes;
 pub mod events;
 pub mod health;
+pub mod imports;
 pub mod invoice_mutations;
 pub mod invoice_queries;
 pub mod payment_method_mutations;
@@ -230,10 +230,7 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         // Customers — write
         .route("/api/ar/customers", post(customers::create_customer))
         .route("/api/ar/customers/{id}", put(customers::update_customer))
-        .route(
-            "/api/ar/import/customers",
-            post(imports::import_customers),
-        )
+        .route("/api/ar/import/customers", post(imports::import_customers))
         // Subscriptions — write
         .route(
             "/api/ar/subscriptions",
@@ -434,8 +431,7 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
         .route(
             "/api/ar/tax/reports/export",
             get(tax_reports::tax_report_export),
-        )
-        ;
+        );
 
     let reads = if enforce_permissions {
         reads_core

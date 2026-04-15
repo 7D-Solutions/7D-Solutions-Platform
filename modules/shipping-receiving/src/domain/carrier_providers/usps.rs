@@ -28,8 +28,7 @@ use super::{
     CarrierProvider, CarrierProviderError, LabelResult, RateQuote, TrackingEvent, TrackingResult,
 };
 
-const USPS_PRODUCTION_URL: &str =
-    "https://production.shippingapis.com/ShippingAPI.dll";
+const USPS_PRODUCTION_URL: &str = "https://production.shippingapis.com/ShippingAPI.dll";
 
 pub struct UspsCarrierProvider;
 
@@ -157,11 +156,7 @@ fn track_v2_xml(user_id: &str, tracking_number: &str) -> String {
 
 // ── HTTP dispatch ─────────────────────────────────────────────
 
-async fn usps_get(
-    base_url: &str,
-    api: &str,
-    xml: &str,
-) -> Result<String, CarrierProviderError> {
+async fn usps_get(base_url: &str, api: &str, xml: &str) -> Result<String, CarrierProviderError> {
     let client = Client::new();
     let resp = client
         .get(base_url)
@@ -193,8 +188,8 @@ fn check_for_usps_error(xml: &str) -> Result<(), CarrierProviderError> {
     if !xml.contains("<Error>") {
         return Ok(());
     }
-    let desc = xml_first_text(xml, "Description")
-        .unwrap_or_else(|| "Unknown USPS API error".to_string());
+    let desc =
+        xml_first_text(xml, "Description").unwrap_or_else(|| "Unknown USPS API error".to_string());
     let number = xml_first_text(xml, "Number").unwrap_or_default();
     Err(CarrierProviderError::ApiError(format!(
         "USPS error {number}: {desc}"
@@ -291,9 +286,7 @@ fn parse_rate_response(xml: &str) -> Result<Vec<RateQuote>, CarrierProviderError
             Ok(Event::Text(ref e)) if in_postage => {
                 let text = e
                     .unescape()
-                    .map_err(|err| {
-                        CarrierProviderError::ApiError(format!("XML decode: {err}"))
-                    })?
+                    .map_err(|err| CarrierProviderError::ApiError(format!("XML decode: {err}")))?
                     .into_owned();
                 match current_tag.as_str() {
                     "MailService" => service = strip_html_tags(&text),
@@ -348,15 +341,11 @@ fn parse_evs_response(xml: &str) -> Result<LabelResult, CarrierProviderError> {
     check_for_usps_error(xml)?;
 
     let tracking = xml_first_text(xml, "BarcodeNumber").ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "USPS eVS response missing BarcodeNumber".to_string(),
-        )
+        CarrierProviderError::ApiError("USPS eVS response missing BarcodeNumber".to_string())
     })?;
 
     let label_data = xml_first_text(xml, "LabelImage").ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "USPS eVS response missing LabelImage".to_string(),
-        )
+        CarrierProviderError::ApiError("USPS eVS response missing LabelImage".to_string())
     })?;
 
     Ok(LabelResult {
@@ -386,7 +375,12 @@ fn parse_track_block(block: &str) -> Option<TrackingEvent> {
     let location = if city.is_empty() && state.is_empty() {
         None
     } else {
-        Some(format!("{city}, {state}").trim_matches(',').trim().to_string())
+        Some(
+            format!("{city}, {state}")
+                .trim_matches(',')
+                .trim()
+                .to_string(),
+        )
     };
 
     Some(TrackingEvent {
@@ -634,8 +628,7 @@ mod tests {
             </TrackInfo>
         </TrackResponse>"#;
 
-        let result =
-            parse_track_response(xml, "9400110200882774868522").expect("parse failed");
+        let result = parse_track_response(xml, "9400110200882774868522").expect("parse failed");
         assert_eq!(result.tracking_number, "9400110200882774868522");
         assert_eq!(result.carrier_code, "usps");
         assert_eq!(result.status, "DELIVERED");

@@ -4,7 +4,9 @@
 /// 1. Payments module can consume ar.payment.collection.requested events
 /// 2. Payment processor processes payments via config-driven selection
 /// 3. payment.succeeded events are emitted to the outbox
-use payments_rs::{PaymentCollectionRequestedPayload, PaymentSucceededPayload, TestPaymentProcessor};
+use payments_rs::{
+    PaymentCollectionRequestedPayload, PaymentSucceededPayload, TestPaymentProcessor,
+};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -66,9 +68,13 @@ async fn test_payment_collection_handler() {
 
     // Handle the payment collection request
     let processor = TestPaymentProcessor::new();
-    let result =
-        payments_rs::handle_payment_collection_requested(&pool, &processor, request_payload.clone(), metadata)
-            .await;
+    let result = payments_rs::handle_payment_collection_requested(
+        &pool,
+        &processor,
+        request_payload.clone(),
+        metadata,
+    )
+    .await;
 
     assert!(result.is_ok(), "Handler should succeed: {:?}", result);
 

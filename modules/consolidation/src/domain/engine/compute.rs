@@ -10,8 +10,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    compute_input_hash, repo, ConsolidatedTbRow, ConsolidationResult, EngineError,
-    EntityHashEntry,
+    compute_input_hash, repo, ConsolidatedTbRow, ConsolidationResult, EngineError, EntityHashEntry,
 };
 use crate::domain::config::{self, CoaMapping, EliminationRule, FxPolicy, GroupEntity};
 use crate::integrations::gl::client::{GlClient, GlFxRateResponse};

@@ -3,7 +3,10 @@
 //! This endpoint intentionally shares the same implementation as the audited
 //! tombstone path. The public route name is clearer for compliance workflows.
 
-use axum::{extract::{Path, State}, Json};
+use axum::{
+    extract::{Path, State},
+    Json,
+};
 use std::sync::Arc;
 use uuid::Uuid;
 

@@ -10,17 +10,14 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
-        .consumer(
-            "ar.events.ar.invoice_opened",
-            |_ctx, env| async move {
-                tracing::info!(
-                    event_type = %env.event_type,
-                    tenant = %env.tenant_id,
-                    "vertical-proof consumed AR invoice_opened event"
-                );
-                Ok::<(), ConsumerError>(())
-            },
-        )
+        .consumer("ar.events.ar.invoice_opened", |_ctx, env| async move {
+            tracing::info!(
+                event_type = %env.event_type,
+                tenant = %env.tenant_id,
+                "vertical-proof consumed AR invoice_opened event"
+            );
+            Ok::<(), ConsumerError>(())
+        })
         .routes(|ctx| {
             let pool = ctx.pool().clone();
 

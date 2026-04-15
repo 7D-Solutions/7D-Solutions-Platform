@@ -3,7 +3,7 @@ pub mod state_machine;
 pub mod types;
 
 pub use service::{
-    DispositionRequest, RmaError, RmaItemInput, RmaReceipt, RmaReceiptItem, RmaService,
-    ReceiveRmaRequest,
+    DispositionRequest, ReceiveRmaRequest, RmaError, RmaItemInput, RmaReceipt, RmaReceiptItem,
+    RmaService,
 };
 pub use types::DispositionStatus;

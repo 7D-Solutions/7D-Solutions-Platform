@@ -83,10 +83,7 @@ mod tests {
             .await
             .expect("list_user_invitations failed");
 
-        eprintln!(
-            "[scenario-ui1] listed {} invitations",
-            list.items.len()
-        );
+        eprintln!("[scenario-ui1] listed {} invitations", list.items.len());
         assert!(
             list.items.iter().any(|i| i.id == created.id),
             "created invitation should appear in list"
@@ -212,9 +209,9 @@ mod tests {
                     "impersonation should return token or user"
                 );
             }
-            Err(ar_rs::tilled::error::TilledError::ApiError {
-                status_code, ..
-            }) if status_code == 403 || status_code == 401 => {
+            Err(ar_rs::tilled::error::TilledError::ApiError { status_code, .. })
+                if status_code == 403 || status_code == 401 =>
+            {
                 eprintln!(
                     "[scenario-ui2] impersonate requires higher scope ({}), method verified",
                     status_code
@@ -273,9 +270,9 @@ mod tests {
             Ok(()) => {
                 eprintln!("[scenario-ui3] reset MFA for user: {}", user.id);
             }
-            Err(ar_rs::tilled::error::TilledError::ApiError {
-                status_code, ..
-            }) if status_code == 403 || status_code == 401 || status_code == 404 => {
+            Err(ar_rs::tilled::error::TilledError::ApiError { status_code, .. })
+                if status_code == 403 || status_code == 401 || status_code == 404 =>
+            {
                 eprintln!(
                     "[scenario-ui3] reset-mfa returned {} — endpoint verified",
                     status_code
@@ -289,9 +286,9 @@ mod tests {
             Ok(()) => {
                 eprintln!("[scenario-ui3] unlocked user: {}", user.id);
             }
-            Err(ar_rs::tilled::error::TilledError::ApiError {
-                status_code, ..
-            }) if status_code == 403 || status_code == 401 || status_code == 404 => {
+            Err(ar_rs::tilled::error::TilledError::ApiError { status_code, .. })
+                if status_code == 403 || status_code == 401 || status_code == 404 =>
+            {
                 eprintln!(
                     "[scenario-ui3] unlock returned {} — endpoint verified",
                     status_code

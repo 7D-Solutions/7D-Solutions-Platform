@@ -73,7 +73,10 @@ async fn ups_carrier_oauth_token_acquisition_succeeds() {
         !rates2.is_empty(),
         "second call (cached token) returned no rates"
     );
-    println!("UPS token cache verified — second call returned {} rate(s)", rates2.len());
+    println!(
+        "UPS token cache verified — second call returned {} rate(s)",
+        rates2.len()
+    );
 }
 
 // ── 2. get_rates: domestic package ────────────────────────────
@@ -109,7 +112,10 @@ async fn ups_carrier_get_rates_returns_quotes_for_domestic_package() {
 
     for rate in &rates {
         assert_eq!(rate.carrier_code, "ups");
-        assert!(!rate.service_level.is_empty(), "service_level must be non-empty");
+        assert!(
+            !rate.service_level.is_empty(),
+            "service_level must be non-empty"
+        );
         assert!(rate.total_charge_minor > 0, "charge must be positive");
         assert_eq!(rate.currency, "USD");
     }
@@ -249,6 +255,9 @@ async fn ups_carrier_create_label_and_track_returns_valid_status() {
 #[test]
 fn ups_carrier_registry_resolves_ups_provider() {
     let provider = get_provider("ups");
-    assert!(provider.is_some(), "ups must be registered in get_provider()");
+    assert!(
+        provider.is_some(),
+        "ups must be registered in get_provider()"
+    );
     assert_eq!(provider.expect("ups provider").carrier_code(), "ups");
 }

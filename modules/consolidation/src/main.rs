@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use consolidation::{http, metrics, AppState};
 use consolidation::integrations::gl::client::GlClient;
+use consolidation::{http, metrics, AppState};
 use platform_sdk::ModuleBuilder;
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");

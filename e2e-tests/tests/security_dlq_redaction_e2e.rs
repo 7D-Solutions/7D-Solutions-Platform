@@ -120,7 +120,9 @@ const SAFE_ORDER_ID: &str = "ORD-999";
 async fn dlq_payload_redacted_no_raw_secrets() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tag = Uuid::new_v4().simple().to_string();
@@ -133,19 +135,15 @@ async fn dlq_payload_redacted_no_raw_secrets() {
     let calls_clone = handler_calls.clone();
 
     let registry = RegistryBuilder::new()
-        .register(
-            "test.sensitive_event",
-            "1.0.0",
-            move |_ctx, _payload| {
-                let c = calls_clone.clone();
-                async move {
-                    c.fetch_add(1, Ordering::Relaxed);
-                    Err(HandlerError::Transient(
-                        "intentional failure for DLQ redaction test".to_string(),
-                    ))
-                }
-            },
-        )
+        .register("test.sensitive_event", "1.0.0", move |_ctx, _payload| {
+            let c = calls_clone.clone();
+            async move {
+                c.fetch_add(1, Ordering::Relaxed);
+                Err(HandlerError::Transient(
+                    "intentional failure for DLQ redaction test".to_string(),
+                ))
+            }
+        })
         .build();
 
     let router = EventRouter::new(registry);
@@ -256,18 +254,9 @@ async fn dlq_payload_redacted_no_raw_secrets() {
     // The stored payload is the full serialized envelope, so sensitive keys
     // are inside the "payload" sub-object.
     let inner = &stored_payload["payload"];
-    assert_eq!(
-        inner["password"], "[REDACTED]",
-        "password must be redacted"
-    );
-    assert_eq!(
-        inner["api_key"], "[REDACTED]",
-        "api_key must be redacted"
-    );
-    assert_eq!(
-        inner["secret"], "[REDACTED]",
-        "secret must be redacted"
-    );
+    assert_eq!(inner["password"], "[REDACTED]", "password must be redacted");
+    assert_eq!(inner["api_key"], "[REDACTED]", "api_key must be redacted");
+    assert_eq!(inner["secret"], "[REDACTED]", "secret must be redacted");
     assert_eq!(
         inner["credit_card"], "[REDACTED]",
         "credit_card must be redacted"

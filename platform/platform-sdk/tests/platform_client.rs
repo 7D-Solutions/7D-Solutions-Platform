@@ -45,7 +45,12 @@ async fn injects_platform_headers() {
             let h = req.headers();
             let tenant = h.get("x-tenant-id").unwrap().to_str().unwrap().to_string();
             let app = h.get("x-app-id").unwrap().to_str().unwrap().to_string();
-            let corr = h.get("x-correlation-id").unwrap().to_str().unwrap().to_string();
+            let corr = h
+                .get("x-correlation-id")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
             // correlation-id must be a valid UUID
             Uuid::parse_str(&corr).unwrap();
             format!("{tenant},{app}")
@@ -64,7 +69,13 @@ async fn injects_bearer_token() {
     let app = Router::new().route(
         "/api/auth",
         get(|req: Request| async move {
-            let auth = req.headers().get("authorization").unwrap().to_str().unwrap().to_string();
+            let auth = req
+                .headers()
+                .get("authorization")
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
             auth
         }),
     );
@@ -125,7 +136,10 @@ async fn retries_on_503() {
 
     let base = start_server(app).await;
     let client = PlatformClient::new(base);
-    let resp = client.get("/api/unavailable", &test_claims()).await.unwrap();
+    let resp = client
+        .get("/api/unavailable", &test_claims())
+        .await
+        .unwrap();
     assert_eq!(resp.status(), 200);
     assert_eq!(call_count.load(Ordering::SeqCst), 2);
 }
@@ -165,7 +179,10 @@ async fn post_sends_json_body() {
     let base = start_server(app).await;
     let client = PlatformClient::new(base);
     let payload = serde_json::json!({"name": "Acme Corp"});
-    let resp = client.post("/api/create", &payload, &test_claims()).await.unwrap();
+    let resp = client
+        .post("/api/create", &payload, &test_claims())
+        .await
+        .unwrap();
     let body = resp.text().await.unwrap();
     assert_eq!(body, "Acme Corp");
 }
@@ -192,7 +209,10 @@ async fn retries_on_connection_refused() {
     // Must be a connect error (connection refused).
     assert!(err.is_connect(), "expected connect error, got: {err}");
     // Elapsed time proves retries happened (3 retries × 100ms minimum backoff).
-    assert!(elapsed >= Duration::from_millis(300), "expected retries, elapsed: {elapsed:?}");
+    assert!(
+        elapsed >= Duration::from_millis(300),
+        "expected retries, elapsed: {elapsed:?}"
+    );
 }
 
 #[tokio::test]
@@ -212,7 +232,10 @@ async fn no_retry_on_dns_failure() {
     // Must be a connect error from DNS failure.
     assert!(err.is_connect(), "expected connect error, got: {err}");
     // DNS failure should NOT retry — elapsed should be well under retry backoff sum.
-    assert!(elapsed < Duration::from_secs(3), "DNS failure retried unexpectedly, elapsed: {elapsed:?}");
+    assert!(
+        elapsed < Duration::from_secs(3),
+        "DNS failure retried unexpectedly, elapsed: {elapsed:?}"
+    );
 }
 
 #[tokio::test]

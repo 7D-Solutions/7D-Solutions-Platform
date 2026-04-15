@@ -109,7 +109,12 @@ async fn test_http_validate_close_success() {
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
@@ -162,7 +167,12 @@ async fn test_http_validate_close_already_closed() {
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 200 OK (validation always succeeds, but can_close=false)
     assert_eq!(response.status(), StatusCode::OK);
@@ -178,7 +188,9 @@ async fn test_http_validate_close_already_closed() {
         .is_empty());
 
     // Verify has PERIOD_ALREADY_CLOSED error
-    let issues = json["validation_report"]["issues"].as_array().expect("issues should be array");
+    let issues = json["validation_report"]["issues"]
+        .as_array()
+        .expect("issues should be array");
     let has_already_closed = issues
         .iter()
         .any(|issue| issue["code"] == "PERIOD_ALREADY_CLOSED");
@@ -218,7 +230,12 @@ async fn test_http_close_period_success() {
         "close_reason": "HTTP E2E test close"
     });
 
-    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
@@ -237,7 +254,13 @@ async fn test_http_close_period_success() {
     assert_eq!(close_status["closed_by"], "http_test_user");
     assert_eq!(close_status["close_reason"], "HTTP E2E test close");
     assert!(close_status["close_hash"].is_string());
-    assert_eq!(close_status["close_hash"].as_str().expect("hash is string").len(), 64); // SHA-256 hex
+    assert_eq!(
+        close_status["close_hash"]
+            .as_str()
+            .expect("hash is string")
+            .len(),
+        64
+    ); // SHA-256 hex
 
     // Verify period is actually closed in database
     let closed_at = sqlx::query_scalar::<_, Option<chrono::DateTime<chrono::Utc>>>(
@@ -280,13 +303,20 @@ async fn test_http_close_period_idempotent() {
     });
 
     // First close
-    let response1 = client.post(&url).json(&body).send().await.expect("Failed to make request");
+    let response1 = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     assert_eq!(response1.status(), StatusCode::OK);
     let json1: serde_json::Value = response1.json().await.expect("Failed to parse JSON");
     assert_eq!(json1["success"], true);
 
-    let hash1 = json1["close_status"]["close_hash"].as_str().expect("hash is string");
+    let hash1 = json1["close_status"]["close_hash"]
+        .as_str()
+        .expect("hash is string");
 
     // Second close (different user, different reason - should be ignored)
     let body2 = json!({
@@ -295,13 +325,20 @@ async fn test_http_close_period_idempotent() {
         "close_reason": "Second close"
     });
 
-    let response2 = client.post(&url).json(&body2).send().await.expect("Failed to make request");
+    let response2 = client
+        .post(&url)
+        .json(&body2)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     assert_eq!(response2.status(), StatusCode::OK);
     let json2: serde_json::Value = response2.json().await.expect("Failed to parse JSON");
     assert_eq!(json2["success"], true);
 
-    let hash2 = json2["close_status"]["close_hash"].as_str().expect("hash is string");
+    let hash2 = json2["close_status"]["close_hash"]
+        .as_str()
+        .expect("hash is string");
 
     // Verify idempotency
     assert_eq!(hash1, hash2);
@@ -334,7 +371,10 @@ async fn test_http_close_period_validation_failure() {
     // Create unbalanced journal entry
     let entry_id = Uuid::new_v4();
     let entry_date = NaiveDate::from_ymd_opt(2025, 5, 15).expect("valid date");
-    let posted_at = entry_date.and_hms_opt(12, 0, 0).expect("valid time").and_utc();
+    let posted_at = entry_date
+        .and_hms_opt(12, 0, 0)
+        .expect("valid time")
+        .and_utc();
 
     sqlx::query(
         r#"
@@ -369,7 +409,12 @@ async fn test_http_close_period_validation_failure() {
         "closed_by": "admin"
     });
 
-    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
+    let response = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 200 OK (but success=false)
     assert_eq!(response.status(), StatusCode::OK);
@@ -383,7 +428,9 @@ async fn test_http_close_period_validation_failure() {
     assert!(json["validation_report"].is_object());
 
     // Verify has UNBALANCED_ENTRIES error
-    let issues = json["validation_report"]["issues"].as_array().expect("issues should be array");
+    let issues = json["validation_report"]["issues"]
+        .as_array()
+        .expect("issues should be array");
     let has_unbalanced = issues
         .iter()
         .any(|issue| issue["code"] == "UNBALANCED_ENTRIES");
@@ -432,7 +479,11 @@ async fn test_http_close_status_open() {
         BASE_URL, period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.expect("Failed to make request");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
@@ -487,7 +538,9 @@ async fn test_http_close_status_closed_with_hash() {
     assert_eq!(close_response.status(), StatusCode::OK);
 
     let close_json: serde_json::Value = close_response.json().await.expect("Failed to parse JSON");
-    let expected_hash = close_json["close_status"]["close_hash"].as_str().expect("hash is string");
+    let expected_hash = close_json["close_status"]["close_hash"]
+        .as_str()
+        .expect("hash is string");
 
     // Now query close-status
     let status_url = format!(
@@ -495,12 +548,17 @@ async fn test_http_close_status_closed_with_hash() {
         BASE_URL, period_id, tenant_id
     );
 
-    let status_response = client.get(&status_url).send().await.expect("Failed to make request");
+    let status_response = client
+        .get(&status_url)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     assert_eq!(status_response.status(), StatusCode::OK);
 
     // Parse status response
-    let status_json: serde_json::Value = status_response.json().await.expect("Failed to parse JSON");
+    let status_json: serde_json::Value =
+        status_response.json().await.expect("Failed to parse JSON");
 
     // Verify CLOSED state with hash
     assert_eq!(status_json["close_status"]["state"], "CLOSED");
@@ -526,7 +584,11 @@ async fn test_http_close_status_not_found() {
         BASE_URL, fake_period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.expect("Failed to make request");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     // Should return 404 NOT_FOUND
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -534,7 +596,10 @@ async fn test_http_close_status_not_found() {
     // Parse error response
     let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
     assert!(json["error"].is_string());
-    assert!(json["error"].as_str().expect("error is string").contains("not found"));
+    assert!(json["error"]
+        .as_str()
+        .expect("error is string")
+        .contains("not found"));
 }
 
 // ============================================================
@@ -611,7 +676,11 @@ async fn test_http_period_close_performance_guard() {
         BASE_URL, period_id, tenant_id
     );
 
-    client.get(&status_url).send().await.expect("Failed to make request");
+    client
+        .get(&status_url)
+        .send()
+        .await
+        .expect("Failed to make request");
 
     let status_duration = start.elapsed();
     assert!(

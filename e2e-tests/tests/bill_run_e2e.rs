@@ -304,11 +304,7 @@ async fn test_bill_run_to_notification_happy_path() {
         Arc::new(TestPaymentProcessor::new()),
     )
     .await;
-    ar_rs::consumer_tasks::start_payment_succeeded_consumer(
-        bus.clone(),
-        ar_pool.clone(),
-    )
-    .await;
+    ar_rs::consumer_tasks::start_payment_succeeded_consumer(bus.clone(), ar_pool.clone()).await;
     notifications_rs::consumer_tasks::start_payment_succeeded_consumer(
         bus.clone(),
         notifications_pool.clone(),
@@ -439,18 +435,16 @@ async fn test_bill_run_to_notification_happy_path() {
             "correlation_id": &bill_run_id,
             "payload": &payment_payload,
         });
-        let envelope_bytes = serde_json::to_vec(&nats_envelope)
-            .expect("serialize payment.succeeded envelope");
+        let envelope_bytes =
+            serde_json::to_vec(&nats_envelope).expect("serialize payment.succeeded envelope");
         bus.publish("payments.events.payment.succeeded", envelope_bytes)
             .await
             .expect("publish payment.succeeded to NATS");
-        sqlx::query(
-            "UPDATE payments_events_outbox SET published_at = NOW() WHERE event_id = $1",
-        )
-        .bind(payment_succeeded_event_id)
-        .execute(&payments_pool)
-        .await
-        .ok();
+        sqlx::query("UPDATE payments_events_outbox SET published_at = NOW() WHERE event_id = $1")
+            .bind(payment_succeeded_event_id)
+            .execute(&payments_pool)
+            .await
+            .ok();
         tracing::info!(
             event_id = %payment_succeeded_event_id,
             "Published payment.succeeded to NATS"

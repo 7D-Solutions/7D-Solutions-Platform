@@ -17,8 +17,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::{
-    build_item_change_recorded_envelope, ItemChangeRecordedPayload,
-    EVENT_TYPE_ITEM_CHANGE_RECORDED,
+    build_item_change_recorded_envelope, ItemChangeRecordedPayload, EVENT_TYPE_ITEM_CHANGE_RECORDED,
 };
 
 // ============================================================================
@@ -98,10 +97,7 @@ fn validate_request(req: &RecordChangeRequest) -> Result<(), ChangeHistoryError>
 
     if !matches!(
         req.change_type.as_str(),
-        "revision_created"
-            | "revision_activated"
-            | "policy_updated"
-            | "classification_assigned"
+        "revision_created" | "revision_activated" | "policy_updated" | "classification_assigned"
     ) {
         return Err(ChangeHistoryError::Validation(format!(
             "change_type must be one of: revision_created, revision_activated, policy_updated, classification_assigned; got '{}'",

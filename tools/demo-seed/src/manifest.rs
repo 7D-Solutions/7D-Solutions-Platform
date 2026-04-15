@@ -221,40 +221,83 @@ impl ManifestBuilder {
             },
         });
 
-        let numbering = self.numbering_policies.map(|p| ManifestNumbering { policies: p });
+        let numbering = self
+            .numbering_policies
+            .map(|p| ManifestNumbering { policies: p });
 
         let gl = self.gl.map(|g| ManifestGl {
-            accounts: g.accounts.into_iter().map(|(code, name)| ManifestGlAccount { code, name }).collect(),
-            fx_rates: g.fx_rates.into_iter().map(|(rate_id, pair)| ManifestFxRate { rate_id, pair }).collect(),
+            accounts: g
+                .accounts
+                .into_iter()
+                .map(|(code, name)| ManifestGlAccount { code, name })
+                .collect(),
+            fx_rates: g
+                .fx_rates
+                .into_iter()
+                .map(|(rate_id, pair)| ManifestFxRate { rate_id, pair })
+                .collect(),
         });
 
         let parties = self.parties.map(|p| ManifestParties {
-            customers: p.customers.into_iter().map(|(id, legal_name)| ManifestParty { id, legal_name }).collect(),
-            suppliers: p.suppliers.into_iter().map(|(id, legal_name)| ManifestParty { id, legal_name }).collect(),
+            customers: p
+                .customers
+                .into_iter()
+                .map(|(id, legal_name)| ManifestParty { id, legal_name })
+                .collect(),
+            suppliers: p
+                .suppliers
+                .into_iter()
+                .map(|(id, legal_name)| ManifestParty { id, legal_name })
+                .collect(),
         });
 
         let inventory = self.inventory.map(|inv| ManifestInventory {
             warehouse_id: inv.warehouse_id,
-            items: inv.items.into_iter().map(|(id, sku, make_buy)| ManifestItem { id, sku, make_buy }).collect(),
-            locations: inv.locations.into_iter().map(|(id, code)| ManifestLocation { id, code }).collect(),
-            uoms: inv.uoms.into_iter().map(|(id, code)| ManifestUom { id, code }).collect(),
+            items: inv
+                .items
+                .into_iter()
+                .map(|(id, sku, make_buy)| ManifestItem { id, sku, make_buy })
+                .collect(),
+            locations: inv
+                .locations
+                .into_iter()
+                .map(|(id, code)| ManifestLocation { id, code })
+                .collect(),
+            uoms: inv
+                .uoms
+                .into_iter()
+                .map(|(id, code)| ManifestUom { id, code })
+                .collect(),
         });
 
         let bom = self.bom.map(|b| {
-            let boms = b.boms.iter().zip(b.revisions.iter()).map(|((bom_id, part_id, _sku), (rev_id, _bom_id))| {
-                ManifestBomEntry {
-                    id: *bom_id,
-                    part_id: *part_id,
-                    revision_id: *rev_id,
-                    revision_label: "A".to_string(),
-                }
-            }).collect();
+            let boms = b
+                .boms
+                .iter()
+                .zip(b.revisions.iter())
+                .map(
+                    |((bom_id, part_id, _sku), (rev_id, _bom_id))| ManifestBomEntry {
+                        id: *bom_id,
+                        part_id: *part_id,
+                        revision_id: *rev_id,
+                        revision_label: "A".to_string(),
+                    },
+                )
+                .collect();
             ManifestBom { boms }
         });
 
         let production = self.production.map(|p| ManifestProduction {
-            workcenters: p.workcenter_list.into_iter().map(|(id, code)| ManifestWorkcenter { id, code }).collect(),
-            routings: p.routing_list.into_iter().map(|(id, item_id)| ManifestRouting { id, item_id }).collect(),
+            workcenters: p
+                .workcenter_list
+                .into_iter()
+                .map(|(id, code)| ManifestWorkcenter { id, code })
+                .collect(),
+            routings: p
+                .routing_list
+                .into_iter()
+                .map(|(id, item_id)| ManifestRouting { id, item_id })
+                .collect(),
         });
 
         Manifest {

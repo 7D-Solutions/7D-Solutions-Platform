@@ -28,15 +28,20 @@ async fn connect() -> PgPool {
 #[tokio::test]
 #[serial]
 async fn last_three_migrations_are_safe() {
-    let migrations = mst::check_last_n_migrations(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"),
-        3,
-    );
+    let migrations =
+        mst::check_last_n_migrations(concat!(env!("CARGO_MANIFEST_DIR"), "/db/migrations"), 3);
     for m in &migrations {
         if m.is_forward_only {
-            println!("[FORWARD-ONLY] {}: {}", m.filename, m.forward_only_reason.as_deref().unwrap_or(""));
+            println!(
+                "[FORWARD-ONLY] {}: {}",
+                m.filename,
+                m.forward_only_reason.as_deref().unwrap_or("")
+            );
         } else {
-            println!("[REVERSIBLE]   {} — proved by forward_fix_rollback_and_reapply", m.filename);
+            println!(
+                "[REVERSIBLE]   {} — proved by forward_fix_rollback_and_reapply",
+                m.filename
+            );
         }
     }
 }
@@ -114,11 +119,19 @@ async fn forward_fix_rollback_and_reapply() {
         .expect("Re-apply after forward-fix rollback must succeed");
 
     let count = mst::count_applied_migrations(&pool).await;
-    assert!(count >= 3, "All shipping-receiving migrations must re-apply; got {count}");
+    assert!(
+        count >= 3,
+        "All shipping-receiving migrations must re-apply; got {count}"
+    );
 
     mst::assert_tables_exist(
         &pool,
-        &["shipments", "shipment_lines", "sr_events_outbox", "sr_processed_events"],
+        &[
+            "shipments",
+            "shipment_lines",
+            "sr_events_outbox",
+            "sr_processed_events",
+        ],
     )
     .await;
 }

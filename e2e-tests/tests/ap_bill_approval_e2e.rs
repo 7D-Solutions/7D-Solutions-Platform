@@ -67,7 +67,11 @@ const TENANT_ID: &str = "00000000-0000-4000-a000-000000000001";
 
 fn make_ap_router(pool: PgPool) -> Router {
     let metrics = Arc::new(ApMetrics::new().expect("AP metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        gl_pool: None,
+    });
 
     let ap_mutations = Router::new()
         .route(
@@ -292,7 +296,9 @@ async fn test_approve_bill_happy_path() {
         StatusCode::OK,
         "GET /api/ap/bills must return 200"
     );
-    let bills = list_resp["data"].as_array().expect("list response must have data array");
+    let bills = list_resp["data"]
+        .as_array()
+        .expect("list response must have data array");
     let approved_in_list = bills.iter().any(|b| {
         b["bill_id"].as_str() == Some(&bill_id.to_string())
             && b["status"].as_str() == Some("approved")
@@ -400,7 +406,9 @@ async fn test_reject_bill_void_path() {
         StatusCode::OK,
         "GET /api/ap/bills must return 200"
     );
-    let bills = list_resp["data"].as_array().expect("list response must have data array");
+    let bills = list_resp["data"]
+        .as_array()
+        .expect("list response must have data array");
     let voided_in_list = bills
         .iter()
         .any(|b| b["bill_id"].as_str() == Some(&bill_id.to_string()));

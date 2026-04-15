@@ -211,7 +211,9 @@ async fn cross_tenant_customer_list_is_empty() {
     let json = body_json(resp).await;
     let items = json["data"].as_array().expect("data array");
     assert!(
-        !items.iter().any(|v| v["name"] == "MW-AR-CrossTenantCustomer"),
+        !items
+            .iter()
+            .any(|v| v["name"] == "MW-AR-CrossTenantCustomer"),
         "Tenant B must not see Tenant A's customers through the HTTP API"
     );
 }

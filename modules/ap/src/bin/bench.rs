@@ -177,12 +177,7 @@ async fn bench_create_vendor(pool: &PgPool, tenant_id: &str, bench: &mut BenchRe
     vendor.vendor_id
 }
 
-async fn bench_create_po(
-    pool: &PgPool,
-    tenant_id: &str,
-    vendor_id: Uuid,
-    bench: &mut BenchResult,
-) {
+async fn bench_create_po(pool: &PgPool, tenant_id: &str, vendor_id: Uuid, bench: &mut BenchResult) {
     let req = CreatePoRequest {
         vendor_id,
         currency: "USD".to_string(),

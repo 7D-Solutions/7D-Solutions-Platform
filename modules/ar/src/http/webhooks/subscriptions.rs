@@ -62,23 +62,18 @@ pub(super) async fn process_subscription_event(
     Ok(())
 }
 
-fn parse_period_timestamp(
-    data: &serde_json::Value,
-    field: &str,
-) -> Option<chrono::NaiveDateTime> {
-    data.get(field)
-        .and_then(|v| v.as_str())
-        .and_then(|s| {
-            chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.fZ")
-                .ok()
-                .or_else(|| {
-                    s.parse::<i64>().ok().map(|ts| {
-                        chrono::DateTime::from_timestamp(ts, 0)
-                            .unwrap_or_default()
-                            .naive_utc()
-                    })
+fn parse_period_timestamp(data: &serde_json::Value, field: &str) -> Option<chrono::NaiveDateTime> {
+    data.get(field).and_then(|v| v.as_str()).and_then(|s| {
+        chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.fZ")
+            .ok()
+            .or_else(|| {
+                s.parse::<i64>().ok().map(|ts| {
+                    chrono::DateTime::from_timestamp(ts, 0)
+                        .unwrap_or_default()
+                        .naive_utc()
                 })
-        })
+            })
+    })
 }
 
 async fn handle_created(

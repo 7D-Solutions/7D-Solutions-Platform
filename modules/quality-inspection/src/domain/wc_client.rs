@@ -23,9 +23,8 @@ pub async fn verify_inspector_authorized(
         inspector_id, ARTIFACT_CODE, now
     );
 
-    let tenant_uuid = uuid::Uuid::parse_str(tenant_id).map_err(|e| {
-        QiError::Validation(format!("Invalid tenant_id '{}': {}", tenant_id, e))
-    })?;
+    let tenant_uuid = uuid::Uuid::parse_str(tenant_id)
+        .map_err(|e| QiError::Validation(format!("Invalid tenant_id '{}': {}", tenant_id, e)))?;
     let claims = PlatformClient::service_claims(tenant_uuid);
 
     let resp = wc_client.get(&path, &claims).await.map_err(|e| {

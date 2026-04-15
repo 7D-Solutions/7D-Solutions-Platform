@@ -215,15 +215,27 @@ mod tests {
     #[test]
     fn parse_period_valid() {
         let (start, end) = parse_period("2026-02").expect("valid period");
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid date")
+        );
     }
 
     #[test]
     fn parse_period_december_wraps_year() {
         let (start, end) = parse_period("2026-12").expect("valid period");
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2027, 1, 1).expect("valid date")
+        );
     }
 
     #[test]

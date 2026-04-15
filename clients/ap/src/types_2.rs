@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Request to run the match engine for a vendor bill against a PO.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,7 +144,7 @@ pub struct VendorBucket {
 }
 
 /// Request body to void a vendor bill.
-/// 
+///
 /// Voiding is append-only: the void_reason is persisted in the outbox event
 /// and serves as the immutable audit record. Void is allowed from any active
 /// status (open, matched, approved, partially_paid).
@@ -155,4 +155,3 @@ pub struct VoidBillRequest {
     /// Actor performing the void
     pub voided_by: String,
 }
-

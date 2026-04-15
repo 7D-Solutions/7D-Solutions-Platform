@@ -81,8 +81,11 @@ impl ParsedSpec {
                     continue;
                 }
                 // Skip well-known types we don't generate
-                if name == "ApiError" || name == "FieldError" || name == "PaginationMeta"
-                    || name == "BTreeMap" || name == "HashMap"
+                if name == "ApiError"
+                    || name == "FieldError"
+                    || name == "PaginationMeta"
+                    || name == "BTreeMap"
+                    || name == "HashMap"
                 {
                     continue;
                 }
@@ -101,7 +104,9 @@ impl ParsedSpec {
             for (path, methods) in paths {
                 if let Some(obj) = methods.as_object() {
                     for (method_str, detail) in obj {
-                        if let Some(ep) = parse_endpoint(method_str, path, detail, global_has_bearer) {
+                        if let Some(ep) =
+                            parse_endpoint(method_str, path, detail, global_has_bearer)
+                        {
                             endpoints.push(ep);
                         }
                     }
@@ -133,7 +138,13 @@ fn title_to_crate_name(title: &str) -> String {
         .to_lowercase()
         .replace("service", "")
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { ' ' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == ' ' || c == '-' {
+                c
+            } else {
+                ' '
+            }
+        })
         .collect::<String>()
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -196,9 +207,7 @@ fn parse_type_def(name: &str, schema: &Value) -> Option<TypeDef> {
                             name: fname.clone(),
                             rust_type: rtype,
                             required: true, // set below
-                            doc: fschema["description"]
-                                .as_str()
-                                .map(|s| s.to_string()),
+                            doc: fschema["description"].as_str().map(|s| s.to_string()),
                         },
                     );
                 }
@@ -348,7 +357,10 @@ fn camel_to_snake(s: &str) -> String {
 }
 
 fn ref_to_type(r: &str) -> String {
-    r.rsplit('/').next().unwrap_or("serde_json::Value").to_string()
+    r.rsplit('/')
+        .next()
+        .unwrap_or("serde_json::Value")
+        .to_string()
 }
 
 fn resolve_ref_type(r: &str) -> String {
@@ -384,7 +396,12 @@ fn has_bearer_security(security: &Value) -> bool {
     }
 }
 
-fn parse_endpoint(method_str: &str, path: &str, detail: &Value, global_has_bearer: bool) -> Option<Endpoint> {
+fn parse_endpoint(
+    method_str: &str,
+    path: &str,
+    detail: &Value,
+    global_has_bearer: bool,
+) -> Option<Endpoint> {
     let method = match method_str {
         "get" => HttpMethod::Get,
         "post" => HttpMethod::Post,

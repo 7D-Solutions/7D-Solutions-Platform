@@ -254,7 +254,11 @@ mod tests {
             259900
         );
 
-        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").expect("valid date");
+        let cogs = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "cogs")
+            .expect("valid date");
         assert_eq!(
             cogs.total_by_currency.get("USD").copied().unwrap_or(0),
             50000
@@ -334,7 +338,11 @@ mod tests {
             10000
         );
 
-        let cogs = stmt.sections.iter().find(|s| s.section == "cogs").expect("valid date");
+        let cogs = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "cogs")
+            .expect("valid date");
         assert!(cogs.accounts.is_empty(), "no 5xxx accounts posted");
 
         cleanup(&pool).await;

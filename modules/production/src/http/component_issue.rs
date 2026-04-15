@@ -11,12 +11,12 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::component_issue::{request_component_issue, RequestComponentIssueRequest},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 /// POST /api/production/work-orders/:id/component-issues
 #[utoipa::path(

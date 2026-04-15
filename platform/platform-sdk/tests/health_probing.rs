@@ -316,7 +316,11 @@ async fn ready_probes_real_nats_when_available() {
     let resp = reqwest::get(format!("{}/api/ready", base_url))
         .await
         .expect("GET /api/ready");
-    assert_eq!(resp.status(), 200, "/api/ready should be 200 with real NATS");
+    assert_eq!(
+        resp.status(),
+        200,
+        "/api/ready should be 200 with real NATS"
+    );
 
     let body: serde_json::Value = resp.json().await.expect("parse JSON");
     assert_eq!(body["status"], "ready");

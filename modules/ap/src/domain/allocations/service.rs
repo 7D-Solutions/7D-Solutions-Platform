@@ -380,13 +380,14 @@ mod tests {
         assert_eq!(first.id, second.id);
 
         // Only one allocation row should exist
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2")
-                .bind(bill_id)
-                .bind(TEST_TENANT)
-                .fetch_one(&db)
-                .await
-                .expect("count");
+        let (count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2",
+        )
+        .bind(bill_id)
+        .bind(TEST_TENANT)
+        .fetch_one(&db)
+        .await
+        .expect("count");
         assert_eq!(count, 1, "idempotent: only one allocation row");
 
         cleanup_allocations(&db).await;

@@ -24,8 +24,8 @@ use crate::domain::forms::{
     CreateTemplateRequest, FormTemplate, ListTemplatesQuery, TemplateRepo, UpdateTemplateRequest,
 };
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct ListTemplatesParams {
@@ -49,8 +49,7 @@ pub async fn create_template(
     ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateTemplateRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
     let tmpl = TemplateRepo::create(&pool, &req)
         .await
@@ -74,8 +73,7 @@ pub async fn list_templates(
     ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ListTemplatesParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(50).clamp(1, 100);
     let q = ListTemplatesQuery {
@@ -106,8 +104,7 @@ pub async fn get_template(
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<FormTemplate>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let tmpl = TemplateRepo::find_by_id(&pool, id, &tenant_id)
         .await
@@ -135,8 +132,7 @@ pub async fn update_template(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<UpdateTemplateRequest>,
 ) -> Result<Json<FormTemplate>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let tmpl = TemplateRepo::update(&pool, id, &tenant_id, &req)
         .await

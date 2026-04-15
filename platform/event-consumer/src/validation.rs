@@ -71,7 +71,9 @@ fn validate_subject(subject: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::Subject("trailing dot".into()));
     }
     if subject.contains("..") {
-        return Err(ValidationError::Subject("empty segment (consecutive dots)".into()));
+        return Err(ValidationError::Subject(
+            "empty segment (consecutive dots)".into(),
+        ));
     }
     Ok(())
 }
@@ -82,7 +84,9 @@ fn is_semver(s: &str) -> bool {
     if parts.len() != 3 {
         return false;
     }
-    parts.iter().all(|p| !p.is_empty() && p.parse::<u64>().is_ok())
+    parts
+        .iter()
+        .all(|p| !p.is_empty() && p.parse::<u64>().is_ok())
 }
 
 #[cfg(test)]

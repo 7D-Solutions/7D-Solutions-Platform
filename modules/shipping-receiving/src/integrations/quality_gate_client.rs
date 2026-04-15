@@ -39,7 +39,9 @@ pub struct QualityGateIntegration {
 
 #[derive(Debug, Clone)]
 enum Mode {
-    Platform { client: PlatformClient },
+    Platform {
+        client: PlatformClient,
+    },
     /// Always returns no holds — used when no QI service is configured.
     Permissive,
     /// Always returns one hold per WO ID — used in tests to exercise the hold path

@@ -6,8 +6,8 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::*;
 use super::repo;
+use super::*;
 use crate::outbox;
 
 pub struct DisposalService;
@@ -61,10 +61,9 @@ impl DisposalService {
         }
 
         // Fetch category for GL account refs
-        let cat =
-            repo::fetch_category_accounts(&mut *tx, asset.category_id, &req.tenant_id)
-                .await?
-                .ok_or(DisposalError::CategoryNotFound(asset.category_id))?;
+        let cat = repo::fetch_category_accounts(&mut *tx, asset.category_id, &req.tenant_id)
+            .await?
+            .ok_or(DisposalError::CategoryNotFound(asset.category_id))?;
 
         // Compute financials
         let proceeds = req.proceeds_minor.unwrap_or(0);

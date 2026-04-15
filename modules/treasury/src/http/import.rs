@@ -19,9 +19,9 @@ use uuid::Uuid;
 
 use crate::domain::import::adapters::CsvFormat;
 use crate::domain::import::{service, ImportResult};
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Multipart field collector
@@ -78,23 +78,15 @@ async fn collect_fields(mut multipart: Multipart) -> Result<ImportFields, ApiErr
             }
             "opening_balance_minor" => {
                 let text = field_text(field).await?;
-                opening_balance = Some(
-                    text.trim()
-                        .parse::<i64>()
-                        .map_err(|_| {
-                            ApiError::bad_request("opening_balance_minor must be an integer")
-                        })?,
-                );
+                opening_balance = Some(text.trim().parse::<i64>().map_err(|_| {
+                    ApiError::bad_request("opening_balance_minor must be an integer")
+                })?);
             }
             "closing_balance_minor" => {
                 let text = field_text(field).await?;
-                closing_balance = Some(
-                    text.trim()
-                        .parse::<i64>()
-                        .map_err(|_| {
-                            ApiError::bad_request("closing_balance_minor must be an integer")
-                        })?,
-                );
+                closing_balance = Some(text.trim().parse::<i64>().map_err(|_| {
+                    ApiError::bad_request("closing_balance_minor must be an integer")
+                })?);
             }
             "format" => {
                 let text = field_text(field).await?;
@@ -119,12 +111,10 @@ async fn collect_fields(mut multipart: Multipart) -> Result<ImportFields, ApiErr
     }
 
     Ok(ImportFields {
-        account_id: account_id
-            .ok_or_else(|| ApiError::bad_request("account_id is required"))?,
+        account_id: account_id.ok_or_else(|| ApiError::bad_request("account_id is required"))?,
         period_start: period_start
             .ok_or_else(|| ApiError::bad_request("period_start is required"))?,
-        period_end: period_end
-            .ok_or_else(|| ApiError::bad_request("period_end is required"))?,
+        period_end: period_end.ok_or_else(|| ApiError::bad_request("period_end is required"))?,
         opening_balance_minor: opening_balance
             .ok_or_else(|| ApiError::bad_request("opening_balance_minor is required"))?,
         closing_balance_minor: closing_balance

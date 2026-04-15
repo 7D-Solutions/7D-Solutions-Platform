@@ -91,16 +91,16 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         req
     };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT -> 401 OK");
 }
 
 /// Seed: create customer + invoice so we have valid IDs for payment tests
-async fn seed_customer_and_invoice(
-    client: &Client,
-    base: &str,
-    jwt: &str,
-) -> (i64, i64) {
+async fn seed_customer_and_invoice(client: &Client, base: &str, jwt: &str) -> (i64, i64) {
     let email = format!("smoke-pay-{}@test.local", Uuid::new_v4());
     let resp = client
         .post(format!("{base}/api/ar/customers"))
@@ -185,13 +185,20 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 201, "expected 201 for payment method create, got {status}: {body}");
+    assert_eq!(
+        status, 201,
+        "expected 201 for payment method create, got {status}: {body}"
+    );
     let pm_id = body["id"].as_i64().unwrap_or(0);
     println!("  payment method created -> {status}, id={pm_id}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/payment-methods"),
-        Some(pm_body.clone())).await;
+        Some(pm_body.clone()),
+    )
+    .await;
 
     // --- 2. GET /api/ar/payment-methods/{id} ---
     println!("\n--- 2. GET /api/ar/payment-methods/{{id}} ---");
@@ -203,11 +210,19 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 200, "expected 200 for get payment method, got {status}: {body}");
+    assert_eq!(
+        status, 200,
+        "expected 200 for get payment method, got {status}: {body}"
+    );
     println!("  get payment method -> {status}");
 
-    assert_unauth(&client, "GET",
-        &format!("{base}/api/ar/payment-methods/{pm_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/payment-methods/{pm_id}"),
+        None,
+    )
+    .await;
 
     // --- 3. POST /api/ar/payment-methods/{id}/set-default ---
     // New payment methods start as pending_sync, so set-default should return 400
@@ -221,13 +236,19 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(status == 400 || status == 200,
-        "expected 400 (pending_sync) or 200 for set-default, got {status}: {body}");
+    assert!(
+        status == 400 || status == 200,
+        "expected 400 (pending_sync) or 200 for set-default, got {status}: {body}"
+    );
     println!("  set-default on pending_sync PM -> {status} OK");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/payment-methods/{pm_id}/set-default"),
-        Some(json!({}))).await;
+        Some(json!({})),
+    )
+    .await;
 
     // --- 4. POST /api/ar/payments/allocate ---
     println!("\n--- 4. POST /api/ar/payments/allocate ---");
@@ -247,13 +268,19 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert!(status == 200 || status == 201 || status == 404 || status == 400 || status == 422,
-        "expected valid response for allocate, got {status}: {body}");
+    assert!(
+        status == 200 || status == 201 || status == 404 || status == 400 || status == 422,
+        "expected valid response for allocate, got {status}: {body}"
+    );
     println!("  allocate payment -> {status}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/payments/allocate"),
-        Some(alloc_body.clone())).await;
+        Some(alloc_body.clone()),
+    )
+    .await;
 
     // --- 5. GET /api/ar/webhooks (list) ---
     println!("\n--- 5. GET /api/ar/webhooks ---");
@@ -266,10 +293,13 @@ async fn smoke_ar_payments_webhooks() {
     let status = resp.status().as_u16();
     assert_eq!(status, 200, "expected 200 for webhooks list");
     let webhooks: Value = resp.json().await.unwrap_or(json!([]));
-    println!("  webhooks list -> {status}, count={}", match &webhooks {
-        Value::Array(a) => a.len(),
-        _ => 0,
-    });
+    println!(
+        "  webhooks list -> {status}, count={}",
+        match &webhooks {
+            Value::Array(a) => a.len(),
+            _ => 0,
+        }
+    );
 
     assert_unauth(&client, "GET", &format!("{base}/api/ar/webhooks"), None).await;
 
@@ -285,7 +315,13 @@ async fn smoke_ar_payments_webhooks() {
     assert_eq!(status, 404, "expected 404 for nonexistent webhook");
     println!("  nonexistent webhook -> 404 OK");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/webhooks/999999"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/webhooks/999999"),
+        None,
+    )
+    .await;
 
     // --- 7. POST /api/ar/webhooks/{id}/replay (404 for nonexistent) ---
     println!("\n--- 7. POST /api/ar/webhooks/{{id}}/replay ---");
@@ -298,13 +334,19 @@ async fn smoke_ar_payments_webhooks() {
         .await
         .unwrap();
     let status = resp.status().as_u16();
-    assert!(status == 404 || status == 400,
-        "expected 404/400 for replay nonexistent webhook, got {status}");
+    assert!(
+        status == 404 || status == 400,
+        "expected 404/400 for replay nonexistent webhook, got {status}"
+    );
     println!("  replay nonexistent -> {status} OK");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/webhooks/999999/replay"),
-        Some(replay_body)).await;
+        Some(replay_body),
+    )
+    .await;
 
     // --- 8. POST /api/ar/webhooks/tilled (no JWT, invalid HMAC) ---
     // This endpoint does NOT use JWT auth — it uses HMAC signature verification.
@@ -323,8 +365,10 @@ async fn smoke_ar_payments_webhooks() {
         .await
         .unwrap();
     let status = resp.status().as_u16();
-    assert!(status == 400 || status == 401 || status == 500,
-        "expected 400/401/500 for invalid tilled signature, got {status}");
+    assert!(
+        status == 400 || status == 401 || status == 500,
+        "expected 400/401/500 for invalid tilled signature, got {status}"
+    );
     println!("  tilled webhook with bad HMAC -> {status} OK");
 
     // --- 9. POST /api/ar/dunning/poll ---
@@ -339,12 +383,22 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 200, "expected 200 for dunning poll, got {status}: {body}");
-    println!("  dunning poll -> {status}, processed={}", body["processed"]);
+    assert_eq!(
+        status, 200,
+        "expected 200 for dunning poll, got {status}: {body}"
+    );
+    println!(
+        "  dunning poll -> {status}, processed={}",
+        body["processed"]
+    );
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/dunning/poll"),
-        Some(dunning_body.clone())).await;
+        Some(dunning_body.clone()),
+    )
+    .await;
 
     // --- 10. POST /api/ar/subscriptions (create) ---
     println!("\n--- 10. POST /api/ar/subscriptions ---");
@@ -365,13 +419,20 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 201, "expected 201 for subscription create, got {status}: {body}");
+    assert_eq!(
+        status, 201,
+        "expected 201 for subscription create, got {status}: {body}"
+    );
     let sub_id = body["id"].as_i64().unwrap_or(0);
     println!("  subscription created -> {status}, id={sub_id}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/subscriptions"),
-        Some(sub_body.clone())).await;
+        Some(sub_body.clone()),
+    )
+    .await;
 
     // --- 11. GET /api/ar/subscriptions/{id} ---
     println!("\n--- 11. GET /api/ar/subscriptions/{{id}} ---");
@@ -383,11 +444,19 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 200, "expected 200 for get subscription, got {status}: {body}");
+    assert_eq!(
+        status, 200,
+        "expected 200 for get subscription, got {status}: {body}"
+    );
     println!("  get subscription -> {status}");
 
-    assert_unauth(&client, "GET",
-        &format!("{base}/api/ar/subscriptions/{sub_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/subscriptions/{sub_id}"),
+        None,
+    )
+    .await;
 
     // --- 12. POST /api/ar/subscriptions/{id}/cancel ---
     println!("\n--- 12. POST /api/ar/subscriptions/{{id}}/cancel ---");
@@ -401,12 +470,19 @@ async fn smoke_ar_payments_webhooks() {
         .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap_or(json!(null));
-    assert_eq!(status, 200, "expected 200 for cancel subscription, got {status}: {body}");
+    assert_eq!(
+        status, 200,
+        "expected 200 for cancel subscription, got {status}: {body}"
+    );
     println!("  cancel subscription -> {status}");
 
-    assert_unauth(&client, "POST",
+    assert_unauth(
+        &client,
+        "POST",
         &format!("{base}/api/ar/subscriptions/{sub_id}/cancel"),
-        Some(cancel_body)).await;
+        Some(cancel_body),
+    )
+    .await;
 
     println!("\n=== All 12 AR payments/webhooks/dunning smoke tests passed ===");
 }

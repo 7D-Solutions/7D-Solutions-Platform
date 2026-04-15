@@ -15,10 +15,10 @@ use std::sync::Arc;
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::domain::engine::{self, compute};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ConsolidateQuery {

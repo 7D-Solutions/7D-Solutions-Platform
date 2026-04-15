@@ -21,8 +21,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use event_bus::EventBus;
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
+use event_bus::EventBus;
 use futures::StreamExt;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -84,12 +84,15 @@ pub async fn wire_provisioning_hook(
     ctx: &ModuleContext,
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<JoinHandle<()>, StartupError> {
-    let mut stream = bus.subscribe(TENANT_PROVISIONED_SUBJECT).await.map_err(|e| {
-        StartupError::Config(format!(
-            "failed to subscribe to '{}': {e}",
-            TENANT_PROVISIONED_SUBJECT
-        ))
-    })?;
+    let mut stream = bus
+        .subscribe(TENANT_PROVISIONED_SUBJECT)
+        .await
+        .map_err(|e| {
+            StartupError::Config(format!(
+                "failed to subscribe to '{}': {e}",
+                TENANT_PROVISIONED_SUBJECT
+            ))
+        })?;
 
     tracing::info!(
         subject = TENANT_PROVISIONED_SUBJECT,
@@ -102,7 +105,10 @@ pub async fn wire_provisioning_hook(
     let bus_clone = Arc::clone(bus);
 
     let handle = tokio::spawn(async move {
-        tracing::info!(subject = TENANT_PROVISIONED_SUBJECT, "provisioning hook listening");
+        tracing::info!(
+            subject = TENANT_PROVISIONED_SUBJECT,
+            "provisioning hook listening"
+        );
 
         loop {
             tokio::select! {

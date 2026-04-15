@@ -183,9 +183,11 @@ pub async fn create_gated_invoice(
     // - 15s per HTTP call (create + finalize)
     // - 30s total for invoice creation operation
     // - NO automatic retry (cycle gating enforces exactly-once)
-    let tenant_uuid: Uuid = tenant_id.parse().map_err(|_| InvoiceCreationError::GatingError {
-        message: format!("Invalid tenant_id: {}", tenant_id),
-    })?;
+    let tenant_uuid: Uuid = tenant_id
+        .parse()
+        .map_err(|_| InvoiceCreationError::GatingError {
+            message: format!("Invalid tenant_id: {}", tenant_id),
+        })?;
     let claims = PlatformClient::service_claims(tenant_uuid);
 
     let create_req = CreateInvoiceRequest {
@@ -229,7 +231,10 @@ pub async fn create_gated_invoice(
 
     let finalize_req = FinalizeInvoiceRequest { paid_at: None };
 
-    if let Err(e) = ar_client.finalize_invoice(&claims, invoice.id, &finalize_req).await {
+    if let Err(e) = ar_client
+        .finalize_invoice(&claims, invoice.id, &finalize_req)
+        .await
+    {
         let err = InvoiceCreationError::from(e);
         let (code, msg) = match &err {
             InvoiceCreationError::ArApiError { status, message } => {

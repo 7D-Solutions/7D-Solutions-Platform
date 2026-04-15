@@ -182,10 +182,7 @@ pub async fn fetch_current_for_update(
     .await?)
 }
 
-pub async fn flip_is_current(
-    conn: &mut PgConnection,
-    entry_id: Uuid,
-) -> Result<(), EntryError> {
+pub async fn flip_is_current(conn: &mut PgConnection, entry_id: Uuid) -> Result<(), EntryError> {
     sqlx::query(
         "UPDATE tk_timesheet_entries SET is_current = FALSE \
          WHERE entry_id = $1 AND is_current = TRUE",

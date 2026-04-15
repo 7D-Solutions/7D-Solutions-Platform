@@ -22,7 +22,6 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::{
@@ -31,13 +30,14 @@ use crate::{
             GrantAuthorityRequest, RevokeAuthorityRequest,
         },
         models::{
-            AssignCompetenceRequest, AuthorizationQuery, AuthorizationResult,
-            CompetenceArtifact, OperatorCompetence, RegisterArtifactRequest,
+            AssignCompetenceRequest, AuthorizationQuery, AuthorizationResult, CompetenceArtifact,
+            OperatorCompetence, RegisterArtifactRequest,
         },
         service,
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Handlers
@@ -62,8 +62,7 @@ pub async fn post_artifact(
     ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<RegisterArtifactRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
 
     let (result, is_replay) = service::register_artifact(&state.pool, &req)
@@ -96,17 +95,14 @@ pub async fn get_artifact(
     ctx: Option<Extension<TracingContext>>,
     Path(artifact_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let artifact = service::get_artifact(&state.pool, &tenant_id, artifact_id)
         .await
         .map_err(|e| with_request_id(ApiError::from(e), &ctx))?
         .ok_or_else(|| {
             with_request_id(
-                ApiError::not_found(
-                    "Artifact not found or does not belong to this tenant",
-                ),
+                ApiError::not_found("Artifact not found or does not belong to this tenant"),
                 &ctx,
             )
         })?;
@@ -133,8 +129,7 @@ pub async fn post_assignment(
     ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<AssignCompetenceRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
 
     let (result, is_replay) = service::assign_competence(&state.pool, &req)
@@ -176,8 +171,7 @@ pub async fn get_authorization(
     ctx: Option<Extension<TracingContext>>,
     Query(params): Query<AuthorizationQueryParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let query = AuthorizationQuery {
         tenant_id,
@@ -216,14 +210,12 @@ pub async fn post_grant_authority(
     ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<GrantAuthorityRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
 
-    let (result, is_replay) =
-        acceptance_authority::grant_acceptance_authority(&state.pool, &req)
-            .await
-            .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+    let (result, is_replay) = acceptance_authority::grant_acceptance_authority(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
     let status = if is_replay {
         StatusCode::OK
@@ -254,15 +246,13 @@ pub async fn post_revoke_authority(
     Path(authority_id): Path<Uuid>,
     Json(mut req): Json<RevokeAuthorityRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
     req.authority_id = authority_id;
 
-    let (result, _is_replay) =
-        acceptance_authority::revoke_acceptance_authority(&state.pool, &req)
-            .await
-            .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+    let (result, _is_replay) = acceptance_authority::revoke_acceptance_authority(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
     Ok((StatusCode::OK, Json(result)))
 }
@@ -294,8 +284,7 @@ pub async fn get_acceptance_authority_check(
     ctx: Option<Extension<TracingContext>>,
     Query(params): Query<AcceptanceAuthorityCheckParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let query = AcceptanceAuthorityQuery {
         tenant_id,
@@ -304,10 +293,9 @@ pub async fn get_acceptance_authority_check(
         at_time: params.at_time,
     };
 
-    let result =
-        acceptance_authority::check_acceptance_authority(&state.pool, &query)
-            .await
-            .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+    let result = acceptance_authority::check_acceptance_authority(&state.pool, &query)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
     Ok((StatusCode::OK, Json(result)))
 }

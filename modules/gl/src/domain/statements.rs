@@ -348,7 +348,8 @@ mod tests {
         let bs_roundtrip: BalanceSheetRow = serde_json::from_value(bs_json).expect("serialize");
         assert_eq!(bs_row, bs_roundtrip);
 
-        let totals_roundtrip: StatementTotals = serde_json::from_value(totals_json).expect("serialize");
+        let totals_roundtrip: StatementTotals =
+            serde_json::from_value(totals_json).expect("serialize");
         assert_eq!(totals, totals_roundtrip);
 
         let ct_roundtrip: CurrencyTotals = serde_json::from_value(ct_json).expect("serialize");

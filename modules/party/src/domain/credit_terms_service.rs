@@ -69,9 +69,10 @@ pub async fn create_credit_terms(
 
     party_repo::guard_party_exists_tx(&mut tx, app_id, party_id).await?;
 
-    let ct =
-        credit_terms_repo::insert_credit_terms_tx(&mut tx, ct_id, party_id, app_id, req, currency, now)
-            .await?;
+    let ct = credit_terms_repo::insert_credit_terms_tx(
+        &mut tx, ct_id, party_id, app_id, req, currency, now,
+    )
+    .await?;
 
     let payload = CreditTermsPayload {
         credit_terms_id: ct_id,
@@ -120,9 +121,10 @@ pub async fn update_credit_terms(
 
     let mut tx = pool.begin().await?;
 
-    let current = credit_terms_repo::fetch_credit_terms_for_update_tx(&mut tx, app_id, credit_terms_id)
-        .await?
-        .ok_or(PartyError::NotFound(credit_terms_id))?;
+    let current =
+        credit_terms_repo::fetch_credit_terms_for_update_tx(&mut tx, app_id, credit_terms_id)
+            .await?
+            .ok_or(PartyError::NotFound(credit_terms_id))?;
 
     let new_terms = req
         .payment_terms

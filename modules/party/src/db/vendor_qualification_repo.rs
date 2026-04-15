@@ -5,9 +5,7 @@ use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::domain::party::PartyError;
-use crate::domain::vendor_qualification::{
-    CreateVendorQualificationRequest, VendorQualification,
-};
+use crate::domain::vendor_qualification::{CreateVendorQualificationRequest, VendorQualification};
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
 

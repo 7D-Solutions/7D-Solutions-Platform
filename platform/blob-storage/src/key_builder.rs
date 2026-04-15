@@ -129,7 +129,10 @@ mod tests {
         }
         .build(date(2026, 3, 7));
 
-        assert!(key.contains("/2026/03/07/"), "month and day must be zero-padded");
+        assert!(
+            key.contains("/2026/03/07/"),
+            "month and day must be zero-padded"
+        );
     }
 
     #[test]

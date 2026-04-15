@@ -67,10 +67,10 @@ impl StreamClass {
     /// The dedup window for this class.
     pub fn dedup_window(&self) -> Duration {
         match self {
-            StreamClass::Financial => Duration::from_secs(86_400),    // 24h
-            StreamClass::Operational => Duration::from_secs(3_600),   // 1h
-            StreamClass::Notification => Duration::from_secs(3_600),  // 1h
-            StreamClass::System => Duration::from_secs(86_400),       // 24h
+            StreamClass::Financial => Duration::from_secs(86_400), // 24h
+            StreamClass::Operational => Duration::from_secs(3_600), // 1h
+            StreamClass::Notification => Duration::from_secs(3_600), // 1h
+            StreamClass::System => Duration::from_secs(86_400),    // 24h
         }
     }
 
@@ -190,9 +190,7 @@ pub struct EnsureStreamsError {
 /// # Ok(())
 /// # }
 /// ```
-pub async fn ensure_platform_streams(
-    nats: async_nats::Client,
-) -> Result<(), EnsureStreamsError> {
+pub async fn ensure_platform_streams(nats: async_nats::Client) -> Result<(), EnsureStreamsError> {
     use async_nats::jetstream::{self, stream};
 
     let js = jetstream::new(nats);

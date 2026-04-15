@@ -93,10 +93,16 @@ async fn ensure_dlq_table_creates_and_is_idempotent() {
     assert!(col_names.contains(&"id"), "missing id");
     assert!(col_names.contains(&"event_id"), "missing event_id");
     assert!(col_names.contains(&"event_type"), "missing event_type");
-    assert!(col_names.contains(&"schema_version"), "missing schema_version");
+    assert!(
+        col_names.contains(&"schema_version"),
+        "missing schema_version"
+    );
     assert!(col_names.contains(&"tenant_id"), "missing tenant_id");
     assert!(col_names.contains(&"payload"), "missing payload");
-    assert!(col_names.contains(&"error_message"), "missing error_message");
+    assert!(
+        col_names.contains(&"error_message"),
+        "missing error_message"
+    );
     assert!(col_names.contains(&"retry_count"), "missing retry_count");
     assert!(col_names.contains(&"failed_at"), "missing failed_at");
     assert!(col_names.contains(&"replayed_at"), "missing replayed_at");
@@ -199,11 +205,7 @@ async fn dispatch_with_dlq_no_entry_on_success() {
         |_ctx, _env: EventEnvelope<TestPayload>| async { RouteOutcome::Handled },
     );
 
-    let env = make_envelope(
-        "order.placed",
-        "1.0.0",
-        serde_json::json!({"value": "ok"}),
-    );
+    let env = make_envelope("order.placed", "1.0.0", serde_json::json!({"value": "ok"}));
     let ctx = make_ctx(pool.clone());
 
     registry
@@ -259,7 +261,10 @@ async fn replay_dlq_entry_returns_envelope_and_marks_replayed() {
         .expect("replay should succeed");
 
     let env = env_opt.expect("entry should be found");
-    assert_eq!(env.event_id, original_event_id, "event_id must be preserved");
+    assert_eq!(
+        env.event_id, original_event_id,
+        "event_id must be preserved"
+    );
     assert_eq!(env.event_type, "invoice.opened");
     assert_eq!(env.schema_version, "2.0.0");
     assert_eq!(env.tenant_id, "tenant-replay");
@@ -390,12 +395,18 @@ fn standard_dlq_ddl_contains_required_columns() {
     let ddl = platform_sdk::STANDARD_DLQ_DDL;
     assert!(ddl.contains("event_id"), "DDL must have event_id");
     assert!(ddl.contains("event_type"), "DDL must have event_type");
-    assert!(ddl.contains("schema_version"), "DDL must have schema_version");
+    assert!(
+        ddl.contains("schema_version"),
+        "DDL must have schema_version"
+    );
     assert!(ddl.contains("payload"), "DDL must have payload");
     assert!(ddl.contains("error_message"), "DDL must have error_message");
     assert!(ddl.contains("retry_count"), "DDL must have retry_count");
     assert!(ddl.contains("failed_at"), "DDL must have failed_at");
     assert!(ddl.contains("replayed_at"), "DDL must have replayed_at");
     assert!(ddl.contains("IF NOT EXISTS"), "DDL must use IF NOT EXISTS");
-    assert!(ddl.contains("{table}"), "DDL must use {{table}} placeholder");
+    assert!(
+        ddl.contains("{table}"),
+        "DDL must use {{table}} placeholder"
+    );
 }

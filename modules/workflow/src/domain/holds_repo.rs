@@ -306,14 +306,12 @@ impl HoldRepo {
 
     /// Get a single hold by ID (tenant-scoped).
     pub async fn get(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Hold, HoldError> {
-        sqlx::query_as::<_, Hold>(
-            "SELECT * FROM workflow_holds WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or(HoldError::NotFound)
+        sqlx::query_as::<_, Hold>("SELECT * FROM workflow_holds WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or(HoldError::NotFound)
     }
 
     /// List holds with optional filters.
@@ -342,7 +340,8 @@ impl HoldRepo {
         }
 
         let where_clause = conditions.join(" AND ");
-        let query_str = format!(
+        let query_str =
+            format!(
             "SELECT * FROM workflow_holds WHERE {} ORDER BY applied_at DESC LIMIT ${} OFFSET ${}",
             where_clause, param_idx, param_idx + 1
         );

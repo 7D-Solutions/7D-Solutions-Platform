@@ -1,0 +1,626 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" }
+  ],
+  "description": "SLO error budget tracking — remaining budget per module, burn rates, and release freeze signal. Backed by recording rules in ops/recording_rules/slo-budget.rules.yaml.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Platform Overview",
+      "tooltip": "Main SLO dashboard",
+      "type": "link",
+      "url": "/d/platform-overview"
+    },
+    {
+      "asDropdown": false,
+      "icon": "doc",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Runbook",
+      "tooltip": "Operations runbook",
+      "type": "link",
+      "url": "https://github.com/7d-solutions/platform/blob/main/docs/operations/runbook.md"
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Release Freeze Signal",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Release status based on the lowest error budget remaining across all modules. FREEZE RECOMMENDED when any module drops below 10%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1e10,
+                "to": 0.05,
+                "result": { "color": "dark-red", "index": 0, "text": "RELEASE FREEZE" }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.05,
+                "to": 0.10,
+                "result": { "color": "red", "index": 1, "text": "FREEZE RECOMMENDED" }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.10,
+                "to": 0.25,
+                "result": { "color": "orange", "index": 2, "text": "BUDGET CRITICAL" }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": 0.25,
+                "to": 1e10,
+                "result": { "color": "green", "index": 3, "text": "OK TO RELEASE" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "green",    "value": 0.25 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Release Status",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:min_availability_error_budget_remaining:ratio",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Lowest availability error budget remaining across all modules. Below 10% triggers a release freeze recommendation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 1 },
+      "id": 2,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Minimum Budget Remaining (any module)",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:min_availability_error_budget_remaining:ratio",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Highest 1-hour burn rate across all modules. A burn rate of 36 means 5% of the monthly budget will be consumed in 1 hour (fast-burn threshold).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "orange", "value": 12 },
+              { "color": "red",    "value": 36 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Peak 1h Burn Rate (all modules)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(slo:burn_rate:1h{slo=\"availability\"})",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "id": 101,
+      "title": "Error Budget Remaining per Module — 30-day availability window",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "AP availability error budget remaining. 99.9% SLO → 43.2 min/month downtime budget.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 7 },
+      "id": 10,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "AP — Availability Budget",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:error_budget_remaining:ratio{module=\"ap\",slo=\"availability\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "AR availability error budget remaining.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 7 },
+      "id": 11,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "AR — Availability Budget",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:error_budget_remaining:ratio{module=\"ar\",slo=\"availability\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "GL availability error budget remaining. GL is the accounting source of truth — downtime during period close is highest-severity.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 10, "y": 7 },
+      "id": 12,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "GL — Availability Budget",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:error_budget_remaining:ratio{module=\"gl\",slo=\"availability\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Production Execution availability error budget remaining.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 5, "x": 15, "y": 7 },
+      "id": 13,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Production — Availability Budget",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:error_budget_remaining:ratio{module=\"production\",slo=\"availability\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Inventory availability error budget remaining.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "dark-red", "value": null },
+              { "color": "red",      "value": 0.05 },
+              { "color": "orange",   "value": 0.10 },
+              { "color": "yellow",   "value": 0.25 },
+              { "color": "green",    "value": 0.50 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 7 },
+      "id": 14,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "title": "Inventory — Availability Budget",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "slo:error_budget_remaining:ratio{module=\"inventory\",slo=\"availability\"}",
+          "instant": true,
+          "legendFormat": ""
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 12 },
+      "id": 102,
+      "title": "Burn Rate History — how fast budget is being consumed",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "1-hour burn rate per module. A value of 1.0 means budget is consumed at exactly the sustainable pace. 36 = fast-burn threshold (PagerDuty). Annotated threshold lines at 12 (slow-burn) and 36 (fast-burn).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Burn rate (×)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "dashed" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 12 },
+              { "color": "red",    "value": 36 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "id": 20,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "1h Burn Rate — All Modules",
+      "type": "timeseries",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:1h{module=\"ap\",slo=\"availability\"}", "legendFormat": "AP" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:1h{module=\"ar\",slo=\"availability\"}", "legendFormat": "AR" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:1h{module=\"gl\",slo=\"availability\"}", "legendFormat": "GL" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:1h{module=\"production\",slo=\"availability\"}", "legendFormat": "Production" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:1h{module=\"inventory\",slo=\"availability\"}", "legendFormat": "Inventory" }
+      ]
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "6-hour burn rate per module. 12 = slow-burn threshold (Slack warning). Lower granularity than 1h — better for spotting sustained degradation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Burn rate (×)",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "dashed" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red",    "value": 12 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "id": 21,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "6h Burn Rate — All Modules",
+      "type": "timeseries",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:6h{module=\"ap\",slo=\"availability\"}", "legendFormat": "AP" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:6h{module=\"ar\",slo=\"availability\"}", "legendFormat": "AR" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:6h{module=\"gl\",slo=\"availability\"}", "legendFormat": "GL" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:6h{module=\"production\",slo=\"availability\"}", "legendFormat": "Production" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:burn_rate:6h{module=\"inventory\",slo=\"availability\"}", "legendFormat": "Inventory" }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "id": 103,
+      "title": "Error Budget Consumption Over Time",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "description": "Availability error budget remaining (%) for each module over the selected time range. Calculated from a rolling 30-day error rate window — the absolute budget refills as incidents age out. Dashed lines at 25% (caution) and 10% (release freeze threshold).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "Budget remaining",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "opacity",
+            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "dashed+area" }
+          },
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "orange",      "value": 0 },
+              { "color": "yellow",      "value": 0.10 },
+              { "color": "transparent", "value": 0.25 }
+            ]
+          },
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+      "id": 30,
+      "options": {
+        "legend": { "calcs": ["lastNotNull", "min"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "Availability Error Budget Remaining (%) — All Modules",
+      "type": "timeseries",
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:error_budget_remaining:ratio{module=\"ap\",slo=\"availability\"}", "legendFormat": "AP" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:error_budget_remaining:ratio{module=\"ar\",slo=\"availability\"}", "legendFormat": "AR" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:error_budget_remaining:ratio{module=\"gl\",slo=\"availability\"}", "legendFormat": "GL" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:error_budget_remaining:ratio{module=\"production\",slo=\"availability\"}", "legendFormat": "Production" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "slo:error_budget_remaining:ratio{module=\"inventory\",slo=\"availability\"}", "legendFormat": "Inventory" }
+      ]
+    }
+
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["slo", "error-budget", "platform"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SLO Error Budget Tracking",
+  "uid": "slo-budget",
+  "version": 1,
+  "weekStart": ""
+}

@@ -132,14 +132,13 @@ pub async fn create_attachment(
         "uploaded_by": actor_id,
     });
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("docmgmt.attachment.created")
-    .bind("docmgmt.attachment.created")
-    .bind(outbox_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("docmgmt.attachment.created")
+            .bind("docmgmt.attachment.created")
+            .bind(outbox_payload)
+            .execute(&mut *tx)
+            .await
     {
         tracing::error!(error = %e, "insert doc_outbox event failed");
         return (

@@ -114,7 +114,8 @@ pub async fn compute_aging(
         })?
         .and_utc();
 
-    let buckets_by_currency = super::repo::query_currency_buckets(pool, tenant_id, as_of_dt).await?;
+    let buckets_by_currency =
+        super::repo::query_currency_buckets(pool, tenant_id, as_of_dt).await?;
 
     let vendor_breakdown = if by_vendor {
         Some(super::repo::query_vendor_breakdown(pool, tenant_id, as_of_dt).await?)
@@ -219,13 +220,14 @@ mod tests {
     async fn allocate(db: &PgPool, bill_id: Uuid, amount_minor: i64, currency: &str) {
         let allocation_id = Uuid::new_v4();
         // Determine allocation_type
-        let (total,): (i64,) =
-            sqlx::query_as("SELECT total_minor FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2")
-                .bind(bill_id)
-                .bind(TEST_TENANT)
-                .fetch_one(db)
-                .await
-                .expect("fetch total");
+        let (total,): (i64,) = sqlx::query_as(
+            "SELECT total_minor FROM vendor_bills WHERE bill_id = $1 AND tenant_id = $2",
+        )
+        .bind(bill_id)
+        .bind(TEST_TENANT)
+        .fetch_one(db)
+        .await
+        .expect("fetch total");
         let (already,): (i64,) = sqlx::query_as(
             "SELECT COALESCE(SUM(amount_minor), 0)::bigint \
              FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2",

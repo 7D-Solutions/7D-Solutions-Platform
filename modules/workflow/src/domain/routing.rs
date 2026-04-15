@@ -100,8 +100,9 @@ pub(crate) fn extract_routing_mode(
         let sid = step.get("step_id").and_then(|v| v.as_str()).unwrap_or("");
         if sid == step_id {
             if let Some(rm) = step.get("routing_mode") {
-                let routing: RoutingMode = serde_json::from_value(rm.clone())
-                    .map_err(|e| RoutingError::Validation(format!("invalid routing_mode: {}", e)))?;
+                let routing: RoutingMode = serde_json::from_value(rm.clone()).map_err(|e| {
+                    RoutingError::Validation(format!("invalid routing_mode: {}", e))
+                })?;
                 return Ok(routing);
             }
             return Ok(RoutingMode::Sequential);
@@ -193,9 +194,7 @@ fn matches_condition(
         "eq" => actual == expected,
         "neq" => actual != expected,
         "gt" => compare_numbers(actual, expected).is_some_and(|o| o == std::cmp::Ordering::Greater),
-        "gte" => {
-            compare_numbers(actual, expected).is_some_and(|o| o != std::cmp::Ordering::Less)
-        }
+        "gte" => compare_numbers(actual, expected).is_some_and(|o| o != std::cmp::Ordering::Less),
         "lt" => compare_numbers(actual, expected).is_some_and(|o| o == std::cmp::Ordering::Less),
         "lte" => {
             compare_numbers(actual, expected).is_some_and(|o| o != std::cmp::Ordering::Greater)
@@ -211,10 +210,7 @@ fn matches_condition(
     }
 }
 
-fn compare_numbers(
-    a: &serde_json::Value,
-    b: &serde_json::Value,
-) -> Option<std::cmp::Ordering> {
+fn compare_numbers(a: &serde_json::Value, b: &serde_json::Value) -> Option<std::cmp::Ordering> {
     let a_num = a.as_f64()?;
     let b_num = b.as_f64()?;
     a_num.partial_cmp(&b_num)

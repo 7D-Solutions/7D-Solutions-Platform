@@ -33,10 +33,9 @@ pub fn disposition_transitions(from: DispositionStatus) -> &'static [Disposition
             DispositionStatus::ReturnToStock,
             DispositionStatus::Scrap,
         ],
-        DispositionStatus::Quarantine => &[
-            DispositionStatus::ReturnToStock,
-            DispositionStatus::Scrap,
-        ],
+        DispositionStatus::Quarantine => {
+            &[DispositionStatus::ReturnToStock, DispositionStatus::Scrap]
+        }
         DispositionStatus::ReturnToStock => &[],
         DispositionStatus::Scrap => &[],
     }

@@ -28,8 +28,7 @@ pub async fn create_receiving_inspection(
 
     let mut tx = pool.begin().await?;
 
-    let inspection =
-        repo::insert_receiving_inspection(&mut tx, tenant_id, req, result_val).await?;
+    let inspection = repo::insert_receiving_inspection(&mut tx, tenant_id, req, result_val).await?;
 
     enqueue_event(
         &mut tx,
@@ -130,8 +129,7 @@ pub async fn create_final_inspection(
 
     let mut tx = pool.begin().await?;
 
-    let inspection =
-        repo::insert_final_inspection(&mut tx, tenant_id, req, result_val).await?;
+    let inspection = repo::insert_final_inspection(&mut tx, tenant_id, req, result_val).await?;
 
     enqueue_event(
         &mut tx,

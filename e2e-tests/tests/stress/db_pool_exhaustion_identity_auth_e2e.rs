@@ -127,19 +127,30 @@ fn summarize(results: &[RequestOutcome]) -> (u32, u32, u32, u32) {
 
     for (i, o) in results.iter().enumerate() {
         match o {
-            RequestOutcome { status: Some(c), .. } if *c == 200 || *c == 409 => ok += 1,
-            RequestOutcome { status: Some(c), .. } if *c == 429 || *c == 503 || *c == 500 => {
+            RequestOutcome {
+                status: Some(c), ..
+            } if *c == 200 || *c == 409 => ok += 1,
+            RequestOutcome {
+                status: Some(c), ..
+            } if *c == 429 || *c == 503 || *c == 500 => {
                 err += 1;
             }
-            RequestOutcome { is_timeout: true, .. } => {
+            RequestOutcome {
+                is_timeout: true, ..
+            } => {
                 timeout += 1;
                 println!("  request {}: timeout after {:?}", i, o.duration);
             }
-            RequestOutcome { is_connection_error: true, .. } => {
+            RequestOutcome {
+                is_connection_error: true,
+                ..
+            } => {
                 reset += 1;
                 println!("  request {}: connection error after {:?}", i, o.duration);
             }
-            RequestOutcome { status: Some(c), .. } => {
+            RequestOutcome {
+                status: Some(c), ..
+            } => {
                 err += 1;
                 println!("  request {}: status {} after {:?}", i, c, o.duration);
             }
@@ -201,10 +212,15 @@ async fn db_pool_exhaustion_identity_auth_e2e() {
     // Each request does a SELECT against the user_lifecycle_audit table.
     // 50 concurrent against pool of 10 — proves basic oversubscription.
     // =====================================================================
-    println!("\n--- Phase 1: {} concurrent lifecycle queries ---", CONCURRENCY);
+    println!(
+        "\n--- Phase 1: {} concurrent lifecycle queries ---",
+        CONCURRENCY
+    );
     let lifecycle_url = format!(
         "{}/api/auth/lifecycle/{}/{}",
-        base_url(), tenant_id, user_id
+        base_url(),
+        tenant_id,
+        user_id
     );
 
     let batch_start = Instant::now();
@@ -236,7 +252,10 @@ async fn db_pool_exhaustion_identity_auth_e2e() {
         p1_duration, p1_ok, p1_err, p1_timeout, p1_reset
     );
 
-    assert!(p1_ok > 0, "Phase 1: at least one lifecycle request must succeed");
+    assert!(
+        p1_ok > 0,
+        "Phase 1: at least one lifecycle request must succeed"
+    );
     assert_eq!(results.len(), CONCURRENCY);
 
     // =====================================================================
@@ -245,7 +264,10 @@ async fn db_pool_exhaustion_identity_auth_e2e() {
     // + COMMIT. This holds a DB connection for the full transaction duration.
     // 50 concurrent against pool of 10 = real pool queuing.
     // =====================================================================
-    println!("\n--- Phase 2: {} concurrent register requests ---", CONCURRENCY);
+    println!(
+        "\n--- Phase 2: {} concurrent register requests ---",
+        CONCURRENCY
+    );
 
     let batch_start = Instant::now();
     let handles: Vec<_> = (0..CONCURRENCY)
@@ -340,8 +362,13 @@ async fn db_pool_exhaustion_identity_auth_e2e() {
 
     println!("service healthy after burst — pool exhaustion handled cleanly");
     println!("\nSummary:");
-    println!("  Phase 1 (lifecycle queries): {:?}, {}/{} ok", p1_duration, p1_ok, CONCURRENCY);
-    println!("  Phase 2 (register burst):    {:?}, {}/{} ok, {} timeouts, {} errors",
-        p2_duration, p2_ok, CONCURRENCY, p2_timeout, p2_err);
+    println!(
+        "  Phase 1 (lifecycle queries): {:?}, {}/{} ok",
+        p1_duration, p1_ok, CONCURRENCY
+    );
+    println!(
+        "  Phase 2 (register burst):    {:?}, {}/{} ok, {} timeouts, {} errors",
+        p2_duration, p2_ok, CONCURRENCY, p2_timeout, p2_err
+    );
     println!("  Phase 3 (health):            200 OK");
 }

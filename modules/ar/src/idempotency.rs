@@ -43,9 +43,7 @@ pub async fn check_idempotency(
     // Get app_id from auth context (VerifiedClaims in extensions)
     let app_id = match extract_app_id(request.extensions()) {
         Some(id) => id,
-        None => {
-            return Err(ApiError::unauthorized("Missing app_id"))
-        }
+        None => return Err(ApiError::unauthorized("Missing app_id")),
     };
 
     // Only apply idempotency to write operations (POST, PUT, DELETE)
@@ -89,9 +87,9 @@ pub async fn check_idempotency(
     if (200..300).contains(&(status_code as u16)) {
         // Buffer the response body so we can cache it
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|_| {
-            ApiError::internal("Failed to read response")
-        })?;
+        let bytes = axum::body::to_bytes(body, usize::MAX)
+            .await
+            .map_err(|_| ApiError::internal("Failed to read response"))?;
 
         // Parse as JSON to store in database
         let response_body: JsonValue = serde_json::from_slice(&bytes)

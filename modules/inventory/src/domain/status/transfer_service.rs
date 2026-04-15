@@ -98,7 +98,9 @@ pub async fn process_status_transfer(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency check (fast path for replays) ---
-    if let Some(record) = repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+    if let Some(record) =
+        repo::find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
+    {
         if record.request_hash != request_hash {
             return Err(StatusTransferError::ConflictingIdempotencyKey);
         }
@@ -124,7 +126,9 @@ pub async fn process_status_transfer(
 
     if req.from_status == InvItemStatus::Available {
         // For 'available', guard against reserved stock.
-        let row = repo::lock_available_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id).await?;
+        let row =
+            repo::lock_available_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id)
+                .await?;
 
         let avail = row.map(|r| r.quantity_available).unwrap_or(0);
         if avail < req.quantity {
@@ -136,21 +140,36 @@ pub async fn process_status_transfer(
         }
 
         let rows_affected = repo::decrement_available_bucket(
-            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
-        ).await?;
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            req.quantity,
+        )
+        .await?;
 
         if rows_affected == 0 {
             return Err(StatusTransferError::BucketNotFound("available".to_string()));
         }
 
         repo::decrement_item_on_hand_available(
-            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
-        ).await?;
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            req.quantity,
+        )
+        .await?;
     } else {
         // Non-available bucket: check quantity_on_hand in that bucket.
         let row = repo::lock_non_available_bucket(
-            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, from_str,
-        ).await?;
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            from_str,
+        )
+        .await?;
 
         let on_hand = match row {
             Some(r) => r.quantity_on_hand,
@@ -166,18 +185,37 @@ pub async fn process_status_transfer(
         }
 
         repo::decrement_non_available_bucket(
-            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity, from_str,
-        ).await?;
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            req.quantity,
+            from_str,
+        )
+        .await?;
     }
 
     // --- Increment to_status bucket (upsert) ---
-    repo::upsert_to_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id, to_str, req.quantity).await?;
+    repo::upsert_to_bucket(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        to_str,
+        req.quantity,
+    )
+    .await?;
 
     // If to_status == 'available', sync item_on_hand.available_status_on_hand
     if req.to_status == InvItemStatus::Available {
         repo::increment_item_on_hand_available(
-            &mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity,
-        ).await?;
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            req.quantity,
+        )
+        .await?;
     }
 
     // --- Insert append-only ledger row ---
@@ -191,7 +229,8 @@ pub async fn process_status_transfer(
         req.quantity,
         event_id,
         transferred_at,
-    ).await?;
+    )
+    .await?;
 
     // --- Build event envelope and enqueue in outbox ---
     let payload = StatusChangedPayload {
@@ -224,7 +263,8 @@ pub async fn process_status_transfer(
         &envelope_json,
         &correlation_id,
         req.causation_id.as_deref(),
-    ).await?;
+    )
+    .await?;
 
     // --- Build result ---
     let result = StatusTransferResult {
@@ -250,7 +290,8 @@ pub async fn process_status_transfer(
         &request_hash,
         &response_json,
         expires_at,
-    ).await?;
+    )
+    .await?;
 
     tx.commit().await?;
 

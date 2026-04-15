@@ -28,10 +28,7 @@ pub async fn get_carrier_credentials(
     Path(connector_type): Path<String>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let app_id = match headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-    {
+    let app_id = match headers.get("x-app-id").and_then(|v| v.to_str().ok()) {
         Some(id) if !id.is_empty() => id.to_string(),
         _ => {
             return ApiError::new(400, "missing_app_id", "X-App-Id header is required")
@@ -82,20 +79,16 @@ mod tests {
     }
 
     async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {
-        sqlx::query(
-            "DELETE FROM integrations_connector_configs WHERE app_id = $1",
-        )
-        .bind(app_id)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM integrations_connector_configs WHERE app_id = $1")
+            .bind(app_id)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     fn build_router(pool: sqlx::PgPool) -> Router {
-        let metrics = Arc::new(
-            crate::metrics::IntegrationsMetrics::new()
-                .expect("metrics init failed"),
-        );
+        let metrics =
+            Arc::new(crate::metrics::IntegrationsMetrics::new().expect("metrics init failed"));
         let bus: Arc<dyn event_bus::EventBus> = Arc::new(InMemoryBus::new());
         let state = Arc::new(AppState { pool, metrics, bus });
 

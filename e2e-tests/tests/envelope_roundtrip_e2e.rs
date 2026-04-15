@@ -284,7 +284,10 @@ async fn test_envelope_nats_roundtrip_multiple_events_distinct_metadata() -> Res
         published_count
     );
 
-    println!("✅ Published {} events to NATS (expected ≥3)", published_count);
+    println!(
+        "✅ Published {} events to NATS (expected ≥3)",
+        published_count
+    );
 
     // Step 4: Receive and verify all 3 events
     for i in 0..3 {

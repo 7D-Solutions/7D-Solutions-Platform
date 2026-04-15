@@ -71,9 +71,7 @@ impl NumberingClient {
                     .formatted_number
                     .unwrap_or_else(|| format!("WO-{:05}", alloc.number_value)))
             }
-            Mode::Direct { pool } => {
-                allocate_direct(pool, tenant_id, idempotency_key).await
-            }
+            Mode::Direct { pool } => allocate_direct(pool, tenant_id, idempotency_key).await,
         }
     }
     // -----------------------------------------------------------------------
@@ -126,10 +124,7 @@ async fn allocate_direct(
     idempotency_key: &str,
 ) -> Result<String, WorkOrderError> {
     let tenant_uuid: Uuid = tenant_id.parse().map_err(|_| {
-        WorkOrderError::Validation(format!(
-            "Invalid tenant_id for numbering: {}",
-            tenant_id
-        ))
+        WorkOrderError::Validation(format!("Invalid tenant_id for numbering: {}", tenant_id))
     })?;
 
     // Idempotency check
@@ -147,7 +142,10 @@ async fn allocate_direct(
         return Ok(format!("WO-{:05}", val));
     }
 
-    let mut tx = pool.begin().await.map_err(|e| WorkOrderError::Database(e))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| WorkOrderError::Database(e))?;
 
     let (next_value,): (i64,) = sqlx::query_as(
         "INSERT INTO sequences (tenant_id, entity, current_value) \
@@ -193,14 +191,12 @@ async fn void_direct(
         ))
     })?;
 
-    sqlx::query(
-        "DELETE FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
-    )
-    .bind(tenant_uuid)
-    .bind(idempotency_key)
-    .execute(pool)
-    .await
-    .map_err(WorkOrderError::Database)?;
+    sqlx::query("DELETE FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2")
+        .bind(tenant_uuid)
+        .bind(idempotency_key)
+        .execute(pool)
+        .await
+        .map_err(WorkOrderError::Database)?;
 
     Ok(())
 }

@@ -51,9 +51,7 @@ pub enum AllocationError {
 impl From<AllocationError> for platform_http_contracts::ApiError {
     fn from(err: AllocationError) -> Self {
         match err {
-            AllocationError::BillNotFound(id) => {
-                Self::not_found(format!("Bill {} not found", id))
-            }
+            AllocationError::BillNotFound(id) => Self::not_found(format!("Bill {} not found", id)),
             AllocationError::InvalidBillStatus(status) => Self::new(
                 422,
                 "invalid_bill_status",

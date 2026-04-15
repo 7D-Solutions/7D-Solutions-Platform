@@ -77,9 +77,7 @@ impl BomRevisionClient {
             Mode::Platform { client } => {
                 validate_revision_platform(client, tenant_id, revision_id, claims).await
             }
-            Mode::Direct { pool } => {
-                validate_revision_direct(pool, tenant_id, revision_id).await
-            }
+            Mode::Direct { pool } => validate_revision_direct(pool, tenant_id, revision_id).await,
             Mode::Permissive => Ok(()),
         }
     }
@@ -96,9 +94,10 @@ async fn validate_revision_platform(
     claims: &VerifiedClaims,
 ) -> Result<(), WorkOrderError> {
     let path = format!("/api/bom/revisions/{}", revision_id);
-    let resp = client.get(&path, claims).await.map_err(|e| {
-        WorkOrderError::Validation(format!("BOM service unreachable: {}", e))
-    })?;
+    let resp = client
+        .get(&path, claims)
+        .await
+        .map_err(|e| WorkOrderError::Validation(format!("BOM service unreachable: {}", e)))?;
 
     match resp.status().as_u16() {
         200 => {
@@ -146,14 +145,13 @@ async fn validate_revision_direct(
     tenant_id: &str,
     revision_id: Uuid,
 ) -> Result<(), WorkOrderError> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM bom_revisions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(revision_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(WorkOrderError::Database)?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM bom_revisions WHERE id = $1 AND tenant_id = $2")
+            .bind(revision_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(WorkOrderError::Database)?;
 
     match row {
         None => Err(WorkOrderError::Validation(format!(

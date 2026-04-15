@@ -138,8 +138,7 @@ mod tests {
             ]
         }"#;
 
-        let payload: GlPostingRequestV1 =
-            serde_json::from_str(json).expect("valid JSON");
+        let payload: GlPostingRequestV1 = serde_json::from_str(json).expect("valid JSON");
         assert_eq!(payload.posting_date, "2024-02-11");
         assert_eq!(payload.currency, "USD");
         assert_eq!(payload.source_doc_type, SourceDocType::ArInvoice);
@@ -170,8 +169,7 @@ mod tests {
             ]
         }"#;
 
-        let payload: GlPostingRequestV1 =
-            serde_json::from_str(json).expect("valid JSON");
+        let payload: GlPostingRequestV1 = serde_json::from_str(json).expect("valid JSON");
         assert_eq!(payload.lines[0].memo, None);
         assert_eq!(payload.lines[0].dimensions, None);
     }

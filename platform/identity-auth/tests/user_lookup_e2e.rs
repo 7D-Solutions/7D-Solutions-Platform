@@ -109,24 +109,23 @@ async fn user_lookup_cross_tenant_isolation() {
     insert_credential(&pool, tenant_a, user_id, &email).await;
 
     // Look up in tenant A — should find
-    let row_a = sqlx::query(
-        "SELECT user_id FROM credentials WHERE tenant_id = $1 AND email = $2",
-    )
-    .bind(tenant_a)
-    .bind(&email)
-    .fetch_optional(&pool)
-    .await
-    .expect("query tenant A");
+    let row_a = sqlx::query("SELECT user_id FROM credentials WHERE tenant_id = $1 AND email = $2")
+        .bind(tenant_a)
+        .bind(&email)
+        .fetch_optional(&pool)
+        .await
+        .expect("query tenant A");
     assert!(row_a.is_some(), "User should be found in tenant A");
 
     // Look up in tenant B — should NOT find
-    let row_b = sqlx::query(
-        "SELECT user_id FROM credentials WHERE tenant_id = $1 AND email = $2",
-    )
-    .bind(tenant_b)
-    .bind(&email)
-    .fetch_optional(&pool)
-    .await
-    .expect("query tenant B");
-    assert!(row_b.is_none(), "User in tenant A must NOT be visible in tenant B");
+    let row_b = sqlx::query("SELECT user_id FROM credentials WHERE tenant_id = $1 AND email = $2")
+        .bind(tenant_b)
+        .bind(&email)
+        .fetch_optional(&pool)
+        .await
+        .expect("query tenant B");
+    assert!(
+        row_b.is_none(),
+        "User in tenant A must NOT be visible in tenant B"
+    );
 }

@@ -12,7 +12,7 @@ pub mod wiring_test;
 /// Build service-level claims for test calls that don't originate from
 /// an HTTP request. Uses a fixed test tenant ID.
 pub fn test_claims() -> VerifiedClaims {
-    let tenant_id = uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001")
-        .expect("valid uuid");
+    let tenant_id =
+        uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid uuid");
     platform_sdk::PlatformClient::service_claims(tenant_id)
 }

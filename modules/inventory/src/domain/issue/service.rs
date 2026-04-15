@@ -21,8 +21,8 @@ use crate::{
 };
 
 use super::idempotency::{
-    build_consumed_from_serials, check_idempotency, fetch_warehouse_totals,
-    store_idempotency_key, write_layer_consumptions,
+    build_consumed_from_serials, check_idempotency, fetch_warehouse_totals, store_idempotency_key,
+    write_layer_consumptions,
 };
 use super::types::{IssueError, IssueRequest, IssueResult, LayerRow};
 
@@ -119,7 +119,8 @@ pub async fn process_issue(
             let consumed_layers = build_consumed_from_serials(&locked);
 
             let (wh_remaining, wh_cost) =
-                fetch_warehouse_totals(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id).await?;
+                fetch_warehouse_totals(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id)
+                    .await?;
 
             (consumed_layers, wh_remaining, wh_cost, serial_ids)
         }
@@ -187,7 +188,8 @@ pub async fn process_issue(
             let consumed_layers = fifo::consume_fifo(&available_layers, quantity)?;
 
             let (wh_remaining, wh_cost) =
-                fetch_warehouse_totals(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id).await?;
+                fetch_warehouse_totals(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id)
+                    .await?;
 
             (consumed_layers, wh_remaining, wh_cost, vec![])
         }
@@ -443,9 +445,15 @@ pub async fn process_issue(
     // --- Step 6: Store idempotency key (expires in 7 days) ---
     let response_json = serde_json::to_string(&result)?;
     store_idempotency_key(
-        &mut tx, &req.tenant_id, &req.idempotency_key, &request_hash,
-        &response_json, 201, issued_at + Duration::days(7),
-    ).await?;
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        201,
+        issued_at + Duration::days(7),
+    )
+    .await?;
 
     tx.commit().await?;
 

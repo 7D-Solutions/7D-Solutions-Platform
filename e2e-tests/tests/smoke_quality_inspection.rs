@@ -100,7 +100,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -451,11 +455,19 @@ async fn smoke_quality_inspection() {
         .expect("create receiving inspection failed");
     let status = resp.status();
     let body: Value = resp.json().await.expect("create receiving inspection body");
-    assert_eq!(status, StatusCode::CREATED, "create receiving inspection: {}", body);
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create receiving inspection: {}",
+        body
+    );
     let inspection_a_id = extract_uuid(&body, "id");
     assert_eq!(body["inspection_type"], "receiving");
     assert_eq!(body["disposition"], "pending");
-    println!("  created receiving inspection A {} -> 201 ok", inspection_a_id);
+    println!(
+        "  created receiving inspection A {} -> 201 ok",
+        inspection_a_id
+    );
 
     // ========================================================================
     // Step 5: Get inspection
@@ -539,10 +551,21 @@ async fn smoke_quality_inspection() {
         .await
         .expect("create receiving inspection B failed");
     let status = resp.status();
-    let body: Value = resp.json().await.expect("create receiving inspection B body");
-    assert_eq!(status, StatusCode::CREATED, "create receiving inspection B: {}", body);
+    let body: Value = resp
+        .json()
+        .await
+        .expect("create receiving inspection B body");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create receiving inspection B: {}",
+        body
+    );
     let inspection_b_id = extract_uuid(&body, "id");
-    println!("  created receiving inspection B {} -> 201 ok", inspection_b_id);
+    println!(
+        "  created receiving inspection B {} -> 201 ok",
+        inspection_b_id
+    );
 
     let resp = client
         .post(format!(
@@ -595,10 +618,21 @@ async fn smoke_quality_inspection() {
         .await
         .expect("create receiving inspection C failed");
     let status = resp.status();
-    let body: Value = resp.json().await.expect("create receiving inspection C body");
-    assert_eq!(status, StatusCode::CREATED, "create receiving inspection C: {}", body);
+    let body: Value = resp
+        .json()
+        .await
+        .expect("create receiving inspection C body");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create receiving inspection C: {}",
+        body
+    );
     let inspection_c_id = extract_uuid(&body, "id");
-    println!("  created receiving inspection C {} -> 201 ok", inspection_c_id);
+    println!(
+        "  created receiving inspection C {} -> 201 ok",
+        inspection_c_id
+    );
 
     let resp = client
         .post(format!(
@@ -657,8 +691,16 @@ async fn smoke_quality_inspection() {
         .await
         .expect("create in-process inspection failed");
     let status = resp.status();
-    let body: Value = resp.json().await.expect("create in-process inspection body");
-    assert_eq!(status, StatusCode::CREATED, "create in-process inspection: {}", body);
+    let body: Value = resp
+        .json()
+        .await
+        .expect("create in-process inspection body");
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create in-process inspection: {}",
+        body
+    );
     assert_eq!(body["inspection_type"], "in_process");
     println!(
         "  created in-process inspection {} -> 201 ok",
@@ -670,9 +712,7 @@ async fn smoke_quality_inspection() {
     // ========================================================================
     println!("\n-- Step 13: POST /api/quality-inspection/inspections/final --");
     let resp = client
-        .post(format!(
-            "{base}/api/quality-inspection/inspections/final"
-        ))
+        .post(format!("{base}/api/quality-inspection/inspections/final"))
         .bearer_auth(&jwt)
         .json(&json!({
             "wo_id": wo_id,
@@ -689,7 +729,12 @@ async fn smoke_quality_inspection() {
         .expect("create final inspection failed");
     let status = resp.status();
     let body: Value = resp.json().await.expect("create final inspection body");
-    assert_eq!(status, StatusCode::CREATED, "create final inspection: {}", body);
+    assert_eq!(
+        status,
+        StatusCode::CREATED,
+        "create final inspection: {}",
+        body
+    );
     assert_eq!(body["inspection_type"], "final");
     println!(
         "  created final inspection {} -> 201 ok",
@@ -716,7 +761,10 @@ async fn smoke_quality_inspection() {
     let body: Value = resp.json().await.expect("by-part-rev body");
     assert_eq!(status, StatusCode::OK, "by-part-rev: {}", body);
     let rows = body.as_array().expect("by-part-rev should return array");
-    assert!(!rows.is_empty(), "by-part-rev should return seeded inspections");
+    assert!(
+        !rows.is_empty(),
+        "by-part-rev should return seeded inspections"
+    );
     println!("  by-part-rev -> 200 ok ({} rows)", rows.len());
 
     // ========================================================================
@@ -736,7 +784,10 @@ async fn smoke_quality_inspection() {
     let body: Value = resp.json().await.expect("by-receipt body");
     assert_eq!(status, StatusCode::OK, "by-receipt: {}", body);
     let rows = body.as_array().expect("by-receipt should return array");
-    assert!(!rows.is_empty(), "by-receipt should return seeded inspections");
+    assert!(
+        !rows.is_empty(),
+        "by-receipt should return seeded inspections"
+    );
     println!("  by-receipt -> 200 ok ({} rows)", rows.len());
 
     // ========================================================================
@@ -744,9 +795,7 @@ async fn smoke_quality_inspection() {
     // ========================================================================
     println!("\n-- Step 16: GET /api/quality-inspection/inspections/by-wo --");
     let resp = client
-        .get(format!(
-            "{base}/api/quality-inspection/inspections/by-wo"
-        ))
+        .get(format!("{base}/api/quality-inspection/inspections/by-wo"))
         .bearer_auth(&jwt)
         .query(&[("wo_id", wo_id.to_string())])
         .send()
@@ -764,9 +813,7 @@ async fn smoke_quality_inspection() {
     // ========================================================================
     println!("\n-- Step 17: GET /api/quality-inspection/inspections/by-lot --");
     let resp = client
-        .get(format!(
-            "{base}/api/quality-inspection/inspections/by-lot"
-        ))
+        .get(format!("{base}/api/quality-inspection/inspections/by-lot"))
         .bearer_auth(&jwt)
         .query(&[("lot_id", lot_id.to_string())])
         .send()

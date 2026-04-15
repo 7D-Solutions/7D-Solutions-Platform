@@ -167,12 +167,10 @@ impl Config {
                     .collect();
                 let env_name = env::var("ENV").unwrap_or_else(|_| "development".to_string());
                 if env_name == "production" && origins.iter().any(|o| o == "*") {
-                    return Err(
-                        "CORS_ORIGINS=* is not allowed in production. \
+                    return Err("CORS_ORIGINS=* is not allowed in production. \
                          Set CORS_ORIGINS to a comma-separated list of allowed origins \
                          (e.g. https://app.example.com)"
-                            .into(),
-                    );
+                        .into());
                 }
                 origins
             },
@@ -181,22 +179,17 @@ impl Config {
 
     /// Parse CORS origins and validate against environment.
     /// Extracted for testability without requiring full env setup.
-    pub fn parse_cors_origins(
-        raw: &str,
-        env_name: &str,
-    ) -> Result<Vec<String>, String> {
+    pub fn parse_cors_origins(raw: &str, env_name: &str) -> Result<Vec<String>, String> {
         let origins: Vec<String> = raw
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .collect();
         if env_name == "production" && origins.iter().any(|o| o == "*") {
-            return Err(
-                "CORS_ORIGINS=* is not allowed in production. \
+            return Err("CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
-                    .to_string(),
-            );
+                .to_string());
         }
         Ok(origins)
     }
@@ -236,11 +229,8 @@ mod tests {
 
     #[test]
     fn cors_trims_whitespace() {
-        let origins = Config::parse_cors_origins(
-            " https://a.com , https://b.com ",
-            "production",
-        )
-        .expect("trimmed origins should parse successfully");
+        let origins = Config::parse_cors_origins(" https://a.com , https://b.com ", "production")
+            .expect("trimmed origins should parse successfully");
         assert_eq!(origins[0], "https://a.com");
         assert_eq!(origins[1], "https://b.com");
     }

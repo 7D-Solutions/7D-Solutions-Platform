@@ -13,9 +13,7 @@ use chrono::Utc;
 use maintenance_rs::domain::{
     assets::{AssetRepo, CreateAssetRequest, UpdateAssetRequest},
     plans::{AssignPlanRequest, AssignmentRepo, CreatePlanRequest, ListAssignmentsQuery, PlanRepo},
-    work_orders::{
-        CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WorkOrderRepo,
-    },
+    work_orders::{CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WorkOrderRepo},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -270,12 +268,11 @@ async fn work_order_full_lifecycle() {
     assert!(closed.closed_at.is_some());
 
     // Verify outbox events were created
-    let events: Vec<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox ORDER BY created_at",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let events: Vec<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox ORDER BY created_at")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
 
     let types: Vec<&str> = events.iter().map(|r| r.0.as_str()).collect();
     assert!(
@@ -584,11 +581,7 @@ async fn work_order_list_filtering() {
     let asset_b = create_test_asset(&pool, &t).await;
 
     // Create 2 WOs for asset_a, 1 for asset_b
-    for (asset_id, title) in [
-        (asset_a, "WO-A1"),
-        (asset_a, "WO-A2"),
-        (asset_b, "WO-B1"),
-    ] {
+    for (asset_id, title) in [(asset_a, "WO-A1"), (asset_a, "WO-A2"), (asset_b, "WO-B1")] {
         WorkOrderRepo::create(
             &pool,
             &CreateWorkOrderRequest {

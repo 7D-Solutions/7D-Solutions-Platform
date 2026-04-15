@@ -23,8 +23,8 @@ mod swap;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use security::{
-    check_permissions, JwtVerifier, VerifiedClaims, PERM_PROJECTION_LIST,
-    PERM_PROJECTION_REBUILD, PERM_PROJECTION_STATUS, PERM_PROJECTION_VERIFY,
+    check_permissions, JwtVerifier, VerifiedClaims, PERM_PROJECTION_LIST, PERM_PROJECTION_REBUILD,
+    PERM_PROJECTION_STATUS, PERM_PROJECTION_VERIFY,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};

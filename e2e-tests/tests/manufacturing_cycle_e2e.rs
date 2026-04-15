@@ -42,15 +42,13 @@ fn prod_url() -> String {
     std::env::var("PRODUCTION_URL").unwrap_or_else(|_| "http://localhost:8108".to_string())
 }
 fn sr_url() -> String {
-    std::env::var("SHIPPING_RECEIVING_URL")
-        .unwrap_or_else(|_| "http://localhost:8103".to_string())
+    std::env::var("SHIPPING_RECEIVING_URL").unwrap_or_else(|_| "http://localhost:8103".to_string())
 }
 fn inv_url() -> String {
     std::env::var("INVENTORY_URL").unwrap_or_else(|_| "http://localhost:8092".to_string())
 }
 fn qi_url() -> String {
-    std::env::var("QUALITY_INSPECTION_URL")
-        .unwrap_or_else(|_| "http://localhost:8106".to_string())
+    std::env::var("QUALITY_INSPECTION_URL").unwrap_or_else(|_| "http://localhost:8106".to_string())
 }
 fn ar_url() -> String {
     std::env::var("AR_URL").unwrap_or_else(|_| "http://localhost:8086".to_string())
@@ -412,8 +410,7 @@ async fn full_manufacturing_cycle() {
     // 503 = Numbering service unreachable from inside Docker — fall back to direct create
     let wo_id = if s == StatusCode::SERVICE_UNAVAILABLE {
         eprintln!("  Numbering service unreachable (503) — falling back to direct WO create");
-        let order_number =
-            format!("WO-MFG-{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+        let order_number = format!("WO-MFG-{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
         let resp2 = client
             .post(format!("{}/api/production/work-orders", prod_url()))
             .header("Authorization", &auth)
@@ -564,10 +561,7 @@ async fn full_manufacturing_cycle() {
     let s = resp.status();
     let body: Value = resp.json().await.expect("close inbound body");
     assert_eq!(s, StatusCode::OK, "close inbound: {}", body);
-    assert_eq!(
-        body["status"], "closed",
-        "inbound shipment must be closed"
-    );
+    assert_eq!(body["status"], "closed", "inbound shipment must be closed");
     println!("  Inbound: closed (inventory integration triggered)");
 
     // =========================================================================
@@ -647,7 +641,11 @@ async fn full_manufacturing_cycle() {
         "must have at least one operation after initialize"
     );
     let op_id = extract_uuid_multi(&ops[0], &["operation_id", "id"]);
-    println!("  Operations initialized: {} op(s), first={}", ops.len(), op_id);
+    println!(
+        "  Operations initialized: {} op(s), first={}",
+        ops.len(),
+        op_id
+    );
 
     // derived_status field must be present
     let resp = client

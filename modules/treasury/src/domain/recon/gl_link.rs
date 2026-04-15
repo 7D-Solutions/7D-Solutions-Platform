@@ -154,8 +154,7 @@ pub async fn unmatched_bank_txns_for_gl(
     app_id: &str,
     account_id: Uuid,
 ) -> Result<Vec<UnmatchedBankTxnGl>, ReconError> {
-    let rows =
-        gl_link_repo::unmatched_bank_txns_rows(pool, app_id, account_id).await?;
+    let rows = gl_link_repo::unmatched_bank_txns_rows(pool, app_id, account_id).await?;
     Ok(rows
         .into_iter()
         .map(|r| UnmatchedBankTxnGl {

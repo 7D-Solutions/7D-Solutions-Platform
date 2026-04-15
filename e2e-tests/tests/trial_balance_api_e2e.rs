@@ -410,7 +410,12 @@ async fn test_trial_balance_api_with_currency_filter() {
     let jwt = common::make_service_jwt(&key, &tenant_id, &["gl.post", "gl.read"]);
 
     let client = reqwest::Client::new();
-    let response = client.get(&url).bearer_auth(&jwt).send().await.expect("Failed to call API");
+    let response = client
+        .get(&url)
+        .bearer_auth(&jwt)
+        .send()
+        .await
+        .expect("Failed to call API");
 
     assert_eq!(response.status(), 200);
 

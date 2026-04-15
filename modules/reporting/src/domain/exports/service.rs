@@ -102,9 +102,8 @@ pub async fn run_export(
     .with_source_version(env!("CARGO_PKG_VERSION").to_string())
     .with_mutation_class(Some("SIDE_EFFECT".to_string()));
 
-    let payload_json = validate_and_serialize_envelope(&envelope).map_err(|e| {
-        anyhow::anyhow!("Envelope validation failed: {}", e)
-    })?;
+    let payload_json = validate_and_serialize_envelope(&envelope)
+        .map_err(|e| anyhow::anyhow!("Envelope validation failed: {}", e))?;
 
     sqlx::query(
         r#"INSERT INTO events_outbox (
@@ -139,13 +138,12 @@ pub async fn run_export(
     tx.commit().await?;
 
     // ── Return completed run ────────────────────────────────────────
-    let run: ExportRun = sqlx::query_as(
-        "SELECT * FROM rpt_export_runs WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(run_id)
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let run: ExportRun =
+        sqlx::query_as("SELECT * FROM rpt_export_runs WHERE id = $1 AND tenant_id = $2")
+            .bind(run_id)
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     // Store the bytes alongside (in production: object store write).
     // For now we keep the bytes in-memory; the output_ref is the durable pointer.
@@ -159,12 +157,10 @@ pub async fn list_export_runs(
     pool: &PgPool,
     tenant_id: &str,
 ) -> Result<Vec<ExportRun>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT * FROM rpt_export_runs WHERE tenant_id = $1 ORDER BY created_at DESC",
-    )
-    .bind(tenant_id)
-    .fetch_all(pool)
-    .await
+    sqlx::query_as("SELECT * FROM rpt_export_runs WHERE tenant_id = $1 ORDER BY created_at DESC")
+        .bind(tenant_id)
+        .fetch_all(pool)
+        .await
 }
 
 // ── Data fetching ─────────────────────────────────────────────────────────
@@ -188,16 +184,18 @@ async fn fetch_report_data(
 
     Ok(rows
         .into_iter()
-        .map(|(account_code, account_name, currency, debit_minor, credit_minor, net_minor)| {
-            ExportRow {
-                account_code,
-                account_name,
-                currency,
-                debit_minor,
-                credit_minor,
-                net_minor,
-            }
-        })
+        .map(
+            |(account_code, account_name, currency, debit_minor, credit_minor, net_minor)| {
+                ExportRow {
+                    account_code,
+                    account_name,
+                    currency,
+                    debit_minor,
+                    credit_minor,
+                    net_minor,
+                }
+            },
+        )
         .collect())
 }
 
@@ -205,7 +203,14 @@ async fn fetch_report_data(
 
 fn generate_csv(rows: &[ExportRow]) -> Result<Vec<u8>, anyhow::Error> {
     let mut wtr = csv::Writer::from_writer(Vec::new());
-    wtr.write_record(["account_code", "account_name", "currency", "debit", "credit", "net"])?;
+    wtr.write_record([
+        "account_code",
+        "account_name",
+        "currency",
+        "debit",
+        "credit",
+        "net",
+    ])?;
     for row in rows {
         wtr.write_record([
             &row.account_code,
@@ -226,7 +231,14 @@ fn generate_xlsx(rows: &[ExportRow]) -> Result<Vec<u8>, anyhow::Error> {
     let sheet = workbook.add_worksheet();
 
     // Header
-    let headers = ["Account Code", "Account Name", "Currency", "Debit", "Credit", "Net"];
+    let headers = [
+        "Account Code",
+        "Account Name",
+        "Currency",
+        "Debit",
+        "Credit",
+        "Net",
+    ];
     for (col, header) in headers.iter().enumerate() {
         sheet.write_string(0, col as u16, *header)?;
     }
@@ -249,8 +261,7 @@ fn generate_xlsx(rows: &[ExportRow]) -> Result<Vec<u8>, anyhow::Error> {
 fn generate_pdf(rows: &[ExportRow]) -> Result<Vec<u8>, anyhow::Error> {
     use printpdf::*;
 
-    let (doc, page1, layer1) =
-        PdfDocument::new("Report Export", Mm(210.0), Mm(297.0), "Layer 1");
+    let (doc, page1, layer1) = PdfDocument::new("Report Export", Mm(210.0), Mm(297.0), "Layer 1");
     let layer = doc.get_page(page1).get_layer(layer1);
 
     let font = doc.add_builtin_font(BuiltinFont::Helvetica)?;

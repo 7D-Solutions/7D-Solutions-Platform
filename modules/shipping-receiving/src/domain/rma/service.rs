@@ -209,8 +209,7 @@ impl RmaService {
 
         // ── Mutation ──
         let updated =
-            RmaRepo::update_disposition_tx(&mut tx, rma_receipt_id, tenant_id, to.as_str())
-                .await?;
+            RmaRepo::update_disposition_tx(&mut tx, rma_receipt_id, tenant_id, to.as_str()).await?;
 
         // ── Outbox ──
         let event_payload = serde_json::json!({

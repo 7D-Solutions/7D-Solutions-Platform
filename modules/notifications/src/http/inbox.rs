@@ -107,7 +107,8 @@ pub async fn list_my_inbox(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<SelfInboxListQuery>,
 ) -> Result<Json<PaginatedResponse<InboxItem>>, ApiError> {
-    let claims = claims.ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
+    let claims =
+        claims.ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
     let tenant_id = claims.0.tenant_id.to_string();
     let user_id = claims.0.user_id.to_string();
     let page_size = params.page_size.unwrap_or(25).min(200);
@@ -308,7 +309,11 @@ async fn list_inbox_for_user(
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let items: Vec<InboxItem> = messages.into_iter().map(to_inbox_item).collect();
-    let page = if page_size > 0 { offset / page_size + 1 } else { 1 };
+    let page = if page_size > 0 {
+        offset / page_size + 1
+    } else {
+        1
+    };
     Ok(Json(PaginatedResponse::new(items, page, page_size, total)))
 }
 

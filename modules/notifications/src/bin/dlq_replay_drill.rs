@@ -8,7 +8,10 @@ const DEFAULT_DB_URL: &str =
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
-    let pool = PgPoolOptions::new().max_connections(5).connect(&db_url).await?;
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await?;
     sqlx::migrate!("./db/migrations").run(&pool).await?;
 
     let tenant_id = format!("drill-tenant-{}", Uuid::new_v4());

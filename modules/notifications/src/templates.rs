@@ -163,17 +163,21 @@ fn substitute(
         result.push_str(&rest[..start]);
         let after_open = &rest[start + 2..];
 
-        let end = after_open.find("}}").ok_or_else(|| RenderError::InvalidPayload {
-            template_key: template_key.to_string(),
-            reason: "unclosed '{{' in template".to_string(),
-        })?;
+        let end = after_open
+            .find("}}")
+            .ok_or_else(|| RenderError::InvalidPayload {
+                template_key: template_key.to_string(),
+                reason: "unclosed '{{' in template".to_string(),
+            })?;
 
         let var_name = after_open[..end].trim();
 
-        let value = vars.get(var_name).ok_or_else(|| RenderError::MissingVariable {
-            template_key: template_key.to_string(),
-            variable: var_name.to_string(),
-        })?;
+        let value = vars
+            .get(var_name)
+            .ok_or_else(|| RenderError::MissingVariable {
+                template_key: template_key.to_string(),
+                variable: var_name.to_string(),
+            })?;
 
         match value {
             Value::String(s) => result.push_str(s),
@@ -218,7 +222,10 @@ pub fn tracking_url(carrier_code: &str, tracking_number: &str) -> Option<String>
     }
     let url = match carrier_code.to_ascii_uppercase().as_str() {
         "UPS" => format!("https://www.ups.com/track?tracknum={}", tracking_number),
-        "FEDEX" => format!("https://www.fedex.com/fedextrack/?trknbr={}", tracking_number),
+        "FEDEX" => format!(
+            "https://www.fedex.com/fedextrack/?trknbr={}",
+            tracking_number
+        ),
         "USPS" => format!(
             "https://tools.usps.com/go/TrackConfirmAction?tLabels={}",
             tracking_number
@@ -238,10 +245,12 @@ pub fn tracking_url(carrier_code: &str, tracking_number: &str) -> Option<String>
 pub fn render(template_key: &str, payload: &Value) -> Result<RenderedMessage, RenderError> {
     let tpl = lookup(template_key)?;
 
-    let vars = payload.as_object().ok_or_else(|| RenderError::InvalidPayload {
-        template_key: template_key.to_string(),
-        reason: "payload must be a JSON object".to_string(),
-    })?;
+    let vars = payload
+        .as_object()
+        .ok_or_else(|| RenderError::InvalidPayload {
+            template_key: template_key.to_string(),
+            reason: "payload must be a JSON object".to_string(),
+        })?;
 
     Ok(RenderedMessage {
         subject: substitute(tpl.subject, vars, template_key)?,
@@ -300,10 +309,7 @@ mod tests {
             "failure_code": "card_declined",
         });
         let msg = render("payment_retry", &payload).expect("render should succeed");
-        assert_eq!(
-            msg.subject,
-            "Action needed — payment for INV-007 failed"
-        );
+        assert_eq!(msg.subject, "Action needed — payment for INV-007 failed");
         assert!(msg.body_html.contains("card_declined"));
         assert!(msg.body_text.contains("card_declined"));
     }

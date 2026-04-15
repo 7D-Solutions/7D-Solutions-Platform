@@ -78,7 +78,13 @@ async fn wait_for_service(client: &Client) -> bool {
 }
 
 /// Create a BOM header and return its id.
-async fn create_bom(client: &Client, base: &str, jwt: &str, part_id: Uuid, description: &str) -> Uuid {
+async fn create_bom(
+    client: &Client,
+    base: &str,
+    jwt: &str,
+    part_id: Uuid,
+    description: &str,
+) -> Uuid {
     let resp = client
         .post(format!("{base}/api/bom"))
         .bearer_auth(jwt)
@@ -97,7 +103,13 @@ async fn create_bom(client: &Client, base: &str, jwt: &str, part_id: Uuid, descr
 }
 
 /// Create a revision and return its id.
-async fn create_revision(client: &Client, base: &str, jwt: &str, bom_id: Uuid, label: &str) -> Uuid {
+async fn create_revision(
+    client: &Client,
+    base: &str,
+    jwt: &str,
+    bom_id: Uuid,
+    label: &str,
+) -> Uuid {
     let resp = client
         .post(format!("{base}/api/bom/{bom_id}/revisions"))
         .bearer_auth(jwt)
@@ -116,9 +128,17 @@ async fn create_revision(client: &Client, base: &str, jwt: &str, bom_id: Uuid, l
 }
 
 /// Set effectivity on a revision (makes it 'effective').
-async fn set_effectivity(client: &Client, base: &str, jwt: &str, revision_id: Uuid, effective_from: &str) {
+async fn set_effectivity(
+    client: &Client,
+    base: &str,
+    jwt: &str,
+    revision_id: Uuid,
+    effective_from: &str,
+) {
     let resp = client
-        .post(format!("{base}/api/bom/revisions/{revision_id}/effectivity"))
+        .post(format!(
+            "{base}/api/bom/revisions/{revision_id}/effectivity"
+        ))
         .bearer_auth(jwt)
         .json(&json!({"effective_from": effective_from}))
         .send()
@@ -130,7 +150,10 @@ async fn set_effectivity(client: &Client, base: &str, jwt: &str, revision_id: Uu
         status == StatusCode::OK || status == StatusCode::CREATED,
         "Set effectivity failed: {status} - {body}"
     );
-    assert_eq!(body["status"], "effective", "revision must be effective after setting effectivity");
+    assert_eq!(
+        body["status"], "effective",
+        "revision must be effective after setting effectivity"
+    );
 }
 
 /// Add a line to a revision and return its id.
@@ -175,12 +198,14 @@ async fn bom_lifecycle_e2e() {
         .unwrap();
 
     if !wait_for_service(&client).await {
-        panic!("BOM service not reachable at {} — start the dev stack before running E2E tests", bom_url());
+        panic!(
+            "BOM service not reachable at {} — start the dev stack before running E2E tests",
+            bom_url()
+        );
     }
     println!("BOM service healthy at {}", bom_url());
 
-    let key = dev_private_key()
-        .expect("JWT_PRIVATE_KEY_PEM must be set to run BOM E2E tests");
+    let key = dev_private_key().expect("JWT_PRIVATE_KEY_PEM must be set to run BOM E2E tests");
 
     let tenant_id = Uuid::new_v4().to_string();
     let jwt = make_jwt(&key, &tenant_id, &["bom.mutate", "bom.read"]);
@@ -200,9 +225,9 @@ async fn bom_lifecycle_e2e() {
     );
 
     // Part IDs: 3 distinct UUIDs representing inventory items
-    let assembly_part_id = Uuid::new_v4();       // top-level assembly
-    let sub_assembly_part_id = Uuid::new_v4();   // mid-level sub-assembly
-    let raw_material_part_id = Uuid::new_v4();   // raw material (leaf)
+    let assembly_part_id = Uuid::new_v4(); // top-level assembly
+    let sub_assembly_part_id = Uuid::new_v4(); // mid-level sub-assembly
+    let raw_material_part_id = Uuid::new_v4(); // raw material (leaf)
 
     // Effectivity date: 1 year ago, so all revisions are in range
     let effective_from = (Utc::now() - chrono::Duration::days(365)).to_rfc3339();
@@ -211,7 +236,8 @@ async fn bom_lifecycle_e2e() {
     // 1. Create assembly BOM
     // =========================================================================
     println!("\n--- 1. Create assembly BOM ---");
-    let assembly_bom_id = create_bom(&client, &base, &jwt, assembly_part_id, "Top-Level Assembly").await;
+    let assembly_bom_id =
+        create_bom(&client, &base, &jwt, assembly_part_id, "Top-Level Assembly").await;
     println!("  assembly bom_id={assembly_bom_id}");
 
     // GET /api/bom/{bom_id}
@@ -221,7 +247,11 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "GET BOM failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "GET BOM failed: {}",
+        resp.status()
+    );
     let fetched: Value = resp.json().await.unwrap();
     assert_eq!(fetched["id"].as_str().unwrap(), assembly_bom_id.to_string());
     println!("  GET BOM: ok, part_id={}", fetched["part_id"]);
@@ -237,23 +267,41 @@ async fn bom_lifecycle_e2e() {
     // 3. Add sub-assembly as a line on assembly Rev-A
     // =========================================================================
     println!("\n--- 3. Add sub-assembly line to assembly Rev-A ---");
-    let line1_id = add_line(&client, &base, &jwt, assembly_rev_a_id, sub_assembly_part_id, 2.0, "EA").await;
+    let line1_id = add_line(
+        &client,
+        &base,
+        &jwt,
+        assembly_rev_a_id,
+        sub_assembly_part_id,
+        2.0,
+        "EA",
+    )
+    .await;
     println!("  line added: sub_assembly_part_id qty=2 uom=EA");
 
     // GET lines
     let resp = client
-        .get(format!("{base}/api/bom/revisions/{assembly_rev_a_id}/lines"))
+        .get(format!(
+            "{base}/api/bom/revisions/{assembly_rev_a_id}/lines"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "GET lines failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "GET lines failed: {}",
+        resp.status()
+    );
     let lines: Value = resp.json().await.unwrap();
     assert!(
         lines.as_array().map_or(0, |a| a.len()) >= 1,
         "Expected at least 1 line on assembly Rev-A"
     );
-    println!("  listed {} line(s) on Rev-A", lines.as_array().map_or(0, |a| a.len()));
+    println!(
+        "  listed {} line(s) on Rev-A",
+        lines.as_array().map_or(0, |a| a.len())
+    );
 
     // Set effectivity on assembly Rev-A
     println!("  Setting effectivity on Rev-A...");
@@ -264,14 +312,31 @@ async fn bom_lifecycle_e2e() {
     // 4. Create sub-assembly BOM
     // =========================================================================
     println!("\n--- 4. Create sub-assembly BOM ---");
-    let sub_assembly_bom_id = create_bom(&client, &base, &jwt, sub_assembly_part_id, "Sub-Assembly Widget").await;
+    let sub_assembly_bom_id = create_bom(
+        &client,
+        &base,
+        &jwt,
+        sub_assembly_part_id,
+        "Sub-Assembly Widget",
+    )
+    .await;
     println!("  sub_assembly bom_id={sub_assembly_bom_id}");
 
     // Create revision for sub-assembly
-    let sub_assembly_rev_id = create_revision(&client, &base, &jwt, sub_assembly_bom_id, "Rev-A").await;
+    let sub_assembly_rev_id =
+        create_revision(&client, &base, &jwt, sub_assembly_bom_id, "Rev-A").await;
 
     // Add raw material as a line on sub-assembly
-    let _line2_id = add_line(&client, &base, &jwt, sub_assembly_rev_id, raw_material_part_id, 5.0, "KG").await;
+    let _line2_id = add_line(
+        &client,
+        &base,
+        &jwt,
+        sub_assembly_rev_id,
+        raw_material_part_id,
+        5.0,
+        "KG",
+    )
+    .await;
     println!("  line added: raw_material_part_id qty=5 uom=KG");
 
     // Set effectivity
@@ -291,7 +356,11 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "GET explosion failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "GET explosion failed: {}",
+        resp.status()
+    );
     let explosion: Value = resp.json().await.unwrap();
     let rows = explosion.as_array().expect("explosion must be an array");
     assert!(
@@ -302,8 +371,14 @@ async fn bom_lifecycle_e2e() {
     );
 
     // Verify level 1 and level 2 are present
-    let level1 = rows.iter().find(|r| r["level"] == 1).expect("missing level 1 in explosion");
-    let level2 = rows.iter().find(|r| r["level"] == 2).expect("missing level 2 in explosion");
+    let level1 = rows
+        .iter()
+        .find(|r| r["level"] == 1)
+        .expect("missing level 1 in explosion");
+    let level2 = rows
+        .iter()
+        .find(|r| r["level"] == 2)
+        .expect("missing level 2 in explosion");
     assert_eq!(
         level1["component_item_id"].as_str().unwrap(),
         sub_assembly_part_id.to_string(),
@@ -318,7 +393,9 @@ async fn bom_lifecycle_e2e() {
     assert_eq!(level2["quantity"], 5.0, "level 2 qty must be 5");
     println!(
         "  explosion: {} row(s), level1=sub_assembly qty={}, level2=raw_material qty={}",
-        rows.len(), level1["quantity"], level2["quantity"]
+        rows.len(),
+        level1["quantity"],
+        level2["quantity"]
     );
 
     // =========================================================================
@@ -335,7 +412,11 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "List revisions failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "List revisions failed: {}",
+        resp.status()
+    );
     let revisions: Value = resp.json().await.unwrap();
     let revs = revisions.as_array().expect("revisions must be an array");
     assert!(
@@ -350,13 +431,21 @@ async fn bom_lifecycle_e2e() {
     assert!(has_rev_b, "Rev-B must appear in revisions list");
 
     // Rev-A should be effective, Rev-B should be draft
-    let rev_a = revs.iter().find(|r| r["revision_label"] == "Rev-A").unwrap();
-    let rev_b = revs.iter().find(|r| r["revision_label"] == "Rev-B").unwrap();
+    let rev_a = revs
+        .iter()
+        .find(|r| r["revision_label"] == "Rev-A")
+        .unwrap();
+    let rev_b = revs
+        .iter()
+        .find(|r| r["revision_label"] == "Rev-B")
+        .unwrap();
     assert_eq!(rev_a["status"], "effective", "Rev-A must be effective");
     assert_eq!(rev_b["status"], "draft", "Rev-B must be draft");
     println!(
         "  revisions: {} total, Rev-A={} Rev-B={}",
-        revs.len(), rev_a["status"], rev_b["status"]
+        revs.len(),
+        rev_a["status"],
+        rev_b["status"]
     );
 
     // =========================================================================
@@ -364,7 +453,16 @@ async fn bom_lifecycle_e2e() {
     //    Lines on effective revisions are immutable; add a line to Rev-B first.
     // =========================================================================
     println!("\n--- 7. Update BOM line quantity (on draft Rev-B) ---");
-    let rev_b_line_id = add_line(&client, &base, &jwt, assembly_rev_b_id, sub_assembly_part_id, 2.0, "EA").await;
+    let rev_b_line_id = add_line(
+        &client,
+        &base,
+        &jwt,
+        assembly_rev_b_id,
+        sub_assembly_part_id,
+        2.0,
+        "EA",
+    )
+    .await;
     let resp = client
         .put(format!("{base}/api/bom/lines/{rev_b_line_id}"))
         .bearer_auth(&jwt)
@@ -372,7 +470,11 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "PUT line failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "PUT line failed: {}",
+        resp.status()
+    );
     let updated_line: Value = resp.json().await.unwrap();
     assert_eq!(updated_line["quantity"], 3.0, "updated quantity must be 3");
     println!("  line updated: quantity={}", updated_line["quantity"]);
@@ -387,17 +489,24 @@ async fn bom_lifecycle_e2e() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Where-used failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Where-used failed: {}",
+        resp.status()
+    );
     let where_used: Value = resp.json().await.unwrap();
     let wu_rows = where_used.as_array().expect("where-used must be an array");
     assert!(
         wu_rows.len() >= 1,
         "sub_assembly must appear in at least 1 where-used result"
     );
-    let found = wu_rows.iter().find(|r| {
-        r["part_id"].as_str().unwrap_or("") == assembly_part_id.to_string()
-    });
-    assert!(found.is_some(), "assembly must be listed as a parent of sub_assembly in where-used");
+    let found = wu_rows
+        .iter()
+        .find(|r| r["part_id"].as_str().unwrap_or("") == assembly_part_id.to_string());
+    assert!(
+        found.is_some(),
+        "assembly must be listed as a parent of sub_assembly in where-used"
+    );
     println!(
         "  where-used: {} result(s), found assembly as parent",
         wu_rows.len()

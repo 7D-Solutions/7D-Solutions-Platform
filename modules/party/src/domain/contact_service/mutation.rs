@@ -38,9 +38,10 @@ pub async fn create_contact(
         clear_primary_for_role(&mut tx, app_id, party_id, req.role.as_deref()).await?;
     }
 
-    let contact =
-        contact_repo::insert_contact_tx(&mut tx, contact_id, party_id, app_id, req, is_primary, now)
-            .await?;
+    let contact = contact_repo::insert_contact_tx(
+        &mut tx, contact_id, party_id, app_id, req, is_primary, now,
+    )
+    .await?;
 
     let payload = ContactPayload {
         contact_id,
@@ -235,7 +236,8 @@ pub async fn set_primary_for_role(
 
     clear_primary_for_role(&mut tx, app_id, party_id, Some(role)).await?;
 
-    let updated = contact_repo::set_contact_primary_tx(&mut tx, app_id, contact_id, role, now).await?;
+    let updated =
+        contact_repo::set_contact_primary_tx(&mut tx, app_id, contact_id, role, now).await?;
 
     let payload = ContactPrimarySetPayload {
         contact_id,

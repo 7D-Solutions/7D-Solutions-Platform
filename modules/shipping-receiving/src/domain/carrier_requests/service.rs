@@ -166,10 +166,9 @@ impl CarrierRequestService {
         let mut tx = pool.begin().await?;
 
         // ── Guard: load current state with row lock ──
-        let current =
-            CarrierRequestRepo::get_for_update_tx(&mut tx, carrier_request_id, tenant_id)
-                .await?
-                .ok_or(CarrierRequestError::NotFound)?;
+        let current = CarrierRequestRepo::get_for_update_tx(&mut tx, carrier_request_id, tenant_id)
+            .await?
+            .ok_or(CarrierRequestError::NotFound)?;
 
         let from = CarrierRequestStatus::from_str_value(&current.status)
             .map_err(|e| CarrierRequestError::Validation(e.to_string()))?;

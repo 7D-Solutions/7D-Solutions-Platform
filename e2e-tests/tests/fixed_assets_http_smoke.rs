@@ -79,7 +79,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "DELETE" => client.delete(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -128,7 +132,9 @@ async fn smoke_fixed_assets() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Fixed Assets returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Fixed Assets returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -164,8 +170,10 @@ async fn smoke_fixed_assets() {
         &client,
         "POST",
         &format!("{base}/api/fixed-assets/categories"),
-        Some(json!({"code": "X", "name": "X", "asset_account_ref": "1500",
-                    "depreciation_expense_ref": "6100", "accum_depreciation_ref": "1510"})),
+        Some(
+            json!({"code": "X", "name": "X", "asset_account_ref": "1500",
+                    "depreciation_expense_ref": "6100", "accum_depreciation_ref": "1510"}),
+        ),
     )
     .await;
 
@@ -191,7 +199,9 @@ async fn smoke_fixed_assets() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create category2 failed: {status} - {cat2_body}"
     );
-    let cat2_id = cat2_body["id"].as_str().expect("No id in category2 response");
+    let cat2_id = cat2_body["id"]
+        .as_str()
+        .expect("No id in category2 response");
     println!("  created category2 id={cat2_id}");
 
     // --- 2. GET /api/fixed-assets/categories ---
@@ -209,7 +219,10 @@ async fn smoke_fixed_assets() {
     );
     let cats: Value = resp.json().await.unwrap();
     let cat_count = cats.as_array().map_or(0, |a| a.len());
-    assert!(cat_count >= 2, "Expected at least 2 categories, got {cat_count}");
+    assert!(
+        cat_count >= 2,
+        "Expected at least 2 categories, got {cat_count}"
+    );
     println!("  listed {cat_count} category(ies)");
 
     assert_unauth(
@@ -324,15 +337,19 @@ async fn smoke_fixed_assets() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create asset1 failed: {status} - {asset1_body}"
     );
-    let asset1_id = asset1_body["id"].as_str().expect("No id in asset1 response");
+    let asset1_id = asset1_body["id"]
+        .as_str()
+        .expect("No id in asset1 response");
     println!("  created asset1 id={asset1_id} tag={asset_tag1}");
 
     assert_unauth(
         &client,
         "POST",
         &format!("{base}/api/fixed-assets/assets"),
-        Some(json!({"asset_tag": "X", "name": "X", "acquisition_date": today.to_string(),
-                    "acquisition_cost_minor": 1000})),
+        Some(
+            json!({"asset_tag": "X", "name": "X", "acquisition_date": today.to_string(),
+                    "acquisition_cost_minor": 1000}),
+        ),
     )
     .await;
 
@@ -359,7 +376,9 @@ async fn smoke_fixed_assets() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create asset2 failed: {status} - {asset2_body}"
     );
-    let asset2_id = asset2_body["id"].as_str().expect("No id in asset2 response");
+    let asset2_id = asset2_body["id"]
+        .as_str()
+        .expect("No id in asset2 response");
     println!("  created asset2 id={asset2_id} tag={asset_tag2}");
 
     // --- 8. GET /api/fixed-assets/assets ---
@@ -377,7 +396,10 @@ async fn smoke_fixed_assets() {
     );
     let assets_list: Value = resp.json().await.unwrap();
     let asset_count = assets_list.as_array().map_or(0, |a| a.len());
-    assert!(asset_count >= 2, "Expected at least 2 assets, got {asset_count}");
+    assert!(
+        asset_count >= 2,
+        "Expected at least 2 assets, got {asset_count}"
+    );
     println!("  listed {asset_count} asset(s)");
 
     assert_unauth(
@@ -529,7 +551,9 @@ async fn smoke_fixed_assets() {
     // --- 14. GET /api/fixed-assets/depreciation/runs/{id} ---
     println!("\n--- 14. GET /api/fixed-assets/depreciation/runs/{{id}} ---");
     let resp = client
-        .get(format!("{base}/api/fixed-assets/depreciation/runs/{run_id}"))
+        .get(format!(
+            "{base}/api/fixed-assets/depreciation/runs/{run_id}"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -575,7 +599,9 @@ async fn smoke_fixed_assets() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Dispose asset failed: {status} - {disposal_body}"
     );
-    let disposal_id = disposal_body["id"].as_str().expect("No id in disposal response");
+    let disposal_id = disposal_body["id"]
+        .as_str()
+        .expect("No id in disposal response");
     println!("  disposed asset2 disposal_id={disposal_id}");
 
     assert_unauth(
@@ -602,7 +628,10 @@ async fn smoke_fixed_assets() {
     );
     let disposals: Value = resp.json().await.unwrap();
     let disposal_count = disposals.as_array().map_or(0, |a| a.len());
-    assert!(disposal_count >= 1, "Expected at least 1 disposal, got {disposal_count}");
+    assert!(
+        disposal_count >= 1,
+        "Expected at least 1 disposal, got {disposal_count}"
+    );
     println!("  listed {disposal_count} disposal(s)");
 
     assert_unauth(
@@ -627,7 +656,13 @@ async fn smoke_fixed_assets() {
         resp.status()
     );
     let fetched_disposal: Value = resp.json().await.unwrap();
-    assert_eq!(fetched_disposal["disposal_type"].as_str().unwrap_or("").to_lowercase(), "scrap");
+    assert_eq!(
+        fetched_disposal["disposal_type"]
+            .as_str()
+            .unwrap_or("")
+            .to_lowercase(),
+        "scrap"
+    );
     println!(
         "  retrieved disposal type={}",
         fetched_disposal["disposal_type"]

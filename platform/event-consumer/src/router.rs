@@ -67,7 +67,10 @@ impl EventRouter {
             return RouteOutcome::Invalid("empty event_type".to_string());
         }
 
-        match self.registry.lookup(&envelope.event_type, &envelope.schema_version) {
+        match self
+            .registry
+            .lookup(&envelope.event_type, &envelope.schema_version)
+        {
             LookupResult::UnknownType => {
                 debug!(
                     subject = %subject,

@@ -334,10 +334,7 @@ mod tests {
             json.contains("/api/timekeeping/rollups/by-project"),
             "must contain rollups path"
         );
-        assert!(
-            json.contains("\"Employee\""),
-            "must have Employee schema"
-        );
+        assert!(json.contains("\"Employee\""), "must have Employee schema");
         assert!(
             json.contains("\"TimesheetEntry\""),
             "must have TimesheetEntry schema"
@@ -346,10 +343,7 @@ mod tests {
             json.contains("\"ApprovalRequest\""),
             "must have ApprovalRequest schema"
         );
-        assert!(
-            json.contains("\"ApiError\""),
-            "must have ApiError schema"
-        );
+        assert!(json.contains("\"ApiError\""), "must have ApiError schema");
         assert!(
             json.contains("\"BillingRate\""),
             "must have BillingRate schema"

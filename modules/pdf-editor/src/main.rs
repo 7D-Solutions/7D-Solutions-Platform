@@ -6,8 +6,8 @@ use axum::{
 use utoipa::OpenApi;
 
 use pdf_editor_rs::http as handlers;
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::ModuleBuilder;
+use security::{permissions, RequirePermissionsLayer};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(handlers::ApiDoc::openapi())

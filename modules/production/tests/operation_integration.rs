@@ -291,12 +291,8 @@ async fn ordering_enforced_on_required_predecessors() {
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
 
-    let (wo_id, _) = setup_wo_with_routing(
-        &pool,
-        &tenant,
-        &[(10, "First", true), (20, "Second", true)],
-    )
-    .await;
+    let (wo_id, _) =
+        setup_wo_with_routing(&pool, &tenant, &[(10, "First", true), (20, "Second", true)]).await;
 
     let ops = OperationRepo::initialize(&pool, wo_id, &tenant, &corr, None)
         .await
@@ -491,7 +487,11 @@ async fn list_operations_ordered_by_sequence() {
     let (wo_id, _) = setup_wo_with_routing(
         &pool,
         &tenant,
-        &[(30, "Third", true), (10, "First", true), (20, "Second", true)],
+        &[
+            (30, "Third", true),
+            (10, "First", true),
+            (20, "Second", true),
+        ],
     )
     .await;
 

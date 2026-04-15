@@ -53,8 +53,14 @@ mod tests {
             "[scenario-as01] capability: {} status={:?}",
             cap.id, cap.status
         );
-        assert!(cap.id.starts_with("pp_"), "capability ID should start with pp_");
-        assert!(cap.product_code.is_some(), "capability should have product_code");
+        assert!(
+            cap.id.starts_with("pp_"),
+            "capability ID should start with pp_"
+        );
+        assert!(
+            cap.product_code.is_some(),
+            "capability should have product_code"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -125,10 +131,7 @@ mod tests {
             .await
             .expect("update_account failed");
 
-        eprintln!(
-            "[scenario-as03] updated metadata: {:?}",
-            updated.metadata
-        );
+        eprintln!("[scenario-as03] updated metadata: {:?}", updated.metadata);
         assert!(
             updated
                 .metadata
@@ -155,10 +158,7 @@ mod tests {
             .await
             .expect("restore metadata failed");
 
-        eprintln!(
-            "[scenario-as03] restored metadata: {:?}",
-            restored.metadata
-        );
+        eprintln!("[scenario-as03] restored metadata: {:?}", restored.metadata);
         // sandbox_test key should be gone
         let still_has_test = restored
             .metadata
@@ -381,9 +381,7 @@ mod tests {
                 assert_eq!(status_code, 400, "expected 400, got {status_code}");
             }
             Ok(()) => {
-                eprintln!(
-                    "[scenario-as07] WARNING: capability deleted — sandbox may allow this"
-                );
+                eprintln!("[scenario-as07] WARNING: capability deleted — sandbox may allow this");
             }
             Err(e) => panic!("unexpected error from delete_capability: {e}"),
         }

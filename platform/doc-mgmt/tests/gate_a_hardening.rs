@@ -54,8 +54,10 @@ async fn tenant_isolation_holds_under_concurrent_doc_ops() {
     let pool = get_pool().await;
     let tenant_a = Uuid::new_v4();
     let tenant_b = Uuid::new_v4();
-    let (doc_a, actor_a) = seed_released_doc(&pool, tenant_a, &format!("A-{}", Uuid::new_v4())).await;
-    let (doc_b, actor_b) = seed_released_doc(&pool, tenant_b, &format!("B-{}", Uuid::new_v4())).await;
+    let (doc_a, actor_a) =
+        seed_released_doc(&pool, tenant_a, &format!("A-{}", Uuid::new_v4())).await;
+    let (doc_b, actor_b) =
+        seed_released_doc(&pool, tenant_b, &format!("B-{}", Uuid::new_v4())).await;
 
     let p1 = pool.clone();
     let p2 = pool.clone();
@@ -261,5 +263,8 @@ async fn tenant_isolation_holds_under_concurrent_doc_ops() {
             .fetch_one(&pool)
             .await
             .expect("cross-tenant lookup");
-    assert_eq!(cross_tenant_doc_lookup, 0, "tenant B cannot see tenant A doc");
+    assert_eq!(
+        cross_tenant_doc_lookup, 0,
+        "tenant B cannot see tenant A doc"
+    );
 }

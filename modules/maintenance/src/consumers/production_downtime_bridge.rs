@@ -78,7 +78,10 @@ pub async fn process_downtime_started(
         reason: payload.reason.clone(),
         impact_classification: "major".to_string(),
         idempotency_key: Some(idem_key),
-        notes: payload.started_by.as_ref().map(|by| format!("Production downtime started by {}", by)),
+        notes: payload
+            .started_by
+            .as_ref()
+            .map(|by| format!("Production downtime started by {}", by)),
         workcenter_id: Some(payload.workcenter_id),
         reason_code: payload.reason_code.clone(),
         wo_ref: None,
@@ -258,18 +261,16 @@ pub async fn start_downtime_bridge(bus: Arc<dyn EventBus>, pool: PgPool) {
 }
 
 async fn process_started_message(pool: &PgPool, msg: &BusMessage) -> Result<(), String> {
-    let envelope: EventEnvelope<DowntimeStartedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("Failed to parse downtime.started: {}", e))?;
+    let envelope: EventEnvelope<DowntimeStartedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("Failed to parse downtime.started: {}", e))?;
 
     process_downtime_started(pool, envelope.event_id, &envelope.payload).await?;
     Ok(())
 }
 
 async fn process_ended_message(pool: &PgPool, msg: &BusMessage) -> Result<(), String> {
-    let envelope: EventEnvelope<DowntimeEndedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("Failed to parse downtime.ended: {}", e))?;
+    let envelope: EventEnvelope<DowntimeEndedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("Failed to parse downtime.ended: {}", e))?;
 
     process_downtime_ended(pool, envelope.event_id, &envelope.payload).await?;
     Ok(())

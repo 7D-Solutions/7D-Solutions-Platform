@@ -16,10 +16,8 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::tax_config::{db_error, get_rule_by_id_and_tenant, ErrorBody};
 use crate::domain::tax_config as tax_config_repo;
-use super::tax_config::{
-    db_error, get_rule_by_id_and_tenant, ErrorBody,
-};
 
 // ============================================================================
 // Request / Response types — Rules

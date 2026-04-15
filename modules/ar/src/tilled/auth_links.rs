@@ -76,16 +76,19 @@ mod tests {
             "created_at": "2026-02-27T00:00:00Z",
             "updated_at": "2026-02-27T00:00:00Z"
         });
-        let link: AuthLink = serde_json::from_value(value).unwrap();
+        let link: AuthLink = serde_json::from_value(value).expect("test fixture");
         assert_eq!(link.id, "link_123");
-        assert_eq!(link.url.as_deref(), Some("https://sandbox-app.tilled.com/auth/magic-link?key=link_123"));
+        assert_eq!(
+            link.url.as_deref(),
+            Some("https://sandbox-app.tilled.com/auth/magic-link?key=link_123")
+        );
         assert_eq!(link.redeemed, Some(false));
     }
 
     #[test]
     fn auth_link_deserializes_minimal() {
         let value = serde_json::json!({"id": "link_min"});
-        let link: AuthLink = serde_json::from_value(value).unwrap();
+        let link: AuthLink = serde_json::from_value(value).expect("test fixture");
         assert_eq!(link.id, "link_min");
         assert!(link.url.is_none());
     }
@@ -98,9 +101,9 @@ mod tests {
             redirect_url: None,
             metadata: None,
         };
-        let value = serde_json::to_value(req).unwrap();
-        assert_eq!(value.get("user_id").unwrap(), "user_123");
-        assert_eq!(value.get("expiration").unwrap(), "1d");
+        let value = serde_json::to_value(req).expect("test fixture");
+        assert_eq!(value.get("user_id").expect("test fixture"), "user_123");
+        assert_eq!(value.get("expiration").expect("test fixture"), "1d");
         assert!(value.get("redirect_url").is_none());
         assert!(value.get("metadata").is_none());
     }

@@ -4,13 +4,12 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WaiveChecklistItemRequest {
     pub completed_by: String,
     pub waive_reason: String,
 }
-

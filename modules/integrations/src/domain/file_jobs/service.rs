@@ -61,8 +61,7 @@ impl FileJobService {
 
         // Idempotency check
         if let Some(ref key) = req.idempotency_key {
-            let existing =
-                repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
+            let existing = repo::find_by_idempotency_key(&mut tx, &req.tenant_id, key).await?;
 
             if let Some(job) = existing {
                 tx.rollback().await?;

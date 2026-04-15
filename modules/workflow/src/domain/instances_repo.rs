@@ -431,10 +431,7 @@ impl InstanceRepo {
         .ok_or(InstanceError::NotFound)
     }
 
-    pub async fn count(
-        pool: &PgPool,
-        q: &ListInstancesQuery,
-    ) -> Result<i64, InstanceError> {
+    pub async fn count(pool: &PgPool, q: &ListInstancesQuery) -> Result<i64, InstanceError> {
         let mut conditions = vec!["tenant_id = $1".to_string()];
         let mut param_idx = 2u32;
 

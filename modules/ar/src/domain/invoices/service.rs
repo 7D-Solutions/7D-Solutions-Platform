@@ -13,9 +13,9 @@ use crate::events::contracts::{
     build_invoice_opened_envelope, InvoiceLifecyclePayload, EVENT_TYPE_INVOICE_OPENED,
 };
 use crate::models::{
-    ApiError, CreateInvoiceRequest, FinalizeInvoiceRequest, GlPostingLine,
-    GlPostingRequestPayload, Invoice, ListInvoicesQuery, PaginatedResponse,
-    PaymentCollectionRequestedPayload, UpdateInvoiceRequest,
+    ApiError, CreateInvoiceRequest, FinalizeInvoiceRequest, GlPostingLine, GlPostingRequestPayload,
+    Invoice, ListInvoicesQuery, PaginatedResponse, PaymentCollectionRequestedPayload,
+    UpdateInvoiceRequest,
 };
 
 use super::repo;
@@ -25,11 +25,7 @@ use super::repo;
 // ============================================================================
 
 /// Get a single invoice by ID with tenant isolation.
-pub async fn get_invoice(
-    db: &PgPool,
-    app_id: &str,
-    id: i32,
-) -> Result<Invoice, ApiError> {
+pub async fn get_invoice(db: &PgPool, app_id: &str, id: i32) -> Result<Invoice, ApiError> {
     repo::fetch_invoice_with_tenant(db, id, app_id)
         .await
         .map_err(|e| {
@@ -63,7 +59,12 @@ pub async fn list_invoices(
         })?;
 
     let page = (offset as i64 / limit as i64) + 1;
-    Ok(PaginatedResponse::new(invoices, page, limit as i64, total_items))
+    Ok(PaginatedResponse::new(
+        invoices,
+        page,
+        limit as i64,
+        total_items,
+    ))
 }
 
 // ============================================================================
@@ -100,9 +101,7 @@ pub async fn create_invoice(
             tracing::error!("Database error fetching customer: {:?}", e);
             ApiError::internal("Internal database error")
         })?
-        .ok_or_else(|| {
-            ApiError::not_found(format!("Customer {} not found", req.ar_customer_id))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("Customer {} not found", req.ar_customer_id)))?;
 
     // Guard: subscription must exist if provided
     if let Some(subscription_id) = req.subscription_id {
@@ -122,10 +121,14 @@ pub async fn create_invoice(
 
     // Guard: party_id must exist in Party Master if provided
     if let Some(pid) = req.party_id {
-        let verified = claims
-            .ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
-        let client = party_client
-            .ok_or_else(|| ApiError::new(503, "party_service_unavailable", "Party service not configured"))?;
+        let verified = claims.ok_or_else(|| ApiError::unauthorized("Missing authentication"))?;
+        let client = party_client.ok_or_else(|| {
+            ApiError::new(
+                503,
+                "party_service_unavailable",
+                "Party service not configured",
+            )
+        })?;
         crate::integrations::party_client::verify_party(client, pid, app_id, verified)
             .await
             .map_err(|e| {
@@ -162,8 +165,9 @@ pub async fn create_invoice(
         req.metadata,
         req.billing_period_start,
         req.billing_period_end,
-        req.line_item_details
-            .map(|items| serde_json::to_value(items).expect("Vec<InvoiceLineItem> always serializes")),
+        req.line_item_details.map(|items| {
+            serde_json::to_value(items).expect("Vec<InvoiceLineItem> always serializes")
+        }),
         req.compliance_codes,
         req.correlation_id,
         req.party_id,
@@ -217,7 +221,8 @@ pub async fn create_invoice(
         "Invoice".to_string(),
         invoice.id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| {
             tracing::error!("Audit write failed for create_invoice: {}", e);
             ApiError::internal("Audit write failed")
@@ -421,7 +426,8 @@ pub async fn finalize_invoice(
         "Invoice".to_string(),
         invoice.id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| {
             tracing::error!("Audit write failed for finalize_invoice: {}", e);
             ApiError::internal("Audit write failed")

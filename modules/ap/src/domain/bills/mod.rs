@@ -58,13 +58,14 @@ impl From<BillError> for platform_http_contracts::ApiError {
     fn from(err: BillError) -> Self {
         match err {
             BillError::NotFound(id) => Self::not_found(format!("Bill {} not found", id)),
-            BillError::VendorNotFound(id) => {
-                Self::new(422, "vendor_not_found", format!("Vendor {} not found or inactive", id))
+            BillError::VendorNotFound(id) => Self::new(
+                422,
+                "vendor_not_found",
+                format!("Vendor {} not found or inactive", id),
+            ),
+            BillError::DuplicateInvoice(ref_) => {
+                Self::conflict(format!("Invoice '{}' already exists for this vendor", ref_))
             }
-            BillError::DuplicateInvoice(ref_) => Self::conflict(format!(
-                "Invoice '{}' already exists for this vendor",
-                ref_
-            )),
             BillError::InvalidTransition { from, to } => Self::new(
                 422,
                 "invalid_transition",
@@ -74,9 +75,7 @@ impl From<BillError> for platform_http_contracts::ApiError {
                 Self::new(422, "empty_lines", "Bill must have at least one line")
             }
             BillError::Validation(msg) => Self::new(422, "validation_error", msg),
-            BillError::MatchPolicyViolation(msg) => {
-                Self::new(422, "match_policy_violation", msg)
-            }
+            BillError::MatchPolicyViolation(msg) => Self::new(422, "match_policy_violation", msg),
             BillError::TaxError(msg) => Self::new(422, "tax_error", msg),
             BillError::Database(e) => {
                 tracing::error!("AP bills DB error: {}", e);

@@ -73,7 +73,10 @@ async fn security_pdf_editor_cors_disallowed_origin_rejected() {
         acao
     );
 
-    println!("PASS: disallowed origin https://evil.example correctly rejected (header={:?})", acao);
+    println!(
+        "PASS: disallowed origin https://evil.example correctly rejected (header={:?})",
+        acao
+    );
 }
 
 #[tokio::test]
@@ -174,5 +177,8 @@ async fn security_pdf_editor_cors_allowed_origin_accepted() {
         "Preflight for allowed origin must include Access-Control-Allow-Methods"
     );
 
-    println!("PASS: allowed origin {} correctly accepted with proper CORS headers", origin);
+    println!(
+        "PASS: allowed origin {} correctly accepted with proper CORS headers",
+        origin
+    );
 }

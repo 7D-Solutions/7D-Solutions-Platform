@@ -76,7 +76,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -110,11 +114,7 @@ async fn smoke_inventory_transactions() {
     };
 
     let tenant_id = Uuid::new_v4().to_string();
-    let jwt = make_jwt(
-        &key,
-        &tenant_id,
-        &["inventory.mutate", "inventory.read"],
-    );
+    let jwt = make_jwt(&key, &tenant_id, &["inventory.mutate", "inventory.read"]);
     let base = inv_url();
 
     // Gate: verify the Inventory service accepts our JWT
@@ -174,7 +174,10 @@ async fn smoke_inventory_transactions() {
         .unwrap();
     let status = resp.status();
     let created: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Create item failed: {status} - {created}");
+    assert!(
+        status.is_success(),
+        "Create item failed: {status} - {created}"
+    );
     let item_id = created["id"].as_str().expect("No id in create response");
     println!("  created item id={item_id}");
 
@@ -206,7 +209,13 @@ async fn smoke_inventory_transactions() {
         "Create receipt failed: {status} - {body}"
     );
     println!("  receipt created: {status}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/receipts"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/receipts"),
+        Some(json!({})),
+    )
+    .await;
     // 2. POST /api/inventory/issues
     println!("\n--- 2. POST /api/inventory/issues ---");
     let resp = client
@@ -233,7 +242,13 @@ async fn smoke_inventory_transactions() {
         "Create issue failed: {status} - {body}"
     );
     println!("  issue created: {status}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/issues"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/issues"),
+        Some(json!({})),
+    )
+    .await;
     // 3. POST /api/inventory/adjustments
     println!("\n--- 3. POST /api/inventory/adjustments ---");
     let resp = client
@@ -257,7 +272,13 @@ async fn smoke_inventory_transactions() {
         "Create adjustment failed: {status} - {body}"
     );
     println!("  adjustment created: {status}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/adjustments"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/adjustments"),
+        Some(json!({})),
+    )
+    .await;
     // 4. POST /api/inventory/transfers
     println!("\n--- 4. POST /api/inventory/transfers ---");
     let resp = client
@@ -282,7 +303,13 @@ async fn smoke_inventory_transactions() {
         "Create transfer failed: {status} - {body}"
     );
     println!("  transfer created: {status}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/transfers"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/transfers"),
+        Some(json!({})),
+    )
+    .await;
     // 5. POST /api/inventory/status-transfers
     println!("\n--- 5. POST /api/inventory/status-transfers ---");
     let resp = client
@@ -307,7 +334,13 @@ async fn smoke_inventory_transactions() {
         "Status transfer failed: {status} - {body}"
     );
     println!("  status transfer created: {status}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/status-transfers"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/status-transfers"),
+        Some(json!({})),
+    )
+    .await;
     // 6. GET /api/inventory/uoms
     println!("\n--- 6. GET /api/inventory/uoms ---");
     let resp = client
@@ -320,7 +353,10 @@ async fn smoke_inventory_transactions() {
     let body: Value = resp.json().await.unwrap_or(json!([]));
     assert!(status.is_success(), "List UOMs failed: {status}");
     assert!(body.is_array(), "UOMs response should be an array");
-    println!("  listed {} UOMs", body.as_array().map(|a| a.len()).unwrap_or(0));
+    println!(
+        "  listed {} UOMs",
+        body.as_array().map(|a| a.len()).unwrap_or(0)
+    );
     assert_unauth(&client, "GET", &format!("{base}/api/inventory/uoms"), None).await;
     // 7. POST /api/inventory/locations
     println!("\n--- 7. POST /api/inventory/locations ---");
@@ -347,7 +383,13 @@ async fn smoke_inventory_transactions() {
         .or(loc["location_id"].as_str())
         .expect("No location id in response");
     println!("  created location id={location_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/locations"), Some(json!({"warehouse_id": warehouse_a, "code": "X", "name": "X"}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/locations"),
+        Some(json!({"warehouse_id": warehouse_a, "code": "X", "name": "X"})),
+    )
+    .await;
     // 8. GET /api/inventory/locations/{id}
     println!("\n--- 8. GET /api/inventory/locations/{{id}} ---");
     let resp = client
@@ -360,11 +402,19 @@ async fn smoke_inventory_transactions() {
     assert!(status.is_success(), "Get location failed: {status}");
     let fetched: Value = resp.json().await.unwrap_or(json!({}));
     println!("  retrieved location name={}", fetched["name"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/inventory/locations/{location_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/inventory/locations/{location_id}"),
+        None,
+    )
+    .await;
     // 9. POST /api/inventory/locations/{id}/deactivate
     println!("\n--- 9. POST /api/inventory/locations/{{id}}/deactivate ---");
     let resp = client
-        .post(format!("{base}/api/inventory/locations/{location_id}/deactivate"))
+        .post(format!(
+            "{base}/api/inventory/locations/{location_id}/deactivate"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -372,21 +422,41 @@ async fn smoke_inventory_transactions() {
     let status = resp.status();
     assert!(status.is_success(), "Deactivate location failed: {status}");
     println!("  deactivated location");
-    assert_unauth(&client, "POST", &format!("{base}/api/inventory/locations/{location_id}/deactivate"), None).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/inventory/locations/{location_id}/deactivate"),
+        None,
+    )
+    .await;
     // 10. GET /api/inventory/warehouses/{warehouse_id}/locations
     println!("\n--- 10. GET /api/inventory/warehouses/{{warehouse_id}}/locations ---");
     let resp = client
-        .get(format!("{base}/api/inventory/warehouses/{warehouse_a}/locations"))
+        .get(format!(
+            "{base}/api/inventory/warehouses/{warehouse_a}/locations"
+        ))
         .bearer_auth(&jwt)
         .send()
         .await
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!([]));
-    assert!(status.is_success(), "List warehouse locations failed: {status}");
+    assert!(
+        status.is_success(),
+        "List warehouse locations failed: {status}"
+    );
     assert!(body.is_array(), "Warehouse locations should be an array");
-    println!("  listed {} locations for warehouse", body.as_array().map(|a| a.len()).unwrap_or(0));
-    assert_unauth(&client, "GET", &format!("{base}/api/inventory/warehouses/{warehouse_a}/locations"), None).await;
+    println!(
+        "  listed {} locations for warehouse",
+        body.as_array().map(|a| a.len()).unwrap_or(0)
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/inventory/warehouses/{warehouse_a}/locations"),
+        None,
+    )
+    .await;
 
     println!("\n=== All 10 inventory transaction routes passed ===");
 }

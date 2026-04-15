@@ -16,9 +16,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{domain::lots_serials::queries::list_serials_for_item, AppState};
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize)]
 pub struct ListSerialsQuery {
@@ -66,7 +66,11 @@ pub async fn get_serials_for_item(
             let page_size = q.page_size.clamp(1, 200);
             let page = q.page.max(1);
             let offset = ((page - 1) * page_size) as usize;
-            let serials: Vec<_> = all_serials.into_iter().skip(offset).take(page_size as usize).collect();
+            let serials: Vec<_> = all_serials
+                .into_iter()
+                .skip(offset)
+                .take(page_size as usize)
+                .collect();
             let resp = PaginatedResponse::new(serials, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }

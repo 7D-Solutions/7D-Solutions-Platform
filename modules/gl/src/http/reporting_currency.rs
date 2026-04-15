@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying financial statements in the tenant's
 //! reporting (functional) currency.
 
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -12,12 +15,12 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize)]
 pub struct ReportingCurrencyQuery {
@@ -49,7 +52,10 @@ pub struct ReportingBalanceSheetResponse {
     pub statement: BalanceSheetResponse,
 }
 
-fn validate_reporting_currency(currency: &str, ctx: &Option<Extension<TracingContext>>) -> Result<(), ApiError> {
+fn validate_reporting_currency(
+    currency: &str,
+    ctx: &Option<Extension<TracingContext>>,
+) -> Result<(), ApiError> {
     if currency.len() != 3 || !currency.chars().all(|c| c.is_ascii_uppercase()) {
         return Err(with_request_id(
             ApiError::bad_request(format!(

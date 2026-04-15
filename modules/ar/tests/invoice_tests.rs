@@ -130,7 +130,9 @@ async fn test_list_invoices_by_customer() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let json = common::body_json(response).await;
-    let invoices = json["data"].as_array().expect("Response.data should be an array");
+    let invoices = json["data"]
+        .as_array()
+        .expect("Response.data should be an array");
     assert_eq!(invoices.len(), 2, "Should return 2 invoices");
 
     // Cleanup

@@ -20,9 +20,7 @@ use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 use workforce_competence_rs::domain::{
-    models::{
-        ArtifactType, AssignCompetenceRequest, AuthorizationQuery, RegisterArtifactRequest,
-    },
+    models::{ArtifactType, AssignCompetenceRequest, AuthorizationQuery, RegisterArtifactRequest},
     service::{self, ServiceError},
 };
 
@@ -216,8 +214,12 @@ async fn assign_competence_idempotency_replay() {
         causation_id: None,
     };
 
-    let (first, _) = service::assign_competence(&pool, &assign_req).await.unwrap();
-    let (replayed, is_replay) = service::assign_competence(&pool, &assign_req).await.unwrap();
+    let (first, _) = service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
+    let (replayed, is_replay) = service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     assert!(is_replay);
     assert_eq!(first.id, replayed.id);
@@ -250,7 +252,9 @@ async fn authorization_check_authorized() {
         correlation_id: None,
         causation_id: None,
     };
-    service::assign_competence(&pool, &assign_req).await.unwrap();
+    service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     // Check authorization at current time (within validity)
     let query = AuthorizationQuery {
@@ -294,7 +298,9 @@ async fn authorization_check_expired() {
         correlation_id: None,
         causation_id: None,
     };
-    service::assign_competence(&pool, &assign_req).await.unwrap();
+    service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     // Check authorization now — should be expired
     let query = AuthorizationQuery {
@@ -305,7 +311,10 @@ async fn authorization_check_expired() {
     };
     let result = service::check_authorization(&pool, &query).await.unwrap();
 
-    assert!(!result.authorized, "expired competence should not be authorized");
+    assert!(
+        !result.authorized,
+        "expired competence should not be authorized"
+    );
 }
 
 // ============================================================================
@@ -334,7 +343,9 @@ async fn authorization_check_revoked() {
         correlation_id: None,
         causation_id: None,
     };
-    let (assignment, _) = service::assign_competence(&pool, &assign_req).await.unwrap();
+    let (assignment, _) = service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     // Manually revoke the assignment
     sqlx::query(
@@ -353,7 +364,10 @@ async fn authorization_check_revoked() {
     };
     let result = service::check_authorization(&pool, &query).await.unwrap();
 
-    assert!(!result.authorized, "revoked competence should not be authorized");
+    assert!(
+        !result.authorized,
+        "revoked competence should not be authorized"
+    );
 }
 
 // ============================================================================
@@ -382,7 +396,9 @@ async fn authorization_check_wrong_tenant() {
         correlation_id: None,
         causation_id: None,
     };
-    service::assign_competence(&pool, &assign_req).await.unwrap();
+    service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     // Query with different tenant
     let query = AuthorizationQuery {
@@ -423,7 +439,9 @@ async fn authorization_check_before_award() {
         correlation_id: None,
         causation_id: None,
     };
-    service::assign_competence(&pool, &assign_req).await.unwrap();
+    service::assign_competence(&pool, &assign_req)
+        .await
+        .unwrap();
 
     // Query now — before the award date
     let query = AuthorizationQuery {

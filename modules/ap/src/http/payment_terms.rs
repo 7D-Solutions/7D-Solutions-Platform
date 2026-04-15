@@ -21,9 +21,9 @@ use uuid::Uuid;
 use crate::domain::payment_terms::{
     service, AssignTermsRequest, CreatePaymentTermsRequest, UpdatePaymentTermsRequest,
 };
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Shared helpers

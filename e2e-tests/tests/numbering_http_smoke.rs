@@ -79,7 +79,11 @@ async fn assert_unauth(client: &Client, method: Method, url: &str, body: Option<
         Method::PUT => client.put(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -124,7 +128,9 @@ async fn smoke_numbering() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Numbering returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Numbering returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -152,8 +158,14 @@ async fn smoke_numbering() {
         "PUT policy failed: {status} - {policy_body}"
     );
     assert_eq!(policy_body["entity"], entity, "policy entity mismatch");
-    assert_eq!(policy_body["pattern"], "INV-{number}", "policy pattern mismatch");
-    println!("  policy upserted: entity={} version={}", policy_body["entity"], policy_body["version"]);
+    assert_eq!(
+        policy_body["pattern"], "INV-{number}",
+        "policy pattern mismatch"
+    );
+    println!(
+        "  policy upserted: entity={} version={}",
+        policy_body["entity"], policy_body["version"]
+    );
 
     assert_unauth(
         &client,
@@ -178,9 +190,15 @@ async fn smoke_numbering() {
     );
     let fetched: Value = resp.json().await.unwrap();
     assert_eq!(fetched["entity"], entity, "fetched entity mismatch");
-    assert_eq!(fetched["pattern"], "INV-{number}", "fetched pattern mismatch");
+    assert_eq!(
+        fetched["pattern"], "INV-{number}",
+        "fetched pattern mismatch"
+    );
     assert_eq!(fetched["padding"], 6, "fetched padding mismatch");
-    println!("  policy retrieved: pattern={} padding={}", fetched["pattern"], fetched["padding"]);
+    println!(
+        "  policy retrieved: pattern={} padding={}",
+        fetched["pattern"], fetched["padding"]
+    );
 
     assert_unauth(
         &client,
@@ -209,10 +227,15 @@ async fn smoke_numbering() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "POST allocate failed: {status} - {alloc_body}"
     );
-    let number_value = alloc_body["number_value"].as_i64().expect("no number_value");
+    let number_value = alloc_body["number_value"]
+        .as_i64()
+        .expect("no number_value");
     assert!(number_value > 0, "number_value must be positive");
     // gap-free allocation starts as "reserved"
-    assert_eq!(alloc_body["status"], "reserved", "gap-free allocation must be reserved");
+    assert_eq!(
+        alloc_body["status"], "reserved",
+        "gap-free allocation must be reserved"
+    );
     assert_eq!(alloc_body["entity"], entity);
     // formatted_number should use our policy
     let formatted = alloc_body["formatted_number"].as_str().unwrap_or("");
@@ -241,10 +264,20 @@ async fn smoke_numbering() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "idempotent re-allocate failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "idempotent re-allocate failed: {}",
+        resp.status()
+    );
     let replay_body: Value = resp.json().await.unwrap();
-    assert_eq!(replay_body["replay"], true, "duplicate alloc must be replay=true");
-    assert_eq!(replay_body["number_value"], number_value, "replay must return same number");
+    assert_eq!(
+        replay_body["replay"], true,
+        "duplicate alloc must be replay=true"
+    );
+    assert_eq!(
+        replay_body["number_value"], number_value,
+        "replay must return same number"
+    );
     println!("  idempotency replay: number={number_value} replay=true");
 
     // --- 4. POST /confirm ---
@@ -265,9 +298,18 @@ async fn smoke_numbering() {
         status == StatusCode::OK,
         "POST confirm failed: {status} - {confirm_body}"
     );
-    assert_eq!(confirm_body["status"], "confirmed", "confirm must yield confirmed status");
-    assert_eq!(confirm_body["number_value"], number_value, "confirmed number must match");
-    assert_eq!(confirm_body["replay"], false, "first confirm must not be replay");
+    assert_eq!(
+        confirm_body["status"], "confirmed",
+        "confirm must yield confirmed status"
+    );
+    assert_eq!(
+        confirm_body["number_value"], number_value,
+        "confirmed number must match"
+    );
+    assert_eq!(
+        confirm_body["replay"], false,
+        "first confirm must not be replay"
+    );
     println!("  confirmed number={number_value} status=confirmed");
 
     // Idempotent re-confirm
@@ -278,9 +320,16 @@ async fn smoke_numbering() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "idempotent re-confirm failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "idempotent re-confirm failed: {}",
+        resp.status()
+    );
     let replay_confirm: Value = resp.json().await.unwrap();
-    assert_eq!(replay_confirm["replay"], true, "re-confirm must be replay=true");
+    assert_eq!(
+        replay_confirm["replay"], true,
+        "re-confirm must be replay=true"
+    );
     println!("  idempotent re-confirm: replay=true");
 
     assert_unauth(

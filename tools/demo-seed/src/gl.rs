@@ -53,26 +53,126 @@ struct AccountDef {
 }
 
 const ACCOUNTS: &[AccountDef] = &[
-    AccountDef { code: "1000", name: "Cash", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "1100", name: "Accounts Receivable", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "1200", name: "Raw Materials Inventory", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "1210", name: "WIP Inventory", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "1220", name: "Finished Goods Inventory", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "1300", name: "Fixed Assets", account_type: "Asset", normal_balance: "Debit" },
-    AccountDef { code: "2000", name: "Accounts Payable", account_type: "Liability", normal_balance: "Credit" },
-    AccountDef { code: "2100", name: "Accrued Expenses", account_type: "Liability", normal_balance: "Credit" },
-    AccountDef { code: "3000", name: "Retained Earnings", account_type: "Equity", normal_balance: "Credit" },
-    AccountDef { code: "4000", name: "Product Sales Revenue", account_type: "Revenue", normal_balance: "Credit" },
-    AccountDef { code: "4100", name: "Service Revenue", account_type: "Revenue", normal_balance: "Credit" },
-    AccountDef { code: "5000", name: "COGS - Direct Materials", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5010", name: "COGS - Direct Labor", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5020", name: "COGS - Manufacturing Overhead", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5030", name: "COGS - Scrap and Rework", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5040", name: "Freight In", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5100", name: "Purchase Price Variance", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "5120", name: "Inventory Adjustments", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "6000", name: "SGA Expenses", account_type: "Expense", normal_balance: "Debit" },
-    AccountDef { code: "6100", name: "R&D Expenses", account_type: "Expense", normal_balance: "Debit" },
+    AccountDef {
+        code: "1000",
+        name: "Cash",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "1100",
+        name: "Accounts Receivable",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "1200",
+        name: "Raw Materials Inventory",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "1210",
+        name: "WIP Inventory",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "1220",
+        name: "Finished Goods Inventory",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "1300",
+        name: "Fixed Assets",
+        account_type: "Asset",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "2000",
+        name: "Accounts Payable",
+        account_type: "Liability",
+        normal_balance: "Credit",
+    },
+    AccountDef {
+        code: "2100",
+        name: "Accrued Expenses",
+        account_type: "Liability",
+        normal_balance: "Credit",
+    },
+    AccountDef {
+        code: "3000",
+        name: "Retained Earnings",
+        account_type: "Equity",
+        normal_balance: "Credit",
+    },
+    AccountDef {
+        code: "4000",
+        name: "Product Sales Revenue",
+        account_type: "Revenue",
+        normal_balance: "Credit",
+    },
+    AccountDef {
+        code: "4100",
+        name: "Service Revenue",
+        account_type: "Revenue",
+        normal_balance: "Credit",
+    },
+    AccountDef {
+        code: "5000",
+        name: "COGS - Direct Materials",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5010",
+        name: "COGS - Direct Labor",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5020",
+        name: "COGS - Manufacturing Overhead",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5030",
+        name: "COGS - Scrap and Rework",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5040",
+        name: "Freight In",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5100",
+        name: "Purchase Price Variance",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "5120",
+        name: "Inventory Adjustments",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "6000",
+        name: "SGA Expenses",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
+    AccountDef {
+        code: "6100",
+        name: "R&D Expenses",
+        account_type: "Expense",
+        normal_balance: "Debit",
+    },
 ];
 
 struct FxRateDef {
@@ -82,8 +182,16 @@ struct FxRateDef {
 }
 
 const FX_RATES: &[FxRateDef] = &[
-    FxRateDef { base: "USD", quote: "EUR", rate: 0.92 },
-    FxRateDef { base: "USD", quote: "GBP", rate: 0.79 },
+    FxRateDef {
+        base: "USD",
+        quote: "EUR",
+        rate: 0.92,
+    },
+    FxRateDef {
+        base: "USD",
+        quote: "GBP",
+        rate: 0.79,
+    },
 ];
 
 const FX_EFFECTIVE_AT: &str = "2026-01-01T00:00:00Z";
@@ -96,7 +204,7 @@ const FX_SOURCE: &str = "demo-seed";
 /// Account codes created, for downstream modules to reference
 pub struct GlAccounts {
     pub codes: Vec<String>,
-    pub accounts: Vec<(String, String)>, // (code, name)
+    pub accounts: Vec<(String, String)>,     // (code, name)
     pub fx_rates: Vec<(uuid::Uuid, String)>, // (rate_id, pair)
 }
 
@@ -135,14 +243,14 @@ pub async fn seed_gl(
         info!(pair, rate = fx.rate, "FX rate seeded");
     }
 
-    Ok(GlAccounts { codes, accounts, fx_rates: fx_rates_out })
+    Ok(GlAccounts {
+        codes,
+        accounts,
+        fx_rates: fx_rates_out,
+    })
 }
 
-async fn create_account(
-    client: &reqwest::Client,
-    gl_url: &str,
-    acct: &AccountDef,
-) -> Result<()> {
+async fn create_account(client: &reqwest::Client, gl_url: &str, acct: &AccountDef) -> Result<()> {
     let url = format!("{}/api/gl/accounts", gl_url);
 
     let body = CreateAccountRequest {

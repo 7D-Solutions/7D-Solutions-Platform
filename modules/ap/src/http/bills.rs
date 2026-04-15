@@ -19,8 +19,8 @@ use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Deserialize;
-use utoipa::IntoParams;
 use std::sync::Arc;
+use utoipa::IntoParams;
 use uuid::Uuid;
 
 use crate::domain::bills::{
@@ -28,9 +28,9 @@ use crate::domain::bills::{
 };
 use crate::domain::r#match::{service as match_service, RunMatchRequest};
 use crate::domain::tax::{self, ZeroTaxProvider};
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // GL period pre-validation

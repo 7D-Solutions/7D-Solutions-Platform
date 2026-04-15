@@ -8,9 +8,9 @@
 use uuid::Uuid;
 
 // Re-export everything for backward compatibility
+pub use super::revrec_amendment_repo::*;
 pub use super::revrec_contract_repo::*;
 pub use super::revrec_schedule_repo::*;
-pub use super::revrec_amendment_repo::*;
 
 /// Errors from revrec repository operations
 #[derive(Debug, thiserror::Error)]

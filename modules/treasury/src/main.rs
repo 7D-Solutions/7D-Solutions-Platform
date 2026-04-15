@@ -4,9 +4,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use treasury::{http, metrics, AppState};
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::ModuleBuilder;
+use security::{permissions, RequirePermissionsLayer};
+use treasury::{http, metrics, AppState};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
@@ -88,9 +88,7 @@ async fn main() {
                     "/api/treasury/recon/gl-unmatched-txns",
                     get(http::recon_gl::unmatched_bank_txns),
                 )
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::TREASURY_READ,
-                ]))
+                .route_layer(RequirePermissionsLayer::new(&[permissions::TREASURY_READ]))
                 .layer(axum::middleware::from_fn_with_state(
                     app_state.clone(),
                     metrics::latency_layer,

@@ -75,7 +75,9 @@ fn emit_struct(out: &mut String, name: &str, fields: &[Field], doc: Option<&str>
     // Derive Default only when every required field has a type that implements Default.
     // Primitive types and Option/Vec do; enums, uuid::Uuid, and chrono types do not.
     let can_default = (name.starts_with("Create") && name.ends_with("Request"))
-        && fields.iter().all(|f| !f.required || type_has_default(&f.rust_type));
+        && fields
+            .iter()
+            .all(|f| !f.required || type_has_default(&f.rust_type));
     if can_default {
         out.push_str("#[derive(Debug, Clone, Default, Serialize, Deserialize)]\n");
     } else {
@@ -110,10 +112,7 @@ fn emit_struct(out: &mut String, name: &str, fields: &[Field], doc: Option<&str>
             } else {
                 format!("Option<{}>", f.rust_type)
             };
-            out.push_str(&format!(
-                "    pub {}: {rtype},\n",
-                sanitize_field(&f.name)
-            ));
+            out.push_str(&format!("    pub {}: {rtype},\n", sanitize_field(&f.name)));
         }
     }
 
@@ -170,8 +169,18 @@ fn to_pascal_case(s: &str) -> String {
 fn type_has_default(rust_type: &str) -> bool {
     matches!(
         rust_type,
-        "String" | "bool" | "i32" | "i64" | "i16" | "u32" | "u64" | "f32" | "f64"
-            | "usize" | "isize" | "serde_json::Value"
+        "String"
+            | "bool"
+            | "i32"
+            | "i64"
+            | "i16"
+            | "u32"
+            | "u64"
+            | "f32"
+            | "f64"
+            | "usize"
+            | "isize"
+            | "serde_json::Value"
     ) || rust_type.starts_with("Option<")
         || rust_type.starts_with("Vec<")
 }

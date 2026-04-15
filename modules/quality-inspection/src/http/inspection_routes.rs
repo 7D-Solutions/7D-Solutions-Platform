@@ -12,11 +12,11 @@ use std::sync::Arc;
 use utoipa::IntoParams;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::domain::models::*;
 use crate::domain::service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 /// Clone the WC client with the inbound request's bearer token attached,
 /// so downstream WC calls are authenticated as the original caller.
@@ -60,14 +60,8 @@ pub async fn post_inspection_plan(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::create_inspection_plan(
-        &state.pool,
-        &tenant_id,
-        &req,
-        &correlation_id(),
-        None,
-    )
-    .await
+    match service::create_inspection_plan(&state.pool, &tenant_id, &req, &correlation_id(), None)
+        .await
     {
         Ok(plan) => (StatusCode::CREATED, Json(plan)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
@@ -495,14 +489,8 @@ pub async fn post_final_inspection(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::create_final_inspection(
-        &state.pool,
-        &tenant_id,
-        &req,
-        &correlation_id(),
-        None,
-    )
-    .await
+    match service::create_final_inspection(&state.pool, &tenant_id, &req, &correlation_id(), None)
+        .await
     {
         Ok(inspection) => (StatusCode::CREATED, Json(inspection)).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),

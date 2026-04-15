@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,7 +93,7 @@ pub struct AccrualResult {
 }
 
 /// A reallocation of transaction price to a performance obligation on amendment.
-/// 
+///
 /// Used in `ContractModifiedPayload` to capture how the contract modification
 /// redistributes value across obligations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,7 +126,7 @@ pub struct ApprovalResponse {
 }
 
 /// Balance sheet response with account balances and totals
-/// 
+///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,7 +139,7 @@ pub struct BalanceSheetResponse {
 }
 
 /// Balance Sheet Row
-/// 
+///
 /// Represents a single account row in a balance sheet.
 /// Contains asset, liability, or equity account data at a specific point in time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,7 +157,7 @@ pub struct BalanceSheetRow {
 }
 
 /// Balance sheet totals (Assets, Liabilities, Equity)
-/// 
+///
 /// **Accounting Equation**: Assets = Liabilities + Equity
 /// **Balance Guarantee**: is_balanced MUST be true or data is invalid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,7 +173,7 @@ pub struct BalanceSheetTotals {
 }
 
 /// Cash Flow Category Totals
-/// 
+///
 /// Aggregated totals for a single cash flow category.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CashFlowCategoryTotal {
@@ -200,7 +200,7 @@ pub struct CashFlowResponse {
 }
 
 /// Cash Flow Row
-/// 
+///
 /// Represents a single account's cash flow activity classified into
 /// operating, investing, or financing category.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -233,7 +233,7 @@ pub struct ChecklistItemResponse {
 }
 
 /// Request to close an accounting period
-/// 
+///
 /// Idempotent operation - if already closed, returns existing close status.
 /// Atomically: validates, creates snapshot, computes hash, sets closed_at.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,7 +248,7 @@ pub struct ClosePeriodRequest {
 }
 
 /// Response from close operation
-/// 
+///
 /// Returns close status including snapshot hash for audit verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClosePeriodResponse {
@@ -267,7 +267,7 @@ pub struct ClosePeriodResponse {
 }
 
 /// Close workflow status
-/// 
+///
 /// Represents the current state of a period in the close lifecycle.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloseStatus {
@@ -276,7 +276,7 @@ pub struct CloseStatus {
 }
 
 /// Response with period close status
-/// 
+///
 /// Returns current state of period in close workflow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloseStatusResponse {
@@ -299,16 +299,16 @@ pub struct CompleteChecklistItemRequest {
 }
 
 /// Payload for revrec.contract_modified
-/// 
+///
 /// Emitted when a contract is amended. Modifications may:
 /// - Change the transaction price (prospective or cumulative catch-up)
 /// - Add new performance obligations
 /// - Remove existing obligations
 /// - Extend the contract term
-/// 
+///
 /// Downstream schedules must be recomputed after a modification event.
 /// Modification is append-only: the original contract event is never changed.
-/// 
+///
 /// Idempotency: caller MUST supply a deterministic event_id derived from modification_id.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractModifiedPayload {
@@ -447,4 +447,3 @@ pub struct ExecuteReversalsResult {
     pub reversals_skipped: i64,
     pub target_period: String,
 }
-

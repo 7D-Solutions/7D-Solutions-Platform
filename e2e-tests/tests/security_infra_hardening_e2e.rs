@@ -89,7 +89,10 @@ async fn security_infra_hardening_rate_limit_429() {
         }
     }
 
-    assert!(got_429, "must receive at least one 429 from Nginx rate limiter after rapid requests");
+    assert!(
+        got_429,
+        "must receive at least one 429 from Nginx rate limiter after rapid requests"
+    );
 
     // Verify the 429 response body is the JSON we configured in Nginx
     let body_text = rate_limit_body.expect("should have captured 429 body");
@@ -130,7 +133,11 @@ async fn security_infra_hardening_nginx_security_headers() {
         .await
         .expect("gateway health request");
 
-    assert_eq!(resp.status(), StatusCode::OK, "health endpoint must return 200");
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "health endpoint must return 200"
+    );
 
     let headers = resp.headers();
 
@@ -145,7 +152,12 @@ async fn security_infra_hardening_nginx_security_headers() {
     for (name, expected_substring) in &required_headers {
         let value = headers
             .get(*name)
-            .unwrap_or_else(|| panic!("security header '{}' must be present on gateway response", name))
+            .unwrap_or_else(|| {
+                panic!(
+                    "security header '{}' must be present on gateway response",
+                    name
+                )
+            })
             .to_str()
             .unwrap_or("");
 
@@ -276,10 +288,16 @@ async fn security_infra_hardening_cors_through_gateway() {
 
     // ── (c) OPTIONS preflight via gateway ──
     let preflight = client
-        .request(reqwest::Method::OPTIONS, &gateway_url("/api/auth/healthcheck"))
+        .request(
+            reqwest::Method::OPTIONS,
+            &gateway_url("/api/auth/healthcheck"),
+        )
         .header("Origin", allowed_origin)
         .header("Access-Control-Request-Method", "POST")
-        .header("Access-Control-Request-Headers", "content-type,authorization")
+        .header(
+            "Access-Control-Request-Headers",
+            "content-type,authorization",
+        )
         .send()
         .await
         .expect("OPTIONS preflight");
@@ -299,7 +317,10 @@ async fn security_infra_hardening_cors_through_gateway() {
     // if CorsLayer isn't intercepting OPTIONS). Both are documented.
     match preflight_status {
         StatusCode::OK | StatusCode::NO_CONTENT => {
-            println!("  preflight handled by CorsLayer (status={})", preflight_status);
+            println!(
+                "  preflight handled by CorsLayer (status={})",
+                preflight_status
+            );
             assert!(
                 preflight_acao.is_some(),
                 "preflight 200/204 must include ACAO header"

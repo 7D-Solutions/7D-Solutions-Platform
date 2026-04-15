@@ -4,7 +4,9 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::db::{contact_repo, contact_role_repo, contact_role_repo::UpdateContactRoleData, party_repo};
+use crate::db::{
+    contact_repo, contact_role_repo, contact_role_repo::UpdateContactRoleData, party_repo,
+};
 use crate::events::{
     build_contact_role_created_envelope, build_contact_role_updated_envelope, ContactRolePayload,
     EVENT_TYPE_CONTACT_ROLE_CREATED, EVENT_TYPE_CONTACT_ROLE_UPDATED,
@@ -73,13 +75,19 @@ pub async fn create_contact_role(
         .await?;
 
     if is_primary {
-        contact_role_repo::clear_primary_for_role_type_tx(&mut tx, app_id, party_id, &req.role_type)
-            .await?;
+        contact_role_repo::clear_primary_for_role_type_tx(
+            &mut tx,
+            app_id,
+            party_id,
+            &req.role_type,
+        )
+        .await?;
     }
 
-    let role =
-        contact_role_repo::insert_contact_role_tx(&mut tx, role_id, party_id, app_id, req, is_primary, now)
-            .await?;
+    let role = contact_role_repo::insert_contact_role_tx(
+        &mut tx, role_id, party_id, app_id, req, is_primary, now,
+    )
+    .await?;
 
     let payload = ContactRolePayload {
         contact_role_id: role_id,

@@ -75,33 +75,33 @@ impl NumberingClient {
                     idempotency_key: idempotency_key.into(),
                     gap_free: None,
                 };
-                let alloc = typed.allocate(claims, &body).await.map_err(|e| {
-                    GuardError::Validation(format!("Numbering service error: {e}"))
-                })?;
+                let alloc = typed
+                    .allocate(claims, &body)
+                    .await
+                    .map_err(|e| GuardError::Validation(format!("Numbering service error: {e}")))?;
                 Ok(alloc
                     .formatted_number
                     .unwrap_or_else(|| format!("ECO-{:05}", alloc.number_value)))
             }
             Mode::Http { base_url } => {
                 let token = extract_bearer_token(auth_header)?;
-                let platform = PlatformClient::new(base_url.clone())
-                    .with_bearer_token(token.to_string());
+                let platform =
+                    PlatformClient::new(base_url.clone()).with_bearer_token(token.to_string());
                 let typed = numbering_typed::NumberingClient::new(platform);
                 let body = numbering_typed::AllocateRequest {
                     entity: "ECO".into(),
                     idempotency_key: idempotency_key.into(),
                     gap_free: None,
                 };
-                let alloc = typed.allocate(claims, &body).await.map_err(|e| {
-                    GuardError::Validation(format!("Numbering service error: {e}"))
-                })?;
+                let alloc = typed
+                    .allocate(claims, &body)
+                    .await
+                    .map_err(|e| GuardError::Validation(format!("Numbering service error: {e}")))?;
                 Ok(alloc
                     .formatted_number
                     .unwrap_or_else(|| format!("ECO-{:05}", alloc.number_value)))
             }
-            Mode::Direct { pool } => {
-                allocate_direct(pool, tenant_id, idempotency_key).await
-            }
+            Mode::Direct { pool } => allocate_direct(pool, tenant_id, idempotency_key).await,
         }
     }
 
@@ -114,13 +114,14 @@ impl NumberingClient {
         claims: &VerifiedClaims,
     ) {
         let typed_client = match &self.mode {
-            Mode::Platform { client } => Some(numbering_typed::NumberingClient::new(client.clone())),
+            Mode::Platform { client } => {
+                Some(numbering_typed::NumberingClient::new(client.clone()))
+            }
             Mode::Http { base_url } => {
-                let token = auth_header
-                    .and_then(|h| h.strip_prefix("Bearer ").or(Some(h)));
+                let token = auth_header.and_then(|h| h.strip_prefix("Bearer ").or(Some(h)));
                 token.map(|t| {
-                    let platform = PlatformClient::new(base_url.clone())
-                        .with_bearer_token(t.to_string());
+                    let platform =
+                        PlatformClient::new(base_url.clone()).with_bearer_token(t.to_string());
                     numbering_typed::NumberingClient::new(platform)
                 })
             }
@@ -147,9 +148,7 @@ impl NumberingClient {
 /// Extract the bare token from an `Authorization: Bearer <token>` header.
 fn extract_bearer_token(auth_header: Option<&str>) -> Result<&str, BomError> {
     let header = auth_header.ok_or_else(|| {
-        GuardError::Validation(
-            "Authorization header required for numbering service".to_string(),
-        )
+        GuardError::Validation("Authorization header required for numbering service".to_string())
     })?;
     Ok(header.strip_prefix("Bearer ").unwrap_or(header))
 }
@@ -164,10 +163,7 @@ async fn allocate_direct(
     idempotency_key: &str,
 ) -> Result<String, BomError> {
     let tenant_uuid: Uuid = tenant_id.parse().map_err(|_| {
-        GuardError::Validation(format!(
-            "Invalid tenant_id for numbering: {}",
-            tenant_id
-        ))
+        GuardError::Validation(format!("Invalid tenant_id for numbering: {}", tenant_id))
     })?;
 
     // Idempotency check

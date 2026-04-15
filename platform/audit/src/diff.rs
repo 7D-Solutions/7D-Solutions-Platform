@@ -274,7 +274,9 @@ mod tests {
 
         assert_eq!(diff.changed_field_count(), 1);
 
-        let change = diff.get_field_change("removed_field").expect("removed_field changed");
+        let change = diff
+            .get_field_change("removed_field")
+            .expect("removed_field changed");
         assert!(change.is_removal());
         assert_eq!(change.old_value, Some(json!("old_value")));
         assert_eq!(change.new_value, None);

@@ -281,10 +281,7 @@ async fn execute_step_with_retry(
 
     for attempt in 0..max_attempts {
         if attempt > 0 {
-            let backoff = RETRY_BACKOFFS
-                .get(attempt as usize)
-                .copied()
-                .unwrap_or(8);
+            let backoff = RETRY_BACKOFFS.get(attempt as usize).copied().unwrap_or(8);
             tokio::time::sleep(Duration::from_secs(backoff)).await;
         }
 
@@ -381,9 +378,7 @@ async fn execute_step(
             )
             .await
         }
-        unknown => Err(StepError::InvalidState(format!(
-            "unknown step: {unknown}"
-        ))),
+        unknown => Err(StepError::InvalidState(format!("unknown step: {unknown}"))),
     }
 }
 
@@ -454,10 +449,9 @@ async fn fail_tenant(pool: &PgPool, tenant_id: Uuid, failed_step: &str, error: &
 /// Reads all unique module codes from `cp_bundle_modules` and configures
 /// each from environment variables.
 pub async fn load_registry_from_db(pool: &PgPool) -> Result<ModuleRegistry, sqlx::Error> {
-    let rows: Vec<(String,)> =
-        sqlx::query_as("SELECT DISTINCT module_code FROM cp_bundle_modules")
-            .fetch_all(pool)
-            .await?;
+    let rows: Vec<(String,)> = sqlx::query_as("SELECT DISTINCT module_code FROM cp_bundle_modules")
+        .fetch_all(pool)
+        .await?;
 
     let codes: Vec<String> = rows.into_iter().map(|(code,)| code).collect();
     tracing::info!(modules = ?codes, "loaded module codes from cp_bundle_modules");

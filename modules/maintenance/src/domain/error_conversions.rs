@@ -45,12 +45,8 @@ impl From<WoError> for ApiError {
             WoError::AssetNotFound => ApiError::not_found("Asset not found"),
             WoError::AssignmentNotFound => ApiError::not_found("Plan assignment not found"),
             WoError::Validation(msg) => ApiError::bad_request(msg),
-            WoError::Transition(e) => {
-                ApiError::new(422, "invalid_transition", e.to_string())
-            }
-            WoError::Guard(e) => {
-                ApiError::new(422, "guard_failed", e.to_string())
-            }
+            WoError::Transition(e) => ApiError::new(422, "invalid_transition", e.to_string()),
+            WoError::Guard(e) => ApiError::new(422, "guard_failed", e.to_string()),
             WoError::Database(e) => {
                 tracing::error!(error = %e, "work order database error");
                 ApiError::internal("Database error")
@@ -109,9 +105,9 @@ impl From<PlanError> for ApiError {
             PlanError::PlanNotFound => ApiError::not_found("Plan not found"),
             PlanError::AssetNotFound => ApiError::not_found("Asset not found"),
             PlanError::MeterTypeNotFound => ApiError::not_found("Meter type not found"),
-            PlanError::DuplicateAssignment => ApiError::conflict(
-                "This plan is already assigned to this asset",
-            ),
+            PlanError::DuplicateAssignment => {
+                ApiError::conflict("This plan is already assigned to this asset")
+            }
             PlanError::AssignmentNotFound => ApiError::not_found("Assignment not found"),
             PlanError::Validation(msg) => ApiError::bad_request(msg),
             PlanError::Database(e) => {
@@ -157,13 +153,11 @@ impl From<DowntimeError> for ApiError {
             DowntimeError::NotFound => ApiError::not_found("Downtime event not found"),
             DowntimeError::AssetNotFound => ApiError::not_found("Asset not found"),
             DowntimeError::Validation(msg) => ApiError::bad_request(msg),
-            DowntimeError::IdempotentDuplicate(event) => {
-                ApiError::new(
-                    200,
-                    "idempotent_duplicate",
-                    format!("Downtime event {} already exists", event.id),
-                )
-            }
+            DowntimeError::IdempotentDuplicate(event) => ApiError::new(
+                200,
+                "idempotent_duplicate",
+                format!("Downtime event {} already exists", event.id),
+            ),
             DowntimeError::Database(e) => {
                 tracing::error!(error = %e, "downtime database error");
                 ApiError::internal("Database error")
@@ -197,17 +191,13 @@ impl From<CalibrationEventError> for ApiError {
 impl From<CalibrationError> for ApiError {
     fn from(err: CalibrationError) -> Self {
         match err {
-            CalibrationError::NotFound => {
-                ApiError::not_found("Calibration record not found")
-            }
+            CalibrationError::NotFound => ApiError::not_found("Calibration record not found"),
             CalibrationError::AssetNotFound => ApiError::not_found("Asset not found"),
             CalibrationError::Validation(msg) => ApiError::bad_request(msg),
             CalibrationError::AlreadyCompleted => {
                 ApiError::conflict("Calibration already completed — immutable")
             }
-            CalibrationError::DuplicateKey => {
-                ApiError::conflict("Duplicate idempotency key")
-            }
+            CalibrationError::DuplicateKey => ApiError::conflict("Duplicate idempotency key"),
             CalibrationError::Database(e) => {
                 tracing::error!(error = %e, "calibration database error");
                 ApiError::internal("Database error")

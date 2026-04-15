@@ -4,8 +4,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 
 use super::repo::{
-    claim_due_batch, record_delivery_attempt_and_mutate, reset_orphaned_claims, AttemptApplyOutcome,
-    RetryPolicy,
+    claim_due_batch, record_delivery_attempt_and_mutate, reset_orphaned_claims,
+    AttemptApplyOutcome, RetryPolicy,
 };
 use super::sender::NotificationSender;
 
@@ -63,7 +63,9 @@ pub async fn dispatch_once(
     for notif in &batch {
         let idempotency_key = format!(
             "notif:{}:gen:{}:attempt:{}",
-            notif.id, notif.replay_generation, notif.retry_count + 1
+            notif.id,
+            notif.replay_generation,
+            notif.retry_count + 1
         );
 
         // Render template (pure, deterministic step).
@@ -81,9 +83,7 @@ pub async fn dispatch_once(
                     error_class = render_err.class(),
                     "template render failed — recording permanent failure"
                 );
-                let err = super::sender::NotificationError::RenderFailure(
-                    render_err.to_string(),
-                );
+                let err = super::sender::NotificationError::RenderFailure(render_err.to_string());
                 (Err(err), None)
             }
         };
@@ -97,7 +97,12 @@ pub async fn dispatch_once(
             retry_policy,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("record_delivery_attempt_and_mutate failed for {}: {e}", notif.id))?;
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "record_delivery_attempt_and_mutate failed for {}: {e}",
+                notif.id
+            )
+        })?;
 
         match applied {
             AttemptApplyOutcome::Succeeded => result.sent_count += 1,

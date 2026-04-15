@@ -164,7 +164,10 @@ async fn gl_double_post_idempotency_e2e() {
     );
 
     // --- Fire 50 concurrent GL posting requests with the same event_id ---
-    println!("\n--- {} concurrent GL posts with same event_id ---", CONCURRENCY);
+    println!(
+        "\n--- {} concurrent GL posts with same event_id ---",
+        CONCURRENCY
+    );
 
     let pool = Arc::new(pool);
     let tenant_id = Arc::new(tenant_id);
@@ -282,7 +285,10 @@ async fn gl_double_post_idempotency_e2e() {
     .await
     .expect("failed to query journal entries");
 
-    println!("\n  DB journal entries for event {}: {}", event_id, journal_count);
+    println!(
+        "\n  DB journal entries for event {}: {}",
+        event_id, journal_count
+    );
 
     assert_eq!(
         journal_count, 1,
@@ -291,13 +297,12 @@ async fn gl_double_post_idempotency_e2e() {
     );
 
     // --- Assertion 4: Exactly one processed_events record ---
-    let processed_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(pool.as_ref())
-    .await
-    .expect("failed to query processed events");
+    let processed_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(pool.as_ref())
+            .await
+            .expect("failed to query processed events");
 
     assert_eq!(
         processed_count, 1,

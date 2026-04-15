@@ -164,13 +164,10 @@ async fn jwks_endpoint_fetch_and_verify() {
     });
 
     let jwks_url = format!("http://{}/.well-known/jwks.json", addr);
-    let verifier = JwtVerifier::from_jwks_url(
-        &jwks_url,
-        std::time::Duration::from_secs(300),
-        false,
-    )
-    .await
-    .expect("JwtVerifier from JWKS");
+    let verifier =
+        JwtVerifier::from_jwks_url(&jwks_url, std::time::Duration::from_secs(300), false)
+            .await
+            .expect("JwtVerifier from JWKS");
 
     let token = sign_token(&enc, vec!["ar.mutate".into()]);
     let verified = verifier.verify(&token).expect("verify token from JWKS");

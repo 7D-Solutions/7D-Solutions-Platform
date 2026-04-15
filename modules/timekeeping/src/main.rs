@@ -2,8 +2,8 @@ use axum::{routing::get, Json};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
-use timekeeping::{http, http::ApiDoc, metrics, AppState};
 use platform_sdk::ModuleBuilder;
+use timekeeping::{http, http::ApiDoc, metrics, AppState};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(ApiDoc::openapi())

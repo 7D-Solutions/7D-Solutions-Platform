@@ -10,7 +10,7 @@
 
 use serial_test::serial;
 use shipping_receiving_rs::domain::rma::{
-    DispositionRequest, RmaItemInput, RmaService, ReceiveRmaRequest,
+    DispositionRequest, ReceiveRmaRequest, RmaItemInput, RmaService,
 };
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -32,7 +32,11 @@ async fn setup_db() -> sqlx::PgPool {
     pool
 }
 
-fn make_receive_request(rma_id: &str, customer_id: Uuid, idem_key: Option<&str>) -> ReceiveRmaRequest {
+fn make_receive_request(
+    rma_id: &str,
+    customer_id: Uuid,
+    idem_key: Option<&str>,
+) -> ReceiveRmaRequest {
     ReceiveRmaRequest {
         rma_id: rma_id.to_string(),
         customer_id,
@@ -191,14 +195,9 @@ async fn invalid_disposition_transition_rejected() {
         .await
         .expect("receive RMA");
 
-    RmaService::transition_disposition(
-        &pool,
-        receipt.id,
-        tenant_id,
-        &make_disposition("inspect"),
-    )
-    .await
-    .expect("to inspect");
+    RmaService::transition_disposition(&pool, receipt.id, tenant_id, &make_disposition("inspect"))
+        .await
+        .expect("to inspect");
 
     RmaService::transition_disposition(&pool, receipt.id, tenant_id, &make_disposition("scrap"))
         .await
@@ -322,14 +321,13 @@ async fn idempotent_rma_receive_no_duplicate() {
     );
 
     // Verify only one receipt exists with this rma_id for this tenant
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM rma_receipts WHERE tenant_id = $1 AND rma_id = $2",
-    )
-    .bind(tenant_id)
-    .bind("RMA-IDEM-001")
-    .fetch_one(&pool)
-    .await
-    .expect("count receipts");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM rma_receipts WHERE tenant_id = $1 AND rma_id = $2")
+            .bind(tenant_id)
+            .bind("RMA-IDEM-001")
+            .fetch_one(&pool)
+            .await
+            .expect("count receipts");
     assert_eq!(count.0, 1, "must have exactly one receipt, not a duplicate");
 }
 
@@ -357,14 +355,9 @@ async fn outbox_events_emitted_for_each_disposition_change() {
     );
 
     // Transition: received → inspect
-    RmaService::transition_disposition(
-        &pool,
-        receipt.id,
-        tenant_id,
-        &make_disposition("inspect"),
-    )
-    .await
-    .expect("to inspect");
+    RmaService::transition_disposition(&pool, receipt.id, tenant_id, &make_disposition("inspect"))
+        .await
+        .expect("to inspect");
 
     let disp_events =
         count_outbox_events(&pool, &receipt_id_str, "sr.rma.disposition_changed").await;

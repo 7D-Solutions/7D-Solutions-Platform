@@ -17,20 +17,19 @@ pub struct ServiceCatalogResponse {
 pub async fn service_catalog(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ServiceCatalogResponse>, (StatusCode, Json<ErrorBody>)> {
-    let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT module_code, base_url FROM cp_service_catalog ORDER BY module_code",
-    )
-    .fetch_all(&state.pool)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: "Internal database error".to_string(),
-            }),
-        )
-    })?;
+    let rows: Vec<(String, String)> =
+        sqlx::query_as("SELECT module_code, base_url FROM cp_service_catalog ORDER BY module_code")
+            .fetch_all(&state.pool)
+            .await
+            .map_err(|e| {
+                tracing::error!("Database error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorBody {
+                        error: "Internal database error".to_string(),
+                    }),
+                )
+            })?;
 
     let services: BTreeMap<String, String> = rows.into_iter().collect();
     Ok(Json(ServiceCatalogResponse { services }))
@@ -72,7 +71,10 @@ mod tests {
 
         match rows {
             Ok(r) => {
-                assert!(!r.is_empty(), "seed data should populate cp_service_catalog");
+                assert!(
+                    !r.is_empty(),
+                    "seed data should populate cp_service_catalog"
+                );
                 let map: BTreeMap<String, String> = r.into_iter().collect();
                 assert_eq!(map.get("ar").map(|s| s.as_str()), Some("http://7d-ar:8086"));
             }

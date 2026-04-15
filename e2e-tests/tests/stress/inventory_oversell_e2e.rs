@@ -173,22 +173,18 @@ async fn inventory_oversell_e2e() {
                         is_unexpected_error: false,
                         error_msg: None,
                     },
-                    Err(ReservationError::InsufficientAvailable { .. }) => {
-                        ReserveOutcome {
-                            reserved_qty: 0,
-                            is_insufficient: true,
-                            is_unexpected_error: false,
-                            error_msg: None,
-                        }
-                    }
-                    Err(e) => {
-                        ReserveOutcome {
-                            reserved_qty: 0,
-                            is_insufficient: false,
-                            is_unexpected_error: true,
-                            error_msg: Some(format!("{}", e)),
-                        }
-                    }
+                    Err(ReservationError::InsufficientAvailable { .. }) => ReserveOutcome {
+                        reserved_qty: 0,
+                        is_insufficient: true,
+                        is_unexpected_error: false,
+                        error_msg: None,
+                    },
+                    Err(e) => ReserveOutcome {
+                        reserved_qty: 0,
+                        is_insufficient: false,
+                        is_unexpected_error: true,
+                        error_msg: Some(format!("{}", e)),
+                    },
                 }
             })
         })
@@ -207,7 +203,10 @@ async fn inventory_oversell_e2e() {
     let unexpected_error_count = outcomes.iter().filter(|o| o.is_unexpected_error).count();
 
     println!("completed in {:?}", elapsed);
-    println!("  successful reservations: {} (reserved > 0)", success_count);
+    println!(
+        "  successful reservations: {} (reserved > 0)",
+        success_count
+    );
     println!("  insufficient stock rejections: {}", insufficient_count);
     println!("  unexpected errors: {}", unexpected_error_count);
     println!("  total reserved from responses: {} units", total_reserved);

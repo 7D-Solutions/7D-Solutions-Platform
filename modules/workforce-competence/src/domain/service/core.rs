@@ -413,9 +413,7 @@ pub struct CompetenceAssignedPayload {
 #[cfg(test)]
 mod tests {
     use crate::domain::guards::guard_non_empty;
-    use crate::domain::models::{
-        ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest,
-    };
+    use crate::domain::models::{ArtifactType, AssignCompetenceRequest, RegisterArtifactRequest};
     use chrono::Utc;
     use uuid::Uuid;
 

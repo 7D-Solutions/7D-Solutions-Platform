@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportResponse {
@@ -84,7 +84,7 @@ pub struct GenerateScheduleResponse {
 }
 
 /// Income statement response with revenue/expense rows and calculated totals
-/// 
+///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Accounting Equation**: net_income MUST equal total_revenue - total_expenses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,7 +97,7 @@ pub struct IncomeStatementResponse {
 }
 
 /// Income Statement Row (P&L)
-/// 
+///
 /// Represents a single account row in an income statement.
 /// Contains revenue or expense account data for a specific period.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,7 +115,7 @@ pub struct IncomeStatementRow {
 }
 
 /// Income statement totals with revenue, expenses, and net income
-/// 
+///
 /// **Accounting Equation**: net_income = total_revenue - total_expenses
 /// **Sign Convention**: Revenue is positive, expenses are negative, net_income is positive for profit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,7 +160,7 @@ pub struct PaginationMetadata {
 }
 
 /// A distinct, identifiable promise to transfer goods or services to a customer.
-/// 
+///
 /// Each obligation carries its own allocated transaction price and recognition
 /// schedule. Obligations are embedded in the contract event and referenced by
 /// schedule + recognition events.
@@ -200,7 +200,7 @@ pub struct PeriodSummaryResponse {
 }
 
 /// How a performance obligation's revenue is recognized over time.
-/// 
+///
 /// Aligns with ASC 606-10-25-27: a performance obligation is satisfied either
 /// at a point in time or over time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -304,7 +304,7 @@ pub struct ReversalResult {
 }
 
 /// Statement Totals
-/// 
+///
 /// Common totals structure used across all financial statements.
 /// Provides aggregated debit/credit totals and balance verification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -326,7 +326,7 @@ pub struct TemplateResult {
 }
 
 /// Trial balance response with account balances and totals
-/// 
+///
 /// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -339,7 +339,7 @@ pub struct TrialBalanceResponse {
 }
 
 /// Trial Balance Row
-/// 
+///
 /// Represents a single account row in a trial balance statement.
 /// Contains account metadata and debit/credit balances for a specific period.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -363,7 +363,7 @@ pub struct TrialBalanceRow {
 }
 
 /// Request to validate if a period can be closed
-/// 
+///
 /// Pre-flight check before actual close operation.
 /// Does NOT modify period state.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -373,7 +373,7 @@ pub struct ValidateCloseRequest {
 }
 
 /// Response from validate-close operation
-/// 
+///
 /// Returns structured validation report with errors/warnings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidateCloseResponse {
@@ -390,7 +390,7 @@ pub struct ValidateCloseResponse {
 }
 
 /// Individual validation issue
-/// 
+///
 /// Structured error/warning with stable code for client handling.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationIssue {
@@ -406,7 +406,7 @@ pub struct ValidationIssue {
 }
 
 /// Structured validation report
-/// 
+///
 /// Machine-readable validation results with severity levels.
 /// Empty if validation passes (can_close=true).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -422,4 +422,3 @@ pub enum ValidationSeverity {
     WARNING,
     INFO,
 }
-

@@ -89,8 +89,7 @@ pub async fn compute_expiry_from_policy(
     let shelf_life_days =
         expiry_repo::fetch_shelf_life_days(pool, tenant_id, item_id, reference_at).await?;
 
-    Ok(shelf_life_days
-        .map(|days| reference_at.date_naive() + Duration::days(days as i64)))
+    Ok(shelf_life_days.map(|days| reference_at.date_naive() + Duration::days(days as i64)))
 }
 
 // ============================================================================
@@ -226,9 +225,13 @@ pub async fn run_expiry_alert_scan(
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let expiring =
-        expiry_repo::fetch_expiring_lots(pool, &req.tenant_id, as_of_date, req.expiring_within_days)
-            .await?;
+    let expiring = expiry_repo::fetch_expiring_lots(
+        pool,
+        &req.tenant_id,
+        as_of_date,
+        req.expiring_within_days,
+    )
+    .await?;
 
     let expired = expiry_repo::fetch_expired_lots(pool, &req.tenant_id, as_of_date).await?;
 

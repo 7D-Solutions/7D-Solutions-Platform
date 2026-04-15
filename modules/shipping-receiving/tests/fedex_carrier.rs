@@ -38,7 +38,9 @@ async fn fedex_carrier_oauth_token_acquisition_succeeds() {
 
     let config = sandbox_config();
     let client_id = config["client_id"].as_str().expect("client_id required");
-    let client_secret = config["client_secret"].as_str().expect("client_secret required");
+    let client_secret = config["client_secret"]
+        .as_str()
+        .expect("client_secret required");
     let base_url = config["base_url"].as_str().expect("base_url required");
 
     // Call get_rates with a minimal request — the first thing it does is
@@ -89,7 +91,10 @@ async fn fedex_carrier_get_rates_returns_quotes_for_domestic_package() {
     // Every quote must have consistent metadata.
     for rate in &rates {
         assert_eq!(rate.carrier_code, "fedex");
-        assert!(!rate.service_level.is_empty(), "service_level must be non-empty");
+        assert!(
+            !rate.service_level.is_empty(),
+            "service_level must be non-empty"
+        );
         assert!(rate.total_charge_minor > 0, "charge must be positive");
         assert_eq!(rate.currency, "USD");
     }
@@ -99,12 +104,10 @@ async fn fedex_carrier_get_rates_returns_quotes_for_domestic_package() {
     let ground = rates
         .iter()
         .find(|r| r.service_level.to_lowercase().contains("ground"));
-    let express = rates
-        .iter()
-        .find(|r| {
-            let sl = r.service_level.to_lowercase();
-            sl.contains("overnight") || sl.contains("express")
-        });
+    let express = rates.iter().find(|r| {
+        let sl = r.service_level.to_lowercase();
+        sl.contains("overnight") || sl.contains("express")
+    });
 
     println!(
         "FedEx rates for 10 lb 12×12×12 10001→90210: {} quote(s)",
@@ -234,10 +237,7 @@ async fn fedex_carrier_track_created_label_returns_valid_status() {
 
     assert_eq!(result.carrier_code, "fedex");
     assert_eq!(result.tracking_number, tracking_number);
-    assert!(
-        !result.status.is_empty(),
-        "status must be non-empty"
-    );
+    assert!(!result.status.is_empty(), "status must be non-empty");
 
     println!(
         "FedEx tracking {}: status={}, events={}",
@@ -260,6 +260,9 @@ async fn fedex_carrier_track_created_label_returns_valid_status() {
 #[test]
 fn fedex_carrier_registry_resolves_fedex_provider() {
     let provider = get_provider("fedex");
-    assert!(provider.is_some(), "fedex must be registered in get_provider()");
+    assert!(
+        provider.is_some(),
+        "fedex must be registered in get_provider()"
+    );
     assert_eq!(provider.expect("fedex provider").carrier_code(), "fedex");
 }

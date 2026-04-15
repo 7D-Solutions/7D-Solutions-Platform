@@ -2,9 +2,50 @@ use axum::{routing::get, Json, Router};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
+use inventory_rs::domain::genealogy::GenealogyEdge;
+use inventory_rs::domain::items::ListItemsQuery;
+use inventory_rs::domain::status::models::InvItemStatus;
+use inventory_rs::http::batch_receipts::{
+    BatchReceiptItemResult, BatchReceiptRequest, BatchReceiptResponse,
+};
+use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
 use inventory_rs::{
-    AppState, BusHealth,
     consumers::{component_issue_consumer, fg_receipt_consumer},
+    domain::{
+        adjust_service::{AdjustRequest, AdjustResult},
+        cycle_count::{
+            submit_service::SubmitLineInput,
+            task_service::{CreateTaskRequest, CreateTaskResult, TaskLine, TaskScope},
+        },
+        expiry::{
+            LotExpiryRecord, RunExpiryAlertScanRequest, RunExpiryAlertScanResult,
+            SetLotExpiryRequest,
+        },
+        fulfill_service::{FulfillRequest, FulfillResult},
+        genealogy::{GenealogyResult, LotMergeRequest, LotSplitRequest, MergeParent, SplitChild},
+        history::query::MovementEntry,
+        issue_service::{IssueRequest, IssueResult},
+        items::{CreateItemRequest, Item, TrackingMode, UpdateItemRequest},
+        labels::{GenerateLabelRequest, Label},
+        locations::{CreateLocationRequest, Location, UpdateLocationRequest},
+        lots_serials::models::InventoryLot,
+        make_buy::SetMakeBuyRequest,
+        receipt_service::{ReceiptRequest, ReceiptResult},
+        reorder::models::{CreateReorderPolicyRequest, ReorderPolicy, UpdateReorderPolicyRequest},
+        reservation_service::{ReleaseRequest, ReleaseResult, ReserveRequest, ReserveResult},
+        revisions::{
+            ActivateRevisionRequest, CreateRevisionRequest, ItemRevision,
+            UpdateRevisionPolicyRequest,
+        },
+        status::transfer_service::{StatusTransferRequest, StatusTransferResult},
+        transfer_service::{TransferRequest, TransferResult},
+        uom::models::{CreateConversionRequest, CreateUomRequest, ItemUomConversion, Uom},
+        valuation::{
+            models::{ValuationLine, ValuationSnapshot},
+            snapshot_service::CreateSnapshotRequest,
+        },
+    },
+    events::contracts::{ConsumedLayer, SourceRef},
     http::{
         adjustments::post_adjustment,
         imports::import_items,
@@ -38,54 +79,9 @@ use inventory_rs::{
         trace::{trace_lot_handler, trace_serial_handler},
         valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
     },
-    domain::{
-        adjust_service::{AdjustRequest, AdjustResult},
-        cycle_count::{
-            submit_service::SubmitLineInput,
-            task_service::{CreateTaskRequest, CreateTaskResult, TaskLine, TaskScope},
-        },
-        expiry::{
-            LotExpiryRecord, RunExpiryAlertScanRequest, RunExpiryAlertScanResult,
-            SetLotExpiryRequest,
-        },
-        fulfill_service::{FulfillRequest, FulfillResult},
-        genealogy::{
-            GenealogyResult, LotMergeRequest, LotSplitRequest, MergeParent, SplitChild,
-        },
-        history::query::MovementEntry,
-        issue_service::{IssueRequest, IssueResult},
-        items::{CreateItemRequest, Item, TrackingMode, UpdateItemRequest},
-        labels::{GenerateLabelRequest, Label},
-        locations::{CreateLocationRequest, Location, UpdateLocationRequest},
-        lots_serials::models::InventoryLot,
-        make_buy::SetMakeBuyRequest,
-        receipt_service::{ReceiptRequest, ReceiptResult},
-        reorder::models::{
-            CreateReorderPolicyRequest, ReorderPolicy, UpdateReorderPolicyRequest,
-        },
-        reservation_service::{
-            ReleaseRequest, ReleaseResult, ReserveRequest, ReserveResult,
-        },
-        revisions::{
-            ActivateRevisionRequest, CreateRevisionRequest, ItemRevision,
-            UpdateRevisionPolicyRequest,
-        },
-        status::transfer_service::{StatusTransferRequest, StatusTransferResult},
-        transfer_service::{TransferRequest, TransferResult},
-        uom::models::{CreateConversionRequest, CreateUomRequest, ItemUomConversion, Uom},
-        valuation::{
-            models::{ValuationLine, ValuationSnapshot},
-            snapshot_service::CreateSnapshotRequest,
-        },
-    },
-    events::contracts::{ConsumedLayer, SourceRef},
     metrics::InventoryMetrics,
+    AppState, BusHealth,
 };
-use inventory_rs::domain::items::ListItemsQuery;
-use inventory_rs::http::batch_receipts::{BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult};
-use inventory_rs::domain::genealogy::GenealogyEdge;
-use inventory_rs::domain::status::models::InvItemStatus;
-use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 use platform_sdk::ModuleBuilder;
 use security::{permissions, RequirePermissionsLayer};
@@ -232,17 +228,12 @@ async fn main() {
         .routes_async(|ctx| async move {
             let pool = ctx.pool().clone();
 
-            let metrics = Arc::new(
-                InventoryMetrics::new().expect("Failed to create metrics registry"),
-            );
+            let metrics =
+                Arc::new(InventoryMetrics::new().expect("Failed to create metrics registry"));
             // Register SLO metrics with global prometheus registry so
             // SDK's /metrics endpoint picks them up.
-            let _ = prometheus::register(Box::new(
-                metrics.http_request_duration_seconds.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                metrics.http_requests_total.clone(),
-            ));
+            let _ = prometheus::register(Box::new(metrics.http_request_duration_seconds.clone()));
+            let _ = prometheus::register(Box::new(metrics.http_requests_total.clone()));
 
             // Get event bus from SDK context — replaces the bus supervisor.
             // SDK ensures bus is connected before routes are built.
@@ -251,11 +242,8 @@ async fn main() {
             bus_health.mark_connected(0);
 
             // Start consumers using SDK's bus
-            component_issue_consumer::start_component_issue_consumer(
-                bus.clone(),
-                pool.clone(),
-            )
-            .await;
+            component_issue_consumer::start_component_issue_consumer(bus.clone(), pool.clone())
+                .await;
             fg_receipt_consumer::start_fg_receipt_consumer(bus.clone(), pool.clone()).await;
 
             let admin_pool = pool.clone();

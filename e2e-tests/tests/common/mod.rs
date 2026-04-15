@@ -236,8 +236,8 @@ pub async fn get_ttp_pool() -> PgPool {
 
 /// Setup NATS client connection
 pub async fn setup_nats_client() -> NatsClient {
-    let nats_url =
-        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://platform:dev-nats-token@localhost:4222".to_string());
+    let nats_url = std::env::var("NATS_URL")
+        .unwrap_or_else(|_| "nats://platform:dev-nats-token@localhost:4222".to_string());
 
     event_bus::connect_nats(&nats_url)
         .await
@@ -849,8 +849,7 @@ pub fn make_service_jwt(key: &EncodingKey, tenant_id: &str, perms: &[&str]) -> S
         actor_type: "user".to_string(),
         ver: "1".to_string(),
     };
-    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, key)
-        .expect("JWT signing failed")
+    jsonwebtoken::encode(&Header::new(Algorithm::RS256), &claims, key).expect("JWT signing failed")
 }
 
 // ============================================================================

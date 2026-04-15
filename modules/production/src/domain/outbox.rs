@@ -10,8 +10,8 @@ pub async fn enqueue_event<T: serde::Serialize>(
     correlation_id: &str,
     causation_id: Option<&str>,
 ) -> Result<(), sqlx::Error> {
-    let envelope_json = serde_json::to_string(envelope)
-        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    let envelope_json =
+        serde_json::to_string(envelope).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
 
     sqlx::query(
         r#"

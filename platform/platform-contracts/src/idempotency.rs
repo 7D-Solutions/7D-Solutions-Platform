@@ -116,7 +116,10 @@ pub fn validate_key(key: &str) -> Result<(), String> {
     }
     for seg in &segments {
         if seg.is_empty() {
-            return Err(format!("idempotency key '{}' contains an empty segment", key));
+            return Err(format!(
+                "idempotency key '{}' contains an empty segment",
+                key
+            ));
         }
     }
     Ok(())

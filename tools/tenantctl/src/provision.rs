@@ -209,8 +209,7 @@ async fn provision_tenant_module(tenant_id: TenantId, module: &ModuleConfig) -> 
     let sanitized_id = tenant_id.to_string().replace('-', "_");
     let tenant_db_name = format!("tenant_{}_{}_db", sanitized_id, module.name);
 
-    validate_db_name(&tenant_db_name)
-        .context("Tenant database name validation failed")?;
+    validate_db_name(&tenant_db_name).context("Tenant database name validation failed")?;
 
     // Connect to PostgreSQL instance (using default postgres DB)
     let base_url = format!(

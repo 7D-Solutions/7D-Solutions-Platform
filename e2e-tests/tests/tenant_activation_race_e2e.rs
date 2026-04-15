@@ -19,7 +19,11 @@ use control_plane::provisioning::{
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::PgPool;
-use std::{path::PathBuf, sync::{Arc, Mutex}, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tokio::net::TcpListener;
 use uuid::Uuid;
 
@@ -110,7 +114,10 @@ struct ReadyQuery {
     tenant_id: Option<Uuid>,
 }
 
-async fn start_module_server(initially_ready: bool, tenant_id: Uuid) -> (String, ModuleServerState) {
+async fn start_module_server(
+    initially_ready: bool,
+    tenant_id: Uuid,
+) -> (String, ModuleServerState) {
     let state = ModuleServerState {
         ready: Arc::new(Mutex::new(initially_ready)),
         tenant_id,
@@ -137,7 +144,9 @@ async fn start_module_server(initially_ready: bool, tenant_id: Uuid) -> (String,
         }),
     );
 
-    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind test server");
     let base_url = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
     tokio::spawn(async move { axum::serve(listener, app).await.ok() });
 

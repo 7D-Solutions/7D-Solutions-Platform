@@ -77,7 +77,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PATCH" => client.patch(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -125,7 +129,9 @@ async fn smoke_maintenance_assets() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Maintenance returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Maintenance returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -210,9 +216,7 @@ async fn smoke_maintenance_assets() {
 
     println!("\n--- 3. POST /api/maintenance/assets/{{asset_id}}/readings ---");
     let resp = client
-        .post(format!(
-            "{base}/api/maintenance/assets/{asset_id}/readings"
-        ))
+        .post(format!("{base}/api/maintenance/assets/{asset_id}/readings"))
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": "", "meter_type_id": meter_type_id,
@@ -296,9 +300,7 @@ async fn smoke_maintenance_assets() {
 
     println!("\n--- 6. GET /api/maintenance/assets/{{asset_id}}/downtime ---");
     let resp = client
-        .get(format!(
-            "{base}/api/maintenance/assets/{asset_id}/downtime"
-        ))
+        .get(format!("{base}/api/maintenance/assets/{asset_id}/downtime"))
         .bearer_auth(&jwt)
         .send()
         .await
@@ -374,9 +376,7 @@ async fn smoke_maintenance_assets() {
 
     println!("\n--- 9. POST /api/maintenance/plans/{{plan_id}}/assign ---");
     let resp = client
-        .post(format!(
-            "{base}/api/maintenance/plans/{plan_id}/assign"
-        ))
+        .post(format!("{base}/api/maintenance/plans/{plan_id}/assign"))
         .bearer_auth(&jwt)
         .json(&json!({
             "tenant_id": "", "asset_id": asset_id

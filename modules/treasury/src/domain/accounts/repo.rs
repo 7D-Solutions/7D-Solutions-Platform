@@ -298,14 +298,13 @@ pub async fn fetch_account_status(
     app_id: &str,
     id: Uuid,
 ) -> Result<Option<AccountStatus>, AccountError> {
-    let row: Option<(AccountStatus,)> = sqlx::query_as(
-        "SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(id)
-    .bind(app_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(AccountError::Database)?;
+    let row: Option<(AccountStatus,)> =
+        sqlx::query_as("SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
+            .bind(id)
+            .bind(app_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(AccountError::Database)?;
     Ok(row.map(|(s,)| s))
 }
 
@@ -335,11 +334,7 @@ pub async fn set_account_inactive(
 // Idempotency
 // ============================================================================
 
-pub async fn check_idempotency(
-    pool: &PgPool,
-    app_id: &str,
-    key: &str,
-) -> Result<(), AccountError> {
+pub async fn check_idempotency(pool: &PgPool, app_id: &str, key: &str) -> Result<(), AccountError> {
     let cached: Option<(serde_json::Value, i32)> = sqlx::query_as(
         "SELECT response_body, status_code FROM treasury_idempotency_keys WHERE app_id = $1 AND idempotency_key = $2 LIMIT 1",
     )

@@ -36,7 +36,9 @@ use event_bus::EventEnvelope;
 use security::ratelimit::{RateLimitConfig, RateLimitKeyStrategy, TierDef};
 
 use crate::authz_gate::AuthzGateConfig;
-use crate::consumer::{BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent};
+use crate::consumer::{
+    BoxedHandler, ConsumerDef, ConsumerError, ProvisioningHandler, TenantProvisionedEvent,
+};
 use crate::context::{ModuleContext, TenantPoolResolver};
 use crate::event_registry::{EventRegistry, RouteOutcome};
 use crate::manifest::{Manifest, ManifestError};
@@ -49,23 +51,15 @@ type StartupFn = Box<
             sqlx::PgPool,
         ) -> Pin<
             Box<
-                dyn Future<
-                        Output = Result<
-                            (TypeId, Box<dyn Any + Send + Sync>),
-                            StartupError,
-                        >,
-                    > + Send,
+                dyn Future<Output = Result<(TypeId, Box<dyn Any + Send + Sync>), StartupError>>
+                    + Send,
             >,
         > + Send,
 >;
 
 /// Type-erased async route factory.
-type RoutesFn = Box<
-    dyn FnOnce(
-            ModuleContext,
-        ) -> Pin<Box<dyn Future<Output = Router> + Send>>
-        + Send,
->;
+type RoutesFn =
+    Box<dyn FnOnce(ModuleContext) -> Pin<Box<dyn Future<Output = Router> + Send>> + Send>;
 
 /// Builder for a platform module HTTP runtime.
 pub struct ModuleBuilder {
@@ -223,15 +217,11 @@ impl ModuleBuilder {
                     })?;
 
                     let pool = ctx.pool_for(tenant_id).await.map_err(|e| {
-                        ConsumerError::Processing(format!(
-                            "pool_for({tenant_id}) failed: {e}"
-                        ))
+                        ConsumerError::Processing(format!("pool_for({tenant_id}) failed: {e}"))
                     })?;
 
                     let payload: T = serde_json::from_value(env.payload).map_err(|e| {
-                        ConsumerError::Processing(format!(
-                            "payload deserialization failed: {e}"
-                        ))
+                        ConsumerError::Processing(format!("payload deserialization failed: {e}"))
                     })?;
 
                     handler(pool, tenant_id, payload).await
@@ -255,8 +245,7 @@ impl ModuleBuilder {
         F: Fn(ModuleContext, TenantProvisionedEvent) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<(), ConsumerError>> + Send + 'static,
     {
-        self.provisioning_handler =
-            Some(Arc::new(move |ctx, event| Box::pin(handler(ctx, event))));
+        self.provisioning_handler = Some(Arc::new(move |ctx, event| Box::pin(handler(ctx, event))));
         self
     }
 
@@ -308,8 +297,7 @@ impl ModuleBuilder {
     /// Multiple types can be registered — each is keyed by its concrete
     /// type. Registering the same type twice overwrites the earlier value.
     pub fn state<T: Send + Sync + 'static>(mut self, val: T) -> Self {
-        self.extensions
-            .insert(TypeId::of::<T>(), Box::new(val));
+        self.extensions.insert(TypeId::of::<T>(), Box::new(val));
         self
     }
 
@@ -332,7 +320,10 @@ impl ModuleBuilder {
         let startup: StartupFn = Box::new(move |pool| {
             Box::pin(async move {
                 let val = f(pool).await?;
-                Ok((TypeId::of::<T>(), Box::new(val) as Box<dyn Any + Send + Sync>))
+                Ok((
+                    TypeId::of::<T>(),
+                    Box::new(val) as Box<dyn Any + Send + Sync>,
+                ))
             })
         });
         self.startup_fns.push(startup);
@@ -426,33 +417,32 @@ impl ModuleBuilder {
     /// use `.rate_limit_tier()` to override individual tiers.
     pub fn with_rate_limiting(self) -> Self {
         use std::time::Duration;
-        self
-            .rate_limit_tier_def(TierDef {
-                name: "write".into(),
-                config: RateLimitConfig::new(100, Duration::from_secs(60)),
-                routes: vec!["/api/".into()],
-                strategy: RateLimitKeyStrategy::Composite,
-                methods: Some(vec![
-                    "POST".into(),
-                    "PUT".into(),
-                    "PATCH".into(),
-                    "DELETE".into(),
-                ]),
-            })
-            .rate_limit_tier_def(TierDef {
-                name: "read".into(),
-                config: RateLimitConfig::new(500, Duration::from_secs(60)),
-                routes: vec!["/api/".into()],
-                strategy: RateLimitKeyStrategy::Composite,
-                methods: Some(vec!["GET".into()]),
-            })
-            .rate_limit_tier_def(TierDef {
-                name: "auth".into(),
-                config: RateLimitConfig::new(10, Duration::from_secs(60)),
-                routes: vec!["/api/auth".into(), "/api/admin".into()],
-                strategy: RateLimitKeyStrategy::IpOnly,
-                methods: None,
-            })
+        self.rate_limit_tier_def(TierDef {
+            name: "write".into(),
+            config: RateLimitConfig::new(100, Duration::from_secs(60)),
+            routes: vec!["/api/".into()],
+            strategy: RateLimitKeyStrategy::Composite,
+            methods: Some(vec![
+                "POST".into(),
+                "PUT".into(),
+                "PATCH".into(),
+                "DELETE".into(),
+            ]),
+        })
+        .rate_limit_tier_def(TierDef {
+            name: "read".into(),
+            config: RateLimitConfig::new(500, Duration::from_secs(60)),
+            routes: vec!["/api/".into()],
+            strategy: RateLimitKeyStrategy::Composite,
+            methods: Some(vec!["GET".into()]),
+        })
+        .rate_limit_tier_def(TierDef {
+            name: "auth".into(),
+            config: RateLimitConfig::new(10, Duration::from_secs(60)),
+            routes: vec!["/api/auth".into(), "/api/admin".into()],
+            strategy: RateLimitKeyStrategy::IpOnly,
+            methods: None,
+        })
     }
 
     /// Register a named rate limit tier with per-route assignment.
@@ -685,34 +675,31 @@ impl ModuleBuilder {
         let manifest = self.manifest?;
 
         // Merge manifest tiers with builder tiers (builder wins on name collision).
-        let mut merged_tiers: Vec<TierDef> =
-            if let Some(ref rl) = manifest.rate_limit {
-                rl.tiers
-                    .iter()
-                    .filter(|(name, _)| {
-                        !self.rate_limit_tiers.iter().any(|t| t.name == **name)
-                    })
-                    .map(|(name, ts)| {
-                        let strategy = match ts.strategy.as_deref() {
-                            Some("ip_only") => RateLimitKeyStrategy::IpOnly,
-                            Some("tenant_only") => RateLimitKeyStrategy::TenantOnly,
-                            _ => RateLimitKeyStrategy::Composite,
-                        };
-                        TierDef {
-                            name: name.clone(),
-                            config: RateLimitConfig::new(
-                                ts.requests_per_window,
-                                std::time::Duration::from_secs(ts.window_seconds),
-                            ),
-                            routes: ts.routes.clone(),
-                            strategy,
-                            methods: ts.methods.clone(),
-                        }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        let mut merged_tiers: Vec<TierDef> = if let Some(ref rl) = manifest.rate_limit {
+            rl.tiers
+                .iter()
+                .filter(|(name, _)| !self.rate_limit_tiers.iter().any(|t| t.name == **name))
+                .map(|(name, ts)| {
+                    let strategy = match ts.strategy.as_deref() {
+                        Some("ip_only") => RateLimitKeyStrategy::IpOnly,
+                        Some("tenant_only") => RateLimitKeyStrategy::TenantOnly,
+                        _ => RateLimitKeyStrategy::Composite,
+                    };
+                    TierDef {
+                        name: name.clone(),
+                        config: RateLimitConfig::new(
+                            ts.requests_per_window,
+                            std::time::Duration::from_secs(ts.window_seconds),
+                        ),
+                        routes: ts.routes.clone(),
+                        strategy,
+                        methods: ts.methods.clone(),
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         merged_tiers.extend(self.rate_limit_tiers.drain(..));
 
         // Phase A: infrastructure
@@ -742,10 +729,8 @@ impl ModuleBuilder {
         }
 
         // Build platform service clients from [platform.services] manifest section.
-        let platform_services = PlatformServices::from_manifest(
-            manifest.platform.as_ref(),
-            &manifest.module.name,
-        )?;
+        let platform_services =
+            PlatformServices::from_manifest(manifest.platform.as_ref(), &manifest.module.name)?;
         if !platform_services.is_empty() {
             tracing::info!(
                 module = %manifest.module.name,
@@ -871,8 +856,16 @@ impl ModuleBuilder {
             authz_gate: self.authz_gate,
             tenant_readiness: self.tenant_readiness,
         };
-        startup::phase_b(&manifest, phase_a, module_routes, self.migrator, consumer_handles, phase_b_ctx, flags)
-            .await
+        startup::phase_b(
+            &manifest,
+            phase_a,
+            module_routes,
+            self.migrator,
+            consumer_handles,
+            phase_b_ctx,
+            flags,
+        )
+        .await
     }
 }
 

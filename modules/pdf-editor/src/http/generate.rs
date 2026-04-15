@@ -28,8 +28,8 @@ use crate::domain::generate::generate_filled_pdf;
 use crate::domain::submissions::SubmissionRepo;
 use crate::event_bus::{create_pdf_editor_envelope, enqueue_event};
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 /// Event payload for pdf.form.generated.
 #[derive(Debug, Clone, Serialize)]
@@ -56,8 +56,7 @@ pub async fn generate_pdf(
     ctx: Option<Extension<TracingContext>>,
     multipart: Multipart,
 ) -> Result<Response, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let pdf_bytes = extract_pdf_bytes(multipart)
         .await

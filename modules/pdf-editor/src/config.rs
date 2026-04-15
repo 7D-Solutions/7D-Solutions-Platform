@@ -82,19 +82,14 @@ impl Config {
             .collect();
 
         if cors_origins.iter().any(|o| o == "*") {
-            return Err(
-                "CORS_ORIGINS=* (wildcard) is not allowed. \
+            return Err("CORS_ORIGINS=* (wildcard) is not allowed. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com). \
                  Omit CORS_ORIGINS to deny all cross-origin requests."
-                    .to_string(),
-            );
+                .to_string());
         }
 
-        let env_name = v
-            .optional("ENV")
-            .or_default("development")
-            .to_lowercase();
+        let env_name = v.optional("ENV").or_default("development").to_lowercase();
 
         v.finish().map_err(|e| e.to_string())?;
 

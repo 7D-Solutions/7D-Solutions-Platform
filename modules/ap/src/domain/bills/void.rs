@@ -171,7 +171,8 @@ pub async fn void_bill(
         "VendorBill".to_string(),
         bill_id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| match e {
             platform_audit::writer::AuditWriterError::Database(db) => BillError::Database(db),
             platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {

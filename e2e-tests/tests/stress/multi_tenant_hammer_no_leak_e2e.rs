@@ -141,7 +141,12 @@ async fn multi_tenant_hammer_no_leak_e2e() {
                         let tenant_match = item.tenant_id == f.tenant_id;
                         let marker_match = item.name == f.marker;
                         let id_match = item.id == f.item_id;
-                        (true, tenant_match && marker_match && id_match, f.tenant_id.clone(), item.tenant_id.clone())
+                        (
+                            true,
+                            tenant_match && marker_match && id_match,
+                            f.tenant_id.clone(),
+                            item.tenant_id.clone(),
+                        )
                     }
                     None => {
                         // Should not happen — we just created this item
@@ -188,7 +193,10 @@ async fn multi_tenant_hammer_no_leak_e2e() {
 
     for fixture_idx in 0..NUM_TENANTS {
         // Try to access items from 2 other tenants (not all 19, to keep test fast)
-        for other_idx in [(fixture_idx + 1) % NUM_TENANTS, (fixture_idx + 7) % NUM_TENANTS] {
+        for other_idx in [
+            (fixture_idx + 1) % NUM_TENANTS,
+            (fixture_idx + 7) % NUM_TENANTS,
+        ] {
             if other_idx == fixture_idx {
                 continue;
             }
@@ -202,7 +210,11 @@ async fn multi_tenant_hammer_no_leak_e2e() {
                     .await
                     .expect("DB error during cross-tenant find_by_id");
 
-                (result.is_some(), caller.tenant_id.clone(), target.tenant_id.clone())
+                (
+                    result.is_some(),
+                    caller.tenant_id.clone(),
+                    target.tenant_id.clone(),
+                )
             }));
         }
     }
@@ -214,7 +226,10 @@ async fn multi_tenant_hammer_no_leak_e2e() {
         let (found, caller, target) = h.await.expect("task panicked");
         if found {
             cross_leaked += 1;
-            println!("  LEAK: tenant {} accessed tenant {}'s item!", caller, target);
+            println!(
+                "  LEAK: tenant {} accessed tenant {}'s item!",
+                caller, target
+            );
         } else {
             cross_blocked += 1;
         }
@@ -266,8 +281,16 @@ async fn multi_tenant_hammer_no_leak_e2e() {
         "at least some cross-tenant lookups must have been tested"
     );
 
-    println!("  positive lookups: {}/{} correct", positive_correct, NUM_TENANTS * CONCURRENT_PER_TENANT);
-    println!("  cross-tenant blocked: {}/{}", cross_blocked, cross_blocked + cross_leaked);
+    println!(
+        "  positive lookups: {}/{} correct",
+        positive_correct,
+        NUM_TENANTS * CONCURRENT_PER_TENANT
+    );
+    println!(
+        "  cross-tenant blocked: {}/{}",
+        cross_blocked,
+        cross_blocked + cross_leaked
+    );
     println!("  tenant isolation: PASSED");
 
     // --- Cleanup ---

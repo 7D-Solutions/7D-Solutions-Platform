@@ -71,9 +71,7 @@ impl RoutingRepo {
                 }
                 Err(IdempotencyError::Database(e)) => return Err(RoutingError::Database(e)),
                 Err(IdempotencyError::Json(e)) => {
-                    return Err(RoutingError::Database(sqlx::Error::Protocol(
-                        e.to_string(),
-                    )));
+                    return Err(RoutingError::Database(sqlx::Error::Protocol(e.to_string())));
                 }
             }
         }
@@ -205,13 +203,12 @@ impl RoutingRepo {
         .await
         .map_err(RoutingError::Database)?;
 
-        let (total,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM routing_templates WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(pool)
-        .await
-        .map_err(RoutingError::Database)?;
+        let (total,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM routing_templates WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(pool)
+                .await
+                .map_err(RoutingError::Database)?;
 
         Ok((items, total))
     }
@@ -400,9 +397,7 @@ impl RoutingRepo {
                 }
                 Err(IdempotencyError::Database(e)) => return Err(RoutingError::Database(e)),
                 Err(IdempotencyError::Json(e)) => {
-                    return Err(RoutingError::Database(sqlx::Error::Protocol(
-                        e.to_string(),
-                    )));
+                    return Err(RoutingError::Database(sqlx::Error::Protocol(e.to_string())));
                 }
             }
         }

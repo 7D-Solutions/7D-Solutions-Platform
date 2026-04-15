@@ -10,7 +10,6 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::work_orders::{
@@ -19,6 +18,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 fn default_page() -> i64 {
     1
@@ -261,11 +261,8 @@ pub async fn list_work_orders(
         // ── Batch mode ──────────────────────────────────────────────────────
         let ids_str = ids_str.trim().to_string();
         if ids_str.is_empty() {
-            return with_request_id(
-                ApiError::bad_request("ids must not be empty"),
-                &tracing_ctx,
-            )
-            .into_response();
+            return with_request_id(ApiError::bad_request("ids must not be empty"), &tracing_ctx)
+                .into_response();
         }
         let ids: Result<Vec<Uuid>, _> = ids_str
             .split(',')
@@ -350,10 +347,8 @@ pub async fn get_work_order(
     };
     match WorkOrderRepo::find_by_id_with_derived(&state.pool, id, &tenant_id).await {
         Ok(Some(wo)) => (StatusCode::OK, Json(wo)).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Work order not found"), &tracing_ctx)
-                .into_response()
-        }
+        Ok(None) => with_request_id(ApiError::not_found("Work order not found"), &tracing_ctx)
+            .into_response(),
         Err(e) => {
             let api_err: ApiError = e.into();
             with_request_id(api_err, &tracing_ctx).into_response()

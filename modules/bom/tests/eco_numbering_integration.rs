@@ -1,9 +1,9 @@
 use bom_rs::domain::eco_models::*;
 use bom_rs::domain::eco_service;
 use bom_rs::domain::numbering_client::NumberingClient;
+use platform_sdk::PlatformClient;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
-use platform_sdk::PlatformClient;
 use uuid::Uuid;
 
 async fn setup_bom_db() -> sqlx::PgPool {
@@ -157,7 +157,10 @@ async fn eco_numbering_tenant_isolation() {
     .expect("create eco tenant B");
 
     assert_eq!(eco_a.eco_number, "ECO-00001", "Tenant A should start at 1");
-    assert_eq!(eco_b.eco_number, "ECO-00001", "Tenant B should start at 1 independently");
+    assert_eq!(
+        eco_b.eco_number, "ECO-00001",
+        "Tenant B should start at 1 independently"
+    );
 }
 
 // ============================================================================

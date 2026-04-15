@@ -235,10 +235,15 @@ async fn provision_three_modules_all_reach_ready() {
 
     // All 3 modules must succeed
     assert_eq!(
-        result.ready_count, 3,
+        result.ready_count,
+        3,
         "expected 3 ready modules, got {}: {:?}",
         result.ready_count,
-        result.results.iter().map(|r| (&r.module_code, r.success, r.error.as_deref())).collect::<Vec<_>>()
+        result
+            .results
+            .iter()
+            .map(|r| (&r.module_code, r.success, r.error.as_deref()))
+            .collect::<Vec<_>>()
     );
     assert_eq!(result.failed_count, 0, "no modules should have failed");
     assert!(result.all_ready(), "all_ready() should return true");
@@ -368,10 +373,9 @@ async fn partial_failure_marks_failed_module_and_continues_others() {
 
     let module_codes_owned = vec!["ar".to_string(), "ghost".to_string()];
 
-    let result =
-        worker::provision_all_modules(&pool, &registry, tenant_id, &module_codes_owned)
-            .await
-            .expect("provision_all_modules returns Ok even on partial failure");
+    let result = worker::provision_all_modules(&pool, &registry, tenant_id, &module_codes_owned)
+        .await
+        .expect("provision_all_modules returns Ok even on partial failure");
 
     assert_eq!(result.ready_count, 1, "ar should be ready");
     assert_eq!(result.failed_count, 1, "ghost should have failed");

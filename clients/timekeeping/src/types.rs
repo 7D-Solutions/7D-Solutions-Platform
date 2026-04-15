@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,7 +127,7 @@ pub struct BillingRun {
 }
 
 /// Result returned by `create_billing_run`.
-/// 
+///
 /// When `already_ran = true`, the caller should use the existing `run`
 /// without creating a duplicate AR invoice (idempotency).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -468,4 +468,3 @@ pub struct VoidEntryRequest {
     pub created_by: Option<uuid::Uuid>,
     pub entry_id: uuid::Uuid,
 }
-

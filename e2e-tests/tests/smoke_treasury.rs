@@ -83,9 +83,17 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PUT" => client.put(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT -> 401 ok");
 }
 
@@ -99,7 +107,10 @@ async fn smoke_treasury() {
         .unwrap();
 
     if !wait_for_treasury(&client).await {
-        eprintln!("Treasury service not reachable at {} -- skipping", treasury_url());
+        eprintln!(
+            "Treasury service not reachable at {} -- skipping",
+            treasury_url()
+        );
         return;
     }
     println!("Treasury service healthy at {}", treasury_url());
@@ -117,7 +128,9 @@ async fn smoke_treasury() {
     let probe = client
         .get(format!("{base}/api/treasury/accounts"))
         .bearer_auth(&jwt)
-        .send().await.expect("JWT probe failed");
+        .send()
+        .await
+        .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
         eprintln!(
             "Treasury returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.\n\
@@ -133,30 +146,46 @@ async fn smoke_treasury() {
         .bearer_auth(&jwt)
         .json(&json!({"account_name": "Smoke Checking", "currency": "USD",
                        "institution": "Test Bank", "account_number_last4": "1234"}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let bank_acct: Value = resp.json().await.unwrap();
-    assert_eq!(status, 201, "expected 201 for bank account, got {status}: {bank_acct}");
+    assert_eq!(
+        status, 201,
+        "expected 201 for bank account, got {status}: {bank_acct}"
+    );
     let bank_id = bank_acct["id"].as_str().expect("bank account id missing");
     println!("  created bank account id={bank_id}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/accounts/bank"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/accounts/bank"),
         Some(json!({"account_name": "X", "currency": "USD"})),
-    ).await;
+    )
+    .await;
 
     // --- 2. GET /api/treasury/accounts/{id} ---
     println!("\n--- 2. GET /api/treasury/accounts/{{id}} ---");
     let resp = client
         .get(format!("{base}/api/treasury/accounts/{bank_id}"))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     let body: Value = resp.json().await.unwrap();
     assert_eq!(body["id"].as_str().unwrap(), bank_id);
     println!("  retrieved bank account name={}", body["account_name"]);
 
-    assert_unauth(&client, "GET", &format!("{base}/api/treasury/accounts/{bank_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/accounts/{bank_id}"),
+        None,
+    )
+    .await;
 
     // --- 3. POST /api/treasury/accounts/{id}/deactivate ---
     println!("\n--- 3. POST /api/treasury/accounts/{{id}}/deactivate ---");
@@ -165,23 +194,36 @@ async fn smoke_treasury() {
         .post(format!("{base}/api/treasury/accounts/bank"))
         .bearer_auth(&jwt)
         .json(&json!({"account_name": "Deactivate Me", "currency": "USD"}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 201);
     let throwaway: Value = resp.json().await.unwrap();
     let throwaway_id = throwaway["id"].as_str().unwrap();
 
     let resp = client
-        .post(format!("{base}/api/treasury/accounts/{throwaway_id}/deactivate"))
+        .post(format!(
+            "{base}/api/treasury/accounts/{throwaway_id}/deactivate"
+        ))
         .bearer_auth(&jwt)
         .json(&json!({}))
-        .send().await.unwrap();
-    assert_eq!(resp.status().as_u16(), 204, "expected 204 No Content for deactivate");
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status().as_u16(),
+        204,
+        "expected 204 No Content for deactivate"
+    );
     println!("  deactivated account {throwaway_id}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/accounts/{throwaway_id}/deactivate"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/accounts/{throwaway_id}/deactivate"),
         Some(json!({})),
-    ).await;
+    )
+    .await;
 
     // --- 4. POST /api/treasury/accounts/credit-card ---
     println!("\n--- 4. POST /api/treasury/accounts/credit-card ---");
@@ -191,7 +233,9 @@ async fn smoke_treasury() {
         .json(&json!({"account_name": "Smoke Visa", "currency": "USD",
                        "institution": "Chase", "account_number_last4": "5678",
                        "cc_network": "Visa", "credit_limit_minor": 500000}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let cc_acct: Value = resp.json().await.unwrap();
     assert_eq!(status, 201, "expected 201 for CC account: {cc_acct}");
@@ -199,49 +243,80 @@ async fn smoke_treasury() {
     println!("  created CC account id={cc_id}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/accounts/credit-card"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/accounts/credit-card"),
         Some(json!({"account_name": "X", "currency": "USD"})),
-    ).await;
+    )
+    .await;
 
     // --- 5. GET /api/treasury/accounts ---
     println!("\n--- 5. GET /api/treasury/accounts ---");
     let resp = client
         .get(format!("{base}/api/treasury/accounts"))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     let accounts: Vec<Value> = resp.json().await.unwrap();
     // Should have at least 2 active accounts (bank + CC; deactivated one excluded by default)
-    assert!(accounts.len() >= 2, "expected >= 2 active accounts, got {}", accounts.len());
+    assert!(
+        accounts.len() >= 2,
+        "expected >= 2 active accounts, got {}",
+        accounts.len()
+    );
     println!("  listed {} accounts", accounts.len());
 
-    assert_unauth(&client, "GET", &format!("{base}/api/treasury/accounts"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/accounts"),
+        None,
+    )
+    .await;
 
     // --- 6. GET /api/treasury/cash-position ---
     println!("\n--- 6. GET /api/treasury/cash-position ---");
     let resp = client
         .get(format!("{base}/api/treasury/cash-position"))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "cash-position failed: {body}");
     println!("  cash-position returned ok");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/treasury/cash-position"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/cash-position"),
+        None,
+    )
+    .await;
 
     // --- 7. GET /api/treasury/forecast ---
     println!("\n--- 7. GET /api/treasury/forecast ---");
     let resp = client
         .get(format!("{base}/api/treasury/forecast"))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "forecast failed: {body}");
     println!("  forecast returned ok");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/treasury/forecast"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/forecast"),
+        None,
+    )
+    .await;
 
     // --- 8. POST /api/treasury/statements/import ---
     println!("\n--- 8. POST /api/treasury/statements/import ---");
@@ -255,15 +330,21 @@ async fn smoke_treasury() {
         .text("period_end", "2026-03-31")
         .text("opening_balance_minor", "100000")
         .text("closing_balance_minor", "140000")
-        .part("file", reqwest::multipart::Part::bytes(csv_data.as_bytes().to_vec())
-            .file_name("smoke-statement.csv")
-            .mime_str("text/csv").unwrap());
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(csv_data.as_bytes().to_vec())
+                .file_name("smoke-statement.csv")
+                .mime_str("text/csv")
+                .unwrap(),
+        );
 
     let resp = client
         .post(format!("{base}/api/treasury/statements/import"))
         .bearer_auth(&jwt)
         .multipart(form)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let import_status = resp.status().as_u16();
     let import_body: Value = resp.json().await.unwrap();
     // 201 for new import, 200 for duplicate, 422 if CSV format rejected
@@ -280,13 +361,24 @@ async fn smoke_treasury() {
         .text("period_end", "2026-01-31")
         .text("opening_balance_minor", "0")
         .text("closing_balance_minor", "0")
-        .part("file", reqwest::multipart::Part::bytes(b"x".to_vec())
-            .file_name("x.csv").mime_str("text/csv").unwrap());
+        .part(
+            "file",
+            reqwest::multipart::Part::bytes(b"x".to_vec())
+                .file_name("x.csv")
+                .mime_str("text/csv")
+                .unwrap(),
+        );
     let resp = client
         .post(format!("{base}/api/treasury/statements/import"))
         .multipart(form2)
-        .send().await.unwrap();
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT on import");
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT on import"
+    );
     println!("  no-JWT -> 401 ok");
 
     // --- 9. POST /api/treasury/recon/auto-match ---
@@ -295,38 +387,57 @@ async fn smoke_treasury() {
         .post(format!("{base}/api/treasury/recon/auto-match"))
         .bearer_auth(&jwt)
         .json(&json!({"account_id": bank_id}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "auto-match failed: {body}");
-    println!("  auto-match -> matches_created={}", body["matches_created"]);
+    println!(
+        "  auto-match -> matches_created={}",
+        body["matches_created"]
+    );
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/recon/auto-match"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/recon/auto-match"),
         Some(json!({"account_id": bank_id})),
-    ).await;
+    )
+    .await;
 
     // --- 10. GET /api/treasury/recon/matches ---
     println!("\n--- 10. GET /api/treasury/recon/matches ---");
     let resp = client
-        .get(format!("{base}/api/treasury/recon/matches?account_id={bank_id}"))
+        .get(format!(
+            "{base}/api/treasury/recon/matches?account_id={bank_id}"
+        ))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     let matches: Vec<Value> = resp.json().await.unwrap();
     println!("  recon matches: {}", matches.len());
 
     assert_unauth(
-        &client, "GET",
-        &format!("{base}/api/treasury/recon/matches?account_id={bank_id}"), None,
-    ).await;
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/recon/matches?account_id={bank_id}"),
+        None,
+    )
+    .await;
 
     // --- 11. GET /api/treasury/recon/unmatched ---
     println!("\n--- 11. GET /api/treasury/recon/unmatched ---");
     let resp = client
-        .get(format!("{base}/api/treasury/recon/unmatched?account_id={bank_id}"))
+        .get(format!(
+            "{base}/api/treasury/recon/unmatched?account_id={bank_id}"
+        ))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     let unmatched: Value = resp.json().await.unwrap();
     println!(
@@ -335,9 +446,12 @@ async fn smoke_treasury() {
     );
 
     assert_unauth(
-        &client, "GET",
-        &format!("{base}/api/treasury/recon/unmatched?account_id={bank_id}"), None,
-    ).await;
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/recon/unmatched?account_id={bank_id}"),
+        None,
+    )
+    .await;
 
     // --- 12. POST /api/treasury/recon/manual-match ---
     // Requires valid statement_line_id + bank_transaction_id; 404 is expected behavior
@@ -348,7 +462,9 @@ async fn smoke_treasury() {
         .post(format!("{base}/api/treasury/recon/manual-match"))
         .bearer_auth(&jwt)
         .json(&json!({"statement_line_id": fake_stmt, "bank_transaction_id": fake_txn}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     // 201 if match created, 404 if IDs not found, 422 if mismatch
     assert!(
@@ -358,9 +474,12 @@ async fn smoke_treasury() {
     println!("  manual-match -> {status} (expected without real IDs)");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/recon/manual-match"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/recon/manual-match"),
         Some(json!({"statement_line_id": fake_stmt, "bank_transaction_id": fake_txn})),
-    ).await;
+    )
+    .await;
 
     // --- 13. POST /api/treasury/recon/gl-link ---
     println!("\n--- 13. POST /api/treasury/recon/gl-link ---");
@@ -368,16 +487,24 @@ async fn smoke_treasury() {
         .post(format!("{base}/api/treasury/recon/gl-link"))
         .bearer_auth(&jwt)
         .json(&json!({"bank_transaction_id": Uuid::new_v4(), "gl_entry_id": 999999}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     // 200 if linked, 404 if txn not found
-    assert!(status == 200 || status == 404, "gl-link expected 200/404, got {status}");
+    assert!(
+        status == 200 || status == 404,
+        "gl-link expected 200/404, got {status}"
+    );
     println!("  gl-link -> {status}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/recon/gl-link"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/recon/gl-link"),
         Some(json!({"bank_transaction_id": Uuid::new_v4(), "gl_entry_id": 1})),
-    ).await;
+    )
+    .await;
 
     // --- 14. POST /api/treasury/recon/gl-unmatched-entries ---
     println!("\n--- 14. POST /api/treasury/recon/gl-unmatched-entries ---");
@@ -385,44 +512,62 @@ async fn smoke_treasury() {
         .post(format!("{base}/api/treasury/recon/gl-unmatched-entries"))
         .bearer_auth(&jwt)
         .json(&json!({"gl_entry_ids": [1, 2, 3]}))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "gl-unmatched-entries failed: {body}");
-    println!("  gl-unmatched-entries -> provided={}, unmatched={}", body["provided"], body["unmatched_gl_entry_ids"]);
+    println!(
+        "  gl-unmatched-entries -> provided={}, unmatched={}",
+        body["provided"], body["unmatched_gl_entry_ids"]
+    );
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/treasury/recon/gl-unmatched-entries"),
+        &client,
+        "POST",
+        &format!("{base}/api/treasury/recon/gl-unmatched-entries"),
         Some(json!({"gl_entry_ids": [1]})),
-    ).await;
+    )
+    .await;
 
     // --- 15. GET /api/treasury/recon/gl-unmatched-txns ---
     println!("\n--- 15. GET /api/treasury/recon/gl-unmatched-txns ---");
     let resp = client
-        .get(format!("{base}/api/treasury/recon/gl-unmatched-txns?account_id={bank_id}"))
+        .get(format!(
+            "{base}/api/treasury/recon/gl-unmatched-txns?account_id={bank_id}"
+        ))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     let status = resp.status().as_u16();
     let body: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "gl-unmatched-txns failed: {body}");
     println!("  gl-unmatched-txns -> count={}", body["count"]);
 
     assert_unauth(
-        &client, "GET",
-        &format!("{base}/api/treasury/recon/gl-unmatched-txns?account_id={bank_id}"), None,
-    ).await;
+        &client,
+        "GET",
+        &format!("{base}/api/treasury/recon/gl-unmatched-txns?account_id={bank_id}"),
+        None,
+    )
+    .await;
 
     // --- Error response sanitization ---
     println!("\n--- Error response sanitization ---");
     let resp = client
         .get(format!("{base}/api/treasury/accounts/{}", Uuid::new_v4()))
         .bearer_auth(&jwt)
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(resp.status().as_u16(), 404);
     let body = resp.text().await.unwrap();
     assert!(
         !body.contains("SELECT") && !body.contains("sqlx") && !body.contains("panicked"),
-        "error leaks internals: {}", &body[..body.len().min(200)]
+        "error leaks internals: {}",
+        &body[..body.len().min(200)]
     );
     println!("  404 sanitized ok");
 

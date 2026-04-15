@@ -188,9 +188,12 @@ pub async fn request_component_issue(
         "WorkOrder".to_string(),
         work_order_id.to_string(),
     );
-    AuditWriter::write_in_tx(&mut tx, audit_req).await
+    AuditWriter::write_in_tx(&mut tx, audit_req)
+        .await
         .map_err(|e| match e {
-            platform_audit::writer::AuditWriterError::Database(db) => ComponentIssueError::Database(db),
+            platform_audit::writer::AuditWriterError::Database(db) => {
+                ComponentIssueError::Database(db)
+            }
             platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                 ComponentIssueError::Database(sqlx::Error::Protocol(msg))
             }

@@ -70,12 +70,18 @@ fn assert_envelope_completeness(json: &serde_json::Value, label: &str) {
         assert!(
             val.is_some(),
             "[{}] Missing required field: {}",
-            label, field
+            label,
+            field
         );
         let val = val.unwrap();
         // String fields must be non-empty
         if let Some(s) = val.as_str() {
-            assert!(!s.is_empty(), "[{}] Field '{}' is empty string", label, field);
+            assert!(
+                !s.is_empty(),
+                "[{}] Field '{}' is empty string",
+                label,
+                field
+            );
         }
     }
 
@@ -90,11 +96,7 @@ fn assert_envelope_completeness(json: &serde_json::Value, label: &str) {
 
     // tenant_id must be non-empty
     let tenant_id = json["tenant_id"].as_str().unwrap();
-    assert!(
-        !tenant_id.is_empty(),
-        "[{}] tenant_id is empty",
-        label
-    );
+    assert!(!tenant_id.is_empty(), "[{}] tenant_id is empty", label);
 
     // mutation_class must be a known value
     let mc = json["mutation_class"].as_str().unwrap();
@@ -1420,10 +1422,7 @@ fn identity_access_review_recorded_envelope_completeness() {
             decision: "approved".into(),
         },
     );
-    assert_envelope_completeness(
-        &json,
-        "identity/user.lifecycle.access_review_recorded",
-    );
+    assert_envelope_completeness(&json, "identity/user.lifecycle.access_review_recorded");
 }
 
 #[test]
@@ -2108,11 +2107,7 @@ fn all_phase57_schemas_exist_on_disk() {
     let events_dir = contracts_dir().join("events");
     for schema_name in &schemas {
         let path = events_dir.join(schema_name);
-        assert!(
-            path.exists(),
-            "Schema file missing: {}",
-            path.display()
-        );
+        assert!(path.exists(), "Schema file missing: {}", path.display());
 
         // Verify it's valid JSON
         let content = std::fs::read_to_string(&path)
@@ -2168,10 +2163,7 @@ fn all_phase57_schemas_have_schema_version_field() {
             .as_array()
             .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
 
-        let required_strs: Vec<&str> = required
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
 
         assert!(
             required_strs.contains(&"schema_version"),
@@ -2334,7 +2326,13 @@ fn notifications_gate_b_schemas_require_envelope_fields() {
 fn non_financial_modules_do_not_require_merchant_context() {
     // Phase 57 modules are NOT financial modules, so they should pass
     // validation without merchant_context
-    let non_financial = ["numbering", "doc_mgmt", "workflow", "identity", "notifications"];
+    let non_financial = [
+        "numbering",
+        "doc_mgmt",
+        "workflow",
+        "identity",
+        "notifications",
+    ];
     for module in &non_financial {
         assert!(
             !mutation_classes::FINANCIAL_MODULES.contains(module),
@@ -2749,11 +2747,7 @@ fn reporting_has_no_published_event_schemas() {
     let reporting_schemas: Vec<_> = std::fs::read_dir(&events_dir)
         .expect("contracts/events/ must exist")
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.file_name()
-                .to_string_lossy()
-                .starts_with("reporting-")
-        })
+        .filter(|e| e.file_name().to_string_lossy().starts_with("reporting-"))
         .collect();
 
     assert!(
@@ -3357,11 +3351,7 @@ fn pdf_editor_gate_b_schemas_exist_on_disk() {
     ];
     for name in &schemas {
         let path = contracts_dir().join("events").join(name);
-        assert!(
-            path.exists(),
-            "Schema file missing: {}",
-            path.display()
-        );
+        assert!(path.exists(), "Schema file missing: {}", path.display());
     }
 }
 
@@ -3403,10 +3393,7 @@ fn pdf_editor_gate_b_schemas_require_envelope_fields() {
 
 #[test]
 fn pdf_editor_event_types_follow_naming_convention() {
-    let event_types = [
-        "pdf.form.submitted",
-        "pdf.form.generated",
-    ];
+    let event_types = ["pdf.form.submitted", "pdf.form.generated"];
     for et in &event_types {
         assert!(
             event_naming::validate_event_type(et).is_ok(),
@@ -3418,10 +3405,7 @@ fn pdf_editor_event_types_follow_naming_convention() {
 
 #[test]
 fn pdf_editor_all_subjects_have_contract_tests() {
-    let tested_event_types = [
-        "pdf.form.submitted",
-        "pdf.form.generated",
-    ];
+    let tested_event_types = ["pdf.form.submitted", "pdf.form.generated"];
     assert_eq!(
         tested_event_types.len(),
         2,
@@ -3997,11 +3981,7 @@ fn party_deactivated_schema_validation() {
 
 #[test]
 fn party_all_subjects_have_contract_tests() {
-    let tested_event_types = [
-        "party.created",
-        "party.updated",
-        "party.deactivated",
-    ];
+    let tested_event_types = ["party.created", "party.updated", "party.deactivated"];
     assert_eq!(
         tested_event_types.len(),
         3,
@@ -4086,11 +4066,7 @@ fn numbering_gate_b_schemas_require_envelope_fields() {
 
 #[test]
 fn numbering_all_events_have_contract_tests() {
-    let tested_event_types = [
-        "number.allocated",
-        "number.confirmed",
-        "policy.updated",
-    ];
+    let tested_event_types = ["number.allocated", "number.confirmed", "policy.updated"];
     assert_eq!(
         tested_event_types.len(),
         3,

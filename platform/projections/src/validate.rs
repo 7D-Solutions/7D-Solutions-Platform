@@ -228,9 +228,6 @@ mod tests {
 
     #[test]
     fn accepts_customer_id_order_column() {
-        assert_eq!(
-            validate_order_column("customer_id").unwrap(),
-            "customer_id"
-        );
+        assert_eq!(validate_order_column("customer_id").unwrap(), "customer_id");
     }
 }

@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying GL detail reports (journal entries and lines).
 
 use crate::AppState;
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -11,9 +14,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::gl_detail_service::{self, GLDetailResponse};
+use platform_sdk::extract_tenant;
 
 /// Query parameters for GL detail endpoint
 #[derive(Debug, Deserialize)]
@@ -57,9 +60,7 @@ pub async fn get_gl_detail(
             gl_detail_service::GLDetailServiceError::PeriodNotFound { .. } => {
                 ApiError::not_found(e.to_string())
             }
-            gl_detail_service::GLDetailServiceError::Repo(_) => {
-                ApiError::internal(e.to_string())
-            }
+            gl_detail_service::GLDetailServiceError::Repo(_) => ApiError::internal(e.to_string()),
             _ => ApiError::bad_request(e.to_string()),
         };
         with_request_id(api_err, &ctx)

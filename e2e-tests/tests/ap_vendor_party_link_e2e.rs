@@ -79,7 +79,11 @@ async fn run_party_migrations(pool: &PgPool) {
 /// Builds both the read routes (no auth) and write routes (RequirePermissionsLayer).
 fn make_ap_router(pool: PgPool) -> axum::Router {
     let metrics = Arc::new(ApMetrics::new().expect("AP metrics init failed"));
-    let state = Arc::new(AppState { pool, metrics, gl_pool: None });
+    let state = Arc::new(AppState {
+        pool,
+        metrics,
+        gl_pool: None,
+    });
 
     let ap_mutations = Router::new()
         .route("/api/ap/vendors", post(http::vendors::create_vendor))
@@ -169,8 +173,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
         pool: party_pool,
         metrics,
     });
-    let router = party_http::router(state)
-        .layer(axum::middleware::from_fn(inject_party_claims));
+    let router = party_http::router(state).layer(axum::middleware::from_fn(inject_party_claims));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await

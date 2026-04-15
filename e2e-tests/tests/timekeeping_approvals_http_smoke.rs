@@ -42,8 +42,7 @@ fn dev_private_key_pem() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env")
+    std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env")
 }
 
 fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
@@ -169,7 +168,11 @@ async fn timekeeping_approvals_http_smoke() {
             employee_id = v["id"].as_str().and_then(|s| s.parse().ok());
             println!("Setup: employee_id={:?}", employee_id);
         } else {
-            println!("Setup employee failed {}: {}", s, &resp_body[..resp_body.len().min(300)]);
+            println!(
+                "Setup employee failed {}: {}",
+                s,
+                &resp_body[..resp_body.len().min(300)]
+            );
         }
     }
 
@@ -190,7 +193,11 @@ async fn timekeeping_approvals_http_smoke() {
             project_id = v["id"].as_str().and_then(|s| s.parse().ok());
             println!("Setup: project_id={:?}", project_id);
         } else {
-            println!("Setup project failed {}: {}", s, &resp_body[..resp_body.len().min(300)]);
+            println!(
+                "Setup project failed {}: {}",
+                s,
+                &resp_body[..resp_body.len().min(300)]
+            );
         }
     }
 
@@ -212,7 +219,11 @@ async fn timekeeping_approvals_http_smoke() {
             "actor_id": actor_id
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("1. POST approvals/submit (approve path): {} body_len={}", s, resp_body.len());
+        println!(
+            "1. POST approvals/submit (approve path): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -235,7 +246,11 @@ async fn timekeeping_approvals_http_smoke() {
             "notes": "Approved by smoke test"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("2. POST approvals/approve: {} body_len={}", s, resp_body.len());
+        println!(
+            "2. POST approvals/approve: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -257,7 +272,11 @@ async fn timekeeping_approvals_http_smoke() {
             "actor_id": actor_id
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("3. POST approvals/submit (reject path): {} body_len={}", s, resp_body.len());
+        println!(
+            "3. POST approvals/submit (reject path): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -279,7 +298,11 @@ async fn timekeeping_approvals_http_smoke() {
             "notes": "Missing entries"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("4. POST approvals/reject: {} body_len={}", s, resp_body.len());
+        println!(
+            "4. POST approvals/reject: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -301,7 +324,11 @@ async fn timekeeping_approvals_http_smoke() {
             "actor_id": actor_id
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("5. POST approvals/submit (recall path): {} body_len={}", s, resp_body.len());
+        println!(
+            "5. POST approvals/submit (recall path): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -323,7 +350,11 @@ async fn timekeeping_approvals_http_smoke() {
             "notes": "Recalled for correction"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("6. POST approvals/recall: {} body_len={}", s, resp_body.len());
+        println!(
+            "6. POST approvals/recall: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -340,7 +371,11 @@ async fn timekeeping_approvals_http_smoke() {
             base, eid
         );
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("7. GET approvals (list): {} body_len={}", s, resp_body.len());
+        println!(
+            "7. GET approvals (list): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -354,7 +389,11 @@ async fn timekeeping_approvals_http_smoke() {
     {
         let url = format!("{}/api/timekeeping/approvals/pending", base);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("8. GET approvals/pending: {} body_len={}", s, resp_body.len());
+        println!(
+            "8. GET approvals/pending: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -366,7 +405,12 @@ async fn timekeeping_approvals_http_smoke() {
     if let Some(appr_id) = approval_approve_id {
         let url = format!("{}/api/timekeeping/approvals/{}", base, appr_id);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("9. GET approvals/{}: {} body_len={}", appr_id, s, resp_body.len());
+        println!(
+            "9. GET approvals/{}: {} body_len={}",
+            appr_id,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -380,7 +424,12 @@ async fn timekeeping_approvals_http_smoke() {
     if let Some(appr_id) = approval_approve_id {
         let url = format!("{}/api/timekeeping/approvals/{}/actions", base, appr_id);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("10. GET approvals/{}/actions: {} body_len={}", appr_id, s, resp_body.len());
+        println!(
+            "10. GET approvals/{}/actions: {} body_len={}",
+            appr_id,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -423,7 +472,11 @@ async fn timekeeping_approvals_http_smoke() {
     {
         let url = format!("{}/api/timekeeping/allocations", base);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("12. GET allocations (list): {} body_len={}", s, resp_body.len());
+        println!(
+            "12. GET allocations (list): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -435,7 +488,12 @@ async fn timekeeping_approvals_http_smoke() {
     if let Some(alloc_id) = allocation_id {
         let url = format!("{}/api/timekeeping/allocations/{}", base, alloc_id);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("13. GET allocations/{}: {} body_len={}", alloc_id, s, resp_body.len());
+        println!(
+            "13. GET allocations/{}: {} body_len={}",
+            alloc_id,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -453,7 +511,12 @@ async fn timekeeping_approvals_http_smoke() {
             "allocated_minutes_per_week": 1800
         });
         let (s, resp_body) = put_json(&client, &url, &token, &body).await;
-        println!("14. PUT allocations/{}: {} body_len={}", alloc_id, s, resp_body.len());
+        println!(
+            "14. PUT allocations/{}: {} body_len={}",
+            alloc_id,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -467,7 +530,12 @@ async fn timekeeping_approvals_http_smoke() {
     if let Some(alloc_id) = allocation_id {
         let url = format!("{}/api/timekeeping/allocations/{}", base, alloc_id);
         let (s, resp_body) = delete_req(&client, &url, &token).await;
-        println!("15. DELETE allocations/{}: {} body_len={}", alloc_id, s, resp_body.len());
+        println!(
+            "15. DELETE allocations/{}: {} body_len={}",
+            alloc_id,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -483,9 +551,16 @@ async fn timekeeping_approvals_http_smoke() {
 
     // Call 16: GET /api/timekeeping/rollups/by-project
     {
-        let url = format!("{}/api/timekeeping/rollups/by-project?from=2026-01-01&to=2026-01-31", base);
+        let url = format!(
+            "{}/api/timekeeping/rollups/by-project?from=2026-01-01&to=2026-01-31",
+            base
+        );
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("16. GET rollups/by-project: {} body_len={}", s, resp_body.len());
+        println!(
+            "16. GET rollups/by-project: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -495,9 +570,16 @@ async fn timekeeping_approvals_http_smoke() {
 
     // Call 17: GET /api/timekeeping/rollups/by-employee
     {
-        let url = format!("{}/api/timekeeping/rollups/by-employee?from=2026-01-01&to=2026-01-31", base);
+        let url = format!(
+            "{}/api/timekeeping/rollups/by-employee?from=2026-01-01&to=2026-01-31",
+            base
+        );
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("17. GET rollups/by-employee: {} body_len={}", s, resp_body.len());
+        println!(
+            "17. GET rollups/by-employee: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -512,7 +594,12 @@ async fn timekeeping_approvals_http_smoke() {
             base, pid
         );
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("18. GET rollups/by-task/{}: {} body_len={}", pid, s, resp_body.len());
+        println!(
+            "18. GET rollups/by-task/{}: {} body_len={}",
+            pid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -625,7 +712,12 @@ async fn timekeeping_approvals_http_smoke() {
     if let Some(eid) = export_id {
         let url = format!("{}/api/timekeeping/exports/{}", base, eid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("24. GET exports/{}: {} body_len={}", eid, s, resp_body.len());
+        println!(
+            "24. GET exports/{}: {} body_len={}",
+            eid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {

@@ -138,7 +138,19 @@ impl OperationRepo {
         }
 
         // Fetch routing steps ordered by sequence
-        let steps = sqlx::query_as::<_, (Uuid, i32, Uuid, String, Option<String>, Option<i32>, Option<i32>, bool)>(
+        let steps = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                i32,
+                Uuid,
+                String,
+                Option<String>,
+                Option<i32>,
+                Option<i32>,
+                bool,
+            ),
+        >(
             r#"
             SELECT routing_step_id, sequence_number, workcenter_id, operation_name,
                    description, setup_time_minutes, run_time_minutes, is_required

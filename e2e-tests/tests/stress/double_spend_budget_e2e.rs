@@ -219,8 +219,7 @@ async fn double_spend_budget_e2e() {
     let over_alloc_count = outcomes.iter().filter(|o| o.is_over_allocation).count();
     let invalid_status_count = outcomes.iter().filter(|o| o.is_invalid_status).count();
     let unexpected_error_count = outcomes.iter().filter(|o| o.is_unexpected_error).count();
-    let total_allocated_from_responses: i64 =
-        outcomes.iter().map(|o| o.allocated_minor).sum();
+    let total_allocated_from_responses: i64 = outcomes.iter().map(|o| o.allocated_minor).sum();
     let clean_rejection_count = over_alloc_count + invalid_status_count;
 
     println!("completed in {:?}", elapsed);
@@ -269,7 +268,8 @@ async fn double_spend_budget_e2e() {
 
     // --- Assertion 4: Response-level conservation ---
     assert_eq!(
-        total_allocated_from_responses, BUDGET_AMOUNT_MINOR,
+        total_allocated_from_responses,
+        BUDGET_AMOUNT_MINOR,
         "total allocated from responses (${:.2}) must equal budget (${:.2})",
         total_allocated_from_responses as f64 / 100.0,
         BUDGET_AMOUNT_MINOR as f64 / 100.0
@@ -291,7 +291,8 @@ async fn double_spend_budget_e2e() {
     );
 
     assert_eq!(
-        db_total_allocated, BUDGET_AMOUNT_MINOR,
+        db_total_allocated,
+        BUDGET_AMOUNT_MINOR,
         "DB total (${:.2}) must equal budget (${:.2}) — no overdraw",
         db_total_allocated as f64 / 100.0,
         BUDGET_AMOUNT_MINOR as f64 / 100.0
@@ -305,7 +306,8 @@ async fn double_spend_budget_e2e() {
         remaining as f64 / 100.0
     );
     assert_eq!(
-        remaining, 0,
+        remaining,
+        0,
         "budget should be fully consumed, remaining=${:.2}",
         remaining as f64 / 100.0
     );

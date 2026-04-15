@@ -222,13 +222,12 @@ pub async fn vendor_exists(
     vendor_id: Uuid,
     tenant_id: &str,
 ) -> Result<bool, VendorError> {
-    let row: Option<(bool,)> = sqlx::query_as(
-        "SELECT is_active FROM vendors WHERE vendor_id = $1 AND tenant_id = $2",
-    )
-    .bind(vendor_id)
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await?;
+    let row: Option<(bool,)> =
+        sqlx::query_as("SELECT is_active FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
+            .bind(vendor_id)
+            .bind(tenant_id)
+            .fetch_optional(&mut *conn)
+            .await?;
     Ok(row.is_some())
 }
 

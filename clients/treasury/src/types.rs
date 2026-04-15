@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -166,7 +166,7 @@ pub struct CurrencyForecast {
 }
 
 /// Assumed collection/payment rates per aging bucket.
-/// 
+///
 /// Rates are expressed as fractions (0.0–1.0). A rate of 0.95 means
 /// 95% of the bucket value is expected to convert to a cash flow.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -405,4 +405,3 @@ pub struct UpdateAccountRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub statement_closing_day: Option<i32>,
 }
-

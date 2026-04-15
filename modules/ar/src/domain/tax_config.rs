@@ -39,30 +39,61 @@ pub struct RuleResponse {
 
 pub fn row_to_jurisdiction(
     r: (
-        Uuid, String, String, Option<String>, Option<String>,
-        String, String, bool,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>,
+        Uuid,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+        String,
+        bool,
+        chrono::DateTime<chrono::Utc>,
+        chrono::DateTime<chrono::Utc>,
     ),
 ) -> JurisdictionResponse {
     JurisdictionResponse {
-        id: r.0, app_id: r.1, country_code: r.2, state_code: r.3,
-        postal_pattern: r.4, jurisdiction_name: r.5, tax_type: r.6,
-        is_active: r.7, created_at: r.8, updated_at: r.9,
+        id: r.0,
+        app_id: r.1,
+        country_code: r.2,
+        state_code: r.3,
+        postal_pattern: r.4,
+        jurisdiction_name: r.5,
+        tax_type: r.6,
+        is_active: r.7,
+        created_at: r.8,
+        updated_at: r.9,
     }
 }
 
 pub fn row_to_rule(
     r: (
-        Uuid, Uuid, String, Option<String>, f64,
-        i64, bool, NaiveDate, Option<NaiveDate>, i32,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>,
+        Uuid,
+        Uuid,
+        String,
+        Option<String>,
+        f64,
+        i64,
+        bool,
+        NaiveDate,
+        Option<NaiveDate>,
+        i32,
+        chrono::DateTime<chrono::Utc>,
+        chrono::DateTime<chrono::Utc>,
     ),
 ) -> RuleResponse {
     RuleResponse {
-        id: r.0, jurisdiction_id: r.1, app_id: r.2, tax_code: r.3,
-        rate: r.4, flat_amount_minor: r.5, is_exempt: r.6,
-        effective_from: r.7, effective_to: r.8, priority: r.9,
-        created_at: r.10, updated_at: r.11,
+        id: r.0,
+        jurisdiction_id: r.1,
+        app_id: r.2,
+        tax_code: r.3,
+        rate: r.4,
+        flat_amount_minor: r.5,
+        is_exempt: r.6,
+        effective_from: r.7,
+        effective_to: r.8,
+        priority: r.9,
+        created_at: r.10,
+        updated_at: r.11,
     }
 }
 

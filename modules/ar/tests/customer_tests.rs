@@ -225,7 +225,10 @@ async fn test_list_customers_with_pagination() {
         json["data"].as_array().unwrap().len() >= 2,
         "Should have at least 2 customers"
     );
-    assert!(json["pagination"].is_object(), "Response should have pagination");
+    assert!(
+        json["pagination"].is_object(),
+        "Response should have pagination"
+    );
 
     common::cleanup_customers(&pool, &[customer1_id, customer2_id, customer3_id]).await;
     common::teardown_pool(pool).await;

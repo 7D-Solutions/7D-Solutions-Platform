@@ -126,11 +126,7 @@ pub fn check_no_empty_schemas(spec: &Value, spec_name: &str) -> Result<(), Contr
     if let Some(schemas) = schemas {
         let empty: Vec<&str> = schemas
             .iter()
-            .filter(|(_, v)| {
-                v.as_object()
-                    .map(|o| o.is_empty())
-                    .unwrap_or(false)
-            })
+            .filter(|(_, v)| v.as_object().map(|o| o.is_empty()).unwrap_or(false))
             .map(|(k, _)| k.as_str())
             .collect();
 

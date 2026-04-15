@@ -12,11 +12,7 @@ use crate::domain::guards::GuardError;
 
 use crate::domain::bom_service::BomError;
 
-pub(crate) async fn get_eco(
-    pool: &PgPool,
-    tenant_id: &str,
-    eco_id: Uuid,
-) -> Result<Eco, BomError> {
+pub(crate) async fn get_eco(pool: &PgPool, tenant_id: &str, eco_id: Uuid) -> Result<Eco, BomError> {
     sqlx::query_as::<_, Eco>("SELECT * FROM ecos WHERE id = $1 AND tenant_id = $2")
         .bind(eco_id)
         .bind(tenant_id)

@@ -310,8 +310,8 @@ mod tests {
 
     #[test]
     fn derive_app_id_is_stable() {
-        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000")
-            .expect("valid UUID literal");
+        let id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("valid UUID literal");
         let app_id = derive_app_id(id);
         assert_eq!(app_id, "app-550e8400e29b");
         // Calling again returns the same value

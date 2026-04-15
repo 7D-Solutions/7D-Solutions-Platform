@@ -1,6 +1,6 @@
 [package]
 name = "workflow"
-version = "2.2.2"
+version = "2.2.3"
 edition = "2021"
 description = "Workflow engine: definitions, templates, and durable instance execution"
 

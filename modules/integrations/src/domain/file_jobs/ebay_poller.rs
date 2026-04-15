@@ -52,20 +52,16 @@ pub const SUBJECT_POLL_EBAY: &str = "integrations.poll.ebay";
 const DEFAULT_LOOKBACK_HOURS: i64 = 24;
 
 /// eBay OAuth2 token endpoint — sandbox.
-const EBAY_TOKEN_URL_SANDBOX: &str =
-    "https://api.sandbox.ebay.com/identity/v1/oauth2/token";
+const EBAY_TOKEN_URL_SANDBOX: &str = "https://api.sandbox.ebay.com/identity/v1/oauth2/token";
 
 /// eBay OAuth2 token endpoint — production.
-const EBAY_TOKEN_URL_PRODUCTION: &str =
-    "https://api.ebay.com/identity/v1/oauth2/token";
+const EBAY_TOKEN_URL_PRODUCTION: &str = "https://api.ebay.com/identity/v1/oauth2/token";
 
 /// eBay Fulfillment API orders endpoint — sandbox.
-const EBAY_ORDERS_URL_SANDBOX: &str =
-    "https://api.sandbox.ebay.com/sell/fulfillment/v1/order";
+const EBAY_ORDERS_URL_SANDBOX: &str = "https://api.sandbox.ebay.com/sell/fulfillment/v1/order";
 
 /// eBay Fulfillment API orders endpoint — production.
-const EBAY_ORDERS_URL_PRODUCTION: &str =
-    "https://api.ebay.com/sell/fulfillment/v1/order";
+const EBAY_ORDERS_URL_PRODUCTION: &str = "https://api.ebay.com/sell/fulfillment/v1/order";
 
 // ── OAuth2 token exchange ─────────────────────────────────────────────────────
 
@@ -365,18 +361,20 @@ pub async fn run_poll_for_config(
         EBAY_ORDERS_URL_PRODUCTION
     };
 
-    let filter = format!(
-        "lastmodifieddate:[{}...]",
-        last_modified_after.to_rfc3339()
-    );
+    let filter = format!("lastmodifieddate:[{}...]", last_modified_after.to_rfc3339());
 
     let mut total_ingested = 0;
     let mut cursor: Option<String> = None;
 
     loop {
-        let raw_response =
-            fetch_orders_page(http_client, orders_base_url, &access_token, &filter, cursor.as_deref())
-                .await?;
+        let raw_response = fetch_orders_page(
+            http_client,
+            orders_base_url,
+            &access_token,
+            &filter,
+            cursor.as_deref(),
+        )
+        .await?;
 
         let orders = normalize_ebay_orders(&raw_response, tenant_id)?;
 
@@ -580,18 +578,15 @@ mod tests {
     #[test]
     fn normalize_ebay_orders_extracts_all_fields() {
         let response = sample_orders_response(&["12-34567-89012"]);
-        let orders = normalize_ebay_orders(&response, "tenant-ebay-test")
-            .expect("normalization failed");
+        let orders =
+            normalize_ebay_orders(&response, "tenant-ebay-test").expect("normalization failed");
 
         assert_eq!(orders.len(), 1);
         let order = &orders[0];
         assert_eq!(order.order_id, "12-34567-89012");
         assert_eq!(order.source, "ebay");
         assert_eq!(order.tenant_id, "tenant-ebay-test");
-        assert_eq!(
-            order.financial_status.as_deref(),
-            Some("NOT_STARTED")
-        );
+        assert_eq!(order.financial_status.as_deref(), Some("NOT_STARTED"));
         assert_eq!(order.customer_ref.as_deref(), Some("buyer_test_001"));
         assert_eq!(order.line_items.len(), 1);
 
@@ -637,7 +632,10 @@ mod tests {
         assert_eq!(orders.len(), 1);
         let item = &orders[0].line_items[0];
         assert_eq!(item.product_id, "111222333444");
-        assert_eq!(item.variant_id, "111222333444", "variant_id should fall back to product_id");
+        assert_eq!(
+            item.variant_id, "111222333444",
+            "variant_id should fall back to product_id"
+        );
     }
 
     #[test]
@@ -751,13 +749,12 @@ mod tests {
             .expect("second persist failed");
         assert!(!second, "second persist (duplicate) should return false");
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&pool)
-        .await
-        .expect("count query failed");
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count query failed");
         assert_eq!(count.0, 1, "exactly one file_job should exist");
 
         cleanup(&pool, tenant_id).await;
@@ -782,19 +779,21 @@ mod tests {
 
         let mut new_count = 0;
         for order in orders {
-            if persist_ebay_order(&pool, order).await.expect("persist failed") {
+            if persist_ebay_order(&pool, order)
+                .await
+                .expect("persist failed")
+            {
                 new_count += 1;
             }
         }
         assert_eq!(new_count, 3, "all three orders should be new");
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&pool)
-        .await
-        .expect("count query");
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count query");
         assert_eq!(count.0, 3);
 
         cleanup(&pool, tenant_id).await;

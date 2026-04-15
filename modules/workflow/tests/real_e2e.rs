@@ -24,30 +24,27 @@
 //! 34. Delegation: revoke rule + verify no longer resolves
 //! 35. Delegation: delegatee can decide on behalf of delegator
 
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
 use workflow::domain::definitions::{
     CreateDefinitionRequest, DefError, DefinitionRepo, ListDefinitionsQuery,
 };
+use workflow::domain::delegation::{
+    CreateDelegationRequest, DelegationError, DelegationRepo, ResolveDelegationQuery,
+    RevokeDelegationRequest,
+};
+use workflow::domain::escalation::{CreateEscalationRuleRequest, EscalationRepo};
 use workflow::domain::holds::{
     ApplyHoldRequest, HoldError, HoldRepo, ListHoldsQuery, ReleaseHoldRequest,
 };
 use workflow::domain::instances::{
-    AdvanceInstanceRequest, InstanceError, InstanceRepo, ListInstancesQuery,
-    StartInstanceRequest,
+    AdvanceInstanceRequest, InstanceError, InstanceRepo, ListInstancesQuery, StartInstanceRequest,
 };
 use workflow::domain::routing::{
     EvaluateConditionRequest, RecordDecisionRequest, RoutingEngine, RoutingError,
-};
-use workflow::domain::escalation::{
-    CreateEscalationRuleRequest, EscalationRepo,
-};
-use workflow::domain::delegation::{
-    CreateDelegationRequest, DelegationError, DelegationRepo, ResolveDelegationQuery,
-    RevokeDelegationRequest,
 };
 
 async fn setup_db() -> sqlx::PgPool {
@@ -83,7 +80,10 @@ fn sample_steps() -> serde_json::Value {
     ])
 }
 
-async fn create_test_definition(pool: &sqlx::PgPool, tid: &str) -> workflow::domain::definitions::WorkflowDefinition {
+async fn create_test_definition(
+    pool: &sqlx::PgPool,
+    tid: &str,
+) -> workflow::domain::definitions::WorkflowDefinition {
     DefinitionRepo::create(
         pool,
         &CreateDefinitionRequest {
@@ -122,10 +122,7 @@ async fn test_create_definition_persists_and_enqueues_event() {
             .fetch_optional(&pool)
             .await
             .unwrap();
-    assert_eq!(
-        event.unwrap().0,
-        "workflow.events.definition.created"
-    );
+    assert_eq!(event.unwrap().0, "workflow.events.definition.created");
 }
 
 // ============================================================================
@@ -222,10 +219,7 @@ async fn test_start_instance_creates_at_initial_step() {
             .fetch_optional(&pool)
             .await
             .unwrap();
-    assert_eq!(
-        event.unwrap().0,
-        "workflow.events.instance.started"
-    );
+    assert_eq!(event.unwrap().0, "workflow.events.instance.started");
 }
 
 // ============================================================================
@@ -2091,41 +2085,35 @@ async fn test_escalation_timer_fires_once_when_due() {
 
     // Arm a timer that is already due (due_at in the past for testing)
     let past_due = chrono::Utc::now() - chrono::Duration::seconds(10);
-    let timer = EscalationRepo::arm_timer_with_due_at(
-        &pool,
-        &tid,
-        instance.id,
-        &rule,
-        past_due,
-    )
-    .await
-    .expect("arm timer failed");
+    let timer = EscalationRepo::arm_timer_with_due_at(&pool, &tid, instance.id, &rule, past_due)
+        .await
+        .expect("arm timer failed");
 
     assert!(timer.fired_at.is_none());
     assert!(timer.cancelled_at.is_none());
 
     // Tick (tenant-scoped) — should fire exactly one escalation
-    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick failed");
+    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10)
+        .await
+        .expect("tick failed");
     assert_eq!(fired.len(), 1);
     assert_eq!(fired[0].id, timer.id);
     assert!(fired[0].fired_at.is_some());
     assert_eq!(fired[0].escalation_count, 1);
 
     // Verify outbox event was enqueued
-    let event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(timer.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        event.unwrap().0,
-        "workflow.events.escalation.fired"
-    );
+    let event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(timer.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+    assert_eq!(event.unwrap().0, "workflow.events.escalation.fired");
 
     // Tick again — should fire nothing (already fired)
-    let fired2 = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick2 failed");
+    let fired2 = EscalationRepo::tick_for_tenant(&pool, &tid, 10)
+        .await
+        .expect("tick2 failed");
     assert_eq!(fired2.len(), 0);
 }
 
@@ -2267,7 +2255,9 @@ async fn test_escalation_cancel_timers_on_advance() {
     assert_eq!(remaining.len(), 0);
 
     // Tick (tenant-scoped) should not fire anything (cancelled)
-    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick failed");
+    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10)
+        .await
+        .expect("tick failed");
     assert_eq!(fired.len(), 0);
 }
 
@@ -2307,13 +2297,12 @@ async fn test_delegation_create_and_resolve() {
     assert!(delegation.revoked_at.is_none());
 
     // Verify outbox event
-    let event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(delegation.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(delegation.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
     assert_eq!(event.unwrap().0, "workflow.events.delegation.created");
 
     // Resolve: delegator should resolve to delegatee

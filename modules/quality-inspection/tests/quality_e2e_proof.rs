@@ -46,8 +46,8 @@ fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.env"),
     )
     .ok();
-    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env");
+    let pem =
+        std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env");
     let encoding =
         EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
     let now = Utc::now();
@@ -126,11 +126,10 @@ async fn authorize_inspector(tenant_id: &str, inspector_id: Uuid) {
         artifact_resp.text().await.unwrap_or_default()
     );
 
-    let artifact: serde_json::Value = artifact_resp
-        .json()
-        .await
-        .expect("parse artifact response");
-    let artifact_id = artifact["id"].as_str().expect("artifact.id must be a string");
+    let artifact: serde_json::Value = artifact_resp.json().await.expect("parse artifact response");
+    let artifact_id = artifact["id"]
+        .as_str()
+        .expect("artifact.id must be a string");
 
     // Assign competence to the inspector
     let assign_resp = client
@@ -312,17 +311,11 @@ async fn e2e_receiving_hold_release_in_process_final() {
         sequence_number: 10,
     };
 
-    let in_process_id_1 = process_operation_completed(
-        &pool,
-        op_event_id_1,
-        &tenant,
-        &op_payload_1,
-        &corr,
-        None,
-    )
-    .await
-    .expect("process_operation_completed should succeed")
-    .expect("Should create in-process inspection for op 10");
+    let in_process_id_1 =
+        process_operation_completed(&pool, op_event_id_1, &tenant, &op_payload_1, &corr, None)
+            .await
+            .expect("process_operation_completed should succeed")
+            .expect("Should create in-process inspection for op 10");
 
     let in_proc_1 = service::get_inspection(&pool, &tenant, in_process_id_1)
         .await
@@ -342,17 +335,11 @@ async fn e2e_receiving_hold_release_in_process_final() {
         sequence_number: 20,
     };
 
-    let in_process_id_2 = process_operation_completed(
-        &pool,
-        Uuid::new_v4(),
-        &tenant,
-        &op_payload_2,
-        &corr,
-        None,
-    )
-    .await
-    .expect("process op 2")
-    .expect("Should create in-process inspection for op 20");
+    let in_process_id_2 =
+        process_operation_completed(&pool, Uuid::new_v4(), &tenant, &op_payload_2, &corr, None)
+            .await
+            .expect("process op 2")
+            .expect("Should create in-process inspection for op 20");
 
     assert_ne!(
         in_process_id_1, in_process_id_2,
@@ -372,17 +359,11 @@ async fn e2e_receiving_hold_release_in_process_final() {
         currency: "USD".to_string(),
     };
 
-    let final_insp_id = process_fg_receipt_requested(
-        &pool,
-        fg_event_id,
-        &tenant,
-        &fg_payload,
-        &corr,
-        None,
-    )
-    .await
-    .expect("process_fg_receipt_requested should succeed")
-    .expect("Should create final inspection");
+    let final_insp_id =
+        process_fg_receipt_requested(&pool, fg_event_id, &tenant, &fg_payload, &corr, None)
+            .await
+            .expect("process_fg_receipt_requested should succeed")
+            .expect("Should create final inspection");
 
     let final_insp = service::get_inspection(&pool, &tenant, final_insp_id)
         .await
@@ -575,10 +556,7 @@ async fn e2e_inspector_authorization_gate() {
     )
     .await;
 
-    assert!(
-        hold_err.is_err(),
-        "Unauthorized inspector must be rejected"
-    );
+    assert!(hold_err.is_err(), "Unauthorized inspector must be rejected");
     let err_msg = hold_err.unwrap_err().to_string();
     assert!(
         err_msg.contains("not authorized"),
@@ -778,10 +756,7 @@ async fn e2e_quarantine_round_trip_reject() {
     .unwrap();
 
     assert_eq!(reject_payload.0["payload"]["previous_disposition"], "held");
-    assert_eq!(
-        reject_payload.0["payload"]["new_disposition"],
-        "rejected"
-    );
+    assert_eq!(reject_payload.0["payload"]["new_disposition"], "rejected");
     assert_eq!(
         reject_payload.0["payload"]["reason"],
         "Rejected per AS9100 — surface corrosion exceeds limit"
@@ -850,28 +825,15 @@ async fn e2e_idempotency_across_all_bridges() {
         sequence_number: 30,
     };
 
-    let first_op = process_operation_completed(
-        &pool,
-        op_event_id,
-        &tenant,
-        &op_payload,
-        &corr,
-        None,
-    )
-    .await
-    .unwrap();
+    let first_op =
+        process_operation_completed(&pool, op_event_id, &tenant, &op_payload, &corr, None)
+            .await
+            .unwrap();
     assert!(first_op.is_some());
 
-    let dup_op = process_operation_completed(
-        &pool,
-        op_event_id,
-        &tenant,
-        &op_payload,
-        &corr,
-        None,
-    )
-    .await
-    .unwrap();
+    let dup_op = process_operation_completed(&pool, op_event_id, &tenant, &op_payload, &corr, None)
+        .await
+        .unwrap();
     assert!(dup_op.is_none(), "Duplicate op event should be skipped");
 
     // FG receipt bridge: same event_id twice → only 1 inspection
@@ -886,38 +848,24 @@ async fn e2e_idempotency_across_all_bridges() {
         currency: "USD".to_string(),
     };
 
-    let first_fg = process_fg_receipt_requested(
-        &pool,
-        fg_event_id,
-        &tenant,
-        &fg_payload,
-        &corr,
-        None,
-    )
-    .await
-    .unwrap();
+    let first_fg =
+        process_fg_receipt_requested(&pool, fg_event_id, &tenant, &fg_payload, &corr, None)
+            .await
+            .unwrap();
     assert!(first_fg.is_some());
 
-    let dup_fg = process_fg_receipt_requested(
-        &pool,
-        fg_event_id,
-        &tenant,
-        &fg_payload,
-        &corr,
-        None,
-    )
-    .await
-    .unwrap();
+    let dup_fg =
+        process_fg_receipt_requested(&pool, fg_event_id, &tenant, &fg_payload, &corr, None)
+            .await
+            .unwrap();
     assert!(dup_fg.is_none(), "Duplicate FG event should be skipped");
 
     // Verify exactly 3 inspections for this tenant
-    let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM inspections WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM inspections WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(
         total.0, 3,
         "Should have exactly 3 inspections despite 6 event processing attempts"

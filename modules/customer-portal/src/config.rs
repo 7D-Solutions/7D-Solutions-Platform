@@ -32,21 +32,28 @@ impl Config {
         let portal_jwt_private_key = v.require("PORTAL_JWT_PRIVATE_KEY").unwrap_or_default();
         let portal_jwt_public_key = v.require("PORTAL_JWT_PUBLIC_KEY").unwrap_or_default();
 
-        let access_token_ttl_minutes = v.optional_parse::<i64>("ACCESS_TOKEN_TTL_MINUTES").unwrap_or(15);
-        let refresh_token_ttl_days = v.optional_parse::<i64>("REFRESH_TOKEN_TTL_DAYS").unwrap_or(7);
+        let access_token_ttl_minutes = v
+            .optional_parse::<i64>("ACCESS_TOKEN_TTL_MINUTES")
+            .unwrap_or(15);
+        let refresh_token_ttl_days = v
+            .optional_parse::<i64>("REFRESH_TOKEN_TTL_DAYS")
+            .unwrap_or(7);
 
-        let doc_mgmt_base_url = v.optional("DOC_MGMT_BASE_URL").or_default("http://localhost:8095");
-        let doc_mgmt_bearer_token = v.optional("DOC_MGMT_BEARER_TOKEN").present().map(String::from);
+        let doc_mgmt_base_url = v
+            .optional("DOC_MGMT_BASE_URL")
+            .or_default("http://localhost:8095");
+        let doc_mgmt_bearer_token = v
+            .optional("DOC_MGMT_BEARER_TOKEN")
+            .present()
+            .map(String::from);
 
         let env_name = v.optional("ENV").or_default("development");
 
         if env_name == "production" && cors_origins.iter().any(|o| o == "*") {
-            return Err(
-                "CORS_ORIGINS=* is not allowed in production. \
+            return Err("CORS_ORIGINS=* is not allowed in production. \
                  Set CORS_ORIGINS to a comma-separated list of allowed origins \
                  (e.g. https://app.example.com)"
-                    .to_string(),
-            );
+                .to_string());
         }
 
         v.finish().map_err(|e| e.to_string())?;

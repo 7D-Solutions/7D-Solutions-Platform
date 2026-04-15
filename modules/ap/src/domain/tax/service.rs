@@ -36,9 +36,7 @@ impl From<ApTaxError> for platform_http_contracts::ApiError {
             ApTaxError::NoQuoteFound(id) => {
                 Self::not_found(format!("No tax quote found for bill {}", id))
             }
-            ApTaxError::Provider(e) => {
-                Self::new(422, "tax_error", e.to_string())
-            }
+            ApTaxError::Provider(e) => Self::new(422, "tax_error", e.to_string()),
             ApTaxError::Database(e) => {
                 tracing::error!("AP tax DB error: {}", e);
                 Self::internal("Internal database error")
@@ -663,11 +661,10 @@ mod tests {
             .expect("call should not error");
 
         // TENANT_A's snapshot must still be 'quoted'
-        let still_active =
-            crate::domain::tax::repo::find_active_snapshot(&db, TEST_TENANT, bill_a)
-                .await
-                .expect("find failed")
-                .expect("snapshot should still exist");
+        let still_active = crate::domain::tax::repo::find_active_snapshot(&db, TEST_TENANT, bill_a)
+            .await
+            .expect("find failed")
+            .expect("snapshot should still exist");
 
         assert_eq!(
             still_active.status, "quoted",

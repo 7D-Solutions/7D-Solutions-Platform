@@ -1,7 +1,7 @@
 //! Party bounded context — types, service, and domain logic.
 
-pub mod models;
 pub mod create;
+pub mod models;
 pub mod query;
 pub mod service;
 pub mod update;

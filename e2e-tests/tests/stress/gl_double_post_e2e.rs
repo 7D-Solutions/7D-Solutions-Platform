@@ -209,19 +209,15 @@ async fn gl_double_post_e2e() {
         success_count, CONCURRENCY,
         "all {CONCURRENCY} unique GL posts must succeed, got {success_count}"
     );
-    assert_eq!(
-        error_count, 0,
-        "no errors expected, got {error_count}"
-    );
+    assert_eq!(error_count, 0, "no errors expected, got {error_count}");
 
     // --- Assertion 2: Exactly 50 journal entries in DB ---
-    let journal_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(tenant_id.as_ref())
-    .fetch_one(pool.as_ref())
-    .await
-    .expect("failed to query journal entries");
+    let journal_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(tenant_id.as_ref())
+            .fetch_one(pool.as_ref())
+            .await
+            .expect("failed to query journal entries");
 
     println!("\n  DB journal entries for tenant: {journal_count}");
 
@@ -245,13 +241,12 @@ async fn gl_double_post_e2e() {
     );
 
     // --- Assertion 4: Processed events table has exactly 50 entries ---
-    let processed_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = ANY($1)",
-    )
-    .bind(&event_ids_succeeded)
-    .fetch_one(pool.as_ref())
-    .await
-    .expect("failed to query processed events");
+    let processed_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = ANY($1)")
+            .bind(&event_ids_succeeded)
+            .fetch_one(pool.as_ref())
+            .await
+            .expect("failed to query processed events");
 
     assert_eq!(
         processed_count, CONCURRENCY as i64,

@@ -2,22 +2,31 @@ use axum::{routing::get, Json};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
-use production_rs::domain::component_issue::{RequestComponentIssueRequest, ComponentIssueItemInput};
-use production_rs::domain::downtime::{WorkcenterDowntime, StartDowntimeRequest, EndDowntimeRequest};
+use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+use platform_sdk::ModuleBuilder;
+use production_rs::domain::component_issue::{
+    ComponentIssueItemInput, RequestComponentIssueRequest,
+};
+use production_rs::domain::downtime::{
+    EndDowntimeRequest, StartDowntimeRequest, WorkcenterDowntime,
+};
 use production_rs::domain::fg_receipt::RequestFgReceiptRequest;
 use production_rs::domain::operations::OperationInstance;
 use production_rs::domain::routings::{
-    RoutingTemplate, RoutingStep, CreateRoutingRequest, UpdateRoutingRequest,
-    AddRoutingStepRequest,
+    AddRoutingStepRequest, CreateRoutingRequest, RoutingStep, RoutingTemplate, UpdateRoutingRequest,
 };
-use production_rs::domain::time_entries::{TimeEntry, StartTimerRequest, StopTimerRequest, ManualEntryRequest};
-use production_rs::domain::work_orders::{WorkOrder, WorkOrderStatus, CreateWorkOrderRequest, CompositeCreateWorkOrderRequest};
-use production_rs::domain::workcenters::{Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest};
+use production_rs::domain::time_entries::{
+    ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntry,
+};
+use production_rs::domain::work_orders::{
+    CompositeCreateWorkOrderRequest, CreateWorkOrderRequest, WorkOrder, WorkOrderStatus,
+};
+use production_rs::domain::workcenters::{
+    CreateWorkcenterRequest, UpdateWorkcenterRequest, Workcenter,
+};
 use production_rs::http::pagination::PaginationQuery;
 use production_rs::http::routings::ItemDateQuery;
 use production_rs::{http, metrics, AppState, BomRevisionClient, NumberingClient};
-use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
-use platform_sdk::ModuleBuilder;
 
 #[derive(OpenApi)]
 #[openapi(
@@ -128,8 +137,7 @@ async fn main() {
                 numbering: std::sync::Arc::new(numbering),
                 bom: std::sync::Arc::new(bom),
             });
-            http::router(app_state)
-                .route("/api/openapi.json", get(openapi_json))
+            http::router(app_state).route("/api/openapi.json", get(openapi_json))
         })
         .run()
         .await

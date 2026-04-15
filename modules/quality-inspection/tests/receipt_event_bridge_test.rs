@@ -132,7 +132,10 @@ async fn skips_production_receipt() {
         .await
         .expect("process_item_received");
 
-    assert!(result.is_none(), "Should NOT create inspection for production receipts");
+    assert!(
+        result.is_none(),
+        "Should NOT create inspection for production receipts"
+    );
 }
 
 // ============================================================================
@@ -215,13 +218,12 @@ async fn outbox_event_emitted_for_auto_created_inspection() {
         .expect("process_item_received");
 
     // Verify outbox has an inspection_recorded event
-    let event_types: Vec<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM quality_inspection_outbox WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let event_types: Vec<(String,)> =
+        sqlx::query_as("SELECT event_type FROM quality_inspection_outbox WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
 
     let types: Vec<&str> = event_types.iter().map(|r| r.0.as_str()).collect();
     assert!(

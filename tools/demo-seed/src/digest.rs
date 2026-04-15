@@ -122,12 +122,7 @@ impl DigestTracker {
     }
 
     /// Record a created BOM line (deterministic: component_sku + quantity)
-    pub fn record_bom_line(
-        &mut self,
-        _line_id: uuid::Uuid,
-        component_sku: &str,
-        quantity: f64,
-    ) {
+    pub fn record_bom_line(&mut self, _line_id: uuid::Uuid, component_sku: &str, quantity: f64) {
         self.entries.push(ResourceEntry {
             resource_type: "bom_line",
             correlation_id: component_sku.to_string(),
@@ -315,7 +310,11 @@ mod tests {
         let mut t2 = DigestTracker::new();
         t2.record_numbering_policy("sales-order", "SO");
         t2.record_numbering_policy("purchase-order", "PO");
-        assert_eq!(digest, t2.finalize(), "Numbering digest should be order-independent");
+        assert_eq!(
+            digest,
+            t2.finalize(),
+            "Numbering digest should be order-independent"
+        );
     }
 
     #[test]
@@ -330,7 +329,11 @@ mod tests {
         let mut t2 = DigestTracker::new();
         t2.record_gl_account("5000", "COGS - Direct Materials");
         t2.record_gl_account("1200", "Raw Materials Inventory");
-        assert_eq!(digest, t2.finalize(), "GL account digest should be order-independent");
+        assert_eq!(
+            digest,
+            t2.finalize(),
+            "GL account digest should be order-independent"
+        );
     }
 
     #[test]
@@ -345,7 +348,11 @@ mod tests {
         let mut t2 = DigestTracker::new();
         t2.record_fx_rate("USD/GBP", "t1-fx-USD-GBP-42");
         t2.record_fx_rate("USD/EUR", "t1-fx-USD-EUR-42");
-        assert_eq!(digest, t2.finalize(), "FX rate digest should be order-independent");
+        assert_eq!(
+            digest,
+            t2.finalize(),
+            "FX rate digest should be order-independent"
+        );
     }
 
     #[test]
@@ -363,6 +370,10 @@ mod tests {
         let mut t2 = DigestTracker::new();
         t2.record_party(id2, "Alcoa", "supplier");
         t2.record_party(id1, "Boeing Defense", "customer");
-        assert_eq!(digest, t2.finalize(), "Party digest should be order-independent");
+        assert_eq!(
+            digest,
+            t2.finalize(),
+            "Party digest should be order-independent"
+        );
     }
 }

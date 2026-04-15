@@ -55,10 +55,7 @@ async fn smoke_control_plane() {
         .unwrap();
 
     if !wait_for_control_plane(&client).await {
-        eprintln!(
-            "Control-Plane not reachable at {} -- skipping",
-            cp_url()
-        );
+        eprintln!("Control-Plane not reachable at {} -- skipping", cp_url());
         return;
     }
     println!("Control-Plane healthy at {}", cp_url());
@@ -105,7 +102,10 @@ async fn smoke_control_plane() {
         status.is_success(),
         "Get retention failed: {status} - {body}"
     );
-    println!("  retention data_retention_days={}", body["data_retention_days"]);
+    println!(
+        "  retention data_retention_days={}",
+        body["data_retention_days"]
+    );
 
     // ── 3. PUT /api/control/tenants/{tenant_id}/retention ────────────
     println!("\n--- 3. PUT /api/control/tenants/{{tenant_id}}/retention ---");
@@ -124,23 +124,21 @@ async fn smoke_control_plane() {
         status.is_success(),
         "Set retention failed: {status} - {body}"
     );
-    println!("  retention updated data_retention_days={}", body["data_retention_days"]);
+    println!(
+        "  retention updated data_retention_days={}",
+        body["data_retention_days"]
+    );
 
     // ── 4. GET /api/control/tenants/{tenant_id}/summary ──────────────
     println!("\n--- 4. GET /api/control/tenants/{{tenant_id}}/summary ---");
     let resp = client
-        .get(format!(
-            "{base}/api/control/tenants/{tenant_id}/summary"
-        ))
+        .get(format!("{base}/api/control/tenants/{tenant_id}/summary"))
         .send()
         .await
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(
-        status.is_success(),
-        "Get summary failed: {status} - {body}"
-    );
+    assert!(status.is_success(), "Get summary failed: {status} - {body}");
     println!("  summary ok: {status}");
 
     // ── 5. GET /api/tenants/{tenant_id}/entitlements ─────────────────
@@ -256,9 +254,7 @@ async fn smoke_control_plane() {
     // Tenant is not in 'deleted' state → expect 422 (proves route is wired).
     println!("\n--- 12. POST /api/control/tenants/{{tenant_id}}/tombstone ---");
     let resp = client
-        .post(format!(
-            "{base}/api/control/tenants/{tenant_id}/tombstone"
-        ))
+        .post(format!("{base}/api/control/tenants/{tenant_id}/tombstone"))
         .send()
         .await
         .unwrap();

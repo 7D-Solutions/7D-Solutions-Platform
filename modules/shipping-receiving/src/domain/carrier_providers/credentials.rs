@@ -32,8 +32,8 @@ pub async fn get_carrier_credentials(
     app_id: &str,
     connector_type: &str,
 ) -> Result<Value, CredentialsError> {
-    let base_url = std::env::var("INTEGRATIONS_SERVICE_URL")
-        .map_err(|_| CredentialsError::MissingConfig)?;
+    let base_url =
+        std::env::var("INTEGRATIONS_SERVICE_URL").map_err(|_| CredentialsError::MissingConfig)?;
 
     let url = format!(
         "{}/api/integrations/internal/carrier-credentials/{}",
@@ -94,8 +94,10 @@ mod tests {
     #[serial]
     async fn missing_config_when_env_unset() {
         let client = Client::new();
-        let result =
-            with_integrations_url!(None::<&str>, get_carrier_credentials(&client, "tenant-test", "stub").await);
+        let result = with_integrations_url!(
+            None::<&str>,
+            get_carrier_credentials(&client, "tenant-test", "stub").await
+        );
 
         assert!(
             matches!(result, Err(CredentialsError::MissingConfig)),

@@ -210,7 +210,10 @@ mod tests {
         AuthzGateConfig::new([
             ((Method::GET, "/api/items"), vec!["items:read"]),
             ((Method::POST, "/api/items"), vec!["items:write"]),
-            ((Method::DELETE, "/api/items"), vec!["items:delete", "items:admin"]),
+            (
+                (Method::DELETE, "/api/items"),
+                vec!["items:delete", "items:admin"],
+            ),
         ])
     }
 

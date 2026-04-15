@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "DELETE" => client.delete(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -174,13 +178,7 @@ async fn smoke_bom_eco() {
     assert_eq!(fetched["description"], "Smoke test BOM");
     println!("  retrieved BOM description={}", fetched["description"]);
 
-    assert_unauth(
-        &client,
-        "GET",
-        &format!("{base}/api/bom/{bom_id}"),
-        None,
-    )
-    .await;
+    assert_unauth(&client, "GET", &format!("{base}/api/bom/{bom_id}"), None).await;
 
     // --- 3. POST /api/bom/{bom_id}/revisions — create revision ---
     println!("\n--- 3. POST /api/bom/{{bom_id}}/revisions ---");
@@ -408,13 +406,7 @@ async fn smoke_bom_eco() {
     assert_eq!(eco_fetched["title"], "Smoke ECO");
     println!("  retrieved ECO status={}", eco_fetched["status"]);
 
-    assert_unauth(
-        &client,
-        "GET",
-        &format!("{base}/api/eco/{eco_id}"),
-        None,
-    )
-    .await;
+    assert_unauth(&client, "GET", &format!("{base}/api/eco/{eco_id}"), None).await;
 
     // --- 12. POST /api/eco/{eco_id}/submit ---
     println!("\n--- 12. POST /api/eco/{{eco_id}}/submit ---");

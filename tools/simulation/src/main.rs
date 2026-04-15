@@ -254,7 +254,10 @@ impl SimulationRunner {
         for tenant_id in &tenant_ids {
             self.ensure_subscription_exists(tenant_id, base_date)
                 .await
-                .context(format!("Failed to create subscription for tenant {}", tenant_id))?;
+                .context(format!(
+                    "Failed to create subscription for tenant {}",
+                    tenant_id
+                ))?;
         }
 
         info!(

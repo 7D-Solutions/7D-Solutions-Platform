@@ -16,9 +16,7 @@ use std::time::Duration;
 use async_nats::jetstream::{self, stream};
 use event_bus::consumer_retry::RetryConfig;
 use event_bus::EventEnvelope;
-use event_consumer::{
-    ConsumerConfig, EventRouter, JetStreamConsumer, RegistryBuilder,
-};
+use event_consumer::{ConsumerConfig, EventRouter, JetStreamConsumer, RegistryBuilder};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -115,7 +113,9 @@ async fn create_test_stream(js: &jetstream::Context, tag: &str) -> String {
 async fn event_bus_flood_jetstream_e2e() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tenant_id = Uuid::new_v4();
@@ -128,17 +128,13 @@ async fn event_bus_flood_jetstream_e2e() {
     let calls_clone = handler_calls.clone();
 
     let registry = RegistryBuilder::new()
-        .register(
-            "stress.flood_event",
-            "1.0.0",
-            move |_ctx, _payload| {
-                let c = calls_clone.clone();
-                async move {
-                    c.fetch_add(1, Ordering::Relaxed);
-                    Ok(())
-                }
-            },
-        )
+        .register("stress.flood_event", "1.0.0", move |_ctx, _payload| {
+            let c = calls_clone.clone();
+            async move {
+                c.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            }
+        })
         .build();
 
     let router = EventRouter::new(registry);
@@ -252,13 +248,12 @@ async fn event_bus_flood_jetstream_e2e() {
     );
 
     // --- Verify dedupe table: all valid event_ids present (exactly-once) ---
-    let dedupe_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM event_dedupe WHERE subject = $1",
-    )
-    .bind(&subject)
-    .fetch_one(&pool)
-    .await
-    .expect("dedupe count query");
+    let dedupe_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM event_dedupe WHERE subject = $1")
+            .bind(&subject)
+            .fetch_one(&pool)
+            .await
+            .expect("dedupe count query");
 
     assert_eq!(
         dedupe_count, VALID_COUNT as i64,
@@ -266,13 +261,12 @@ async fn event_bus_flood_jetstream_e2e() {
     );
 
     // --- Verify DLQ table: exactly INVALID_COUNT entries with failure_kind=poison ---
-    let dlq_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM event_dlq WHERE subject = $1",
-    )
-    .bind(&subject)
-    .fetch_one(&pool)
-    .await
-    .expect("DLQ count query");
+    let dlq_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM event_dlq WHERE subject = $1")
+            .bind(&subject)
+            .fetch_one(&pool)
+            .await
+            .expect("DLQ count query");
 
     assert_eq!(
         dlq_count, INVALID_COUNT as i64,
@@ -294,26 +288,24 @@ async fn event_bus_flood_jetstream_e2e() {
     );
 
     // --- No duplicate event_ids across dedupe + DLQ ---
-    let valid_in_dedupe = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM event_dedupe WHERE event_id = ANY($1)",
-    )
-    .bind(&valid_event_ids)
-    .fetch_one(&pool)
-    .await
-    .expect("valid in dedupe query");
+    let valid_in_dedupe =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM event_dedupe WHERE event_id = ANY($1)")
+            .bind(&valid_event_ids)
+            .fetch_one(&pool)
+            .await
+            .expect("valid in dedupe query");
 
     assert_eq!(
         valid_in_dedupe, VALID_COUNT as i64,
         "all {VALID_COUNT} valid event_ids must be in event_dedupe, found {valid_in_dedupe}"
     );
 
-    let invalid_in_dlq = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM event_dlq WHERE event_id = ANY($1)",
-    )
-    .bind(&invalid_event_ids)
-    .fetch_one(&pool)
-    .await
-    .expect("invalid in DLQ query");
+    let invalid_in_dlq =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM event_dlq WHERE event_id = ANY($1)")
+            .bind(&invalid_event_ids)
+            .fetch_one(&pool)
+            .await
+            .expect("invalid in DLQ query");
 
     assert_eq!(
         invalid_in_dlq, INVALID_COUNT as i64,

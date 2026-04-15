@@ -2,8 +2,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::event_bus::{create_notifications_envelope, enqueue_event};
 use super::models::{EscalationRule, InsertEscalationRule};
+use crate::event_bus::{create_notifications_envelope, enqueue_event};
 
 /// Result from one poll-and-escalate cycle.
 #[derive(Debug, Default)]

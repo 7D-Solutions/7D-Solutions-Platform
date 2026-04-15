@@ -83,12 +83,13 @@ pub async fn handle_item_received(
     };
 
     // Look up vendor_id from AP's own purchase_orders table (no cross-module read)
-    let vendor_id: Option<Uuid> =
-        sqlx::query_scalar("SELECT vendor_id FROM purchase_orders WHERE po_id = $1 AND tenant_id = $2")
-            .bind(po_id)
-            .bind(&payload.tenant_id)
-            .fetch_optional(pool)
-            .await?;
+    let vendor_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT vendor_id FROM purchase_orders WHERE po_id = $1 AND tenant_id = $2",
+    )
+    .bind(po_id)
+    .bind(&payload.tenant_id)
+    .fetch_optional(pool)
+    .await?;
 
     let vendor_id = match vendor_id {
         Some(v) => v,

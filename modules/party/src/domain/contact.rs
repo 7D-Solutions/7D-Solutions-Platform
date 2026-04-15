@@ -80,9 +80,7 @@ pub struct SetPrimaryRequest {
 impl SetPrimaryRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if self.role.trim().is_empty() {
-            return Err(PartyError::Validation(
-                "role cannot be empty".to_string(),
-            ));
+            return Err(PartyError::Validation("role cannot be empty".to_string()));
         }
         Ok(())
     }

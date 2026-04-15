@@ -298,12 +298,11 @@ pub async fn update_payment_status_from_webhook(
     // ==========================================================================
     //
     // Fetch attempt details for event payload
-    let row: (String, uuid::Uuid, String) = sqlx::query_as(
-        "SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1",
-    )
-    .bind(attempt_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row: (String, uuid::Uuid, String) =
+        sqlx::query_as("SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&mut *tx)
+            .await?;
     let (app_id, payment_id_val, invoice_id) = row;
 
     match target_status {
@@ -326,12 +325,8 @@ pub async fn update_payment_status_from_webhook(
                 "LIFECYCLE".to_string(),
                 payload,
             );
-            crate::events::outbox::enqueue_event_tx(
-                &mut tx,
-                "payment.succeeded",
-                &envelope,
-            )
-            .await?;
+            crate::events::outbox::enqueue_event_tx(&mut tx, "payment.succeeded", &envelope)
+                .await?;
         }
         s if s.starts_with("failed") => {
             let payload = crate::models::PaymentFailedPayload {
@@ -354,12 +349,7 @@ pub async fn update_payment_status_from_webhook(
                 "LIFECYCLE".to_string(),
                 payload,
             );
-            crate::events::outbox::enqueue_event_tx(
-                &mut tx,
-                "payment.failed",
-                &envelope,
-            )
-            .await?;
+            crate::events::outbox::enqueue_event_tx(&mut tx, "payment.failed", &envelope).await?;
         }
         "unknown" => {
             let payload = crate::models::PaymentUnknownPayload {
@@ -378,12 +368,7 @@ pub async fn update_payment_status_from_webhook(
                 "LIFECYCLE".to_string(),
                 payload,
             );
-            crate::events::outbox::enqueue_event_tx(
-                &mut tx,
-                "payment.unknown",
-                &envelope,
-            )
-            .await?;
+            crate::events::outbox::enqueue_event_tx(&mut tx, "payment.unknown", &envelope).await?;
         }
         _ => {
             // No event emission for unrecognized statuses

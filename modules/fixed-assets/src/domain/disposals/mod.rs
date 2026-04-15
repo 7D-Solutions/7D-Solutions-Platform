@@ -167,9 +167,7 @@ pub enum DisposalError {
 impl From<DisposalError> for platform_http_contracts::ApiError {
     fn from(err: DisposalError) -> Self {
         match &err {
-            DisposalError::AssetNotFound(id) => {
-                Self::not_found(format!("Asset {} not found", id))
-            }
+            DisposalError::AssetNotFound(id) => Self::not_found(format!("Asset {} not found", id)),
             DisposalError::CategoryNotFound(id) => {
                 Self::not_found(format!("Category not found for asset {}", id))
             }

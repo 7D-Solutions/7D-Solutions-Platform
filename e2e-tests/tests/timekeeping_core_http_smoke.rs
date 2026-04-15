@@ -38,8 +38,7 @@ fn dev_private_key_pem() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env")
+    std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env")
 }
 
 fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
@@ -176,7 +175,11 @@ async fn timekeeping_core_http_smoke() {
     {
         let url = format!("{}/api/timekeeping/employees", base);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("2. GET employees (list): {} body_len={}", s, resp_body.len());
+        println!(
+            "2. GET employees (list): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -188,7 +191,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = employee_id {
         let url = format!("{}/api/timekeeping/employees/{}", base, eid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("3. GET employees/{}: {} body_len={}", eid, s, resp_body.len());
+        println!(
+            "3. GET employees/{}: {} body_len={}",
+            eid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -208,7 +216,12 @@ async fn timekeeping_core_http_smoke() {
             "department": "QA"
         });
         let (s, resp_body) = put_json(&client, &url, &token, &body).await;
-        println!("4. PUT employees/{}: {} body_len={}", eid, s, resp_body.len());
+        println!(
+            "4. PUT employees/{}: {} body_len={}",
+            eid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -262,7 +275,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(pid) = project_id {
         let url = format!("{}/api/timekeeping/projects/{}", base, pid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("7. GET projects/{}: {} body_len={}", pid, s, resp_body.len());
+        println!(
+            "7. GET projects/{}: {} body_len={}",
+            pid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -281,7 +299,12 @@ async fn timekeeping_core_http_smoke() {
             "name": "Smoke Test Project (Updated)"
         });
         let (s, resp_body) = put_json(&client, &url, &token, &body).await;
-        println!("8. PUT projects/{}: {} body_len={}", pid, s, resp_body.len());
+        println!(
+            "8. PUT projects/{}: {} body_len={}",
+            pid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -337,7 +360,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(pid) = project_id {
         let url = format!("{}/api/timekeeping/projects/{}/tasks", base, pid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("11. GET projects/{}/tasks: {} body_len={}", pid, s, resp_body.len());
+        println!(
+            "11. GET projects/{}/tasks: {} body_len={}",
+            pid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -434,7 +462,11 @@ async fn timekeeping_core_http_smoke() {
             "description": "Corrected to 7 hours"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("15. POST entries/correct: {} body_len={}", s, resp_body.len());
+        println!(
+            "15. POST entries/correct: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -448,7 +480,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = entry_id {
         let url = format!("{}/api/timekeeping/entries/{}/history", base, eid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("16. GET entries/{}/history: {} body_len={}", eid, s, resp_body.len());
+        println!(
+            "16. GET entries/{}/history: {} body_len={}",
+            eid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -484,7 +521,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(tid) = task_id {
         let url = format!("{}/api/timekeeping/tasks/{}", base, tid);
         let (s, resp_body) = delete_req(&client, &url, &token).await;
-        println!("18. DELETE tasks/{}: {} body_len={}", tid, s, resp_body.len());
+        println!(
+            "18. DELETE tasks/{}: {} body_len={}",
+            tid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -498,7 +540,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(pid) = project_id {
         let url = format!("{}/api/timekeeping/projects/{}", base, pid);
         let (s, resp_body) = delete_req(&client, &url, &token).await;
-        println!("19. DELETE projects/{}: {} body_len={}", pid, s, resp_body.len());
+        println!(
+            "19. DELETE projects/{}: {} body_len={}",
+            pid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -512,7 +559,12 @@ async fn timekeeping_core_http_smoke() {
     if let Some(eid) = employee_id {
         let url = format!("{}/api/timekeeping/employees/{}", base, eid);
         let (s, resp_body) = delete_req(&client, &url, &token).await;
-        println!("20. DELETE employees/{}: {} body_len={}", eid, s, resp_body.len());
+        println!(
+            "20. DELETE employees/{}: {} body_len={}",
+            eid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {

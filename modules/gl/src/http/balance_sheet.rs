@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying balance sheet reports.
 
 use crate::AppState;
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
@@ -11,9 +14,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
+use platform_sdk::extract_tenant;
 
 /// Query parameters for balance sheet endpoint
 #[derive(Debug, Deserialize)]

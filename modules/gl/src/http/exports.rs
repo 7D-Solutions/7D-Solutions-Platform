@@ -11,8 +11,8 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateExportRequest {
@@ -46,7 +46,10 @@ pub async fn create_export(
 
     let format = ExportFormat::from_str(&body.format).ok_or_else(|| {
         with_request_id(
-            ApiError::bad_request(format!("Invalid format: {}. Use 'quickbooks' or 'xero'", body.format)),
+            ApiError::bad_request(format!(
+                "Invalid format: {}. Use 'quickbooks' or 'xero'",
+                body.format
+            )),
             &ctx,
         )
     })?;
@@ -76,9 +79,7 @@ pub async fn create_export(
                 service::ExportError::InvalidFormat(_)
                 | service::ExportError::InvalidExportType(_)
                 | service::ExportError::MissingPeriodId => ApiError::bad_request(e.to_string()),
-                service::ExportError::DuplicateIdempotencyKey => {
-                    ApiError::conflict(e.to_string())
-                }
+                service::ExportError::DuplicateIdempotencyKey => ApiError::conflict(e.to_string()),
                 service::ExportError::Database(_) => ApiError::internal(e.to_string()),
             };
             with_request_id(api_err, &ctx)

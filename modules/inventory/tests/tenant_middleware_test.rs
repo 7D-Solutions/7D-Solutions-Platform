@@ -19,12 +19,6 @@
 //!
 //! PostgreSQL reachable at `DATABASE_URL` (default: localhost:5442).
 
-use event_bus::InMemoryBus;
-use inventory_rs::{
-    domain::items::{CreateItemRequest, ItemRepo, TrackingMode},
-    metrics::InventoryMetrics,
-    AppState, BusHealth,
-};
 use axum::{
     body::Body,
     extract::Request,
@@ -34,7 +28,13 @@ use axum::{
     routing::get,
     Router,
 };
+use event_bus::InMemoryBus;
 use http_body_util::BodyExt;
+use inventory_rs::{
+    domain::items::{CreateItemRequest, ItemRepo, TrackingMode},
+    metrics::InventoryMetrics,
+    AppState, BusHealth,
+};
 use security::{claims::ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -81,10 +81,7 @@ async fn inject_claims(req: Request, next: Next) -> Response {
                 tenant_id: tid,
                 app_id: None,
                 roles: vec!["admin".to_string()],
-                perms: vec![
-                    "inventory.read".to_string(),
-                    "inventory.mutate".to_string(),
-                ],
+                perms: vec!["inventory.read".to_string(), "inventory.mutate".to_string()],
                 actor_type: ActorType::User,
                 issued_at: chrono::Utc::now(),
                 expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
@@ -118,7 +115,10 @@ fn build_test_app(pool: sqlx::PgPool) -> Router {
     });
 
     Router::new()
-        .route("/api/inventory/items", get(inventory_rs::http::items::list_items))
+        .route(
+            "/api/inventory/items",
+            get(inventory_rs::http::items::list_items),
+        )
         .layer(middleware::from_fn(inject_claims))
         .with_state(state)
 }
@@ -216,9 +216,12 @@ async fn cross_tenant_item_list_is_empty() {
     let tid_b = Uuid::new_v4();
 
     // Seed an item for Tenant A only.
-    ItemRepo::create(&pool, &item_req(&tid_a.to_string(), "MW-Inv-CrossTenantItem"))
-        .await
-        .expect("seed item A");
+    ItemRepo::create(
+        &pool,
+        &item_req(&tid_a.to_string(), "MW-Inv-CrossTenantItem"),
+    )
+    .await
+    .expect("seed item A");
 
     // Request with Tenant B's UUID — must not see Tenant A's data.
     let app = build_test_app(pool);

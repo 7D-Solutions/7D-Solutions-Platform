@@ -51,7 +51,9 @@ impl NotificationSender for FailingSender {
     async fn send(&self, _notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
         if prev > 0 {
-            Err(NotificationError::Transient("simulated failure".to_string()))
+            Err(NotificationError::Transient(
+                "simulated failure".to_string(),
+            ))
         } else {
             Ok(SendReceipt::default())
         }

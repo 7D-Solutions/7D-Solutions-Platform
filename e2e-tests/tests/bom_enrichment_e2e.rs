@@ -257,7 +257,9 @@ async fn backward_compat_without_include() {
     assert_eq!(resp.status(), StatusCode::OK, "GET lines -> 200");
 
     let body: Value = resp.json().await.expect("lines body");
-    let items = body["data"].as_array().expect("data array in paginated response");
+    let items = body["data"]
+        .as_array()
+        .expect("data array in paginated response");
     assert!(!items.is_empty(), "should have at least one line");
 
     let line = &items[0];
@@ -302,12 +304,12 @@ async fn enriched_item_details_returned() {
     };
 
     let tenant_id = Uuid::new_v4().to_string();
-    let bom_jwt = make_jwt(&key, &tenant_id, &["bom.mutate", "bom.read", "inventory.read"]);
-    let inv_jwt = make_jwt(
+    let bom_jwt = make_jwt(
         &key,
         &tenant_id,
-        &["inventory.mutate", "inventory.read"],
+        &["bom.mutate", "bom.read", "inventory.read"],
     );
+    let inv_jwt = make_jwt(&key, &tenant_id, &["inventory.mutate", "inventory.read"]);
 
     // JWT gate for BOM
     let probe = client
@@ -334,7 +336,9 @@ async fn enriched_item_details_returned() {
     }
 
     let sku = format!("BOM-ENRICH-{}", &Uuid::new_v4().to_string()[..8]);
-    let Some(item_id) = create_inventory_item(&client, &inv_jwt, &tenant_id, &sku, "BOM enrichment item").await else {
+    let Some(item_id) =
+        create_inventory_item(&client, &inv_jwt, &tenant_id, &sku, "BOM enrichment item").await
+    else {
         eprintln!("Could not create inventory item -- skipping enrichment test");
         return;
     };
@@ -361,10 +365,15 @@ async fn enriched_item_details_returned() {
 
     let body: Value = resp.json().await.expect("enriched lines body");
     let items_arr = body["data"].as_array().expect("data array");
-    assert!(!items_arr.is_empty(), "should have at least one enriched line");
+    assert!(
+        !items_arr.is_empty(),
+        "should have at least one enriched line"
+    );
 
     let line = &items_arr[0];
-    let item = line.get("item").expect("'item' key must be present in enriched response");
+    let item = line
+        .get("item")
+        .expect("'item' key must be present in enriched response");
     assert!(
         !item.is_null(),
         "item must not be null for a valid inventory item: {}",
@@ -372,7 +381,11 @@ async fn enriched_item_details_returned() {
     );
 
     // Verify item object has the required fields
-    assert_eq!(item["sku"], json!(sku), "item.sku should match created item");
+    assert_eq!(
+        item["sku"],
+        json!(sku),
+        "item.sku should match created item"
+    );
     assert_eq!(
         item["name"],
         json!("BOM enrichment item"),
@@ -457,7 +470,9 @@ async fn null_item_for_unresolvable_part_id() {
     assert!(!items_arr.is_empty(), "should have one line");
 
     let line = &items_arr[0];
-    let item = line.get("item").expect("'item' key must be present even when unresolvable");
+    let item = line
+        .get("item")
+        .expect("'item' key must be present even when unresolvable");
     assert!(
         item.is_null(),
         "item must be null for unresolvable part_id — got: {}",

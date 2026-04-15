@@ -12,7 +12,6 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::{
     domain::allocations::{
         models::{
@@ -23,6 +22,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

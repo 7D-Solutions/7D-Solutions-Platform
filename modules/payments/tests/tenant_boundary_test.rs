@@ -60,14 +60,13 @@ async fn insert_attempt(pool: &PgPool, app_id: &str, invoice_id: &str) -> Uuid {
     .expect("Failed to insert payment attempt");
 
     // Return the attempt id
-    let id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM payment_attempts WHERE payment_id = $1 AND app_id = $2",
-    )
-    .bind(payment_id)
-    .bind(app_id)
-    .fetch_one(pool)
-    .await
-    .expect("Failed to fetch attempt id");
+    let id: Uuid =
+        sqlx::query_scalar("SELECT id FROM payment_attempts WHERE payment_id = $1 AND app_id = $2")
+            .bind(payment_id)
+            .bind(app_id)
+            .fetch_one(pool)
+            .await
+            .expect("Failed to fetch attempt id");
 
     id
 }
@@ -88,14 +87,13 @@ async fn tenant_a_data_invisible_to_tenant_b_scoped_query() {
     let _b_attempt = insert_attempt(&pool, &tenant_b, "inv-b-001").await;
 
     // Tenant-scoped query: tenant B should NOT see tenant A's attempt
-    let cross_read: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM payment_attempts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(a_attempt)
-    .bind(&tenant_b)
-    .fetch_optional(&pool)
-    .await
-    .expect("Query should succeed");
+    let cross_read: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM payment_attempts WHERE id = $1 AND app_id = $2")
+            .bind(a_attempt)
+            .bind(&tenant_b)
+            .fetch_optional(&pool)
+            .await
+            .expect("Query should succeed");
 
     assert!(
         cross_read.is_none(),
@@ -137,14 +135,13 @@ async fn tenant_list_returns_only_own_attempts() {
     assert_eq!(b_count, 2, "Tenant B should have 2 attempts");
 
     // Verify no cross-contamination in list
-    let a_ids: Vec<String> = sqlx::query_scalar(
-        "SELECT app_id FROM payment_attempts WHERE app_id IN ($1, $2)",
-    )
-    .bind(&tenant_a)
-    .bind(&tenant_b)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let a_ids: Vec<String> =
+        sqlx::query_scalar("SELECT app_id FROM payment_attempts WHERE app_id IN ($1, $2)")
+            .bind(&tenant_a)
+            .bind(&tenant_b)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
 
     let a_only: Vec<&String> = a_ids.iter().filter(|id| *id == &tenant_a).collect();
     let b_only: Vec<&String> = a_ids.iter().filter(|id| *id == &tenant_b).collect();
@@ -165,13 +162,12 @@ async fn lifecycle_query_without_tenant_demonstrates_gap() {
 
     // This is how lifecycle.rs queries — NO tenant filter:
     // SELECT status::text FROM payment_attempts WHERE id = $1
-    let unscoped: Option<(String,)> = sqlx::query_as(
-        "SELECT status::text FROM payment_attempts WHERE id = $1",
-    )
-    .bind(a_attempt)
-    .fetch_optional(&pool)
-    .await
-    .expect("Unscoped query should succeed");
+    let unscoped: Option<(String,)> =
+        sqlx::query_as("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(a_attempt)
+            .fetch_optional(&pool)
+            .await
+            .expect("Unscoped query should succeed");
 
     // The unscoped query returns data — this is the vulnerability.
     // After the fix (child bead), this query should include AND app_id = $2.
@@ -182,14 +178,13 @@ async fn lifecycle_query_without_tenant_demonstrates_gap() {
 
     // The CORRECT query should require tenant context:
     let wrong_tenant = unique_tenant();
-    let scoped: Option<(String,)> = sqlx::query_as(
-        "SELECT status::text FROM payment_attempts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(a_attempt)
-    .bind(&wrong_tenant)
-    .fetch_optional(&pool)
-    .await
-    .expect("Scoped query should succeed");
+    let scoped: Option<(String,)> =
+        sqlx::query_as("SELECT status::text FROM payment_attempts WHERE id = $1 AND app_id = $2")
+            .bind(a_attempt)
+            .bind(&wrong_tenant)
+            .fetch_optional(&pool)
+            .await
+            .expect("Scoped query should succeed");
 
     assert!(
         scoped.is_none(),

@@ -106,7 +106,9 @@ pub struct TenantRegistryClient {
 impl TenantRegistryClient {
     pub fn new(base_url: String, ttl_secs: u64) -> Self {
         Self {
-            inner: Arc::new(TenantsClient::new(platform_sdk::PlatformClient::new(base_url))),
+            inner: Arc::new(TenantsClient::new(platform_sdk::PlatformClient::new(
+                base_url,
+            ))),
             cache: Arc::new(DashMap::new()),
             status_cache: Arc::new(DashMap::new()),
             ttl: Duration::from_secs(ttl_secs.max(1)),

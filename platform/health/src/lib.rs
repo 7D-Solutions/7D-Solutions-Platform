@@ -122,13 +122,19 @@ impl TenantReadinessRegistry {
     /// Call this when the `tenant.provisioned` consumer successfully finishes
     /// all per-tenant setup for this module.
     pub fn set_ready(&self, tenant_id: Uuid) {
-        self.inner.lock().expect("TenantReadinessRegistry lock poisoned").insert(tenant_id);
+        self.inner
+            .lock()
+            .expect("TenantReadinessRegistry lock poisoned")
+            .insert(tenant_id);
     }
 }
 
 impl TenantReadinessCheck for TenantReadinessRegistry {
     fn is_ready(&self, tenant_id: Uuid) -> bool {
-        self.inner.lock().expect("TenantReadinessRegistry lock poisoned").contains(&tenant_id)
+        self.inner
+            .lock()
+            .expect("TenantReadinessRegistry lock poisoned")
+            .contains(&tenant_id)
     }
 }
 
@@ -290,7 +296,13 @@ mod tests {
         assert_eq!(json["service_name"], "identity-auth");
         assert_eq!(json["status"], "ready");
         assert_eq!(json["degraded"], false);
-        assert_eq!(json["checks"].as_array().expect("checks must be array").len(), 2);
+        assert_eq!(
+            json["checks"]
+                .as_array()
+                .expect("checks must be array")
+                .len(),
+            2
+        );
         assert!(json["timestamp"].as_str().is_some());
     }
 

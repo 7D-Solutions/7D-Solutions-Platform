@@ -12,16 +12,15 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use crate::services::journal_service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 /// UUID v5 namespace for HTTP-originated journal entries.
 const HTTP_JOURNAL_NS: Uuid = Uuid::from_bytes([
-    0x7d, 0x53, 0x6f, 0x6c, 0x75, 0x74, 0x69, 0x6f,
-    0x6e, 0x73, 0x47, 0x4c, 0x4a, 0x45, 0x48, 0x54,
+    0x7d, 0x53, 0x6f, 0x6c, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x47, 0x4c, 0x4a, 0x45, 0x48, 0x54,
 ]);
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -90,18 +89,10 @@ pub async fn create_journal_entry(
     .await
     .map_err(|e| {
         let api_err = match &e {
-            journal_service::JournalError::DuplicateEvent(_) => {
-                ApiError::conflict(e.to_string())
-            }
-            journal_service::JournalError::Validation(_) => {
-                ApiError::bad_request(e.to_string())
-            }
-            journal_service::JournalError::InvalidDate(_) => {
-                ApiError::bad_request(e.to_string())
-            }
-            journal_service::JournalError::Period(_) => {
-                ApiError::bad_request(e.to_string())
-            }
+            journal_service::JournalError::DuplicateEvent(_) => ApiError::conflict(e.to_string()),
+            journal_service::JournalError::Validation(_) => ApiError::bad_request(e.to_string()),
+            journal_service::JournalError::InvalidDate(_) => ApiError::bad_request(e.to_string()),
+            journal_service::JournalError::Period(_) => ApiError::bad_request(e.to_string()),
             _ => ApiError::internal("Journal entry creation failed"),
         };
         with_request_id(api_err, &ctx)

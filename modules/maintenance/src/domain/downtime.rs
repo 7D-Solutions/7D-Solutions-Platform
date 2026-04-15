@@ -285,7 +285,6 @@ impl DowntimeRepo {
         .map_err(DowntimeError::Database)
     }
 
-
     pub async fn count(pool: &PgPool, q: &ListDowntimeQuery) -> Result<i64, DowntimeError> {
         if q.tenant_id.trim().is_empty() {
             return Err(DowntimeError::Validation("tenant_id is required".into()));

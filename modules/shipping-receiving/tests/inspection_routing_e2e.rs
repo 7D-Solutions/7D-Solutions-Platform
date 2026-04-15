@@ -99,7 +99,11 @@ async fn count_routings_for_line(pool: &sqlx::PgPool, tenant_id: Uuid, line_id: 
     row.0
 }
 
-fn make_route_req(decision: &str, reason: Option<&str>, idem_key: Option<&str>) -> RouteLineRequest {
+fn make_route_req(
+    decision: &str,
+    reason: Option<&str>,
+    idem_key: Option<&str>,
+) -> RouteLineRequest {
     RouteLineRequest {
         route_decision: decision.to_string(),
         reason: reason.map(String::from),
@@ -166,12 +170,8 @@ async fn route_line_emits_outbox_event() {
             .expect("routing");
 
     let routing_id_str = routing.id.to_string();
-    let count = count_outbox_events(
-        &pool,
-        &routing_id_str,
-        "sr.receipt_routed_to_inspection.v1",
-    )
-    .await;
+    let count =
+        count_outbox_events(&pool, &routing_id_str, "sr.receipt_routed_to_inspection.v1").await;
     assert_eq!(count, 1, "expected exactly 1 outbox event for routing");
 }
 
@@ -191,8 +191,7 @@ async fn route_to_stock_emits_stock_event() {
             .expect("routing");
 
     let routing_id_str = routing.id.to_string();
-    let count =
-        count_outbox_events(&pool, &routing_id_str, "sr.receipt_routed_to_stock.v1").await;
+    let count = count_outbox_events(&pool, &routing_id_str, "sr.receipt_routed_to_stock.v1").await;
     assert_eq!(count, 1, "expected exactly 1 stock routing outbox event");
 }
 
@@ -249,8 +248,7 @@ async fn already_routed_line_rejects_second_routing() {
     // Second attempt with different decision and no idempotency key
     let req2 = make_route_req("send_to_inspection", None, None);
     let result =
-        InspectionRoutingService::route_line(&pool, ship_id, line_id, tenant_id, None, &req2)
-            .await;
+        InspectionRoutingService::route_line(&pool, ship_id, line_id, tenant_id, None, &req2).await;
 
     assert!(result.is_err(), "must reject re-routing");
     let err_msg = result.unwrap_err().to_string();
@@ -403,10 +401,9 @@ async fn list_routings_for_shipment() {
         .await
         .expect("route line 2");
 
-    let routings =
-        InspectionRoutingService::list_for_shipment(&pool, ship_id, tenant_id)
-            .await
-            .expect("list routings");
+    let routings = InspectionRoutingService::list_for_shipment(&pool, ship_id, tenant_id)
+        .await
+        .expect("list routings");
 
     assert_eq!(routings.len(), 2, "must have 2 routings");
 

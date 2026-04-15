@@ -322,8 +322,14 @@ fn all_envelopes_have_required_contract_fields() {
     );
 
     // Required fields per platform contract
-    assert!(!envelope.event_type.is_empty(), "event_type must not be empty");
-    assert!(!envelope.source_module.is_empty(), "source_module must not be empty");
+    assert!(
+        !envelope.event_type.is_empty(),
+        "event_type must not be empty"
+    );
+    assert!(
+        !envelope.source_module.is_empty(),
+        "source_module must not be empty"
+    );
     assert!(
         envelope.schema_version == SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION,
         "schema_version mismatch"

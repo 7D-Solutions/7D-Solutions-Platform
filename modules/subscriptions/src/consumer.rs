@@ -61,7 +61,9 @@ pub async fn handle_invoice_suspended(
 
             for sub_id in subscription_ids {
                 let suspend_reason = format!("dunning_suspension: {}", reason);
-                match lifecycle::transition_to_suspended(sub_id, &tenant_id, &suspend_reason, &pool).await {
+                match lifecycle::transition_to_suspended(sub_id, &tenant_id, &suspend_reason, &pool)
+                    .await
+                {
                     Ok(()) => {
                         tracing::info!(
                             subscription_id = %sub_id,

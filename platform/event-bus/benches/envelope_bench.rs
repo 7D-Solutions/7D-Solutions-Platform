@@ -82,8 +82,7 @@ fn bench_envelope_serialization(c: &mut Criterion) {
     let json = serde_json::to_string(&envelope).unwrap();
     c.bench_function("envelope_deserialize_json", |b| {
         b.iter(|| {
-            let env: EventEnvelope<TestPayload> =
-                serde_json::from_str(black_box(&json)).unwrap();
+            let env: EventEnvelope<TestPayload> = serde_json::from_str(black_box(&json)).unwrap();
             black_box(env)
         })
     });

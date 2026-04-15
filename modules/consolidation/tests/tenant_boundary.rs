@@ -127,10 +127,9 @@ async fn test_cross_tenant_get_elimination_rule_returns_not_found() {
     let group_a = service::create_group(&pool, &tid_a, &group_req("A Elim Boundary Group"))
         .await
         .unwrap();
-    let rule_a =
-        service_rules::create_elimination_rule(&pool, &tid_a, group_a.id, &rule_req())
-            .await
-            .unwrap();
+    let rule_a = service_rules::create_elimination_rule(&pool, &tid_a, group_a.id, &rule_req())
+        .await
+        .unwrap();
 
     // Tenant B requests tenant A's rule by UUID — must get RuleNotFound, not the row
     let err = service_rules::get_elimination_rule(&pool, &tid_b, rule_a.id)
@@ -183,10 +182,9 @@ async fn test_owner_tenant_can_read_own_elimination_rule() {
     let group_a = service::create_group(&pool, &tid_a, &group_req("A Own Rule Group"))
         .await
         .unwrap();
-    let rule_a =
-        service_rules::create_elimination_rule(&pool, &tid_a, group_a.id, &rule_req())
-            .await
-            .unwrap();
+    let rule_a = service_rules::create_elimination_rule(&pool, &tid_a, group_a.id, &rule_req())
+        .await
+        .unwrap();
 
     let fetched = service_rules::get_elimination_rule(&pool, &tid_a, rule_a.id)
         .await

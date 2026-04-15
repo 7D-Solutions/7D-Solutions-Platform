@@ -44,12 +44,9 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Ap
                 pdf_bytes = Some(data.to_vec());
             }
             "annotations" => {
-                let data = field
-                    .bytes()
-                    .await
-                    .map_err(|e| {
-                        ApiError::bad_request(format!("Failed to read annotations: {e}"))
-                    })?;
+                let data = field.bytes().await.map_err(|e| {
+                    ApiError::bad_request(format!("Failed to read annotations: {e}"))
+                })?;
                 let parsed: Vec<Annotation> = serde_json::from_slice(&data)
                     .map_err(|e| ApiError::bad_request(format!("Invalid annotations JSON: {e}")))?;
                 annotations = Some(parsed);
@@ -58,8 +55,7 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Ap
         }
     }
 
-    let pdf_bytes =
-        pdf_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let pdf_bytes = pdf_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
     let annotations =
         annotations.ok_or_else(|| ApiError::bad_request("Missing 'annotations' field"))?;
 
@@ -79,9 +75,9 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Ap
             "payload_too_large",
             render::RenderError::TooLarge.to_string(),
         )),
-        Err(render::RenderError::InvalidMagic) => {
-            Err(ApiError::bad_request(render::RenderError::InvalidMagic.to_string()))
-        }
+        Err(render::RenderError::InvalidMagic) => Err(ApiError::bad_request(
+            render::RenderError::InvalidMagic.to_string(),
+        )),
         Err(render::RenderError::InvalidPage(pg, total)) => Err(ApiError::bad_request(format!(
             "Invalid page number {pg}: document has {total} pages"
         ))),

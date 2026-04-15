@@ -58,9 +58,8 @@ async fn setup_numbering_db() -> sqlx::PgPool {
 
 async fn setup_bom_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("BOM_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string()
-    });
+    let url = std::env::var("BOM_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://bom_user:bom_pass@localhost:5450/bom_db".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(2)
@@ -143,8 +142,8 @@ async fn body_json(resp: axum::response::Response<Body>) -> serde_json::Value {
 
 struct EcoFixture {
     tenant_uuid: Uuid,
-    rev_a_id: Uuid,  // superseded
-    rev_b_id: Uuid,  // effective
+    rev_a_id: Uuid, // superseded
+    rev_b_id: Uuid, // effective
     eco_number: String,
 }
 

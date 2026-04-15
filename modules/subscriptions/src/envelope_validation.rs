@@ -181,7 +181,10 @@ mod tests {
     #[test]
     fn test_rejects_missing_mutation_class() {
         let mut envelope = valid_envelope();
-        envelope.as_object_mut().expect("test").remove("mutation_class");
+        envelope
+            .as_object_mut()
+            .expect("test")
+            .remove("mutation_class");
         let err = validate_envelope(&envelope).unwrap_err();
         assert!(err.contains("mutation_class"));
     }

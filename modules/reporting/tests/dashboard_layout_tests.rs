@@ -8,9 +8,7 @@ mod helpers;
 use helpers::{setup_db, unique_tenant};
 use reporting::domain::dashboards::{
     models::WidgetInput,
-    service::{
-        create_layout, get_layout, get_widgets, list_layouts, update_widget_positions,
-    },
+    service::{create_layout, get_layout, get_widgets, list_layouts, update_widget_positions},
 };
 use serial_test::serial;
 
@@ -64,7 +62,10 @@ async fn layout_crud_create_update_positions_and_verify() {
 
     assert_eq!(layout.tenant_id, tid);
     assert_eq!(layout.name, "Finance Overview");
-    assert_eq!(layout.description.as_deref(), Some("Main finance dashboard"));
+    assert_eq!(
+        layout.description.as_deref(),
+        Some("Main finance dashboard")
+    );
     assert_eq!(layout.version, 1);
 
     // Verify layout can be fetched
@@ -81,7 +82,10 @@ async fn layout_crud_create_update_positions_and_verify() {
     assert_eq!(ws.len(), 2);
 
     // Update widget positions
-    let updates: Vec<(uuid::Uuid, i32, i32)> = ws.iter().map(|w| (w.id, w.position_x + 1, w.position_y + 2)).collect();
+    let updates: Vec<(uuid::Uuid, i32, i32)> = ws
+        .iter()
+        .map(|w| (w.id, w.position_x + 1, w.position_y + 2))
+        .collect();
     let updated_layout = update_widget_positions(&pool, &tid, layout.id, &updates)
         .await
         .expect("Update positions should succeed");
@@ -151,21 +155,30 @@ async fn widget_config_multiple_types_stored_correctly() {
     assert_eq!(ws.len(), 3);
 
     // Verify each widget type and its config
-    let chart = ws.iter().find(|w| w.widget_type == "chart").expect("chart widget");
+    let chart = ws
+        .iter()
+        .find(|w| w.widget_type == "chart")
+        .expect("chart widget");
     assert_eq!(chart.title, "Revenue Chart");
     assert_eq!(chart.display_config["chart_type"], "bar");
     assert_eq!(chart.display_config["stacked"], true);
     assert_eq!(chart.width, 6);
     assert_eq!(chart.height, 4);
 
-    let table = ws.iter().find(|w| w.widget_type == "table").expect("table widget");
+    let table = ws
+        .iter()
+        .find(|w| w.widget_type == "table")
+        .expect("table widget");
     assert_eq!(table.title, "AP Aging Table");
     assert_eq!(table.display_config["sortable"], true);
     assert_eq!(table.display_config["page_size"], 25);
     assert_eq!(table.width, 6);
     assert_eq!(table.height, 3);
 
-    let kpi = ws.iter().find(|w| w.widget_type == "kpi").expect("kpi widget");
+    let kpi = ws
+        .iter()
+        .find(|w| w.widget_type == "kpi")
+        .expect("kpi widget");
     assert_eq!(kpi.title, "Cash Balance");
     assert_eq!(kpi.display_config["format"], "currency");
     assert_eq!(kpi.display_config["trend"], true);
@@ -195,19 +208,28 @@ async fn tenant_isolation_layouts_invisible_across_tenants() {
     let layouts_b = list_layouts(&pool, &tenant_b)
         .await
         .expect("list should succeed");
-    assert!(layouts_b.is_empty(), "Tenant B must not see tenant A's layouts");
+    assert!(
+        layouts_b.is_empty(),
+        "Tenant B must not see tenant A's layouts"
+    );
 
     // Tenant B should not be able to fetch tenant A's layout by ID
     let fetched = get_layout(&pool, &tenant_b, layout_a.id)
         .await
         .expect("get should succeed");
-    assert!(fetched.is_none(), "Tenant B must not access tenant A's layout by ID");
+    assert!(
+        fetched.is_none(),
+        "Tenant B must not access tenant A's layout by ID"
+    );
 
     // Tenant B should see no widgets from tenant A's layout
     let widgets_b = get_widgets(&pool, &tenant_b, layout_a.id)
         .await
         .expect("get widgets should succeed");
-    assert!(widgets_b.is_empty(), "Tenant B must not see tenant A's widgets");
+    assert!(
+        widgets_b.is_empty(),
+        "Tenant B must not see tenant A's widgets"
+    );
 
     // Tenant A should see their layout
     let layouts_a = list_layouts(&pool, &tenant_a)
@@ -253,7 +275,10 @@ async fn idempotent_layout_creation_no_duplicate() {
     .await
     .expect("Second create should return existing");
 
-    assert_eq!(layout1.id, layout2.id, "Same idempotency key must return same layout");
+    assert_eq!(
+        layout1.id, layout2.id,
+        "Same idempotency key must return same layout"
+    );
 
     // Verify only one layout exists
     let layouts = list_layouts(&pool, &tid)

@@ -68,10 +68,9 @@ async fn repository_queries_always_filter_by_tenant() {
     assert!(!leaked, "list must not leak shipments to wrong tenant");
 
     // find_shipments_by_po filters by tenant_id
-    let po_results =
-        ShipmentRepository::find_shipments_by_po(&pool, wrong_tenant, Uuid::new_v4())
-            .await
-            .expect("po query");
+    let po_results = ShipmentRepository::find_shipments_by_po(&pool, wrong_tenant, Uuid::new_v4())
+        .await
+        .expect("po query");
     let po_leaked = po_results.iter().any(|s| s.id == ship_id);
     assert!(
         !po_leaked,
@@ -199,13 +198,12 @@ async fn guard_mutation_outbox_atomicity_inbound_close() {
     .expect("update line qtys");
 
     // Count outbox events before close
-    let before: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(ship_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("count outbox");
+    let before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1")
+            .bind(ship_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("count outbox");
 
     // Close: should pass guard (8+2=10==10), mutate status, write outbox event
     let req = shipping_receiving_rs::domain::shipments::TransitionRequest {
@@ -222,13 +220,12 @@ async fn guard_mutation_outbox_atomicity_inbound_close() {
     assert_eq!(shipment.status, "closed");
 
     // Outbox must have a new event
-    let after: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(ship_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("count outbox after");
+    let after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1")
+            .bind(ship_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("count outbox after");
     assert!(
         after > before,
         "inbound close must write outbox event (before={}, after={})",
@@ -299,13 +296,12 @@ async fn guard_rejection_does_not_write_outbox() {
     }
 
     // Count outbox events before attempted close
-    let before: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(ship_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("count outbox");
+    let before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1")
+            .bind(ship_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("count outbox");
 
     // Attempt close — guard should reject (5+3=8 != 10)
     let req = shipping_receiving_rs::domain::shipments::TransitionRequest {
@@ -324,13 +320,12 @@ async fn guard_rejection_does_not_write_outbox() {
     );
 
     // Outbox must NOT have new events (guard blocked before mutation)
-    let after: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(ship_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("count outbox after");
+    let after: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1")
+            .bind(ship_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("count outbox after");
     assert_eq!(
         before, after,
         "guard rejection must not write outbox event (before={}, after={})",

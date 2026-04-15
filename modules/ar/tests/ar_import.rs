@@ -56,7 +56,10 @@ async fn ar_import_creates_new_customers() {
     let app_id = unique_tenant();
     cleanup(&pool, &app_id).await;
 
-    let rows = vec![customer("CUST-001", "Alpha Corp"), customer("CUST-002", "Beta Inc")];
+    let rows = vec![
+        customer("CUST-001", "Alpha Corp"),
+        customer("CUST-002", "Beta Inc"),
+    ];
 
     let summary = run_customers_import(&pool, &app_id, &rows)
         .await
@@ -67,12 +70,11 @@ async fn ar_import_creates_new_customers() {
     assert_eq!(summary.skipped, 0);
     assert!(summary.errors.is_empty());
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1")
-            .bind(&app_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1")
+        .bind(&app_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 2);
 
     cleanup(&pool, &app_id).await;
@@ -154,14 +156,16 @@ async fn ar_import_validates_all_before_insert() {
 
     assert_eq!(summary.errors.len(), 1);
     assert_eq!(summary.errors[0].row, 2);
-    assert_eq!(summary.created, 0, "No rows should be inserted when any row fails validation");
+    assert_eq!(
+        summary.created, 0,
+        "No rows should be inserted when any row fails validation"
+    );
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1")
-            .bind(&app_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1")
+        .bind(&app_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 0);
 
     cleanup(&pool, &app_id).await;

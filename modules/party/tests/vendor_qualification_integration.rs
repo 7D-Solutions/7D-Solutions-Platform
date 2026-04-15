@@ -11,8 +11,8 @@
 //! 7. Outbox events for each operation
 
 use chrono::{NaiveDate, Utc};
-use party_rs::domain::contact::{CreateContactRequest};
-use party_rs::domain::contact_role::{CreateContactRoleRequest};
+use party_rs::domain::contact::CreateContactRequest;
+use party_rs::domain::contact_role::CreateContactRoleRequest;
 use party_rs::domain::contact_role_service::{
     create_contact_role, get_contact_role, list_contact_roles,
 };
@@ -23,7 +23,7 @@ use party_rs::domain::credit_terms_service::{
 };
 use party_rs::domain::party::service::create_company;
 use party_rs::domain::party::CreateCompanyRequest;
-use party_rs::domain::scorecard::{CreateScorecardRequest};
+use party_rs::domain::scorecard::CreateScorecardRequest;
 use party_rs::domain::scorecard_service::{create_scorecard, list_scorecards};
 use party_rs::domain::vendor_qualification::{
     CreateVendorQualificationRequest, UpdateVendorQualificationRequest,
@@ -537,22 +537,25 @@ async fn test_tenant_isolation_all_entities() {
     let sc_b = party_rs::domain::scorecard_service::get_scorecard(&pool, &app_b, sc.id)
         .await
         .unwrap();
-    assert!(
-        sc_b.is_none(),
-        "tenant B must not see tenant A's scorecard"
-    );
+    assert!(sc_b.is_none(), "tenant B must not see tenant A's scorecard");
 
     // Tenant B lists are empty (using a different party which doesn't exist for B)
     let quals_b = list_vendor_qualifications(&pool, &app_b, party_a)
         .await
         .unwrap();
-    assert!(quals_b.is_empty(), "tenant B qualification list must be empty");
+    assert!(
+        quals_b.is_empty(),
+        "tenant B qualification list must be empty"
+    );
 
     let cts_b = list_credit_terms(&pool, &app_b, party_a).await.unwrap();
     assert!(cts_b.is_empty(), "tenant B credit terms list must be empty");
 
     let roles_b = list_contact_roles(&pool, &app_b, party_a).await.unwrap();
-    assert!(roles_b.is_empty(), "tenant B contact roles list must be empty");
+    assert!(
+        roles_b.is_empty(),
+        "tenant B contact roles list must be empty"
+    );
 
     let scs_b = list_scorecards(&pool, &app_b, party_a).await.unwrap();
     assert!(scs_b.is_empty(), "tenant B scorecards list must be empty");
@@ -610,7 +613,10 @@ async fn test_idempotency_no_duplicate() {
     .expect("second submission failed");
 
     // Same record returned — no duplicate created
-    assert_eq!(qual1.id, qual2.id, "idempotency_key must return same record");
+    assert_eq!(
+        qual1.id, qual2.id,
+        "idempotency_key must return same record"
+    );
 
     // Verify only one record exists
     let list = list_vendor_qualifications(&pool, &app, party_id)
@@ -696,10 +702,7 @@ async fn test_outbox_events() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(
-        ct_events.0 >= 1,
-        "expected outbox event for credit_terms"
-    );
+    assert!(ct_events.0 >= 1, "expected outbox event for credit_terms");
 
     // Contact role → outbox event
     let role = create_contact_role(
@@ -728,10 +731,7 @@ async fn test_outbox_events() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(
-        role_events.0 >= 1,
-        "expected outbox event for contact_role"
-    );
+    assert!(role_events.0 >= 1, "expected outbox event for contact_role");
 
     // Scorecard → outbox event
     let sc = create_scorecard(
@@ -761,10 +761,7 @@ async fn test_outbox_events() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(
-        sc_events.0 >= 1,
-        "expected outbox event for scorecard"
-    );
+    assert!(sc_events.0 >= 1, "expected outbox event for scorecard");
 
     // Verify correct event_type in outbox
     let qual_type: (String,) = sqlx::query_as(

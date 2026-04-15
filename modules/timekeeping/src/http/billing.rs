@@ -5,7 +5,6 @@ use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use platform_sdk::extract_tenant;
 use crate::{
     domain::billing::{
         models::{
@@ -16,6 +15,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Error mapping

@@ -117,12 +117,20 @@ pub(super) async fn create_workcenter(
         .json(&body)
         .send()
         .await
-        .with_context(|| format!("POST /api/production/workcenters ({}) network error", wc.code))?;
+        .with_context(|| {
+            format!(
+                "POST /api/production/workcenters ({}) network error",
+                wc.code
+            )
+        })?;
 
     let status = resp.status();
 
     if status == reqwest::StatusCode::CONFLICT {
-        info!(code = wc.code, "Workcenter already exists — retrieving UUID via list");
+        info!(
+            code = wc.code,
+            "Workcenter already exists — retrieving UUID via list"
+        );
         return find_workcenter_by_code(client, production_url, wc.code).await;
     }
 

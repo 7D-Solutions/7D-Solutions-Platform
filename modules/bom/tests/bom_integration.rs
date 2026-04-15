@@ -471,5 +471,8 @@ async fn cannot_add_lines_to_effective_revision() {
     )
     .await;
 
-    assert!(result.is_err(), "Should not be able to add lines to effective revision");
+    assert!(
+        result.is_err(),
+        "Should not be able to add lines to effective revision"
+    );
 }

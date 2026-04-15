@@ -121,7 +121,10 @@ async fn large_payload_e2e() {
     // =================================================================
     // Phase 2: 20 concurrent 1MB payloads — all must resolve cleanly
     // =================================================================
-    println!("\n--- Phase 2: {} concurrent 1MB payloads ---", CONCURRENT_1MB);
+    println!(
+        "\n--- Phase 2: {} concurrent 1MB payloads ---",
+        CONCURRENT_1MB
+    );
     let start = Instant::now();
 
     let mut handles = Vec::with_capacity(CONCURRENT_1MB);
@@ -146,7 +149,10 @@ async fn large_payload_e2e() {
             all_acceptable = false;
         }
         if !clean {
-            println!("  request {}: stack trace in response, body: {}", i, snippet);
+            println!(
+                "  request {}: stack trace in response, body: {}",
+                i, snippet
+            );
             all_clean = false;
         }
     }
@@ -167,10 +173,7 @@ async fn large_payload_e2e() {
         all_acceptable,
         "all 1MB payloads must be rejected with 4xx (or conn closed), not 5xx"
     );
-    assert!(
-        all_clean,
-        "no response should contain stack traces"
-    );
+    assert!(all_clean, "no response should contain stack traces");
 
     // =================================================================
     // Phase 3: Post-burst health check

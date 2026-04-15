@@ -18,7 +18,7 @@ use control_plane::provisioning::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -280,7 +280,10 @@ async fn activate_tenant_polls_ready_all_up_becomes_active() {
     .fetch_one(&pool)
     .await
     .expect("count outbox events");
-    assert_eq!(outbox_count, 1, "must have exactly one tenant.provisioned event");
+    assert_eq!(
+        outbox_count, 1,
+        "must have exactly one tenant.provisioned event"
+    );
 
     cleanup(&pool, tenant_id).await;
     println!("✅ activate_tenant_polls_ready_all_up_becomes_active");

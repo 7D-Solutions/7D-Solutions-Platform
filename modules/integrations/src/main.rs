@@ -7,9 +7,7 @@ use integrations_rs::{
         ConfigField, ConfigFieldType, ConnectorCapabilities, ConnectorConfig,
         RegisterConnectorRequest, RunTestActionRequest, TestActionResult,
     },
-    domain::external_refs::{
-        CreateExternalRefRequest, ExternalRef, UpdateExternalRefRequest,
-    },
+    domain::external_refs::{CreateExternalRefRequest, ExternalRef, UpdateExternalRefRequest},
     domain::oauth::{refresh, ConnectionStatus, OAuthConnectionInfo},
     http,
     http::qbo_invoice::{UpdateInvoiceRequest, UpdateInvoiceResponse},
@@ -165,8 +163,7 @@ async fn main() {
                 bus,
             });
 
-            http::router(app_state)
-                .route("/api/openapi.json", get(openapi_json))
+            http::router(app_state).route("/api/openapi.json", get(openapi_json))
         })
         .run()
         .await

@@ -45,18 +45,14 @@ use crate::domain::file_jobs::repo as file_job_repo;
 /// NATS subject for outbound shipped events (emitted by shipping-receiving).
 pub const SUBJECT_OUTBOUND_SHIPPED: &str = "shipping_receiving.outbound_shipped";
 
-const EBAY_TOKEN_URL_SANDBOX: &str =
-    "https://api.sandbox.ebay.com/identity/v1/oauth2/token";
-const EBAY_TOKEN_URL_PRODUCTION: &str =
-    "https://api.ebay.com/identity/v1/oauth2/token";
+const EBAY_TOKEN_URL_SANDBOX: &str = "https://api.sandbox.ebay.com/identity/v1/oauth2/token";
+const EBAY_TOKEN_URL_PRODUCTION: &str = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_FULFILLMENT_BASE_SANDBOX: &str =
     "https://api.sandbox.ebay.com/sell/fulfillment/v1/order";
-const EBAY_FULFILLMENT_BASE_PRODUCTION: &str =
-    "https://api.ebay.com/sell/fulfillment/v1/order";
+const EBAY_FULFILLMENT_BASE_PRODUCTION: &str = "https://api.ebay.com/sell/fulfillment/v1/order";
 
 /// OAuth2 scope required to create fulfillments (write access).
-const SCOPE_SELL_FULFILLMENT: &str =
-    "https://api.ebay.com/oauth/api_scope/sell.fulfillment";
+const SCOPE_SELL_FULFILLMENT: &str = "https://api.ebay.com/oauth/api_scope/sell.fulfillment";
 
 /// Default eBay carrier code when no external-ref mapping exists.
 const DEFAULT_CARRIER_CODE: &str = "OTHER";
@@ -134,9 +130,11 @@ async fn exchange_token(
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        return Err(
-            format!("eBay fulfillment token exchange failed ({}): {}", status, body).into(),
-        );
+        return Err(format!(
+            "eBay fulfillment token exchange failed ({}): {}",
+            status, body
+        )
+        .into());
     }
 
     let token: EbayTokenResponse = resp.json().await?;
@@ -163,7 +161,10 @@ pub async fn push_tracking_to_ebay(
     carrier_code: &str,
     tracking_number: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!("{}/{}/shipping_fulfillment", fulfillment_base_url, ebay_order_id);
+    let url = format!(
+        "{}/{}/shipping_fulfillment",
+        fulfillment_base_url, ebay_order_id
+    );
 
     let body = serde_json::json!({
         "shippingCarrierCode": carrier_code,
@@ -299,8 +300,7 @@ pub async fn process_outbound_shipped(
         exchange_token(http_client, client_id, client_secret, resolved_token_url).await?;
 
     // Resolve carrier code once for the whole shipment.
-    let carrier_code =
-        resolve_carrier_code(pool, tenant_id, payload.carrier_party_id).await;
+    let carrier_code = resolve_carrier_code(pool, tenant_id, payload.carrier_party_id).await;
 
     // Process unique eBay orders (multiple lines may share the same order).
     let mut processed: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -383,9 +383,7 @@ async fn resolve_carrier_code(
         return DEFAULT_CARRIER_CODE.to_string();
     };
 
-    match refs_repo::list_by_entity(pool, tenant_id, "carrier_party", &party_id.to_string())
-        .await
-    {
+    match refs_repo::list_by_entity(pool, tenant_id, "carrier_party", &party_id.to_string()).await {
         Ok(refs) => refs
             .into_iter()
             .find(|r| r.system == "ebay")
@@ -446,9 +444,8 @@ async fn handle_message(
     http_client: &Client,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: OutboundShippedEnvelope = serde_json::from_slice(&msg.payload).map_err(|e| {
-        format!("eBay fulfillment: failed to parse outbound_shipped event: {e}")
-    })?;
+    let envelope: OutboundShippedEnvelope = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("eBay fulfillment: failed to parse outbound_shipped event: {e}"))?;
 
     process_outbound_shipped(pool, http_client, &envelope.payload, None, None).await
 }

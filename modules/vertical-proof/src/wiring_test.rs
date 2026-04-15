@@ -17,8 +17,8 @@ use crate::test_claims;
 /// Helper: build a PlatformClient for a service from env or default URL.
 fn client_for(service: &str, default_port: u16) -> PlatformClient {
     let env_var = format!("{}_BASE_URL", service.to_uppercase());
-    let base_url = std::env::var(&env_var)
-        .unwrap_or_else(|_| format!("http://localhost:{}", default_port));
+    let base_url =
+        std::env::var(&env_var).unwrap_or_else(|_| format!("http://localhost:{}", default_port));
     PlatformClient::new(base_url)
 }
 
@@ -105,7 +105,10 @@ pub async fn test_consolidation_wiring() -> Result<(), String> {
         .create_group(
             &claims,
             &platform_client_consolidation::CreateGroupRequest {
-                name: format!("Proof Group {}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                name: format!(
+                    "Proof Group {}",
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
                 reporting_currency: "USD".into(),
                 description: Some("Vertical proof consolidation test".into()),
                 fiscal_year_end_month: Some(12),
@@ -273,7 +276,10 @@ pub async fn test_production_wiring() -> Result<(), String> {
         .create_workcenter(
             &claims,
             &platform_client_production::CreateWorkcenterRequest {
-                code: format!("WC-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                code: format!(
+                    "WC-PROOF-{}",
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
                 name: "Proof Workcenter".into(),
                 tenant_id,
                 capacity: Some(10),
@@ -373,8 +379,14 @@ pub async fn test_notifications_wiring() -> Result<(), String> {
         Err(e) if e.is_status(400) => {
             tracing::info!("Notifications: missing content correctly rejected with 400");
         }
-        Err(e) => return Err(format!("Notifications send (no content) returned unexpected error: {e}")),
-        Ok(_) => return Err("Notifications send with no content should return 400 but succeeded".into()),
+        Err(e) => {
+            return Err(format!(
+                "Notifications send (no content) returned unexpected error: {e}"
+            ))
+        }
+        Ok(_) => {
+            return Err("Notifications send with no content should return 400 but succeeded".into())
+        }
     }
 
     Ok(())
@@ -414,7 +426,10 @@ pub async fn test_customer_portal_wiring() -> Result<(), String> {
         .list_status_cards(&claims, Some(1), Some(10))
         .await
         .map_err(|e| format!("Customer-Portal list_status_cards failed: {e}"))?;
-    tracing::info!(count = page.data.len(), "Customer-Portal: listed status cards");
+    tracing::info!(
+        count = page.data.len(),
+        "Customer-Portal: listed status cards"
+    );
 
     Ok(())
 }
@@ -432,7 +447,10 @@ pub async fn test_doc_mgmt_wiring() -> Result<(), String> {
         .create_document(
             &claims,
             &platform_client_doc_mgmt::CreateDocumentRequest {
-                doc_number: format!("DOC-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                doc_number: format!(
+                    "DOC-PROOF-{}",
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
                 doc_type: "procedure".into(),
                 title: "Vertical proof doc-mgmt test".into(),
                 body: None,
@@ -457,7 +475,8 @@ pub async fn test_doc_mgmt_wiring() -> Result<(), String> {
 
 pub async fn test_fixed_assets_wiring() -> Result<(), String> {
     let client = client_for("fixed_assets", 8104);
-    let categories = platform_client_fixed_assets::CategoriesClient::from_platform_client(client.clone());
+    let categories =
+        platform_client_fixed_assets::CategoriesClient::from_platform_client(client.clone());
     let assets = platform_client_fixed_assets::AssetsClient::from_platform_client(client);
     let claims = test_claims();
 
@@ -474,7 +493,9 @@ pub async fn test_fixed_assets_wiring() -> Result<(), String> {
                 asset_account_ref: "1500".into(),
                 accum_depreciation_ref: "1510".into(),
                 depreciation_expense_ref: "6100".into(),
-                default_method: Some(platform_client_fixed_assets::DepreciationMethod::StraightLine),
+                default_method: Some(
+                    platform_client_fixed_assets::DepreciationMethod::StraightLine,
+                ),
                 default_useful_life_months: Some(60),
                 default_salvage_pct_bp: Some(1000),
                 description: Some("Vertical proof FA category".into()),
@@ -491,7 +512,10 @@ pub async fn test_fixed_assets_wiring() -> Result<(), String> {
             &claims,
             &platform_client_fixed_assets::CreateAssetRequest {
                 name: "Proof CNC Machine".into(),
-                asset_tag: format!("FA-PROOF-{}", &uuid::Uuid::new_v4().simple().to_string()[..6]),
+                asset_tag: format!(
+                    "FA-PROOF-{}",
+                    &uuid::Uuid::new_v4().simple().to_string()[..6]
+                ),
                 category_id: cat.id,
                 tenant_id: tenant_id.clone(),
                 acquisition_cost_minor: 500_000,
@@ -609,7 +633,8 @@ pub async fn test_pdf_editor_wiring() -> Result<(), String> {
 
 pub async fn test_quality_inspection_wiring() -> Result<(), String> {
     let client = client_for("quality_inspection", 8106);
-    let disposition = platform_client_quality_inspection::DispositionClient::from_platform_client(client);
+    let disposition =
+        platform_client_quality_inspection::DispositionClient::from_platform_client(client);
     let _claims = test_claims();
     tracing::info!("Quality-Inspection: DispositionClient constructed successfully");
     let _ = &disposition;
@@ -635,7 +660,8 @@ pub async fn test_reporting_wiring() -> Result<(), String> {
 
 pub async fn test_shipping_receiving_wiring() -> Result<(), String> {
     let client = client_for("shipping_receiving", 8103);
-    let shipments = platform_client_shipping_receiving::ShipmentsClient::from_platform_client(client);
+    let shipments =
+        platform_client_shipping_receiving::ShipmentsClient::from_platform_client(client);
     let _claims = test_claims();
     tracing::info!("Shipping-Receiving: ShipmentsClient constructed successfully");
     let _ = &shipments;
@@ -726,7 +752,10 @@ pub async fn test_workflow_wiring() -> Result<(), String> {
 
 pub async fn test_workforce_competence_wiring() -> Result<(), String> {
     let client = client_for("workforce_competence", 8110);
-    let authorities = platform_client_workforce_competence::AcceptanceAuthoritiesClient::from_platform_client(client);
+    let authorities =
+        platform_client_workforce_competence::AcceptanceAuthoritiesClient::from_platform_client(
+            client,
+        );
     let _claims = test_claims();
     tracing::info!("Workforce-Competence: AcceptanceAuthoritiesClient constructed successfully");
     let _ = &authorities;
@@ -745,24 +774,23 @@ pub async fn test_outbox_publish(pool: &sqlx::PgPool) -> Result<(), String> {
         "timestamp": chrono::Utc::now().to_rfc3339(),
     });
 
-    sqlx::query(
-        "INSERT INTO events_outbox (event_id, event_type, payload) VALUES ($1, $2, $3)",
-    )
-    .bind(event_id)
-    .bind("vertical_proof.test_event")
-    .bind(&payload)
-    .execute(pool)
-    .await
-    .map_err(|e| format!("Outbox insert failed: {e}"))?;
+    sqlx::query("INSERT INTO events_outbox (event_id, event_type, payload) VALUES ($1, $2, $3)")
+        .bind(event_id)
+        .bind("vertical_proof.test_event")
+        .bind(&payload)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Outbox insert failed: {e}"))?;
 
     tracing::info!(event_id = %event_id, "Outbox: event inserted for publishing");
 
     // Verify it was inserted
-    let row = sqlx::query_scalar::<_, i64>("SELECT count(*) FROM events_outbox WHERE event_id = $1")
-        .bind(event_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| format!("Outbox count query failed: {e}"))?;
+    let row =
+        sqlx::query_scalar::<_, i64>("SELECT count(*) FROM events_outbox WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| format!("Outbox count query failed: {e}"))?;
     assert_eq!(row, 1, "event should be in outbox");
 
     Ok(())
@@ -838,7 +866,10 @@ pub async fn run_all(pool: &sqlx::PgPool) -> WiringResults {
             ("Treasury", test_treasury_wiring().await),
             ("TTP", test_ttp_wiring().await),
             ("Workflow", test_workflow_wiring().await),
-            ("Workforce-Competence", test_workforce_competence_wiring().await),
+            (
+                "Workforce-Competence",
+                test_workforce_competence_wiring().await,
+            ),
             ("Outbox", test_outbox_publish(pool).await),
         ],
     }

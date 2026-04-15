@@ -21,11 +21,11 @@ use uuid::Uuid;
 
 use platform_http_contracts::PaginatedResponse;
 
-use platform_sdk::extract_tenant;
 use super::party::with_request_id;
 use crate::domain::address::{Address, CreateAddressRequest, UpdateAddressRequest};
 use crate::domain::address_service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[utoipa::path(
     post,

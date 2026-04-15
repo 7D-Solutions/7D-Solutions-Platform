@@ -12,13 +12,11 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::depreciation::{
-    CreateRunRequest, DepreciationService, GenerateScheduleRequest,
-};
+use crate::domain::depreciation::{CreateRunRequest, DepreciationService, GenerateScheduleRequest};
 use crate::AppState;
 
-use platform_sdk::extract_tenant;
 use super::helpers::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Schedule endpoints

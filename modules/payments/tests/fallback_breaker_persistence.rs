@@ -148,13 +148,10 @@ async fn circuit_breaker_opens_after_repeated_fallback_failures_with_real_db() {
     let policy = FallbackPolicy::new(1000, 50); // 1s staleness, 50ms budget
 
     // Load the cursor from the real DB and verify it is stale.
-    let cursor = projections::cursor::ProjectionCursor::load(
-        &pool,
-        "payment_projection",
-        &tenant_id,
-    )
-    .await
-    .expect("load cursor");
+    let cursor =
+        projections::cursor::ProjectionCursor::load(&pool, "payment_projection", &tenant_id)
+            .await
+            .expect("load cursor");
     assert!(cursor.is_some(), "cursor must exist after insert");
     assert!(
         policy.is_stale(cursor.as_ref().unwrap()),
@@ -205,7 +202,10 @@ async fn circuit_breaker_opens_after_repeated_fallback_failures_with_real_db() {
         })
         .map(|m| m.get_counter().get_value())
         .sum();
-    assert_eq!(total, 3.0, "3 invocations must be visible in shared registry");
+    assert_eq!(
+        total, 3.0,
+        "3 invocations must be visible in shared registry"
+    );
 
     // Cleanup.
     sqlx::query(

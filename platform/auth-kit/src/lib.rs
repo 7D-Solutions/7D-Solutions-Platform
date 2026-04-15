@@ -27,8 +27,8 @@ pub mod proxy;
 pub use config::AuthKitConfig;
 
 // Re-export security primitives so verticals don't need a direct dependency.
-pub use security::claims::{ActorType, JwtVerifier, VerifiedClaims};
 pub use security::authz_middleware::{ClaimsLayer, RequirePermissionsLayer};
+pub use security::claims::{ActorType, JwtVerifier, VerifiedClaims};
 pub use security::{check_permissions, SecurityError};
 
 use axum::routing::post;
@@ -91,10 +91,7 @@ impl AuthKit {
 
         Self {
             verifier,
-            state: Arc::new(AuthKitState {
-                identity_url,
-                http,
-            }),
+            state: Arc::new(AuthKitState { identity_url, http }),
         }
     }
 

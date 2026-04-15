@@ -172,8 +172,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&claims).expect("serialize claims");
-        let decoded: PortalAccessClaims =
-            serde_json::from_str(&json).expect("deserialize claims");
+        let decoded: PortalAccessClaims = serde_json::from_str(&json).expect("deserialize claims");
 
         assert_eq!(decoded.sub, claims.sub);
         assert_eq!(decoded.iss, PORTAL_ISSUER);

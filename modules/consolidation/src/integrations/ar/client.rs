@@ -3,7 +3,7 @@
 //! Used by intercompany matching to identify receivables where the
 //! customer is another entity in the consolidation group.
 
-use platform_sdk::{ClientError, PlatformClient, parse_response};
+use platform_sdk::{parse_response, ClientError, PlatformClient};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -28,9 +28,7 @@ pub struct ArClient {
 impl ArClient {
     pub fn new(base_url: &str) -> Self {
         Self {
-            client: PlatformClient::new(
-                base_url.trim_end_matches('/').to_string(),
-            ),
+            client: PlatformClient::new(base_url.trim_end_matches('/').to_string()),
         }
     }
 
@@ -42,11 +40,16 @@ impl ArClient {
         &self,
         tenant_id: &str,
     ) -> Result<Vec<ReceivableSummary>, ClientError> {
-        let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|e| {
-            ClientError::Unexpected { status: 0, body: format!("invalid tenant_id: {e}") }
+        let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|e| ClientError::Unexpected {
+            status: 0,
+            body: format!("invalid tenant_id: {e}"),
         })?;
         let claims = PlatformClient::service_claims(tenant_uuid);
-        let resp = self.client.get("/api/ar/aging", &claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get("/api/ar/aging", &claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 }

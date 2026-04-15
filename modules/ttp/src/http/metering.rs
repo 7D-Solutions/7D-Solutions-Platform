@@ -206,8 +206,8 @@ mod tests {
         let json = serde_json::json!({
             "period": "2026-02"
         });
-        let q: TraceQuery = serde_json::from_value(json)
-            .expect("TraceQuery should deserialize from valid JSON");
+        let q: TraceQuery =
+            serde_json::from_value(json).expect("TraceQuery should deserialize from valid JSON");
         assert_eq!(q.period, "2026-02");
     }
 }

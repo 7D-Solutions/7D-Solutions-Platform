@@ -93,9 +93,12 @@ pub async fn list_dlq(
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
     let rows = dlq_repo::list_dead_lettered(
-        &pool, &tenant_id,
-        params.channel.as_deref(), params.template_key.as_deref(),
-        limit, offset,
+        &pool,
+        &tenant_id,
+        params.channel.as_deref(),
+        params.template_key.as_deref(),
+        limit,
+        offset,
     )
     .await
     .map_err(|e| ApiError::internal(e.to_string()))?;

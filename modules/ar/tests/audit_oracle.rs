@@ -72,7 +72,10 @@ async fn audit_oracle_create_invoice() {
     let entity_id = invoice.id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "CreateInvoice").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for CreateInvoice");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for CreateInvoice"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "CreateInvoice").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");
@@ -141,10 +144,16 @@ async fn audit_oracle_finalize_invoice() {
     let entity_id = invoice_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "FinalizeInvoice").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for FinalizeInvoice");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for FinalizeInvoice"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "FinalizeInvoice").await;
-    assert_eq!(mc, "STATE_TRANSITION", "mutation_class should be STATE_TRANSITION");
+    assert_eq!(
+        mc, "STATE_TRANSITION",
+        "mutation_class should be STATE_TRANSITION"
+    );
 
     common::teardown_pool(pool).await;
 }

@@ -110,13 +110,12 @@ pub async fn fetch_existing_item_status(
     run_id: Uuid,
     party_id: Uuid,
 ) -> Result<Option<String>, BillingError> {
-    let row = sqlx::query(
-        "SELECT status FROM ttp_billing_run_items WHERE run_id = $1 AND party_id = $2",
-    )
-    .bind(run_id)
-    .bind(party_id)
-    .fetch_optional(pool)
-    .await?;
+    let row =
+        sqlx::query("SELECT status FROM ttp_billing_run_items WHERE run_id = $1 AND party_id = $2")
+            .bind(run_id)
+            .bind(party_id)
+            .fetch_optional(pool)
+            .await?;
 
     match row {
         Some(r) => Ok(Some(r.try_get("status")?)),

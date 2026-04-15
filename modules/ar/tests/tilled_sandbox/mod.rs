@@ -12,6 +12,8 @@
 pub mod helpers;
 pub mod scenarios;
 pub mod scenarios_account_self;
+pub mod scenarios_api_keys;
+pub mod scenarios_apple_pay_domains;
 pub mod scenarios_balance;
 pub mod scenarios_checkout;
 pub mod scenarios_coverage_gaps;
@@ -30,11 +32,9 @@ pub mod scenarios_pricing;
 pub mod scenarios_reports;
 pub mod scenarios_subscription_lifecycle;
 pub mod scenarios_subscriptions;
+pub mod scenarios_terminal_readers;
 pub mod scenarios_user_invitations;
 pub mod scenarios_users;
-pub mod scenarios_api_keys;
-pub mod scenarios_apple_pay_domains;
-pub mod scenarios_terminal_readers;
 pub mod scenarios_utility;
 pub mod scenarios_webhooks;
 

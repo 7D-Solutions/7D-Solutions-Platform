@@ -106,9 +106,9 @@ async fn get_sr_pool() -> Option<sqlx::PgPool> {
     {
         Ok(pool) => {
             // Run migrations so schema is current
-            let migrator = sqlx::migrate::Migrator::new(
-                std::path::Path::new("../modules/shipping-receiving/db/migrations"),
-            )
+            let migrator = sqlx::migrate::Migrator::new(std::path::Path::new(
+                "../modules/shipping-receiving/db/migrations",
+            ))
             .await
             .ok()?;
             migrator.run(&pool).await.ok()?;
@@ -165,7 +165,10 @@ async fn transition(
         "transition to {to_status}: {}",
         body
     );
-    assert_eq!(body["status"], to_status, "status mismatch after transition");
+    assert_eq!(
+        body["status"], to_status,
+        "status mismatch after transition"
+    );
     println!("  -> {to_status} ok");
     body
 }
@@ -461,12 +464,7 @@ async fn inbound_receipt_and_inventory_integration() {
     .await
     .expect("query lines");
 
-    assert_eq!(
-        rows.len(),
-        2,
-        "expected 2 lines, got {}",
-        rows.len()
-    );
+    assert_eq!(rows.len(), 2, "expected 2 lines, got {}", rows.len());
     for (line_id, inv_ref) in &rows {
         assert!(
             inv_ref.is_some(),
@@ -494,13 +492,12 @@ async fn inbound_receipt_and_inventory_integration() {
     // Optional: check inventory DB if reachable
     if let Some(inv_pool) = try_get_inventory_pool().await {
         println!("\n-- Optional: Inventory DB check --");
-        let inv_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-        )
-        .bind(uuid::Uuid::parse_str(&tenant_id).unwrap())
-        .fetch_one(&inv_pool)
-        .await
-        .unwrap_or(0);
+        let inv_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+                .bind(uuid::Uuid::parse_str(&tenant_id).unwrap())
+                .fetch_one(&inv_pool)
+                .await
+                .unwrap_or(0);
         println!("  inventory_ledger entries for tenant: {inv_count}");
     }
 
@@ -644,15 +641,19 @@ async fn outbound_shipment_lifecycle() {
 
     // Step 8: Verify inventory_ref_id IS NOT NULL (SR DB)
     println!("\n-- Step 8: Verify inventory_ref_id IS NOT NULL (SR DB) --");
-    let rows: Vec<(Uuid, Option<Uuid>)> = sqlx::query_as(
-        "SELECT id, inventory_ref_id FROM shipment_lines WHERE shipment_id = $1",
-    )
-    .bind(shipment_id)
-    .fetch_all(&sr_pool)
-    .await
-    .expect("query outbound lines");
+    let rows: Vec<(Uuid, Option<Uuid>)> =
+        sqlx::query_as("SELECT id, inventory_ref_id FROM shipment_lines WHERE shipment_id = $1")
+            .bind(shipment_id)
+            .fetch_all(&sr_pool)
+            .await
+            .expect("query outbound lines");
 
-    assert_eq!(rows.len(), 1, "expected 1 outbound line, got {}", rows.len());
+    assert_eq!(
+        rows.len(),
+        1,
+        "expected 1 outbound line, got {}",
+        rows.len()
+    );
     let (lid, inv_ref) = &rows[0];
     assert!(
         inv_ref.is_some(),

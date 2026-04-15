@@ -28,8 +28,8 @@ fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.env"),
     )
     .ok();
-    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env");
+    let pem =
+        std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env");
     let encoding =
         EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
     let now = Utc::now();
@@ -108,11 +108,10 @@ async fn authorize_inspector(tenant_id: &str, inspector_id: Uuid) {
         artifact_resp.text().await.unwrap_or_default()
     );
 
-    let artifact: serde_json::Value = artifact_resp
-        .json()
-        .await
-        .expect("parse artifact response");
-    let artifact_id = artifact["id"].as_str().expect("artifact.id must be a string");
+    let artifact: serde_json::Value = artifact_resp.json().await.expect("parse artifact response");
+    let artifact_id = artifact["id"]
+        .as_str()
+        .expect("artifact.id must be a string");
 
     // Assign competence to the inspector
     let assign_resp = client
@@ -304,10 +303,9 @@ async fn query_inspections_by_wo() {
     assert_eq!(all.len(), 2);
 
     // Query only in_process
-    let in_process =
-        service::list_inspections_by_wo(&pool, &tenant, wo_id, Some("in_process"))
-            .await
-            .unwrap();
+    let in_process = service::list_inspections_by_wo(&pool, &tenant, wo_id, Some("in_process"))
+        .await
+        .unwrap();
     assert_eq!(in_process.len(), 1);
     assert_eq!(in_process[0].inspection_type, "in_process");
 
@@ -431,10 +429,9 @@ async fn query_by_part_rev_includes_all_types() {
     .await
     .unwrap();
 
-    let results =
-        service::list_inspections_by_part_rev(&pool, &tenant, part_id, Some("C"))
-            .await
-            .unwrap();
+    let results = service::list_inspections_by_part_rev(&pool, &tenant, part_id, Some("C"))
+        .await
+        .unwrap();
     assert_eq!(results.len(), 3);
 }
 

@@ -4,9 +4,9 @@ use axum::{
 };
 use std::sync::Arc;
 
-use workflow::{http, metrics, AppState};
-use security::{permissions, RequirePermissionsLayer};
 use platform_sdk::ModuleBuilder;
+use security::{permissions, RequirePermissionsLayer};
+use workflow::{http, metrics, AppState};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 

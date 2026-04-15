@@ -254,21 +254,36 @@ mod tests {
 
     async fn cleanup(pool: &PgPool) {
         sqlx::query("DELETE FROM bill_attachments WHERE tenant_id = $1")
-            .bind(TEST_TENANT).execute(pool).await.ok();
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
         sqlx::query(
             "DELETE FROM events_outbox WHERE aggregate_type = 'bill' \
              AND aggregate_id IN (SELECT bill_id::TEXT FROM vendor_bills WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
         sqlx::query(
             "DELETE FROM events_outbox WHERE aggregate_type = 'vendor' \
              AND aggregate_id IN (SELECT vendor_id::TEXT FROM vendors WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
         sqlx::query("DELETE FROM vendor_bills WHERE tenant_id = $1")
-            .bind(TEST_TENANT).execute(pool).await.ok();
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
         sqlx::query("DELETE FROM vendors WHERE tenant_id = $1")
-            .bind(TEST_TENANT).execute(pool).await.ok();
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     fn make_msg(entity_type: &str, entity_id: &str, attachment_id: Uuid) -> BusMessage {
@@ -295,7 +310,9 @@ mod tests {
         let attachment_id = Uuid::new_v4();
 
         let msg = make_msg("ap_bill", &bill_id.to_string(), attachment_id);
-        handle_attachment_created(&pool, &msg).await.expect("handle failed");
+        handle_attachment_created(&pool, &msg)
+            .await
+            .expect("handle failed");
 
         // bill_attachments row created
         let (count,): (i64,) = sqlx::query_as(
@@ -331,15 +348,16 @@ mod tests {
         let attachment_id = Uuid::new_v4();
 
         let msg = make_msg("sales_order", &bill_id.to_string(), attachment_id);
-        handle_attachment_created(&pool, &msg).await.expect("handle must not error");
+        handle_attachment_created(&pool, &msg)
+            .await
+            .expect("handle must not error");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM bill_attachments WHERE attachment_id = $1",
-        )
-        .bind(attachment_id)
-        .fetch_one(&pool)
-        .await
-        .expect("query failed");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM bill_attachments WHERE attachment_id = $1")
+                .bind(attachment_id)
+                .fetch_one(&pool)
+                .await
+                .expect("query failed");
         assert_eq!(count, 0, "non-AP entity types must be ignored");
 
         cleanup(&pool).await;
@@ -354,15 +372,16 @@ mod tests {
         let unknown_bill_id = Uuid::new_v4();
 
         let msg = make_msg("ap_bill", &unknown_bill_id.to_string(), attachment_id);
-        handle_attachment_created(&pool, &msg).await.expect("must not error for unknown bill");
+        handle_attachment_created(&pool, &msg)
+            .await
+            .expect("must not error for unknown bill");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM bill_attachments WHERE attachment_id = $1",
-        )
-        .bind(attachment_id)
-        .fetch_one(&pool)
-        .await
-        .expect("query failed");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM bill_attachments WHERE attachment_id = $1")
+                .bind(attachment_id)
+                .fetch_one(&pool)
+                .await
+                .expect("query failed");
         assert_eq!(count, 0, "unknown bill must not create a link");
 
         cleanup(&pool).await;
@@ -377,8 +396,12 @@ mod tests {
         let attachment_id = Uuid::new_v4();
 
         let msg = make_msg("ap_bill", &bill_id.to_string(), attachment_id);
-        handle_attachment_created(&pool, &msg).await.expect("first handle failed");
-        handle_attachment_created(&pool, &msg).await.expect("second handle must not error");
+        handle_attachment_created(&pool, &msg)
+            .await
+            .expect("first handle failed");
+        handle_attachment_created(&pool, &msg)
+            .await
+            .expect("second handle must not error");
 
         let (count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM bill_attachments WHERE bill_id = $1 AND attachment_id = $2",

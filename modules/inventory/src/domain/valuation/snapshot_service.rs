@@ -148,7 +148,12 @@ pub async fn create_valuation_snapshot(
             .await?;
 
     // --- Aggregate by item: weighted-average cost ---
-    let lines = aggregate_lines(&layer_rows, req.warehouse_id, req.location_id, &req.currency);
+    let lines = aggregate_lines(
+        &layer_rows,
+        req.warehouse_id,
+        req.location_id,
+        &req.currency,
+    );
     let total_value_minor: i64 = lines.iter().map(|l| l.total_value_minor).sum();
 
     // --- Mutation: insert snapshot header ---

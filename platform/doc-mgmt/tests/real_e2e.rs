@@ -3139,7 +3139,8 @@ async fn attachments_insert_and_query() {
     let pool = get_pool().await;
     let tenant_id = Uuid::new_v4();
     let entity_id = Uuid::new_v4().to_string();
-    let key = format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/06/test-test.pdf");
+    let key =
+        format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/06/test-test.pdf");
 
     let att_id = insert_test_attachment(
         &pool,
@@ -3189,8 +3190,7 @@ async fn attachments_list_by_entity() {
 
     // Insert one for a different entity — must not appear in list
     let other_id = Uuid::new_v4().to_string();
-    let other_key =
-        format!("tenants/{tenant_id}/doc-mgmt/attachment/{other_id}/other.pdf");
+    let other_key = format!("tenants/{tenant_id}/doc-mgmt/attachment/{other_id}/other.pdf");
     insert_test_attachment(
         &pool,
         tenant_id,
@@ -3213,7 +3213,11 @@ async fn attachments_list_by_entity() {
     .await
     .expect("list attachments");
 
-    assert_eq!(ids.len(), 3, "list must return exactly the 3 entity attachments");
+    assert_eq!(
+        ids.len(),
+        3,
+        "list must return exactly the 3 entity attachments"
+    );
 }
 
 #[tokio::test]
@@ -3249,12 +3253,11 @@ async fn attachments_soft_delete() {
     assert_eq!(affected, 1);
 
     // Row still exists in DB
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM attachments WHERE id = $1")
-            .bind(att_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM attachments WHERE id = $1")
+        .bind(att_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "deleted");
 
     // Idempotent — second delete should match 0 rows
@@ -3291,14 +3294,13 @@ async fn attachments_tenant_isolation() {
     .await;
 
     // Tenant A can only see their own row
-    let rows: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM attachments WHERE tenant_id = $1 AND entity_id = $2",
-    )
-    .bind(tenant_a)
-    .bind(&entity_id)
-    .fetch_all(&pool)
-    .await
-    .expect("tenant isolation query");
+    let rows: Vec<Uuid> =
+        sqlx::query_scalar("SELECT id FROM attachments WHERE tenant_id = $1 AND entity_id = $2")
+            .bind(tenant_a)
+            .bind(&entity_id)
+            .fetch_all(&pool)
+            .await
+            .expect("tenant isolation query");
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0], att_a);
@@ -3331,6 +3333,12 @@ async fn attachments_s3_key_tenant_scoped() {
         "key must start with tenant prefix: {key}"
     );
     assert!(key.contains("doc-mgmt"), "key must contain service: {key}");
-    assert!(key.contains("attachment"), "key must contain artifact_type: {key}");
-    assert!(key.contains("photo.jpg"), "key must contain filename: {key}");
+    assert!(
+        key.contains("attachment"),
+        "key must contain artifact_type: {key}"
+    );
+    assert!(
+        key.contains("photo.jpg"),
+        "key must contain filename: {key}"
+    );
 }

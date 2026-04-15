@@ -300,14 +300,8 @@ async fn main() -> Result<()> {
                 let claims = require_claims(&cli)?;
                 let bulk_action = bulk::BulkAction::from_str(action)?;
                 let effective_dry_run = if *confirm { false } else { *dry_run };
-                let out = bulk::run_bulk(
-                    &claims,
-                    bulk_action,
-                    status,
-                    effective_dry_run,
-                    *confirm,
-                )
-                .await?;
+                let out = bulk::run_bulk(&claims, bulk_action, status, effective_dry_run, *confirm)
+                    .await?;
                 render(&out, json_output);
                 Ok(())
             }

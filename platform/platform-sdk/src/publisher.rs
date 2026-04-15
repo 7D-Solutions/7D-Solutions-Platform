@@ -59,10 +59,9 @@ pub async fn ensure_outbox_table(
     table_name: &str,
 ) -> Result<(), StartupError> {
     let ddl = STANDARD_OUTBOX_DDL.replace("{table}", table_name);
-    sqlx::query(&ddl)
-        .execute(pool)
-        .await
-        .map_err(|e| StartupError::Database(format!("failed to create outbox table '{table_name}': {e}")))?;
+    sqlx::query(&ddl).execute(pool).await.map_err(|e| {
+        StartupError::Database(format!("failed to create outbox table '{table_name}': {e}"))
+    })?;
     tracing::info!(table = %table_name, "outbox table ensured");
     Ok(())
 }
@@ -71,9 +70,7 @@ pub async fn ensure_outbox_table(
 ///
 /// Returns `Some(table_name)` if an undeclared outbox table is found
 /// (tables ending in `_outbox` in the `public` schema).
-pub async fn detect_outbox_table(
-    pool: &sqlx::PgPool,
-) -> Result<Option<String>, StartupError> {
+pub async fn detect_outbox_table(pool: &sqlx::PgPool) -> Result<Option<String>, StartupError> {
     let row = sqlx::query(
         r#"
         SELECT table_name::text

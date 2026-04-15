@@ -255,10 +255,7 @@ async fn test_tenant_isolation() {
     let result = get_terms(&pool, &tid_b, terms.term_id)
         .await
         .expect("get terms tenant B");
-    assert!(
-        result.is_none(),
-        "tenant B should not see tenant A's terms"
-    );
+    assert!(result.is_none(), "tenant B should not see tenant A's terms");
 
     let list = list_terms(&pool, &tid_b, false)
         .await
@@ -335,7 +332,11 @@ async fn test_outbox_event() {
     .await
     .expect("outbox query");
 
-    assert!(row.0 >= 1, "expected at least 1 outbox event, got {}", row.0);
+    assert!(
+        row.0 >= 1,
+        "expected at least 1 outbox event, got {}",
+        row.0
+    );
     assert_eq!(
         row.1, "ap.payment_terms_created",
         "event_type should be ap.payment_terms_created"

@@ -22,9 +22,9 @@ use std::sync::Arc;
 use utoipa::IntoParams;
 
 use crate::domain::reports::aging::compute_aging;
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params

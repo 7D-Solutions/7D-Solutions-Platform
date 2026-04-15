@@ -108,7 +108,13 @@ fn tag_to_mod_name(tag: &str) -> String {
     let mut s: String = tag
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     while s.contains("__") {
         s = s.replace("__", "_");
@@ -238,7 +244,9 @@ fn emit_lib(parsed: &ParsedSpec, mod_names: &[String], type_mod_names: &[String]
         out.push_str(&format!("pub use {actual_mod}::{struct_name};\n"));
 
         // Re-export public query structs from this tag's module
-        let tag_eps: Vec<&spec::Endpoint> = parsed.endpoints.iter()
+        let tag_eps: Vec<&spec::Endpoint> = parsed
+            .endpoints
+            .iter()
             .filter(|ep| ep.tag == *tag)
             .collect();
         for ep in tag_eps {
@@ -291,7 +299,11 @@ fn split_types(parsed: &ParsedSpec) -> Vec<(String, String)> {
     for frag in &fragments {
         let frag_lines = frag.lines().count();
         if !current.is_empty() && current_lines + frag_lines > max_body_lines {
-            let hdr = if part == 1 { &full_header } else { &cont_header };
+            let hdr = if part == 1 {
+                &full_header
+            } else {
+                &cont_header
+            };
             let mut content = hdr.clone();
             content.push_str(&current);
             files.push((format!("types_{part}.rs"), content));
@@ -304,7 +316,11 @@ fn split_types(parsed: &ParsedSpec) -> Vec<(String, String)> {
     }
 
     if !current.is_empty() {
-        let hdr = if part == 1 { &full_header } else { &cont_header };
+        let hdr = if part == 1 {
+            &full_header
+        } else {
+            &cont_header
+        };
         let mut content = hdr.clone();
         content.push_str(&current);
         files.push((format!("types_{part}.rs"), content));
@@ -384,9 +400,7 @@ fn relative_path(from_dir: &Path, target: &str) -> String {
     let abs_from = if from_dir.is_absolute() {
         from_dir.to_path_buf()
     } else {
-        env::current_dir()
-            .unwrap_or_default()
-            .join(from_dir)
+        env::current_dir().unwrap_or_default().join(from_dir)
     };
 
     if let Some(ws_root) = find_workspace_root(&abs_from) {

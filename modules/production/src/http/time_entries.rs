@@ -10,7 +10,6 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::time_entries::{
@@ -18,6 +17,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 /// POST /api/production/time-entries/start
 #[utoipa::path(

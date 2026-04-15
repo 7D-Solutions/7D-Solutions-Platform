@@ -6,9 +6,9 @@ pub mod config;
 pub mod consumers;
 pub mod domain;
 pub mod events;
+pub mod http;
 pub mod metrics;
 pub mod outbox;
-pub mod http;
 
 pub use config::Config;
 

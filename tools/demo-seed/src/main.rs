@@ -73,7 +73,11 @@ struct Cli {
     ar_url: String,
 
     /// Numbering service base URL
-    #[arg(long, env = "NUMBERING_BASE_URL", default_value = "http://localhost:8120")]
+    #[arg(
+        long,
+        env = "NUMBERING_BASE_URL",
+        default_value = "http://localhost:8120"
+    )]
     numbering_url: String,
 
     /// GL service base URL
@@ -85,7 +89,11 @@ struct Cli {
     party_url: String,
 
     /// Inventory service base URL
-    #[arg(long, env = "INVENTORY_BASE_URL", default_value = "http://localhost:8092")]
+    #[arg(
+        long,
+        env = "INVENTORY_BASE_URL",
+        default_value = "http://localhost:8092"
+    )]
     inventory_url: String,
 
     /// BOM service base URL
@@ -93,7 +101,11 @@ struct Cli {
     bom_url: String,
 
     /// Production service base URL
-    #[arg(long, env = "PRODUCTION_BASE_URL", default_value = "http://localhost:8108")]
+    #[arg(
+        long,
+        env = "PRODUCTION_BASE_URL",
+        default_value = "http://localhost:8108"
+    )]
     production_url: String,
 
     /// Auth service base URL (for user lookup in manifest)
@@ -203,12 +215,9 @@ async fn main() -> Result<()> {
 
         match module_name {
             "numbering" => {
-                let policies = numbering::seed_numbering_policies(
-                    &client,
-                    &cli.numbering_url,
-                    &mut tracker,
-                )
-                .await?;
+                let policies =
+                    numbering::seed_numbering_policies(&client, &cli.numbering_url, &mut tracker)
+                        .await?;
                 info!(count = policies.len(), "Numbering policies seeded");
                 numbering_policies = Some(policies);
             }
@@ -222,14 +231,8 @@ async fn main() -> Result<()> {
                 party_result = Some(ids);
             }
             "gl" => {
-                let gl = gl::seed_gl(
-                    &client,
-                    &cli.gl_url,
-                    &cli.tenant,
-                    cli.seed,
-                    &mut tracker,
-                )
-                .await?;
+                let gl =
+                    gl::seed_gl(&client, &cli.gl_url, &cli.tenant, cli.seed, &mut tracker).await?;
                 info!(accounts = gl.codes.len(), "GL chart of accounts seeded");
                 gl_result = Some(gl);
             }
@@ -309,12 +312,8 @@ async fn main() -> Result<()> {
 
     // Build and output manifest
     let manifest_path = cli.manifest_out.as_deref();
-    let mut builder = manifest::ManifestBuilder::new(
-        cli.tenant.clone(),
-        cli.seed,
-        digest,
-    )
-    .with_admin_user_id(admin_user_id);
+    let mut builder = manifest::ManifestBuilder::new(cli.tenant.clone(), cli.seed, digest)
+        .with_admin_user_id(admin_user_id);
     if let Some(p) = numbering_policies {
         builder = builder.with_numbering(p);
     }
@@ -485,7 +484,15 @@ mod tests {
 
     #[test]
     fn module_order_includes_all_expected() {
-        let expected = ["numbering", "gl", "party", "inventory", "bom", "production", "ar"];
+        let expected = [
+            "numbering",
+            "gl",
+            "party",
+            "inventory",
+            "bom",
+            "production",
+            "ar",
+        ];
         assert_eq!(MODULE_ORDER, &expected);
     }
 

@@ -100,12 +100,7 @@ async fn wait_for_production(client: &Client) -> bool {
 
 async fn numbering_reachable(client: &Client) -> bool {
     let url = format!("{}/api/health", numbering_url());
-    match tokio::time::timeout(
-        Duration::from_secs(3),
-        client.get(&url).send(),
-    )
-    .await
-    {
+    match tokio::time::timeout(Duration::from_secs(3), client.get(&url).send()).await {
         Ok(Ok(r)) => r.status().is_success(),
         _ => false,
     }
@@ -354,9 +349,9 @@ async fn derived_status_progression() {
     assert_eq!(list_resp.status(), StatusCode::OK);
     let list_body: Value = list_resp.json().await.expect("list body");
     let list_items = list_body["data"].as_array().expect("data array");
-    let found = list_items.iter().find(|w| {
-        w.get("work_order_id").and_then(|v| v.as_str()) == Some(&wo_id.to_string())
-    });
+    let found = list_items
+        .iter()
+        .find(|w| w.get("work_order_id").and_then(|v| v.as_str()) == Some(&wo_id.to_string()));
     if let Some(wo_in_list) = found {
         assert!(
             wo_in_list.get("derived_status").is_some(),
@@ -376,7 +371,11 @@ async fn derived_status_progression() {
         .send()
         .await
         .expect("initialize operations");
-    assert_eq!(init_resp.status(), StatusCode::CREATED, "initialize operations");
+    assert_eq!(
+        init_resp.status(),
+        StatusCode::CREATED,
+        "initialize operations"
+    );
 
     // List operations and sort by sequence
     let ops_resp = client
@@ -537,10 +536,7 @@ async fn routing_step_workcenter_enrichment() {
     let s = resp.status();
     let wc_body: Value = resp.json().await.expect("wc body");
     assert_eq!(s, StatusCode::CREATED, "create workcenter: {}", wc_body);
-    let wc_id = Uuid::parse_str(
-        wc_body["workcenter_id"].as_str().expect("workcenter_id"),
-    )
-    .unwrap();
+    let wc_id = Uuid::parse_str(wc_body["workcenter_id"].as_str().expect("workcenter_id")).unwrap();
 
     // Create routing and add one step
     let routing_id = create_routing(&client, &auth, &tenant_id).await;
@@ -587,7 +583,9 @@ async fn routing_step_workcenter_enrichment() {
         .expect("GET enriched steps");
     assert_eq!(enriched_resp.status(), StatusCode::OK, "GET enriched steps");
     let enriched_body: Value = enriched_resp.json().await.expect("enriched steps body");
-    let enriched_items = enriched_body["data"].as_array().expect("enriched data array");
+    let enriched_items = enriched_body["data"]
+        .as_array()
+        .expect("enriched data array");
     assert!(!enriched_items.is_empty(), "should have enriched steps");
 
     let enriched_step = &enriched_items[0];
@@ -599,11 +597,13 @@ async fn routing_step_workcenter_enrichment() {
         "workcenter object must not be null for a valid workcenter"
     );
     assert_eq!(
-        wc_obj["name"], json!(wc_name),
+        wc_obj["name"],
+        json!(wc_name),
         "workcenter.name must match created workcenter"
     );
     assert_eq!(
-        wc_obj["code"], json!(wc_code),
+        wc_obj["code"],
+        json!(wc_code),
         "workcenter.code must match created workcenter"
     );
 
@@ -741,7 +741,11 @@ async fn batch_work_orders() {
     );
     let with_ops_body: Value = with_ops_resp.json().await.expect("batch+ops body");
     let ops_items = with_ops_body.as_array().expect("batch+ops returns array");
-    assert_eq!(ops_items.len(), 3, "should return 3 WOs with operations include");
+    assert_eq!(
+        ops_items.len(),
+        3,
+        "should return 3 WOs with operations include"
+    );
     for item in ops_items {
         // operations key must be present (may be empty array for WOs with no ops)
         assert!(
@@ -825,7 +829,9 @@ async fn composite_create_work_order() {
     }
     assert_eq!(s, StatusCode::CREATED, "composite create -> 201: {}", body);
 
-    let order_number = body["order_number"].as_str().expect("order_number in response");
+    let order_number = body["order_number"]
+        .as_str()
+        .expect("order_number in response");
     assert!(
         !order_number.is_empty(),
         "order_number must be allocated (non-empty)"
@@ -835,7 +841,10 @@ async fn composite_create_work_order() {
         "work_order_id must be present"
     );
     assert_eq!(body["item_id"], json!(item_id), "item_id must match");
-    println!("  composite create (number only): PASS — order_number={}", order_number);
+    println!(
+        "  composite create (number only): PASS — order_number={}",
+        order_number
+    );
 
     // Idempotent re-send returns same WO
     let resp2 = client
@@ -869,7 +878,10 @@ async fn composite_create_work_order() {
     let bom_rev_id = Uuid::new_v4();
     let wc_id = create_workcenter(&client, &auth, &tenant_id, "Mill-Composite").await;
     let routing_id = create_routing(&client, &auth, &tenant_id).await;
-    add_step(&client, &auth, &tenant_id, routing_id, wc_id, 10, "Assemble").await;
+    add_step(
+        &client, &auth, &tenant_id, routing_id, wc_id, 10, "Assemble",
+    )
+    .await;
     release_routing(&client, &auth, routing_id).await;
 
     let full_key = Uuid::new_v4().to_string();
@@ -888,7 +900,12 @@ async fn composite_create_work_order() {
         .expect("composite create full");
     let full_s = full_resp.status();
     let full_body: Value = full_resp.json().await.expect("full composite body");
-    assert_eq!(full_s, StatusCode::CREATED, "composite create with BOM+routing -> 201: {}", full_body);
+    assert_eq!(
+        full_s,
+        StatusCode::CREATED,
+        "composite create with BOM+routing -> 201: {}",
+        full_body
+    );
     assert_eq!(
         full_body["bom_revision_id"],
         json!(bom_rev_id),
@@ -901,5 +918,8 @@ async fn composite_create_work_order() {
     );
     let full_order = full_body["order_number"].as_str().expect("order_number");
     assert!(!full_order.is_empty(), "order_number must be allocated");
-    println!("  composite create (with BOM+routing): PASS — order_number={}", full_order);
+    println!(
+        "  composite create (with BOM+routing): PASS — order_number={}",
+        full_order
+    );
 }

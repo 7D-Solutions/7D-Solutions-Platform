@@ -28,7 +28,10 @@ async fn get_pool() -> PgPool {
 
 async fn send_stub(Path(code): Path<u16>) -> impl IntoResponse {
     let status = axum::http::StatusCode::from_u16(code).unwrap();
-    (status, Json(serde_json::json!({"message_id":"provider-msg-1"})))
+    (
+        status,
+        Json(serde_json::json!({"message_id":"provider-msg-1"})),
+    )
 }
 
 async fn start_stub_server() -> String {
@@ -38,7 +41,9 @@ async fn start_stub_server() -> String {
         .expect("bind stub listener");
     let addr = listener.local_addr().expect("stub local_addr");
     tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("stub server failed");
+        axum::serve(listener, app)
+            .await
+            .expect("stub server failed");
     });
     format!("http://{addr}")
 }
@@ -69,17 +74,19 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
     .await
     .expect("insert success pending");
 
-    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(
-        HttpEmailSender::new(
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
+        Arc::new(HttpEmailSender::new(
             format!("{base}/send/202"),
             "no-reply@example.com".to_string(),
             None,
-        ),
-    );
+        ));
     let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch success");
-    assert!(result.sent_count >= 1, "expected at least one sent notification");
+    assert!(
+        result.sent_count >= 1,
+        "expected at least one sent notification"
+    );
 
     let success_row: StatusRow =
         sqlx::query_as("SELECT status, retry_count FROM scheduled_notifications WHERE id = $1")
@@ -112,13 +119,12 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
     .await
     .expect("insert failure pending");
 
-    let fail_sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(
-        HttpEmailSender::new(
+    let fail_sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
+        Arc::new(HttpEmailSender::new(
             format!("{base}/send/422"),
             "no-reply@example.com".to_string(),
             None,
-        ),
-    );
+        ));
     let result = dispatch_once(&pool, fail_sender, RetryPolicy::default())
         .await
         .expect("dispatch failure path");
@@ -238,13 +244,12 @@ async fn e2e_rendered_content_persisted_on_successful_dispatch() {
     .await
     .expect("insert pending for render test");
 
-    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(
-        HttpEmailSender::new(
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
+        Arc::new(HttpEmailSender::new(
             format!("{base}/send/202"),
             "no-reply@example.com".to_string(),
             None,
-        ),
-    );
+        ));
     let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch render test");
@@ -299,7 +304,10 @@ async fn e2e_render_failure_records_permanent_failure() {
     let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch render failure");
-    assert!(result.failed_count >= 1, "render failure should count as failed");
+    assert!(
+        result.failed_count >= 1,
+        "render failure should count as failed"
+    );
 
     let row: StatusRow =
         sqlx::query_as("SELECT status, retry_count FROM scheduled_notifications WHERE id = $1")
@@ -332,7 +340,10 @@ async fn e2e_render_failure_records_permanent_failure() {
     .fetch_one(&pool)
     .await
     .expect("fetch rendered_subject");
-    assert!(subject.is_none(), "rendered_subject should be null on render failure");
+    assert!(
+        subject.is_none(),
+        "rendered_subject should be null on render failure"
+    );
 }
 
 #[tokio::test]
@@ -381,7 +392,10 @@ async fn force_dlq_entry(pool: &PgPool) -> Uuid {
             .fetch_one(pool)
             .await
             .expect("fetch status");
-    assert_eq!(status, "dead_lettered", "should be dead_lettered after permanent failure");
+    assert_eq!(
+        status, "dead_lettered",
+        "should be dead_lettered after permanent failure"
+    );
     id
 }
 
@@ -392,11 +406,12 @@ async fn e2e_dlq_list_returns_dead_lettered_items() {
     let id = force_dlq_entry(&pool).await;
 
     // Query DLQ via direct SQL (handler uses the same query pattern)
-    let (count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM scheduled_notifications WHERE status = 'dead_lettered'")
-            .fetch_one(&pool)
-            .await
-            .expect("count DLQ items");
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM scheduled_notifications WHERE status = 'dead_lettered'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("count DLQ items");
     assert!(count >= 1, "should have at least one DLQ item");
 
     // Verify our specific item is in the DLQ
@@ -421,13 +436,12 @@ async fn e2e_dlq_replay_resets_to_pending_and_delivers() {
     let mut tx = pool.begin().await.expect("begin tx");
 
     // Guard: verify dead_lettered
-    let (status,): (String,) = sqlx::query_as(
-        "SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await
-    .expect("guard check");
+    let (status,): (String,) =
+        sqlx::query_as("SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await
+            .expect("guard check");
     assert_eq!(status, "dead_lettered");
 
     // Mutation: reset to pending with a valid template, bump replay_generation
@@ -500,17 +514,19 @@ async fn e2e_dlq_replay_resets_to_pending_and_delivers() {
     assert!(outbox_count >= 1, "replay event should be in outbox");
 
     // Now dispatch — should succeed with valid template
-    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(
-        HttpEmailSender::new(
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
+        Arc::new(HttpEmailSender::new(
             format!("{base}/send/202"),
             "no-reply@example.com".to_string(),
             None,
-        ),
-    );
+        ));
     let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch after replay");
-    assert!(result.sent_count >= 1, "replayed notification should be sent");
+    assert!(
+        result.sent_count >= 1,
+        "replayed notification should be sent"
+    );
 
     // Verify final status is sent
     let (status,): (String,) =
@@ -519,7 +535,10 @@ async fn e2e_dlq_replay_resets_to_pending_and_delivers() {
             .fetch_one(&pool)
             .await
             .expect("check final status");
-    assert_eq!(status, "sent", "replayed notification should reach sent status");
+    assert_eq!(
+        status, "sent",
+        "replayed notification should reach sent status"
+    );
 }
 
 #[tokio::test]
@@ -542,18 +561,20 @@ async fn e2e_dlq_replay_idempotent_no_double_send() {
     .expect("first replay");
 
     // Second replay attempt should be a no-op (status is no longer dead_lettered)
-    let (status,): (String,) = sqlx::query_as(
-        "SELECT status FROM scheduled_notifications WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .expect("check status before second replay");
+    let (status,): (String,) =
+        sqlx::query_as("SELECT status FROM scheduled_notifications WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("check status before second replay");
     assert_eq!(status, "pending", "already replayed to pending");
 
     // Attempting to replay again: guard rejects because status != dead_lettered
     let already_replayed = status != "dead_lettered";
-    assert!(already_replayed, "second replay should be rejected by guard");
+    assert!(
+        already_replayed,
+        "second replay should be rejected by guard"
+    );
 }
 
 #[tokio::test]
@@ -565,13 +586,12 @@ async fn e2e_dlq_abandon_marks_terminal() {
     // Abandon via Guard → Mutation → Outbox
     let mut tx = pool.begin().await.expect("begin tx");
 
-    let (status,): (String,) = sqlx::query_as(
-        "SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE",
-    )
-    .bind(id)
-    .fetch_one(&mut *tx)
-    .await
-    .expect("guard check");
+    let (status,): (String,) =
+        sqlx::query_as("SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await
+            .expect("guard check");
     assert_eq!(status, "dead_lettered");
 
     sqlx::query(
@@ -607,13 +627,12 @@ async fn e2e_dlq_abandon_marks_terminal() {
     tx.commit().await.expect("commit abandon");
 
     // Verify final status
-    let (status, abandoned_at): (String, Option<DateTime<Utc>>) = sqlx::query_as(
-        "SELECT status, abandoned_at FROM scheduled_notifications WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .expect("check abandoned status");
+    let (status, abandoned_at): (String, Option<DateTime<Utc>>) =
+        sqlx::query_as("SELECT status, abandoned_at FROM scheduled_notifications WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("check abandoned status");
     assert_eq!(status, "abandoned");
     assert!(abandoned_at.is_some(), "abandoned_at should be set");
 
@@ -643,5 +662,8 @@ async fn e2e_dlq_abandon_marks_terminal() {
             .fetch_one(&pool)
             .await
             .expect("check still abandoned");
-    assert_eq!(still_abandoned, "abandoned", "abandoned items must not be dispatched");
+    assert_eq!(
+        still_abandoned, "abandoned",
+        "abandoned items must not be dispatched"
+    );
 }

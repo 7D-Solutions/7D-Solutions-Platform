@@ -56,9 +56,7 @@ pub async fn count_webhooks<'e>(
     event_type: Option<&str>,
     status: Option<&str>,
 ) -> Result<i64, sqlx::Error> {
-    let mut sql = String::from(
-        "SELECT COUNT(*) as total FROM ar_webhooks WHERE app_id = $1",
-    );
+    let mut sql = String::from("SELECT COUNT(*) as total FROM ar_webhooks WHERE app_id = $1");
     let mut param = 1;
 
     if event_type.is_some() {
@@ -161,10 +159,7 @@ pub async fn insert_webhook<'e>(
 }
 
 /// Set webhook status to processing.
-pub async fn set_processing<'e>(
-    executor: impl PgExecutor<'e>,
-    id: i32,
-) -> Result<(), sqlx::Error> {
+pub async fn set_processing<'e>(executor: impl PgExecutor<'e>, id: i32) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE ar_webhooks
@@ -197,10 +192,7 @@ pub async fn set_replay_processing<'e>(
 }
 
 /// Set webhook status to processed.
-pub async fn set_processed<'e>(
-    executor: impl PgExecutor<'e>,
-    id: i32,
-) -> Result<(), sqlx::Error> {
+pub async fn set_processed<'e>(executor: impl PgExecutor<'e>, id: i32) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE ar_webhooks

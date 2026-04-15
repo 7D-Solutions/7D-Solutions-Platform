@@ -12,12 +12,12 @@ use ap::domain::bills::void::void_bill;
 use ap::domain::bills::{
     ApproveBillRequest, CreateBillLineRequest, CreateBillRequest, VoidBillRequest,
 };
+use ap::domain::tax::ZeroTaxProvider;
 use ap::domain::vendors::service::create_vendor;
 use ap::domain::vendors::CreateVendorRequest;
 use chrono::Utc;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
-use ap::domain::tax::ZeroTaxProvider;
 use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
@@ -128,7 +128,10 @@ async fn audit_oracle_create_bill() {
     let entity_id = bill.bill.bill_id.to_string();
 
     let count = count_audit_events(&pool, &entity_id, "CreateVendorBill").await;
-    assert_eq!(count, 1, "Expected exactly 1 audit record for CreateVendorBill");
+    assert_eq!(
+        count, 1,
+        "Expected exactly 1 audit record for CreateVendorBill"
+    );
 
     let mc = fetch_mutation_class(&pool, &entity_id, "CreateVendorBill").await;
     assert_eq!(mc, "CREATE", "mutation_class should be CREATE");
@@ -191,7 +194,10 @@ async fn audit_oracle_approve_bill() {
     assert_eq!(count, 1, "Expected exactly 1 audit record for ApproveBill");
 
     let mc = fetch_mutation_class(&pool, &entity_id, "ApproveBill").await;
-    assert_eq!(mc, "STATE_TRANSITION", "mutation_class should be STATE_TRANSITION");
+    assert_eq!(
+        mc, "STATE_TRANSITION",
+        "mutation_class should be STATE_TRANSITION"
+    );
 }
 
 // ============================================================================

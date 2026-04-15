@@ -381,9 +381,12 @@ impl WorkOrderRepo {
             "WorkOrder".to_string(),
             wo.work_order_id.to_string(),
         );
-        AuditWriter::write_in_tx(&mut tx, audit_req).await
+        AuditWriter::write_in_tx(&mut tx, audit_req)
+            .await
             .map_err(|e| match e {
-                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::Database(db) => {
+                    WorkOrderError::Database(db)
+                }
                 platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                     WorkOrderError::Database(sqlx::Error::Protocol(msg))
                 }
@@ -412,9 +415,8 @@ impl WorkOrderRepo {
         .await?
         .ok_or(WorkOrderError::NotFound)?;
 
-        let current = WorkOrderStatus::from_str(&wo.status).ok_or_else(|| {
-            WorkOrderError::Validation(format!("Unknown status: {}", wo.status))
-        })?;
+        let current = WorkOrderStatus::from_str(&wo.status)
+            .ok_or_else(|| WorkOrderError::Validation(format!("Unknown status: {}", wo.status)))?;
 
         if current != WorkOrderStatus::Draft {
             return Err(WorkOrderError::InvalidTransition {
@@ -463,9 +465,12 @@ impl WorkOrderRepo {
             "WorkOrder".to_string(),
             work_order_id.to_string(),
         );
-        AuditWriter::write_in_tx(&mut tx, audit_req).await
+        AuditWriter::write_in_tx(&mut tx, audit_req)
+            .await
             .map_err(|e| match e {
-                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::Database(db) => {
+                    WorkOrderError::Database(db)
+                }
                 platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                     WorkOrderError::Database(sqlx::Error::Protocol(msg))
                 }
@@ -494,9 +499,8 @@ impl WorkOrderRepo {
         .await?
         .ok_or(WorkOrderError::NotFound)?;
 
-        let current = WorkOrderStatus::from_str(&wo.status).ok_or_else(|| {
-            WorkOrderError::Validation(format!("Unknown status: {}", wo.status))
-        })?;
+        let current = WorkOrderStatus::from_str(&wo.status)
+            .ok_or_else(|| WorkOrderError::Validation(format!("Unknown status: {}", wo.status)))?;
 
         if current != WorkOrderStatus::Released {
             return Err(WorkOrderError::InvalidTransition {
@@ -545,9 +549,12 @@ impl WorkOrderRepo {
             "WorkOrder".to_string(),
             work_order_id.to_string(),
         );
-        AuditWriter::write_in_tx(&mut tx, audit_req).await
+        AuditWriter::write_in_tx(&mut tx, audit_req)
+            .await
             .map_err(|e| match e {
-                platform_audit::writer::AuditWriterError::Database(db) => WorkOrderError::Database(db),
+                platform_audit::writer::AuditWriterError::Database(db) => {
+                    WorkOrderError::Database(db)
+                }
                 platform_audit::writer::AuditWriterError::InvalidRequest(msg) => {
                     WorkOrderError::Database(sqlx::Error::Protocol(msg))
                 }
@@ -899,12 +906,11 @@ impl WorkOrderRepo {
         .await
         .map_err(WorkOrderError::Database)?;
 
-        let total: (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1")
-                .bind(tenant_id)
-                .fetch_one(pool)
-                .await
-                .map_err(WorkOrderError::Database)?;
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await
+            .map_err(WorkOrderError::Database)?;
 
         Ok((rows, total.0))
     }

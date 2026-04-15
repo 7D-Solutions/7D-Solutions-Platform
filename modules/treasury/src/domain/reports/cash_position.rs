@@ -200,11 +200,23 @@ mod tests {
 
         // Insert transactions for both
         reports_repo::insert_test_bank_txn(
-            &pool, TEST_APP, bank.id, "2026-02-01", 100000, "USD", "cp-bank-1",
+            &pool,
+            TEST_APP,
+            bank.id,
+            "2026-02-01",
+            100000,
+            "USD",
+            "cp-bank-1",
         )
         .await;
         reports_repo::insert_test_bank_txn(
-            &pool, TEST_APP, cc.id, "2026-02-05", -30000, "USD", "cp-cc-1",
+            &pool,
+            TEST_APP,
+            cc.id,
+            "2026-02-05",
+            -30000,
+            "USD",
+            "cp-cc-1",
         )
         .await;
 
@@ -270,7 +282,13 @@ mod tests {
 
         // Insert a transaction after the statement
         reports_repo::insert_test_bank_txn(
-            &pool, TEST_APP, bank.id, "2026-02-10", 15000, "EUR", "cp-eur-1",
+            &pool,
+            TEST_APP,
+            bank.id,
+            "2026-02-10",
+            15000,
+            "EUR",
+            "cp-eur-1",
         )
         .await;
 

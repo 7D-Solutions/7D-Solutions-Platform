@@ -8,8 +8,8 @@ use crate::domain::numbering_client::NumberingClient;
 use crate::domain::outbox::enqueue_event;
 use crate::events::{self, BomEventType};
 
-use crate::domain::bom_service::BomError;
 use super::{get_eco, insert_audit};
+use crate::domain::bom_service::BomError;
 
 pub async fn create_eco(
     pool: &PgPool,
@@ -81,7 +81,8 @@ pub async fn create_eco(
 
     // Best-effort confirm after successful INSERT.
     if let Some(nc) = numbering {
-        nc.confirm_eco_number(correlation_id, auth_header, claims).await;
+        nc.confirm_eco_number(correlation_id, auth_header, claims)
+            .await;
     }
 
     Ok(eco)

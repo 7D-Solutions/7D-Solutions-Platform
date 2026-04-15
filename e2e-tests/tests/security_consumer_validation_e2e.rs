@@ -72,7 +72,7 @@ async fn run_migrations(pool: &PgPool) {
         .expect("event_dlq migration");
     // Backfill payload_hash column if the table predates the column addition.
     sqlx::raw_sql(
-        "ALTER TABLE event_dlq ADD COLUMN IF NOT EXISTS payload_hash TEXT NOT NULL DEFAULT ''"
+        "ALTER TABLE event_dlq ADD COLUMN IF NOT EXISTS payload_hash TEXT NOT NULL DEFAULT ''",
     )
     .execute(pool)
     .await
@@ -154,14 +154,17 @@ fn build_consumer_with_spy(
 async fn forged_envelope_empty_tenant_rejected_to_dlq() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tag = Uuid::new_v4().simple().to_string();
     let stream_name = create_test_stream(&js, &tag).await;
     let subject = format!("test.secval.{tag}.events.item");
 
-    let (consumer, handler_calls) = build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
+    let (consumer, handler_calls) =
+        build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
     let health = consumer.health();
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -193,7 +196,11 @@ async fn forged_envelope_empty_tenant_rejected_to_dlq() {
 
     // DLQ counter must be incremented.
     let snap = health.snapshot();
-    assert!(snap.messages_dlq >= 1, "expected DLQ entry, got dlq={}", snap.messages_dlq);
+    assert!(
+        snap.messages_dlq >= 1,
+        "expected DLQ entry, got dlq={}",
+        snap.messages_dlq
+    );
 
     // Verify DLQ row in real Postgres.
     let row = sqlx::query_as::<_, (String, String)>(
@@ -231,14 +238,17 @@ async fn forged_envelope_empty_tenant_rejected_to_dlq() {
 async fn malformed_json_rejected_to_dlq() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tag = Uuid::new_v4().simple().to_string();
     let stream_name = create_test_stream(&js, &tag).await;
     let subject = format!("test.secval.{tag}.events.item");
 
-    let (consumer, handler_calls) = build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
+    let (consumer, handler_calls) =
+        build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
     let health = consumer.health();
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -266,7 +276,11 @@ async fn malformed_json_rejected_to_dlq() {
 
     // DLQ counter must be incremented.
     let snap = health.snapshot();
-    assert!(snap.messages_dlq >= 1, "expected DLQ entry, got dlq={}", snap.messages_dlq);
+    assert!(
+        snap.messages_dlq >= 1,
+        "expected DLQ entry, got dlq={}",
+        snap.messages_dlq
+    );
 
     // Verify at least one DLQ entry with "poison" kind exists for this subject.
     let row = sqlx::query_as::<_, (String,)>(
@@ -276,7 +290,10 @@ async fn malformed_json_rejected_to_dlq() {
     .fetch_optional(&pool)
     .await
     .expect("DLQ query");
-    assert!(row.is_some(), "DLQ entry must exist for malformed JSON on subject {subject}");
+    assert!(
+        row.is_some(),
+        "DLQ entry must exist for malformed JSON on subject {subject}"
+    );
 
     let _ = shutdown_tx.send(true);
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
@@ -298,14 +315,17 @@ async fn malformed_json_rejected_to_dlq() {
 async fn forged_envelope_nil_event_id_rejected_to_dlq() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tag = Uuid::new_v4().simple().to_string();
     let stream_name = create_test_stream(&js, &tag).await;
     let subject = format!("test.secval.{tag}.events.item");
 
-    let (consumer, handler_calls) = build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
+    let (consumer, handler_calls) =
+        build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
     let health = consumer.health();
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -334,7 +354,10 @@ async fn forged_envelope_nil_event_id_rejected_to_dlq() {
     );
 
     let snap = health.snapshot();
-    assert!(snap.messages_dlq >= 1, "expected DLQ entry for nil event_id");
+    assert!(
+        snap.messages_dlq >= 1,
+        "expected DLQ entry for nil event_id"
+    );
 
     // nil UUID DLQ entry — the consumer uses the nil UUID as event_id in the DLQ.
     let row = sqlx::query_as::<_, (String, String)>(
@@ -347,7 +370,10 @@ async fn forged_envelope_nil_event_id_rejected_to_dlq() {
 
     let (kind, msg) = row.expect("DLQ entry must exist for nil event_id");
     assert_eq!(kind, "poison");
-    assert!(msg.contains("event_id"), "error should mention event_id: {msg}");
+    assert!(
+        msg.contains("event_id"),
+        "error should mention event_id: {msg}"
+    );
 
     let _ = shutdown_tx.send(true);
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
@@ -377,8 +403,8 @@ async fn wildcard_subjects_rejected_by_validation() {
     );
 
     // Star wildcard
-    let err = validate_incoming(&good_envelope, "inventory.*")
-        .expect_err("wildcard * must be rejected");
+    let err =
+        validate_incoming(&good_envelope, "inventory.*").expect_err("wildcard * must be rejected");
     assert!(
         matches!(err, ValidationError::Subject(_)),
         "expected Subject error, got: {err}"
@@ -386,8 +412,8 @@ async fn wildcard_subjects_rejected_by_validation() {
     assert!(err.to_string().contains("wildcard '*'"));
 
     // Greater-than wildcard
-    let err = validate_incoming(&good_envelope, "inventory.>")
-        .expect_err("wildcard > must be rejected");
+    let err =
+        validate_incoming(&good_envelope, "inventory.>").expect_err("wildcard > must be rejected");
     assert!(
         matches!(err, ValidationError::Subject(_)),
         "expected Subject error, got: {err}"
@@ -410,8 +436,7 @@ async fn wildcard_subjects_rejected_by_validation() {
     assert!(matches!(err, ValidationError::Subject(_)));
 
     // Empty subject
-    let err =
-        validate_incoming(&good_envelope, "").expect_err("empty subject must be rejected");
+    let err = validate_incoming(&good_envelope, "").expect_err("empty subject must be rejected");
     assert!(matches!(err, ValidationError::Subject(_)));
 
     // Valid subject must pass
@@ -426,14 +451,17 @@ async fn wildcard_subjects_rejected_by_validation() {
 async fn forged_envelope_bad_schema_version_rejected_to_dlq() {
     let Some(pool) = get_pool().await else { return };
     run_migrations(&pool).await;
-    let Some(nats) = nats_client().await else { return };
+    let Some(nats) = nats_client().await else {
+        return;
+    };
     let js = jetstream::new(nats.clone());
 
     let tag = Uuid::new_v4().simple().to_string();
     let stream_name = create_test_stream(&js, &tag).await;
     let subject = format!("test.secval.{tag}.events.item");
 
-    let (consumer, handler_calls) = build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
+    let (consumer, handler_calls) =
+        build_consumer_with_spy(nats.clone(), &stream_name, &tag, pool.clone());
     let health = consumer.health();
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
@@ -465,7 +493,10 @@ async fn forged_envelope_bad_schema_version_rejected_to_dlq() {
     );
 
     let snap = health.snapshot();
-    assert!(snap.messages_dlq >= 1, "expected DLQ entry for bad schema_version");
+    assert!(
+        snap.messages_dlq >= 1,
+        "expected DLQ entry for bad schema_version"
+    );
 
     let row = sqlx::query_as::<_, (String, String)>(
         "SELECT failure_kind, error_message FROM event_dlq WHERE event_id = $1",

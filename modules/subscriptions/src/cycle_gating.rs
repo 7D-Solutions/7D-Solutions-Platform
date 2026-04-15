@@ -354,8 +354,14 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date")
+        );
     }
 
     #[test]
@@ -363,8 +369,14 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 12, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date")
+        );
     }
 
     #[test]
@@ -372,8 +384,14 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 1, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date")
+        );
     }
 
     #[test]
@@ -382,14 +400,21 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2024, 2, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"));
-        assert_eq!(end, NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"));
+        assert_eq!(
+            start,
+            NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date")
+        );
+        assert_eq!(
+            end,
+            NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date")
+        );
     }
 
     #[test]
     fn test_advisory_lock_key_determinism() {
         let tenant_id = "tenant-123";
-        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
+        let subscription_id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
         let cycle_key = "2026-02";
 
         let key1 = generate_advisory_lock_key(tenant_id, subscription_id, cycle_key);
@@ -414,7 +439,8 @@ mod tests {
     #[test]
     fn test_advisory_lock_key_cycle_uniqueness() {
         let tenant_id = "tenant-123";
-        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
+        let subscription_id =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
 
         let key1 = generate_advisory_lock_key(tenant_id, subscription_id, "2026-02");
         let key2 = generate_advisory_lock_key(tenant_id, subscription_id, "2026-03");

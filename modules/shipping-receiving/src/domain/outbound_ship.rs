@@ -36,7 +36,9 @@ pub enum OutboundShipError {
     #[error("Shipment must be in packed state to ship outbound (current: {current})")]
     NotPackable { current: String },
 
-    #[error("Quality gate: {hold_count} final inspection(s) on hold — supply override_reason to bypass")]
+    #[error(
+        "Quality gate: {hold_count} final inspection(s) on hold — supply override_reason to bypass"
+    )]
     QualityGateHold { hold_count: usize },
 
     #[error("Quality gate bypass requires quality_inspection.mutate permission")]
@@ -104,9 +106,10 @@ impl OutboundShipService {
         }
 
         // ── Step 2: Collect source WO IDs from shipment lines ──
-        let lines = ShipmentRepository::get_lines_for_shipment(pool, req.shipment_id, req.tenant_id)
-            .await
-            .map_err(|e| ShipmentError::Database(e))?;
+        let lines =
+            ShipmentRepository::get_lines_for_shipment(pool, req.shipment_id, req.tenant_id)
+                .await
+                .map_err(|e| ShipmentError::Database(e))?;
 
         let wo_ids: Vec<Uuid> = lines
             .iter()

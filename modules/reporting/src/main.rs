@@ -11,6 +11,7 @@ use reporting::{http, metrics, AppState};
 // ── OpenAPI spec ─────────────────────────────────────────────────────────────
 
 use platform_http_contracts::ApiError;
+use platform_http_contracts::{PaginatedResponse, PaginationMeta};
 use reporting::domain::{
     aging::{ap_aging, ar_aging},
     forecast::types::{AtRiskItem, CashForecastResponse, CurrencyForecast, ForecastHorizon},
@@ -22,11 +23,10 @@ use reporting::domain::{
         pl::{PlAccountLine, PlSection, PlStatement},
     },
 };
-use platform_http_contracts::{PaginatedResponse, PaginationMeta};
 use reporting::http::{
     admin::{
-        RebuildRequest, CursorStatusSchema, ProjectionStatusSchema,
-        ConsistencyCheckSchema, ProjectionSummarySchema,
+        ConsistencyCheckSchema, CursorStatusSchema, ProjectionStatusSchema,
+        ProjectionSummarySchema, RebuildRequest,
     },
     aging::ArAgingResponse,
 };
@@ -136,9 +136,7 @@ async fn main() {
                 .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
                 .route("/api/reporting/kpis", get(http::kpis::get_kpis))
                 .route("/api/reporting/forecast", get(http::forecast::get_forecast))
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::REPORTING_READ,
-                ]))
+                .route_layer(RequirePermissionsLayer::new(&[permissions::REPORTING_READ]))
                 .with_state(app_state);
 
             Router::new()

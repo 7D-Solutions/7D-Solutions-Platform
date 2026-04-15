@@ -143,12 +143,7 @@ async fn transition(client: &Client, jwt: &str, shipment_id: Uuid, to_status: &s
         .expect("transition request");
     let s = resp.status();
     let body: Value = resp.json().await.expect("transition body");
-    assert_eq!(
-        s,
-        StatusCode::OK,
-        "transition to {to_status}: {}",
-        body
-    );
+    assert_eq!(s, StatusCode::OK, "transition to {to_status}: {}", body);
     println!("  -> {} ok", to_status);
 }
 
@@ -222,7 +217,10 @@ async fn add_wo_line_and_set_qty(
     let body: Value = add_resp.json().await.expect("WO line body");
     // Some implementations may not support source_ref_type yet — fall back gracefully
     if s != StatusCode::CREATED {
-        eprintln!("  add WO-linked line returned {}: {} — falling back to plain line", s, body);
+        eprintln!(
+            "  add WO-linked line returned {}: {} — falling back to plain line",
+            s, body
+        );
         return add_line_and_set_qty(client, jwt, shipment_id, sku, qty).await;
     }
     let line_id = Uuid::parse_str(body["id"].as_str().expect("line id")).unwrap();

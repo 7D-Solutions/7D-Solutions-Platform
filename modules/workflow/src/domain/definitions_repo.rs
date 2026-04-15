@@ -61,10 +61,7 @@ impl DefinitionRepo {
         let mut seen = std::collections::HashSet::new();
         for sid in &step_ids {
             if !seen.insert(sid) {
-                return Err(DefError::Validation(format!(
-                    "duplicate step_id: {}",
-                    sid
-                )));
+                return Err(DefError::Validation(format!("duplicate step_id: {}", sid)));
             }
         }
 
@@ -149,10 +146,7 @@ impl DefinitionRepo {
         .ok_or(DefError::NotFound)
     }
 
-    pub async fn count(
-        pool: &PgPool,
-        q: &ListDefinitionsQuery,
-    ) -> Result<i64, DefError> {
+    pub async fn count(pool: &PgPool, q: &ListDefinitionsQuery) -> Result<i64, DefError> {
         let active_only = q.active_only.unwrap_or(false);
         let row: (i64,) = if active_only {
             sqlx::query_as(
@@ -162,12 +156,10 @@ impl DefinitionRepo {
             .fetch_one(pool)
             .await?
         } else {
-            sqlx::query_as(
-                "SELECT COUNT(*) FROM workflow_definitions WHERE tenant_id = $1",
-            )
-            .bind(&q.tenant_id)
-            .fetch_one(pool)
-            .await?
+            sqlx::query_as("SELECT COUNT(*) FROM workflow_definitions WHERE tenant_id = $1")
+                .bind(&q.tenant_id)
+                .fetch_one(pool)
+                .await?
         };
         Ok(row.0)
     }

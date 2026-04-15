@@ -178,10 +178,14 @@ async fn inventory_receipt_idempotency_replay() {
 
     let req = test_receipt_req(&tenant_id, item.id);
 
-    let (r1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first call");
+    let (r1, is_replay1) = process_receipt(&pool, &req, None)
+        .await
+        .expect("first call");
     assert!(!is_replay1);
 
-    let (r2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second call");
+    let (r2, is_replay2) = process_receipt(&pool, &req, None)
+        .await
+        .expect("second call");
     assert!(is_replay2, "second call must be a replay");
 
     // Stored result must be identical

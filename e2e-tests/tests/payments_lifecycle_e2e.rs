@@ -70,13 +70,11 @@ async fn create_payment_attempt(
 
 /// Get payment attempt status as text.
 async fn get_attempt_status(pool: &PgPool, attempt_id: Uuid) -> String {
-    sqlx::query_scalar::<_, String>(
-        "SELECT status::text FROM payment_attempts WHERE id = $1",
-    )
-    .bind(attempt_id)
-    .fetch_one(pool)
-    .await
-    .expect("fetch attempt status failed")
+    sqlx::query_scalar::<_, String>("SELECT status::text FROM payment_attempts WHERE id = $1")
+        .bind(attempt_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch attempt status failed")
 }
 
 /// Create AR customer; return SERIAL id.
@@ -184,13 +182,8 @@ async fn test_payment_lifecycle_attempting_to_succeeded() {
     let app_id = common::generate_test_tenant();
     let payment_id = Uuid::new_v4();
 
-    let attempt_id = create_payment_attempt(
-        &payments_pool,
-        &app_id,
-        payment_id,
-        "inv-test-001",
-    )
-    .await;
+    let attempt_id =
+        create_payment_attempt(&payments_pool, &app_id, payment_id, "inv-test-001").await;
 
     assert_eq!(
         get_attempt_status(&payments_pool, attempt_id).await,
@@ -256,13 +249,11 @@ async fn test_partial_payment_allocation() {
     );
 
     // Verify invoice is still open (partial payment doesn't close it)
-    let invoice_status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1",
-    )
-    .bind(invoice_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("fetch invoice status");
+    let invoice_status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("fetch invoice status");
 
     // Invoice remains open after partial payment
     assert_eq!(
@@ -281,14 +272,13 @@ async fn test_partial_payment_allocation() {
 
     let remaining = 50_000i64 - total_allocated;
     assert_eq!(
-        remaining, 20_000,
+        remaining,
+        20_000,
         "remaining balance must be $200.00, got ${:.2}",
         remaining as f64 / 100.0
     );
 
-    println!(
-        "PASS: partial payment — allocated $300 of $500, remaining $200"
-    );
+    println!("PASS: partial payment — allocated $300 of $500, remaining $200");
     cleanup_ar(&ar_pool, &app_id).await;
 }
 
@@ -305,13 +295,8 @@ async fn test_payment_lifecycle_retry_path() {
     let app_id = common::generate_test_tenant();
     let payment_id = Uuid::new_v4();
 
-    let attempt_id = create_payment_attempt(
-        &payments_pool,
-        &app_id,
-        payment_id,
-        "inv-retry-001",
-    )
-    .await;
+    let attempt_id =
+        create_payment_attempt(&payments_pool, &app_id, payment_id, "inv-retry-001").await;
 
     // ATTEMPTING → FAILED_RETRY
     transition_to_failed_retry(&payments_pool, attempt_id, "PSP timeout")
@@ -357,13 +342,8 @@ async fn test_payment_lifecycle_terminal_guard() {
     let app_id = common::generate_test_tenant();
     let payment_id = Uuid::new_v4();
 
-    let attempt_id = create_payment_attempt(
-        &payments_pool,
-        &app_id,
-        payment_id,
-        "inv-terminal-001",
-    )
-    .await;
+    let attempt_id =
+        create_payment_attempt(&payments_pool, &app_id, payment_id, "inv-terminal-001").await;
 
     // Move to SUCCEEDED (terminal)
     transition_to_succeeded(&payments_pool, attempt_id, "PSP confirmed")
@@ -452,10 +432,7 @@ async fn test_multi_currency_payment_allocation() {
     .await
     .expect("query allocations");
 
-    assert_eq!(
-        db_alloc, 20_000,
-        "DB allocation must match: 200.00 EUR"
-    );
+    assert_eq!(db_alloc, 20_000, "DB allocation must match: 200.00 EUR");
 
     println!("PASS: multi-currency — EUR payment allocated successfully");
     cleanup_ar(&ar_pool, &app_id).await;

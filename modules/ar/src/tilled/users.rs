@@ -71,10 +71,7 @@ impl TilledClient {
     }
 
     /// Impersonate a user — returns an access token for acting as that user.
-    pub async fn impersonate_user(
-        &self,
-        user_id: &str,
-    ) -> Result<UserImpersonation, TilledError> {
+    pub async fn impersonate_user(&self, user_id: &str) -> Result<UserImpersonation, TilledError> {
         let path = format!("/v1/users/{user_id}/impersonate");
         self.post(&path, &serde_json::json!({})).await
     }
@@ -184,23 +181,23 @@ mod tests {
             name: Some("User Test".to_string()),
         };
 
-        let value = serde_json::to_value(payload).unwrap();
-        assert_eq!(value.get("email").unwrap(), "user@example.com");
-        assert_eq!(value.get("role").unwrap(), "merchant_admin");
-        assert_eq!(value.get("password").unwrap(), "Test1234");
-        assert_eq!(value.get("name").unwrap(), "User Test");
+        let value = serde_json::to_value(payload).expect("test fixture");
+        assert_eq!(value.get("email").expect("test fixture"), "user@example.com");
+        assert_eq!(value.get("role").expect("test fixture"), "merchant_admin");
+        assert_eq!(value.get("password").expect("test fixture"), "Test1234");
+        assert_eq!(value.get("name").expect("test fixture"), "User Test");
     }
 
     #[test]
     fn update_user_payload_omits_none_fields() {
         let payload = UpdateUserRequest { name: None };
-        let value = serde_json::to_value(payload).unwrap();
+        let value = serde_json::to_value(payload).expect("test fixture");
         assert!(value.get("name").is_none());
 
         let payload = UpdateUserRequest {
             name: Some("Updated User".to_string()),
         };
-        let value = serde_json::to_value(payload).unwrap();
-        assert_eq!(value.get("name").unwrap(), "Updated User");
+        let value = serde_json::to_value(payload).expect("test fixture");
+        assert_eq!(value.get("name").expect("test fixture"), "Updated User");
     }
 }

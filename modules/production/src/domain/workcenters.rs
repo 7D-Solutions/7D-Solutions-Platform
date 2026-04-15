@@ -144,10 +144,7 @@ impl WorkcenterRepo {
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return WorkcenterError::DuplicateCode(
-                        req.code.clone(),
-                        req.tenant_id.clone(),
-                    );
+                    return WorkcenterError::DuplicateCode(req.code.clone(), req.tenant_id.clone());
                 }
             }
             WorkcenterError::Database(e)

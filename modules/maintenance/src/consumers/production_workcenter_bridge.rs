@@ -151,7 +151,10 @@ pub async fn start_workcenter_bridge(bus: Arc<dyn EventBus>, pool: PgPool) {
         let subject = subject.to_string();
 
         tokio::spawn(async move {
-            tracing::info!("Starting production→maintenance workcenter bridge: {}", subject);
+            tracing::info!(
+                "Starting production→maintenance workcenter bridge: {}",
+                subject
+            );
             let mut stream = match bus.subscribe(&subject).await {
                 Ok(s) => s,
                 Err(e) => {
@@ -202,13 +205,12 @@ async fn process_workcenter_message(pool: &PgPool, msg: &BusMessage) -> Result<(
                 .map_err(|e| format!("Failed to parse workcenter_updated: {}", e))?;
 
         // For updates, we need the existing name since the update payload only has code
-        let existing_name: Option<(String,)> = sqlx::query_as(
-            "SELECT name FROM workcenter_projections WHERE workcenter_id = $1",
-        )
-        .bind(envelope.payload.workcenter_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| format!("DB error: {}", e))?;
+        let existing_name: Option<(String,)> =
+            sqlx::query_as("SELECT name FROM workcenter_projections WHERE workcenter_id = $1")
+                .bind(envelope.payload.workcenter_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| format!("DB error: {}", e))?;
 
         let name = existing_name
             .map(|r| r.0)
@@ -230,13 +232,12 @@ async fn process_workcenter_message(pool: &PgPool, msg: &BusMessage) -> Result<(
             serde_json::from_slice(&msg.payload)
                 .map_err(|e| format!("Failed to parse workcenter_deactivated: {}", e))?;
 
-        let existing_name: Option<(String,)> = sqlx::query_as(
-            "SELECT name FROM workcenter_projections WHERE workcenter_id = $1",
-        )
-        .bind(envelope.payload.workcenter_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| format!("DB error: {}", e))?;
+        let existing_name: Option<(String,)> =
+            sqlx::query_as("SELECT name FROM workcenter_projections WHERE workcenter_id = $1")
+                .bind(envelope.payload.workcenter_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| format!("DB error: {}", e))?;
 
         let name = existing_name
             .map(|r| r.0)

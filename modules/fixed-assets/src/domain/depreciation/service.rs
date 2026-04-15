@@ -48,14 +48,8 @@ impl DepreciationService {
             asset.useful_life_months,
         );
 
-        repo::insert_schedule_batch(
-            pool,
-            &req.tenant_id,
-            asset.id,
-            &asset.currency,
-            &periods,
-        )
-        .await?;
+        repo::insert_schedule_batch(pool, &req.tenant_id, asset.id, &asset.currency, &periods)
+            .await?;
 
         // Always return the full current schedule from the DB (may include pre-existing rows).
         let schedules = repo::fetch_schedules(pool, asset.id, &req.tenant_id).await?;
@@ -100,9 +94,14 @@ impl DepreciationService {
             ids.len() as i32
         };
 
-        let completed =
-            repo::finalize_run(&mut *tx, run.id, assets_processed, periods_posted, total_minor)
-                .await?;
+        let completed = repo::finalize_run(
+            &mut *tx,
+            run.id,
+            assets_processed,
+            periods_posted,
+            total_minor,
+        )
+        .await?;
 
         let gl_entry_data =
             repo::query_gl_entries_for_run(&mut tx, completed.id, &req.tenant_id).await?;

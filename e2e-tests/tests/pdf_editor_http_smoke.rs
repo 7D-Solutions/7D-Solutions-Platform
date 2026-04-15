@@ -42,8 +42,7 @@ fn dev_private_key_pem() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    std::env::var("JWT_PRIVATE_KEY_PEM")
-        .expect("JWT_PRIVATE_KEY_PEM must be set in .env")
+    std::env::var("JWT_PRIVATE_KEY_PEM").expect("JWT_PRIVATE_KEY_PEM must be set in .env")
 }
 
 fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
@@ -126,10 +125,7 @@ async fn pdf_editor_http_smoke() {
     assert_eq!(status, 200, "pdf-editor service must be healthy");
 
     let tenant_id = Uuid::new_v4().to_string();
-    let token = sign_jwt(
-        &tenant_id,
-        &["pdf_editor.read", "pdf_editor.mutate"],
-    );
+    let token = sign_jwt(&tenant_id, &["pdf_editor.read", "pdf_editor.mutate"]);
 
     let uid = Uuid::new_v4().to_string();
     let uid = uid.split('-').next().unwrap_or("smoke");
@@ -152,7 +148,11 @@ async fn pdf_editor_http_smoke() {
             "created_by": "smoke-test"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("1. POST /api/pdf/forms/templates: {} body_len={}", s, resp_body.len());
+        println!(
+            "1. POST /api/pdf/forms/templates: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -167,7 +167,11 @@ async fn pdf_editor_http_smoke() {
     {
         let url = format!("{}/api/pdf/forms/templates", base);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("2. GET /api/pdf/forms/templates: {} body_len={}", s, resp_body.len());
+        println!(
+            "2. GET /api/pdf/forms/templates: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -179,7 +183,12 @@ async fn pdf_editor_http_smoke() {
     if let Some(tid) = template_id {
         let url = format!("{}/api/pdf/forms/templates/{}", base, tid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("3. GET /api/pdf/forms/templates/{}: {} body_len={}", tid, s, resp_body.len());
+        println!(
+            "3. GET /api/pdf/forms/templates/{}: {} body_len={}",
+            tid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -197,7 +206,12 @@ async fn pdf_editor_http_smoke() {
             "description": "Updated by smoke test"
         });
         let (s, resp_body) = put_json(&client, &url, &token, &body).await;
-        println!("4. PUT /api/pdf/forms/templates/{}: {} body_len={}", tid, s, resp_body.len());
+        println!(
+            "4. PUT /api/pdf/forms/templates/{}: {} body_len={}",
+            tid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -221,7 +235,11 @@ async fn pdf_editor_http_smoke() {
             "field_type": "text"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("5. POST fields (field1): {} body_len={}", s, resp_body.len());
+        println!(
+            "5. POST fields (field1): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -244,7 +262,11 @@ async fn pdf_editor_http_smoke() {
             "field_type": "date"
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("6. POST fields (field2): {} body_len={}", s, resp_body.len());
+        println!(
+            "6. POST fields (field2): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -261,7 +283,12 @@ async fn pdf_editor_http_smoke() {
     if let Some(tid) = template_id {
         let url = format!("{}/api/pdf/forms/templates/{}/fields", base, tid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("7. GET /api/pdf/forms/templates/{}/fields: {} body_len={}", tid, s, resp_body.len());
+        println!(
+            "7. GET /api/pdf/forms/templates/{}/fields: {} body_len={}",
+            tid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -322,7 +349,11 @@ async fn pdf_editor_http_smoke() {
             }
         });
         let (s, resp_body) = post_json(&client, &url, &token, &body).await;
-        println!("10. POST /api/pdf/forms/submissions: {} body_len={}", s, resp_body.len());
+        println!(
+            "10. POST /api/pdf/forms/submissions: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 201 {
             passed += 1;
             let v: Value = serde_json::from_str(&resp_body).unwrap_or_default();
@@ -339,7 +370,11 @@ async fn pdf_editor_http_smoke() {
     {
         let url = format!("{}/api/pdf/forms/submissions", base);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("11. GET /api/pdf/forms/submissions: {} body_len={}", s, resp_body.len());
+        println!(
+            "11. GET /api/pdf/forms/submissions: {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -351,7 +386,12 @@ async fn pdf_editor_http_smoke() {
     if let Some(sid) = submission_id {
         let url = format!("{}/api/pdf/forms/submissions/{}", base, sid);
         let (s, resp_body) = get_json(&client, &url, &token).await;
-        println!("12. GET submissions/{}: {} body_len={}", sid, s, resp_body.len());
+        println!(
+            "12. GET submissions/{}: {} body_len={}",
+            sid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -371,7 +411,12 @@ async fn pdf_editor_http_smoke() {
             }
         });
         let (s, resp_body) = put_json(&client, &url, &token, &body).await;
-        println!("13. PUT submissions/{} (autosave): {} body_len={}", sid, s, resp_body.len());
+        println!(
+            "13. PUT submissions/{} (autosave): {} body_len={}",
+            sid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -385,7 +430,12 @@ async fn pdf_editor_http_smoke() {
     if let Some(sid) = submission_id {
         let url = format!("{}/api/pdf/forms/submissions/{}/submit", base, sid);
         let (s, resp_body) = post_json(&client, &url, &token, &json!({})).await;
-        println!("14. POST submissions/{}/submit: {} body_len={}", sid, s, resp_body.len());
+        println!(
+            "14. POST submissions/{}/submit: {} body_len={}",
+            sid,
+            s,
+            resp_body.len()
+        );
         if s == 200 {
             passed += 1;
         } else {
@@ -419,7 +469,12 @@ async fn pdf_editor_http_smoke() {
             .unwrap_or_else(|e| panic!("POST {} failed: {}", url, e));
         let s = resp.status().as_u16();
         let resp_body = resp.text().await.unwrap_or_default();
-        println!("15. POST submissions/{}/generate (fake PDF): {} body_len={}", sid, s, resp_body.len());
+        println!(
+            "15. POST submissions/{}/generate (fake PDF): {} body_len={}",
+            sid,
+            s,
+            resp_body.len()
+        );
         // 400 = InvalidMagic (route healthy, PDF rejected), 200 = success, both acceptable
         if s == 400 || s == 200 || s == 422 {
             passed += 1;
@@ -462,7 +517,11 @@ async fn pdf_editor_http_smoke() {
             .unwrap_or_else(|e| panic!("POST {} failed: {}", url, e));
         let s = resp.status().as_u16();
         let resp_body = resp.text().await.unwrap_or_default();
-        println!("16. POST /api/pdf/render-annotations (no auth): {} body_len={}", s, resp_body.len());
+        println!(
+            "16. POST /api/pdf/render-annotations (no auth): {} body_len={}",
+            s,
+            resp_body.len()
+        );
         if s == 200 || s == 400 {
             println!("   render-annotations route healthy ({})", s);
         } else {

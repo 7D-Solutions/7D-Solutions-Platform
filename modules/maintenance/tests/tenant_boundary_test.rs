@@ -13,8 +13,7 @@
 
 use maintenance_rs::domain::assets::{AssetRepo, CreateAssetRequest};
 use maintenance_rs::domain::work_orders::{
-    CreateWorkOrderRequest, ListWorkOrdersQuery, WoPartsRepo, AddPartRequest,
-    WorkOrderRepo,
+    AddPartRequest, CreateWorkOrderRequest, ListWorkOrdersQuery, WoPartsRepo, WorkOrderRepo,
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -197,7 +196,10 @@ async fn concurrent_work_orders_are_tenant_isolated() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(cross_leak, 0, "Tenant B must not have Tenant A's asset in WOs");
+    assert_eq!(
+        cross_leak, 0,
+        "Tenant B must not have Tenant A's asset in WOs"
+    );
 
     let cross_leak_rev: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1 AND asset_id = $2",
@@ -207,7 +209,10 @@ async fn concurrent_work_orders_are_tenant_isolated() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(cross_leak_rev, 0, "Tenant A must not have Tenant B's asset in WOs");
+    assert_eq!(
+        cross_leak_rev, 0,
+        "Tenant A must not have Tenant B's asset in WOs"
+    );
 
     // Verify WO numbers are independently sequenced per tenant
     let a_numbers: Vec<String> = a_wos.iter().map(|wo| wo.wo_number.clone()).collect();
@@ -267,7 +272,10 @@ async fn find_by_id_respects_tenant_boundary() {
     let cross_asset = AssetRepo::find_by_id(&pool, asset_a, &tenant_b)
         .await
         .unwrap();
-    assert!(cross_asset.is_none(), "Tenant B must NOT see Tenant A's asset");
+    assert!(
+        cross_asset.is_none(),
+        "Tenant B must NOT see Tenant A's asset"
+    );
 
     cleanup_tenant(&pool, &tenant_a).await;
     cleanup_tenant(&pool, &tenant_b).await;
@@ -339,7 +347,10 @@ async fn parts_respect_tenant_boundary() {
 
     // Tenant A tries to list parts on tenant B's WO — WO not found (tenant filter)
     let cross = WoPartsRepo::list(&pool, wo_b.id, &tenant_a).await;
-    assert!(cross.is_err(), "Tenant A listing parts on B's WO should fail");
+    assert!(
+        cross.is_err(),
+        "Tenant A listing parts on B's WO should fail"
+    );
 
     cleanup_tenant(&pool, &tenant_a).await;
     cleanup_tenant(&pool, &tenant_b).await;
@@ -360,31 +371,35 @@ async fn all_core_tables_scope_by_tenant() {
     let asset_a = create_asset(&pool, &tenant_a, "ASSET-SCOPE-A").await;
     let asset_b = create_asset(&pool, &tenant_b, "ASSET-SCOPE-B").await;
 
-    WorkOrderRepo::create(&pool, &wo_req(&tenant_a, asset_a)).await.unwrap();
-    WorkOrderRepo::create(&pool, &wo_req(&tenant_b, asset_b)).await.unwrap();
+    WorkOrderRepo::create(&pool, &wo_req(&tenant_a, asset_a))
+        .await
+        .unwrap();
+    WorkOrderRepo::create(&pool, &wo_req(&tenant_b, asset_b))
+        .await
+        .unwrap();
 
     // Verify each tenant-scoped table has data for both tenants, scoped correctly
-    let tables = vec![
-        "maintainable_assets",
-        "work_orders",
-        "wo_counters",
-    ];
+    let tables = vec!["maintainable_assets", "work_orders", "wo_counters"];
 
     for table in &tables {
-        let a_count: i64 =
-            sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {} WHERE tenant_id = $1", table))
-                .bind(&tenant_a)
-                .fetch_one(&pool)
-                .await
-                .unwrap_or_else(|e| panic!("query {} for tenant_a: {}", table, e));
+        let a_count: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM {} WHERE tenant_id = $1",
+            table
+        ))
+        .bind(&tenant_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|e| panic!("query {} for tenant_a: {}", table, e));
         assert!(a_count > 0, "{} should have rows for tenant A", table);
 
-        let b_count: i64 =
-            sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {} WHERE tenant_id = $1", table))
-                .bind(&tenant_b)
-                .fetch_one(&pool)
-                .await
-                .unwrap_or_else(|e| panic!("query {} for tenant_b: {}", table, e));
+        let b_count: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM {} WHERE tenant_id = $1",
+            table
+        ))
+        .bind(&tenant_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|e| panic!("query {} for tenant_b: {}", table, e));
         assert!(b_count > 0, "{} should have rows for tenant B", table);
 
         // Verify isolation: rows for A don't appear under B's tenant_id
@@ -398,7 +413,8 @@ async fn all_core_tables_scope_by_tenant() {
         .await
         .unwrap_or_else(|e| panic!("total query {}: {}", table, e));
         assert_eq!(
-            a_count + b_count, total,
+            a_count + b_count,
+            total,
             "{}: sum of per-tenant counts must equal total for both tenants",
             table
         );

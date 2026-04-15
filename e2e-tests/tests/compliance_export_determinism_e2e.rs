@@ -203,14 +203,26 @@ async fn test_compliance_export_determinism() {
     let export2_dir = temp_dir.join(format!("compliance-export-2-{}", Uuid::new_v4()));
 
     // Run first export
-    export_compliance_data(&tenant_id, export1_dir.to_str().unwrap(), "json", None, None)
-        .await
-        .expect("First export failed");
+    export_compliance_data(
+        &tenant_id,
+        export1_dir.to_str().unwrap(),
+        "json",
+        None,
+        None,
+    )
+    .await
+    .expect("First export failed");
 
     // Run second export
-    export_compliance_data(&tenant_id, export2_dir.to_str().unwrap(), "json", None, None)
-        .await
-        .expect("Second export failed");
+    export_compliance_data(
+        &tenant_id,
+        export2_dir.to_str().unwrap(),
+        "json",
+        None,
+        None,
+    )
+    .await
+    .expect("Second export failed");
 
     // Read manifests
     let manifest1_path = export1_dir.join("manifest.json");
@@ -325,9 +337,15 @@ async fn test_compliance_export_tenant_isolation() {
     let temp_dir = std::env::temp_dir();
     let export_dir = temp_dir.join(format!("compliance-export-isolation-{}", Uuid::new_v4()));
 
-    export_compliance_data(&tenant1_id, export_dir.to_str().unwrap(), "json", None, None)
-        .await
-        .expect("Export failed");
+    export_compliance_data(
+        &tenant1_id,
+        export_dir.to_str().unwrap(),
+        "json",
+        None,
+        None,
+    )
+    .await
+    .expect("Export failed");
 
     // Read exported data and verify tenant isolation
     let ar_invoices_path = export_dir.join("ar_invoices.jsonl");

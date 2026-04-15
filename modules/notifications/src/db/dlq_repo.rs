@@ -34,10 +34,7 @@ pub struct StatusOnly {
     pub status: String,
 }
 
-pub async fn count_dead_lettered(
-    pool: &PgPool,
-    tenant_id: &str,
-) -> Result<i64, sqlx::Error> {
+pub async fn count_dead_lettered(pool: &PgPool, tenant_id: &str) -> Result<i64, sqlx::Error> {
     let (count,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM scheduled_notifications \
          WHERE status = 'dead_lettered' AND tenant_id = $1",

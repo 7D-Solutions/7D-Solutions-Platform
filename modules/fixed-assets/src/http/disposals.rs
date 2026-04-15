@@ -15,8 +15,8 @@ use uuid::Uuid;
 use crate::domain::disposals::{DisposalService, DisposeAssetRequest};
 use crate::AppState;
 
-use platform_sdk::extract_tenant;
 use super::helpers::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 #[utoipa::path(
     post, path = "/api/fixed-assets/disposals", tag = "Disposals",

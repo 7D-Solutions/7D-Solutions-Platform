@@ -32,9 +32,8 @@ async fn simulate_create_attachment(
     entity_id: &str,
     filename: &str,
 ) {
-    let s3_key = format!(
-        "tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/08/{filename}"
-    );
+    let s3_key =
+        format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/08/{filename}");
 
     let mut tx = pool.begin().await.expect("begin tx");
 
@@ -65,15 +64,13 @@ async fn simulate_create_attachment(
         "uploaded_by": actor_id,
     });
 
-    sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("docmgmt.attachment.created")
-    .bind("docmgmt.attachment.created")
-    .bind(outbox_payload)
-    .execute(&mut *tx)
-    .await
-    .expect("insert doc_outbox");
+    sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+        .bind("docmgmt.attachment.created")
+        .bind("docmgmt.attachment.created")
+        .bind(outbox_payload)
+        .execute(&mut *tx)
+        .await
+        .expect("insert doc_outbox");
 
     tx.commit().await.expect("commit tx");
 }
@@ -111,11 +108,30 @@ async fn attachment_outbox_row_inserted_with_correct_subject_and_payload() {
     let (subject, payload) = row.expect("doc_outbox row must exist after attachment creation");
 
     assert_eq!(subject, "docmgmt.attachment.created");
-    assert_eq!(payload["attachment_id"].as_str().expect("field must be string"), attachment_id.to_string());
-    assert_eq!(payload["entity_type"].as_str().expect("field must be string"), "ap_bill");
-    assert_eq!(payload["entity_id"].as_str().expect("field must be string"), entity_id);
-    assert_eq!(payload["filename"].as_str().expect("field must be string"), "invoice.pdf");
-    assert_eq!(payload["mime_type"].as_str().expect("field must be string"), "application/pdf");
+    assert_eq!(
+        payload["attachment_id"]
+            .as_str()
+            .expect("field must be string"),
+        attachment_id.to_string()
+    );
+    assert_eq!(
+        payload["entity_type"]
+            .as_str()
+            .expect("field must be string"),
+        "ap_bill"
+    );
+    assert_eq!(
+        payload["entity_id"].as_str().expect("field must be string"),
+        entity_id
+    );
+    assert_eq!(
+        payload["filename"].as_str().expect("field must be string"),
+        "invoice.pdf"
+    );
+    assert_eq!(
+        payload["mime_type"].as_str().expect("field must be string"),
+        "application/pdf"
+    );
 
     // attachment row must also be present
     let att_exists: bool = sqlx::query_scalar(
@@ -136,9 +152,8 @@ async fn attachment_outbox_rollback_removes_both_rows() {
     let actor_id = Uuid::new_v4();
     let attachment_id = Uuid::new_v4();
     let entity_id = Uuid::new_v4().to_string();
-    let s3_key = format!(
-        "tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/08/rollback-test.pdf"
-    );
+    let s3_key =
+        format!("tenants/{tenant_id}/doc-mgmt/attachment/{entity_id}/2026/04/08/rollback-test.pdf");
 
     let outbox_payload = serde_json::json!({
         "tenant_id": tenant_id,
@@ -168,26 +183,23 @@ async fn attachment_outbox_rollback_removes_both_rows() {
     .await
     .expect("insert attachment in tx");
 
-    sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("docmgmt.attachment.created")
-    .bind("docmgmt.attachment.created")
-    .bind(outbox_payload)
-    .execute(&mut *tx)
-    .await
-    .expect("insert outbox in tx");
+    sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+        .bind("docmgmt.attachment.created")
+        .bind("docmgmt.attachment.created")
+        .bind(outbox_payload)
+        .execute(&mut *tx)
+        .await
+        .expect("insert outbox in tx");
 
     // Rollback — neither row should survive
     tx.rollback().await.expect("rollback");
 
-    let att_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM attachments WHERE id = $1)",
-    )
-    .bind(attachment_id)
-    .fetch_one(&pool)
-    .await
-    .expect("check attachment");
+    let att_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM attachments WHERE id = $1)")
+            .bind(attachment_id)
+            .fetch_one(&pool)
+            .await
+            .expect("check attachment");
 
     assert!(!att_exists, "attachment must NOT exist after rollback");
 
@@ -199,5 +211,8 @@ async fn attachment_outbox_rollback_removes_both_rows() {
     .await
     .expect("check outbox");
 
-    assert!(!outbox_exists, "doc_outbox row must NOT exist after rollback");
+    assert!(
+        !outbox_exists,
+        "doc_outbox row must NOT exist after rollback"
+    );
 }

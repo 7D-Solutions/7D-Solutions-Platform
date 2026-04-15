@@ -88,13 +88,14 @@ pub async fn login(
         }
     }
 
-    let user = portal_repo::find_user_by_email(&state.pool, req.tenant_id, &req.email.to_lowercase())
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "portal auth db error");
-            with_request_id(ApiError::internal("Database error"), &ctx)
-        })?
-        .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
+    let user =
+        portal_repo::find_user_by_email(&state.pool, req.tenant_id, &req.email.to_lowercase())
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "portal auth db error");
+                with_request_id(ApiError::internal("Database error"), &ctx)
+            })?
+            .ok_or_else(|| with_request_id(ApiError::unauthorized("invalid_credentials"), &ctx))?;
 
     if !user.is_active {
         return Err(with_request_id(
@@ -141,7 +142,12 @@ pub async fn login(
     })?;
 
     portal_repo::insert_refresh_token_tx(
-        &mut tx, Uuid::new_v4(), user.tenant_id, user.id, &refresh_hash, refresh_expires_at,
+        &mut tx,
+        Uuid::new_v4(),
+        user.tenant_id,
+        user.id,
+        &refresh_hash,
+        refresh_expires_at,
     )
     .await
     .map_err(|e| {
@@ -159,7 +165,10 @@ pub async fn login(
     if let Some(key) = req.idempotency_key.as_ref() {
         if !key.trim().is_empty() {
             portal_repo::insert_idempotency_tx(
-                &mut tx, user.tenant_id, "login", key,
+                &mut tx,
+                user.tenant_id,
+                "login",
+                key,
                 &serde_json::json!({"access_token": access_token, "refresh_token": refresh_raw}),
             )
             .await
@@ -256,7 +265,12 @@ pub async fn refresh(
         })?;
 
     portal_repo::insert_refresh_token_tx(
-        &mut tx, Uuid::new_v4(), tenant_id, user_id, &new_refresh_hash, new_exp,
+        &mut tx,
+        Uuid::new_v4(),
+        tenant_id,
+        user_id,
+        &new_refresh_hash,
+        new_exp,
     )
     .await
     .map_err(|e| {

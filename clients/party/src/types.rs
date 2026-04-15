@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -434,4 +434,3 @@ pub struct UpdatePartyRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<String>,
 }
-

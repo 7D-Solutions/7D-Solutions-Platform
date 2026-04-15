@@ -177,15 +177,10 @@ pub(super) async fn process_invoice_event(
         _ => "open",
     };
 
-    let updated = charges::webhook_update_invoice_event(
-        db,
-        status,
-        &event.data,
-        tilled_invoice_id,
-        app_id,
-    )
-    .await
-    .map_err(|e| format!("Failed to update invoice: {}", e))?;
+    let updated =
+        charges::webhook_update_invoice_event(db, status, &event.data, tilled_invoice_id, app_id)
+            .await
+            .map_err(|e| format!("Failed to update invoice: {}", e))?;
 
     if updated == 0 {
         tracing::info!(

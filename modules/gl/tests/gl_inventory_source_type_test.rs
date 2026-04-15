@@ -68,10 +68,7 @@ fn make_received_payload(tenant_id: &str, source_type: &str) -> ItemReceivedPayl
     }
 }
 
-async fn get_journal_lines(
-    pool: &sqlx::PgPool,
-    source_event_id: Uuid,
-) -> Vec<(String, i64, i64)> {
+async fn get_journal_lines(pool: &sqlx::PgPool, source_event_id: Uuid) -> Vec<(String, i64, i64)> {
     let entry_id: Option<Uuid> =
         sqlx::query_scalar("SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1")
             .bind(source_event_id)
@@ -116,17 +113,25 @@ fn test_tenant() -> String {
 }
 
 async fn setup_gl_accounts(pool: &sqlx::PgPool, tenant_id: &str) {
-    setup_test_account(pool, tenant_id, "COGS", "Cost of Goods Sold", "expense", "debit").await;
-    setup_test_account(pool, tenant_id, "INVENTORY", "Inventory Asset", "asset", "debit").await;
     setup_test_account(
         pool,
         tenant_id,
-        "WIP",
-        "Work in Process",
+        "COGS",
+        "Cost of Goods Sold",
+        "expense",
+        "debit",
+    )
+    .await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "INVENTORY",
+        "Inventory Asset",
         "asset",
         "debit",
     )
     .await;
+    setup_test_account(pool, tenant_id, "WIP", "Work in Process", "asset", "debit").await;
 
     setup_test_period(
         pool,

@@ -65,10 +65,7 @@ pub struct LoggingSender;
 
 #[async_trait]
 impl NotificationSender for LoggingSender {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         tracing::info!(
             id = %notif.id,
             recipient = %notif.recipient_ref,
@@ -118,10 +115,7 @@ impl HttpEmailSender {
 
 #[async_trait]
 impl NotificationSender for HttpEmailSender {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         let to = Self::resolve_recipient(notif)?;
         let body = serde_json::json!({
             "to": to,
@@ -150,18 +144,20 @@ impl NotificationSender for HttpEmailSender {
             .map(ToOwned::to_owned);
 
         match status {
-            s if s.is_success() => Ok(SendReceipt { provider_message_id }),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(NotificationError::ProviderAuth(
-                format!("provider returned status {status}"),
-            )),
+            s if s.is_success() => Ok(SendReceipt {
+                provider_message_id,
+            }),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(
+                NotificationError::ProviderAuth(format!("provider returned status {status}")),
+            ),
             StatusCode::TOO_MANY_REQUESTS => Err(NotificationError::RateLimited(
                 "provider returned 429".to_string(),
             )),
-            StatusCode::BAD_REQUEST
-            | StatusCode::NOT_FOUND
-            | StatusCode::UNPROCESSABLE_ENTITY => Err(NotificationError::InvalidRecipient(
-                format!("provider rejected recipient/status {status}"),
-            )),
+            StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND | StatusCode::UNPROCESSABLE_ENTITY => {
+                Err(NotificationError::InvalidRecipient(format!(
+                    "provider rejected recipient/status {status}"
+                )))
+            }
             s if s.is_server_error() => Err(NotificationError::Transient(format!(
                 "provider server error status {s}"
             ))),
@@ -201,10 +197,7 @@ impl SendGridEmailSender {
 
 #[async_trait]
 impl NotificationSender for SendGridEmailSender {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         let to = HttpEmailSender::resolve_recipient(notif)?;
 
         let personalizations = if let Some(template_id) = notif
@@ -268,17 +261,15 @@ impl NotificationSender for SendGridEmailSender {
             .map(ToOwned::to_owned);
 
         match status {
-            s if s.is_success() => Ok(SendReceipt { provider_message_id }),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                Err(NotificationError::ProviderAuth(format!(
-                    "SendGrid returned status {status}"
-                )))
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                Err(NotificationError::RateLimited(
-                    "SendGrid returned 429".to_string(),
-                ))
-            }
+            s if s.is_success() => Ok(SendReceipt {
+                provider_message_id,
+            }),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(
+                NotificationError::ProviderAuth(format!("SendGrid returned status {status}")),
+            ),
+            StatusCode::TOO_MANY_REQUESTS => Err(NotificationError::RateLimited(
+                "SendGrid returned 429".to_string(),
+            )),
             StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
                 let body_text = resp.text().await.unwrap_or_default();
                 Err(NotificationError::Permanent(format!(
@@ -308,10 +299,7 @@ use std::sync::Arc;
 
 #[async_trait]
 impl NotificationSender for ChannelRouter {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         match notif.channel.as_str() {
             "email" => self.email.send(notif).await,
             "sms" => self.sms.send(notif).await,
@@ -363,10 +351,7 @@ impl HttpSmsSender {
 
 #[async_trait]
 impl NotificationSender for HttpSmsSender {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         let to = Self::resolve_recipient(notif)?;
         let body = serde_json::json!({
             "to": to,
@@ -395,18 +380,20 @@ impl NotificationSender for HttpSmsSender {
             .map(ToOwned::to_owned);
 
         match status {
-            s if s.is_success() => Ok(SendReceipt { provider_message_id }),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(NotificationError::ProviderAuth(
-                format!("SMS provider returned status {status}"),
-            )),
+            s if s.is_success() => Ok(SendReceipt {
+                provider_message_id,
+            }),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(
+                NotificationError::ProviderAuth(format!("SMS provider returned status {status}")),
+            ),
             StatusCode::TOO_MANY_REQUESTS => Err(NotificationError::RateLimited(
                 "SMS provider returned 429".to_string(),
             )),
-            StatusCode::BAD_REQUEST
-            | StatusCode::NOT_FOUND
-            | StatusCode::UNPROCESSABLE_ENTITY => Err(NotificationError::InvalidRecipient(
-                format!("SMS provider rejected recipient/status {status}"),
-            )),
+            StatusCode::BAD_REQUEST | StatusCode::NOT_FOUND | StatusCode::UNPROCESSABLE_ENTITY => {
+                Err(NotificationError::InvalidRecipient(format!(
+                    "SMS provider rejected recipient/status {status}"
+                )))
+            }
             s if s.is_server_error() => Err(NotificationError::Transient(format!(
                 "SMS provider server error status {s}"
             ))),
@@ -438,14 +425,13 @@ impl FailingSender {
 #[cfg(test)]
 #[async_trait]
 impl NotificationSender for FailingSender {
-    async fn send(
-        &self,
-        _notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, _notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         use std::sync::atomic::Ordering;
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
         if prev > 0 {
-            Err(NotificationError::Transient("simulated failure".to_string()))
+            Err(NotificationError::Transient(
+                "simulated failure".to_string(),
+            ))
         } else {
             Ok(SendReceipt::default())
         }

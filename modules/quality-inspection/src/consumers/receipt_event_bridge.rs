@@ -99,14 +99,9 @@ pub async fn process_item_received(
         )),
     };
 
-    let inspection = service::create_receiving_inspection(
-        pool,
-        tenant_id,
-        &req,
-        correlation_id,
-        causation_id,
-    )
-    .await?;
+    let inspection =
+        service::create_receiving_inspection(pool, tenant_id, &req, correlation_id, causation_id)
+            .await?;
 
     // Record event as processed (dedup guard)
     sqlx::query(
@@ -173,10 +168,8 @@ pub async fn start_receipt_event_bridge(bus: Arc<dyn EventBus>, pool: PgPool) {
 }
 
 async fn process_message(pool: &PgPool, msg: &BusMessage) -> Result<(), String> {
-    let envelope: EventEnvelope<ItemReceivedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            format!("Failed to parse item_received envelope: {}", e)
-        })?;
+    let envelope: EventEnvelope<ItemReceivedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("Failed to parse item_received envelope: {}", e))?;
 
     let correlation_id = envelope
         .correlation_id

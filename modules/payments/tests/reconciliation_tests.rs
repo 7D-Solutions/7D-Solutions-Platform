@@ -398,8 +398,9 @@ async fn test_concurrent_reconciliation_safety() {
     let mut handles = vec![];
     for _ in 0..10 {
         let pool_clone = pool.clone();
-        let handle =
-            tokio::spawn(async move { reconcile_unknown_attempt(&pool_clone, attempt_id, &TestPaymentProcessor::new()).await });
+        let handle = tokio::spawn(async move {
+            reconcile_unknown_attempt(&pool_clone, attempt_id, &TestPaymentProcessor::new()).await
+        });
         handles.push(handle);
     }
 

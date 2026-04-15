@@ -112,7 +112,10 @@ async fn role_based_broadcast_targets_only_matching_users() {
     assert!(!result.was_duplicate);
     assert_eq!(result.recipients_created, 2, "only 2 inspectors");
     assert_eq!(result.broadcast.audience_type, "role");
-    assert_eq!(result.broadcast.audience_filter.as_deref(), Some("inspector"));
+    assert_eq!(
+        result.broadcast.audience_filter.as_deref(),
+        Some("inspector")
+    );
     assert_eq!(result.broadcast.recipient_count, 2);
 
     // Verify only inspector users received it
@@ -159,7 +162,10 @@ async fn idempotent_broadcast_no_duplicate_fanout() {
     let r2 = create_broadcast_and_fan_out(&pool, &req, &users)
         .await
         .expect("duplicate broadcast");
-    assert!(r2.was_duplicate, "second call should be flagged as duplicate");
+    assert!(
+        r2.was_duplicate,
+        "second call should be flagged as duplicate"
+    );
     assert_eq!(r2.recipients_created, 0, "no new recipients on duplicate");
 
     // Verify only 3 total recipients exist (not 6)
@@ -390,10 +396,16 @@ async fn empty_audience_creates_broadcast_with_zero_recipients() {
         .expect("empty audience broadcast");
 
     assert!(!result.was_duplicate);
-    assert_eq!(result.recipients_created, 0, "no recipients for empty audience");
+    assert_eq!(
+        result.recipients_created, 0,
+        "no recipients for empty audience"
+    );
     assert_eq!(result.broadcast.recipient_count, 0);
     assert_eq!(result.broadcast.status, "fan_out_complete");
-    assert_eq!(result.broadcast.audience_filter.as_deref(), Some("nonexistent_role"));
+    assert_eq!(
+        result.broadcast.audience_filter.as_deref(),
+        Some("nonexistent_role")
+    );
 
     // Audit record exists (the broadcast itself serves as the audit record)
     let fetched = get_broadcast(&pool, &tenant, result.broadcast.id)
@@ -419,5 +431,8 @@ async fn empty_audience_creates_broadcast_with_zero_recipients() {
     .fetch_one(&pool)
     .await
     .expect("count outbox");
-    assert!(count >= 1, "broadcast.created event should exist even for empty audience");
+    assert!(
+        count >= 1,
+        "broadcast.created event should exist even for empty audience"
+    );
 }

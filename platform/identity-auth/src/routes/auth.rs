@@ -43,9 +43,6 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
         )
         .route("/api/auth/roles", get(handlers::list_roles))
         .route("/api/auth/permissions", get(handlers::list_permissions))
-        .route(
-            "/api/auth/admin/users",
-            get(handlers::list_users_admin),
-        )
+        .route("/api/auth/admin/users", get(handlers::list_users_admin))
         .with_state(state)
 }

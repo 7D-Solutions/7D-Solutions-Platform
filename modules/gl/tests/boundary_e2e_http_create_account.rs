@@ -190,10 +190,18 @@ async fn test_duplicate_code_returns_409() {
         .send()
         .await
         .expect("Failed to send request");
-    assert_eq!(resp2.status(), 409, "Expected 409 Conflict for duplicate code");
+    assert_eq!(
+        resp2.status(),
+        409,
+        "Expected 409 Conflict for duplicate code"
+    );
 
     let err: ErrorResponse = resp2.json().await.expect("Failed to parse error response");
-    assert!(err.error.contains("already exists"), "Error should mention 'already exists': {}", err.error);
+    assert!(
+        err.error.contains("already exists"),
+        "Error should mention 'already exists': {}",
+        err.error
+    );
 
     cleanup_test_data(&pool, &tenant_id).await;
 }
@@ -261,7 +269,11 @@ async fn test_different_tenants_same_code() {
         .send()
         .await
         .expect("Failed to send request");
-    assert_eq!(resp_b.status(), 201, "Tenant B should also get 201 — different tenant, same code");
+    assert_eq!(
+        resp_b.status(),
+        201,
+        "Tenant B should also get 201 — different tenant, same code"
+    );
 
     cleanup_test_data(&pool, &tenant_a).await;
     cleanup_test_data(&pool, &tenant_b).await;

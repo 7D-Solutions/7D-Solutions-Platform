@@ -71,11 +71,7 @@ async fn cleanup(pool: &PgPool) {
         .ok();
 }
 
-fn sample_req(
-    bill_id: Uuid,
-    line_id: Uuid,
-    gl_account_code: &str,
-) -> CapitalizeFromApLineRequest {
+fn sample_req(bill_id: Uuid, line_id: Uuid, gl_account_code: &str) -> CapitalizeFromApLineRequest {
     CapitalizeFromApLineRequest {
         tenant_id: TEST_TENANT.to_string(),
         bill_id,
@@ -175,12 +171,11 @@ async fn test_idempotent_on_replay() {
     );
 
     // Only one asset should exist
-    let (count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
-            .bind(TEST_TENANT)
-            .fetch_one(&pool)
-            .await
-            .expect("asset count");
+    let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+        .bind(TEST_TENANT)
+        .fetch_one(&pool)
+        .await
+        .expect("asset count");
     assert_eq!(count, 1, "idempotent replay must not duplicate assets");
 
     cleanup(&pool).await;

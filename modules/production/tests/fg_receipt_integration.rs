@@ -102,10 +102,16 @@ async fn fg_receipt_request_creates_outbox_event() {
     assert_eq!(event_type, "production.fg_receipt.requested");
 
     let p = &payload["payload"];
-    assert_eq!(p["work_order_id"].as_str(), Some(wo_id.to_string().as_str()));
+    assert_eq!(
+        p["work_order_id"].as_str(),
+        Some(wo_id.to_string().as_str())
+    );
     assert_eq!(p["tenant_id"].as_str(), Some(tenant.as_str()));
     assert_eq!(p["item_id"].as_str(), Some(item_id.to_string().as_str()));
-    assert_eq!(p["warehouse_id"].as_str(), Some(warehouse_id.to_string().as_str()));
+    assert_eq!(
+        p["warehouse_id"].as_str(),
+        Some(warehouse_id.to_string().as_str())
+    );
     assert_eq!(p["quantity"].as_i64(), Some(5));
     assert_eq!(p["currency"].as_str(), Some("usd"));
 }

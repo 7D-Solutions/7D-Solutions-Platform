@@ -77,8 +77,7 @@ pub async fn create_individual(
 
     let mut tx = pool.begin().await?;
 
-    let party =
-        party_repo::insert_party_individual_tx(&mut tx, party_id, app_id, req, now).await?;
+    let party = party_repo::insert_party_individual_tx(&mut tx, party_id, app_id, req, now).await?;
     let individual = party_repo::insert_individual_tx(&mut tx, party_id, req, now).await?;
 
     let payload = PartyCreatedPayload {

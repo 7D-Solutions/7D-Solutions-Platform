@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use crate::domain::kpis::{compute_kpis, KpiSnapshot};
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 // ── Query params ─────────────────────────────────────────────────────────────
 

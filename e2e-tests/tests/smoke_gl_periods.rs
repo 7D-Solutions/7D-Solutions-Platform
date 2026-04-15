@@ -44,15 +44,14 @@ fn dev_private_key_pem() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env"),
     )
     .ok();
-    std::env::var("JWT_PRIVATE_KEY_PEM").expect(
-        "JWT_PRIVATE_KEY_PEM must be set in .env — needed to sign test JWTs",
-    )
+    std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set in .env — needed to sign test JWTs")
 }
 
 fn sign_jwt(tenant_id: &str, perms: &[&str]) -> String {
     let pem = dev_private_key_pem();
-    let encoding = EncodingKey::from_rsa_pem(pem.as_bytes())
-        .expect("failed to parse JWT_PRIVATE_KEY_PEM");
+    let encoding =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("failed to parse JWT_PRIVATE_KEY_PEM");
     let now = Utc::now();
     let claims = TestClaims {
         sub: Uuid::new_v4().to_string(),
@@ -83,12 +82,7 @@ fn make_client() -> Client {
 // ============================================================================
 
 /// POST JSON with auth and return (status, body).
-async fn post_json(
-    client: &Client,
-    url: &str,
-    token: &str,
-    body: &Value,
-) -> (u16, String) {
+async fn post_json(client: &Client, url: &str, token: &str, body: &Value) -> (u16, String) {
     let resp = client
         .post(url)
         .header("Authorization", format!("Bearer {}", token))
@@ -161,9 +155,8 @@ async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
 }
 
 async fn get_gl_pool() -> sqlx::PgPool {
-    let url = std::env::var("GL_DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string()
-    });
+    let url = std::env::var("GL_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(3)
         .acquire_timeout(Duration::from_secs(10))
@@ -326,7 +319,10 @@ async fn smoke_gl_periods() {
                 println!("6. POST checklist waive: SKIPPED (no item_id)");
             }
         } else {
-            println!("6. POST checklist waive: SKIPPED (create second item failed: {})", s);
+            println!(
+                "6. POST checklist waive: SKIPPED (create second item failed: {})",
+                s
+            );
         }
     }
 
@@ -373,17 +369,8 @@ async fn smoke_gl_periods() {
     // (This is actually POST — validate close is a POST with a body)
     // ------------------------------------------------------------------
     {
-        let url = format!(
-            "{}/api/gl/periods/{}/validate-close",
-            GL_BASE, period_id
-        );
-        let (s, body) = post_json(
-            &client,
-            &url,
-            &token,
-            &json!({"tenant_id": tenant_id}),
-        )
-        .await;
+        let url = format!("{}/api/gl/periods/{}/validate-close", GL_BASE, period_id);
+        let (s, body) = post_json(&client, &url, &token, &json!({"tenant_id": tenant_id})).await;
         println!("9. POST validate-close: {} body_len={}", s, body.len());
         if s == 200 {
             passed += 1;
@@ -485,7 +472,11 @@ async fn smoke_gl_periods() {
                 &json!({"rejected_by": "smoke-test-approver", "reject_reason": "Not needed"}),
             )
             .await;
-            println!("12. POST reopen reject (fallback): {} body_len={}", s, body.len());
+            println!(
+                "12. POST reopen reject (fallback): {} body_len={}",
+                s,
+                body.len()
+            );
             // 404 (request not found) or 400 is acceptable — proves route exists
             if s == 200 || s == 400 || s == 404 || s == 409 {
                 passed += 1;
@@ -518,7 +509,11 @@ async fn smoke_gl_periods() {
     // ------------------------------------------------------------------
     {
         let url = format!("{}/api/gl/periods/{}/close-status", GL_BASE, period_id);
-        let resp = client.get(&url).send().await.expect("GET without token failed");
+        let resp = client
+            .get(&url)
+            .send()
+            .await
+            .expect("GET without token failed");
         let s = resp.status().as_u16();
         println!("AUTH: GET close-status without token: {}", s);
         assert_eq!(s, 401, "unauthenticated request must return 401");

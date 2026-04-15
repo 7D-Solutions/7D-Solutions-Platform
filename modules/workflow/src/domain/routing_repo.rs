@@ -264,8 +264,7 @@ impl RoutingEngine {
         pool: &PgPool,
         req: &EvaluateConditionRequest,
     ) -> Result<ConditionResult, RoutingError> {
-        let instance =
-            InstanceRepo::get(pool, &req.tenant_id, req.instance_id).await?;
+        let instance = InstanceRepo::get(pool, &req.tenant_id, req.instance_id).await?;
 
         if instance.status != InstanceStatus::Active {
             return Err(RoutingError::NotActive);

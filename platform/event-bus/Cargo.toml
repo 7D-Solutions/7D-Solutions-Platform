@@ -1,6 +1,6 @@
 [package]
 name = "event-bus"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2021"
 description = "NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry"
 publish = ["7d-platform"]

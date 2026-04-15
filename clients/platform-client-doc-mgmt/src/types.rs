@@ -4,10 +4,10 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -264,4 +264,3 @@ pub struct SupersedeResponse {
     pub old_document_id: uuid::Uuid,
     pub old_status: String,
 }
-

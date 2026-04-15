@@ -103,10 +103,7 @@ pub async fn fetch_category_accounts(
 }
 
 /// List all disposals for a tenant.
-pub async fn list_disposals(
-    pool: &PgPool,
-    tenant_id: &str,
-) -> Result<Vec<Disposal>, sqlx::Error> {
+pub async fn list_disposals(pool: &PgPool, tenant_id: &str) -> Result<Vec<Disposal>, sqlx::Error> {
     sqlx::query_as::<_, Disposal>(&format!(
         "SELECT {} FROM fa_disposals WHERE tenant_id = $1 ORDER BY disposal_date DESC",
         DISPOSAL_COLUMNS

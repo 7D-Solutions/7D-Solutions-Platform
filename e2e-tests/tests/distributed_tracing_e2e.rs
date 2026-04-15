@@ -149,9 +149,7 @@ async fn test_trace_id_echoed_by_production_service() {
         "production service must echo back the X-Trace-Id; \
          platform_trace_middleware did not propagate the upstream trace ID"
     );
-    println!(
-        "PASS: production echoed trace_id={known_trace_id}, tenant_id={tenant_id}"
-    );
+    println!("PASS: production echoed trace_id={known_trace_id}, tenant_id={tenant_id}");
 }
 
 /// Verify that the Numbering service — a downstream service called by PlatformClient
@@ -251,9 +249,7 @@ async fn test_traceparent_parsed_by_downstream() {
         "service must extract trace_id from W3C traceparent header; \
          got '{echoed_trace}', expected '{expected_trace_id}'"
     );
-    println!(
-        "PASS: numbering extracted trace_id from traceparent; trace_id={expected_trace_id}"
-    );
+    println!("PASS: numbering extracted trace_id from traceparent; trace_id={expected_trace_id}");
 }
 
 /// Verify that the BOM service — another downstream called by PlatformClient — echoes

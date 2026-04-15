@@ -111,9 +111,7 @@ impl BlobStorageClient {
 
         if let Some(ep) = &config.endpoint {
             // Path-style addressing required for MinIO and other non-AWS providers.
-            s3_builder = s3_builder
-                .endpoint_url(ep.clone())
-                .force_path_style(true);
+            s3_builder = s3_builder.endpoint_url(ep.clone()).force_path_style(true);
         }
 
         let inner = Client::from_conf(s3_builder.build());

@@ -193,8 +193,8 @@ pub async fn execute_export(
         event_payload,
     );
 
-    let payload_json = serde_json::to_value(&envelope)
-        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+    let payload_json =
+        serde_json::to_value(&envelope).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -222,10 +222,7 @@ pub async fn execute_export(
 // Data fetching + format rendering
 // ---------------------------------------------------------------------------
 
-async fn generate_coa_export(
-    pool: &PgPool,
-    req: &ExportRequest,
-) -> Result<String, ExportError> {
+async fn generate_coa_export(pool: &PgPool, req: &ExportRequest) -> Result<String, ExportError> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         r#"
         SELECT code, name, type::text
@@ -319,7 +316,10 @@ async fn generate_journal_export(
 
 fn format_date_for_export(pg_timestamp: &str, format: ExportFormat) -> String {
     // pg_timestamp comes as "2024-02-15 00:00:00+00" or similar
-    let date_part = pg_timestamp.split_whitespace().next().unwrap_or(pg_timestamp);
+    let date_part = pg_timestamp
+        .split_whitespace()
+        .next()
+        .unwrap_or(pg_timestamp);
     match format {
         ExportFormat::QuickBooks => {
             // QuickBooks expects MM/DD/YYYY

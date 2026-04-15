@@ -64,10 +64,9 @@ use uuid::Uuid;
 use crate::context::{TenantPoolError, TenantPoolResolver};
 
 /// Boxed async function that returns the database URL for a given tenant.
-type LookupFn =
-    dyn Fn(Uuid) -> Pin<Box<dyn Future<Output = Result<String, TenantPoolError>> + Send>>
-        + Send
-        + Sync;
+type LookupFn = dyn Fn(Uuid) -> Pin<Box<dyn Future<Output = Result<String, TenantPoolError>> + Send>>
+    + Send
+    + Sync;
 
 /// Boxed async function that lists all known tenant IDs.
 type ListFn = dyn Fn() -> Pin<Box<dyn Future<Output = Result<Vec<Uuid>, TenantPoolError>> + Send>>
@@ -274,7 +273,10 @@ mod tests {
         let err = resolver.pool_for(id).await.unwrap_err();
         // The connection attempt will fail (invalid URL), but we get Pool error
         // from the lookup path — unknown tenant → Pool error.
-        assert!(matches!(err, TenantPoolError::Pool(_) | TenantPoolError::UnknownTenant(_)));
+        assert!(matches!(
+            err,
+            TenantPoolError::Pool(_) | TenantPoolError::UnknownTenant(_)
+        ));
     }
 
     #[tokio::test]
@@ -288,7 +290,10 @@ mod tests {
     async fn all_pools_with_empty_list_returns_empty_vec() {
         let resolver = stub_resolver(HashMap::new())
             .with_list_tenants(|| async { Ok::<Vec<Uuid>, TenantPoolError>(vec![]) });
-        let pools = resolver.all_pools().await.expect("all_pools should succeed with empty list");
+        let pools = resolver
+            .all_pools()
+            .await
+            .expect("all_pools should succeed with empty list");
         assert!(pools.is_empty());
     }
 }

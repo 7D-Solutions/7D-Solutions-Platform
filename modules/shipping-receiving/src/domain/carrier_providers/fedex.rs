@@ -149,9 +149,7 @@ async fn acquire_token(
 
     let status = resp.status();
     let body: Value = resp.json().await.map_err(|e| {
-        CarrierProviderError::CredentialsError(format!(
-            "FedEx OAuth response parse error: {e}"
-        ))
+        CarrierProviderError::CredentialsError(format!("FedEx OAuth response parse error: {e}"))
     })?;
 
     if !status.is_success() {
@@ -203,9 +201,10 @@ async fn fedex_post(
         .map_err(|e| CarrierProviderError::ApiError(format!("FedEx HTTP error: {e}")))?;
 
     let status = resp.status();
-    let response_body: Value = resp.json().await.map_err(|e| {
-        CarrierProviderError::ApiError(format!("FedEx response parse error: {e}"))
-    })?;
+    let response_body: Value = resp
+        .json()
+        .await
+        .map_err(|e| CarrierProviderError::ApiError(format!("FedEx response parse error: {e}")))?;
 
     if !status.is_success() {
         let msg = extract_fedex_error(&response_body);
@@ -478,15 +477,11 @@ fn parse_ship_response(body: &Value) -> Result<LabelResult, CarrierProviderError
         .to_string();
 
     let piece_responses = shipment["pieceResponses"].as_array().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "FedEx Ship response missing pieceResponses".to_string(),
-        )
+        CarrierProviderError::ApiError("FedEx Ship response missing pieceResponses".to_string())
     })?;
 
     let piece = piece_responses.first().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "FedEx Ship response has empty pieceResponses".to_string(),
-        )
+        CarrierProviderError::ApiError("FedEx Ship response has empty pieceResponses".to_string())
     })?;
 
     // Piece tracking number is authoritative; fall back to master for
@@ -556,15 +551,11 @@ fn parse_track_response(
     })?;
 
     let track_results = result["trackResults"].as_array().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "FedEx Track response missing trackResults".to_string(),
-        )
+        CarrierProviderError::ApiError("FedEx Track response missing trackResults".to_string())
     })?;
 
     let track = track_results.first().ok_or_else(|| {
-        CarrierProviderError::ApiError(
-            "FedEx Track response has empty trackResults".to_string(),
-        )
+        CarrierProviderError::ApiError("FedEx Track response has empty trackResults".to_string())
     })?;
 
     // FedEx returns a per-result error for unknown tracking numbers.
@@ -584,39 +575,36 @@ fn parse_track_response(
     let scan_events = track["scanEvents"].as_array();
 
     // Current location = city/state of the most recent scan event.
-    let location = scan_events
-        .and_then(|evs| evs.first())
-        .and_then(|ev| {
-            let city = ev["scanLocation"]["city"].as_str().unwrap_or("");
-            let state =
-                ev["scanLocation"]["stateOrProvinceCode"].as_str().unwrap_or("");
-            if city.is_empty() && state.is_empty() {
-                None
-            } else {
-                Some(
-                    format!("{city}, {state}")
-                        .trim_matches(',')
-                        .trim()
-                        .to_string(),
-                )
-            }
-        });
+    let location = scan_events.and_then(|evs| evs.first()).and_then(|ev| {
+        let city = ev["scanLocation"]["city"].as_str().unwrap_or("");
+        let state = ev["scanLocation"]["stateOrProvinceCode"]
+            .as_str()
+            .unwrap_or("");
+        if city.is_empty() && state.is_empty() {
+            None
+        } else {
+            Some(
+                format!("{city}, {state}")
+                    .trim_matches(',')
+                    .trim()
+                    .to_string(),
+            )
+        }
+    });
 
     // Estimated delivery from the ESTIMATED_DELIVERY date entry.
-    let estimated_delivery = track["dateAndTimes"]
-        .as_array()
-        .and_then(|dts| {
-            dts.iter()
-                .find(|dt| dt["type"].as_str() == Some("ESTIMATED_DELIVERY"))
-                .and_then(|dt| dt["dateTime"].as_str())
-                .map(|s| {
-                    if s.len() >= 10 {
-                        s[..10].to_string()
-                    } else {
-                        s.to_string()
-                    }
-                })
-        });
+    let estimated_delivery = track["dateAndTimes"].as_array().and_then(|dts| {
+        dts.iter()
+            .find(|dt| dt["type"].as_str() == Some("ESTIMATED_DELIVERY"))
+            .and_then(|dt| dt["dateTime"].as_str())
+            .map(|s| {
+                if s.len() >= 10 {
+                    s[..10].to_string()
+                } else {
+                    s.to_string()
+                }
+            })
+    });
 
     let mut events: Vec<TrackingEvent> = Vec::new();
     if let Some(scans) = scan_events {
@@ -626,10 +614,10 @@ fn parse_track_response(
             if desc.is_empty() {
                 continue;
             }
-            let ev_city =
-                scan["scanLocation"]["city"].as_str().unwrap_or("");
-            let ev_state =
-                scan["scanLocation"]["stateOrProvinceCode"].as_str().unwrap_or("");
+            let ev_city = scan["scanLocation"]["city"].as_str().unwrap_or("");
+            let ev_state = scan["scanLocation"]["stateOrProvinceCode"]
+                .as_str()
+                .unwrap_or("");
             let ev_location = if ev_city.is_empty() && ev_state.is_empty() {
                 None
             } else {
@@ -694,8 +682,7 @@ impl CarrierProvider for FedexCarrierProvider {
 
         let token = acquire_token(base_url, client_id, client_secret).await?;
         let body = build_ship_request(account_number, req);
-        let response =
-            fedex_post(base_url, "/ship/v1/shipments", &token, body).await?;
+        let response = fedex_post(base_url, "/ship/v1/shipments", &token, body).await?;
         parse_ship_response(&response)
     }
 
@@ -710,8 +697,7 @@ impl CarrierProvider for FedexCarrierProvider {
 
         let token = acquire_token(base_url, client_id, client_secret).await?;
         let body = build_track_request(tracking_number);
-        let response =
-            fedex_post(base_url, "/track/v1/trackingnumbers", &token, body).await?;
+        let response = fedex_post(base_url, "/track/v1/trackingnumbers", &token, body).await?;
         parse_track_response(&response, tracking_number)
     }
 }
@@ -762,14 +748,8 @@ mod tests {
         let body = build_rate_request("TEST_ACCT", &serde_json::json!({}));
         assert_eq!(body["accountNumber"]["value"], "TEST_ACCT");
         let shipment = &body["requestedShipment"];
-        assert_eq!(
-            shipment["shipper"]["address"]["postalCode"],
-            "10001"
-        );
-        assert_eq!(
-            shipment["recipient"]["address"]["postalCode"],
-            "90210"
-        );
+        assert_eq!(shipment["shipper"]["address"]["postalCode"], "10001");
+        assert_eq!(shipment["recipient"]["address"]["postalCode"], "90210");
         let pkg = &shipment["requestedPackageLineItems"][0];
         assert_eq!(pkg["weight"]["value"], 1.0);
         assert_eq!(pkg["weight"]["units"], "LB");
@@ -799,10 +779,7 @@ mod tests {
     #[test]
     fn build_ship_request_defaults_to_fedex_ground() {
         let body = build_ship_request("ACCT123", &serde_json::json!({}));
-        assert_eq!(
-            body["requestedShipment"]["serviceType"],
-            "FEDEX_GROUND"
-        );
+        assert_eq!(body["requestedShipment"]["serviceType"], "FEDEX_GROUND");
     }
 
     #[test]
@@ -820,8 +797,8 @@ mod tests {
         let body = build_ship_request("ACCT_XYZ", &serde_json::json!({}));
         assert_eq!(body["accountNumber"]["value"], "ACCT_XYZ");
         assert_eq!(
-            body["requestedShipment"]["shippingChargesPayment"]["payor"]
-                ["responsibleParty"]["accountNumber"]["value"],
+            body["requestedShipment"]["shippingChargesPayment"]["payor"]["responsibleParty"]
+                ["accountNumber"]["value"],
             "ACCT_XYZ"
         );
     }
@@ -922,7 +899,10 @@ mod tests {
 
         let quotes = parse_rate_response(&body).expect("parse failed");
         assert_eq!(quotes.len(), 1);
-        assert_eq!(quotes[0].total_charge_minor, 1850, "should use ACCOUNT rate");
+        assert_eq!(
+            quotes[0].total_charge_minor, 1850,
+            "should use ACCOUNT rate"
+        );
     }
 
     #[test]
@@ -1039,8 +1019,7 @@ mod tests {
             }
         });
 
-        let result =
-            parse_track_response(&body, "794644790138").expect("parse failed");
+        let result = parse_track_response(&body, "794644790138").expect("parse failed");
         assert_eq!(result.tracking_number, "794644790138");
         assert_eq!(result.carrier_code, "fedex");
         assert_eq!(result.status, "In transit");
@@ -1088,8 +1067,7 @@ mod tests {
             }
         });
 
-        let result =
-            parse_track_response(&body, "794644790138").expect("parse failed");
+        let result = parse_track_response(&body, "794644790138").expect("parse failed");
         assert_eq!(result.status, "Delivered");
     }
 
@@ -1127,10 +1105,7 @@ mod tests {
 
     #[test]
     fn get_base_url_defaults_to_production() {
-        assert_eq!(
-            get_base_url(&serde_json::json!({})),
-            FEDEX_PRODUCTION_URL
-        );
+        assert_eq!(get_base_url(&serde_json::json!({})), FEDEX_PRODUCTION_URL);
     }
 
     #[test]

@@ -17,9 +17,9 @@ use uuid::Uuid;
 
 use crate::db::repository::ShipmentRepository;
 use crate::domain::shipments::ShipmentError;
-use platform_sdk::extract_tenant;
 use crate::http::shipments::types::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[utoipa::path(
     get,
@@ -37,19 +37,18 @@ pub async fn shipments_by_po(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ShipmentRepository::find_shipments_by_po(&state.pool, tenant_id, po_id).await {
         Ok(shipments) => Json(serde_json::json!(shipments)).into_response(),
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -69,19 +68,18 @@ pub async fn lines_by_po_line(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(po_line_id): Path<Uuid>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ShipmentRepository::find_lines_by_po_line(&state.pool, tenant_id, po_line_id).await {
         Ok(lines) => Json(serde_json::json!(lines)).into_response(),
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -104,18 +102,17 @@ pub async fn shipments_by_source_ref(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path((ref_type, ref_id)): Path<(String, Uuid)>,
 ) -> Response {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
     match ShipmentRepository::find_by_source_ref(&state.pool, tenant_id, &ref_type, ref_id).await {
         Ok(shipments) => Json(serde_json::json!(shipments)).into_response(),
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }

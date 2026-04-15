@@ -132,7 +132,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.6.1"
+version = "3.6.2"
 dependencies = [
  "async-nats",
  "audit",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.10.3"
+version = "1.11.1"
 dependencies = [
  "argon2",
  "async-nats",
@@ -4127,7 +4127,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "payments-rs"
-version = "5.1.5"
+version = "5.1.6"
 dependencies = [
  "anyhow",
  "async-nats",
@@ -4343,7 +4343,7 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "platform-client-ap"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "chrono",
  "platform-http-contracts",
@@ -5746,7 +5746,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.8.3"
+version = "1.8.4"
 dependencies = [
  "axum",
  "base64",

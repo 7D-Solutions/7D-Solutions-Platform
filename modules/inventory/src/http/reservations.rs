@@ -23,7 +23,6 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::{
@@ -35,6 +34,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 #[utoipa::path(
     post,
@@ -62,7 +62,11 @@ pub async fn post_reserve(
     req.tenant_id = tenant_id;
     match process_reserve(&state.pool, &req).await {
         Ok((result, is_replay)) => {
-            let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+            let status = if is_replay {
+                StatusCode::OK
+            } else {
+                StatusCode::CREATED
+            };
             (status, Json(json!(result))).into_response()
         }
         Err(e) => {

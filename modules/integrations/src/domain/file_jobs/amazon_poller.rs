@@ -159,10 +159,7 @@ pub fn normalize_amazon_orders(
     let resp: GetOrdersResponse = serde_json::from_value(raw_response.clone())
         .map_err(|e| format!("failed to parse GetOrders response: {}", e))?;
 
-    let orders = resp
-        .payload
-        .and_then(|p| p.orders)
-        .unwrap_or_default();
+    let orders = resp.payload.and_then(|p| p.orders).unwrap_or_default();
 
     let payloads = orders
         .into_iter()
@@ -197,9 +194,7 @@ pub fn normalize_amazon_orders(
                 order_number: None,
                 financial_status: order.order_status,
                 line_items,
-                customer_ref: order
-                    .buyer_info
-                    .and_then(|b| b.buyer_email),
+                customer_ref: order.buyer_info.and_then(|b| b.buyer_email),
                 file_job_id: Uuid::nil(), // set by caller before persisting
                 ingested_at,
             }
@@ -226,7 +221,9 @@ pub async fn persist_amazon_order(
     let mut tx = pool.begin().await?;
 
     // Idempotency: skip if already processed
-    if let Some(_existing) = file_job_repo::find_by_idempotency_key(&mut tx, &tenant_id, &idem_key).await? {
+    if let Some(_existing) =
+        file_job_repo::find_by_idempotency_key(&mut tx, &tenant_id, &idem_key).await?
+    {
         tx.rollback().await?;
         return Ok(false);
     }
@@ -349,14 +346,8 @@ pub async fn run_poll_for_config(
 
     // Call SP-API GetOrders with retry on 429
     let sp_api_endpoint = sp_api_orders_url(marketplace_id, &last_updated_after);
-    let raw_response = call_sp_api_with_retry(
-        http_client,
-        &sp_api_endpoint,
-        seller_id,
-        &access_token,
-        3,
-    )
-    .await?;
+    let raw_response =
+        call_sp_api_with_retry(http_client, &sp_api_endpoint, seller_id, &access_token, 3).await?;
 
     // Normalise orders
     let orders = normalize_amazon_orders(&raw_response, tenant_id)?;
@@ -492,8 +483,7 @@ async fn handle_poll_trigger(
     .await?;
 
     for (config_id, tenant_id, config) in configs {
-        let result =
-            run_poll_for_config(pool, http_client, config_id, &tenant_id, &config).await;
+        let result = run_poll_for_config(pool, http_client, config_id, &tenant_id, &config).await;
         match result {
             Ok(n) => tracing::info!(
                 tenant_id = %tenant_id,
@@ -587,8 +577,8 @@ mod tests {
     #[test]
     fn normalize_amazon_orders_extracts_all_fields() {
         let response = sample_get_orders_response(&["111-2222222-3333333"]);
-        let orders = normalize_amazon_orders(&response, "tenant-test")
-            .expect("normalization failed");
+        let orders =
+            normalize_amazon_orders(&response, "tenant-test").expect("normalization failed");
 
         assert_eq!(orders.len(), 1);
         let order = &orders[0];
@@ -713,13 +703,12 @@ mod tests {
         assert!(!second, "second persist (duplicate) should return false");
 
         // Only one file_job should exist
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&pool)
-        .await
-        .expect("count query failed");
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count query failed");
         assert_eq!(count.0, 1, "exactly one file_job should exist");
 
         cleanup(&pool, tenant_id).await;
@@ -732,7 +721,11 @@ mod tests {
         let tenant_id = "test-amazon-poller-003";
         cleanup(&pool, tenant_id).await;
 
-        let order_ids = ["111-0000003-9999001", "111-0000003-9999002", "111-0000003-9999003"];
+        let order_ids = [
+            "111-0000003-9999001",
+            "111-0000003-9999002",
+            "111-0000003-9999003",
+        ];
         let response = sample_get_orders_response(&order_ids);
 
         let orders = normalize_amazon_orders(&response, tenant_id).expect("normalize failed");
@@ -740,19 +733,21 @@ mod tests {
 
         let mut new_count = 0;
         for order in orders {
-            if persist_amazon_order(&pool, order).await.expect("persist failed") {
+            if persist_amazon_order(&pool, order)
+                .await
+                .expect("persist failed")
+            {
                 new_count += 1;
             }
         }
         assert_eq!(new_count, 3, "all three orders should be new");
 
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_one(&pool)
-        .await
-        .expect("count query");
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM integrations_file_jobs WHERE tenant_id = $1")
+                .bind(tenant_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count query");
         assert_eq!(count.0, 3);
 
         cleanup(&pool, tenant_id).await;

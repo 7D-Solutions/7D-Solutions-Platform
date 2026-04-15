@@ -9,8 +9,8 @@
 //! preserve raw audit data without adding adapter-specific columns.
 
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 
 use super::super::parser::{ParseOutput, ParsedLine};
 use super::super::LineError;

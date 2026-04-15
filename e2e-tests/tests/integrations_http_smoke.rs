@@ -83,7 +83,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "DELETE" => client.delete(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -132,7 +136,9 @@ async fn smoke_integrations() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Integrations returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Integrations returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -296,11 +302,7 @@ async fn smoke_integrations() {
         .await
         .unwrap();
     let status = resp.status();
-    assert_eq!(
-        status.as_u16(),
-        204,
-        "Delete external ref failed: {status}"
-    );
+    assert_eq!(status.as_u16(), 204, "Delete external ref failed: {status}");
     println!("  external ref deleted: 204");
     assert_unauth(
         &client,
@@ -351,7 +353,10 @@ async fn smoke_integrations() {
         .as_str()
         .expect("no id in register connector response")
         .to_string();
-    println!("  connector id={connector_id} type={}", body["connector_type"]);
+    println!(
+        "  connector id={connector_id} type={}",
+        body["connector_type"]
+    );
     assert_unauth(
         &client,
         "POST",

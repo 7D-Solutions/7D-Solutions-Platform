@@ -42,7 +42,9 @@ use inventory_rs::domain::{
     },
 };
 use inventory_rs::events::contracts::{ConsumedLayer, SourceRef};
-use inventory_rs::http::batch_receipts::{BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult};
+use inventory_rs::http::batch_receipts::{
+    BatchReceiptItemResult, BatchReceiptRequest, BatchReceiptResponse,
+};
 use inventory_rs::http::cycle_counts::{ApproveBody, SubmitBody};
 use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 

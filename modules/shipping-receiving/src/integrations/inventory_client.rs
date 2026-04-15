@@ -12,9 +12,7 @@
 //! - `Deterministic` — derives stable UUIDs from idempotency keys
 //!   (same pattern as AP → Payments: `modules/ap/src/integrations/payments/`)
 
-use platform_client_inventory::{
-    IssueRequest, IssuesClient, ReceiptRequest, ReceiptsClient,
-};
+use platform_client_inventory::{IssueRequest, IssuesClient, ReceiptRequest, ReceiptsClient};
 use platform_sdk::{ClientError, PlatformClient};
 use thiserror::Error;
 use uuid::Uuid;
@@ -44,7 +42,9 @@ pub struct InventoryIntegration {
 #[derive(Debug, Clone)]
 enum Mode {
     /// SDK-wired platform client with service token.
-    Platform { client: PlatformClient },
+    Platform {
+        client: PlatformClient,
+    },
     Http {
         base_url: String,
         token: String,
@@ -120,7 +120,8 @@ impl InventoryIntegration {
             }
             Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
-                let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
+                let platform =
+                    PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
                 let receipts = ReceiptsClient::new(platform);
                 let claims = PlatformClient::service_claims(tenant_id);
                 let body = ReceiptRequest {
@@ -188,7 +189,8 @@ impl InventoryIntegration {
             }
             Mode::Http { base_url, token } => {
                 let item_id = derive_id(&format!("item:{}:{}", tenant_id, idem_key));
-                let platform = PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
+                let platform =
+                    PlatformClient::new(base_url.clone()).with_bearer_token(token.clone());
                 let issues = IssuesClient::new(platform);
                 let claims = PlatformClient::service_claims(tenant_id);
                 let body = IssueRequest {

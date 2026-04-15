@@ -9,7 +9,10 @@ use crate::handlers::AppState;
 
 pub fn api_router(state: Arc<AppState>) -> Router {
     let read_routes = Router::new()
-        .route("/api/attachments", get(crate::attachments::list_attachments))
+        .route(
+            "/api/attachments",
+            get(crate::attachments::list_attachments),
+        )
         .route(
             "/api/attachments/{id}",
             get(crate::attachments::get_attachment),
@@ -32,7 +35,10 @@ pub fn api_router(state: Arc<AppState>) -> Router {
             "/api/templates/{id}",
             get(crate::template_engine::get_template),
         )
-        .route("/api/artifacts/{id}", get(crate::template_engine::get_artifact))
+        .route(
+            "/api/artifacts/{id}",
+            get(crate::template_engine::get_artifact),
+        )
         .route_layer(RequirePermissionsLayer::new(&[permissions::DOC_MGMT_READ]));
 
     let mutate_routes = Router::new()
@@ -95,7 +101,9 @@ pub fn api_router(state: Arc<AppState>) -> Router {
             "/api/templates/{id}/render",
             post(crate::template_engine::render_template),
         )
-        .route_layer(RequirePermissionsLayer::new(&[permissions::DOC_MGMT_MUTATE]));
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::DOC_MGMT_MUTATE,
+        ]));
 
     Router::new()
         .merge(read_routes)

@@ -100,7 +100,8 @@ pub async fn metrics_handler(
     let encoder = TextEncoder::new();
     let families = state.metrics.registry().gather();
     let mut buffer = Vec::new();
-    encoder.encode(&families, &mut buffer)
+    encoder
+        .encode(&families, &mut buffer)
         .map_err(|e| ApiError::internal(format!("Failed to encode metrics: {}", e)))?;
     String::from_utf8(buffer)
         .map_err(|e| ApiError::internal(format!("Failed to convert metrics to UTF-8: {}", e)))

@@ -100,15 +100,13 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
-            let party_metrics = Arc::new(
-                metrics::PartyMetrics::new().expect("Party: failed to create metrics"),
-            );
+            let party_metrics =
+                Arc::new(metrics::PartyMetrics::new().expect("Party: failed to create metrics"));
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: party_metrics,
             });
-            http::router(app_state)
-                .route("/api/openapi.json", get(openapi_json))
+            http::router(app_state).route("/api/openapi.json", get(openapi_json))
         })
         .run()
         .await

@@ -103,8 +103,8 @@ async fn test_duplicate_asset_tag_rejected() {
         serial_number: None,
         fixed_asset_ref: None,
         metadata: None,
-            maintenance_schedule: None,
-            idempotency_key: None,
+        maintenance_schedule: None,
+        idempotency_key: None,
     };
 
     AssetRepo::create(&pool, &req).await.unwrap();
@@ -121,8 +121,8 @@ async fn test_duplicate_asset_tag_rejected() {
         serial_number: None,
         fixed_asset_ref: None,
         metadata: None,
-            maintenance_schedule: None,
-            idempotency_key: None,
+        maintenance_schedule: None,
+        idempotency_key: None,
     };
     let err = AssetRepo::create(&pool, &dup).await.unwrap_err();
     assert!(
@@ -164,8 +164,8 @@ async fn test_list_assets_with_filters() {
                 serial_number: None,
                 fixed_asset_ref: None,
                 metadata: None,
-            maintenance_schedule: None,
-            idempotency_key: None,
+                maintenance_schedule: None,
+                idempotency_key: None,
             },
         )
         .await

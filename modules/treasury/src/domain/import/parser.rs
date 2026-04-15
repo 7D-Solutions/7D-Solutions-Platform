@@ -8,8 +8,8 @@
 //! If no format is specified, the function auto-detects from CSV headers.
 
 use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
 
 use super::LineError;
 

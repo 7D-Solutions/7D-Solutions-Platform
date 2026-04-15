@@ -10,9 +10,9 @@ use health::{
     build_ready_response, db_check, healthz, nats_check, ready_response_to_axum, CheckStatus,
     ReadyStatus, TenantReadiness, TenantReadinessCheck, TenantReadinessRegistry, TenantReadyStatus,
 };
-use uuid::Uuid;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
+use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,7 +54,12 @@ async fn get_json(app: Router, uri: &str) -> (u16, serde_json::Value) {
         .expect("failed to build request");
     let resp = app.oneshot(req).await.expect("handler error");
     let status = resp.status().as_u16();
-    let body = resp.into_body().collect().await.expect("body collect failed").to_bytes();
+    let body = resp
+        .into_body()
+        .collect()
+        .await
+        .expect("body collect failed")
+        .to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).expect("invalid JSON");
     (status, json)
 }
@@ -77,7 +82,9 @@ async fn healthz_body_matches_contract() {
         "liveness body must be {{\"status\":\"alive\"}}"
     );
     // Contract says the body is exactly {"status":"alive"} — no extra fields.
-    let obj = json.as_object().expect("liveness body must be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("liveness body must be a JSON object");
     assert_eq!(
         obj.len(),
         1,
@@ -135,7 +142,9 @@ async fn ready_all_up_no_error_fields() {
 #[tokio::test]
 async fn ready_all_up_timestamp_is_iso8601() {
     let (_, json) = get_json(ready_route_all_up(), "/api/ready").await;
-    let ts = json["timestamp"].as_str().expect("timestamp must be a string");
+    let ts = json["timestamp"]
+        .as_str()
+        .expect("timestamp must be a string");
     // chrono can parse it back — confirms ISO 8601 / RFC 3339
     chrono::DateTime::parse_from_rfc3339(ts).expect("timestamp must be valid RFC 3339 / ISO 8601");
 }
@@ -161,7 +170,10 @@ async fn ready_db_down_status_is_down() {
 async fn ready_db_down_error_field_present() {
     let (_, json) = get_json(ready_route_db_down(), "/api/ready").await;
     let checks = json["checks"].as_array().expect("checks must be an array");
-    let db = checks.iter().find(|c| c["name"] == "database").expect("database check must be present");
+    let db = checks
+        .iter()
+        .find(|c| c["name"] == "database")
+        .expect("database check must be present");
     assert_eq!(db["status"], "down");
     assert!(
         db.get("error").is_some(),
@@ -247,10 +259,7 @@ fn tenant_readiness_registry_set_ready_marks_tenant() {
     let reg = TenantReadinessRegistry::new();
     let tid = Uuid::new_v4();
     reg.set_ready(tid);
-    assert!(
-        reg.is_ready(tid),
-        "tenant must be ready after set_ready"
-    );
+    assert!(reg.is_ready(tid), "tenant must be ready after set_ready");
 }
 
 #[test]
@@ -334,7 +343,10 @@ async fn tenant_readiness_warming_when_not_provisioned() {
     let tid = Uuid::new_v4();
     let uri = format!("/api/ready?tenant_id={tid}");
     let (status, json) = get_json(ready_route_with_tenant_registry(reg), &uri).await;
-    assert_eq!(status, 200, "global checks up — must return 200 even when tenant is warming");
+    assert_eq!(
+        status, 200,
+        "global checks up — must return 200 even when tenant is warming"
+    );
     let tenant = json.get("tenant").expect("tenant field must be present");
     assert_eq!(tenant["id"], tid.to_string());
     assert_eq!(tenant["status"], "warming");

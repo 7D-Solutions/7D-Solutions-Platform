@@ -66,11 +66,10 @@ pub async fn resolve_bundle_modules(
 // ============================================================================
 
 pub async fn validate_tenant(pool: &PgPool, tenant_id: Uuid) -> Result<StepOutcome, StepError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT status FROM tenants WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .fetch_optional(pool)
-            .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
 
     match row {
         Some((status,)) if status == "pending" || status == "provisioning" => Ok(StepOutcome {
@@ -380,12 +379,11 @@ pub async fn activate_tenant(
     ready_timeout: Duration,
 ) -> Result<StepOutcome, StepError> {
     // Verify tenant is in provisioning state
-    let rows = sqlx::query(
-        "SELECT 1 FROM tenants WHERE tenant_id = $1 AND status = 'provisioning'",
-    )
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let rows =
+        sqlx::query("SELECT 1 FROM tenants WHERE tenant_id = $1 AND status = 'provisioning'")
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     if rows.is_none() {
         return Err(StepError::InvalidState(format!(
@@ -413,8 +411,14 @@ pub async fn activate_tenant(
     tracing::info!(tenant_id = %tenant_id, "tenant.provisioned written to outbox, polling modules");
 
     // Poll all modules concurrently until ready or timeout
-    let failed_modules =
-        poll_module_readiness(tenant_id, module_codes, registry, http_client, ready_timeout).await;
+    let failed_modules = poll_module_readiness(
+        tenant_id,
+        module_codes,
+        registry,
+        http_client,
+        ready_timeout,
+    )
+    .await;
 
     let (new_status, checks) = if failed_modules.is_empty() {
         (
@@ -487,9 +491,9 @@ pub async fn poll_module_readiness(
     let futures: Vec<_> = module_codes
         .iter()
         .map(|code| {
-            let url = registry.get(code).map(|cfg| {
-                format!("{}/api/ready?tenant_id={}", cfg.http_base_url, tenant_id)
-            });
+            let url = registry
+                .get(code)
+                .map(|cfg| format!("{}/api/ready?tenant_id={}", cfg.http_base_url, tenant_id));
             let code = code.clone();
             let client = http_client.clone();
             async move {
@@ -533,11 +537,7 @@ async fn poll_single_module(
             return (code, false);
         }
 
-        let result = timeout_at(
-            deadline,
-            Box::pin(client.get(&url).send()),
-        )
-        .await;
+        let result = timeout_at(deadline, Box::pin(client.get(&url).send())).await;
 
         match result {
             Ok(Ok(resp)) if resp.status().is_success() => {

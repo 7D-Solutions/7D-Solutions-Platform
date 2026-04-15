@@ -21,10 +21,9 @@ pub async fn explode(
 ) -> Result<Vec<ExplosionRow>, BomError> {
     let max_depth = query.max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
     if !(1..=100).contains(&max_depth) {
-        return Err(GuardError::Validation(
-            "max_depth must be between 1 and 100".to_string(),
-        )
-        .into());
+        return Err(
+            GuardError::Validation("max_depth must be between 1 and 100".to_string()).into(),
+        );
     }
 
     let date = query.date.unwrap_or_else(Utc::now);

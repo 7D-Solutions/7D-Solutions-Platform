@@ -194,7 +194,9 @@ mod tests {
     #[test]
     fn missing_seller_id_fails_validation() {
         let mut cfg = valid_config();
-        cfg.as_object_mut().expect("config must be an object").remove("seller_id");
+        cfg.as_object_mut()
+            .expect("config must be an object")
+            .remove("seller_id");
         let err = AmazonConnector.validate_config(&cfg).unwrap_err();
         assert!(
             matches!(err, ConnectorError::InvalidConfig(_)),
@@ -202,7 +204,11 @@ mod tests {
             err
         );
         let msg = err.to_string();
-        assert!(msg.contains("seller_id"), "error should mention 'seller_id': {}", msg);
+        assert!(
+            msg.contains("seller_id"),
+            "error should mention 'seller_id': {}",
+            msg
+        );
     }
 
     #[test]
@@ -219,7 +225,12 @@ mod tests {
         let err = AmazonConnector.validate_config(&cfg).unwrap_err();
         let msg = err.to_string();
         for &field in REQUIRED_FIELDS {
-            assert!(msg.contains(field), "missing field '{}' not in error: {}", field, msg);
+            assert!(
+                msg.contains(field),
+                "missing field '{}' not in error: {}",
+                field,
+                msg
+            );
         }
     }
 
@@ -235,7 +246,9 @@ mod tests {
         assert_eq!(result.connector_type, "amazon_sp");
         assert_eq!(result.idempotency_key, "idem-key-001");
         assert_eq!(
-            result.output["marketplace_id"].as_str().expect("marketplace_id should be a string"),
+            result.output["marketplace_id"]
+                .as_str()
+                .expect("marketplace_id should be a string"),
             "ATVPDKIKX0DER"
         );
     }
@@ -253,7 +266,10 @@ mod tests {
     #[test]
     fn registry_returns_amazon_connector() {
         let connector = get_connector("amazon_sp");
-        assert!(connector.is_some(), "get_connector('amazon_sp') should return Some");
+        assert!(
+            connector.is_some(),
+            "get_connector('amazon_sp') should return Some"
+        );
         let c = connector.expect("get_connector('amazon_sp') should return Some");
         assert_eq!(c.connector_type(), "amazon_sp");
     }

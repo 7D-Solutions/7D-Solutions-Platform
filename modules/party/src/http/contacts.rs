@@ -23,13 +23,13 @@ use uuid::Uuid;
 
 use platform_http_contracts::PaginatedResponse;
 
-use platform_sdk::extract_tenant;
 use super::party::with_request_id;
 use crate::domain::contact::{
     Contact, CreateContactRequest, PrimaryContactEntry, SetPrimaryRequest, UpdateContactRequest,
 };
 use crate::domain::contact_service;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
     headers

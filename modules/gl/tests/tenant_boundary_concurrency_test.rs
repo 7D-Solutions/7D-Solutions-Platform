@@ -131,35 +131,29 @@ async fn insert_balance(
 
 /// Count journal entries visible to a tenant
 async fn count_journal_entries(pool: &PgPool, tenant_id: &str) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await
-    .expect("Failed to count journal entries")
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .expect("Failed to count journal entries")
 }
 
 /// Count account balance rows visible to a tenant
 async fn count_balances(pool: &PgPool, tenant_id: &str) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM account_balances WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await
-    .expect("Failed to count balances")
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .expect("Failed to count balances")
 }
 
 /// Count periods visible to a tenant
 async fn count_periods(pool: &PgPool, tenant_id: &str) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await
-    .expect("Failed to count periods")
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .expect("Failed to count periods")
 }
 
 /// Sum of net_balance_minor for a tenant (should only include that tenant's data)
@@ -224,26 +218,8 @@ async fn test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes() 
                 "USD",
             )
             .await;
-            insert_balance(
-                &pool_a,
-                TENANT_A,
-                pa,
-                "1000",
-                "USD",
-                (i + 1) * 10000,
-                0,
-            )
-            .await;
-            insert_balance(
-                &pool_a,
-                TENANT_A,
-                pa,
-                "4000",
-                "USD",
-                0,
-                (i + 1) * 10000,
-            )
-            .await;
+            insert_balance(&pool_a, TENANT_A, pa, "1000", "USD", (i + 1) * 10000, 0).await;
+            insert_balance(&pool_a, TENANT_A, pa, "4000", "USD", 0, (i + 1) * 10000).await;
         });
 
         // Tenant B write (different amounts)
@@ -258,26 +234,8 @@ async fn test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes() 
                 "EUR",
             )
             .await;
-            insert_balance(
-                &pool_b,
-                TENANT_B,
-                pb,
-                "1000",
-                "EUR",
-                (i + 1) * 5000,
-                0,
-            )
-            .await;
-            insert_balance(
-                &pool_b,
-                TENANT_B,
-                pb,
-                "4000",
-                "EUR",
-                0,
-                (i + 1) * 5000,
-            )
-            .await;
+            insert_balance(&pool_b, TENANT_B, pb, "1000", "EUR", (i + 1) * 5000, 0).await;
+            insert_balance(&pool_b, TENANT_B, pb, "4000", "EUR", 0, (i + 1) * 5000).await;
         });
 
         handles.push(ha);
@@ -294,8 +252,14 @@ async fn test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes() 
     // 1. Journal entry counts must be exactly 10 per tenant
     let entries_a = count_journal_entries(&pool, TENANT_A).await;
     let entries_b = count_journal_entries(&pool, TENANT_B).await;
-    assert_eq!(entries_a, 10, "Tenant A should have exactly 10 journal entries");
-    assert_eq!(entries_b, 10, "Tenant B should have exactly 10 journal entries");
+    assert_eq!(
+        entries_a, 10,
+        "Tenant A should have exactly 10 journal entries"
+    );
+    assert_eq!(
+        entries_b, 10,
+        "Tenant B should have exactly 10 journal entries"
+    );
 
     // 2. Balance row counts must be exactly 2 per tenant (1000 + 4000, one currency each)
     let balances_a = count_balances(&pool, TENANT_A).await;
@@ -351,10 +315,7 @@ async fn test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes() 
     .fetch_one(&pool)
     .await
     .expect("query failed");
-    assert!(
-        !a_sees_b_period,
-        "Tenant A must not see Tenant B's period"
-    );
+    assert!(!a_sees_b_period, "Tenant A must not see Tenant B's period");
 
     let b_sees_a_period: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE tenant_id = $1 AND id = $2)",
@@ -364,10 +325,7 @@ async fn test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes() 
     .fetch_one(&pool)
     .await
     .expect("query failed");
-    assert!(
-        !b_sees_a_period,
-        "Tenant B must not see Tenant A's period"
-    );
+    assert!(!b_sees_a_period, "Tenant B must not see Tenant A's period");
 
     // Cleanup
     cleanup_test_tenant(&pool, TENANT_A).await;
@@ -417,8 +375,16 @@ async fn test_tenant_boundary_concurrent_reads_during_writes() {
 
         // Tenant A writes
         let write_handle = tokio::spawn(async move {
-            insert_journal_entry(&pool_w, TENANT_A, pa, "1000", "4000", (i + 1) * 10000, "USD")
-                .await;
+            insert_journal_entry(
+                &pool_w,
+                TENANT_A,
+                pa,
+                "1000",
+                "4000",
+                (i + 1) * 10000,
+                "USD",
+            )
+            .await;
         });
 
         // Tenant B reads concurrently — must see 0 USD entries

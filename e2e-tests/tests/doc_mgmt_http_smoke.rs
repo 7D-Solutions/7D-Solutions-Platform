@@ -76,9 +76,17 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT -> 401 ok");
 }
 
@@ -92,7 +100,10 @@ async fn smoke_doc_mgmt() {
         .unwrap();
 
     if !wait_for_doc_mgmt(&client).await {
-        eprintln!("Doc-Mgmt service not reachable at {} -- skipping", doc_url());
+        eprintln!(
+            "Doc-Mgmt service not reachable at {} -- skipping",
+            doc_url()
+        );
         return;
     }
     println!("Doc-Mgmt service healthy at {}", doc_url());
@@ -114,13 +125,18 @@ async fn smoke_doc_mgmt() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Doc-Mgmt returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Doc-Mgmt returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
     // ── 1. POST /api/documents (create doc1 as draft) ────────────────
     println!("\n--- 1. POST /api/documents ---");
-    let doc_number = format!("DOC-SMOKE-{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let doc_number = format!(
+        "DOC-SMOKE-{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     let doc_type = "engineering_spec";
     let resp = client
         .post(format!("{base}/api/documents"))
@@ -140,9 +156,18 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create document failed: {status} - {body}"
     );
-    let doc1_id = body["document"]["id"].as_str().expect("no document.id").to_string();
+    let doc1_id = body["document"]["id"]
+        .as_str()
+        .expect("no document.id")
+        .to_string();
     println!("  created doc1 id={doc1_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/documents"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/documents"),
+        Some(json!({})),
+    )
+    .await;
 
     // ── 2. POST /api/documents/{id}/revisions ────────────────────────
     println!("\n--- 2. POST /api/documents/{{id}}/revisions ---");
@@ -162,7 +187,10 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create revision failed: {status} - {body}"
     );
-    println!("  created revision number={}", body["revision"]["revision_number"]);
+    println!(
+        "  created revision number={}",
+        body["revision"]["revision_number"]
+    );
 
     // ── 3. POST /api/documents/{id}/release ──────────────────────────
     println!("\n--- 3. POST /api/documents/{{id}}/release ---");
@@ -175,7 +203,13 @@ async fn smoke_doc_mgmt() {
     let status = resp.status();
     assert!(status.is_success(), "Release document failed: {status}");
     println!("  doc1 released");
-    assert_unauth(&client, "POST", &format!("{base}/api/documents/{doc1_id}/release"), None).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/documents/{doc1_id}/release"),
+        None,
+    )
+    .await;
 
     // ── 4. POST /api/documents/{id}/distributions ────────────────────
     println!("\n--- 4. POST /api/documents/{{id}}/distributions ---");
@@ -199,7 +233,10 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create distribution failed: {status} - {body}"
     );
-    let dist_id = body["distribution"]["id"].as_str().expect("no distribution.id").to_string();
+    let dist_id = body["distribution"]["id"]
+        .as_str()
+        .expect("no distribution.id")
+        .to_string();
     println!("  created distribution id={dist_id}");
 
     // ── 5. GET /api/documents/{id}/distributions ─────────────────────
@@ -217,8 +254,20 @@ async fn smoke_doc_mgmt() {
         body["distributions"].is_array(),
         "distributions should be array"
     );
-    println!("  listed {} distributions", body["distributions"].as_array().map(|a| a.len()).unwrap_or(0));
-    assert_unauth(&client, "GET", &format!("{base}/api/documents/{doc1_id}/distributions"), None).await;
+    println!(
+        "  listed {} distributions",
+        body["distributions"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0)
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/documents/{doc1_id}/distributions"),
+        None,
+    )
+    .await;
 
     // ── 6. POST /api/distributions/{id}/status ───────────────────────
     println!("\n--- 6. POST /api/distributions/{{id}}/status ---");
@@ -233,12 +282,18 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Update distribution status failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Update distribution status failed: {status} - {body}"
+    );
     println!("  distribution status updated to sent");
 
     // ── 7. POST /api/documents/{id}/supersede ────────────────────────
     println!("\n--- 7. POST /api/documents/{{id}}/supersede ---");
-    let new_doc_number = format!("DOC-SMOKE-{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let new_doc_number = format!(
+        "DOC-SMOKE-{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     let resp = client
         .post(format!("{base}/api/documents/{doc1_id}/supersede"))
         .bearer_auth(&jwt)
@@ -256,7 +311,10 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Supersede document failed: {status} - {body}"
     );
-    println!("  doc1 superseded, new doc id={}", body["new_document"]["id"]);
+    println!(
+        "  doc1 superseded, new doc id={}",
+        body["new_document"]["id"]
+    );
 
     // ── 8. GET /api/documents/{id} ───────────────────────────────────
     println!("\n--- 8. GET /api/documents/{{id}} ---");
@@ -270,7 +328,13 @@ async fn smoke_doc_mgmt() {
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "Get document failed: {status}");
     println!("  fetched doc1 status={}", body["document"]["status"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/documents/{doc1_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/documents/{doc1_id}"),
+        None,
+    )
+    .await;
 
     // ── 9. GET /api/documents ────────────────────────────────────────
     println!("\n--- 9. GET /api/documents ---");
@@ -284,7 +348,10 @@ async fn smoke_doc_mgmt() {
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "List documents failed: {status}");
     assert!(body["documents"].is_array(), "documents should be array");
-    println!("  listed {} documents", body["documents"].as_array().map(|a| a.len()).unwrap_or(0));
+    println!(
+        "  listed {} documents",
+        body["documents"].as_array().map(|a| a.len()).unwrap_or(0)
+    );
     assert_unauth(&client, "GET", &format!("{base}/api/documents"), None).await;
 
     // ── 10. POST /api/retention-policies ────────────────────────────
@@ -298,8 +365,14 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Set retention policy failed: {status} - {body}");
-    println!("  retention policy set: {} days", body["policy"]["retention_days"]);
+    assert!(
+        status.is_success(),
+        "Set retention policy failed: {status} - {body}"
+    );
+    println!(
+        "  retention policy set: {} days",
+        body["policy"]["retention_days"]
+    );
 
     // ── 11. GET /api/retention-policies/{doc_type} ──────────────────
     println!("\n--- 11. GET /api/retention-policies/{doc_type} ---");
@@ -311,13 +384,28 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Get retention policy failed: {status} - {body}");
-    println!("  fetched retention policy retention_days={}", body["policy"]["retention_days"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/retention-policies/{doc_type}"), None).await;
+    assert!(
+        status.is_success(),
+        "Get retention policy failed: {status} - {body}"
+    );
+    println!(
+        "  fetched retention policy retention_days={}",
+        body["policy"]["retention_days"]
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/retention-policies/{doc_type}"),
+        None,
+    )
+    .await;
 
     // Setup: create doc2 for hold/dispose lifecycle
     println!("\n--- Setup: create + release doc2 for hold/dispose ---");
-    let doc2_number = format!("DOC-HOLD-{}", &Uuid::new_v4().to_string()[..8].to_uppercase());
+    let doc2_number = format!(
+        "DOC-HOLD-{}",
+        &Uuid::new_v4().to_string()[..8].to_uppercase()
+    );
     let resp = client
         .post(format!("{base}/api/documents"))
         .bearer_auth(&jwt)
@@ -332,8 +420,14 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success() || status == StatusCode::CREATED, "Create doc2 failed: {status}");
-    let doc2_id = body["document"]["id"].as_str().expect("no doc2 id").to_string();
+    assert!(
+        status.is_success() || status == StatusCode::CREATED,
+        "Create doc2 failed: {status}"
+    );
+    let doc2_id = body["document"]["id"]
+        .as_str()
+        .expect("no doc2 id")
+        .to_string();
 
     let resp = client
         .post(format!("{base}/api/documents/{doc2_id}/release"))
@@ -341,7 +435,11 @@ async fn smoke_doc_mgmt() {
         .send()
         .await
         .unwrap();
-    assert!(resp.status().is_success(), "Release doc2 failed: {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "Release doc2 failed: {}",
+        resp.status()
+    );
     println!("  doc2 id={doc2_id} created and released");
 
     // ── 12. POST /api/documents/{id}/holds/apply ────────────────────
@@ -374,8 +472,17 @@ async fn smoke_doc_mgmt() {
     let body: Value = resp.json().await.unwrap_or(json!({}));
     assert!(status.is_success(), "List holds failed: {status}");
     assert!(body["holds"].is_array(), "holds should be array");
-    println!("  listed {} holds", body["holds"].as_array().map(|a| a.len()).unwrap_or(0));
-    assert_unauth(&client, "GET", &format!("{base}/api/documents/{doc2_id}/holds"), None).await;
+    println!(
+        "  listed {} holds",
+        body["holds"].as_array().map(|a| a.len()).unwrap_or(0)
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/documents/{doc2_id}/holds"),
+        None,
+    )
+    .await;
 
     // ── 14. POST /api/documents/{id}/holds/release ──────────────────
     println!("\n--- 14. POST /api/documents/{{id}}/holds/release ---");
@@ -388,7 +495,10 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Release hold failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Release hold failed: {status} - {body}"
+    );
     println!("  hold released");
 
     // ── 15. POST /api/documents/{id}/dispose ────────────────────────
@@ -401,7 +511,10 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Dispose document failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Dispose document failed: {status} - {body}"
+    );
     println!("  doc2 disposed");
 
     // ── 16. POST /api/templates ──────────────────────────────────────
@@ -424,9 +537,18 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create template failed: {status} - {body}"
     );
-    let template_id = body["template"]["id"].as_str().expect("no template.id").to_string();
+    let template_id = body["template"]["id"]
+        .as_str()
+        .expect("no template.id")
+        .to_string();
     println!("  created template id={template_id}");
-    assert_unauth(&client, "POST", &format!("{base}/api/templates"), Some(json!({}))).await;
+    assert_unauth(
+        &client,
+        "POST",
+        &format!("{base}/api/templates"),
+        Some(json!({})),
+    )
+    .await;
 
     // ── 17. GET /api/templates/{id} ─────────────────────────────────
     println!("\n--- 17. GET /api/templates/{{id}} ---");
@@ -438,9 +560,18 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Get template failed: {status} - {body}");
+    assert!(
+        status.is_success(),
+        "Get template failed: {status} - {body}"
+    );
     println!("  fetched template name={}", body["template"]["name"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/templates/{template_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/templates/{template_id}"),
+        None,
+    )
+    .await;
 
     // ── 18. POST /api/templates/{id}/render ─────────────────────────
     println!("\n--- 18. POST /api/templates/{{id}}/render ---");
@@ -459,7 +590,10 @@ async fn smoke_doc_mgmt() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Render template failed: {status} - {body}"
     );
-    let artifact_id = body["artifact"]["id"].as_str().expect("no artifact.id").to_string();
+    let artifact_id = body["artifact"]["id"]
+        .as_str()
+        .expect("no artifact.id")
+        .to_string();
     println!("  rendered artifact id={artifact_id}");
 
     // ── 19. GET /api/artifacts/{id} ─────────────────────────────────
@@ -472,9 +606,21 @@ async fn smoke_doc_mgmt() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(status.is_success(), "Get artifact failed: {status} - {body}");
-    println!("  fetched artifact template_id={}", body["artifact"]["template_id"]);
-    assert_unauth(&client, "GET", &format!("{base}/api/artifacts/{artifact_id}"), None).await;
+    assert!(
+        status.is_success(),
+        "Get artifact failed: {status} - {body}"
+    );
+    println!(
+        "  fetched artifact template_id={}",
+        body["artifact"]["template_id"]
+    );
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/artifacts/{artifact_id}"),
+        None,
+    )
+    .await;
 
     println!("\n=== All 19 doc-mgmt routes passed ===");
 }

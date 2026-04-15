@@ -25,8 +25,8 @@ use crate::domain::submissions::{
     AutosaveRequest, CreateSubmissionRequest, FormSubmission, ListSubmissionsQuery, SubmissionRepo,
 };
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct ListSubmissionsParams {
@@ -52,8 +52,7 @@ pub async fn create_submission(
     ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<CreateSubmissionRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     req.tenant_id = tenant_id;
     let sub = SubmissionRepo::create(&pool, &req)
         .await
@@ -79,8 +78,7 @@ pub async fn autosave_submission(
     ctx: Option<Extension<TracingContext>>,
     Json(req): Json<AutosaveRequest>,
 ) -> Result<Json<FormSubmission>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let sub = SubmissionRepo::autosave(&pool, id, &tenant_id, &req)
         .await
@@ -105,8 +103,7 @@ pub async fn submit_submission(
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<FormSubmission>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let sub = SubmissionRepo::submit(&pool, id, &tenant_id)
         .await
@@ -131,8 +128,7 @@ pub async fn get_submission(
     claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
 ) -> Result<Json<FormSubmission>, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
 
     let sub = SubmissionRepo::find_by_id(&pool, id, &tenant_id)
         .await
@@ -158,8 +154,7 @@ pub async fn list_submissions(
     ctx: Option<Extension<TracingContext>>,
     Query(params): Query<ListSubmissionsParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = extract_tenant(&claims)
-        .map_err(|e| with_request_id(e, &ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(50).clamp(1, 100);
     let q = ListSubmissionsQuery {

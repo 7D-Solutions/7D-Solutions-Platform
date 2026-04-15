@@ -22,20 +22,15 @@ use sqlx::PgPool;
 use std::time::Duration;
 use uuid::Uuid;
 
-use bom_rs::domain::{
-    bom_queries,
-    bom_service,
-    models::*,
-};
+use bom_rs::domain::{bom_queries, bom_service, models::*};
 
 // ============================================================================
 // DB setup
 // ============================================================================
 
 async fn get_bom_pool() -> PgPool {
-    let url = std::env::var("BOM_DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://bom_user:bom_pass@localhost:5450/bom_db".to_string()
-    });
+    let url = std::env::var("BOM_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://bom_user:bom_pass@localhost:5450/bom_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .acquire_timeout(Duration::from_secs(5))
@@ -694,7 +689,11 @@ async fn bom_explosion_depth_guard() {
     .await
     .unwrap();
 
-    assert_eq!(shallow.len(), 1, "depth=1 should only return immediate children");
+    assert_eq!(
+        shallow.len(),
+        1,
+        "depth=1 should only return immediate children"
+    );
     assert_eq!(shallow[0].component_item_id, sub_assy);
 
     // Explode with depth=5 — should see both levels
@@ -710,7 +709,11 @@ async fn bom_explosion_depth_guard() {
     .await
     .unwrap();
 
-    assert_eq!(deep.len(), 2, "depth=5 should return 2 rows (level 1 + level 2)");
+    assert_eq!(
+        deep.len(),
+        2,
+        "depth=5 should return 2 rows (level 1 + level 2)"
+    );
     let level_1: Vec<_> = deep.iter().filter(|r| r.level == 1).collect();
     let level_2: Vec<_> = deep.iter().filter(|r| r.level == 2).collect();
     assert_eq!(level_1.len(), 1);

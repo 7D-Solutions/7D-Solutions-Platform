@@ -12,10 +12,7 @@ pub const ALLOWED_MIME_TYPES: &[&str] = &[
 ];
 
 /// MIME types explicitly blocked by ADR-018.
-const BLOCKED_MIME_TYPES: &[&str] = &[
-    "application/x-msdownload",
-    "application/javascript",
-];
+const BLOCKED_MIME_TYPES: &[&str] = &["application/x-msdownload", "application/javascript"];
 
 /// Validate that `mime_type` is on the ADR-018 allowlist.
 ///
@@ -39,7 +36,10 @@ pub fn validate_mime_type(mime_type: &str) -> Result<(), BlobError> {
 /// Validate that `size_bytes` does not exceed `max_bytes`.
 pub fn validate_size(size_bytes: u64, max_bytes: u64) -> Result<(), BlobError> {
     if size_bytes > max_bytes {
-        return Err(BlobError::FileTooLarge { size_bytes, max_bytes });
+        return Err(BlobError::FileTooLarge {
+            size_bytes,
+            max_bytes,
+        });
     }
     Ok(())
 }
@@ -51,9 +51,8 @@ mod tests {
     #[test]
     fn allowed_mime_types_pass() {
         for mime in ALLOWED_MIME_TYPES {
-            validate_mime_type(mime).unwrap_or_else(|e| {
-                panic!("expected allowed MIME {mime} to pass, got: {e}")
-            });
+            validate_mime_type(mime)
+                .unwrap_or_else(|e| panic!("expected allowed MIME {mime} to pass, got: {e}"));
         }
     }
 

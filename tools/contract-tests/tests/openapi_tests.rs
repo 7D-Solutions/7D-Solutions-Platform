@@ -462,8 +462,8 @@ fn test_production_openapi_spec_valid() {
 fn test_integrations_openapi_spec_valid() {
     let spec_path = contracts_dir().join("integrations/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Integrations OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Integrations OpenAPI spec");
 
     println!("✓ Integrations OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "integrations/openapi.json");
@@ -521,8 +521,8 @@ fn test_shipping_receiving_openapi_spec_valid() {
 fn test_consolidation_openapi_spec_valid() {
     let spec_path = contracts_dir().join("consolidation/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Consolidation OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Consolidation OpenAPI spec");
 
     println!("✓ Consolidation OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "consolidation/openapi.json");
@@ -581,8 +581,8 @@ fn test_customer_portal_openapi_spec_valid() {
 fn test_fixed_assets_openapi_spec_valid() {
     let spec_path = contracts_dir().join("fixed-assets/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Fixed Assets OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Fixed Assets OpenAPI spec");
 
     println!("✓ Fixed Assets OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "fixed-assets/openapi.json");
@@ -612,17 +612,13 @@ fn test_fixed_assets_openapi_spec_valid() {
 fn test_numbering_openapi_spec_valid() {
     let spec_path = contracts_dir().join("numbering/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Numbering OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Numbering OpenAPI spec");
 
     println!("✓ Numbering OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "numbering/openapi.json");
 
-    let required_paths = vec![
-        "/allocate",
-        "/confirm",
-        "/policies/{entity}",
-    ];
+    let required_paths = vec!["/allocate", "/confirm", "/policies/{entity}"];
 
     check_required_paths(&spec, &required_paths, "numbering/openapi.json")
         .expect("Numbering spec missing required paths");
@@ -669,8 +665,8 @@ fn test_quality_inspection_openapi_spec_valid() {
 fn test_reporting_openapi_spec_valid() {
     let spec_path = contracts_dir().join("reporting/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Reporting OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Reporting OpenAPI spec");
 
     println!("✓ Reporting OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "reporting/openapi.json");
@@ -698,8 +694,8 @@ fn test_reporting_openapi_spec_valid() {
 fn test_timekeeping_openapi_spec_valid() {
     let spec_path = contracts_dir().join("timekeeping/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Timekeeping OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Timekeeping OpenAPI spec");
 
     println!("✓ Timekeeping OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "timekeeping/openapi.json");
@@ -736,8 +732,8 @@ fn test_timekeeping_openapi_spec_valid() {
 fn test_treasury_openapi_spec_valid() {
     let spec_path = contracts_dir().join("treasury/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Treasury OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Treasury OpenAPI spec");
 
     println!("✓ Treasury OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "treasury/openapi.json");
@@ -770,8 +766,8 @@ fn test_treasury_openapi_spec_valid() {
 fn test_workflow_openapi_spec_valid() {
     let spec_path = contracts_dir().join("workflow/openapi.json");
 
-    let spec = validate_openapi_spec_json(&spec_path)
-        .expect("Failed to parse Workflow OpenAPI spec");
+    let spec =
+        validate_openapi_spec_json(&spec_path).expect("Failed to parse Workflow OpenAPI spec");
 
     println!("✓ Workflow OpenAPI spec is valid JSON");
     check_spec_version(&spec, 2, "workflow/openapi.json");

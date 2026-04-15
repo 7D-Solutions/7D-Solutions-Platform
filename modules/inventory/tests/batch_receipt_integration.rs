@@ -255,14 +255,20 @@ async fn batch_receipt_idempotency_replay_returns_stored_results() {
             assert_eq!(r1.event_id, r2.event_id);
             assert_eq!(r1.receipt_line_id, r2.receipt_line_id);
         }
-        _ => panic!("Expected success results, got: results1[0]={:?}, results2[0]={:?}", &results1[0], &results2[0]),
+        _ => panic!(
+            "Expected success results, got: results1[0]={:?}, results2[0]={:?}",
+            &results1[0], &results2[0]
+        ),
     }
     match (&results1[1], &results2[1]) {
         (BatchReceiptItemResult::Success(r1), BatchReceiptItemResult::Success(r2)) => {
             assert_eq!(r1.event_id, r2.event_id);
             assert_eq!(r1.receipt_line_id, r2.receipt_line_id);
         }
-        _ => panic!("Expected success results, got: results1[1]={:?}, results2[1]={:?}", &results1[1], &results2[1]),
+        _ => panic!(
+            "Expected success results, got: results1[1]={:?}, results2[1]={:?}",
+            &results1[1], &results2[1]
+        ),
     }
 
     // Still only 2 ledger entries (no duplicates)

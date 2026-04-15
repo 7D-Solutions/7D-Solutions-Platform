@@ -112,7 +112,10 @@ async fn test_no_manifest_no_env_errors() {
     let _g = EnvGuard::new(None);
     let (_dir, manifest) = bare_manifest();
     let err = build_cors_layer(&manifest).expect_err("no manifest + no env must fail");
-    assert!(matches!(err, StartupError::Config(_)), "expected Config, got {err:?}");
+    assert!(
+        matches!(err, StartupError::Config(_)),
+        "expected Config, got {err:?}"
+    );
     let msg = err.to_string();
     assert!(
         msg.contains("cors-prod-guard"),
@@ -127,9 +130,11 @@ async fn test_manifest_wildcard_errors() {
         r#"[cors]
 origins = ["*"]"#,
     );
-    let err =
-        build_cors_layer(&manifest).expect_err("manifest wildcard origins must fail");
-    assert!(matches!(err, StartupError::Config(_)), "expected Config, got {err:?}");
+    let err = build_cors_layer(&manifest).expect_err("manifest wildcard origins must fail");
+    assert!(
+        matches!(err, StartupError::Config(_)),
+        "expected Config, got {err:?}"
+    );
     let msg = err.to_string();
     assert!(
         msg.contains("manifest.cors.origins"),
@@ -144,9 +149,11 @@ async fn test_manifest_wildcard_pattern_errors() {
         r#"[cors]
 origin_pattern = ".*""#,
     );
-    let err =
-        build_cors_layer(&manifest).expect_err("manifest wildcard pattern must fail");
-    assert!(matches!(err, StartupError::Config(_)), "expected Config, got {err:?}");
+    let err = build_cors_layer(&manifest).expect_err("manifest wildcard pattern must fail");
+    assert!(
+        matches!(err, StartupError::Config(_)),
+        "expected Config, got {err:?}"
+    );
     let msg = err.to_string();
     assert!(
         msg.contains("manifest.cors.origin_pattern"),
@@ -190,9 +197,11 @@ async fn test_env_override_explicit_ok() {
 async fn test_env_override_wildcard_errors() {
     let _g = EnvGuard::new(Some("*"));
     let (_dir, manifest) = bare_manifest();
-    let err =
-        build_cors_layer(&manifest).expect_err("wildcard env override must fail");
-    assert!(matches!(err, StartupError::Config(_)), "expected Config, got {err:?}");
+    let err = build_cors_layer(&manifest).expect_err("wildcard env override must fail");
+    assert!(
+        matches!(err, StartupError::Config(_)),
+        "expected Config, got {err:?}"
+    );
     let msg = err.to_string();
     assert!(
         msg.contains("CORS_ORIGINS"),

@@ -125,10 +125,16 @@ pub async fn create_revision(
     let envelope_json = serde_json::to_string(&envelope)?;
 
     insert_outbox_event(
-        &mut tx, event_id, EVENT_TYPE_ITEM_REVISION_CREATED,
-        &revision.id.to_string(), &req.tenant_id, &envelope_json,
-        &correlation_id, &req.causation_id,
-    ).await?;
+        &mut tx,
+        event_id,
+        EVENT_TYPE_ITEM_REVISION_CREATED,
+        &revision.id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        &req.causation_id,
+    )
+    .await?;
 
     // Change history
     let actor = req.actor_id.clone().unwrap_or_else(|| "system".to_string());
@@ -162,9 +168,15 @@ pub async fn create_revision(
     // Idempotency key
     let response_json = serde_json::to_string(&revision)?;
     store_idempotency_key(
-        &mut tx, &req.tenant_id, &req.idempotency_key, &request_hash,
-        &response_json, 201, now + Duration::days(7),
-    ).await?;
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        201,
+        now + Duration::days(7),
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((revision, false))
@@ -297,10 +309,16 @@ pub async fn activate_revision(
     let envelope_json = serde_json::to_string(&envelope)?;
 
     insert_outbox_event(
-        &mut tx, event_id, EVENT_TYPE_ITEM_REVISION_ACTIVATED,
-        &activated.id.to_string(), &req.tenant_id, &envelope_json,
-        &correlation_id, &req.causation_id,
-    ).await?;
+        &mut tx,
+        event_id,
+        EVENT_TYPE_ITEM_REVISION_ACTIVATED,
+        &activated.id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        &req.causation_id,
+    )
+    .await?;
 
     // Change history
     let actor = req.actor_id.clone().unwrap_or_else(|| "system".to_string());
@@ -328,9 +346,15 @@ pub async fn activate_revision(
     // Idempotency key
     let response_json = serde_json::to_string(&activated)?;
     store_idempotency_key(
-        &mut tx, &req.tenant_id, &req.idempotency_key, &request_hash,
-        &response_json, 200, now + Duration::days(7),
-    ).await?;
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        200,
+        now + Duration::days(7),
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((activated, false))
@@ -428,10 +452,16 @@ pub async fn update_revision_policy(
     let envelope_json = serde_json::to_string(&envelope)?;
 
     insert_outbox_event(
-        &mut tx, event_id, EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
-        &updated.id.to_string(), &req.tenant_id, &envelope_json,
-        &correlation_id, &req.causation_id,
-    ).await?;
+        &mut tx,
+        event_id,
+        EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
+        &updated.id.to_string(),
+        &req.tenant_id,
+        &envelope_json,
+        &correlation_id,
+        &req.causation_id,
+    )
+    .await?;
 
     // Change history
     let actor = req.actor_id.clone().unwrap_or_else(|| "system".to_string());
@@ -471,9 +501,15 @@ pub async fn update_revision_policy(
 
     let response_json = serde_json::to_string(&updated)?;
     store_idempotency_key(
-        &mut tx, &req.tenant_id, &req.idempotency_key, &request_hash,
-        &response_json, 200, now + Duration::days(7),
-    ).await?;
+        &mut tx,
+        &req.tenant_id,
+        &req.idempotency_key,
+        &request_hash,
+        &response_json,
+        200,
+        now + Duration::days(7),
+    )
+    .await?;
 
     tx.commit().await?;
     Ok((updated, false))

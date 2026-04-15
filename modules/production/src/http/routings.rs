@@ -14,7 +14,6 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use super::pagination::PaginationQuery;
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::routings::{
@@ -23,6 +22,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, IntoParams, ToSchema)]
 #[into_params(parameter_in = Query)]
@@ -99,8 +99,7 @@ pub async fn get_routing(
     match RoutingRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(rt)) => (StatusCode::OK, Json(rt)).into_response(),
         Ok(None) => {
-            with_request_id(ApiError::not_found("Routing not found"), &tracing_ctx)
-                .into_response()
+            with_request_id(ApiError::not_found("Routing not found"), &tracing_ctx).into_response()
         }
         Err(e) => {
             let api_err: ApiError = e.into();

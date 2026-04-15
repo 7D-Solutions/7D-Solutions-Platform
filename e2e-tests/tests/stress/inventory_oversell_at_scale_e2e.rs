@@ -218,10 +218,7 @@ async fn inventory_oversell_at_scale_e2e() {
     println!("  successful issues: {} (issued > 0)", success_count);
     println!("  insufficient stock rejections: {}", insufficient_count);
     println!("  unexpected errors: {}", unexpected_error_count);
-    println!(
-        "  total issued from responses: {} units",
-        total_issued
-    );
+    println!("  total issued from responses: {} units", total_issued);
 
     for (i, o) in outcomes.iter().enumerate() {
         if o.is_unexpected_error {

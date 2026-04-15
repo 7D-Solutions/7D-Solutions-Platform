@@ -10,8 +10,9 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://bom_user:bom_pass@localhost:5450/bom_db?sslmode=require".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://bom_user:bom_pass@localhost:5450/bom_db?sslmode=require".to_string()
+    });
 
     let pool = PgPoolOptions::new()
         .max_connections(2)
@@ -408,7 +409,10 @@ async fn query_bom_revision_effective_on_date() {
     .await
     .expect("explosion at current date");
 
-    assert!(!explosion.is_empty(), "Should have explosion rows at current date");
+    assert!(
+        !explosion.is_empty(),
+        "Should have explosion rows at current date"
+    );
     assert_eq!(
         explosion[0].revision_label, "Rev-B",
         "Current date should resolve to Rev-B"

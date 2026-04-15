@@ -14,9 +14,9 @@ use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::Serialize;
 use sqlx::PgPool;
-use utoipa::ToSchema;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::event_bus::{create_notifications_envelope, enqueue_event};
@@ -69,8 +69,7 @@ pub async fn send_notification(
 ) -> Result<(StatusCode, Json<SendResponse>), ApiError> {
     let tenant_id = require_tenant(&claims)?;
 
-    let has_prerendered =
-        input.rendered_subject.is_some() && input.rendered_body.is_some();
+    let has_prerendered = input.rendered_subject.is_some() && input.rendered_body.is_some();
     let has_template = input.template_key.is_some();
 
     if !has_prerendered && !has_template {
@@ -88,25 +87,22 @@ pub async fn send_notification(
 
     // Resolve rendered content: either from template or pre-rendered input.
     // When pre-rendered content is provided it takes precedence over template.
-    let (rendered_subject, rendered_body, template_key, template_version) =
-        if has_prerendered {
-            let subj = input.rendered_subject.clone().unwrap();
-            let body = input.rendered_body.clone().unwrap();
-            (subj, body, input.template_key.clone(), None)
-        } else {
-            let tpl_key = input.template_key.as_ref().unwrap();
-            let template =
-                template_store::repo::get_latest(&pool, &tenant_id, tpl_key)
-                    .await
-                    .map_err(|e| ApiError::internal(e.to_string()))?
-                    .ok_or_else(|| ApiError::bad_request("Template not found"))?;
+    let (rendered_subject, rendered_body, template_key, template_version) = if has_prerendered {
+        let subj = input.rendered_subject.clone().expect("test fixture");
+        let body = input.rendered_body.clone().expect("test fixture");
+        (subj, body, input.template_key.clone(), None)
+    } else {
+        let tpl_key = input.template_key.as_ref().expect("test fixture");
+        let template = template_store::repo::get_latest(&pool, &tenant_id, tpl_key)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?
+            .ok_or_else(|| ApiError::bad_request("Template not found"))?;
 
-            let (subj, body) =
-                template_store::repo::render_template(&template, &input.payload_json)
-                    .map_err(|e| ApiError::new(422, "validation_failed", e))?;
+        let (subj, body) = template_store::repo::render_template(&template, &input.payload_json)
+            .map_err(|e| ApiError::new(422, "validation_failed", e))?;
 
-            (subj, body, Some(tpl_key.clone()), Some(template.version))
-        };
+        (subj, body, Some(tpl_key.clone()), Some(template.version))
+    };
 
     // Compute rendered hash for compliance proof
     let rendered_hash = compute_hash(&rendered_subject, &rendered_body);
@@ -147,7 +143,10 @@ pub async fn send_notification(
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
         // Emit delivery.attempted + delivery.succeeded events
-        let mut tx = pool.begin().await.map_err(|e| ApiError::internal(e.to_string()))?;
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         let attempted_payload = serde_json::json!({
             "send_id": send.id,
@@ -201,7 +200,9 @@ pub async fn send_notification(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
 
-        tx.commit().await.map_err(|e| ApiError::internal(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
 
         receipt_count += 1;
         any_succeeded = true;

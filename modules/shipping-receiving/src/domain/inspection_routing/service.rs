@@ -33,10 +33,7 @@ pub enum RoutingError {
     NotReceiving { current: String },
 
     #[error("Line {line_id} is already routed as '{decision}'")]
-    AlreadyRouted {
-        line_id: Uuid,
-        decision: String,
-    },
+    AlreadyRouted { line_id: Uuid, decision: String },
 
     #[error("Invalid route decision: {0}")]
     InvalidDecision(String),

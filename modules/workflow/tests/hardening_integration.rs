@@ -20,10 +20,10 @@ use security::{
     middleware::{
         default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
     },
-    RequirePermissionsLayer, permissions,
+    permissions, RequirePermissionsLayer,
 };
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -32,9 +32,7 @@ use uuid::Uuid;
 use workflow::domain::definitions::{
     CreateDefinitionRequest, DefinitionRepo, ListDefinitionsQuery,
 };
-use workflow::domain::instances::{
-    InstanceRepo, ListInstancesQuery, StartInstanceRequest,
-};
+use workflow::domain::instances::{InstanceRepo, ListInstancesQuery, StartInstanceRequest};
 use workflow::{http, metrics, AppState};
 
 // ============================================================================
@@ -96,9 +94,7 @@ async fn create_test_definition(
 /// Without a JwtVerifier, the `optional_claims_mw` inserts no claims,
 /// so RequirePermissionsLayer will reject mutation requests with 401.
 fn build_test_router(pool: sqlx::PgPool) -> Router {
-    let wf_metrics = Arc::new(
-        metrics::WorkflowMetrics::new().expect("metrics"),
-    );
+    let wf_metrics = Arc::new(metrics::WorkflowMetrics::new().expect("metrics"));
     let app_state = Arc::new(AppState {
         pool,
         metrics: wf_metrics,
@@ -125,8 +121,7 @@ fn build_test_router(pool: sqlx::PgPool) -> Router {
                 )
                 .route(
                     "/api/workflow/instances",
-                    post(http::instances::start_instance)
-                        .get(http::instances::list_instances),
+                    post(http::instances::start_instance).get(http::instances::list_instances),
                 )
                 .route(
                     "/api/workflow/instances/{instance_id}",
@@ -191,7 +186,11 @@ async fn test_migration_safety_all_tables_present() {
         .await
         .unwrap();
 
-        assert!(exists, "Expected table '{}' missing after migrations", table);
+        assert!(
+            exists,
+            "Expected table '{}' missing after migrations",
+            table
+        );
     }
 
     // Verify key columns exist
@@ -385,8 +384,9 @@ async fn test_tenant_boundary_instances() {
     );
 
     // Tenant B cannot list tenant A's transitions
-    let b_transitions =
-        InstanceRepo::list_transitions(&pool, &tenant_b, instance_a.id).await.unwrap();
+    let b_transitions = InstanceRepo::list_transitions(&pool, &tenant_b, instance_a.id)
+        .await
+        .unwrap();
     assert_eq!(
         b_transitions.len(),
         0,
@@ -394,7 +394,9 @@ async fn test_tenant_boundary_instances() {
     );
 
     // Tenant A can see their own instance
-    let a_get = InstanceRepo::get(&pool, &tenant_a, instance_a.id).await.unwrap();
+    let a_get = InstanceRepo::get(&pool, &tenant_a, instance_a.id)
+        .await
+        .unwrap();
     assert_eq!(a_get.id, instance_a.id);
 }
 
@@ -512,18 +514,23 @@ async fn test_guard_mutation_outbox_definition_created() {
     assert_eq!(agg_id, def.id.to_string());
 
     // Verify outbox payload contains envelope fields
-    let payload: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(def.id.to_string())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let payload: serde_json::Value =
+        sqlx::query_scalar("SELECT payload FROM events_outbox WHERE aggregate_id = $1")
+            .bind(def.id.to_string())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(payload["tenant_id"], tenant);
     assert_eq!(payload["event_type"], "workflow.events.definition.created");
-    assert!(payload["event_id"].is_string(), "envelope must have event_id");
-    assert!(payload["source_version"].is_string(), "envelope must have source_version");
+    assert!(
+        payload["event_id"].is_string(),
+        "envelope must have event_id"
+    );
+    assert!(
+        payload["source_version"].is_string(),
+        "envelope must have source_version"
+    );
 }
 
 #[tokio::test]
@@ -768,10 +775,16 @@ async fn test_concurrent_tenant_isolation_instances() {
 
     // Cross-tenant: no leaks in instance data
     for inst in &a_instances {
-        assert_eq!(inst.tenant_id, tenant_a, "Tenant A instance has wrong tenant_id");
+        assert_eq!(
+            inst.tenant_id, tenant_a,
+            "Tenant A instance has wrong tenant_id"
+        );
     }
     for inst in &b_instances {
-        assert_eq!(inst.tenant_id, tenant_b, "Tenant B instance has wrong tenant_id");
+        assert_eq!(
+            inst.tenant_id, tenant_b,
+            "Tenant B instance has wrong tenant_id"
+        );
     }
 
     // Verify outbox events are per-tenant (no cross-contamination)

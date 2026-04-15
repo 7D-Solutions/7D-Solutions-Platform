@@ -164,9 +164,13 @@ pub async fn process_reserve(
     // Step 0: Lock item_on_hand row and check available stock.
     //   SELECT FOR UPDATE serializes concurrent reservations at the row lock.
     //   quantity_available = quantity_on_hand - quantity_reserved (generated column).
-    let available: Option<i64> =
-        reservation_repo::lock_available_stock(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id)
-            .await?;
+    let available: Option<i64> = reservation_repo::lock_available_stock(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+    )
+    .await?;
 
     let current_available = available.unwrap_or(0);
     if current_available < req.quantity {
@@ -313,8 +317,7 @@ pub async fn process_release(
     // Step 1: Insert compensating reservation row.
     //   status = 'released', reverses_reservation_id = original.id.
     let release_id =
-        reservation_repo::insert_compensating_reservation(&mut tx, &original, released_at)
-            .await?;
+        reservation_repo::insert_compensating_reservation(&mut tx, &original, released_at).await?;
 
     // Step 2: Decrement quantity_reserved on the null-location on-hand row.
     //   Reservations are warehouse-level in v1 (location_id IS NULL).

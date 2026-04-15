@@ -61,12 +61,17 @@ pub async fn invite_user(
         return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let existing = portal_repo::find_idempotency(&state.pool, req.tenant_id, "invite_user", &req.idempotency_key)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "portal admin db error");
-            with_request_id(ApiError::internal("Database error"), &ctx)
-        })?;
+    let existing = portal_repo::find_idempotency(
+        &state.pool,
+        req.tenant_id,
+        "invite_user",
+        &req.idempotency_key,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "portal admin db error");
+        with_request_id(ApiError::internal("Database error"), &ctx)
+    })?;
 
     if let Some(response) = existing {
         let user_id = response
@@ -99,9 +104,15 @@ pub async fn invite_user(
 
     let user_id = Uuid::new_v4();
     portal_repo::insert_user_tx(
-        &mut tx, user_id, req.tenant_id, req.party_id,
-        &req.email.to_lowercase(), &password_hash, &req.display_name,
-        actor.user_id, Utc::now(),
+        &mut tx,
+        user_id,
+        req.tenant_id,
+        req.party_id,
+        &req.email.to_lowercase(),
+        &password_hash,
+        &req.display_name,
+        actor.user_id,
+        Utc::now(),
     )
     .await
     .map_err(|e| {
@@ -110,7 +121,10 @@ pub async fn invite_user(
     })?;
 
     portal_repo::insert_idempotency_no_conflict_tx(
-        &mut tx, req.tenant_id, "invite_user", &req.idempotency_key,
+        &mut tx,
+        req.tenant_id,
+        "invite_user",
+        &req.idempotency_key,
         &serde_json::json!({"user_id": user_id.to_string()}),
     )
     .await

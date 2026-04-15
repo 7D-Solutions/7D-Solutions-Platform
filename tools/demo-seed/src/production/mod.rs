@@ -8,8 +8,8 @@
 //! - Routing step creation: POST /api/production/routings/{id}/steps — 409 on duplicate sequence
 
 mod data;
-pub(crate) mod workcenters;
 mod routings;
+pub(crate) mod workcenters;
 
 use std::collections::HashMap;
 
@@ -25,8 +25,8 @@ use workcenters::{create_workcenter, WORKCENTERS};
 pub struct ProductionIds {
     pub workcenters: usize,
     pub routings: usize,
-    pub workcenter_list: Vec<(Uuid, String)>,  // (id, code)
-    pub routing_list: Vec<(Uuid, Uuid)>,       // (routing_id, item_id)
+    pub workcenter_list: Vec<(Uuid, String)>, // (id, code)
+    pub routing_list: Vec<(Uuid, Uuid)>,      // (routing_id, item_id)
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,16 @@ pub async fn seed_production(
             })?;
 
             let sequence = (idx as i32) + 1; // 1-based
-            add_routing_step(client, production_url, tenant, routing_id, sequence, *wc_id, step).await?;
+            add_routing_step(
+                client,
+                production_url,
+                tenant,
+                routing_id,
+                sequence,
+                *wc_id,
+                step,
+            )
+            .await?;
 
             info!(
                 routing_id = %routing_id,

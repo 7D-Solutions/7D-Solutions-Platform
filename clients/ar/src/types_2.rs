@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Subscription record from ar_subscriptions table
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,4 +171,3 @@ pub enum WebhookStatus {
     #[serde(rename = "failed")]
     Failed,
 }
-

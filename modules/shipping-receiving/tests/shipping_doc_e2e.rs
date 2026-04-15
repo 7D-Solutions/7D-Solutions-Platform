@@ -31,11 +31,7 @@ async fn setup_db() -> sqlx::PgPool {
     pool
 }
 
-fn make_doc_request(
-    shipment_id: Uuid,
-    doc_type: &str,
-    idem_key: Option<&str>,
-) -> CreateDocRequest {
+fn make_doc_request(shipment_id: Uuid, doc_type: &str, idem_key: Option<&str>) -> CreateDocRequest {
     CreateDocRequest {
         shipment_id,
         doc_type: doc_type.to_string(),
@@ -81,7 +77,10 @@ async fn create_shipping_doc_request_persists_with_correct_status_and_shipment_r
     assert_eq!(doc_req.shipment_id, shipment_id);
     assert_eq!(doc_req.doc_type, "packing_slip");
     assert_eq!(doc_req.status, "requested");
-    assert_eq!(doc_req.payload_ref.as_deref(), Some("s3://docs/metadata.json"));
+    assert_eq!(
+        doc_req.payload_ref.as_deref(),
+        Some("s3://docs/metadata.json")
+    );
 
     // Verify findable by ID
     let found = ShippingDocService::find_by_id(&pool, doc_req.id, tenant_id)

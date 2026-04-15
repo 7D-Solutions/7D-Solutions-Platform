@@ -49,12 +49,12 @@ pub async fn list_documents(
         return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let tenant_id =
-        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
-    let party_id =
-        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
-    let user_id =
-        Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let tenant_id = Uuid::parse_str(&claims.tenant_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id = Uuid::parse_str(&claims.party_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
     let user_email = portal_repo::get_user_email(&state.pool, user_id, tenant_id, party_id)
         .await
@@ -73,9 +73,14 @@ pub async fn list_documents(
 
     let mut visible = Vec::new();
     for link in links {
-        if let Some(dist) =
-            fetch_authorized_distribution(&doc_mgmt_client, &ctx, tenant_id, link.document_id, &user_email.email)
-                .await?
+        if let Some(dist) = fetch_authorized_distribution(
+            &doc_mgmt_client,
+            &ctx,
+            tenant_id,
+            link.document_id,
+            &user_email.email,
+        )
+        .await?
         {
             visible.push(PortalDocumentView {
                 document_id: link.document_id,
@@ -90,9 +95,15 @@ pub async fn list_documents(
     let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
     let total = visible.len() as i64;
     let start = ((page - 1) * page_size) as usize;
-    let page_items: Vec<_> = visible.into_iter().skip(start).take(page_size as usize).collect();
+    let page_items: Vec<_> = visible
+        .into_iter()
+        .skip(start)
+        .take(page_size as usize)
+        .collect();
 
-    Ok(Json(PaginatedResponse::new(page_items, page, page_size, total)))
+    Ok(Json(PaginatedResponse::new(
+        page_items, page, page_size, total,
+    )))
 }
 
 async fn fetch_authorized_distribution(
@@ -105,7 +116,9 @@ async fn fetch_authorized_distribution(
     let claims = platform_sdk::PlatformClient::service_claims(tenant_id);
     let payload = match client.list_distributions(&claims, document_id).await {
         Ok(resp) => resp,
-        Err(platform_sdk::ClientError::Api { .. } | platform_sdk::ClientError::Unexpected { .. }) => {
+        Err(
+            platform_sdk::ClientError::Api { .. } | platform_sdk::ClientError::Unexpected { .. },
+        ) => {
             return Ok(None);
         }
         Err(e) => {

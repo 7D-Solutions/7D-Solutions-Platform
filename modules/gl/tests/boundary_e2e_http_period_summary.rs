@@ -410,7 +410,11 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.expect("Failed to make HTTP request");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to make HTTP request");
 
     // Assert: 200 OK
     assert_eq!(response.status(), 200);
@@ -489,7 +493,11 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_usd = client.get(&url_usd).send().await.expect("Failed to fetch USD summary");
+    let response_usd = client
+        .get(&url_usd)
+        .send()
+        .await
+        .expect("Failed to fetch USD summary");
     assert_eq!(response_usd.status(), 200);
 
     let summary_usd: PeriodSummaryResponse =
@@ -507,7 +515,11 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_eur = client.get(&url_eur).send().await.expect("Failed to fetch EUR summary");
+    let response_eur = client
+        .get(&url_eur)
+        .send()
+        .await
+        .expect("Failed to fetch EUR summary");
     assert_eq!(response_eur.status(), 200);
 
     let summary_eur: PeriodSummaryResponse =
@@ -525,7 +537,11 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_all = client.get(&url_all).send().await.expect("Failed to fetch all currencies");
+    let response_all = client
+        .get(&url_all)
+        .send()
+        .await
+        .expect("Failed to fetch all currencies");
     let status = response_all.status();
 
     // Debug: print error if not 200
@@ -577,7 +593,11 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, fake_period_id
     );
 
-    let response = client.get(&url_missing_tenant).send().await.expect("Failed to make request");
+    let response = client
+        .get(&url_missing_tenant)
+        .send()
+        .await
+        .expect("Failed to make request");
     assert!(
         response.status().is_client_error(),
         "Should return 4xx for missing tenant_id parameter, got {}",
@@ -590,7 +610,11 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, tenant_id
     );
 
-    let response_invalid = client.get(&url_invalid_uuid).send().await.expect("Failed to make request");
+    let response_invalid = client
+        .get(&url_invalid_uuid)
+        .send()
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -604,7 +628,11 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, nonexistent_period_id, tenant_id
     );
 
-    let response_not_found = client.get(&url_not_found).send().await.expect("Failed to make request");
+    let response_not_found = client
+        .get(&url_not_found)
+        .send()
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_not_found.status(),
         404,
@@ -618,7 +646,11 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_bad_currency = client.get(&url_invalid_currency).send().await.expect("Failed to make request");
+    let response_bad_currency = client
+        .get(&url_invalid_currency)
+        .send()
+        .await
+        .expect("Failed to make request");
     // Note: This might be 400 or 404 depending on whether period exists
     // We're testing that invalid currency is handled gracefully
     assert!(
@@ -660,7 +692,8 @@ async fn test_boundary_http_period_summary_performance_guard() {
     .await;
 
     // Insert snapshot (precomputed - should be instant)
-    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "USD", 5, 10, 100000, 100000).await;
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "USD", 5, 10, 100000, 100000)
+        .await;
 
     // Make authenticated HTTP request and time it
     let url = format!(
@@ -669,7 +702,11 @@ async fn test_boundary_http_period_summary_performance_guard() {
     );
 
     let start = std::time::Instant::now();
-    let response = client.get(&url).send().await.expect("Failed to fetch period summary");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to fetch period summary");
     let elapsed = start.elapsed();
 
     assert_eq!(response.status(), 200);
@@ -723,7 +760,11 @@ async fn test_boundary_http_period_summary_json_dto_structure() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.expect("Failed to make request");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to make request");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON first to validate structure

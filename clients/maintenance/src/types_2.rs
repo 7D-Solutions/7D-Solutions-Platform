@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateAssetRequest {
@@ -151,4 +151,3 @@ pub struct WorkOrder {
     pub wo_number: String,
     pub wo_type: WoType,
 }
-

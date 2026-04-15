@@ -47,7 +47,6 @@
 
 pub mod classification_assigned;
 pub mod contracts;
-pub mod make_buy_changed;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
 pub mod expiry_alert;
@@ -57,6 +56,7 @@ pub mod label_generated;
 pub mod lot_merged;
 pub mod lot_split;
 pub mod low_stock_triggered;
+pub mod make_buy_changed;
 pub mod revision_activated;
 pub mod revision_created;
 pub mod revision_policy_updated;
@@ -140,8 +140,7 @@ pub use lot_merged::{
 };
 
 pub use item_change_recorded::{
-    build_item_change_recorded_envelope, ItemChangeRecordedPayload,
-    EVENT_TYPE_ITEM_CHANGE_RECORDED,
+    build_item_change_recorded_envelope, ItemChangeRecordedPayload, EVENT_TYPE_ITEM_CHANGE_RECORDED,
 };
 
 pub use valuation_run_completed::{

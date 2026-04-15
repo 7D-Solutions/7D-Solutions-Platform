@@ -70,18 +70,21 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
         let pool2 = pool.clone();
         let tenant_id2 = tenant_id.clone();
         consumer
-            .process_idempotent::<InvoiceIssuedPayload, _, _>(&msg, move |payload: InvoiceIssuedPayload| {
-                let pool2 = pool2.clone();
-                let tenant_id2 = tenant_id2.clone();
-                async move {
-                    let metadata = EnvelopeMetadata {
-                        event_id,
-                        tenant_id: tenant_id2,
-                        correlation_id: None,
-                    };
-                    handle_invoice_issued(&pool2, payload, metadata).await
-                }
-            })
+            .process_idempotent::<InvoiceIssuedPayload, _, _>(
+                &msg,
+                move |payload: InvoiceIssuedPayload| {
+                    let pool2 = pool2.clone();
+                    let tenant_id2 = tenant_id2.clone();
+                    async move {
+                        let metadata = EnvelopeMetadata {
+                            event_id,
+                            tenant_id: tenant_id2,
+                            correlation_id: None,
+                        };
+                        handle_invoice_issued(&pool2, payload, metadata).await
+                    }
+                },
+            )
             .await
             .expect("first process_idempotent call failed");
     }
@@ -92,18 +95,21 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
         let pool2 = pool.clone();
         let tenant_id2 = tenant_id.clone();
         consumer
-            .process_idempotent::<InvoiceIssuedPayload, _, _>(&msg, move |payload: InvoiceIssuedPayload| {
-                let pool2 = pool2.clone();
-                let tenant_id2 = tenant_id2.clone();
-                async move {
-                    let metadata = EnvelopeMetadata {
-                        event_id,
-                        tenant_id: tenant_id2,
-                        correlation_id: None,
-                    };
-                    handle_invoice_issued(&pool2, payload, metadata).await
-                }
-            })
+            .process_idempotent::<InvoiceIssuedPayload, _, _>(
+                &msg,
+                move |payload: InvoiceIssuedPayload| {
+                    let pool2 = pool2.clone();
+                    let tenant_id2 = tenant_id2.clone();
+                    async move {
+                        let metadata = EnvelopeMetadata {
+                            event_id,
+                            tenant_id: tenant_id2,
+                            correlation_id: None,
+                        };
+                        handle_invoice_issued(&pool2, payload, metadata).await
+                    }
+                },
+            )
             .await
             .expect("second process_idempotent call failed");
     }

@@ -139,15 +139,13 @@ async fn admin_users_returns_roles_and_permissions() {
     .execute(&pool)
     .await
     .expect("bind permission to role");
-    sqlx::query(
-        "INSERT INTO user_role_bindings (tenant_id, user_id, role_id) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant_id)
-    .bind(user_id)
-    .bind(role.id)
-    .execute(&pool)
-    .await
-    .expect("bind role to user");
+    sqlx::query("INSERT INTO user_role_bindings (tenant_id, user_id, role_id) VALUES ($1, $2, $3)")
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(role.id)
+        .execute(&pool)
+        .await
+        .expect("bind role to user");
 
     let results = list_users_admin_query(&pool, tenant_id, None, false).await;
     let user = results
@@ -155,7 +153,10 @@ async fn admin_users_returns_roles_and_permissions() {
         .find(|(id, _, _, _, _)| *id == user_id)
         .expect("user not found");
 
-    assert!(user.3.contains(&"test_viewer".to_string()), "role should be returned");
+    assert!(
+        user.3.contains(&"test_viewer".to_string()),
+        "role should be returned"
+    );
     assert!(
         user.4.contains(&"test.view".to_string()),
         "permission should be returned"
@@ -177,7 +178,10 @@ async fn admin_users_tenant_isolation() {
     let in_a = list_users_admin_query(&pool, tenant_a, None, false).await;
     let in_b = list_users_admin_query(&pool, tenant_b, None, false).await;
 
-    assert!(in_a.iter().any(|(id, _, _, _, _)| *id == user_id), "user must appear in tenant A");
+    assert!(
+        in_a.iter().any(|(id, _, _, _, _)| *id == user_id),
+        "user must appear in tenant A"
+    );
     assert!(
         !in_b.iter().any(|(id, _, _, _, _)| *id == user_id),
         "user must NOT appear in tenant B"
@@ -275,9 +279,13 @@ async fn admin_users_search_filters_by_email() {
     .await;
 
     // Search with lowercase — should match the UPPER one case-insensitively
-    let results =
-        list_users_admin_query(&pool, tenant_id, Some(&format!("search-upper-{}", token_short)), false)
-            .await;
+    let results = list_users_admin_query(
+        &pool,
+        tenant_id,
+        Some(&format!("search-upper-{}", token_short)),
+        false,
+    )
+    .await;
 
     assert!(
         results.iter().any(|(id, _, _, _, _)| *id == match_id),
@@ -315,14 +323,13 @@ async fn admin_users_last_login_at_populated_after_login() {
     .await
     .expect("update last_login_at");
 
-    let row = sqlx::query(
-        "SELECT last_login_at FROM credentials WHERE tenant_id = $1 AND user_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch credential");
+    let row =
+        sqlx::query("SELECT last_login_at FROM credentials WHERE tenant_id = $1 AND user_id = $2")
+            .bind(tenant_id)
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch credential");
 
     let last_login: Option<chrono::DateTime<chrono::Utc>> = row.get("last_login_at");
     assert!(
@@ -348,6 +355,12 @@ async fn admin_users_no_roles_returns_empty_arrays() {
         .find(|(id, _, _, _, _)| *id == user_id)
         .expect("user not found");
 
-    assert!(user.3.is_empty(), "roles should be empty vec for user with no bindings");
-    assert!(user.4.is_empty(), "permissions should be empty vec for user with no bindings");
+    assert!(
+        user.3.is_empty(),
+        "roles should be empty vec for user with no bindings"
+    );
+    assert!(
+        user.4.is_empty(),
+        "permissions should be empty vec for user with no bindings"
+    );
 }

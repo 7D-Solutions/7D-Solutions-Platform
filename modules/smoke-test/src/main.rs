@@ -6,8 +6,8 @@ use security::RequirePermissionsLayer;
 use std::sync::Arc;
 use utoipa::OpenApi;
 
-use smoke_test::{consumer, http, AppState};
 use platform_sdk::ModuleBuilder;
+use smoke_test::{consumer, http, AppState};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
     Json(http::ApiDoc::openapi())

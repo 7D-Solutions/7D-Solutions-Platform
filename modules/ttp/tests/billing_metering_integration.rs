@@ -163,9 +163,17 @@ async fn trace_to_invoice_equivalence() {
     let ar = ArClient::new(ar_url);
     let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
-    let summary = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "bmi-key-001")
-        .await
-        .expect("billing run");
+    let summary = run_billing(
+        &pool,
+        &registry,
+        &ar,
+        &svc_claims,
+        tenant_id,
+        "2026-02",
+        "bmi-key-001",
+    )
+    .await
+    .expect("billing run");
 
     assert!(!summary.was_noop, "first run must not be a no-op");
 
@@ -202,9 +210,17 @@ async fn trace_to_invoice_equivalence() {
     );
 
     // 6. Verify idempotency: second billing run is a no-op
-    let summary2 = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "bmi-key-001")
-        .await
-        .expect("second billing run");
+    let summary2 = run_billing(
+        &pool,
+        &registry,
+        &ar,
+        &svc_claims,
+        tenant_id,
+        "2026-02",
+        "bmi-key-001",
+    )
+    .await
+    .expect("second billing run");
 
     assert!(summary2.was_noop, "second run must be a no-op");
     assert_eq!(summary2.run_id, summary.run_id, "same run_id");
@@ -252,9 +268,17 @@ async fn non_metering_items_have_null_trace_hash() {
     let ar = ArClient::new(ar_url);
     let svc_claims = platform_sdk::PlatformClient::service_claims(tenant_id);
 
-    let summary = run_billing(&pool, &registry, &ar, &svc_claims, tenant_id, "2026-02", "nmi-key-001")
-        .await
-        .expect("billing run");
+    let summary = run_billing(
+        &pool,
+        &registry,
+        &ar,
+        &svc_claims,
+        tenant_id,
+        "2026-02",
+        "nmi-key-001",
+    )
+    .await
+    .expect("billing run");
 
     // The agreement item should have NULL trace_hash
     let item = sqlx::query(

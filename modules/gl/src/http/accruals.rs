@@ -10,10 +10,10 @@ use platform_http_contracts::ApiError;
 use security::VerifiedClaims;
 use std::sync::Arc;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::accruals;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[utoipa::path(post, path = "/api/gl/accruals/templates", tag = "Accruals",
     request_body = crate::accruals::CreateTemplateRequest,

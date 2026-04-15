@@ -183,9 +183,7 @@ pub async fn list_parties(
             let resp = PaginatedResponse::new(parties, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }
-        Err(e) => {
-            with_request_id(ApiError::from(e), &tracing_ctx).into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
 
@@ -213,13 +211,11 @@ pub async fn get_party(
 
     match service::get_party(&state.pool, &app_id, party_id).await {
         Ok(Some(view)) => (StatusCode::OK, Json(view)).into_response(),
-        Ok(None) => {
-            with_request_id(
-                ApiError::not_found(format!("Party {} not found", party_id)),
-                &tracing_ctx,
-            )
-            .into_response()
-        }
+        Ok(None) => with_request_id(
+            ApiError::not_found(format!("Party {} not found", party_id)),
+            &tracing_ctx,
+        )
+        .into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }
@@ -349,8 +345,6 @@ pub async fn search_parties(
             let resp = PaginatedResponse::new(results, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }
-        Err(e) => {
-            with_request_id(ApiError::from(e), &tracing_ctx).into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

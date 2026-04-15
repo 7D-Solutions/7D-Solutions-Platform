@@ -146,15 +146,12 @@ pub async fn execute_valuation_run(
     // --- Group layers by item ---
     let mut item_layers: BTreeMap<Uuid, Vec<FullLayer>> = BTreeMap::new();
     for row in &layer_rows {
-        item_layers
-            .entry(row.item_id)
-            .or_default()
-            .push(FullLayer {
-                item_id: row.item_id,
-                unit_cost_minor: row.unit_cost_minor,
-                quantity_received: row.quantity_received,
-                qty_consumed_at_as_of: row.qty_consumed_at_as_of,
-            });
+        item_layers.entry(row.item_id).or_default().push(FullLayer {
+            item_id: row.item_id,
+            unit_cost_minor: row.unit_cost_minor,
+            quantity_received: row.quantity_received,
+            qty_consumed_at_as_of: row.qty_consumed_at_as_of,
+        });
     }
 
     // --- Load standard costs if needed ---
@@ -321,8 +318,14 @@ pub async fn set_item_valuation_method(
     method: ValuationMethod,
     standard_cost_minor: Option<i64>,
 ) -> Result<(), RunError> {
-    repo::upsert_valuation_method(pool, tenant_id, item_id, method.as_str(), standard_cost_minor)
-        .await?;
+    repo::upsert_valuation_method(
+        pool,
+        tenant_id,
+        item_id,
+        method.as_str(),
+        standard_cost_minor,
+    )
+    .await?;
     Ok(())
 }
 
@@ -370,7 +373,10 @@ mod tests {
             correlation_id: None,
             causation_id: None,
         };
-        assert!(matches!(validate_request(&req), Err(RunError::MissingTenant)));
+        assert!(matches!(
+            validate_request(&req),
+            Err(RunError::MissingTenant)
+        ));
     }
 
     #[test]

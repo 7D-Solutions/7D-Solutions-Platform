@@ -39,10 +39,7 @@ struct SuccessSmsSender;
 
 #[async_trait]
 impl NotificationSender for SuccessSmsSender {
-    async fn send(
-        &self,
-        notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         tracing::info!(id = %notif.id, channel = %notif.channel, "test SMS sent successfully");
         Ok(SendReceipt {
             provider_message_id: Some(format!("sms-msg-{}", Uuid::new_v4())),
@@ -65,10 +62,7 @@ impl RetryableSmsSender {
 
 #[async_trait]
 impl NotificationSender for RetryableSmsSender {
-    async fn send(
-        &self,
-        _notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, _notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
         if prev > 0 {
             Err(NotificationError::Transient(
@@ -87,10 +81,7 @@ struct PermanentFailSmsSender;
 
 #[async_trait]
 impl NotificationSender for PermanentFailSmsSender {
-    async fn send(
-        &self,
-        _notif: &ScheduledNotification,
-    ) -> Result<SendReceipt, NotificationError> {
+    async fn send(&self, _notif: &ScheduledNotification) -> Result<SendReceipt, NotificationError> {
         Err(NotificationError::Permanent(
             "simulated permanent SMS rejection".to_string(),
         ))
@@ -152,7 +143,10 @@ async fn sms_success_path_e2e() {
     .await
     .expect("delivery attempt not found");
     assert_eq!(attempt_status, "succeeded");
-    assert!(provider_msg_id.is_some(), "provider_message_id should be set");
+    assert!(
+        provider_msg_id.is_some(),
+        "provider_message_id should be set"
+    );
 
     // Verify outbox event emitted
     let (event_type, tenant_id): (Option<String>, String) = sqlx::query_as(
@@ -469,7 +463,10 @@ async fn sms_outbox_event_has_correct_fields() {
     );
 
     // The outbox stores the full EventEnvelope; the inner payload is at .payload
-    let inner = row.payload.get("payload").expect("envelope should have .payload");
+    let inner = row
+        .payload
+        .get("payload")
+        .expect("envelope should have .payload");
 
     // Payload contains notification_id
     let payload_notif_id = inner.get("notification_id").and_then(|v| v.as_str());

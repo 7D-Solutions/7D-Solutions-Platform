@@ -156,7 +156,6 @@ impl PlanRepo {
         .map_err(PlanError::Database)
     }
 
-
     pub async fn count(pool: &PgPool, q: &ListPlansQuery) -> Result<i64, PlanError> {
         if q.tenant_id.trim().is_empty() {
             return Err(PlanError::Validation("tenant_id is required".into()));
@@ -361,7 +360,6 @@ impl AssignmentRepo {
         .await
         .map_err(PlanError::Database)
     }
-
 
     pub async fn count(pool: &PgPool, q: &ListAssignmentsQuery) -> Result<i64, PlanError> {
         if q.tenant_id.trim().is_empty() {

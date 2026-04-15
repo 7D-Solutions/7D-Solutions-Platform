@@ -14,11 +14,11 @@ use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::domain::eliminations::{self, service as elim_service};
 use crate::domain::intercompany::{self, service as ic_service};
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct IntercompanyMatchRequest {

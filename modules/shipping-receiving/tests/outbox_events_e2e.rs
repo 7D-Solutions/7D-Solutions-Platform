@@ -134,17 +134,20 @@ async fn inbound_close_emits_event_with_inventory_refs() {
     // Must have lines array with receipt_id (inventory ref)
     let lines = payload["lines"].as_array();
     assert!(lines.is_some(), "payload must contain lines");
-    assert!(
-        !lines.unwrap().is_empty(),
-        "lines must not be empty"
-    );
+    assert!(!lines.unwrap().is_empty(), "lines must not be empty");
 
     // Each line has line_id, sku, qty_accepted, qty_rejected, receipt_id
     for line in lines.unwrap() {
         assert!(line["line_id"].is_string(), "line must have line_id");
         assert!(line["sku"].is_string(), "line must have sku");
-        assert!(line["qty_accepted"].is_number(), "line must have qty_accepted");
-        assert!(line["qty_rejected"].is_number(), "line must have qty_rejected");
+        assert!(
+            line["qty_accepted"].is_number(),
+            "line must have qty_accepted"
+        );
+        assert!(
+            line["qty_rejected"].is_number(),
+            "line must have qty_rejected"
+        );
     }
 }
 
@@ -185,7 +188,8 @@ async fn outbound_shipped_emits_event_with_inventory_refs() {
         .await
         .expect("ship");
 
-    let events = get_outbox_events(&pool, &ship_id_str, "shipping_receiving.outbound_shipped").await;
+    let events =
+        get_outbox_events(&pool, &ship_id_str, "shipping_receiving.outbound_shipped").await;
     assert_eq!(events.len(), 1, "exactly one outbound_shipped event");
 
     let payload = &events[0];
@@ -200,7 +204,10 @@ async fn outbound_shipped_emits_event_with_inventory_refs() {
     for line in lines.unwrap() {
         assert!(line["line_id"].is_string(), "line must have line_id");
         assert!(line["sku"].is_string(), "line must have sku");
-        assert!(line["qty_shipped"].is_number(), "line must have qty_shipped");
+        assert!(
+            line["qty_shipped"].is_number(),
+            "line must have qty_shipped"
+        );
     }
 }
 
@@ -226,7 +233,12 @@ async fn status_changed_events_contain_from_and_to() {
         .await
         .expect("confirmed");
 
-    let events = get_outbox_events(&pool, &ship_id_str, "shipping_receiving.shipment_status_changed").await;
+    let events = get_outbox_events(
+        &pool,
+        &ship_id_str,
+        "shipping_receiving.shipment_status_changed",
+    )
+    .await;
     assert!(!events.is_empty(), "must have status_changed event");
 
     let payload = &events[0];

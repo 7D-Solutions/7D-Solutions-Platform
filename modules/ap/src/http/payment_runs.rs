@@ -20,9 +20,9 @@ use uuid::Uuid;
 use crate::domain::payment_runs::{
     builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
 };
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Request body
@@ -128,13 +128,17 @@ pub async fn create_run(
 
     match create_payment_run(&state.pool, &tenant_id, &req).await {
         Ok(result) => {
-            let items = result.items.iter().map(|item| PaymentRunItem {
-                id: item.id,
-                vendor_id: item.vendor_id,
-                bill_ids: item.bill_ids.clone(),
-                amount_minor: item.amount_minor,
-                currency: item.currency.clone(),
-            }).collect();
+            let items = result
+                .items
+                .iter()
+                .map(|item| PaymentRunItem {
+                    id: item.id,
+                    vendor_id: item.vendor_id,
+                    bill_ids: item.bill_ids.clone(),
+                    amount_minor: item.amount_minor,
+                    currency: item.currency.clone(),
+                })
+                .collect();
             let resp = PaymentRunResponse {
                 run_id: result.run.run_id,
                 tenant_id: result.run.tenant_id.clone(),
@@ -187,8 +191,11 @@ pub async fn get_run(
         Ok(r) => r,
         Err(e) => {
             tracing::error!(error = %e, "DB error fetching payment run");
-            return with_request_id(ApiError::internal("An internal error occurred"), &tracing_ctx)
-                .into_response();
+            return with_request_id(
+                ApiError::internal("An internal error occurred"),
+                &tracing_ctx,
+            )
+            .into_response();
         }
     };
 
@@ -218,18 +225,24 @@ pub async fn get_run(
         Ok(items) => items,
         Err(e) => {
             tracing::error!(error = %e, "DB error fetching payment run items");
-            return with_request_id(ApiError::internal("An internal error occurred"), &tracing_ctx)
-                .into_response();
+            return with_request_id(
+                ApiError::internal("An internal error occurred"),
+                &tracing_ctx,
+            )
+            .into_response();
         }
     };
 
-    let items = rows.iter().map(|item| PaymentRunItem {
-        id: item.id,
-        vendor_id: item.vendor_id,
-        bill_ids: item.bill_ids.clone(),
-        amount_minor: item.amount_minor,
-        currency: item.currency.clone(),
-    }).collect();
+    let items = rows
+        .iter()
+        .map(|item| PaymentRunItem {
+            id: item.id,
+            vendor_id: item.vendor_id,
+            bill_ids: item.bill_ids.clone(),
+            amount_minor: item.amount_minor,
+            currency: item.currency.clone(),
+        })
+        .collect();
 
     let resp = PaymentRunResponse {
         run_id: run.run_id,
@@ -270,16 +283,20 @@ pub async fn execute_run(
 
     match execute_payment_run(&state.pool, &tenant_id, run_id).await {
         Ok(result) => {
-            let executions = result.executions.iter().map(|e| ExecutionEntry {
-                id: e.id,
-                item_id: e.item_id,
-                payment_id: e.payment_id,
-                vendor_id: e.vendor_id,
-                amount_minor: e.amount_minor,
-                currency: e.currency.clone(),
-                status: e.status.clone(),
-                executed_at: e.executed_at,
-            }).collect();
+            let executions = result
+                .executions
+                .iter()
+                .map(|e| ExecutionEntry {
+                    id: e.id,
+                    item_id: e.item_id,
+                    payment_id: e.payment_id,
+                    vendor_id: e.vendor_id,
+                    amount_minor: e.amount_minor,
+                    currency: e.currency.clone(),
+                    status: e.status.clone(),
+                    executed_at: e.executed_at,
+                })
+                .collect();
             let resp = ExecuteRunResponse {
                 run_id: result.run.run_id,
                 status: result.run.status.clone(),

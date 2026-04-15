@@ -11,9 +11,9 @@ use bom_rs::domain::eco_service;
 use bom_rs::domain::models::*;
 use bom_rs::domain::numbering_client::NumberingClient;
 use chrono::{Duration, Utc};
+use platform_sdk::PlatformClient;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
-use platform_sdk::PlatformClient;
 use uuid::Uuid;
 
 async fn setup_bom_db() -> sqlx::PgPool {
@@ -191,7 +191,10 @@ async fn e2e_eco_full_lifecycle_with_numbering() {
     .expect("create eco with auto-numbering");
 
     assert_eq!(eco.status, "draft");
-    assert_eq!(eco.eco_number, "ECO-00001", "First ECO should get ECO-00001");
+    assert_eq!(
+        eco.eco_number, "ECO-00001",
+        "First ECO should get ECO-00001"
+    );
 
     // ---- Step 2: Link BOM revisions (Rev-A → Rev-B) ----
     let bom_link = eco_service::link_bom_revision(
@@ -306,7 +309,11 @@ async fn e2e_eco_full_lifecycle_with_numbering() {
         .await
         .expect("eco history for part");
 
-    assert_eq!(history.len(), 1, "Should have exactly one ECO for this part");
+    assert_eq!(
+        history.len(),
+        1,
+        "Should have exactly one ECO for this part"
+    );
     assert_eq!(
         history[0].eco_number, "ECO-00001",
         "History should show auto-allocated number"
@@ -364,7 +371,10 @@ async fn e2e_eco_full_lifecycle_with_numbering() {
     .expect("eco outbox events");
 
     let eco_types: Vec<&str> = eco_events.iter().map(|r| r.0.as_str()).collect();
-    assert!(eco_types.contains(&"eco.created"), "Missing eco.created event");
+    assert!(
+        eco_types.contains(&"eco.created"),
+        "Missing eco.created event"
+    );
     assert!(
         eco_types.contains(&"eco.submitted"),
         "Missing eco.submitted event"
@@ -373,7 +383,10 @@ async fn e2e_eco_full_lifecycle_with_numbering() {
         eco_types.contains(&"eco.approved"),
         "Missing eco.approved event"
     );
-    assert!(eco_types.contains(&"eco.applied"), "Missing eco.applied event");
+    assert!(
+        eco_types.contains(&"eco.applied"),
+        "Missing eco.applied event"
+    );
 
     let rev_events: Vec<(String,)> = sqlx::query_as(
         "SELECT event_type FROM bom_outbox WHERE tenant_id = $1 AND event_type LIKE 'bom.revision_%' ORDER BY created_at",
@@ -422,7 +435,7 @@ async fn e2e_eco_sequential_numbering() {
             None,
             &Uuid::new_v4().to_string(),
             None,
-        &PlatformClient::service_claims(Uuid::new_v4()),
+            &PlatformClient::service_claims(Uuid::new_v4()),
         )
         .await
         .unwrap_or_else(|e| panic!("create eco #{}: {}", i, e));
@@ -438,9 +451,5 @@ async fn e2e_eco_sequential_numbering() {
     let mut unique = eco_numbers.clone();
     unique.sort();
     unique.dedup();
-    assert_eq!(
-        unique.len(),
-        3,
-        "All 3 ECO numbers must be unique"
-    );
+    assert_eq!(unique.len(), 3, "All 3 ECO numbers must be unique");
 }

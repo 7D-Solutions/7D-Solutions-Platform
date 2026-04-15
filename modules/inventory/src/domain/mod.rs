@@ -1,8 +1,8 @@
-mod error_conversions;
 #[path = "adjust/mod.rs"]
 pub mod adjust_service;
 pub mod classifications;
 pub mod cycle_count;
+mod error_conversions;
 pub mod expiry;
 pub mod expiry_repo;
 pub mod fifo;
@@ -16,9 +16,9 @@ pub mod items;
 pub mod items_repo;
 pub mod labels;
 pub mod labels_repo;
-pub mod make_buy;
 pub mod locations;
 pub mod lots_serials;
+pub mod make_buy;
 pub mod projections;
 pub mod receipt_repo;
 pub mod receipt_service;

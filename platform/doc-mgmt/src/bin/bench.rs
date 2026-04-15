@@ -55,7 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     while Instant::now() < deadline {
         seq += 1;
-        let (doc_id, rev_id, doc_number, create_ms) = bench_create(&pool, tenant_id, actor_id, seq).await?;
+        let (doc_id, rev_id, doc_number, create_ms) =
+            bench_create(&pool, tenant_id, actor_id, seq).await?;
         create_times.push(create_ms);
 
         let list_ms = bench_list(&pool, tenant_id).await?;
@@ -276,9 +277,7 @@ fn print_stats(name: &str, values: &[f64]) {
     let p99 = percentile(&sorted, 99.0);
     let avg = sorted.iter().sum::<f64>() / count as f64;
 
-    println!(
-        "{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms"
-    );
+    println!("{name}: n={count} avg={avg:.2}ms p50={p50:.2}ms p95={p95:.2}ms p99={p99:.2}ms");
 }
 
 fn percentile(sorted: &[f64], pct: f64) -> f64 {

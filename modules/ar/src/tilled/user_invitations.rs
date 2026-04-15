@@ -36,9 +36,7 @@ impl TilledClient {
     }
 
     /// List all user invitations.
-    pub async fn list_user_invitations(
-        &self,
-    ) -> Result<ListResponse<UserInvitation>, TilledError> {
+    pub async fn list_user_invitations(&self) -> Result<ListResponse<UserInvitation>, TilledError> {
         self.get("/v1/user-invitations", None).await
     }
 
@@ -52,10 +50,7 @@ impl TilledClient {
     }
 
     /// Delete a user invitation.
-    pub async fn delete_user_invitation(
-        &self,
-        invitation_id: &str,
-    ) -> Result<(), TilledError> {
+    pub async fn delete_user_invitation(&self, invitation_id: &str) -> Result<(), TilledError> {
         let path = format!("/v1/user-invitations/{invitation_id}");
         let url = format!("{}{}", self.config.base_path, path);
         let response = self
@@ -110,9 +105,9 @@ mod tests {
             email: "invite@example.com".to_string(),
             role: "merchant_admin".to_string(),
         };
-        let value = serde_json::to_value(payload).unwrap();
-        assert_eq!(value.get("email").unwrap(), "invite@example.com");
-        assert_eq!(value.get("role").unwrap(), "merchant_admin");
+        let value = serde_json::to_value(payload).expect("test fixture");
+        assert_eq!(value.get("email").expect("test fixture"), "invite@example.com");
+        assert_eq!(value.get("role").expect("test fixture"), "merchant_admin");
     }
 
     #[test]
@@ -123,7 +118,7 @@ mod tests {
             "role": "merchant_admin",
             "status": "pending"
         });
-        let invite: UserInvitation = serde_json::from_value(value).unwrap();
+        let invite: UserInvitation = serde_json::from_value(value).expect("test fixture");
         assert_eq!(invite.id, "ui_123");
         assert_eq!(invite.email.as_deref(), Some("invite@example.com"));
         assert_eq!(invite.status.as_deref(), Some("pending"));
@@ -132,7 +127,7 @@ mod tests {
     #[test]
     fn user_invitation_deserializes_minimal() {
         let value = serde_json::json!({ "id": "ui_456" });
-        let invite: UserInvitation = serde_json::from_value(value).unwrap();
+        let invite: UserInvitation = serde_json::from_value(value).expect("test fixture");
         assert_eq!(invite.id, "ui_456");
         assert!(invite.email.is_none());
     }

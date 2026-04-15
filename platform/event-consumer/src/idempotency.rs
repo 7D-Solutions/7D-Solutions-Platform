@@ -56,13 +56,11 @@ where
 
     if result.rows_affected() == 0 {
         // Update last_seen_at for observability (non-critical, fire-and-forget).
-        let _ = sqlx::query(
-            "UPDATE event_dedupe SET last_seen_at = $2 WHERE event_id = $1",
-        )
-        .bind(event_id)
-        .bind(now)
-        .execute(pool)
-        .await;
+        let _ = sqlx::query("UPDATE event_dedupe SET last_seen_at = $2 WHERE event_id = $1")
+            .bind(event_id)
+            .bind(now)
+            .execute(pool)
+            .await;
 
         tracing::debug!(event_id = %event_id, subject = %subject, "Duplicate event, skipping");
         return Ok(DedupeOutcome::Duplicate);

@@ -1,4 +1,3 @@
-use platform_sdk::extract_tenant;
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
@@ -8,6 +7,7 @@ use axum::{
 use chrono::Utc;
 use event_bus::TracingContext;
 use platform_http_contracts::{ApiError, PaginatedResponse};
+use platform_sdk::extract_tenant;
 use security::{permissions, VerifiedClaims};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -21,9 +21,9 @@ use crate::outbox;
 use crate::AppState;
 
 use super::types::{
-    idempotency_key, with_request_id, AddLineRequest, CreateShipmentRequest,
-    ListShipmentsQuery, ReceiveLineRequest, ShipLineQtyRequest, ShipmentLineRow,
-    ShipOutboundRequest, TransitionStatusRequest,
+    idempotency_key, with_request_id, AddLineRequest, CreateShipmentRequest, ListShipmentsQuery,
+    ReceiveLineRequest, ShipLineQtyRequest, ShipOutboundRequest, ShipmentLineRow,
+    TransitionStatusRequest,
 };
 
 #[utoipa::path(
@@ -45,9 +45,10 @@ pub async fn create_shipment(
     headers: HeaderMap,
     Json(req): Json<CreateShipmentRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -133,9 +134,10 @@ pub async fn get_shipment(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -165,9 +167,10 @@ pub async fn list_shipments(
     tracing_ctx: Option<Extension<TracingContext>>,
     Query(q): Query<ListShipmentsQuery>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -205,10 +208,8 @@ pub async fn list_shipments(
             let resp = PaginatedResponse::new(shipments, page, page_size, total);
             (StatusCode::OK, Json(resp)).into_response()
         }
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -233,9 +234,10 @@ pub async fn transition_status(
     Path(id): Path<Uuid>,
     Json(req): Json<TransitionStatusRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -278,9 +280,10 @@ pub async fn add_line(
     Path(shipment_id): Path<Uuid>,
     Json(req): Json<AddLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -335,10 +338,8 @@ pub async fn add_line(
 
     match line {
         Ok(l) => (StatusCode::CREATED, Json(serde_json::json!(l))).into_response(),
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -366,9 +367,10 @@ pub async fn receive_line(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<ReceiveLineRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -392,21 +394,22 @@ pub async fn receive_line(
     }
 
     let line = ShipmentRepository::receive_line(
-        &state.pool, line_id, shipment_id, tenant_id,
-        req.qty_received, req.qty_accepted, req.qty_rejected,
+        &state.pool,
+        line_id,
+        shipment_id,
+        tenant_id,
+        req.qty_received,
+        req.qty_accepted,
+        req.qty_rejected,
     )
     .await;
 
     match line {
         Ok(Some(l)) => (StatusCode::OK, Json(serde_json::json!(l))).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
-                .into_response()
-        }
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Ok(None) => with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
+            .into_response(),
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -434,9 +437,10 @@ pub async fn ship_line_qty(
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<ShipLineQtyRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -460,20 +464,20 @@ pub async fn ship_line_qty(
     }
 
     let line = ShipmentRepository::ship_line_qty(
-        &state.pool, line_id, shipment_id, tenant_id, req.qty_shipped,
+        &state.pool,
+        line_id,
+        shipment_id,
+        tenant_id,
+        req.qty_shipped,
     )
     .await;
 
     match line {
         Ok(Some(l)) => (StatusCode::OK, Json(serde_json::json!(l))).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
-                .into_response()
-        }
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Ok(None) => with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
+            .into_response(),
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -496,9 +500,10 @@ pub async fn close_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -537,9 +542,10 @@ pub async fn ship_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -578,9 +584,10 @@ pub async fn deliver_shipment(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -620,28 +627,22 @@ pub async fn accept_line(
     tracing_ctx: Option<Extension<TracingContext>>,
     Path((shipment_id, line_id)): Path<(Uuid, Uuid)>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
 
-    let line = ShipmentRepository::accept_line(
-        &state.pool, line_id, shipment_id, tenant_id,
-    )
-    .await;
+    let line = ShipmentRepository::accept_line(&state.pool, line_id, shipment_id, tenant_id).await;
 
     match line {
         Ok(Some(l)) => (StatusCode::OK, Json(serde_json::json!(l))).into_response(),
-        Ok(None) => {
-            with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
-                .into_response()
-        }
-        Err(e) => {
-            with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
-                .into_response()
-        }
+        Ok(None) => with_request_id(ApiError::not_found("Shipment line not found"), &tracing_ctx)
+            .into_response(),
+        Err(e) => with_request_id(ApiError::from(ShipmentError::Database(e)), &tracing_ctx)
+            .into_response(),
     }
 }
 
@@ -668,9 +669,10 @@ pub async fn ship_outbound(
     Path(id): Path<Uuid>,
     Json(req): Json<ShipOutboundRequest>,
 ) -> impl IntoResponse {
-    let tenant_id: Uuid = match extract_tenant(&claims)
-        .and_then(|id| id.parse().map_err(|_| ApiError::bad_request("malformed tenant_id")))
-    {
+    let tenant_id: Uuid = match extract_tenant(&claims).and_then(|id| {
+        id.parse()
+            .map_err(|_| ApiError::bad_request("malformed tenant_id"))
+    }) {
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
@@ -679,7 +681,11 @@ pub async fn ship_outbound(
     // Determine whether the caller holds the quality_inspection.mutate permission.
     let caller_can_override_qi = claims
         .as_ref()
-        .map(|Extension(c)| c.perms.iter().any(|p| p == permissions::QUALITY_INSPECTION_MUTATE))
+        .map(|Extension(c)| {
+            c.perms
+                .iter()
+                .any(|p| p == permissions::QUALITY_INSPECTION_MUTATE)
+        })
         .unwrap_or(false);
 
     let domain_req = OutboundShipRequest {

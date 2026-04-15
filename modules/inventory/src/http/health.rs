@@ -59,7 +59,10 @@ pub async fn ready(
     let resp = {
         let checks = vec![
             db_check_with_pool(latency, db_err.clone(), pool_metrics),
-            nats_check(app_state.bus_health.is_connected(), app_state.bus_health.latency_ms()),
+            nats_check(
+                app_state.bus_health.is_connected(),
+                app_state.bus_health.latency_ms(),
+            ),
         ];
         build_ready_response("inventory", env!("CARGO_PKG_VERSION"), checks)
     };

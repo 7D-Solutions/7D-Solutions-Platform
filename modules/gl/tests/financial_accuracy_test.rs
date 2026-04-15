@@ -35,24 +35,80 @@ fn unique_tenant() -> String {
 async fn setup_coa(pool: &PgPool, tenant_id: &str) {
     // Asset accounts
     setup_test_account(pool, tenant_id, "1000", "Cash", "asset", "debit").await;
-    setup_test_account(pool, tenant_id, "1100", "Accounts Receivable", "asset", "debit").await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "1100",
+        "Accounts Receivable",
+        "asset",
+        "debit",
+    )
+    .await;
     setup_test_account(pool, tenant_id, "1200", "Inventory", "asset", "debit").await;
 
     // Liability accounts
-    setup_test_account(pool, tenant_id, "2000", "Accounts Payable", "liability", "credit").await;
-    setup_test_account(pool, tenant_id, "2100", "Tax Payable", "liability", "credit").await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "2000",
+        "Accounts Payable",
+        "liability",
+        "credit",
+    )
+    .await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "2100",
+        "Tax Payable",
+        "liability",
+        "credit",
+    )
+    .await;
 
     // Equity accounts
-    setup_test_account(pool, tenant_id, "3000", "Retained Earnings", "equity", "credit").await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "3000",
+        "Retained Earnings",
+        "equity",
+        "credit",
+    )
+    .await;
 
     // Revenue accounts
     setup_test_account(pool, tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    setup_test_account(pool, tenant_id, "4100", "Service Revenue", "revenue", "credit").await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "4100",
+        "Service Revenue",
+        "revenue",
+        "credit",
+    )
+    .await;
 
     // Expense accounts
     setup_test_account(pool, tenant_id, "5000", "COGS", "expense", "debit").await;
-    setup_test_account(pool, tenant_id, "6000", "Operating Expenses", "expense", "debit").await;
-    setup_test_account(pool, tenant_id, "6100", "Bad Debt Expense", "expense", "debit").await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "6000",
+        "Operating Expenses",
+        "expense",
+        "debit",
+    )
+    .await;
+    setup_test_account(
+        pool,
+        tenant_id,
+        "6100",
+        "Bad Debt Expense",
+        "expense",
+        "debit",
+    )
+    .await;
 }
 
 // ============================================================================
@@ -91,14 +147,16 @@ async fn post_journal_entry(
     let line_inserts: Vec<JournalLineInsert> = lines
         .into_iter()
         .enumerate()
-        .map(|(i, (account_ref, debit_minor, credit_minor))| JournalLineInsert {
-            id: Uuid::new_v4(),
-            line_no: i as i32 + 1,
-            account_ref,
-            debit_minor,
-            credit_minor,
-            memo: None,
-        })
+        .map(
+            |(i, (account_ref, debit_minor, credit_minor))| JournalLineInsert {
+                id: Uuid::new_v4(),
+                line_no: i as i32 + 1,
+                account_ref,
+                debit_minor,
+                credit_minor,
+                memo: None,
+            },
+        )
         .collect();
 
     journal_repo::bulk_insert_lines(&mut tx, entry_id, &line_inserts)
@@ -452,10 +510,19 @@ async fn test_ar_reconciliation_invoiced_equals_paid_plus_outstanding() {
     );
 
     // Verify specific amounts
-    assert_eq!(total_invoiced, 100_000, "Total invoiced should be $1,000 (excl void)");
+    assert_eq!(
+        total_invoiced, 100_000,
+        "Total invoiced should be $1,000 (excl void)"
+    );
     assert_eq!(total_paid, 50_000, "Total paid should be $500");
-    assert_eq!(total_outstanding, 30_000, "Total outstanding should be $300");
-    assert_eq!(total_written_off, 20_000, "Total written off should be $200");
+    assert_eq!(
+        total_outstanding, 30_000,
+        "Total outstanding should be $300"
+    );
+    assert_eq!(
+        total_written_off, 20_000,
+        "Total written off should be $200"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
@@ -637,7 +704,10 @@ async fn test_ap_reconciliation_billed_equals_paid_plus_outstanding() {
     );
 
     // Verify expected amounts (excluding voided bill)
-    assert_eq!(total_billed, 225_000, "Total billed should be $2,250 (excl voided)");
+    assert_eq!(
+        total_billed, 225_000,
+        "Total billed should be $2,250 (excl voided)"
+    );
     assert_eq!(total_allocated, 120_000, "Total allocated should be $1,200");
     assert_eq!(total_open_balance, 105_000, "Open balance should be $1,050");
 
@@ -713,8 +783,9 @@ async fn test_cross_module_payment_matches_ar_invoice() {
         .expect("run AR migrations");
 
     // Connect to Payments
-    let pay_url = std::env::var("DATABASE_URL_PAYMENTS")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
+    let pay_url = std::env::var("DATABASE_URL_PAYMENTS").unwrap_or_else(|_| {
+        "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string()
+    });
     let pay_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
         .acquire_timeout(std::time::Duration::from_secs(5))
@@ -1015,9 +1086,9 @@ async fn test_period_close_trial_balance_sums_to_zero() {
         "USD",
         "Period close — net income to retained earnings",
         vec![
-            ("4100".to_string(), 500_000, 0),  // Close Service Revenue
-            ("6000".to_string(), 0, 200_000),  // Close OpEx
-            ("3000".to_string(), 0, 300_000),  // Net income → Retained Earnings
+            ("4100".to_string(), 500_000, 0), // Close Service Revenue
+            ("6000".to_string(), 0, 200_000), // Close OpEx
+            ("3000".to_string(), 0, 300_000), // Net income → Retained Earnings
         ],
     )
     .await;

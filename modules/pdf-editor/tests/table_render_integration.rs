@@ -86,7 +86,9 @@ async fn simple_table_render_e2e() {
     assert!(result.error_message.is_none());
     assert!(result.rendered_at.is_some());
 
-    let output = result.pdf_output.expect("rendered request should have PDF output");
+    let output = result
+        .pdf_output
+        .expect("rendered request should have PDF output");
     assert!(output.starts_with(b"%PDF-"), "output must be valid PDF");
     assert!(
         output.len() > pdf_bytes.len(),
@@ -270,7 +272,10 @@ async fn border_styling_produces_different_outputs() {
     assert!(outer_out.starts_with(b"%PDF-"));
 
     // All three should differ (different border configurations)
-    assert_ne!(full_out, none_out, "full borders vs no borders should differ");
+    assert_ne!(
+        full_out, none_out,
+        "full borders vs no borders should differ"
+    );
     assert_ne!(
         full_out, outer_out,
         "full borders vs outer-only should differ"

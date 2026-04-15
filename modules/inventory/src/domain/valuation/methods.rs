@@ -417,10 +417,7 @@ mod tests {
         // WAC = $210 / 30 = $7 per unit
         // On hand: 30 - 5 = 25
         // Value: 25 * $7 = $175
-        let layers = vec![
-            make_layer(id, 10, 0, 500),
-            make_layer(id, 20, 5, 800),
-        ];
+        let layers = vec![make_layer(id, 10, 0, 500), make_layer(id, 20, 5, 800)];
         let v = value_wac(&layers).expect("wac mixed costs");
         assert_eq!(v.quantity_on_hand, 25);
         // WAC: (10*500 + 20*800) / (10+20) = 21000/30 = 700
@@ -509,7 +506,11 @@ mod tests {
         ];
         for i in 0..values.len() {
             for j in (i + 1)..values.len() {
-                assert_ne!(values[i], values[j], "methods {} and {} should differ", i, j);
+                assert_ne!(
+                    values[i], values[j],
+                    "methods {} and {} should differ",
+                    i, j
+                );
             }
         }
     }

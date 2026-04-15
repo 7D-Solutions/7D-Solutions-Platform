@@ -424,10 +424,7 @@ fn shipping_template_delivery_confirmed_renders_correctly() {
     let msg = render("delivery_confirmed", &payload).expect("render delivery_confirmed failed");
 
     assert_eq!(msg.subject, "Your order has been delivered");
-    assert!(
-        msg.body_html.contains("<p>"),
-        "body_html must be HTML"
-    );
+    assert!(msg.body_html.contains("<p>"), "body_html must be HTML");
     assert!(
         msg.body_html.contains("delivered"),
         "body_html must mention delivery"

@@ -29,7 +29,10 @@ mod tests {
 
         // Sandbox may have no readers — validate structure
         for reader in &list.items {
-            assert!(!reader.id.is_empty(), "terminal reader ID must be non-empty");
+            assert!(
+                !reader.id.is_empty(),
+                "terminal reader ID must be non-empty"
+            );
         }
     }
 
@@ -108,9 +111,7 @@ mod tests {
 
         // Update label
         let updated = retry
-            .execute(|| {
-                client.update_terminal_reader(&reader.id, Some(test_label.clone()))
-            })
+            .execute(|| client.update_terminal_reader(&reader.id, Some(test_label.clone())))
             .await
             .expect("update_terminal_reader should succeed");
         assert_eq!(updated.id, reader.id);

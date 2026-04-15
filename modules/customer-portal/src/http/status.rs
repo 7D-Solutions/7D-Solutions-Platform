@@ -74,9 +74,17 @@ pub async fn create_status_card(
 
     let id = Uuid::new_v4();
     portal_repo::insert_status_card(
-        &state.pool, id, req.tenant_id, req.party_id,
-        &req.entity_type, req.entity_id, &req.title, &req.status,
-        &req.details, &req.source, Utc::now(),
+        &state.pool,
+        id,
+        req.tenant_id,
+        req.party_id,
+        &req.entity_type,
+        req.entity_id,
+        &req.title,
+        &req.status,
+        &req.details,
+        &req.source,
+        Utc::now(),
     )
     .await
     .map_err(|e| {
@@ -112,10 +120,10 @@ pub async fn list_status_cards(
         return Err(with_request_id(ApiError::forbidden("forbidden"), &ctx));
     }
 
-    let tenant_id =
-        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
-    let party_id =
-        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let tenant_id = Uuid::parse_str(&claims.tenant_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id = Uuid::parse_str(&claims.party_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
     let page = query.page.unwrap_or(1).max(1);
     let page_size = query.page_size.unwrap_or(50).clamp(1, 200);
@@ -169,31 +177,33 @@ pub async fn acknowledge(
         ));
     }
 
-    let tenant_id =
-        Uuid::parse_str(&claims.tenant_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
-    let party_id =
-        Uuid::parse_str(&claims.party_id).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
-    let portal_user_id =
-        Uuid::parse_str(&claims.sub).map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let tenant_id = Uuid::parse_str(&claims.tenant_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let party_id = Uuid::parse_str(&claims.party_id)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
+    let portal_user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| with_request_id(ApiError::unauthorized("unauthorized"), &ctx))?;
 
-    let existing = portal_repo::find_idempotency(&state.pool, tenant_id, "acknowledge", &req.idempotency_key)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "portal status db error");
-            with_request_id(ApiError::internal("Database error"), &ctx)
-        })?;
+    let existing =
+        portal_repo::find_idempotency(&state.pool, tenant_id, "acknowledge", &req.idempotency_key)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "portal status db error");
+                with_request_id(ApiError::internal("Database error"), &ctx)
+            })?;
 
     if let Some(response) = existing {
         return Ok(Json(response));
     }
 
     if let Some(doc_id) = req.document_id {
-        let linked: Option<(Uuid,)> = portal_repo::find_document_link(&state.pool, tenant_id, party_id, doc_id)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "portal status db error");
-                with_request_id(ApiError::internal("Database error"), &ctx)
-            })?;
+        let linked: Option<(Uuid,)> =
+            portal_repo::find_document_link(&state.pool, tenant_id, party_id, doc_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "portal status db error");
+                    with_request_id(ApiError::internal("Database error"), &ctx)
+                })?;
 
         if linked.is_none() {
             return Err(with_request_id(ApiError::not_found("not_found"), &ctx));
@@ -207,9 +217,16 @@ pub async fn acknowledge(
     })?;
 
     portal_repo::insert_acknowledgment_tx(
-        &mut tx, ack_id, tenant_id, party_id, portal_user_id,
-        req.document_id, req.status_card_id, &req.ack_type,
-        req.notes.as_deref(), &req.idempotency_key,
+        &mut tx,
+        ack_id,
+        tenant_id,
+        party_id,
+        portal_user_id,
+        req.document_id,
+        req.status_card_id,
+        &req.ack_type,
+        req.notes.as_deref(),
+        &req.idempotency_key,
     )
     .await
     .map_err(|err| {
@@ -217,10 +234,7 @@ pub async fn acknowledge(
             if db.constraint()
                 == Some("portal_acknowledgments_tenant_id_party_id_idempotency_key_key")
             {
-                return with_request_id(
-                    ApiError::conflict("duplicate_acknowledgment"),
-                    &ctx,
-                );
+                return with_request_id(ApiError::conflict("duplicate_acknowledgment"), &ctx);
             }
         }
         tracing::error!(error = %err, "portal status db error");
@@ -256,7 +270,11 @@ pub async fn acknowledge(
     });
 
     portal_repo::insert_idempotency_no_conflict_tx(
-        &mut tx, tenant_id, "acknowledge", &req.idempotency_key, &response,
+        &mut tx,
+        tenant_id,
+        "acknowledge",
+        &req.idempotency_key,
+        &response,
     )
     .await
     .map_err(|e| {
@@ -302,8 +320,13 @@ pub async fn link_document(
 
     let id = Uuid::new_v4();
     portal_repo::upsert_document_link(
-        &state.pool, id, req.tenant_id, req.party_id,
-        req.document_id, req.display_title.as_deref(), actor.user_id,
+        &state.pool,
+        id,
+        req.tenant_id,
+        req.party_id,
+        req.document_id,
+        req.display_title.as_deref(),
+        actor.user_id,
     )
     .await
     .map_err(|e| {

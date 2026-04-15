@@ -155,8 +155,14 @@ async fn smoke_subscriptions() {
             );
             let returned_id = body["bill_run_id"].as_str().unwrap();
             assert_eq!(returned_id, bill_run_id, "bill_run_id mismatch");
-            assert!(body["subscriptions_processed"].is_number(), "Missing subscriptions_processed");
-            assert!(body["invoices_created"].is_number(), "Missing invoices_created");
+            assert!(
+                body["subscriptions_processed"].is_number(),
+                "Missing subscriptions_processed"
+            );
+            assert!(
+                body["invoices_created"].is_number(),
+                "Missing invoices_created"
+            );
             assert!(body["failures"].is_number(), "Missing failures");
             println!(
                 "  bill-run ok: processed={} created={} failures={}",
@@ -172,7 +178,10 @@ async fn smoke_subscriptions() {
                 !error_str.contains("syntax error") && !error_str.contains("relation "),
                 "SQL leak detected in error response: {body}"
             );
-            println!("  bill-run downstream error (structured): {}", body["error"]);
+            println!(
+                "  bill-run downstream error (structured): {}",
+                body["error"]
+            );
         }
 
         // -------------------------------------------------------------------
@@ -256,7 +265,10 @@ async fn smoke_subscriptions() {
         assert_eq!(status, StatusCode::FORBIDDEN, "Expected 403 without token");
         println!("  projection-status: 403 (ADMIN_TOKEN not set, expected)");
     } else {
-        assert!(status.is_success(), "Admin projection-status failed: {status}");
+        assert!(
+            status.is_success(),
+            "Admin projection-status failed: {status}"
+        );
         println!("  projection-status: {status}");
     }
     let resp = client
@@ -286,7 +298,10 @@ async fn smoke_subscriptions() {
         assert_eq!(status, StatusCode::FORBIDDEN, "Expected 403 without token");
         println!("  consistency-check: 403 (ADMIN_TOKEN not set, expected)");
     } else {
-        assert!(status.is_success(), "Admin consistency-check failed: {status}");
+        assert!(
+            status.is_success(),
+            "Admin consistency-check failed: {status}"
+        );
         println!("  consistency-check: {status}");
     }
     let resp = client

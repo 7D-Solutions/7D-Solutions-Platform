@@ -51,8 +51,7 @@ pub async fn execute_bill_run(
         .as_ref()
         .map(|Extension(c)| c.clone())
         .unwrap_or_default();
-    let tenant_id =
-        extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
     let bill_run_id = req
         .bill_run_id

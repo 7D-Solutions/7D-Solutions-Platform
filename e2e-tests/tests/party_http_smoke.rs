@@ -8,13 +8,13 @@
 //   Contacts (7): create, list, get, update, set-primary, primary-contacts, delete
 //   Addresses (5): create, list, get, update, delete
 
+use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::time::Duration;
 use uuid::Uuid;
-use chrono::Utc;
 
 const PARTY_DEFAULT_URL: &str = "http://localhost:8098";
 
@@ -83,7 +83,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "DELETE" => client.delete(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -103,10 +107,7 @@ async fn smoke_party() {
         .unwrap();
 
     if !wait_for_party(&client).await {
-        eprintln!(
-            "Party service not reachable at {} -- skipping",
-            party_url()
-        );
+        eprintln!("Party service not reachable at {} -- skipping", party_url());
         return;
     }
     println!("Party service healthy at {}", party_url());
@@ -224,10 +225,7 @@ async fn smoke_party() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(
-        status.is_success(),
-        "Get party failed: {status} - {body}"
-    );
+    assert!(status.is_success(), "Get party failed: {status} - {body}");
     assert_eq!(body["id"].as_str().unwrap_or(""), company_id);
     println!("  get party ok: {}", body["display_name"]);
     assert_unauth(
@@ -357,10 +355,7 @@ async fn smoke_party() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(
-        status.is_success(),
-        "Get contact failed: {status} - {body}"
-    );
+    assert!(status.is_success(), "Get contact failed: {status} - {body}");
     assert_eq!(body["id"].as_str().unwrap_or(""), contact_id);
     println!("  contact ok: {} {}", body["first_name"], body["last_name"]);
     assert_unauth(
@@ -474,11 +469,7 @@ async fn smoke_party() {
         .await
         .unwrap();
     let status = resp.status();
-    assert_eq!(
-        status.as_u16(),
-        204,
-        "Delete contact failed: {status}"
-    );
+    assert_eq!(status.as_u16(), 204, "Delete contact failed: {status}");
     println!("  contact deleted: 204");
     assert_unauth(
         &client,
@@ -555,10 +546,7 @@ async fn smoke_party() {
         .unwrap();
     let status = resp.status();
     let body: Value = resp.json().await.unwrap_or(json!({}));
-    assert!(
-        status.is_success(),
-        "Get address failed: {status} - {body}"
-    );
+    assert!(status.is_success(), "Get address failed: {status} - {body}");
     assert_eq!(body["id"].as_str().unwrap_or(""), address_id);
     println!("  address ok: {} {}", body["line1"], body["city"]);
     assert_unauth(
@@ -622,11 +610,7 @@ async fn smoke_party() {
         .await
         .unwrap();
     let status = resp.status();
-    assert_eq!(
-        status.as_u16(),
-        204,
-        "Delete address failed: {status}"
-    );
+    assert_eq!(status.as_u16(), 204, "Delete address failed: {status}");
     println!("  address deleted: 204");
     assert_unauth(
         &client,
@@ -648,11 +632,7 @@ async fn smoke_party() {
         .await
         .unwrap();
     let status = resp.status();
-    assert_eq!(
-        status.as_u16(),
-        204,
-        "Deactivate party failed: {status}"
-    );
+    assert_eq!(status.as_u16(), 204, "Deactivate party failed: {status}");
     println!("  deactivated party: 204");
     assert_unauth(
         &client,

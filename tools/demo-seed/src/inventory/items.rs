@@ -225,7 +225,10 @@ pub(super) async fn create_item(
 
     if status == reqwest::StatusCode::CONFLICT {
         // Item already exists — retrieve UUID via search
-        info!(sku = item.sku, "Item already exists — retrieving UUID via search");
+        info!(
+            sku = item.sku,
+            "Item already exists — retrieving UUID via search"
+        );
         return find_item_by_sku(client, inventory_url, item.sku).await;
     }
 
@@ -263,7 +266,10 @@ async fn find_item_by_sku(
     if !resp.status().is_success() {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
-        bail!("GET /api/inventory/items?search={} failed {status}: {text}", sku);
+        bail!(
+            "GET /api/inventory/items?search={} failed {status}: {text}",
+            sku
+        );
     }
 
     let search: ItemSearchResponse = resp
@@ -353,7 +359,11 @@ mod tests {
             .iter()
             .filter(|i| i.make_buy == "buy" && i.tracking_mode == "none")
             .collect();
-        assert_eq!(fasteners.len(), 3, "Expected 3 fasteners (buy + no tracking)");
+        assert_eq!(
+            fasteners.len(),
+            3,
+            "Expected 3 fasteners (buy + no tracking)"
+        );
     }
 
     #[test]

@@ -64,7 +64,11 @@ async fn wait_for_service(client: &Client) -> bool {
     for attempt in 1..=15 {
         match client.get(&url).send().await {
             Ok(r) if r.status().is_success() => return true,
-            Ok(r) => eprintln!("  workforce-competence health {}/15: {}", attempt, r.status()),
+            Ok(r) => eprintln!(
+                "  workforce-competence health {}/15: {}",
+                attempt,
+                r.status()
+            ),
             Err(e) => eprintln!("  workforce-competence health {}/15: {}", attempt, e),
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -78,7 +82,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "POST" => client.post(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -158,7 +166,9 @@ async fn smoke_workforce_competence() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Register artifact failed: {status} - {artifact_body}"
     );
-    let artifact_id = artifact_body["id"].as_str().expect("No id in artifact response");
+    let artifact_id = artifact_body["id"]
+        .as_str()
+        .expect("No id in artifact response");
     println!("  registered artifact id={artifact_id} code={artifact_code}");
 
     assert_unauth(
@@ -260,7 +270,10 @@ async fn smoke_workforce_competence() {
     );
     let auth_result: Value = resp.json().await.unwrap();
     let authorized = auth_result["authorized"].as_bool().unwrap_or(false);
-    assert!(authorized, "Expected operator to be authorized after assignment");
+    assert!(
+        authorized,
+        "Expected operator to be authorized after assignment"
+    );
     println!("  authorization check: authorized={authorized}");
 
     // --- 5. POST /api/workforce-competence/acceptance-authorities ---

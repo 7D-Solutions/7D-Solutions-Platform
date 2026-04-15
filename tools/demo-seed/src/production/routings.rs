@@ -92,10 +92,9 @@ pub(super) async fn create_routing(
     }
 
     if status == reqwest::StatusCode::CREATED || status.is_success() {
-        let rt_resp: RoutingResponse = resp
-            .json()
-            .await
-            .with_context(|| format!("Failed to parse routing response for {}", routing.item_sku))?;
+        let rt_resp: RoutingResponse = resp.json().await.with_context(|| {
+            format!("Failed to parse routing response for {}", routing.item_sku)
+        })?;
         return Ok(rt_resp.routing_template_id);
     }
 
@@ -145,9 +144,9 @@ async fn find_routing_by_item(
         )
     })?;
 
-    let entry = entries.first().with_context(|| {
-        format!("No routing found for item {}", item_id)
-    })?;
+    let entry = entries
+        .first()
+        .with_context(|| format!("No routing found for item {}", item_id))?;
 
     Ok(entry.routing_template_id)
 }
@@ -219,8 +218,8 @@ pub(super) async fn add_routing_step(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::workcenters::WORKCENTERS;
+    use super::*;
 
     #[test]
     fn five_routings_defined() {
@@ -265,31 +264,46 @@ mod tests {
 
     #[test]
     fn turbine_blade_has_five_steps() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "TBB-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "TBB-ASSY-001")
+            .unwrap();
         assert_eq!(r.steps.len(), 5, "Turbine blade should have 5 steps");
     }
 
     #[test]
     fn engine_mount_has_three_steps() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "EMB-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "EMB-ASSY-001")
+            .unwrap();
         assert_eq!(r.steps.len(), 3, "Engine mount bracket should have 3 steps");
     }
 
     #[test]
     fn structural_rib_has_four_steps() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "SRA-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "SRA-ASSY-001")
+            .unwrap();
         assert_eq!(r.steps.len(), 4, "Structural rib should have 4 steps");
     }
 
     #[test]
     fn fuel_line_has_three_steps() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "FLC-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "FLC-ASSY-001")
+            .unwrap();
         assert_eq!(r.steps.len(), 3, "Fuel line connector should have 3 steps");
     }
 
     #[test]
     fn landing_gear_has_five_steps() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "LGA-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "LGA-ASSY-001")
+            .unwrap();
         assert_eq!(r.steps.len(), 5, "Landing gear housing should have 5 steps");
     }
 
@@ -341,7 +355,10 @@ mod tests {
 
     #[test]
     fn rough_before_finish_on_turbine_blade() {
-        let r = ROUTINGS.iter().find(|r| r.item_sku == "TBB-ASSY-001").unwrap();
+        let r = ROUTINGS
+            .iter()
+            .find(|r| r.item_sku == "TBB-ASSY-001")
+            .unwrap();
         let rough_pos = r
             .steps
             .iter()

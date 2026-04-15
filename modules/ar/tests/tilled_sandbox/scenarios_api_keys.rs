@@ -51,9 +51,7 @@ mod tests {
 
         // Create publishable key — may fail with 4xx if scope doesn't allow it
         let created = match retry
-            .execute(|| {
-                client.create_api_key("publishable".to_string(), Some(key_name.clone()))
-            })
+            .execute(|| client.create_api_key("publishable".to_string(), Some(key_name.clone())))
             .await
         {
             Ok(k) => k,

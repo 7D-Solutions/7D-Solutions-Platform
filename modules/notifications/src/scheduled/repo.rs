@@ -3,10 +3,10 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::event_bus::{create_notifications_envelope, enqueue_event};
-use crate::templates::RenderedMessage;
 use super::models::ScheduledNotification;
 use super::sender::{NotificationError, SendReceipt};
+use crate::event_bus::{create_notifications_envelope, enqueue_event};
+use crate::templates::RenderedMessage;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RetryPolicy {
@@ -141,11 +141,13 @@ pub async fn claim_due_batch(
 
 /// Mark a notification as successfully sent.
 pub async fn mark_sent(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1 AND tenant_id = $2")
-        .bind(id)
-        .bind(tenant_id)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        "UPDATE scheduled_notifications SET status = 'sent' WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await?;
 
     Ok(())
 }
@@ -179,11 +181,13 @@ pub async fn reschedule_or_fail(
         .execute(pool)
         .await?;
     } else {
-        sqlx::query("UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1 AND tenant_id = $2")
-            .bind(id)
-            .bind(tenant_id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
     }
 
     Ok(())
@@ -251,44 +255,53 @@ pub async fn record_delivery_attempt_and_mutate(
         return Ok(AttemptApplyOutcome::DuplicateStored);
     }
 
-    let (attempt_status, next_sn_status, next_deliver_at, retry_increment, event_type, provider_message_id, error_class, error_message, outcome) =
-        match send_result {
-            Ok(receipt) => (
-                "succeeded",
-                "sent",
-                None,
-                0,
-                "notifications.delivery.succeeded",
-                receipt.provider_message_id,
-                None,
-                None,
-                AttemptApplyOutcome::Succeeded,
-            ),
-            Err(err) => {
-                let (sn_status, deliver_at, retryable) =
-                    next_status_after_failure(notif.retry_count, err.retryable(), policy);
-                let out = if retryable {
-                    AttemptApplyOutcome::FailedRetryable
+    let (
+        attempt_status,
+        next_sn_status,
+        next_deliver_at,
+        retry_increment,
+        event_type,
+        provider_message_id,
+        error_class,
+        error_message,
+        outcome,
+    ) = match send_result {
+        Ok(receipt) => (
+            "succeeded",
+            "sent",
+            None,
+            0,
+            "notifications.delivery.succeeded",
+            receipt.provider_message_id,
+            None,
+            None,
+            AttemptApplyOutcome::Succeeded,
+        ),
+        Err(err) => {
+            let (sn_status, deliver_at, retryable) =
+                next_status_after_failure(notif.retry_count, err.retryable(), policy);
+            let out = if retryable {
+                AttemptApplyOutcome::FailedRetryable
+            } else {
+                AttemptApplyOutcome::FailedPermanent
+            };
+            (
+                if retryable {
+                    "failed_retryable"
                 } else {
-                    AttemptApplyOutcome::FailedPermanent
-                };
-                (
-                    if retryable {
-                        "failed_retryable"
-                    } else {
-                        "failed_permanent"
-                    },
-                    sn_status,
-                    deliver_at,
-                    if retryable { 1 } else { 0 },
-                    "notifications.delivery.failed",
-                    None,
-                    Some(err.class().to_string()),
-                    Some(err.to_string()),
-                    out,
-                )
-            }
-        };
+                    "failed_permanent"
+                },
+                sn_status,
+                deliver_at,
+                if retryable { 1 } else { 0 },
+                "notifications.delivery.failed",
+                None,
+                Some(err.class().to_string()),
+                Some(err.to_string()),
+                out,
+            )
+        }
+    };
 
     sqlx::query(
         r#"

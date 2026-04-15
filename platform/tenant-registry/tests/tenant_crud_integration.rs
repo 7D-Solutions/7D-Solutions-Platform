@@ -478,12 +478,21 @@ async fn activate_tenant_atomic_transitions_to_active() {
     .await
     .expect("read outbox payload");
 
-    assert!(payload.get("event_id").is_some(), "envelope must have event_id");
+    assert!(
+        payload.get("event_id").is_some(),
+        "envelope must have event_id"
+    );
     assert_eq!(payload["event_type"], "tenant.provisioned");
     assert_eq!(payload["tenant_id"], tid.to_string());
     assert_eq!(payload["source_module"], "tenant-registry");
-    assert!(payload.get("occurred_at").is_some(), "envelope must have occurred_at");
-    assert!(payload.get("payload").is_some(), "envelope must have inner payload");
+    assert!(
+        payload.get("occurred_at").is_some(),
+        "envelope must have occurred_at"
+    );
+    assert!(
+        payload.get("payload").is_some(),
+        "envelope must have inner payload"
+    );
     assert_eq!(payload["payload"]["tenant_id"], tid.to_string());
     assert_eq!(payload["payload"]["event_version"], "1.0");
 

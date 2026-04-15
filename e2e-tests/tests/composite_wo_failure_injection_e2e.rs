@@ -60,7 +60,10 @@ fn make_test_claims(tenant_id: &str) -> VerifiedClaims {
         tenant_id: Uuid::parse_str(tenant_id).unwrap_or_else(|_| Uuid::new_v4()),
         app_id: None,
         roles: vec!["admin".to_string()],
-        perms: vec!["production.mutate".to_string(), "production.read".to_string()],
+        perms: vec![
+            "production.mutate".to_string(),
+            "production.read".to_string(),
+        ],
         actor_type: ActorType::User,
         issued_at: chrono::Utc::now(),
         expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
@@ -107,13 +110,11 @@ async fn retry_after_insert_failure_gets_same_number() {
 
     // Step 2: Simulate INSERT failure — do NOT create the WO.
     // The production DB has no WO for this tenant yet.
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&prod_pool)
-    .await
-    .expect("count query");
+    let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM work_orders WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&prod_pool)
+        .await
+        .expect("count query");
     assert_eq!(count, 0, "no WO should exist yet");
 
     // Step 3: Retry composite_create with the SAME idempotency_key.
@@ -129,9 +130,10 @@ async fn retry_after_insert_failure_gets_same_number() {
     };
     let corr = Uuid::new_v4().to_string();
     let bom = BomRevisionClient::permissive();
-    let wo = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr, None)
-        .await
-        .expect("composite_create retry must succeed");
+    let wo =
+        WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr, None)
+            .await
+            .expect("composite_create retry must succeed");
 
     // The retry must receive the SAME WO number that was pre-allocated.
     assert_eq!(
@@ -172,15 +174,17 @@ async fn idempotent_retry_returns_same_wo() {
     let bom = BomRevisionClient::permissive();
     // First call — creates WO.
     let corr1 = Uuid::new_v4().to_string();
-    let wo1 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr1, None)
-        .await
-        .expect("first composite_create");
+    let wo1 =
+        WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr1, None)
+            .await
+            .expect("first composite_create");
 
     // Second call — same idempotency_key, same tenant, same item.
     let corr2 = Uuid::new_v4().to_string();
-    let wo2 = WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr2, None)
-        .await
-        .expect("second composite_create (idempotent)");
+    let wo2 =
+        WorkOrderRepo::composite_create(&prod_pool, &numbering, &bom, &req, &claims, &corr2, None)
+            .await
+            .expect("second composite_create (idempotent)");
 
     assert_eq!(
         wo1.order_number, wo2.order_number,
@@ -228,8 +232,24 @@ async fn concurrent_same_key_creates_exactly_one_wo() {
     let bom = BomRevisionClient::permissive();
 
     let (r1, r2) = tokio::join!(
-        WorkOrderRepo::composite_create(&prod_pool, &numbering_a, &bom, &req, &claims, &corr1, None),
-        WorkOrderRepo::composite_create(&prod_pool, &numbering_b, &bom, &req, &claims, &corr2, None),
+        WorkOrderRepo::composite_create(
+            &prod_pool,
+            &numbering_a,
+            &bom,
+            &req,
+            &claims,
+            &corr1,
+            None
+        ),
+        WorkOrderRepo::composite_create(
+            &prod_pool,
+            &numbering_b,
+            &bom,
+            &req,
+            &claims,
+            &corr2,
+            None
+        ),
     );
 
     // Both must succeed: one creates the WO, the other returns the existing one.
@@ -251,5 +271,8 @@ async fn concurrent_same_key_creates_exactly_one_wo() {
     .fetch_one(&prod_pool)
     .await
     .expect("count WOs");
-    assert_eq!(count, 1, "exactly one WO must exist for the allocated number");
+    assert_eq!(
+        count, 1,
+        "exactly one WO must exist for the allocated number"
+    );
 }

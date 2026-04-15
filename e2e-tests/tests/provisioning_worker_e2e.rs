@@ -252,9 +252,12 @@ async fn provisioning_outbox_event_arrives_on_nats() {
         "tenant_id": tenant_id.to_string(),
     }))
     .unwrap();
-    nats.publish("tenant.provisioning_started".to_string(), payload_bytes.into())
-        .await
-        .expect("publish provisioning event to NATS");
+    nats.publish(
+        "tenant.provisioning_started".to_string(),
+        payload_bytes.into(),
+    )
+    .await
+    .expect("publish provisioning event to NATS");
     nats.flush().await.expect("flush NATS connection");
 
     // Step 4: Verify the message arrives within 3 seconds.
@@ -269,9 +272,7 @@ async fn provisioning_outbox_event_arrives_on_nats() {
                 tenant_id.to_string(),
                 "NATS message must carry the provisioning tenant_id"
             );
-            println!(
-                "✅ provisioning_outbox_event_arrives_on_nats: tenant_id={tenant_id}"
-            );
+            println!("✅ provisioning_outbox_event_arrives_on_nats: tenant_id={tenant_id}");
         }
         Ok(None) => panic!("NATS subscriber closed before receiving the provisioning event"),
         Err(_) => panic!(
@@ -333,16 +334,11 @@ async fn worker_provisions_three_modules_all_reach_ready() {
 
     assert_eq!(statuses.len(), 3, "must have a status row for each module");
     for (code, status) in &statuses {
-        assert_eq!(
-            status, "ready",
-            "module {code} must be ready, got {status}"
-        );
+        assert_eq!(status, "ready", "module {code} must be ready, got {status}");
     }
 
     drop_tenant_databases(tenant_id, &module_codes).await;
     cleanup(&pool, tenant_id, bundle_id).await;
 
-    println!(
-        "✅ worker_provisions_three_modules_all_reach_ready: ar, gl, ap all status=ready"
-    );
+    println!("✅ worker_provisions_three_modules_all_reach_ready: ar, gl, ap all status=ready");
 }

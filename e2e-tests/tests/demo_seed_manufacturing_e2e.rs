@@ -183,11 +183,17 @@ fn test_full_pipeline_resource_counts() {
     };
     let tenant = test_tenant("full");
     let token = make_seed_jwt(&key, &tenant);
-    let result = run_seed_with_token(&[
-        "--tenant", &tenant,
-        "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production",
-    ], &token);
+    let result = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token,
+    );
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);
@@ -208,47 +214,76 @@ fn test_full_pipeline_resource_counts() {
     assert_eq!(gl_accounts.len(), 20, "Expected 20 GL accounts");
 
     // Verify critical account codes exist
-    let codes: Vec<&str> = gl_accounts.iter()
+    let codes: Vec<&str> = gl_accounts
+        .iter()
         .map(|a| a["code"].as_str().unwrap())
         .collect();
     for expected in ["1200", "1210", "1220", "5000", "5100", "5120"] {
-        assert!(codes.contains(&expected), "Missing GL account code: {}", expected);
+        assert!(
+            codes.contains(&expected),
+            "Missing GL account code: {}",
+            expected
+        );
     }
 
     // 8 numbering policies
-    let policies = m["numbering"]["policies"].as_array().expect("numbering.policies");
+    let policies = m["numbering"]["policies"]
+        .as_array()
+        .expect("numbering.policies");
     assert_eq!(policies.len(), 8, "Expected 8 numbering policies");
 
     // 10 parties (5 customers + 5 suppliers)
-    let customers = m["parties"]["customers"].as_array().expect("parties.customers");
-    let suppliers = m["parties"]["suppliers"].as_array().expect("parties.suppliers");
+    let customers = m["parties"]["customers"]
+        .as_array()
+        .expect("parties.customers");
+    let suppliers = m["parties"]["suppliers"]
+        .as_array()
+        .expect("parties.suppliers");
     assert_eq!(customers.len(), 5, "Expected 5 customers");
     assert_eq!(suppliers.len(), 5, "Expected 5 suppliers");
 
     // 5 UoMs, 7 locations, 13 items
     let uoms = m["inventory"]["uoms"].as_array().expect("inventory.uoms");
-    let locations = m["inventory"]["locations"].as_array().expect("inventory.locations");
+    let locations = m["inventory"]["locations"]
+        .as_array()
+        .expect("inventory.locations");
     let items = m["inventory"]["items"].as_array().expect("inventory.items");
     assert_eq!(uoms.len(), 5, "Expected 5 UoMs");
     assert_eq!(locations.len(), 7, "Expected 7 locations");
     assert_eq!(items.len(), 13, "Expected 13 items");
 
     // Warehouse ID is present and valid UUID
-    let wh = m["inventory"]["warehouse_id"].as_str().expect("warehouse_id");
-    assert!(Uuid::parse_str(wh).is_ok(), "warehouse_id must be valid UUID");
+    let wh = m["inventory"]["warehouse_id"]
+        .as_str()
+        .expect("warehouse_id");
+    assert!(
+        Uuid::parse_str(wh).is_ok(),
+        "warehouse_id must be valid UUID"
+    );
 
     // 5 BOMs with revisions
     let boms = m["bom"]["boms"].as_array().expect("bom.boms");
     assert_eq!(boms.len(), 5, "Expected 5 BOMs");
     for bom in boms {
         assert!(bom["id"].as_str().is_some(), "BOM must have id");
-        assert!(bom["revision_id"].as_str().is_some(), "BOM must have revision_id");
-        assert_eq!(bom["revision_label"].as_str().unwrap(), "A", "Revision label must be A");
+        assert!(
+            bom["revision_id"].as_str().is_some(),
+            "BOM must have revision_id"
+        );
+        assert_eq!(
+            bom["revision_label"].as_str().unwrap(),
+            "A",
+            "Revision label must be A"
+        );
     }
 
     // 6 work centers, 5 routings
-    let workcenters = m["production"]["workcenters"].as_array().expect("production.workcenters");
-    let routings = m["production"]["routings"].as_array().expect("production.routings");
+    let workcenters = m["production"]["workcenters"]
+        .as_array()
+        .expect("production.workcenters");
+    let routings = m["production"]["routings"]
+        .as_array()
+        .expect("production.routings");
     assert_eq!(workcenters.len(), 6, "Expected 6 work centers");
     assert_eq!(routings.len(), 5, "Expected 5 routings");
 
@@ -271,19 +306,44 @@ fn test_deterministic_rerun() {
     let tenant = test_tenant("det");
     let token = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
-    if !r1.success { eprintln!("First run STDERR:\n{}", r1.stderr); }
+    let r1 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token,
+    );
+    if !r1.success {
+        eprintln!("First run STDERR:\n{}", r1.stderr);
+    }
     assert!(r1.success, "First run should succeed");
 
-    let r2 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
-    if !r2.success { eprintln!("Second run STDERR:\n{}", r2.stderr); }
+    let r2 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token,
+    );
+    if !r2.success {
+        eprintln!("Second run STDERR:\n{}", r2.stderr);
+    }
     assert!(r2.success, "Second run should succeed");
 
     let d1 = r1.digest().expect("First run must produce digest");
     let d2 = r2.digest().expect("Second run must produce digest");
-    assert_eq!(d1, d2, "Same seed must produce identical digests across runs");
+    assert_eq!(
+        d1, d2,
+        "Same seed must produce identical digests across runs"
+    );
 }
 
 // ============================================================================
@@ -300,12 +360,30 @@ fn test_idempotent_rerun() {
     let tenant = test_tenant("idem");
     let token = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
+    let r1 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token,
+    );
     assert!(r1.success, "First run should succeed");
 
-    let r2 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token);
+    let r2 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token,
+    );
     assert!(r2.success, "Second run should succeed");
 
     let m1 = r1.manifest_json().expect("First manifest");
@@ -339,15 +417,33 @@ fn test_different_seeds_different_digests() {
     let tenant = test_tenant("diff");
     let token1 = make_seed_jwt(&key, &tenant);
 
-    let r1 = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token1);
+    let r1 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token1,
+    );
     assert!(r1.success, "Seed 42 should succeed");
 
     // Use a different tenant for seed 99 to avoid shared state
     let tenant2 = test_tenant("diff2");
     let token2 = make_seed_jwt(&key, &tenant2);
-    let r2 = run_seed_with_token(&["--tenant", &tenant2, "--seed", "99",
-        "--modules", "numbering,gl,party,inventory,bom,production"], &token2);
+    let r2 = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant2,
+            "--seed",
+            "99",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+        ],
+        &token2,
+    );
     assert!(r2.success, "Seed 99 should succeed");
 
     let d1 = r1.digest().expect("Seed 42 digest");
@@ -369,15 +465,30 @@ fn test_module_selection() {
     let tenant = test_tenant("modsel");
     let token = make_seed_jwt(&key, &tenant);
 
-    let result = run_seed_with_token(&["--tenant", &tenant, "--seed", "42",
-        "--modules", "numbering,party"], &token);
+    let result = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,party",
+        ],
+        &token,
+    );
     assert!(result.success, "Module selection should succeed");
 
     let m = result.manifest_json().expect("Manifest");
 
     // numbering and party should be present
-    assert!(m["numbering"]["policies"].as_array().is_some(), "numbering should be seeded");
-    assert!(m["parties"]["customers"].as_array().is_some(), "parties should be seeded");
+    assert!(
+        m["numbering"]["policies"].as_array().is_some(),
+        "numbering should be seeded"
+    );
+    assert!(
+        m["parties"]["customers"].as_array().is_some(),
+        "parties should be seeded"
+    );
 
     // gl, inventory, bom, production should NOT be present
     assert!(m["gl"].is_null(), "gl should not be seeded");
@@ -400,13 +511,21 @@ fn test_backwards_compatibility_ar() {
     let tenant = test_tenant("arcompat");
     let token = make_seed_jwt(&key, &tenant);
 
-    let result = run_seed_with_token(&[
-        "--tenant", &tenant,
-        "--seed", "42",
-        "--modules", "ar",
-        "--customers", "1",
-        "--invoices-per-customer", "1",
-    ], &token);
+    let result = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "ar",
+            "--customers",
+            "1",
+            "--invoices-per-customer",
+            "1",
+        ],
+        &token,
+    );
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);
@@ -430,14 +549,22 @@ fn test_manifest_output_file() {
     };
     let tenant = test_tenant("manifest");
     let token = make_seed_jwt(&key, &tenant);
-    let manifest_path = std::env::temp_dir().join(format!("demo-seed-test-{}.json", Uuid::new_v4()));
+    let manifest_path =
+        std::env::temp_dir().join(format!("demo-seed-test-{}.json", Uuid::new_v4()));
 
-    let result = run_seed_with_token(&[
-        "--tenant", &tenant,
-        "--seed", "42",
-        "--modules", "numbering,gl,party,inventory,bom,production",
-        "--manifest-out", manifest_path.to_str().unwrap(),
-    ], &token);
+    let result = run_seed_with_token(
+        &[
+            "--tenant",
+            &tenant,
+            "--seed",
+            "42",
+            "--modules",
+            "numbering,gl,party,inventory,bom,production",
+            "--manifest-out",
+            manifest_path.to_str().unwrap(),
+        ],
+        &token,
+    );
 
     if !result.success {
         eprintln!("STDERR:\n{}", result.stderr);
@@ -455,21 +582,49 @@ fn test_manifest_output_file() {
     assert!(m["digest"].as_str().is_some(), "Must have digest");
 
     // Verify non-empty arrays
-    assert!(!m["numbering"]["policies"].as_array().unwrap().is_empty(), "policies non-empty");
-    assert!(!m["gl"]["accounts"].as_array().unwrap().is_empty(), "accounts non-empty");
-    assert!(!m["parties"]["customers"].as_array().unwrap().is_empty(), "customers non-empty");
-    assert!(!m["inventory"]["items"].as_array().unwrap().is_empty(), "items non-empty");
-    assert!(!m["bom"]["boms"].as_array().unwrap().is_empty(), "boms non-empty");
-    assert!(!m["production"]["workcenters"].as_array().unwrap().is_empty(), "workcenters non-empty");
+    assert!(
+        !m["numbering"]["policies"].as_array().unwrap().is_empty(),
+        "policies non-empty"
+    );
+    assert!(
+        !m["gl"]["accounts"].as_array().unwrap().is_empty(),
+        "accounts non-empty"
+    );
+    assert!(
+        !m["parties"]["customers"].as_array().unwrap().is_empty(),
+        "customers non-empty"
+    );
+    assert!(
+        !m["inventory"]["items"].as_array().unwrap().is_empty(),
+        "items non-empty"
+    );
+    assert!(
+        !m["bom"]["boms"].as_array().unwrap().is_empty(),
+        "boms non-empty"
+    );
+    assert!(
+        !m["production"]["workcenters"]
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "workcenters non-empty"
+    );
 
     // Verify UUIDs are valid
     for item in m["inventory"]["items"].as_array().unwrap() {
         let id_str = item["id"].as_str().expect("item must have id");
-        assert!(Uuid::parse_str(id_str).is_ok(), "Item ID must be valid UUID: {}", id_str);
+        assert!(
+            Uuid::parse_str(id_str).is_ok(),
+            "Item ID must be valid UUID: {}",
+            id_str
+        );
     }
 
     // Admin user
-    assert_eq!(m["users"]["admin"]["email"].as_str().unwrap(), "admin@7dsolutions.local");
+    assert_eq!(
+        m["users"]["admin"]["email"].as_str().unwrap(),
+        "admin@7dsolutions.local"
+    );
 
     // Cleanup
     let _ = std::fs::remove_file(&manifest_path);

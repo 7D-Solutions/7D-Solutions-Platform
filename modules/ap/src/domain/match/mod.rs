@@ -54,9 +54,7 @@ pub enum MatchError {
 impl From<MatchError> for platform_http_contracts::ApiError {
     fn from(err: MatchError) -> Self {
         match err {
-            MatchError::BillNotFound(id) => {
-                Self::not_found(format!("Bill {} not found", id))
-            }
+            MatchError::BillNotFound(id) => Self::not_found(format!("Bill {} not found", id)),
             MatchError::PoNotFound(id) => {
                 Self::new(422, "po_not_found", format!("PO {} not found", id))
             }

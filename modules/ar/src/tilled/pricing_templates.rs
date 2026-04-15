@@ -46,10 +46,7 @@ impl TilledClient {
     }
 
     /// Get a pricing template by ID. Typically requires partner scope.
-    pub async fn get_pricing_template(
-        &self,
-        id: &str,
-    ) -> Result<PricingTemplate, TilledError> {
+    pub async fn get_pricing_template(&self, id: &str) -> Result<PricingTemplate, TilledError> {
         let path = format!("/v1/pricing-templates/{id}");
         self.get(&path, None).await
     }
@@ -71,7 +68,7 @@ mod tests {
             "account_monthly_fee": 0,
             "created_at": "2026-01-01T00:00:00Z"
         });
-        let pt: PricingTemplate = serde_json::from_value(value).unwrap();
+        let pt: PricingTemplate = serde_json::from_value(value).expect("test fixture");
         assert_eq!(pt.id, "pt_123");
         assert_eq!(pt.payment_method_type.as_deref(), Some("card"));
         assert!(pt.card.is_some());
@@ -87,7 +84,7 @@ mod tests {
             "payment_method_type": "eft_debit",
             "eft_debit": {"transaction_fee": 25, "return_fee": 1000}
         });
-        let pt: PricingTemplate = serde_json::from_value(value).unwrap();
+        let pt: PricingTemplate = serde_json::from_value(value).expect("test fixture");
         assert_eq!(pt.id, "pt_456");
         assert!(pt.eft_debit.is_some());
         assert!(pt.card.is_none());
@@ -96,7 +93,7 @@ mod tests {
     #[test]
     fn pricing_template_deserializes_minimal() {
         let value = serde_json::json!({"id": "pt_min"});
-        let pt: PricingTemplate = serde_json::from_value(value).unwrap();
+        let pt: PricingTemplate = serde_json::from_value(value).expect("test fixture");
         assert_eq!(pt.id, "pt_min");
         assert!(pt.name.is_none());
         assert!(pt.status.is_none());

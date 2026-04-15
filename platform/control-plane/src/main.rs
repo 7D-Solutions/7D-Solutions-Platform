@@ -118,9 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if jwt_verifier.is_some() {
         tracing::info!("JWT verifier loaded — RBAC enforcement active");
     } else {
-        tracing::warn!(
-            "JWT_PUBLIC_KEY not set — all RBAC-protected routes will return 401"
-        );
+        tracing::warn!("JWT_PUBLIC_KEY not set — all RBAC-protected routes will return 401");
     }
 
     let mut raw_state = state::AppState::new(pool.clone(), ar_pool);

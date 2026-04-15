@@ -3,7 +3,10 @@
 //! Provides HTTP endpoints for querying account activity (journal lines for a specific account).
 
 use crate::AppState;
-use axum::{extract::{Path, Query, State}, Extension, Json};
+use axum::{
+    extract::{Path, Query, State},
+    Extension, Json,
+};
 use chrono::{DateTime, Utc};
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
@@ -12,9 +15,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::auth::with_request_id;
 use crate::services::account_activity_service::{self, AccountActivityResponse};
+use platform_sdk::extract_tenant;
 
 /// Query parameters for account activity endpoint
 #[derive(Debug, Deserialize)]

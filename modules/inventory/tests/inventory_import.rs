@@ -13,8 +13,9 @@ use uuid::Uuid;
 
 async fn setup_pool() -> PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db".to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db".to_string()
+    });
     PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -69,12 +70,11 @@ async fn inventory_import_creates_new_items() {
     assert_eq!(summary.skipped, 0);
     assert!(summary.errors.is_empty());
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 2);
 
     cleanup(&pool, &tenant).await;
@@ -155,14 +155,16 @@ async fn inventory_import_validates_all_before_insert() {
 
     assert_eq!(summary.errors.len(), 1);
     assert_eq!(summary.errors[0].row, 2);
-    assert_eq!(summary.created, 0, "No rows should be inserted when any row fails validation");
+    assert_eq!(
+        summary.created, 0,
+        "No rows should be inserted when any row fails validation"
+    );
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
-            .bind(&tenant)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
+        .bind(&tenant)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 0);
 
     cleanup(&pool, &tenant).await;

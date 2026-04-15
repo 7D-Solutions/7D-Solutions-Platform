@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use production_rs::domain::routings::{
-    AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo, UpdateRoutingRequest,
-    RoutingStepEnriched,
+    AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo, RoutingStepEnriched,
+    UpdateRoutingRequest,
 };
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use serial_test::serial;
@@ -39,7 +39,10 @@ async fn create_test_workcenter(pool: &sqlx::PgPool, tenant: &str) -> Uuid {
         pool,
         &CreateWorkcenterRequest {
             tenant_id: tenant.to_string(),
-            code: format!("WC-{}", Uuid::new_v4().to_string().split('-').next().unwrap()),
+            code: format!(
+                "WC-{}",
+                Uuid::new_v4().to_string().split('-').next().unwrap()
+            ),
             name: "Test Workcenter".to_string(),
             description: None,
             capacity: Some(10),
@@ -280,11 +283,7 @@ async fn add_step_validates_workcenter() {
     .expect_err("should reject invalid workcenter");
 
     let msg = format!("{}", err);
-    assert!(
-        msg.contains("not found or inactive"),
-        "Error: {}",
-        msg
-    );
+    assert!(msg.contains("not found or inactive"), "Error: {}", msg);
 
     // Now add with valid workcenter
     let wc_id = create_test_workcenter(&pool, &tenant).await;
@@ -662,7 +661,10 @@ async fn list_steps_enriched_embeds_workcenter_details() {
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
 
-    let wc_code = format!("WC-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
+    let wc_code = format!(
+        "WC-{}",
+        Uuid::new_v4().to_string().split('-').next().unwrap()
+    );
     let wc = production_rs::domain::workcenters::WorkcenterRepo::create(
         &pool,
         &production_rs::domain::workcenters::CreateWorkcenterRequest {
@@ -733,8 +735,14 @@ async fn list_steps_enriched_embeds_workcenter_details() {
             .expect("list_steps_enriched");
     assert_eq!(enriched.len(), 1);
     assert_eq!(enriched[0].workcenter_id, wc.workcenter_id);
-    assert_eq!(enriched[0].workcenter_name.as_deref(), Some("Milling Station"));
-    let wc_details = enriched[0].workcenter.as_ref().expect("workcenter details present");
+    assert_eq!(
+        enriched[0].workcenter_name.as_deref(),
+        Some("Milling Station")
+    );
+    let wc_details = enriched[0]
+        .workcenter
+        .as_ref()
+        .expect("workcenter details present");
     assert_eq!(wc_details.workcenter_id, wc.workcenter_id);
     assert_eq!(wc_details.name, "Milling Station");
     assert_eq!(wc_details.code, wc_code);
@@ -752,7 +760,10 @@ async fn find_step_enriched_returns_workcenter_details() {
     let tenant = unique_tenant();
     let corr = Uuid::new_v4().to_string();
 
-    let wc_code = format!("WC-{}", Uuid::new_v4().to_string().split('-').next().unwrap());
+    let wc_code = format!(
+        "WC-{}",
+        Uuid::new_v4().to_string().split('-').next().unwrap()
+    );
     let wc = production_rs::domain::workcenters::WorkcenterRepo::create(
         &pool,
         &production_rs::domain::workcenters::CreateWorkcenterRequest {
@@ -809,14 +820,10 @@ async fn find_step_enriched_returns_workcenter_details() {
     .expect("add step");
 
     // Non-existent step returns None
-    let missing = RoutingRepo::find_step_enriched(
-        &pool,
-        rt.routing_template_id,
-        Uuid::new_v4(),
-        &tenant,
-    )
-    .await
-    .expect("no error for missing");
+    let missing =
+        RoutingRepo::find_step_enriched(&pool, rt.routing_template_id, Uuid::new_v4(), &tenant)
+            .await
+            .expect("no error for missing");
     assert!(missing.is_none());
 
     // Real step returns enriched details

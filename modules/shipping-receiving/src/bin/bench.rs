@@ -106,8 +106,7 @@ impl BenchResult {
 
 async fn setup_pool() -> PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for benchmarks");
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for benchmarks");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -171,11 +170,7 @@ async fn bench_add_line(
     bench.record(start.elapsed());
 }
 
-async fn bench_list_shipments(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    bench: &mut BenchResult,
-) {
+async fn bench_list_shipments(pool: &PgPool, tenant_id: Uuid, bench: &mut BenchResult) {
     let start = Instant::now();
     let _rows: Vec<(Uuid,)> = sqlx::query_as(
         r#"
@@ -199,14 +194,13 @@ async fn bench_get_shipment(
     bench: &mut BenchResult,
 ) {
     let start = Instant::now();
-    let _row: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM shipments WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(shipment_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await
-    .expect("get shipment");
+    let _row: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM shipments WHERE id = $1 AND tenant_id = $2")
+            .bind(shipment_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+            .expect("get shipment");
     bench.record(start.elapsed());
 }
 

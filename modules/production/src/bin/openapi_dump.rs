@@ -5,8 +5,13 @@
 
 use utoipa::OpenApi;
 
-use production_rs::domain::component_issue::{ComponentIssueItemInput, RequestComponentIssueRequest};
-use production_rs::domain::downtime::{EndDowntimeRequest, StartDowntimeRequest, WorkcenterDowntime};
+use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
+use production_rs::domain::component_issue::{
+    ComponentIssueItemInput, RequestComponentIssueRequest,
+};
+use production_rs::domain::downtime::{
+    EndDowntimeRequest, StartDowntimeRequest, WorkcenterDowntime,
+};
 use production_rs::domain::fg_receipt::RequestFgReceiptRequest;
 use production_rs::domain::operations::OperationInstance;
 use production_rs::domain::routings::{
@@ -23,7 +28,6 @@ use production_rs::domain::workcenters::{
 };
 use production_rs::http::pagination::PaginationQuery;
 use production_rs::http::routings::ItemDateQuery;
-use platform_http_contracts::{ApiError, PaginatedResponse, PaginationMeta};
 
 #[derive(OpenApi)]
 #[openapi(

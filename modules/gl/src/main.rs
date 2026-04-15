@@ -18,10 +18,7 @@ use gl_rs::{
     consumers::timekeeping_labor_cost::start_gl_labor_cost_consumer,
     http::account_activity::get_account_activity,
     http::accounts::create_account,
-    http::imports::import_chart_of_accounts,
-    http::accruals::{
-        create_accrual_handler, create_template_handler, execute_reversals_handler,
-    },
+    http::accruals::{create_accrual_handler, create_template_handler, execute_reversals_handler},
     http::balance_sheet::get_balance_sheet,
     http::cashflow::get_cash_flow,
     http::close_checklist::{
@@ -31,8 +28,9 @@ use gl_rs::{
     http::exports::create_export,
     http::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
     http::gl_detail::get_gl_detail,
-    http::journal_entries::create_journal_entry,
+    http::imports::import_chart_of_accounts,
     http::income_statement::get_income_statement,
+    http::journal_entries::create_journal_entry,
     http::period_close::{
         approve_reopen, close_period_handler, get_close_status, list_reopen_requests,
         reject_reopen, request_reopen, validate_close,
@@ -83,15 +81,9 @@ async fn main() {
             );
             // Register SLO metrics with global prometheus registry so
             // SDK's /metrics endpoint picks them up via prometheus::gather().
-            let _ = prometheus::register(Box::new(
-                metrics.http_request_duration_seconds.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                metrics.http_requests_total.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                metrics.outbox_queue_depth.clone(),
-            ));
+            let _ = prometheus::register(Box::new(metrics.http_request_duration_seconds.clone()));
+            let _ = prometheus::register(Box::new(metrics.http_requests_total.clone()));
+            let _ = prometheus::register(Box::new(metrics.outbox_queue_depth.clone()));
 
             let app_state = Arc::new(AppState {
                 pool: pool.clone(),

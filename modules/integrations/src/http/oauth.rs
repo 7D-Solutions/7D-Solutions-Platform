@@ -35,7 +35,10 @@ fn oauth_error(e: OAuthError) -> ApiError {
         ),
         OAuthError::TokenExchangeFailed(msg) => ApiError::new(502, "token_exchange_failed", msg),
         OAuthError::MissingEncryptionKey => {
-            tracing::error!(error_code = "OPERATION_FAILED", "OAUTH_ENCRYPTION_KEY not set");
+            tracing::error!(
+                error_code = "OPERATION_FAILED",
+                "OAUTH_ENCRYPTION_KEY not set"
+            );
             ApiError::internal("Server misconfiguration")
         }
         OAuthError::DuplicateConnection(msg) => ApiError::conflict(msg),

@@ -192,7 +192,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let token = extract_csrf_token(&response);
         assert!(token.is_some(), "GET must set the __csrf cookie");
-        assert!(!token.expect("test assertion").is_empty(), "token must not be empty");
+        assert!(
+            !token.expect("test assertion").is_empty(),
+            "token must not be empty"
+        );
     }
 
     #[tokio::test]
@@ -276,8 +279,8 @@ mod tests {
             .body(Body::empty())
             .expect("test assertion");
         let response = app.oneshot(req).await.expect("test assertion");
-        let set_cookie = extract_csrf_set_cookie(&response)
-            .expect("Set-Cookie must be present on GET");
+        let set_cookie =
+            extract_csrf_set_cookie(&response).expect("Set-Cookie must be present on GET");
         assert!(
             !set_cookie.to_lowercase().contains("httponly"),
             "cookie must NOT be HttpOnly — JS needs to read the token"
@@ -293,8 +296,8 @@ mod tests {
             .body(Body::empty())
             .expect("test assertion");
         let response = app.oneshot(req).await.expect("test assertion");
-        let set_cookie = extract_csrf_set_cookie(&response)
-            .expect("Set-Cookie must be present on GET");
+        let set_cookie =
+            extract_csrf_set_cookie(&response).expect("Set-Cookie must be present on GET");
         assert!(
             set_cookie.contains("SameSite=Strict"),
             "cookie must have SameSite=Strict"
@@ -304,9 +307,9 @@ mod tests {
     #[tokio::test]
     async fn secure_flag_present_when_config_is_secure() {
         let config = Arc::new(CsrfConfig { secure: true });
-        let app = Router::new()
-            .route("/", get(|| async { "ok" }))
-            .layer(axum::middleware::from_fn_with_state(config, csrf_middleware));
+        let app = Router::new().route("/", get(|| async { "ok" })).layer(
+            axum::middleware::from_fn_with_state(config, csrf_middleware),
+        );
 
         let req = Request::builder()
             .method(Method::GET)
@@ -314,8 +317,8 @@ mod tests {
             .body(Body::empty())
             .expect("test assertion");
         let response = app.oneshot(req).await.expect("test assertion");
-        let set_cookie = extract_csrf_set_cookie(&response)
-            .expect("Set-Cookie must be present on GET");
+        let set_cookie =
+            extract_csrf_set_cookie(&response).expect("Set-Cookie must be present on GET");
         assert!(
             set_cookie.contains("Secure"),
             "Secure flag must appear when config.secure = true"
@@ -331,8 +334,8 @@ mod tests {
             .body(Body::empty())
             .expect("test assertion");
         let response = app.oneshot(req).await.expect("test assertion");
-        let set_cookie = extract_csrf_set_cookie(&response)
-            .expect("Set-Cookie must be present on GET");
+        let set_cookie =
+            extract_csrf_set_cookie(&response).expect("Set-Cookie must be present on GET");
         // The cookie value itself could contain "Secure" by chance, but not as a
         // distinct attribute — check for the "; Secure" attribute form.
         let parts: Vec<&str> = set_cookie.split(';').collect();

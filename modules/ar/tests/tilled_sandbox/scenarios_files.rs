@@ -135,7 +135,10 @@ mod tests {
             .expect("upload_file failed");
 
         // Verify the file has a valid content URL
-        let url = uploaded.url.as_deref().expect("uploaded file should have url");
+        let url = uploaded
+            .url
+            .as_deref()
+            .expect("uploaded file should have url");
         assert!(
             url.contains(&uploaded.id),
             "content URL should reference the file ID"

@@ -86,14 +86,13 @@ async fn tenant_a_subscription_invisible_to_tenant_b() {
     let _b_sub = create_subscription(&pool, &tenant_b, "active").await;
 
     // Tenant-scoped query: tenant B should NOT see tenant A's subscription
-    let cross_read: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM subscriptions WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(a_sub)
-    .bind(&tenant_b)
-    .fetch_optional(&pool)
-    .await
-    .expect("Query should succeed");
+    let cross_read: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM subscriptions WHERE id = $1 AND tenant_id = $2")
+            .bind(a_sub)
+            .bind(&tenant_b)
+            .fetch_optional(&pool)
+            .await
+            .expect("Query should succeed");
 
     assert!(
         cross_read.is_none(),
@@ -146,14 +145,14 @@ async fn lifecycle_transition_rejects_wrong_tenant() {
 
     // Attempt transition with wrong tenant — must fail
     let result = subscriptions_rs::lifecycle::transition_to_active(
-        a_sub, &wrong_tenant, "payment_recovered", &pool,
+        a_sub,
+        &wrong_tenant,
+        "payment_recovered",
+        &pool,
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "Transition with wrong tenant_id must fail"
-    );
+    assert!(result.is_err(), "Transition with wrong tenant_id must fail");
 
     // Verify status was NOT modified
     let status: String =
@@ -237,14 +236,13 @@ async fn bill_run_tenant_isolation() {
     .expect("Failed to create bill run for tenant B");
 
     // Tenant B must NOT see tenant A's bill run
-    let cross_read: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2",
-    )
-    .bind(&bill_run_id_a)
-    .bind(&tenant_b)
-    .fetch_optional(&pool)
-    .await
-    .expect("Query should succeed");
+    let cross_read: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2")
+            .bind(&bill_run_id_a)
+            .bind(&tenant_b)
+            .fetch_optional(&pool)
+            .await
+            .expect("Query should succeed");
 
     assert!(
         cross_read.is_none(),
@@ -252,34 +250,28 @@ async fn bill_run_tenant_isolation() {
     );
 
     // Tenant A should see their own bill run
-    let own_read: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2",
-    )
-    .bind(&bill_run_id_a)
-    .bind(&tenant_a)
-    .fetch_optional(&pool)
-    .await
-    .expect("Query should succeed");
+    let own_read: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM bill_runs WHERE bill_run_id = $1 AND tenant_id = $2")
+            .bind(&bill_run_id_a)
+            .bind(&tenant_a)
+            .fetch_optional(&pool)
+            .await
+            .expect("Query should succeed");
 
-    assert!(
-        own_read.is_some(),
-        "Tenant A must see their own bill run"
-    );
+    assert!(own_read.is_some(), "Tenant A must see their own bill run");
 
     // Count: each tenant should only see their own bill runs
-    let a_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
-            .bind(&tenant_a)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let a_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
+        .bind(&tenant_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
-    let b_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
-            .bind(&tenant_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bill_runs WHERE tenant_id = $1")
+        .bind(&tenant_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
     assert!(a_count >= 1, "Tenant A should have at least 1 bill run");
     assert!(b_count >= 1, "Tenant B should have at least 1 bill run");

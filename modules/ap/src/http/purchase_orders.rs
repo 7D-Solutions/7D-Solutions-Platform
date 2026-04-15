@@ -22,9 +22,9 @@ use uuid::Uuid;
 use crate::domain::po::{
     approve, queries, service, ApprovePoRequest, CreatePoRequest, UpdatePoLinesRequest,
 };
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Shared helpers

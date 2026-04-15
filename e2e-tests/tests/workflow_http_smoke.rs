@@ -78,7 +78,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PATCH" => client.patch(url),
         _ => panic!("unsupported method"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -98,10 +102,7 @@ async fn smoke_workflow() {
         .unwrap();
 
     if !wait_for_service(&client).await {
-        eprintln!(
-            "Workflow service not reachable at {} -- skipping",
-            wf_url()
-        );
+        eprintln!("Workflow service not reachable at {} -- skipping", wf_url());
         return;
     }
     println!("Workflow service healthy at {}", wf_url());
@@ -123,7 +124,9 @@ async fn smoke_workflow() {
         .await
         .expect("JWT probe failed");
     if probe.status().as_u16() == 401 {
-        eprintln!("Workflow returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping.");
+        eprintln!(
+            "Workflow returns 401 with valid JWT -- JWT_PUBLIC_KEY not configured. Skipping."
+        );
         return;
     }
 
@@ -153,7 +156,9 @@ async fn smoke_workflow() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Create definition failed: {status} - {def_body}"
     );
-    let def_id = def_body["id"].as_str().expect("No id in definition response");
+    let def_id = def_body["id"]
+        .as_str()
+        .expect("No id in definition response");
     println!("  created definition id={def_id} name={def_name}");
 
     assert_unauth(
@@ -183,7 +188,10 @@ async fn smoke_workflow() {
     );
     let defs: Value = resp.json().await.unwrap();
     let def_count = defs.as_array().map_or(0, |a| a.len());
-    assert!(def_count >= 1, "Expected at least 1 definition, got {def_count}");
+    assert!(
+        def_count >= 1,
+        "Expected at least 1 definition, got {def_count}"
+    );
     println!("  listed {def_count} definition(s)");
 
     assert_unauth(
@@ -242,9 +250,14 @@ async fn smoke_workflow() {
         status == StatusCode::CREATED || status == StatusCode::OK,
         "Start instance failed: {status} - {inst_body}"
     );
-    let instance_id = inst_body["id"].as_str().expect("No id in instance response");
+    let instance_id = inst_body["id"]
+        .as_str()
+        .expect("No id in instance response");
     let current_step = inst_body["current_step_id"].as_str().unwrap_or("?");
-    assert_eq!(current_step, "draft", "Expected instance to start at 'draft'");
+    assert_eq!(
+        current_step, "draft",
+        "Expected instance to start at 'draft'"
+    );
     println!("  started instance id={instance_id} step={current_step}");
 
     assert_unauth(
@@ -270,7 +283,10 @@ async fn smoke_workflow() {
     );
     let instances: Value = resp.json().await.unwrap();
     let inst_count = instances.as_array().map_or(0, |a| a.len());
-    assert!(inst_count >= 1, "Expected at least 1 instance, got {inst_count}");
+    assert!(
+        inst_count >= 1,
+        "Expected at least 1 instance, got {inst_count}"
+    );
     println!("  listed {inst_count} instance(s)");
 
     assert_unauth(

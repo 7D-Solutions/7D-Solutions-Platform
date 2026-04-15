@@ -5,8 +5,7 @@ const TEST_APP: &str = "test-external-refs";
 
 fn test_db_url() -> String {
     std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db"
-            .to_string()
+        "postgres://integrations_user:integrations_pass@localhost:5449/integrations_db".to_string()
     })
 }
 
@@ -172,10 +171,9 @@ async fn test_external_refs_update() {
         label: Some("Updated Label".to_string()),
         metadata: None,
     };
-    let updated =
-        update_external_ref(&pool, TEST_APP, created.id, &upd_req, "corr-2".to_string())
-            .await
-            .expect("update failed");
+    let updated = update_external_ref(&pool, TEST_APP, created.id, &upd_req, "corr-2".to_string())
+        .await
+        .expect("update failed");
 
     assert_eq!(updated.label.as_deref(), Some("Updated Label"));
     assert_eq!(updated.external_id, "XERO-INV-1");
@@ -271,8 +269,7 @@ async fn test_external_refs_delete_wrong_tenant_fails() {
         .await
         .expect("create failed");
 
-    let err =
-        delete_external_ref(&pool, "other-tenant", created.id, "corr-2".to_string()).await;
+    let err = delete_external_ref(&pool, "other-tenant", created.id, "corr-2".to_string()).await;
     assert!(err.is_err());
 
     // Still exists for correct tenant

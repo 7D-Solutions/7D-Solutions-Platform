@@ -89,7 +89,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         req
     };
     let resp = req.send().await.expect("unauth request failed");
-    assert_eq!(resp.status().as_u16(), 401, "expected 401 without JWT at {url}");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "expected 401 without JWT at {url}"
+    );
     println!("  no-JWT → 401 ✓");
 }
 
@@ -148,9 +152,12 @@ async fn smoke_ar_customer_invoice() {
     println!("  created customer id={customer_id}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/customers"),
+        &client,
+        "POST",
+        &format!("{base}/api/ar/customers"),
         Some(json!({"email": "x@test.local", "name": "X"})),
-    ).await;
+    )
+    .await;
 
     // --- 2. GET /api/ar/customers/{id} ---
     println!("\n--- 2. GET /api/ar/customers/{{id}} ---");
@@ -166,7 +173,13 @@ async fn smoke_ar_customer_invoice() {
     assert_eq!(body["email"].as_str().unwrap(), email);
     println!("  retrieved customer email={email}");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/customers/{customer_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/customers/{customer_id}"),
+        None,
+    )
+    .await;
 
     // --- 3. POST /api/ar/invoices ---
     println!("\n--- 3. POST /api/ar/invoices ---");
@@ -185,9 +198,12 @@ async fn smoke_ar_customer_invoice() {
     println!("  created invoice id={invoice_id}, amount=5000, status=draft");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/invoices"),
+        &client,
+        "POST",
+        &format!("{base}/api/ar/invoices"),
         Some(json!({"ar_customer_id": customer_id, "amount_cents": 100})),
-    ).await;
+    )
+    .await;
 
     // --- 4. GET /api/ar/invoices/{id} ---
     println!("\n--- 4. GET /api/ar/invoices/{{id}} ---");
@@ -202,7 +218,13 @@ async fn smoke_ar_customer_invoice() {
     assert_eq!(body["id"].as_i64().unwrap(), invoice_id);
     println!("  retrieved invoice id={invoice_id}");
 
-    assert_unauth(&client, "GET", &format!("{base}/api/ar/invoices/{invoice_id}"), None).await;
+    assert_unauth(
+        &client,
+        "GET",
+        &format!("{base}/api/ar/invoices/{invoice_id}"),
+        None,
+    )
+    .await;
 
     // --- 5. POST /api/ar/invoices/{id}/finalize ---
     println!("\n--- 5. POST /api/ar/invoices/{{id}}/finalize ---");
@@ -219,9 +241,12 @@ async fn smoke_ar_customer_invoice() {
     println!("  finalized → status=open");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/invoices/{invoice_id}/finalize"),
+        &client,
+        "POST",
+        &format!("{base}/api/ar/invoices/{invoice_id}/finalize"),
         Some(json!({})),
-    ).await;
+    )
+    .await;
 
     // --- 6. POST /api/ar/invoices/{id}/bill-usage ---
     println!("\n--- 6. POST /api/ar/invoices/{{id}}/bill-usage ---");
@@ -243,8 +268,10 @@ async fn smoke_ar_customer_invoice() {
     let resp = client
         .post(format!("{base}/api/ar/invoices/{bill_inv_id}/bill-usage"))
         .bearer_auth(&jwt)
-        .json(&json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
-                       "correlation_id": Uuid::new_v4().to_string()}))
+        .json(
+            &json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
+                       "correlation_id": Uuid::new_v4().to_string()}),
+        )
         .send()
         .await
         .unwrap();
@@ -254,10 +281,15 @@ async fn smoke_ar_customer_invoice() {
     println!("  bill-usage → billed_count={}", body["billed_count"]);
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/invoices/{bill_inv_id}/bill-usage"),
-        Some(json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
-                     "correlation_id": Uuid::new_v4().to_string()})),
-    ).await;
+        &client,
+        "POST",
+        &format!("{base}/api/ar/invoices/{bill_inv_id}/bill-usage"),
+        Some(
+            json!({"customer_id": customer_id, "period_start": ps, "period_end": pe,
+                     "correlation_id": Uuid::new_v4().to_string()}),
+        ),
+    )
+    .await;
 
     // --- 7. POST /api/ar/charges ---
     // Requires default_payment_method_id on customer; 409 without is valid behavior.
@@ -272,16 +304,21 @@ async fn smoke_ar_customer_invoice() {
         .await
         .unwrap();
     let charge_status = resp.status().as_u16();
-    assert!(charge_status == 201 || charge_status == 409,
-        "expected 201 or 409, got {charge_status}");
+    assert!(
+        charge_status == 201 || charge_status == 409,
+        "expected 201 or 409, got {charge_status}"
+    );
     let _charge_body: Value = resp.json().await.unwrap();
     println!("  create charge → {charge_status}");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/charges"),
+        &client,
+        "POST",
+        &format!("{base}/api/ar/charges"),
         Some(json!({"ar_customer_id": customer_id, "amount_cents": 100,
                      "reason": "x", "reference_id": format!("x-{}", Uuid::new_v4())})),
-    ).await;
+    )
+    .await;
 
     // --- 8. GET /api/ar/charges/{id} ---
     println!("\n--- 8. GET /api/ar/charges/{{id}} ---");
@@ -330,7 +367,10 @@ async fn smoke_ar_customer_invoice() {
             .await
             .unwrap();
         let s = resp.status().as_u16();
-        assert!(s == 200 || s == 400 || s == 409, "expected 200/400/409, got {s}");
+        assert!(
+            s == 200 || s == 400 || s == 409,
+            "expected 200/400/409, got {s}"
+        );
         println!("  capture → {s} (expected for pending)");
     } else {
         let resp = client
@@ -345,9 +385,12 @@ async fn smoke_ar_customer_invoice() {
     }
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/charges/1/capture"),
+        &client,
+        "POST",
+        &format!("{base}/api/ar/charges/1/capture"),
         Some(json!({})),
-    ).await;
+    )
+    .await;
 
     // --- 10. POST /api/ar/usage ---
     println!("\n--- 10. POST /api/ar/usage ---");
@@ -369,7 +412,10 @@ async fn smoke_ar_customer_invoice() {
     let usage: Value = resp.json().await.unwrap();
     assert_eq!(status, 200, "usage capture failed: {}", usage);
     assert_eq!(usage["metric_name"].as_str().unwrap(), "api_calls");
-    println!("  captured usage: metric=api_calls, qty={}", usage["quantity"]);
+    println!(
+        "  captured usage: metric=api_calls, qty={}",
+        usage["quantity"]
+    );
 
     // Idempotency replay
     let resp = client
@@ -383,11 +429,16 @@ async fn smoke_ar_customer_invoice() {
     println!("  idempotent replay → 200 ✓");
 
     assert_unauth(
-        &client, "POST", &format!("{base}/api/ar/usage"),
-        Some(json!({"idempotency_key": Uuid::new_v4(), "customer_id": "1",
+        &client,
+        "POST",
+        &format!("{base}/api/ar/usage"),
+        Some(
+            json!({"idempotency_key": Uuid::new_v4(), "customer_id": "1",
                      "metric_name": "x", "quantity": 1.0, "unit": "x",
-                     "unit_price_minor": 1, "period_start": ps, "period_end": pe})),
-    ).await;
+                     "unit_price_minor": 1, "period_start": ps, "period_end": pe}),
+        ),
+    )
+    .await;
 
     // --- Error response sanitization ---
     println!("\n--- Error response sanitization ---");
@@ -401,7 +452,8 @@ async fn smoke_ar_customer_invoice() {
     let body = resp.text().await.unwrap();
     assert!(
         !body.contains("SELECT") && !body.contains("sqlx") && !body.contains("panicked"),
-        "error leaks internals: {}", &body[..body.len().min(200)]
+        "error leaks internals: {}",
+        &body[..body.len().min(200)]
     );
     println!("  404 sanitized ✓");
 

@@ -210,7 +210,10 @@ mod tests {
 
     #[test]
     fn calendar_recompute_from_now() {
-        let now = Utc.with_ymd_and_hms(2026, 3, 1, 12, 0, 0).single().expect("valid date");
+        let now = Utc
+            .with_ymd_and_hms(2026, 3, 1, 12, 0, 0)
+            .single()
+            .expect("valid date");
         let (date, meter) = recompute_due(
             ScheduleType::Calendar,
             Some(30),
@@ -220,14 +223,23 @@ mod tests {
             None,
             now,
         );
-        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2026, 3, 31).expect("valid date")));
+        assert_eq!(
+            date,
+            Some(NaiveDate::from_ymd_opt(2026, 3, 31).expect("valid date"))
+        );
         assert_eq!(meter, None);
     }
 
     #[test]
     fn calendar_recompute_from_last_completed() {
-        let now = Utc.with_ymd_and_hms(2026, 3, 15, 12, 0, 0).single().expect("valid date");
-        let completed = Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).single().expect("valid date");
+        let now = Utc
+            .with_ymd_and_hms(2026, 3, 15, 12, 0, 0)
+            .single()
+            .expect("valid date");
+        let completed = Utc
+            .with_ymd_and_hms(2026, 3, 1, 0, 0, 0)
+            .single()
+            .expect("valid date");
         let (date, meter) = recompute_due(
             ScheduleType::Calendar,
             Some(30),
@@ -237,7 +249,10 @@ mod tests {
             None,
             now,
         );
-        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2026, 3, 31).expect("valid date")));
+        assert_eq!(
+            date,
+            Some(NaiveDate::from_ymd_opt(2026, 3, 31).expect("valid date"))
+        );
         assert_eq!(meter, None);
     }
 
@@ -284,7 +299,10 @@ mod tests {
 
     #[test]
     fn both_recompute() {
-        let now = Utc.with_ymd_and_hms(2026, 6, 1, 0, 0, 0).single().expect("valid date");
+        let now = Utc
+            .with_ymd_and_hms(2026, 6, 1, 0, 0, 0)
+            .single()
+            .expect("valid date");
         let (date, meter) = recompute_due(
             ScheduleType::Both,
             Some(90),
@@ -294,7 +312,10 @@ mod tests {
             Some(50_000),
             now,
         );
-        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2026, 8, 30).expect("valid date")));
+        assert_eq!(
+            date,
+            Some(NaiveDate::from_ymd_opt(2026, 8, 30).expect("valid date"))
+        );
         assert_eq!(meter, Some(55_000));
     }
 }

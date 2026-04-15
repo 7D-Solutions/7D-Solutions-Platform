@@ -28,7 +28,7 @@ use tokio::sync::watch;
 use uuid::Uuid;
 
 use super::cdc::{qbo_base_url as default_qbo_base_url, DbTokenProvider};
-use super::client::{QboInvoicePayload, QboLineItem, QboClient};
+use super::client::{QboClient, QboInvoicePayload, QboLineItem};
 use crate::domain::external_refs::repo as refs_repo;
 use crate::domain::oauth::repo as oauth_repo;
 use crate::events::envelope::create_integrations_envelope;
@@ -104,9 +104,8 @@ pub async fn process_ar_invoice_opened(
     msg: &BusMessage,
     qbo_base_url: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: ArInvoiceEnvelope = serde_json::from_slice(&msg.payload).map_err(|e| {
-        format!("qbo_outbound: failed to deserialize AR invoice event: {e}")
-    })?;
+    let envelope: ArInvoiceEnvelope = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("qbo_outbound: failed to deserialize AR invoice event: {e}"))?;
 
     let p = &envelope.payload;
     let app_id = p.app_id.as_str();
@@ -114,7 +113,8 @@ pub async fn process_ar_invoice_opened(
     let customer_id = p.customer_id.as_str();
 
     // ── Idempotency guard ─────────────────────────────────────────────────────
-    let existing = refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_AR_INVOICE, invoice_id).await?;
+    let existing =
+        refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_AR_INVOICE, invoice_id).await?;
     if existing.iter().any(|r| r.system == SYSTEM_QBO_INVOICE) {
         tracing::info!(
             app_id,
@@ -125,8 +125,12 @@ pub async fn process_ar_invoice_opened(
     }
 
     // ── Resolve AR customer → QBO customer ────────────────────────────────────
-    let customer_refs = refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_AR_CUSTOMER, customer_id).await?;
-    let qbo_customer_id = match customer_refs.iter().find(|r| r.system == SYSTEM_QBO_CUSTOMER) {
+    let customer_refs =
+        refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_AR_CUSTOMER, customer_id).await?;
+    let qbo_customer_id = match customer_refs
+        .iter()
+        .find(|r| r.system == SYSTEM_QBO_CUSTOMER)
+    {
         Some(r) => r.external_id.clone(),
         None => {
             tracing::error!(
@@ -135,7 +139,14 @@ pub async fn process_ar_invoice_opened(
                 customer_id,
                 "qbo_outbound: no QBO customer mapping found — emitting sync_failed event"
             );
-            emit_sync_failed(pool, app_id, invoice_id, customer_id, "no_qbo_customer_mapping").await?;
+            emit_sync_failed(
+                pool,
+                app_id,
+                invoice_id,
+                customer_id,
+                "no_qbo_customer_mapping",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -183,9 +194,10 @@ pub async fn process_ar_invoice_opened(
         doc_number: Some(invoice_id.to_string()),
     };
 
-    let qbo_invoice = qbo.create_invoice(&invoice_payload).await.map_err(|e| {
-        format!("qbo_outbound: QBO create_invoice failed for {invoice_id}: {e}")
-    })?;
+    let qbo_invoice = qbo
+        .create_invoice(&invoice_payload)
+        .await
+        .map_err(|e| format!("qbo_outbound: QBO create_invoice failed for {invoice_id}: {e}"))?;
 
     let qbo_invoice_id = qbo_invoice["Id"]
         .as_str()
@@ -282,9 +294,8 @@ pub async fn process_order_ingested(
     msg: &BusMessage,
     qbo_base_url: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: OrderIngestedEnvelope = serde_json::from_slice(&msg.payload).map_err(|e| {
-        format!("qbo_outbound: failed to deserialize order.ingested event: {e}")
-    })?;
+    let envelope: OrderIngestedEnvelope = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("qbo_outbound: failed to deserialize order.ingested event: {e}"))?;
 
     let p = &envelope.payload;
     let app_id = p.tenant_id.as_str();
@@ -326,7 +337,10 @@ pub async fn process_order_ingested(
     let customer_refs =
         refs_repo::list_by_entity(pool, app_id, ENTITY_TYPE_MARKETPLACE_CUSTOMER, customer_ref)
             .await?;
-    let qbo_customer_id = match customer_refs.iter().find(|r| r.system == SYSTEM_QBO_CUSTOMER) {
+    let qbo_customer_id = match customer_refs
+        .iter()
+        .find(|r| r.system == SYSTEM_QBO_CUSTOMER)
+    {
         Some(r) => r.external_id.clone(),
         None => {
             tracing::error!(
@@ -335,8 +349,14 @@ pub async fn process_order_ingested(
                 customer_ref,
                 "qbo_outbound: no QBO customer mapping for marketplace customer — emitting sync_failed"
             );
-            emit_order_sync_failed(pool, app_id, order_id, customer_ref, "no_qbo_customer_mapping")
-                .await?;
+            emit_order_sync_failed(
+                pool,
+                app_id,
+                order_id,
+                customer_ref,
+                "no_qbo_customer_mapping",
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -354,7 +374,10 @@ pub async fn process_order_ingested(
             return Ok(());
         }
         None => {
-            tracing::error!(app_id, "qbo_outbound: no QBO OAuth connection — skipping order");
+            tracing::error!(
+                app_id,
+                "qbo_outbound: no QBO OAuth connection — skipping order"
+            );
             return Ok(());
         }
     };
@@ -683,7 +706,10 @@ mod tests {
 
     #[test]
     fn nats_subject_constant() {
-        assert_eq!(NATS_SUBJECT_AR_INVOICE_OPENED, "ar.events.ar.invoice_opened");
+        assert_eq!(
+            NATS_SUBJECT_AR_INVOICE_OPENED,
+            "ar.events.ar.invoice_opened"
+        );
     }
 
     #[test]
@@ -716,7 +742,8 @@ mod tests {
         });
         let raw = serde_json::to_vec(&json).expect("serialize test json");
         let msg = BusMessage::new("ar.events.ar.invoice_opened".to_string(), raw);
-        let env: ArInvoiceEnvelope = serde_json::from_slice(&msg.payload).expect("deserialize envelope");
+        let env: ArInvoiceEnvelope =
+            serde_json::from_slice(&msg.payload).expect("deserialize envelope");
         assert_eq!(env.payload.invoice_id, "inv-001");
         assert_eq!(env.payload.customer_id, "cust-42");
         assert_eq!(env.payload.app_id, "test-app");

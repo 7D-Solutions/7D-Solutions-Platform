@@ -339,9 +339,7 @@ async fn inspection_result_fail_and_ncr_rejection() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(
-        reject_payload.0["payload"]["previous_disposition"], "held"
-    );
+    assert_eq!(reject_payload.0["payload"]["previous_disposition"], "held");
     assert_eq!(reject_payload.0["payload"]["new_disposition"], "rejected");
     assert_eq!(
         reject_payload.0["payload"]["reason"],

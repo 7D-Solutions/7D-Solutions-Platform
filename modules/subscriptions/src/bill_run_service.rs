@@ -35,7 +35,10 @@ pub async fn execute_bill_run(
         })?;
 
     if let Some(existing) = existing {
-        tracing::info!("Bill run {} already executed, returning cached result", bill_run_id);
+        tracing::info!(
+            "Bill run {} already executed, returning cached result",
+            bill_run_id
+        );
         return Ok(BillRunResult {
             bill_run_id: bill_run_id.to_string(),
             subscriptions_processed: existing.subscriptions_processed,
@@ -105,14 +108,15 @@ pub async fn execute_bill_run(
                 );
                 invoices_created += 1;
 
-                let new_next_bill_date = calculate_next_bill_date(
-                    &subscription.next_bill_date,
-                    &subscription.schedule,
-                );
+                let new_next_bill_date =
+                    calculate_next_bill_date(&subscription.next_bill_date, &subscription.schedule);
 
-                if let Err(e) =
-                    repo::update_subscription_next_bill_date(db, subscription.id, new_next_bill_date)
-                        .await
+                if let Err(e) = repo::update_subscription_next_bill_date(
+                    db,
+                    subscription.id,
+                    new_next_bill_date,
+                )
+                .await
                 {
                     tracing::error!("Failed to update subscription next_bill_date: {}", e);
                 }

@@ -139,29 +139,15 @@ async fn in_process_semantic_dedup_by_wo_and_op() {
     let wo_id = payload.work_order_id;
 
     // First call with event A
-    let first = process_operation_completed(
-        &pool,
-        Uuid::new_v4(),
-        &tenant,
-        &payload,
-        &corr,
-        None,
-    )
-    .await
-    .expect("first call");
+    let first = process_operation_completed(&pool, Uuid::new_v4(), &tenant, &payload, &corr, None)
+        .await
+        .expect("first call");
     assert!(first.is_some());
 
     // Second call with different event_id but SAME wo_id + op_id
-    let second = process_operation_completed(
-        &pool,
-        Uuid::new_v4(),
-        &tenant,
-        &payload,
-        &corr,
-        None,
-    )
-    .await
-    .expect("second call");
+    let second = process_operation_completed(&pool, Uuid::new_v4(), &tenant, &payload, &corr, None)
+        .await
+        .expect("second call");
     assert!(
         second.is_none(),
         "Should skip — inspection already exists for this WO+op"
@@ -201,28 +187,15 @@ async fn different_ops_create_separate_inspections() {
         sequence_number: 20,
     };
 
-    let first = process_operation_completed(
-        &pool,
-        Uuid::new_v4(),
-        &tenant,
-        &payload1,
-        &corr,
-        None,
-    )
-    .await
-    .expect("first op");
+    let first = process_operation_completed(&pool, Uuid::new_v4(), &tenant, &payload1, &corr, None)
+        .await
+        .expect("first op");
     assert!(first.is_some());
 
-    let second = process_operation_completed(
-        &pool,
-        Uuid::new_v4(),
-        &tenant,
-        &payload2,
-        &corr,
-        None,
-    )
-    .await
-    .expect("second op");
+    let second =
+        process_operation_completed(&pool, Uuid::new_v4(), &tenant, &payload2, &corr, None)
+            .await
+            .expect("second op");
     assert!(second.is_some());
 
     let inspections = service::list_inspections_by_wo(&pool, &tenant, wo_id, Some("in_process"))
@@ -300,7 +273,11 @@ async fn final_dedup_by_event_id() {
     let inspections = service::list_inspections_by_wo(&pool, &tenant, wo_id, Some("final"))
         .await
         .expect("list_by_wo");
-    assert_eq!(inspections.len(), 1, "Should have exactly one final inspection");
+    assert_eq!(
+        inspections.len(),
+        1,
+        "Should have exactly one final inspection"
+    );
 }
 
 // ============================================================================

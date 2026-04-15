@@ -231,7 +231,11 @@ mod tests {
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
+        let assets = bs
+            .sections
+            .iter()
+            .find(|s| s.section == "assets")
+            .expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             259900
@@ -251,7 +255,11 @@ mod tests {
             50000
         );
 
-        let equity = bs.sections.iter().find(|s| s.section == "equity").expect("equity section");
+        let equity = bs
+            .sections
+            .iter()
+            .find(|s| s.section == "equity")
+            .expect("equity section");
         assert_eq!(
             equity.total_by_currency.get("USD").copied().unwrap_or(0),
             200000
@@ -279,7 +287,11 @@ mod tests {
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
+        let assets = bs
+            .sections
+            .iter()
+            .find(|s| s.section == "assets")
+            .expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             150000,
@@ -306,7 +318,11 @@ mod tests {
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
+        let assets = bs
+            .sections
+            .iter()
+            .find(|s| s.section == "assets")
+            .expect("assets section");
         assert_eq!(assets.accounts.len(), 1, "only 1xxx account in assets");
 
         let liabilities = bs
@@ -335,7 +351,11 @@ mod tests {
             .await
             .expect("compute_bs");
 
-        let assets = bs.sections.iter().find(|s| s.section == "assets").expect("assets section");
+        let assets = bs
+            .sections
+            .iter()
+            .find(|s| s.section == "assets")
+            .expect("assets section");
         assert_eq!(
             assets.total_by_currency.get("USD").copied().unwrap_or(0),
             100000

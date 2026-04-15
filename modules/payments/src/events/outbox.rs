@@ -195,11 +195,10 @@ pub async fn start_outbox_publisher(
 
 /// Count unpublished events in the outbox (used for metrics scrape).
 pub async fn count_unpublished(pool: &PgPool) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payments_events_outbox WHERE published_at IS NULL",
-    )
-    .fetch_one(pool)
-    .await?;
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM payments_events_outbox WHERE published_at IS NULL")
+            .fetch_one(pool)
+            .await?;
     Ok(row.0)
 }
 

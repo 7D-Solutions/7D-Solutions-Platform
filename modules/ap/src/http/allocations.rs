@@ -16,9 +16,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::allocations::{service, AllocationRecord, CreateAllocationRequest};
-use platform_sdk::extract_tenant;
 use crate::http::tenant::with_request_id;
 use crate::AppState;
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Handlers

@@ -94,7 +94,11 @@ async fn assert_unauth(client: &Client, method: &str, url: &str, body: Option<Va
         "PATCH" => client.patch(url),
         _ => panic!("unsupported method: {method}"),
     };
-    let req = if let Some(b) = body { req.json(&b) } else { req };
+    let req = if let Some(b) = body {
+        req.json(&b)
+    } else {
+        req
+    };
     let resp = req.send().await.expect("unauth request failed");
     assert_eq!(
         resp.status().as_u16(),
@@ -463,7 +467,10 @@ async fn smoke_shipping_receiving() {
     let body: Value = resp.json().await.expect("list routings body");
     assert_eq!(status, StatusCode::OK, "list routings: {}", body);
     let routings = body.as_array().expect("routings should be array");
-    assert!(!routings.is_empty(), "routings should contain seeded routing");
+    assert!(
+        !routings.is_empty(),
+        "routings should contain seeded routing"
+    );
     println!("  list routings -> 200 ok ({} routing(s))", routings.len());
 
     // Step 11: GET inbound shipment
@@ -522,7 +529,10 @@ async fn smoke_shipping_receiving() {
     let outbound_id = extract_uuid(&body, "id");
     assert_eq!(body["status"], "draft");
     assert_eq!(body["direction"], "outbound");
-    println!("  created outbound {} -> 201 ok (status=draft)", outbound_id);
+    println!(
+        "  created outbound {} -> 201 ok (status=draft)",
+        outbound_id
+    );
 
     // Step 14: Transition outbound → confirmed
     println!("\n-- Step 14: PATCH /{outbound_id}/status → confirmed --");
@@ -679,7 +689,10 @@ async fn smoke_shipping_receiving() {
     let body: Value = resp.json().await.expect("shipments_by_po body");
     assert_eq!(status, StatusCode::OK, "shipments_by_po: {}", body);
     let rows = body.as_array().expect("shipments_by_po should be array");
-    assert!(!rows.is_empty(), "shipments_by_po should return seeded shipment");
+    assert!(
+        !rows.is_empty(),
+        "shipments_by_po should return seeded shipment"
+    );
     println!("  shipments_by_po -> 200 ok ({} row(s))", rows.len());
 
     // Step 23: GET /po-lines/{po_line_id}/lines — returns inbound line
@@ -696,7 +709,10 @@ async fn smoke_shipping_receiving() {
     let body: Value = resp.json().await.expect("lines_by_po_line body");
     assert_eq!(status, StatusCode::OK, "lines_by_po_line: {}", body);
     let rows = body.as_array().expect("lines_by_po_line should be array");
-    assert!(!rows.is_empty(), "lines_by_po_line should return seeded line");
+    assert!(
+        !rows.is_empty(),
+        "lines_by_po_line should return seeded line"
+    );
     println!("  lines_by_po_line -> 200 ok ({} row(s))", rows.len());
 
     // Step 24: GET /source/{ref_type}/{ref_id}/shipments — returns inbound shipment
@@ -713,12 +729,7 @@ async fn smoke_shipping_receiving() {
         .expect("shipments_by_source_ref failed");
     let status = resp.status();
     let body: Value = resp.json().await.expect("shipments_by_source_ref body");
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "shipments_by_source_ref: {}",
-        body
-    );
+    assert_eq!(status, StatusCode::OK, "shipments_by_source_ref: {}", body);
     let rows = body
         .as_array()
         .expect("shipments_by_source_ref should be array");

@@ -11,12 +11,12 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use super::tenant::with_request_id;
 use crate::{
     domain::fg_receipt::{request_fg_receipt, RequestFgReceiptRequest},
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 /// POST /api/production/work-orders/:id/fg-receipt
 #[utoipa::path(

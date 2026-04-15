@@ -11,7 +11,6 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use platform_sdk::extract_tenant;
 use crate::{
     domain::export::{
         models::{CreateExportRunRequest, ExportArtifact, ExportError, ExportRun},
@@ -19,6 +18,7 @@ use crate::{
     },
     AppState,
 };
+use platform_sdk::extract_tenant;
 
 // ============================================================================
 // Query params (without app_id — derived from JWT)

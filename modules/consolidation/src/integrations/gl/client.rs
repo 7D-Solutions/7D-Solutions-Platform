@@ -4,7 +4,7 @@
 //! retry on 429/503.  Response types are defined here until the generated
 //! client skeleton supports typed responses for these endpoints.
 
-use platform_sdk::{ClientError, PlatformClient, build_query_url, parse_response};
+use platform_sdk::{build_query_url, parse_response, ClientError, PlatformClient};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -112,9 +112,7 @@ impl platform_sdk::PlatformService for GlClient {
 impl GlClient {
     pub fn new(base_url: &str) -> Self {
         Self {
-            client: PlatformClient::new(
-                base_url.trim_end_matches('/').to_string(),
-            ),
+            client: PlatformClient::new(base_url.trim_end_matches('/').to_string()),
         }
     }
 
@@ -136,9 +134,16 @@ impl GlClient {
         let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
         let path = build_query_url(
             "/api/gl/trial-balance",
-            &TrialBalanceQuery { period_id, currency },
+            &TrialBalanceQuery {
+                period_id,
+                currency,
+            },
         )?;
-        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, &claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -150,7 +155,11 @@ impl GlClient {
     ) -> Result<GlCloseStatusResponse, ClientError> {
         let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
         let path = format!("/api/gl/periods/{}/close-status", period_id);
-        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, &claims)
+            .await
+            .map_err(ClientError::Network)?;
         parse_response(resp).await
     }
 
@@ -180,9 +189,17 @@ impl GlClient {
         let claims = PlatformClient::service_claims(Self::parse_tenant(tenant_id)?);
         let path = build_query_url(
             "/api/gl/fx-rates/latest",
-            &FxRateQuery { base_currency, quote_currency, as_of },
+            &FxRateQuery {
+                base_currency,
+                quote_currency,
+                as_of,
+            },
         )?;
-        let resp = self.client.get(&path, &claims).await.map_err(ClientError::Network)?;
+        let resp = self
+            .client
+            .get(&path, &claims)
+            .await
+            .map_err(ClientError::Network)?;
 
         if resp.status().as_u16() == 404 {
             return Ok(None);
