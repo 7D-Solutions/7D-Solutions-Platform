@@ -171,8 +171,7 @@ fn mint_rsa_service_jwt(
     tenant_id: uuid::Uuid,
     actor_id: uuid::Uuid,
 ) -> Result<String, ServiceAuthError> {
-    let pem = env::var("JWT_PRIVATE_KEY_PEM")
-        .map_err(|_| ServiceAuthError::MissingSigningKey)?;
+    let pem = env::var("JWT_PRIVATE_KEY_PEM").map_err(|_| ServiceAuthError::MissingSigningKey)?;
     let pem = pem.replace("\\n", "\n");
     let encoding_key = jsonwebtoken::EncodingKey::from_rsa_pem(pem.as_bytes())
         .map_err(|_| ServiceAuthError::MissingSigningKey)?;
@@ -200,6 +199,12 @@ fn mint_rsa_service_jwt(
         .map_err(|_| ServiceAuthError::MissingSigningKey)
 }
 
+fn is_development_env() -> bool {
+    env::var("ENV")
+        .map(|env_name| env_name == "development")
+        .unwrap_or(false)
+}
+
 /// Mint an RSA-signed JWT with caller context for cross-service calls through ClaimsLayer.
 ///
 /// Call this when a service needs to call another service and must forward the
@@ -218,8 +223,8 @@ pub fn mint_service_jwt_with_context(
 /// Get service token from environment or generate one
 ///
 /// Prefers RSA-signed JWT (via `JWT_PRIVATE_KEY_PEM`) because that is what
-/// `ClaimsLayer` / `JwtVerifier` can decode. Falls back to HMAC token
-/// only if the private key is not available.
+/// `ClaimsLayer` / `JwtVerifier` can decode. Falls back to HMAC token only
+/// in development when the private key is missing or invalid.
 pub fn get_service_token() -> Result<String, ServiceAuthError> {
     // Check if token is already in environment
     if let Ok(token) = env::var("SERVICE_TOKEN") {
@@ -233,12 +238,17 @@ pub fn get_service_token() -> Result<String, ServiceAuthError> {
     // Prefer RSA JWT — compatible with ClaimsLayer verification.
     // No request context available here; use nil UUIDs as the service principal.
     // For context-aware tokens use mint_service_jwt_with_context().
-    if env::var("JWT_PRIVATE_KEY_PEM").is_ok() {
-        return mint_rsa_service_jwt(&service_name, uuid::Uuid::nil(), uuid::Uuid::nil());
+    match mint_rsa_service_jwt(&service_name, uuid::Uuid::nil(), uuid::Uuid::nil()) {
+        Ok(token) => Ok(token),
+        Err(ServiceAuthError::MissingSigningKey) if is_development_env() => {
+            tracing::warn!(
+                service_name = %service_name,
+                "JWT_PRIVATE_KEY_PEM missing or invalid in development; using legacy HMAC fallback"
+            );
+            generate_service_token(&service_name, None)
+        }
+        Err(err) => Err(err),
     }
-
-    // Fallback to HMAC (legacy, not compatible with ClaimsLayer)
-    generate_service_token(&service_name, None)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.8.2 | 2026-04-15 | bd-whq6d | Fail-closed service_auth::get_service_token when JWT_PRIVATE_KEY_PEM is missing: error in non-development environments, HMAC fallback only when ENV=development. | Silent HMAC downgrade produced tokens incompatible with ClaimsLayer, causing 401 cascades on the receiver side that look like JWKS issues. | No |
 | 1.8.1 | 2026-04-14 | bd-aw9dq | Add `rotation_cutover_accepts_both_keys_then_rejects_old_token` integration test covering JWT overlap cutover from key-A to key-B. Add `docs/operations/secret-rotation.md` and link it from the runbooks index. | Secret rotation needed an operator-facing runbook and a concrete overlap/cutover test to show old tokens still work during the overlap window but fail after cutover. | No |
 | 1.8.0 | 2026-04-13 | bd-397ij | Add `TierDef` struct carrying `RateLimitKeyStrategy` + optional method filters per tier. `ratelimit.rs` supports composite (tenant+ip) and ip-only key strategies. `middleware.rs` dispatches by method + path prefix. Integration test verifies tier selection and 429 responses. | Tiered rate limiting required cross-module activation; builder-side `with_rate_limiting()` needs a richer TierDef than the previous tuple. | No |
 | 1.2.0 | 2026-04-02 | bd-4lc6q | Store raw bearer token (RawBearerToken) in request extensions alongside VerifiedClaims | Verticals need raw JWT for proxying, webhooks, audit | No |

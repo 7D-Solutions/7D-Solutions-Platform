@@ -8,13 +8,93 @@
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use chrono::Utc;
-use std::sync::Mutex;
+use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
+use rsa::RsaPrivateKey;
+use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 
+use security::claims::{ActorType, JwtVerifier};
 use security::service_auth::{
-    generate_service_token, verify_service_token, ServiceAuthClaims, ServiceAuthError,
+    generate_service_token, get_service_token, verify_service_token, ServiceAuthClaims,
+    ServiceAuthError,
 };
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+struct RsaTestKeys {
+    private_pem: String,
+    public_pem: String,
+}
+
+fn generate_rsa_keys() -> RsaTestKeys {
+    let mut rng = rand::thread_rng();
+    let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key generation");
+    let pub_key = priv_key.to_public_key();
+    let private_pem = priv_key
+        .to_pkcs8_pem(LineEnding::LF)
+        .expect("private PEM")
+        .to_string();
+    let public_pem = pub_key
+        .to_public_key_pem(LineEnding::LF)
+        .expect("public PEM");
+    RsaTestKeys {
+        private_pem,
+        public_pem,
+    }
+}
+
+struct EnvGuard {
+    previous: Vec<(&'static str, Option<String>)>,
+}
+
+impl EnvGuard {
+    fn set(entries: &[(&'static str, Option<&str>)]) -> Self {
+        let mut previous = Vec::with_capacity(entries.len());
+        for (key, value) in entries {
+            previous.push((*key, std::env::var(key).ok()));
+            match value {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
+        Self { previous }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for (key, value) in self.previous.iter().rev() {
+            match value {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct TestWriter(Arc<Mutex<Vec<u8>>>);
+
+struct TestWriterHandle(Arc<Mutex<Vec<u8>>>);
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for TestWriter {
+    type Writer = TestWriterHandle;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        TestWriterHandle(self.0.clone())
+    }
+}
+
+impl Write for TestWriterHandle {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Run `f` with SERVICE_AUTH_SECRET set to `secret`, then restore.
 fn with_secret<F, R>(secret: &str, f: F) -> R
@@ -209,4 +289,108 @@ fn various_service_names_preserved() {
             assert_eq!(claims.service_name, name);
         }
     });
+}
+
+#[test]
+fn test_rsa_path_with_key_set_succeeds() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let keys = generate_rsa_keys();
+    let _env = EnvGuard::set(&[
+        ("ENV", Some("production")),
+        ("JWT_PRIVATE_KEY_PEM", Some(&keys.private_pem)),
+        ("SERVICE_TOKEN", None),
+        ("SERVICE_NAME", Some("billing-service")),
+    ]);
+
+    let token = get_service_token().expect("RSA path should succeed in production");
+    let verifier = JwtVerifier::from_public_pem(&keys.public_pem).expect("verifier");
+    let claims = verifier.verify(&token).expect("token should verify");
+
+    assert_eq!(claims.user_id, uuid::Uuid::nil());
+    assert_eq!(claims.tenant_id, uuid::Uuid::nil());
+    assert_eq!(claims.actor_type, ActorType::Service);
+}
+
+#[test]
+fn test_no_key_prod_errors() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let _env = EnvGuard::set(&[
+        ("ENV", Some("production")),
+        ("JWT_PRIVATE_KEY_PEM", None),
+        ("SERVICE_TOKEN", None),
+    ]);
+
+    let result = get_service_token();
+    assert!(matches!(result, Err(ServiceAuthError::MissingSigningKey)));
+}
+
+#[test]
+fn test_invalid_key_prod_errors() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let _env = EnvGuard::set(&[
+        ("ENV", Some("production")),
+        ("JWT_PRIVATE_KEY_PEM", Some("not-a-valid-rsa-key")),
+        ("SERVICE_TOKEN", None),
+    ]);
+
+    let result = get_service_token();
+    assert!(matches!(result, Err(ServiceAuthError::MissingSigningKey)));
+}
+
+#[test]
+fn test_no_key_env_unset_errors() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let _env = EnvGuard::set(&[
+        ("ENV", None),
+        ("JWT_PRIVATE_KEY_PEM", None),
+        ("SERVICE_TOKEN", None),
+    ]);
+
+    let result = get_service_token();
+    assert!(matches!(result, Err(ServiceAuthError::MissingSigningKey)));
+}
+
+#[test]
+fn test_no_key_staging_errors() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let _env = EnvGuard::set(&[
+        ("ENV", Some("staging")),
+        ("JWT_PRIVATE_KEY_PEM", None),
+        ("SERVICE_TOKEN", None),
+    ]);
+
+    let result = get_service_token();
+    assert!(matches!(result, Err(ServiceAuthError::MissingSigningKey)));
+}
+
+#[test]
+fn test_no_key_dev_succeeds_with_warn() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let buffer = Arc::new(Mutex::new(Vec::new()));
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_max_level(tracing::Level::WARN)
+        .with_writer(TestWriter(buffer.clone()))
+        .finish();
+
+    let _env = EnvGuard::set(&[
+        ("ENV", Some("development")),
+        ("JWT_PRIVATE_KEY_PEM", None),
+        ("SERVICE_TOKEN", None),
+        ("SERVICE_AUTH_SECRET", Some("dev-secret")),
+        ("SERVICE_NAME", Some("billing-service")),
+    ]);
+
+    let token = tracing::subscriber::with_default(subscriber, || {
+        get_service_token().expect("development fallback should succeed")
+    });
+
+    let claims = verify_service_token(&token).expect("dev fallback token should verify");
+    assert_eq!(claims.service_name, "billing-service");
+
+    let logs = String::from_utf8(buffer.lock().unwrap().clone()).expect("warn log utf8");
+    assert!(
+        logs.contains("development") || logs.contains("legacy HMAC fallback"),
+        "expected development fallback warning, got: {logs}"
+    );
 }
