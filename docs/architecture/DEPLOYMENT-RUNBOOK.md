@@ -87,44 +87,15 @@ Create `.env` file in project root:
 ```bash
 # JWT signing keys for auth-rs
 JWT_KID=auth-key-1
-JWT_PRIVATE_KEY_PEM="-----BEGIN PRIVATE KEY-----
-MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCuBsdZmlGizaxw
-SBMxjLHiAVMgP2b/vB2kn/6eJe72KWNCJN7maHHTeUknrUOgmesz8M0Jkbo2rwPz
-IW2wDHMs5n1k3SD4kT7xC4YOJmN7rKXGSReL4aGoWuQeNnJyGvCmH99DE2/4lX0T
-8KOimSWUU2LJ0hZhAY8cuI0E49UQud1wKD0YsABtgTWCXf/JNjLfDaDhmL9HedAh
-WDsRN/lSvEV+WqEoBwwwj0WQz5tjUtIGRtPipy2GH+62x1x3vKMyU2bNWGh6+oG+
-GFUqSY0wGZyUKCJg/uLoPo+5OeWcy24slx5uDPCUNE7oSBQniGUgoKc1TxmoPNw1
-p5F1iw+3AgMBAAECggEAERZGTZnK3owznGS0nxQG7+ocYi6yK3WqMsdThe4IkVqi
-oynL9F3t9eB979Y3LSuKaLOslijHsBCCzUULfZKDXosVEH8WeoGHEhOFFUTsq1sv
-fbwggpIOwDaIbnT/ILgHcprviNOoQLAA3iEtwqHR4EdIYbOYkewdbqmqOFWHI+31
-Ai4roeIc9VZ2+q/Q3maYnSup3IDe12V5Pw0ncT6RFVnRyXaX68eXEe8/hqmsjdBD
-mVzmZBC/msdODdb9QT4g0s6moecu8qUBHUsnqCthjS+vlZPf/MMr5RAhs1iDdEAP
-boBSE3Be7fJIXZXril2k5nKzckgqxZ6Agf5jKkJ1pQKBgQDoiYVCwMc3wUtKwiae
-be1ZpqLWDiQ+f6u6UiD5OfIHCv6CRUdzjxT2bjnpGHM0Xsk4B264b3/JIgvgLKKf
-aoD+Tao1ut95nQ92vQfh9LHOm31+JJqC/ZxkDdIY5CL+ncaKjxSKro8HXjbbtwc7
-DFmeuIsGJObEfKJaV87M3NWzkwKBgQC/lepdEF5uDfYvPRrTqm9nnV0BjFOHWqIe
-aIaBkJdFSq62WuHiZgJUSoawCfQwB+Sn97rG1qB8fEHNGnMfFQq1M0tAhqCn+sUK
-GpMbiJfDHqmMXeyTl/V7iQTe7T4mae4SnEDkPVKLrIlNj/4vk9NLrXMXYy+Q8LMp
-TwqhVfyRzQKBgQCf0wVYoA9M7vnE5DSO55ce6z04Snf2zOFHKnOnWIBU/uV2vA8k
-Cc+qoJAE+d0UvaEndVRQR7JYl6H57jPHxffq0Y6PZ2V5vM2IGtx0HS6oho52SMo6
-Bf2bdzRUD1lODzsKuNSxjNCZi9PAp8e8efyO7t/+1RYXLmKYHYnxnEb1KQKBgQC0
-K4f7fSlQ1lBunEheRin+hz6v9geXguRzNFlJ/3BC+bjURSOohcYq/usrIjFB+ipO
-y+oalDzY1QIMoJMi5+bqARMD25e6YVpr5hHyEsKl/G/2UV3qbz2sr26lNvb7qSL6
-3XcpLYIzWE7HYmLo21waD0Ps+poA9FuIvYyBrRuZAQKBgQC5InrXyU9CPpbSuAFk
-7KwA/2VjJm8mw2lD4OJUckM7GFGZY5UGCJ2A52MOhb0/bYFKlV9oPhnmIjMdW9gx
-vxIUOy2kudHsnbFzWBb3SNW5qpL8RuOQlsgbUxxCjF5sVoyZRa4ZJdbbyFAMgCd+
-hVVG9aCctsAdws7WdKVTzxNAMA==
------END PRIVATE KEY-----"
 
-JWT_PUBLIC_KEY_PEM="-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArgbHWZpRos2scEgTMYyx
-4gFTID9m/7wdpJ/+niXu9iljQiTe5mhx03lJJ61DoJnrM/DNCZG6Nq8D8yFtsAxz
-LOZ9ZN0g+JE+8QuGDiZje6ylxkkXi+GhqFrkHjZychrwph/fQxNv+JV9E/Cjopkl
-lFNiydIWYQGPHLiNBOPVELndcCg9GLAAbYE1gl3/yTYy3w2g4Zi/R3nQIVg7ETf5
-UrxFflqhKAcMMI9FkM+bY1LSBkbT4qcthh/utsdcd7yjMlNmzVhoevqBvhhVKkmN
-MBmclCgiYP7i6D6PuTnlnMtuLJcebgzwlDRO6EgUJ4hlIKCnNU8ZqDzcNaeRdYsP
-twIDAQAB
------END PUBLIC KEY-----"
+# Generate a fresh RSA-2048 private key:
+#   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /path/to/jwt-private.pem
+# Then set either inline or via a file reference:
+JWT_PRIVATE_KEY_PEM="$(cat /path/to/jwt-private.pem)"
+
+# Generate the corresponding public key:
+#   openssl pkey -in /path/to/jwt-private.pem -pubout -out /path/to/jwt-public.pem
+JWT_PUBLIC_KEY_PEM="$(cat /path/to/jwt-public.pem)"
 
 # Bootstrap token for initial tenant creation
 BOOTSTRAP_TOKEN=smoke-test-bootstrap-token-minimum-32-characters-required-for-security

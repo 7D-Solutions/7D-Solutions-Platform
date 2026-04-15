@@ -103,6 +103,12 @@ should_implement_trait = "allow"   # from_str helpers that aren't FromStr
 # Future: shared dependencies can be defined here
 # [workspace.dependencies]
 
+# Compile the RSA crate at opt-level 3 even in debug builds so that
+# Miller-Rabin primality testing completes quickly (avoids 120s+ hangs
+# when generating test keypairs in rbac_enforcement tests).
+[profile.dev.package.rsa]
+opt-level = 3
+
 # Core dependencies aligned (2026-02-11):
 # - axum 0.8
 # - sqlx 0.8
