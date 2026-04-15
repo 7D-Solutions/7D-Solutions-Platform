@@ -1,0 +1,21 @@
+# gitleaks configuration for 7D-Solutions Platform
+#
+# No `extend` directive — inherits the full gitleaks default rule set.
+#
+# Allowlist entries require a bead ID and a reason.
+# See docs/security/vuln-triage.md for format.
+
+[allowlist]
+  description = "False positives — every entry must include a bead ID and a reason"
+
+  # Entries go here. Example format:
+  #
+  # [[allowlist.commits]]
+  # # bd-xxxxx: <reason why this commit is safe to ignore>
+  # commit = "abc123def456"
+  #
+  # [[allowlist.regexes]]
+  # # bd-xxxxx: <reason why this pattern is a false positive>
+  # description = "<human-readable label>"
+  # regex = "<pattern>"
+  # path = "<glob to restrict scope>"

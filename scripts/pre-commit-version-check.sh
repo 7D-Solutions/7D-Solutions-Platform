@@ -1,14 +1,52 @@
 #!/usr/bin/env bash
-# Gate 1: Version Bump Enforcement (pre-commit hook)
+# Gate 0: Secret Scan (gitleaks)
+# Gate 1: Version Bump Enforcement
 #
-# Checks that commits to proven modules (version >= 1.0.0) include:
-# 1. A version bump in Cargo.toml (or package.json)
-# 2. A modification to REVISIONS.md
+# Gate 0 runs gitleaks against staged changes before any other check.
+# Gate 1 checks that commits to proven modules (version >= 1.0.0) include:
+#   1. A version bump in Cargo.toml (or package.json)
+#   2. A modification to REVISIONS.md
 #
 # Install: ln -sf ../../scripts/pre-commit-version-check.sh .git/hooks/pre-commit
-# Standard: docs/VERSIONING.md — Gate 1
+# Standards: docs/security/vuln-triage.md (Gate 0), docs/VERSIONING.md (Gate 1)
 
 set -uo pipefail
+
+# ============================================
+# Gate 0: Secret Scan (gitleaks)
+# ============================================
+_REPO_ROOT="$(git rev-parse --show-toplevel)"
+_GITLEAKS_CONFIG="$_REPO_ROOT/.gitleaks.toml"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    # Warn but do not block — a hook that fails on missing tools trains
+    # developers to bypass it, which is worse than no hook at all.
+    _OS="$(uname -s)"
+    case "$_OS" in
+        Darwin)
+            _INSTALL_CMD="brew install gitleaks" ;;
+        Linux)
+            if command -v apt-get >/dev/null 2>&1; then
+                _INSTALL_CMD="apt-get install gitleaks"
+            else
+                _INSTALL_CMD="see https://github.com/gitleaks/gitleaks#installing"
+            fi
+            ;;
+        *)
+            _INSTALL_CMD="see https://github.com/gitleaks/gitleaks#installing" ;;
+    esac
+    echo "⚠️  gitleaks not installed — secret scan skipped. To install: $_INSTALL_CMD" >&2
+else
+    if ! gitleaks protect --staged --redact --no-banner --config "$_GITLEAKS_CONFIG" 2>&1; then
+        echo "" >&2
+        echo "❌ Gate 0 FAILED: gitleaks detected a secret in staged changes." >&2
+        echo "   Remove the secret before committing." >&2
+        echo "   If this is a false positive, see docs/security/vuln-triage.md" >&2
+        echo "   for how to add an allowlist entry (bead ID + reason required)." >&2
+        echo "" >&2
+        exit 1
+    fi
+fi
 
 # Directories that contain deployable modules
 MODULE_DIRS=("modules" "platform")

@@ -143,6 +143,67 @@ Or allowlist by regex if the pattern appears in multiple commits:
 
 ---
 
+## Pre-commit hook
+
+The `.git/hooks/pre-commit` symlink points to `scripts/pre-commit-version-check.sh`,
+which runs two gates on every commit:
+
+| Gate | What it checks | On failure |
+|------|---------------|------------|
+| Gate 0 (gitleaks) | Secrets in staged changes | Commit is blocked |
+| Gate 1 (version bump) | Version bump + REVISIONS.md for proven modules | Commit is blocked |
+
+Gate 0 runs first. If gitleaks is not installed on the developer's machine, the
+hook prints a warning and continues — it does not block the commit. This is
+intentional: a hook that fails on missing tooling trains developers to bypass it,
+which is worse than no hook at all. CI remains the hard gate.
+
+### Installing gitleaks
+
+**macOS:**
+```bash
+brew install gitleaks
+```
+
+**Linux (Debian/Ubuntu):**
+```bash
+apt-get install gitleaks
+```
+
+**Other Linux / manual:**
+Download the release binary from https://github.com/gitleaks/gitleaks/releases
+and place it on your `$PATH`.
+
+Verify:
+```bash
+gitleaks version
+```
+
+### What the developer sees
+
+**Secret detected (gitleaks installed):**
+```
+❌ Gate 0 FAILED: gitleaks detected a secret in staged changes.
+   Remove the secret before committing.
+   If this is a false positive, see docs/security/vuln-triage.md
+   for how to add an allowlist entry (bead ID + reason required).
+```
+The commit is rejected. Remove or rotate the secret, then re-stage and retry.
+
+**gitleaks not installed:**
+```
+⚠️  gitleaks not installed — secret scan skipped. To install: brew install gitleaks
+```
+The commit proceeds. Install gitleaks to enable local scanning.
+
+**Version bump missing (Gate 1):**
+```
+❌ Gate 1 FAILED: Proven module(s) changed without version bump / revision entry
+```
+Bump the version in `Cargo.toml` and add a row to `REVISIONS.md`.
+
+---
+
 ## Running Scans Locally
 
 ```bash
