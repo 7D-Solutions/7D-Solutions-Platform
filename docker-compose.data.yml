@@ -44,7 +44,7 @@ services:
     environment:
       POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_db}
       POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_user}
-      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:-auth_pass}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -75,7 +75,7 @@ services:
     environment:
       POSTGRES_DB: ${AR_POSTGRES_DB:-ar_db}
       POSTGRES_USER: ${AR_POSTGRES_USER:-ar_user}
-      POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:-ar_pass}
+      POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ar_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -106,7 +106,7 @@ services:
     environment:
       POSTGRES_DB: ${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
       POSTGRES_USER: ${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}
-      POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}
+      POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:?SUBSCRIPTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - subscriptions_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -137,7 +137,7 @@ services:
     environment:
       POSTGRES_DB: ${PAYMENTS_POSTGRES_DB:-payments_db}
       POSTGRES_USER: ${PAYMENTS_POSTGRES_USER:-payments_user}
-      POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}
+      POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:?PAYMENTS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - payments_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -168,7 +168,7 @@ services:
     environment:
       POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
       POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER:-notifications_user}
-      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:?NOTIFICATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - notifications_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -199,7 +199,7 @@ services:
     environment:
       POSTGRES_DB: ${GL_POSTGRES_DB:-gl_db}
       POSTGRES_USER: ${GL_POSTGRES_USER:-gl_user}
-      POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:-gl_pass}
+      POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:?GL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - gl_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -233,7 +233,7 @@ services:
     environment:
       POSTGRES_DB: ${PROJECTIONS_POSTGRES_DB:-projections_db}
       POSTGRES_USER: ${PROJECTIONS_POSTGRES_USER:-projections_user}
-      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:-projections_pass}
+      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:?PROJECTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - projections_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -264,7 +264,7 @@ services:
     environment:
       POSTGRES_DB: ${AUDIT_POSTGRES_DB:-audit_db}
       POSTGRES_USER: ${AUDIT_POSTGRES_USER:-audit_user}
-      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:-audit_pass}
+      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:?AUDIT_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - audit_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -295,7 +295,7 @@ services:
     environment:
       POSTGRES_DB: ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
       POSTGRES_USER: ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}
-      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}
+      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:?TENANT_REGISTRY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - tenant_registry_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -326,7 +326,7 @@ services:
     environment:
       POSTGRES_DB: ${INVENTORY_POSTGRES_DB:-inventory_db}
       POSTGRES_USER: ${INVENTORY_POSTGRES_USER:-inventory_user}
-      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}
+      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:?INVENTORY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - inventory_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -357,7 +357,7 @@ services:
     environment:
       POSTGRES_DB: ${AP_POSTGRES_DB:-ap_db}
       POSTGRES_USER: ${AP_POSTGRES_USER:-ap_user}
-      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:-ap_pass}
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:?AP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ap_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -388,7 +388,7 @@ services:
     environment:
       POSTGRES_DB: ${TREASURY_POSTGRES_DB:-treasury_db}
       POSTGRES_USER: ${TREASURY_POSTGRES_USER:-treasury_user}
-      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:-treasury_pass}
+      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:?TREASURY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - treasury_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -419,7 +419,7 @@ services:
     environment:
       POSTGRES_DB: ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
       POSTGRES_USER: ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}
-      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}
+      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:?FIXED_ASSETS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - fixed_assets_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -450,7 +450,7 @@ services:
     environment:
       POSTGRES_DB: ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
       POSTGRES_USER: ${CONSOLIDATION_POSTGRES_USER:-consolidation_user}
-      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}
+      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:?CONSOLIDATION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - consolidation_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -481,7 +481,7 @@ services:
     environment:
       POSTGRES_DB: ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
       POSTGRES_USER: ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}
-      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}
+      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:?TIMEKEEPING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - timekeeping_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -512,7 +512,7 @@ services:
     environment:
       POSTGRES_DB: ${PARTY_POSTGRES_DB:-party_db}
       POSTGRES_USER: ${PARTY_POSTGRES_USER:-party_user}
-      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:-party_pass}
+      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:?PARTY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - party_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -543,7 +543,7 @@ services:
     environment:
       POSTGRES_DB: ${INTEGRATIONS_POSTGRES_DB:-integrations_db}
       POSTGRES_USER: ${INTEGRATIONS_POSTGRES_USER:-integrations_user}
-      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}
+      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:?INTEGRATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - integrations_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -574,7 +574,7 @@ services:
     environment:
       POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
       POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
-      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:-ttp_pass}
+      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:?TTP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ttp_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -605,7 +605,7 @@ services:
     environment:
       POSTGRES_DB: ${MAINTENANCE_POSTGRES_DB:-maintenance_db}
       POSTGRES_USER: ${MAINTENANCE_POSTGRES_USER:-maintenance_user}
-      POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}
+      POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:?MAINTENANCE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - maintenance_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -636,7 +636,7 @@ services:
     environment:
       POSTGRES_DB: ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}
       POSTGRES_USER: ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}
-      POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}
+      POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:?PDF_EDITOR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - pdf_editor_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -667,7 +667,7 @@ services:
     environment:
       POSTGRES_DB: ${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}
       POSTGRES_USER: ${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}
-      POSTGRES_PASSWORD: ${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}
+      POSTGRES_PASSWORD: ${SHIPPING_RECEIVING_POSTGRES_PASSWORD:?SHIPPING_RECEIVING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - shipping_receiving_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -698,7 +698,7 @@ services:
     environment:
       POSTGRES_DB: ${NUMBERING_POSTGRES_DB:-numbering_db}
       POSTGRES_USER: ${NUMBERING_POSTGRES_USER:-numbering_user}
-      POSTGRES_PASSWORD: ${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}
+      POSTGRES_PASSWORD: ${NUMBERING_POSTGRES_PASSWORD:?NUMBERING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - numbering_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -729,7 +729,7 @@ services:
     environment:
       POSTGRES_DB: ${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}
       POSTGRES_USER: ${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}
-      POSTGRES_PASSWORD: ${DOC_MGMT_POSTGRES_PASSWORD:-doc_mgmt_pass}
+      POSTGRES_PASSWORD: ${DOC_MGMT_POSTGRES_PASSWORD:?DOC_MGMT_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - doc_mgmt_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -760,7 +760,7 @@ services:
     environment:
       POSTGRES_DB: ${WORKFLOW_POSTGRES_DB:-workflow_db}
       POSTGRES_USER: ${WORKFLOW_POSTGRES_USER:-workflow_user}
-      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - workflow_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -791,7 +791,7 @@ services:
     environment:
       POSTGRES_DB: ${WC_POSTGRES_DB:-workforce_competence_db}
       POSTGRES_USER: ${WC_POSTGRES_USER:-wc_user}
-      POSTGRES_PASSWORD: ${WC_POSTGRES_PASSWORD:-wc_pass}
+      POSTGRES_PASSWORD: ${WC_POSTGRES_PASSWORD:?WC_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - workforce_competence_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -822,7 +822,7 @@ services:
     environment:
       POSTGRES_DB: ${BOM_POSTGRES_DB:-bom_db}
       POSTGRES_USER: ${BOM_POSTGRES_USER:-bom_user}
-      POSTGRES_PASSWORD: ${BOM_POSTGRES_PASSWORD:-bom_pass}
+      POSTGRES_PASSWORD: ${BOM_POSTGRES_PASSWORD:?BOM_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - bom_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -853,7 +853,7 @@ services:
     environment:
       POSTGRES_DB: ${PRODUCTION_POSTGRES_DB:-production_db}
       POSTGRES_USER: ${PRODUCTION_POSTGRES_USER:-production_user}
-      POSTGRES_PASSWORD: ${PRODUCTION_POSTGRES_PASSWORD:-production_pass}
+      POSTGRES_PASSWORD: ${PRODUCTION_POSTGRES_PASSWORD:?PRODUCTION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - production_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -884,7 +884,7 @@ services:
     environment:
       POSTGRES_DB: ${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}
       POSTGRES_USER: ${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}
-      POSTGRES_PASSWORD: ${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}
+      POSTGRES_PASSWORD: ${QUALITY_INSPECTION_POSTGRES_PASSWORD:?QUALITY_INSPECTION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - quality_inspection_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -915,7 +915,7 @@ services:
     environment:
       POSTGRES_DB: ${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}
       POSTGRES_USER: ${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}
-      POSTGRES_PASSWORD: ${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}
+      POSTGRES_PASSWORD: ${CUSTOMER_PORTAL_POSTGRES_PASSWORD:?CUSTOMER_PORTAL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - customer_portal_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -946,7 +946,7 @@ services:
     environment:
       POSTGRES_DB: ${REPORTING_POSTGRES_DB:-reporting_db}
       POSTGRES_USER: ${REPORTING_POSTGRES_USER:-reporting_user}
-      POSTGRES_PASSWORD: ${REPORTING_POSTGRES_PASSWORD:-reporting_pass}
+      POSTGRES_PASSWORD: ${REPORTING_POSTGRES_PASSWORD:?REPORTING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - reporting_pgdata:/var/lib/postgresql/data
       - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
@@ -979,7 +979,7 @@ services:
       - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - minio_data:/data
     networks:
@@ -1005,7 +1005,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        mc alias set local http://7d-minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:-minioadmin};
+        mc alias set local http://7d-minio:9000 $${MINIO_ROOT_USER:-minioadmin} $${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md};
         mc mb --ignore-existing local/platform-docs;
         echo 'MinIO bucket ready.';
       "

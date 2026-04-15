@@ -16,7 +16,7 @@ services:
     tmpfs:
       - /tmp
     environment:
-      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       HOST: 0.0.0.0
       PORT: 8080
@@ -76,7 +76,7 @@ services:
     tmpfs:
       - /tmp
     environment:
-      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       HOST: 0.0.0.0
       PORT: 8080
@@ -141,8 +141,8 @@ services:
     ports:
       - "127.0.0.1:8091:8091"
     environment:
-      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}?sslmode=require
-      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
+      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:?TENANT_REGISTRY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}?sslmode=require
+      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       PORT: 8091
       HOST: 0.0.0.0
       RUST_LOG: info

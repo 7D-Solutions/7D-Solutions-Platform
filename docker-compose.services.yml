@@ -15,7 +15,7 @@ services:
       - /tmp
       - /var/run
     environment:
-      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       HOST: 0.0.0.0
       PORT: 8080
@@ -65,7 +65,7 @@ services:
       - /tmp
       - /var/run
     environment:
-      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       HOST: 0.0.0.0
       PORT: 8080
@@ -232,8 +232,8 @@ services:
     ports:
       - "127.0.0.1:8091:8091"
     environment:
-      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}?sslmode=require
-      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
+      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:?TENANT_REGISTRY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}?sslmode=require
+      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       PORT: 8091
       HOST: 0.0.0.0
@@ -269,7 +269,7 @@ services:
     container_name: 7d-ar
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
+      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -317,7 +317,7 @@ services:
     container_name: 7d-subscriptions
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
+      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:?SUBSCRIPTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -365,7 +365,7 @@ services:
     container_name: 7d-payments
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
+      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:?PAYMENTS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -415,7 +415,7 @@ services:
     container_name: 7d-notifications
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
+      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:?NOTIFICATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -462,7 +462,7 @@ services:
     container_name: 7d-gl
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
+      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:?GL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -509,7 +509,7 @@ services:
     container_name: 7d-inventory
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
+      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:?INVENTORY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -556,7 +556,7 @@ services:
     container_name: 7d-ap
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:-ap_pass}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
+      DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:?AP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -603,7 +603,7 @@ services:
     container_name: 7d-treasury
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:-treasury_pass}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
+      DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:?TREASURY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -650,7 +650,7 @@ services:
     container_name: 7d-fixed-assets
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
+      DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:?FIXED_ASSETS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -697,7 +697,7 @@ services:
     container_name: 7d-consolidation
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
+      DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:?CONSOLIDATION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -744,7 +744,7 @@ services:
     container_name: 7d-timekeeping
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
+      DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:?TIMEKEEPING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -791,7 +791,7 @@ services:
     container_name: 7d-party
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
+      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:?PARTY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -838,7 +838,7 @@ services:
     container_name: 7d-integrations
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
+      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:?INTEGRATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -885,7 +885,7 @@ services:
     container_name: 7d-ttp
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
+      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:?TTP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -933,7 +933,7 @@ services:
     container_name: 7d-pdf-editor
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
+      DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:?PDF_EDITOR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -981,7 +981,7 @@ services:
     container_name: 7d-maintenance
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${MAINTENANCE_POSTGRES_USER:-maintenance_user}:${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}@7d-maintenance-postgres:5432/${MAINTENANCE_POSTGRES_DB:-maintenance_db}?sslmode=require
+      DATABASE_URL: postgres://${MAINTENANCE_POSTGRES_USER:-maintenance_user}:${MAINTENANCE_POSTGRES_PASSWORD:?MAINTENANCE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-maintenance-postgres:5432/${MAINTENANCE_POSTGRES_DB:-maintenance_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1028,7 +1028,7 @@ services:
     container_name: 7d-shipping-receiving
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}:${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}@7d-shipping-receiving-postgres:5432/${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}?sslmode=require
+      DATABASE_URL: postgres://${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}:${SHIPPING_RECEIVING_POSTGRES_PASSWORD:?SHIPPING_RECEIVING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-shipping-receiving-postgres:5432/${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1038,7 +1038,7 @@ services:
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
       INVENTORY_BASE_URL: http://7d-inventory:8092
-      INVENTORY_DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
+      INVENTORY_DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:?INVENTORY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       INTEGRATIONS_SERVICE_URL: http://7d-integrations:8099
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/shipping-receiving-rs:/app/service:ro
@@ -1078,8 +1078,8 @@ services:
     container_name: 7d-quality-inspection
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}:${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}@7d-quality-inspection-postgres:5432/${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}?sslmode=require
-      WORKFORCE_COMPETENCE_DATABASE_URL: postgresql://${WORKFORCE_COMPETENCE_POSTGRES_USER:-wc_user}:${WORKFORCE_COMPETENCE_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WORKFORCE_COMPETENCE_POSTGRES_DB:-workforce_competence_db}?sslmode=require
+      DATABASE_URL: postgres://${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}:${QUALITY_INSPECTION_POSTGRES_PASSWORD:?QUALITY_INSPECTION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-quality-inspection-postgres:5432/${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}?sslmode=require
+      WORKFORCE_COMPETENCE_DATABASE_URL: postgresql://${WORKFORCE_COMPETENCE_POSTGRES_USER:-wc_user}:${WORKFORCE_COMPETENCE_POSTGRES_PASSWORD:?WORKFORCE_COMPETENCE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-workforce-competence-postgres:5432/${WORKFORCE_COMPETENCE_POSTGRES_DB:-workforce_competence_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1127,7 +1127,7 @@ services:
     container_name: 7d-bom
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${BOM_POSTGRES_USER:-bom_user}:${BOM_POSTGRES_PASSWORD:-bom_pass}@7d-bom-postgres:5432/${BOM_POSTGRES_DB:-bom_db}?sslmode=require
+      DATABASE_URL: postgres://${BOM_POSTGRES_USER:-bom_user}:${BOM_POSTGRES_PASSWORD:?BOM_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-bom-postgres:5432/${BOM_POSTGRES_DB:-bom_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1174,7 +1174,7 @@ services:
     container_name: 7d-production
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
+      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:?PRODUCTION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
       HOST: 0.0.0.0
       PORT: 8108
       BUS_TYPE: nats
@@ -1221,7 +1221,7 @@ services:
     container_name: 7d-workflow
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${WORKFLOW_POSTGRES_USER:-workflow_user}:${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}@7d-workflow-postgres:5432/${WORKFLOW_POSTGRES_DB:-workflow_db}?sslmode=require
+      DATABASE_URL: postgres://${WORKFLOW_POSTGRES_USER:-workflow_user}:${WORKFLOW_POSTGRES_PASSWORD:?WORKFLOW_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-workflow-postgres:5432/${WORKFLOW_POSTGRES_DB:-workflow_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1268,7 +1268,7 @@ services:
     container_name: 7d-numbering
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${NUMBERING_POSTGRES_USER:-numbering_user}:${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}@7d-numbering-postgres:5432/${NUMBERING_POSTGRES_DB:-numbering_db}?sslmode=require
+      DATABASE_URL: postgres://${NUMBERING_POSTGRES_USER:-numbering_user}:${NUMBERING_POSTGRES_PASSWORD:?NUMBERING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-numbering-postgres:5432/${NUMBERING_POSTGRES_DB:-numbering_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1315,7 +1315,7 @@ services:
     container_name: 7d-workforce-competence
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${WC_POSTGRES_USER:-wc_user}:${WC_POSTGRES_PASSWORD:-wc_pass}@7d-workforce-competence-postgres:5432/${WC_POSTGRES_DB:-workforce_competence_db}?sslmode=require
+      DATABASE_URL: postgres://${WC_POSTGRES_USER:-wc_user}:${WC_POSTGRES_PASSWORD:?WC_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-workforce-competence-postgres:5432/${WC_POSTGRES_DB:-workforce_competence_db}?sslmode=require
       HOST: 0.0.0.0
       PORT: 8121
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
@@ -1360,7 +1360,7 @@ services:
     container_name: 7d-customer-portal
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}:${CUSTOMER_PORTAL_POSTGRES_PASSWORD:-customer_portal_pass}@7d-customer-portal-postgres:5432/${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}?sslmode=require
+      DATABASE_URL: postgres://${CUSTOMER_PORTAL_POSTGRES_USER:-customer_portal_user}:${CUSTOMER_PORTAL_POSTGRES_PASSWORD:?CUSTOMER_PORTAL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-customer-portal-postgres:5432/${CUSTOMER_PORTAL_POSTGRES_DB:-customer_portal_db}?sslmode=require
       HOST: 0.0.0.0
       PORT: 8111
       PORTAL_JWT_PRIVATE_KEY: ${PORTAL_JWT_PRIVATE_KEY:-}
@@ -1405,7 +1405,7 @@ services:
     container_name: 7d-doc-mgmt
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}:${DOC_MGMT_POSTGRES_PASSWORD:-doc_mgmt_pass}@7d-doc-mgmt-postgres:5432/${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}?sslmode=require
+      DATABASE_URL: postgres://${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}:${DOC_MGMT_POSTGRES_PASSWORD:?DOC_MGMT_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-doc-mgmt-postgres:5432/${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -1454,7 +1454,7 @@ services:
     container_name: 7d-reporting
     image: flywheel/rust-dev-runtime:2026-04
     environment:
-      DATABASE_URL: postgres://${REPORTING_POSTGRES_USER:-reporting_user}:${REPORTING_POSTGRES_PASSWORD:-reporting_pass}@7d-reporting-postgres:5432/${REPORTING_POSTGRES_DB:-reporting_db}?sslmode=require
+      DATABASE_URL: postgres://${REPORTING_POSTGRES_USER:-reporting_user}:${REPORTING_POSTGRES_PASSWORD:?REPORTING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-reporting-postgres:5432/${REPORTING_POSTGRES_DB:-reporting_db}?sslmode=require
       HOST: 0.0.0.0
       PORT: 8096
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}

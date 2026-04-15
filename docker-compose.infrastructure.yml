@@ -39,7 +39,7 @@ services:
     environment:
       POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_db}
       POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_user}
-      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:-auth_pass}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:?AUTH_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
     networks:
@@ -65,7 +65,7 @@ services:
     environment:
       POSTGRES_DB: ${AR_POSTGRES_DB:-ar_db}
       POSTGRES_USER: ${AR_POSTGRES_USER:-ar_user}
-      POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:-ar_pass}
+      POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ar_pgdata:/var/lib/postgresql/data
     networks:
@@ -93,7 +93,7 @@ services:
     environment:
       POSTGRES_DB: ${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
       POSTGRES_USER: ${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}
-      POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}
+      POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:?SUBSCRIPTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - subscriptions_pgdata:/var/lib/postgresql/data
     networks:
@@ -119,7 +119,7 @@ services:
     environment:
       POSTGRES_DB: ${PAYMENTS_POSTGRES_DB:-payments_db}
       POSTGRES_USER: ${PAYMENTS_POSTGRES_USER:-payments_user}
-      POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}
+      POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:?PAYMENTS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - payments_pgdata:/var/lib/postgresql/data
     networks:
@@ -145,7 +145,7 @@ services:
     environment:
       POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
       POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER:-notifications_user}
-      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:?NOTIFICATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - notifications_pgdata:/var/lib/postgresql/data
     networks:
@@ -171,7 +171,7 @@ services:
     environment:
       POSTGRES_DB: ${GL_POSTGRES_DB:-gl_db}
       POSTGRES_USER: ${GL_POSTGRES_USER:-gl_user}
-      POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:-gl_pass}
+      POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:?GL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - gl_pgdata:/var/lib/postgresql/data
     networks:
@@ -200,7 +200,7 @@ services:
     environment:
       POSTGRES_DB: ${PROJECTIONS_POSTGRES_DB:-projections_db}
       POSTGRES_USER: ${PROJECTIONS_POSTGRES_USER:-projections_user}
-      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:-projections_pass}
+      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:?PROJECTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - projections_pgdata:/var/lib/postgresql/data
     networks:
@@ -226,7 +226,7 @@ services:
     environment:
       POSTGRES_DB: ${AUDIT_POSTGRES_DB:-audit_db}
       POSTGRES_USER: ${AUDIT_POSTGRES_USER:-audit_user}
-      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:-audit_pass}
+      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:?AUDIT_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - audit_pgdata:/var/lib/postgresql/data
     networks:
@@ -252,7 +252,7 @@ services:
     environment:
       POSTGRES_DB: ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
       POSTGRES_USER: ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}
-      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}
+      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:?TENANT_REGISTRY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - tenant_registry_pgdata:/var/lib/postgresql/data
     networks:
@@ -280,7 +280,7 @@ services:
     environment:
       POSTGRES_DB: ${INVENTORY_POSTGRES_DB:-inventory_db}
       POSTGRES_USER: ${INVENTORY_POSTGRES_USER:-inventory_user}
-      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}
+      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:?INVENTORY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - inventory_pgdata:/var/lib/postgresql/data
     networks:
@@ -306,7 +306,7 @@ services:
     environment:
       POSTGRES_DB: ${AP_POSTGRES_DB:-ap_db}
       POSTGRES_USER: ${AP_POSTGRES_USER:-ap_user}
-      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:-ap_pass}
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:?AP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ap_pgdata:/var/lib/postgresql/data
     networks:
@@ -334,7 +334,7 @@ services:
     environment:
       POSTGRES_DB: ${TREASURY_POSTGRES_DB:-treasury_db}
       POSTGRES_USER: ${TREASURY_POSTGRES_USER:-treasury_user}
-      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:-treasury_pass}
+      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:?TREASURY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - treasury_pgdata:/var/lib/postgresql/data
     networks:
@@ -360,7 +360,7 @@ services:
     environment:
       POSTGRES_DB: ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
       POSTGRES_USER: ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}
-      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}
+      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:?FIXED_ASSETS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - fixed_assets_pgdata:/var/lib/postgresql/data
     networks:
@@ -386,7 +386,7 @@ services:
     environment:
       POSTGRES_DB: ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
       POSTGRES_USER: ${CONSOLIDATION_POSTGRES_USER:-consolidation_user}
-      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}
+      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:?CONSOLIDATION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - consolidation_pgdata:/var/lib/postgresql/data
     networks:
@@ -414,7 +414,7 @@ services:
     environment:
       POSTGRES_DB: ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
       POSTGRES_USER: ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}
-      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}
+      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:?TIMEKEEPING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - timekeeping_pgdata:/var/lib/postgresql/data
     networks:
@@ -440,7 +440,7 @@ services:
     environment:
       POSTGRES_DB: ${PARTY_POSTGRES_DB:-party_db}
       POSTGRES_USER: ${PARTY_POSTGRES_USER:-party_user}
-      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:-party_pass}
+      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:?PARTY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - party_pgdata:/var/lib/postgresql/data
     networks:
@@ -468,7 +468,7 @@ services:
     environment:
       POSTGRES_DB: ${INTEGRATIONS_POSTGRES_DB:-integrations_db}
       POSTGRES_USER: ${INTEGRATIONS_POSTGRES_USER:-integrations_user}
-      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}
+      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:?INTEGRATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - integrations_pgdata:/var/lib/postgresql/data
     networks:
@@ -494,7 +494,7 @@ services:
     environment:
       POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
       POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
-      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:-ttp_pass}
+      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:?TTP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - ttp_pgdata:/var/lib/postgresql/data
     networks:
@@ -520,7 +520,7 @@ services:
     environment:
       POSTGRES_DB: ${MAINTENANCE_POSTGRES_DB:-maintenance_db}
       POSTGRES_USER: ${MAINTENANCE_POSTGRES_USER:-maintenance_user}
-      POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}
+      POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:?MAINTENANCE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - maintenance_pgdata:/var/lib/postgresql/data
     networks:
@@ -546,7 +546,7 @@ services:
     environment:
       POSTGRES_DB: ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}
       POSTGRES_USER: ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}
-      POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}
+      POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:?PDF_EDITOR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
     volumes:
       - pdf_editor_pgdata:/var/lib/postgresql/data
     networks:

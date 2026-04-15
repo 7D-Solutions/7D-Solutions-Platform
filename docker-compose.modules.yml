@@ -10,7 +10,7 @@ services:
       context: .
       dockerfile: modules/ar/deploy/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
+      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:?AR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -55,7 +55,7 @@ services:
       context: .
       dockerfile: modules/subscriptions/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
+      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:?SUBSCRIPTIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -106,7 +106,7 @@ services:
       context: .
       dockerfile: modules/payments/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
+      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:?PAYMENTS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -156,7 +156,7 @@ services:
       context: .
       dockerfile: modules/notifications/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
+      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:?NOTIFICATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -201,7 +201,7 @@ services:
       context: .
       dockerfile: modules/gl/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
+      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:?GL_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -246,7 +246,7 @@ services:
       context: .
       dockerfile: modules/inventory/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
+      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:?INVENTORY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -296,7 +296,7 @@ services:
       context: .
       dockerfile: modules/ap/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:-ap_pass}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
+      DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:?AP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -345,7 +345,7 @@ services:
       context: .
       dockerfile: modules/treasury/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:-treasury_pass}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
+      DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:?TREASURY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -394,7 +394,7 @@ services:
       context: .
       dockerfile: modules/fixed-assets/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
+      DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:?FIXED_ASSETS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -443,7 +443,7 @@ services:
       context: .
       dockerfile: modules/consolidation/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
+      DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:?CONSOLIDATION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -492,7 +492,7 @@ services:
       context: .
       dockerfile: modules/timekeeping/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
+      DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:?TIMEKEEPING_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -541,7 +541,7 @@ services:
       context: .
       dockerfile: modules/party/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
+      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:?PARTY_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -590,7 +590,7 @@ services:
       context: .
       dockerfile: modules/integrations/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
+      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:?INTEGRATIONS_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -639,7 +639,7 @@ services:
       context: .
       dockerfile: modules/ttp/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
+      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:?TTP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -689,7 +689,7 @@ services:
       context: .
       dockerfile: modules/pdf-editor/deploy/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
+      DATABASE_URL: postgres://${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}:${PDF_EDITOR_POSTGRES_PASSWORD:?PDF_EDITOR_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-pdf-editor-postgres:5432/${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
@@ -739,7 +739,7 @@ services:
       context: .
       dockerfile: modules/production/deploy/Dockerfile.workspace
     environment:
-      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:-production_pass}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
+      DATABASE_URL: postgres://${PRODUCTION_POSTGRES_USER:-production_user}:${PRODUCTION_POSTGRES_PASSWORD:?PRODUCTION_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-production-postgres:5432/${PRODUCTION_POSTGRES_DB:-production_db}?sslmode=require
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
