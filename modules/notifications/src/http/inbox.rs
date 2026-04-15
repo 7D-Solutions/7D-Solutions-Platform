@@ -59,6 +59,15 @@ pub struct InboxListQuery {
     pub offset: Option<i64>,
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct SelfInboxListQuery {
+    pub unread_only: Option<bool>,
+    pub include_dismissed: Option<bool>,
+    pub category: Option<String>,
+    pub page_size: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 // ── Handlers ────────────────────────────────────────────────────────
 
 #[utoipa::path(get, path = "/api/inbox", tag = "Inbox",
@@ -75,23 +84,46 @@ pub async fn list_inbox(
     let page_size = params.page_size.unwrap_or(25).min(200);
     let offset = params.offset.unwrap_or(0);
 
-    let list_params = inbox::InboxListParams {
+    list_inbox_for_user(
+        &pool,
         tenant_id,
-        user_id: params.user_id,
-        unread_only: params.unread_only.unwrap_or(false),
-        include_dismissed: params.include_dismissed.unwrap_or(false),
-        category: params.category,
-        limit: page_size,
+        params.user_id,
+        params.unread_only.unwrap_or(false),
+        params.include_dismissed.unwrap_or(false),
+        params.category,
+        page_size,
         offset,
-    };
+    )
+    .await
+}
 
-    let (messages, total) = inbox::list_messages(&pool, &list_params)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+#[utoipa::path(get, path = "/api/inbox/mine", tag = "Inbox",
+    responses(
+        (status = 200, description = "Inbox messages for the authenticated user", body = PaginatedResponse<InboxItem>),
+    ),
+    security(("bearer" = [])))]
+pub async fn list_my_inbox(
+    State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<SelfInboxListQuery>,
+) -> Result<Json<PaginatedResponse<InboxItem>>, ApiError> {
+    let claims = claims.ok_or_else(|| ApiError::unauthorized("Missing or invalid authentication"))?;
+    let tenant_id = claims.0.tenant_id.to_string();
+    let user_id = claims.0.user_id.to_string();
+    let page_size = params.page_size.unwrap_or(25).min(200);
+    let offset = params.offset.unwrap_or(0);
 
-    let items: Vec<InboxItem> = messages.into_iter().map(to_inbox_item).collect();
-    let page = if page_size > 0 { offset / page_size + 1 } else { 1 };
-    Ok(Json(PaginatedResponse::new(items, page, page_size, total)))
+    list_inbox_for_user(
+        &pool,
+        tenant_id,
+        user_id,
+        params.unread_only.unwrap_or(false),
+        params.include_dismissed.unwrap_or(false),
+        params.category,
+        page_size,
+        offset,
+    )
+    .await
 }
 
 #[utoipa::path(get, path = "/api/inbox/{id}", tag = "Inbox",
@@ -251,6 +283,35 @@ fn to_inbox_item(m: inbox::InboxMessage) -> InboxItem {
     }
 }
 
+async fn list_inbox_for_user(
+    pool: &PgPool,
+    tenant_id: String,
+    user_id: String,
+    unread_only: bool,
+    include_dismissed: bool,
+    category: Option<String>,
+    page_size: i64,
+    offset: i64,
+) -> Result<Json<PaginatedResponse<InboxItem>>, ApiError> {
+    let list_params = inbox::InboxListParams {
+        tenant_id,
+        user_id,
+        unread_only,
+        include_dismissed,
+        category,
+        limit: page_size,
+        offset,
+    };
+
+    let (messages, total) = inbox::list_messages(pool, &list_params)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let items: Vec<InboxItem> = messages.into_iter().map(to_inbox_item).collect();
+    let page = if page_size > 0 { offset / page_size + 1 } else { 1 };
+    Ok(Json(PaginatedResponse::new(items, page, page_size, total)))
+}
+
 fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
@@ -263,6 +324,7 @@ fn require_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, 
 pub fn inbox_read_router(pool: PgPool) -> Router {
     Router::new()
         .route("/api/inbox", get(list_inbox))
+        .route("/api/inbox/mine", get(list_my_inbox))
         .route("/api/inbox/{id}", get(get_inbox_message))
         .with_state(pool)
 }

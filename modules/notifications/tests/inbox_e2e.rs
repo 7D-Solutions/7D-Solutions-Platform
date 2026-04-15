@@ -3,13 +3,21 @@
 /// Covers: creation, idempotent dedup, pagination, read/unread,
 /// dismiss/undismiss, tenant boundary isolation, and outbox event emission.
 use chrono::Utc;
+use axum::{
+    body::{to_bytes, Body},
+    http::{Request, StatusCode},
+    Extension, Router,
+};
 use notifications_rs::inbox::{
     create_inbox_message, dismiss_message, get_message, list_messages, mark_read, mark_unread,
     undismiss_message, InboxListParams,
 };
+use notifications_rs::http::inbox;
 use notifications_rs::scheduled::insert_pending;
+use security::{ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::PgPool;
+use tower::ServiceExt;
 use uuid::Uuid;
 
 const DEFAULT_DB_URL: &str =
@@ -425,6 +433,80 @@ async fn list_messages_cover_all_filter_templates() {
         );
         assert_eq!(got_ids, expected_ids, "{}: unexpected row set", label);
     }
+}
+
+#[tokio::test]
+#[serial]
+async fn list_my_inbox_uses_authenticated_user() {
+    let pool = get_pool().await;
+    let tenant = Uuid::new_v4();
+    let user_me = Uuid::new_v4();
+    let user_other = Uuid::new_v4();
+
+    let notif_me = seed_notification(&pool, &tenant.to_string()).await;
+    let notif_other = seed_notification(&pool, &tenant.to_string()).await;
+
+    let mine = create_inbox_message(
+        &pool,
+        &tenant.to_string(),
+        &user_me.to_string(),
+        notif_me,
+        "Mine",
+        None,
+        None,
+    )
+    .await
+    .expect("create mine")
+    .unwrap();
+    let other = create_inbox_message(
+        &pool,
+        &tenant.to_string(),
+        &user_other.to_string(),
+        notif_other,
+        "Other",
+        None,
+        None,
+    )
+    .await
+    .expect("create other")
+    .unwrap();
+
+    let claims = VerifiedClaims {
+        user_id: user_me,
+        tenant_id: tenant,
+        app_id: None,
+        roles: vec![],
+        perms: vec!["notifications.read".to_string()],
+        actor_type: ActorType::User,
+        issued_at: Utc::now(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "1.0.0".to_string(),
+    };
+
+    let app = Router::new()
+        .route("/api/inbox/mine", axum::routing::get(inbox::list_my_inbox))
+        .layer(Extension(claims))
+        .with_state(pool);
+
+    let request = Request::builder()
+        .uri("/api/inbox/mine?page_size=50&offset=0")
+        .body(Body::empty())
+        .expect("request");
+
+    let response = app.oneshot(request).await.expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body bytes");
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json body");
+
+    let items = payload["data"].as_array().expect("data array");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["id"].as_str().unwrap(), mine.id.to_string());
+    assert_ne!(items[0]["id"].as_str().unwrap(), other.id.to_string());
+    assert_eq!(payload["pagination"]["total_items"].as_i64(), Some(1));
 }
 
 // ── Tenant boundary isolation ───────────────────────────────────────
