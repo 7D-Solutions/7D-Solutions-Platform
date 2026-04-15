@@ -269,6 +269,164 @@ async fn unread_only_filter() {
     assert_eq!(unread[0].title, "Msg 2");
 }
 
+#[tokio::test]
+#[serial]
+async fn list_messages_cover_all_filter_templates() {
+    let pool = get_pool().await;
+    let tenant = Uuid::new_v4().to_string();
+    let user = Uuid::new_v4().to_string();
+
+    let unread_plain_notif = seed_notification(&pool, &tenant).await;
+    let read_plain_notif = seed_notification(&pool, &tenant).await;
+    let dismissed_plain_notif = seed_notification(&pool, &tenant).await;
+    let unread_categorized_notif = seed_notification(&pool, &tenant).await;
+
+    let unread_plain = create_inbox_message(
+        &pool,
+        &tenant,
+        &user,
+        unread_plain_notif,
+        "Unread plain",
+        None,
+        None,
+    )
+    .await
+    .expect("create unread plain")
+    .unwrap();
+    let read_plain = create_inbox_message(
+        &pool,
+        &tenant,
+        &user,
+        read_plain_notif,
+        "Read plain",
+        None,
+        None,
+    )
+    .await
+    .expect("create read plain")
+    .unwrap();
+    let dismissed_plain = create_inbox_message(
+        &pool,
+        &tenant,
+        &user,
+        dismissed_plain_notif,
+        "Dismissed plain",
+        None,
+        None,
+    )
+    .await
+    .expect("create dismissed plain")
+    .unwrap();
+    let unread_categorized = create_inbox_message(
+        &pool,
+        &tenant,
+        &user,
+        unread_categorized_notif,
+        "Unread alert",
+        None,
+        Some("alert"),
+    )
+    .await
+    .expect("create unread categorized")
+    .unwrap();
+
+    mark_read(&pool, &tenant, &user, read_plain.id)
+        .await
+        .expect("mark read");
+    dismiss_message(&pool, &tenant, &user, dismissed_plain.id)
+        .await
+        .expect("dismiss");
+
+    let cases = [
+        (
+            false,
+            false,
+            None,
+            vec![unread_categorized.id, read_plain.id, unread_plain.id],
+            "plain unread/default",
+        ),
+        (
+            true,
+            false,
+            None,
+            vec![unread_categorized.id, unread_plain.id],
+            "plain unread-only/default",
+        ),
+        (
+            false,
+            true,
+            None,
+            vec![
+                unread_categorized.id,
+                dismissed_plain.id,
+                read_plain.id,
+                unread_plain.id,
+            ],
+            "plain include-dismissed",
+        ),
+        (
+            true,
+            true,
+            None,
+            vec![unread_categorized.id, dismissed_plain.id, unread_plain.id],
+            "plain unread-only include-dismissed",
+        ),
+        (
+            false,
+            false,
+            Some("alert"),
+            vec![unread_categorized.id],
+            "categorized default",
+        ),
+        (
+            true,
+            false,
+            Some("alert"),
+            vec![unread_categorized.id],
+            "categorized unread-only/default",
+        ),
+        (
+            false,
+            true,
+            Some("alert"),
+            vec![unread_categorized.id],
+            "categorized include-dismissed",
+        ),
+        (
+            true,
+            true,
+            Some("alert"),
+            vec![unread_categorized.id],
+            "categorized unread-only include-dismissed",
+        ),
+    ];
+
+    for (unread_only, include_dismissed, category, expected_ids, label) in cases {
+        let params = InboxListParams {
+            tenant_id: tenant.clone(),
+            user_id: user.clone(),
+            unread_only,
+            include_dismissed,
+            category: category.map(str::to_string),
+            limit: 20,
+            offset: 0,
+        };
+
+        let (rows, total) = list_messages(&pool, &params)
+            .await
+            .unwrap_or_else(|e| panic!("{}: list_messages failed: {e}", label));
+
+        let got_ids: Vec<Uuid> = rows.into_iter().map(|m| m.id).collect();
+        assert_eq!(
+            total as usize,
+            expected_ids.len(),
+            "{}: unexpected total",
+            label
+        );
+        assert_eq!(got_ids, expected_ids, "{}: unexpected row set", label);
+    }
+}
+
 // ── Tenant boundary isolation ───────────────────────────────────────
 
 #[tokio::test]
@@ -332,12 +490,10 @@ async fn outbox_event_emitted_on_create() {
     let user = Uuid::new_v4().to_string();
     let notif_id = seed_notification(&pool, &tenant).await;
 
-    let msg = create_inbox_message(
-        &pool, &tenant, &user, notif_id, "Event test", None, None,
-    )
-    .await
-    .expect("create")
-    .unwrap();
+    let msg = create_inbox_message(&pool, &tenant, &user, notif_id, "Event test", None, None)
+        .await
+        .expect("create")
+        .unwrap();
 
     // Check outbox for the inbox.message_created event
     let (count,): (i64,) = sqlx::query_as(
@@ -350,7 +506,10 @@ async fn outbox_event_emitted_on_create() {
     .await
     .expect("count outbox");
 
-    assert!(count >= 1, "should have at least 1 outbox event for inbox message creation");
+    assert!(
+        count >= 1,
+        "should have at least 1 outbox event for inbox message creation"
+    );
 
     // Verify the event payload references the correct inbox message
     let (payload,): (serde_json::Value,) = sqlx::query_as(

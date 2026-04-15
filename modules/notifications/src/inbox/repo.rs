@@ -88,59 +88,219 @@ pub async fn list_messages(
     pool: &PgPool,
     params: &InboxListParams,
 ) -> Result<(Vec<InboxMessage>, i64), sqlx::Error> {
-    let mut conditions = vec![
-        "tenant_id = $1".to_string(),
-        "user_id = $2".to_string(),
-    ];
-    let mut bind_idx: u32 = 2;
-
-    if params.unread_only {
-        conditions.push("is_read = FALSE".to_string());
-    }
-    if !params.include_dismissed {
-        conditions.push("is_dismissed = FALSE".to_string());
-    }
-    if params.category.is_some() {
-        bind_idx += 1;
-        conditions.push(format!("category = ${bind_idx}"));
-    }
-
-    let where_clause = conditions.join(" AND ");
+    let templates = inbox_list_templates(params);
 
     // Count query
-    let count_sql = format!("SELECT COUNT(*) FROM inbox_messages WHERE {where_clause}");
-    let mut count_q = sqlx::query_as::<_, (i64,)>(&count_sql)
+    let mut count_q = sqlx::query_as::<_, (i64,)>(templates.count_sql)
         .bind(&params.tenant_id)
         .bind(&params.user_id);
-    if let Some(ref cat) = params.category {
+    if templates.bind_category {
+        let cat = params
+            .category
+            .as_ref()
+            .expect("category template requires category value");
         count_q = count_q.bind(cat);
     }
     let (total,) = count_q.fetch_one(pool).await?;
 
     // Data query
-    bind_idx += 1;
-    let limit_idx = bind_idx;
-    bind_idx += 1;
-    let offset_idx = bind_idx;
-
-    let data_sql = format!(
-        "SELECT id, tenant_id, user_id, notification_id, title, body, category, \
-         is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at \
-         FROM inbox_messages WHERE {where_clause} \
-         ORDER BY created_at DESC \
-         LIMIT ${limit_idx} OFFSET ${offset_idx}"
-    );
-
-    let mut data_q = sqlx::query_as::<_, InboxMessage>(&data_sql)
+    let mut data_q = sqlx::query_as::<_, InboxMessage>(templates.data_sql)
         .bind(&params.tenant_id)
         .bind(&params.user_id);
-    if let Some(ref cat) = params.category {
+    if templates.bind_category {
+        let cat = params
+            .category
+            .as_ref()
+            .expect("category template requires category value");
         data_q = data_q.bind(cat);
     }
     data_q = data_q.bind(params.limit).bind(params.offset);
 
     let rows = data_q.fetch_all(pool).await?;
     Ok((rows, total))
+}
+
+struct InboxListTemplates {
+    count_sql: &'static str,
+    data_sql: &'static str,
+    bind_category: bool,
+}
+
+fn inbox_list_templates(params: &InboxListParams) -> InboxListTemplates {
+    match (
+        params.unread_only,
+        params.include_dismissed,
+        params.category.is_some(),
+    ) {
+        (false, false, false) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_dismissed = FALSE
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_dismissed = FALSE
+                ORDER BY created_at DESC
+                LIMIT $3 OFFSET $4
+            "#,
+            bind_category: false,
+        },
+        (true, false, false) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND is_dismissed = FALSE
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND is_dismissed = FALSE
+                ORDER BY created_at DESC
+                LIMIT $3 OFFSET $4
+            "#,
+            bind_category: false,
+        },
+        (false, true, false) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                ORDER BY created_at DESC
+                LIMIT $3 OFFSET $4
+            "#,
+            bind_category: false,
+        },
+        (true, true, false) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                ORDER BY created_at DESC
+                LIMIT $3 OFFSET $4
+            "#,
+            bind_category: false,
+        },
+        (false, false, true) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_dismissed = FALSE
+                  AND category = $3
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_dismissed = FALSE
+                  AND category = $3
+                ORDER BY created_at DESC
+                LIMIT $4 OFFSET $5
+            "#,
+            bind_category: true,
+        },
+        (true, false, true) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND is_dismissed = FALSE
+                  AND category = $3
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND is_dismissed = FALSE
+                  AND category = $3
+                ORDER BY created_at DESC
+                LIMIT $4 OFFSET $5
+            "#,
+            bind_category: true,
+        },
+        (false, true, true) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND category = $3
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND category = $3
+                ORDER BY created_at DESC
+                LIMIT $4 OFFSET $5
+            "#,
+            bind_category: true,
+        },
+        (true, true, true) => InboxListTemplates {
+            count_sql: r#"
+                SELECT COUNT(*)
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND category = $3
+            "#,
+            data_sql: r#"
+                SELECT id, tenant_id, user_id, notification_id, title, body, category,
+                       is_read, is_dismissed, read_at, dismissed_at, created_at, updated_at
+                FROM inbox_messages
+                WHERE tenant_id = $1
+                  AND user_id = $2
+                  AND is_read = FALSE
+                  AND category = $3
+                ORDER BY created_at DESC
+                LIMIT $4 OFFSET $5
+            "#,
+            bind_category: true,
+        },
+    }
 }
 
 /// Fetch a single inbox message by id, scoped to tenant + user.
