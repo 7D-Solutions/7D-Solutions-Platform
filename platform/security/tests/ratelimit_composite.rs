@@ -131,12 +131,20 @@ fn ip_only_tenants_share_bucket_per_ip() {
     let limiter = build_ip_only_limiter(4);
 
     // tenant_a consumes 2 tokens.
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.1").is_ok());
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.1").is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.1")
+        .is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.1")
+        .is_ok());
 
     // tenant_b on the same IP shares the same bucket — only 2 left.
-    assert!(limiter.check_limit("/api/orders", "tenant_b", "10.0.0.1").is_ok());
-    assert!(limiter.check_limit("/api/orders", "tenant_b", "10.0.0.1").is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_b", "10.0.0.1")
+        .is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_b", "10.0.0.1")
+        .is_ok());
 
     // Bucket exhausted — both tenants should be blocked on that IP.
     assert!(
@@ -169,12 +177,20 @@ fn tenant_only_ips_share_bucket_per_tenant() {
     let limiter = build_tenant_only_limiter(4);
 
     // tenant_a from ip1 consumes 2 tokens.
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.1").is_ok());
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.1").is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.1")
+        .is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.1")
+        .is_ok());
 
     // tenant_a from ip2 shares the same per-tenant bucket — only 2 left.
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.2").is_ok());
-    assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.2").is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.2")
+        .is_ok());
+    assert!(limiter
+        .check_limit("/api/orders", "tenant_a", "10.0.0.2")
+        .is_ok());
 
     // Bucket exhausted — both IPs should be blocked.
     assert!(
@@ -222,8 +238,12 @@ fn mixed_tier_strategies_are_independently_enforced() {
     ]);
 
     // Login tier (IpOnly): exhaust ip1 across both tenants.
-    assert!(limiter.check_limit("/api/auth/token", "tenant_a", "10.0.0.1").is_ok());
-    assert!(limiter.check_limit("/api/auth/token", "tenant_b", "10.0.0.1").is_ok());
+    assert!(limiter
+        .check_limit("/api/auth/token", "tenant_a", "10.0.0.1")
+        .is_ok());
+    assert!(limiter
+        .check_limit("/api/auth/token", "tenant_b", "10.0.0.1")
+        .is_ok());
     // Both tokens consumed for ip1 — both tenants blocked.
     assert!(
         limiter
@@ -234,7 +254,9 @@ fn mixed_tier_strategies_are_independently_enforced() {
 
     // API tier (Composite): tenant_a and tenant_b have independent buckets on ip1.
     for _ in 0..5 {
-        assert!(limiter.check_limit("/api/orders", "tenant_a", "10.0.0.1").is_ok());
+        assert!(limiter
+            .check_limit("/api/orders", "tenant_a", "10.0.0.1")
+            .is_ok());
     }
     assert!(
         limiter

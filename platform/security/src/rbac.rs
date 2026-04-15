@@ -419,8 +419,14 @@ mod tests {
     #[test]
     fn perm_constants_match_operation_strings() {
         assert_eq!(PERM_TENANT_SUSPEND, Operation::TenantSuspend.as_str());
-        assert_eq!(PERM_TENANT_DEPROVISION, Operation::TenantDeprovision.as_str());
-        assert_eq!(PERM_PROJECTION_REBUILD, Operation::ProjectionRebuild.as_str());
+        assert_eq!(
+            PERM_TENANT_DEPROVISION,
+            Operation::TenantDeprovision.as_str()
+        );
+        assert_eq!(
+            PERM_PROJECTION_REBUILD,
+            Operation::ProjectionRebuild.as_str()
+        );
         assert_eq!(PERM_PROJECTION_VERIFY, Operation::ProjectionVerify.as_str());
         assert_eq!(PERM_PROJECTION_STATUS, Operation::ProjectionStatus.as_str());
         assert_eq!(PERM_PROJECTION_LIST, Operation::ProjectionList.as_str());

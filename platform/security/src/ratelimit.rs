@@ -445,12 +445,9 @@ impl TieredRateLimiter {
         let default_tier_name = "api".to_string();
 
         for tier_def in tiers {
-            let methods_set: Option<std::collections::HashSet<String>> =
-                tier_def.methods.map(|ms| {
-                    ms.into_iter()
-                        .map(|m| m.to_uppercase())
-                        .collect()
-                });
+            let methods_set: Option<std::collections::HashSet<String>> = tier_def
+                .methods
+                .map(|ms| ms.into_iter().map(|m| m.to_uppercase()).collect());
 
             for route in &tier_def.routes {
                 route_map.push((route.clone(), methods_set.clone(), tier_def.name.clone()));
@@ -532,9 +529,8 @@ impl TieredRateLimiter {
     ) -> String {
         match strategy {
             RateLimitKeyStrategy::Composite => {
-                let mut key = String::with_capacity(
-                    tier_name.len() + 1 + tenant_id.len() + 1 + ip.len(),
-                );
+                let mut key =
+                    String::with_capacity(tier_name.len() + 1 + tenant_id.len() + 1 + ip.len());
                 key.push_str(tier_name);
                 key.push(':');
                 key.push_str(tenant_id);
@@ -550,8 +546,7 @@ impl TieredRateLimiter {
                 key
             }
             RateLimitKeyStrategy::TenantOnly => {
-                let mut key =
-                    String::with_capacity(tier_name.len() + 1 + tenant_id.len());
+                let mut key = String::with_capacity(tier_name.len() + 1 + tenant_id.len());
                 key.push_str(tier_name);
                 key.push(':');
                 key.push_str(tenant_id);
@@ -864,7 +859,9 @@ mod tests {
         // "login" tier allows 3 requests, then blocks
         for _ in 0..3 {
             assert!(
-                limiter.check_limit("/api/auth/token", "t1", "1.2.3.4").is_ok(),
+                limiter
+                    .check_limit("/api/auth/token", "t1", "1.2.3.4")
+                    .is_ok(),
                 "login tier should allow request within quota"
             );
         }
@@ -878,7 +875,9 @@ mod tests {
         // "api" tier is independent — same tenant, same IP still has 10 quota
         for _ in 0..10 {
             assert!(
-                limiter.check_limit("/api/invoices", "t1", "1.2.3.4").is_ok(),
+                limiter
+                    .check_limit("/api/invoices", "t1", "1.2.3.4")
+                    .is_ok(),
                 "api tier should allow request within its own quota"
             );
         }
@@ -947,9 +946,7 @@ mod tests {
                 "unmatched path should use default api tier"
             );
         }
-        assert!(limiter
-            .check_limit("/v1/orders", "t1", "1.2.3.4")
-            .is_err());
+        assert!(limiter.check_limit("/v1/orders", "t1", "1.2.3.4").is_err());
     }
 
     #[test]

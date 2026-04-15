@@ -114,9 +114,7 @@ mod tests {
         }
     }
 
-    fn make_subscriber(
-        logs: CapturedLogs,
-    ) -> impl tracing::Subscriber + Send + Sync {
+    fn make_subscriber(logs: CapturedLogs) -> impl tracing::Subscriber + Send + Sync {
         let fmt_layer = tracing_subscriber::fmt::layer()
             .with_target(true)
             .with_writer(move || logs.clone())
@@ -143,9 +141,18 @@ mod tests {
         });
 
         let output = logs.lines().join("");
-        assert!(output.contains("security_audit"), "should target security_audit");
-        assert!(output.contains(&tenant.to_string()), "should contain tenant_id");
-        assert!(output.contains(&actor.to_string()), "should contain actor_id");
+        assert!(
+            output.contains("security_audit"),
+            "should target security_audit"
+        );
+        assert!(
+            output.contains(&tenant.to_string()),
+            "should contain tenant_id"
+        );
+        assert!(
+            output.contains(&actor.to_string()),
+            "should contain actor_id"
+        );
         assert!(output.contains("denied"), "should contain outcome=denied");
         assert!(output.contains("/api/invoices"), "should contain action");
         assert!(
@@ -170,7 +177,10 @@ mod tests {
         });
 
         let output = logs.lines().join("");
-        assert!(output.contains("unknown"), "missing IDs should show as unknown");
+        assert!(
+            output.contains("unknown"),
+            "missing IDs should show as unknown"
+        );
         assert!(output.contains("denied"));
     }
 

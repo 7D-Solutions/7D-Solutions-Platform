@@ -36,18 +36,18 @@ pub use webhook_verify::{
 
 // Re-export service auth types
 pub use service_auth::{
-    generate_service_token, get_service_token, mint_service_jwt_with_context,
-    verify_service_token, ServiceAuthClaims, ServiceAuthError,
+    generate_service_token, get_service_token, mint_service_jwt_with_context, verify_service_token,
+    ServiceAuthClaims, ServiceAuthError,
 };
 
 // Re-export RBAC types
 pub use rbac::check_permissions;
+#[allow(deprecated)]
+pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 pub use rbac::{
     PERM_FLEET_MIGRATE, PERM_PROJECTION_LIST, PERM_PROJECTION_REBUILD, PERM_PROJECTION_STATUS,
     PERM_PROJECTION_VERIFY, PERM_TENANT_DEPROVISION, PERM_TENANT_SUSPEND,
 };
-#[allow(deprecated)]
-pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 
 // Re-export JWT-backed authz middleware types
 pub use authz_middleware::{

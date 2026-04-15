@@ -59,7 +59,10 @@ fn minted_token_embeds_tenant_and_actor() {
         .expect("minted token must pass JwtVerifier — same path ClaimsLayer uses");
 
     assert_eq!(claims.tenant_id, tenant_id, "tenant_id must be forwarded");
-    assert_eq!(claims.user_id, actor_id, "actor_id must be forwarded as sub/user_id");
+    assert_eq!(
+        claims.user_id, actor_id,
+        "actor_id must be forwarded as sub/user_id"
+    );
     assert!(
         claims.perms.iter().any(|p| p == "service.internal"),
         "service.internal permission must be present"
@@ -83,10 +86,20 @@ fn no_context_token_is_still_valid() {
         .expect("get_service_token must succeed when JWT_PRIVATE_KEY_PEM is set");
 
     let verifier = JwtVerifier::from_public_pem(&keys.public_pem).expect("verifier");
-    let claims = verifier.verify(&token).expect("no-context token must be verifiable");
+    let claims = verifier
+        .verify(&token)
+        .expect("no-context token must be verifiable");
 
-    assert_eq!(claims.tenant_id, Uuid::nil(), "no-context token uses nil tenant");
-    assert_eq!(claims.user_id, Uuid::nil(), "no-context token uses nil actor");
+    assert_eq!(
+        claims.tenant_id,
+        Uuid::nil(),
+        "no-context token uses nil tenant"
+    );
+    assert_eq!(
+        claims.user_id,
+        Uuid::nil(),
+        "no-context token uses nil actor"
+    );
     assert!(claims.perms.iter().any(|p| p == "service.internal"));
 
     std::env::remove_var("JWT_PRIVATE_KEY_PEM");
@@ -100,7 +113,10 @@ fn missing_private_key_returns_error() {
 
     let result = mint_service_jwt_with_context(Uuid::new_v4(), Uuid::new_v4());
     assert!(
-        matches!(result, Err(security::service_auth::ServiceAuthError::MissingSigningKey)),
+        matches!(
+            result,
+            Err(security::service_auth::ServiceAuthError::MissingSigningKey)
+        ),
         "expected MissingSigningKey, got: {result:?}"
     );
 }

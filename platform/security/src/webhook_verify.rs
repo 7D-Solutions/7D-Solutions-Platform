@@ -369,26 +369,44 @@ mod tests {
 
     #[test]
     fn test_stripe_verifier_bad_signature() {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).expect("clock").as_secs();
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_secs();
         let mut headers = HashMap::new();
-        headers.insert("stripe-signature".to_string(),
-            format!("t={},v1=deadbeef00000000000000000000000000000000000000000000000000000000", now));
-        assert_eq!(StripeVerifier::new("whsec_test_secret").verify(&headers, b"{}"),
-            Err(VerifyError::SignatureMismatch));
+        headers.insert(
+            "stripe-signature".to_string(),
+            format!(
+                "t={},v1=deadbeef00000000000000000000000000000000000000000000000000000000",
+                now
+            ),
+        );
+        assert_eq!(
+            StripeVerifier::new("whsec_test_secret").verify(&headers, b"{}"),
+            Err(VerifyError::SignatureMismatch)
+        );
     }
 
     #[test]
     fn test_stripe_verifier_missing_header() {
-        assert!(matches!(StripeVerifier::new("s").verify(&HashMap::new(), b"{}"),
-            Err(VerifyError::MissingHeader { .. })));
+        assert!(matches!(
+            StripeVerifier::new("s").verify(&HashMap::new(), b"{}"),
+            Err(VerifyError::MissingHeader { .. })
+        ));
     }
 
     #[test]
     fn test_stripe_verifier_expired_timestamp() {
         let sig = hmac_sha256_hex("secret", b"1000000.{}");
         let mut headers = HashMap::new();
-        headers.insert("stripe-signature".to_string(), format!("t=1000000,v1={}", sig));
-        assert_eq!(StripeVerifier::new("secret").verify(&headers, b"{}"), Err(VerifyError::TimestampExpired));
+        headers.insert(
+            "stripe-signature".to_string(),
+            format!("t=1000000,v1={}", sig),
+        );
+        assert_eq!(
+            StripeVerifier::new("secret").verify(&headers, b"{}"),
+            Err(VerifyError::TimestampExpired)
+        );
     }
 
     #[test]
@@ -396,17 +414,24 @@ mod tests {
         let sig = hmac_sha256_hex("mysecret", b"hello world");
         let mut headers = HashMap::new();
         headers.insert("x-hub-signature-256".to_string(), format!("sha256={}", sig));
-        assert!(GenericHmacVerifier::new("mysecret", "x-hub-signature-256", Some("sha256="))
-            .verify(&headers, b"hello world").is_ok());
+        assert!(
+            GenericHmacVerifier::new("mysecret", "x-hub-signature-256", Some("sha256="))
+                .verify(&headers, b"hello world")
+                .is_ok()
+        );
     }
 
     #[test]
     fn test_generic_hmac_verifier_bad_sig() {
         let mut headers = HashMap::new();
-        headers.insert("x-signature".to_string(),
-            "0000000000000000000000000000000000000000000000000000000000000000".to_string());
-        assert_eq!(GenericHmacVerifier::new("secret", "x-signature", None).verify(&headers, b"body"),
-            Err(VerifyError::SignatureMismatch));
+        headers.insert(
+            "x-signature".to_string(),
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+        );
+        assert_eq!(
+            GenericHmacVerifier::new("secret", "x-signature", None).verify(&headers, b"body"),
+            Err(VerifyError::SignatureMismatch)
+        );
     }
 
     #[test]
@@ -416,11 +441,22 @@ mod tests {
 
     #[test]
     fn test_stripe_verifier_future_timestamp_rejected() {
-        let future = (SystemTime::now().duration_since(UNIX_EPOCH).expect("clock").as_secs() + 600).to_string();
+        let future = (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_secs()
+            + 600)
+            .to_string();
         let sig = hmac_sha256_hex("secret", format!("{}.{{}}", future).as_bytes());
         let mut headers = HashMap::new();
-        headers.insert("stripe-signature".to_string(), format!("t={},v1={}", future, sig));
-        assert_eq!(StripeVerifier::new("secret").verify(&headers, b"{}"), Err(VerifyError::TimestampExpired));
+        headers.insert(
+            "stripe-signature".to_string(),
+            format!("t={},v1={}", future, sig),
+        );
+        assert_eq!(
+            StripeVerifier::new("secret").verify(&headers, b"{}"),
+            Err(VerifyError::TimestampExpired)
+        );
     }
 
     #[test]
@@ -447,7 +483,9 @@ mod tests {
     fn test_intuit_verifier_valid() {
         let body = b"{\"events\":[]}";
         let sig = intuit_sig("tok_123", body);
-        assert!(IntuitVerifier::new("tok_123").verify(&intuit_headers(&sig), body).is_ok());
+        assert!(IntuitVerifier::new("tok_123")
+            .verify(&intuit_headers(&sig), body)
+            .is_ok());
     }
 
     #[test]

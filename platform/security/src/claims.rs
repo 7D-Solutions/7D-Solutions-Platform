@@ -88,9 +88,7 @@ enum KeyStore {
         prev: Option<DecodingKey>,
     },
     /// JWKS-fetched keys behind a shared lock. Background task refreshes.
-    Dynamic {
-        keys: Arc<RwLock<Vec<DecodingKey>>>,
-    },
+    Dynamic { keys: Arc<RwLock<Vec<DecodingKey>>> },
 }
 
 /// JWT verifier for platform access tokens.
@@ -362,7 +360,9 @@ mod tests {
         let priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("RSA key gen");
         let pub_key = priv_key.to_public_key();
         let priv_pem = priv_key.to_pkcs8_pem(LineEnding::LF).expect("PEM encode");
-        let pub_pem = pub_key.to_public_key_pem(LineEnding::LF).expect("public PEM");
+        let pub_pem = pub_key
+            .to_public_key_pem(LineEnding::LF)
+            .expect("public PEM");
         let enc = EncodingKey::from_rsa_pem(priv_pem.as_bytes()).expect("encoding key");
         (enc, pub_pem)
     }

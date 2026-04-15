@@ -87,7 +87,11 @@ mod rate_limiting_integration {
         let app = app_with_limiter(limiter);
 
         for i in 0..3 {
-            let resp = app.clone().oneshot(post_from("10.0.0.1")).await.expect("request");
+            let resp = app
+                .clone()
+                .oneshot(post_from("10.0.0.1"))
+                .await
+                .expect("request");
             assert_eq!(
                 resp.status(),
                 StatusCode::OK,
@@ -142,10 +146,18 @@ mod rate_limiting_integration {
 
         // Exhaust tenant_a (IP 10.1.0.1).
         for _ in 0..3 {
-            let resp = app.clone().oneshot(post_from("10.1.0.1")).await.expect("request");
+            let resp = app
+                .clone()
+                .oneshot(post_from("10.1.0.1"))
+                .await
+                .expect("request");
             assert_eq!(resp.status(), StatusCode::OK);
         }
-        let blocked = app.clone().oneshot(post_from("10.1.0.1")).await.expect("request");
+        let blocked = app
+            .clone()
+            .oneshot(post_from("10.1.0.1"))
+            .await
+            .expect("request");
         assert_eq!(
             blocked.status(),
             StatusCode::TOO_MANY_REQUESTS,
@@ -154,7 +166,11 @@ mod rate_limiting_integration {
 
         // tenant_b (IP 10.1.0.2) must have its own independent quota.
         for i in 0..3 {
-            let resp = app.clone().oneshot(post_from("10.1.0.2")).await.expect("request");
+            let resp = app
+                .clone()
+                .oneshot(post_from("10.1.0.2"))
+                .await
+                .expect("request");
             assert_eq!(
                 resp.status(),
                 StatusCode::OK,
@@ -180,7 +196,11 @@ mod rate_limiting_integration {
         assert_eq!(write_blocked.status(), StatusCode::TOO_MANY_REQUESTS);
 
         for i in 0..3 {
-            let resp = app.clone().oneshot(get_from("10.2.0.1")).await.expect("request");
+            let resp = app
+                .clone()
+                .oneshot(get_from("10.2.0.1"))
+                .await
+                .expect("request");
             assert_eq!(
                 resp.status(),
                 StatusCode::OK,

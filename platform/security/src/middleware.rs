@@ -82,49 +82,47 @@ pub async fn tiered_rate_limit_middleware(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let check =
-        if let Some(limiter) = request.extensions().get::<Arc<TieredRateLimiter>>() {
-            // IP: prefer X-Forwarded-For (reverse-proxy environments), fall back to ConnectInfo.
-            let ip = request
-                .headers()
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next())
-                .map(|s| s.trim().to_string())
-                .or_else(|| {
-                    request
-                        .extensions()
-                        .get::<ConnectInfo<SocketAddr>>()
-                        .map(|ci| ci.0.ip().to_string())
-                })
-                .unwrap_or_else(|| "unknown".into());
+    let check = if let Some(limiter) = request.extensions().get::<Arc<TieredRateLimiter>>() {
+        // IP: prefer X-Forwarded-For (reverse-proxy environments), fall back to ConnectInfo.
+        let ip = request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+            .or_else(|| {
+                request
+                    .extensions()
+                    .get::<ConnectInfo<SocketAddr>>()
+                    .map(|ci| ci.0.ip().to_string())
+            })
+            .unwrap_or_else(|| "unknown".into());
 
-            // Tenant ID: from verified JWT claims when available, else fall back to IP.
-            let tenant_id = request
-                .extensions()
-                .get::<crate::claims::VerifiedClaims>()
-                .map(|c| c.tenant_id.to_string())
-                .unwrap_or_else(|| ip.clone());
+        // Tenant ID: from verified JWT claims when available, else fall back to IP.
+        let tenant_id = request
+            .extensions()
+            .get::<crate::claims::VerifiedClaims>()
+            .map(|c| c.tenant_id.to_string())
+            .unwrap_or_else(|| ip.clone());
 
-            let path = request.uri().path().to_string();
-            let method = request.method().as_str().to_string();
+        let path = request.uri().path().to_string();
+        let method = request.method().as_str().to_string();
 
-            let rejected = limiter
-                .check_limit_for_method(&path, &method, &tenant_id, &ip)
-                .is_err();
-            let retry_after = if rejected {
-                limiter.window_secs_for_path_method(&path, &method)
-            } else {
-                60
-            };
-            (rejected, retry_after)
+        let rejected = limiter
+            .check_limit_for_method(&path, &method, &tenant_id, &ip)
+            .is_err();
+        let retry_after = if rejected {
+            limiter.window_secs_for_path_method(&path, &method)
         } else {
-            (false, 60)
+            60
         };
+        (rejected, retry_after)
+    } else {
+        (false, 60)
+    };
 
     if check.0 {
-        let mut response =
-            (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
+        let mut response = (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
         if let Ok(val) = check.1.to_string().parse() {
             response.headers_mut().insert("retry-after", val);
         }
