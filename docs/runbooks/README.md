@@ -11,6 +11,7 @@ Operational runbooks for the 7D Solutions Platform.
 | [disaster_recovery.md](disaster_recovery.md) | DR runbook with RPO/RTO targets + quarterly drill; Decision Trees for rollback vs DR and post-recovery |
 | [backup_restore.md](backup_restore.md) | Scripted backup/restore with smoke verification |
 | [projection_rebuild.md](projection_rebuild.md) | Projection rebuild via CLI tool and admin endpoints |
+| [notifications_crashloop_health.md](notifications_crashloop_health.md) | Notifications crash-loop health check and restart-history inspection |
 | [BACKUP-RESTORE-RUNBOOK.md](../ops/BACKUP-RESTORE-RUNBOOK.md) | Legacy per-tenant DB backup/restore reference |
 | [RELEASE-PROMOTION.md](../ops/RELEASE-PROMOTION.md) | Staging → Production promotion workflow |
 | [ALERT-THRESHOLDS.md](../ops/ALERT-THRESHOLDS.md) | Alert threshold configuration and escalation |

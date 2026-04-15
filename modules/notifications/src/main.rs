@@ -28,18 +28,14 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
 #[tokio::main]
 async fn main() {
+    http::health::record_startup_event();
+
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .consumer("ar.events.ar.invoice_opened", on_invoice_issued)
-        .consumer(
-            "payments.events.payment.succeeded",
-            on_payment_succeeded,
-        )
+        .consumer("payments.events.payment.succeeded", on_payment_succeeded)
         .consumer("payments.events.payment.failed", on_payment_failed)
-        .consumer(
-            "shipping_receiving.outbound_shipped",
-            on_outbound_shipped,
-        )
+        .consumer("shipping_receiving.outbound_shipped", on_outbound_shipped)
         .consumer(
             "shipping_receiving.outbound_delivered",
             on_outbound_delivered,
@@ -80,52 +76,43 @@ async fn main() {
                     backoff_multiplier: config.retry_backoff_multiplier,
                     backoff_max_secs: config.retry_backoff_max_secs,
                 };
-                let email_sender: Arc<dyn NotificationSender> =
-                    match config.email_sender_type {
-                        notifications_rs::config::EmailSenderType::Logging => {
-                            Arc::new(LoggingSender)
-                        }
-                        notifications_rs::config::EmailSenderType::Http => {
-                            Arc::new(HttpEmailSender::new(
-                                config
-                                    .email_http_endpoint
-                                    .clone()
-                                    .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
-                                config.email_from.clone(),
-                                config.email_api_key.clone(),
-                            ))
-                        }
-                        notifications_rs::config::EmailSenderType::SendGrid => {
-                            Arc::new(SendGridEmailSender::new(
-                                config.email_from.clone(),
-                                config
-                                    .sendgrid_api_key
-                                    .clone()
-                                    .expect("SENDGRID_API_KEY required for SendGrid sender"),
-                            ))
-                        }
-                    };
-                let sms_sender: Arc<dyn NotificationSender> =
-                    match config.sms_sender_type {
-                        notifications_rs::config::SmsSenderType::Logging => {
-                            Arc::new(LoggingSender)
-                        }
-                        notifications_rs::config::SmsSenderType::Http => {
-                            Arc::new(HttpSmsSender::new(
-                                config
-                                    .sms_http_endpoint
-                                    .clone()
-                                    .expect("SMS_HTTP_ENDPOINT required for HTTP SMS sender"),
-                                config.sms_from_number.clone(),
-                                config.sms_api_key.clone(),
-                            ))
-                        }
-                    };
-                let dispatch_sender: Arc<dyn NotificationSender> =
-                    Arc::new(ChannelRouter {
-                        email: email_sender,
-                        sms: sms_sender,
-                    });
+                let email_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
+                    notifications_rs::config::EmailSenderType::Logging => Arc::new(LoggingSender),
+                    notifications_rs::config::EmailSenderType::Http => {
+                        Arc::new(HttpEmailSender::new(
+                            config
+                                .email_http_endpoint
+                                .clone()
+                                .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
+                            config.email_from.clone(),
+                            config.email_api_key.clone(),
+                        ))
+                    }
+                    notifications_rs::config::EmailSenderType::SendGrid => {
+                        Arc::new(SendGridEmailSender::new(
+                            config.email_from.clone(),
+                            config
+                                .sendgrid_api_key
+                                .clone()
+                                .expect("SENDGRID_API_KEY required for SendGrid sender"),
+                        ))
+                    }
+                };
+                let sms_sender: Arc<dyn NotificationSender> = match config.sms_sender_type {
+                    notifications_rs::config::SmsSenderType::Logging => Arc::new(LoggingSender),
+                    notifications_rs::config::SmsSenderType::Http => Arc::new(HttpSmsSender::new(
+                        config
+                            .sms_http_endpoint
+                            .clone()
+                            .expect("SMS_HTTP_ENDPOINT required for HTTP SMS sender"),
+                        config.sms_from_number.clone(),
+                        config.sms_api_key.clone(),
+                    )),
+                };
+                let dispatch_sender: Arc<dyn NotificationSender> = Arc::new(ChannelRouter {
+                    email: email_sender,
+                    sms: sms_sender,
+                });
                 tokio::spawn(async move {
                     loop {
                         if let Err(e) =
@@ -141,42 +128,26 @@ async fn main() {
 
             // Register SLO metrics with global prometheus registry so
             // SDK's /metrics endpoint picks them up via prometheus::gather().
-            let _ = prometheus::register(Box::new(
-                metrics::HTTP_REQUEST_DURATION_SECONDS.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                metrics::HTTP_REQUESTS_TOTAL.clone(),
-            ));
-            let _ = prometheus::register(Box::new(
-                metrics::EVENT_CONSUMER_LAG_MESSAGES.clone(),
-            ));
+            let _ = prometheus::register(Box::new(metrics::HTTP_REQUEST_DURATION_SECONDS.clone()));
+            let _ = prometheus::register(Box::new(metrics::HTTP_REQUESTS_TOTAL.clone()));
+            let _ = prometheus::register(Box::new(metrics::EVENT_CONSUMER_LAG_MESSAGES.clone()));
 
             Router::new()
-                .merge(
-                    http::admin::admin_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
-                    ),
-                )
-                .merge(
-                    http::dlq::dlq_read_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-                    ),
-                )
-                .merge(
-                    http::dlq::dlq_mutate_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
-                    ),
-                )
-                .merge(
-                    http::inbox::inbox_read_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-                    ),
-                )
-                .merge(
-                    http::inbox::inbox_mutate_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
-                    ),
-                )
+                .merge(http::admin::admin_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                ))
+                .merge(http::dlq::dlq_read_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                ))
+                .merge(http::dlq::dlq_mutate_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                ))
+                .merge(http::inbox::inbox_read_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                ))
+                .merge(http::inbox::inbox_mutate_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                ))
                 .merge(
                     http::templates::templates_read_router(pool.clone()).route_layer(
                         RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
@@ -187,16 +158,12 @@ async fn main() {
                         RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
                     ),
                 )
-                .merge(
-                    http::sends::sends_read_router(pool.clone()).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
-                    ),
-                )
-                .merge(
-                    http::sends::sends_mutate_router(pool).route_layer(
-                        RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
-                    ),
-                )
+                .merge(http::sends::sends_read_router(pool.clone()).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+                ))
+                .merge(http::sends::sends_mutate_router(pool).route_layer(
+                    RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+                ))
         })
         .run()
         .await
@@ -221,9 +188,8 @@ async fn on_invoice_issued(
         return Ok(());
     }
 
-    let payload: InvoiceIssuedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: InvoiceIssuedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
         event_id,
@@ -266,9 +232,8 @@ async fn on_payment_succeeded(
         return Ok(());
     }
 
-    let payload: PaymentSucceededPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: PaymentSucceededPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
         event_id,
@@ -311,9 +276,8 @@ async fn on_outbound_shipped(
         return Ok(());
     }
 
-    let payload: OutboundShippedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: OutboundShippedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
         event_id,
@@ -356,9 +320,8 @@ async fn on_outbound_delivered(
         return Ok(());
     }
 
-    let payload: OutboundDeliveredPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: OutboundDeliveredPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
         event_id,
@@ -401,9 +364,8 @@ async fn on_payment_failed(
         return Ok(());
     }
 
-    let payload: PaymentFailedPayload =
-        serde_json::from_value(envelope.payload)
-            .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
+    let payload: PaymentFailedPayload = serde_json::from_value(envelope.payload)
+        .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = EnvelopeMetadata {
         event_id,
