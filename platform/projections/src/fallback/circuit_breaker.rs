@@ -23,14 +23,29 @@ pub struct FallbackMetrics {
 }
 
 impl FallbackMetrics {
-    /// Create new fallback metrics
+    /// Create new fallback metrics with an isolated registry.
+    ///
+    /// Metrics are registered into a private `Registry`. Use
+    /// [`FallbackMetrics::new_with_registry`] to wire into the global
+    /// Prometheus registry so the module's `/metrics` endpoint sees them.
     ///
     /// # Errors
     ///
     /// Returns error if metric registration fails.
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let registry = Registry::new();
+        Self::new_with_registry(&Registry::new())
+    }
 
+    /// Create new fallback metrics registered into `registry`.
+    ///
+    /// Pass `prometheus::default_registry()` to make these metrics visible
+    /// to `prometheus::gather()` (i.e., the module's `/metrics` endpoint).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if metric registration fails (e.g., duplicate names in
+    /// the same registry).
+    pub fn new_with_registry(registry: &Registry) -> Result<Self, Box<dyn std::error::Error>> {
         // Counter: Fallback invocation count
         let fallback_invocation_count = CounterVec::new(
             Opts::new(
@@ -55,7 +70,7 @@ impl FallbackMetrics {
         Ok(Self {
             fallback_invocation_count,
             fallback_latency_ms,
-            registry,
+            registry: registry.clone(),
         })
     }
 
@@ -138,13 +153,13 @@ impl CircuitBreaker {
 
     /// Check if circuit is closed (fallback allowed)
     pub fn is_closed(&self) -> bool {
-        let state = self.state.lock().unwrap();
+        let state = self.state.lock().expect("circuit breaker mutex poisoned");
         state.state == CircuitState::Closed
     }
 
     /// Get current failure count
     pub fn failure_count(&self) -> u32 {
-        let state = self.state.lock().unwrap();
+        let state = self.state.lock().expect("circuit breaker mutex poisoned");
         state.consecutive_failures
     }
 
@@ -153,7 +168,7 @@ impl CircuitBreaker {
     /// Resets failure counter. If circuit is open, increments success counter
     /// and may close the circuit if threshold is met.
     pub fn record_success(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().expect("circuit breaker mutex poisoned");
 
         match state.state {
             CircuitState::Closed => {
@@ -179,7 +194,7 @@ impl CircuitBreaker {
     ///
     /// Increments failure counter and may open the circuit if threshold is exceeded.
     pub fn record_failure(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().expect("circuit breaker mutex poisoned");
 
         // Reset success counter
         state.consecutive_successes = 0;
@@ -197,7 +212,7 @@ impl CircuitBreaker {
     ///
     /// Useful for testing or manual intervention.
     pub fn reset(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().expect("circuit breaker mutex poisoned");
         state.state = CircuitState::Closed;
         state.consecutive_failures = 0;
         state.consecutive_successes = 0;

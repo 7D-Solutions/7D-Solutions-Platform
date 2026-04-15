@@ -1,6 +1,6 @@
 [package]
 name = "projections"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 description = "Event projection framework with cursor tracking, rebuild, and blue-green swap"
 publish = ["7d-platform"]

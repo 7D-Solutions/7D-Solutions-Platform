@@ -2,12 +2,13 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use utoipa::OpenApi;
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
+use utoipa::OpenApi;
 
 use payments_rs::{AppState, Config, PaymentsProvider, TilledPaymentProcessor};
 use platform_sdk::{ConsumerError, EventEnvelope, ModuleBuilder, ModuleContext};
+use projections::{CircuitBreaker, FallbackMetrics, FallbackPolicy};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -58,11 +59,9 @@ impl utoipa::Modify for SecurityAddon {
         let components = openapi.components.get_or_insert_with(Default::default);
         components.add_security_scheme(
             "bearer",
-            utoipa::openapi::security::SecurityScheme::Http(
-                utoipa::openapi::security::Http::new(
-                    utoipa::openapi::security::HttpAuthScheme::Bearer,
-                ),
-            ),
+            utoipa::openapi::security::SecurityScheme::Http(utoipa::openapi::security::Http::new(
+                utoipa::openapi::security::HttpAuthScheme::Bearer,
+            )),
         );
     }
 }
@@ -80,9 +79,13 @@ async fn main() {
     // Create processor from config (currently only Tilled is supported)
     let processor: Arc<dyn payments_rs::PaymentProcessor> = match config.payments_provider {
         PaymentsProvider::Tilled => {
-            let api_key = config.tilled_api_key.clone()
+            let api_key = config
+                .tilled_api_key
+                .clone()
                 .expect("TILLED_API_KEY required when PAYMENTS_PROVIDER=tilled");
-            let account_id = config.tilled_account_id.clone()
+            let account_id = config
+                .tilled_account_id
+                .clone()
                 .expect("TILLED_ACCOUNT_ID required when PAYMENTS_PROVIDER=tilled");
             Arc::new(TilledPaymentProcessor::new(api_key, account_id))
         }
@@ -112,8 +115,17 @@ async fn main() {
                 payments_rs::metrics::PAYMENTS_OUTBOX_QUEUE_DEPTH.clone(),
             ));
 
-            let processor = ctx.state::<Arc<dyn payments_rs::PaymentProcessor>>().clone();
+            let processor = ctx
+                .state::<Arc<dyn payments_rs::PaymentProcessor>>()
+                .clone();
             let config = ctx.state::<Config>().clone();
+
+            // Projection fallback primitives — constructed once per process.
+            // Using new_with_registry(prometheus::default_registry()) so these
+            // metrics are visible to prometheus::gather() at the /metrics endpoint.
+            let fallback_metrics =
+                FallbackMetrics::new_with_registry(prometheus::default_registry())
+                    .expect("fallback metrics registration failed");
 
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
@@ -122,6 +134,9 @@ async fn main() {
                 tilled_account_id: config.tilled_account_id.clone(),
                 tilled_webhook_secret: config.tilled_webhook_secret.clone(),
                 tilled_webhook_secret_prev: config.tilled_webhook_secret_prev.clone(),
+                fallback_policy: FallbackPolicy::new(5000, 200), // 5s staleness, 200ms budget
+                fallback_metrics,
+                circuit_breaker: CircuitBreaker::new(5, 2), // 5 failures to open, 2 to close
             });
 
             Router::new()
@@ -183,14 +198,16 @@ async fn on_payment_collection_requested(
     }
 
     // Parse payload
+    let tenant_id = envelope.tenant_id.to_string();
+    let correlation_id = envelope.correlation_id.map(|id| id.to_string());
     let payload: payments_rs::PaymentCollectionRequestedPayload =
-        serde_json::from_value(envelope.payload.clone())
+        serde_json::from_value(envelope.payload)
             .map_err(|e| ConsumerError::Processing(format!("payload parse: {e}")))?;
 
     let metadata = payments_rs::handlers::EnvelopeMetadata {
         event_id,
-        tenant_id: envelope.tenant_id.to_string(),
-        correlation_id: envelope.correlation_id.map(|id| id.to_string()),
+        tenant_id,
+        correlation_id,
     };
 
     tracing::info!(
@@ -206,11 +223,7 @@ async fn on_payment_collection_requested(
 
     // Mark as processed
     consumer
-        .mark_processed(
-            event_id,
-            "ar.events.payment.collection.requested",
-            "ar",
-        )
+        .mark_processed(event_id, "ar.events.payment.collection.requested", "ar")
         .await
         .map_err(|e| ConsumerError::Processing(e.to_string()))?;
 
@@ -230,7 +243,11 @@ mod tests {
 
         // Has paths
         let paths = json["paths"].as_object().expect("paths is an object");
-        assert!(paths.len() >= 5, "expected at least 5 paths, got {}", paths.len());
+        assert!(
+            paths.len() >= 5,
+            "expected at least 5 paths, got {}",
+            paths.len()
+        );
 
         // Key endpoints present
         assert!(paths.contains_key("/api/payments/checkout-sessions"));
@@ -240,11 +257,19 @@ mod tests {
 
         // Has security scheme
         let schemes = &json["components"]["securitySchemes"];
-        assert!(schemes["bearer"].is_object(), "bearer security scheme missing");
+        assert!(
+            schemes["bearer"].is_object(),
+            "bearer security scheme missing"
+        );
 
         // Has schemas
-        let schemas = json["components"]["schemas"].as_object().expect("schemas object");
+        let schemas = json["components"]["schemas"]
+            .as_object()
+            .expect("schemas object");
         assert!(schemas.contains_key("ApiError"), "ApiError schema missing");
-        assert!(schemas.contains_key("CreateCheckoutSessionRequest"), "Request schema missing");
+        assert!(
+            schemas.contains_key("CreateCheckoutSessionRequest"),
+            "Request schema missing"
+        );
     }
 }

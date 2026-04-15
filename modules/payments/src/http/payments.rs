@@ -9,7 +9,7 @@ use axum::{
 };
 use event_bus::TracingContext;
 use platform_http_contracts::ApiError;
-use projections::{cursor::ProjectionCursor, CircuitBreaker, FallbackMetrics, FallbackPolicy};
+use projections::cursor::ProjectionCursor;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -87,10 +87,10 @@ pub async fn get_payment(
 ) -> Result<Json<PaymentResponse>, ApiError> {
     let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &tracing_ctx))?;
 
-    // In production, these would be stored in AppState
-    let policy = FallbackPolicy::new(5000, 200); // 5s staleness, 200ms budget
-    let metrics = FallbackMetrics::default();
-    let circuit = CircuitBreaker::new(5, 2); // 5 failures to open, 2 successes to close
+    // Fallback primitives come from shared AppState — not constructed per-request.
+    let policy = &app_state.fallback_policy;
+    let metrics = &app_state.fallback_metrics;
+    let circuit = &app_state.circuit_breaker;
 
     // Load projection cursor to check staleness
     let cursor = ProjectionCursor::load(&app_state.pool, "payment_projection", &tenant_id)

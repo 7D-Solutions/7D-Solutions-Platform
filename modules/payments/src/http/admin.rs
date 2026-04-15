@@ -233,6 +233,10 @@ mod tests {
             tilled_account_id: None,
             tilled_webhook_secret: None,
             tilled_webhook_secret_prev: None,
+            fallback_policy: projections::FallbackPolicy::default(),
+            fallback_metrics: projections::FallbackMetrics::new()
+                .expect("test fallback metrics"),
+            circuit_breaker: projections::CircuitBreaker::default(),
         });
         let _router = admin_router(state);
     }
