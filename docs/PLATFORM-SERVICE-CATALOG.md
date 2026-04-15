@@ -43,7 +43,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | timekeeping | timekeeping | 3.0.2 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md), [Revisions](modules/timekeeping/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | treasury | treasury | 2.1.11 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md), [Revisions](modules/treasury/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ttp | ttp-rs | 4.0.2 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| workflow | workflow | 2.2.1 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [Revisions](modules/workflow/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| workflow | workflow | 2.2.2 | 8110 | 5457 | Workflow engine: definitions, templates, and durable instance execution | [Revisions](modules/workflow/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | workforce-competence | workforce-competence-rs | 2.2.0 | 8121 | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries | [Revisions](modules/workforce-competence/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
@@ -68,7 +68,7 @@ Shared crates used by services. Not independently deployed.
 | event-bus | event-bus | 2.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry | [Revisions](platform/event-bus/REVISIONS.md) |
 | event-consumer | event-consumer | 1.0.0 | Consumer-side event dispatch: handler registry, router, and context | [Revisions](platform/event-consumer/REVISIONS.md) |
 | feature-flags | feature-flags | 0.1.0 | Per-tenant and global feature flag storage and lookup for the 7D platform |  |
-| health | health | 1.1.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
+| health | health | 1.2.0 | Shared health and readiness check endpoints for all services | [Revisions](platform/health/REVISIONS.md) |
 | http-contracts | platform-http-contracts | 0.1.0 | Shared HTTP response types — pagination, error envelopes, field errors |  |
 | platform-contracts | platform_contracts | 1.0.1 | Platform-wide event and command contract conventions — canonical types and constants | [Revisions](platform/platform-contracts/REVISIONS.md) |
 | platform-sdk | platform-sdk | 0.1.0 | Module startup SDK — manifest parser, builder, and HTTP runtime for 7D platform services |  |

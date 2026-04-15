@@ -21,6 +21,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.2.0 | 2026-04-15 | bd-jrwlc.1 | Add CircuitBreakerInfo struct to public API, referenced by platform-sdk circuit-breaker metrics. | Type was referenced in platform-sdk but never defined; gap left over from bd-wpxqn. | No |
 | 1.1.0 | 2026-04-13 | bd-swikj | Added `TenantReadinessCheck` trait, `TenantReadinessRegistry` (Arc<Mutex<HashSet>> impl), `TenantReadiness` struct, `TenantReadyStatus` enum. Added optional `tenant: Option<TenantReadiness>` field to `ReadyResponse` (skipped when absent). `build_ready_response` initializes `tenant: None`. 11 new tests (5 unit registry + 6 route contract). | GAP-31: `/api/ready?tenant_id=` support for per-module tenant provisioning probes — unblocks GAP-16 activate_tenant polling. | No — `tenant` field is `skip_serializing_if = None`; all existing callers unaffected. |
 | 1.0.0 | 2026-03-28 | bd-1icrg | Initial promotion. Proven: `healthz()` liveness probe, `build_ready_response` readiness builder, `ready_response_to_axum` HTTP adapter, `db_check`/`db_check_with_pool`/`nats_check` dependency helpers, `PoolMetrics` observability struct. 22 tests (6 unit + 16 contract). | Canonical health endpoints used by all platform services — stabilize public API for v1 consumers. | No |
 

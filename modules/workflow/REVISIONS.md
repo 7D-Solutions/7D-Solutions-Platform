@@ -9,6 +9,7 @@ Every row in the Revisions table must have these fields filled in (no placeholde
 
 | Field | Column | Requirement |
 |-------|--------|-------------|
+| 2.2.2 | 2026-04-15 | bd-jrwlc.1 | Add health, ready, and version HTTP handlers at modules/workflow/src/http/health.rs, wired via pub mod health in http/mod.rs. | Workflow lacked standard health endpoints; hardening_integration test required them. | No |
 | 2.1.4 | 2026-04-01 | Import extract_tenant from platform-sdk instead of local copy (bd-o1a03) |
 | Version | Version | Exact SemVer matching the package file |
 | Date | Date | ISO date YYYY-MM-DD, not the literal placeholder |

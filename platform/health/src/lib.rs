@@ -33,6 +33,20 @@ pub struct PoolMetrics {
     pub active: u32,
 }
 
+/// Circuit breaker state snapshot for inclusion in `/api/ready` responses.
+#[derive(Debug, Clone, Serialize)]
+pub struct CircuitBreakerInfo {
+    /// Identifies the downstream service (e.g. `"bom"`, `"production"`).
+    pub service: String,
+    /// One of `"closed"`, `"open"`, or `"half_open"`.
+    pub state: String,
+    /// Number of consecutive failures that triggered or are approaching the open threshold.
+    pub consecutive_failures: u32,
+    /// RFC-3339 timestamp of when the circuit opened, if currently open.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_since: Option<String>,
+}
+
 /// A single dependency check result.
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthCheck {
