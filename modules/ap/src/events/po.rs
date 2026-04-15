@@ -32,6 +32,9 @@ pub const EVENT_TYPE_PO_LINE_RECEIVED_LINKED: &str = "ap.po_line_received_linked
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoLine {
     pub line_id: Uuid,
+    /// Inventory item reference — opaque UUID echoed from the request.
+    /// None for description-only lines.
+    pub item_id: Option<Uuid>,
     /// Item or service description
     pub description: String,
     /// Quantity ordered
@@ -239,6 +242,7 @@ mod tests {
     fn sample_po_lines() -> Vec<PoLine> {
         vec![PoLine {
             line_id: Uuid::new_v4(),
+            item_id: None,
             description: "Office chairs".to_string(),
             quantity: 10.0,
             unit_of_measure: "each".to_string(),
@@ -336,7 +340,7 @@ mod tests {
     #[test]
     fn po_close_reason_serializes_to_snake_case() {
         let reason = PoCloseReason::FullyReceived;
-        let json = serde_json::to_string(&reason).unwrap();
+        let json = serde_json::to_string(&reason).expect("serialize PoCloseReason");
         assert_eq!(json, "\"fully_received\"");
     }
 }

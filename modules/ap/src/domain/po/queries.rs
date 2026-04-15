@@ -96,13 +96,10 @@ pub async fn list_pos(
     Ok(pos)
 }
 
-pub(super) async fn fetch_lines(
-    pool: &PgPool,
-    po_id: Uuid,
-) -> Result<Vec<PoLineRecord>, PoError> {
+pub(super) async fn fetch_lines(pool: &PgPool, po_id: Uuid) -> Result<Vec<PoLineRecord>, PoError> {
     let lines = sqlx::query_as::<_, PoLineRecord>(
         r#"
-        SELECT line_id, po_id, description,
+        SELECT line_id, po_id, item_id, description,
                quantity::FLOAT8 AS quantity,
                unit_of_measure, unit_price_minor, line_total_minor,
                gl_account_code, created_at

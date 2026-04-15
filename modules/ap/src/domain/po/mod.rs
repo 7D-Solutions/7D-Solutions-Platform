@@ -14,7 +14,7 @@
 //!   draft -> approved -> (issued) -> (received) -> closed
 //!
 //! Vendor validation is ID-only (no cross-DB reads).
-//! Item IDs in line requests are validated as UUIDs; stored as description.
+//! Item IDs in line requests are stored in po_lines.item_id and echoed verbatim.
 
 pub mod approve;
 pub mod queries;
@@ -59,9 +59,11 @@ impl From<PoError> for platform_http_contracts::ApiError {
     fn from(err: PoError) -> Self {
         match err {
             PoError::NotFound(id) => Self::not_found(format!("PO {} not found", id)),
-            PoError::VendorNotFound(id) => {
-                Self::new(422, "vendor_not_found", format!("Vendor {} not found or inactive", id))
-            }
+            PoError::VendorNotFound(id) => Self::new(
+                422,
+                "vendor_not_found",
+                format!("Vendor {} not found or inactive", id),
+            ),
             PoError::NotDraft(status) => Self::new(
                 422,
                 "po_not_draft",
@@ -72,9 +74,7 @@ impl From<PoError> for platform_http_contracts::ApiError {
                 "invalid_transition",
                 format!("Cannot transition PO from '{}' to '{}'", from, to),
             ),
-            PoError::EmptyLines => {
-                Self::new(422, "empty_lines", "PO must have at least one line")
-            }
+            PoError::EmptyLines => Self::new(422, "empty_lines", "PO must have at least one line"),
             PoError::Validation(msg) => Self::new(422, "validation_error", msg),
             PoError::Database(e) => {
                 tracing::error!("AP purchase_orders DB error: {}", e);
@@ -171,6 +171,8 @@ pub struct PurchaseOrder {
 pub struct PoLineRecord {
     pub line_id: Uuid,
     pub po_id: Uuid,
+    /// Inventory item reference — opaque UUID, no cross-module reads.
+    pub item_id: Option<Uuid>,
     pub description: String,
     pub quantity: f64,
     pub unit_of_measure: String,
@@ -196,8 +198,7 @@ pub struct PurchaseOrderWithLines {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreatePoLineRequest {
     /// Optional inventory item UUID reference.
-    /// Validated as non-empty if provided; no cross-DB reads are performed.
-    /// When description is absent, stored as "item:{uuid}".
+    /// Stored verbatim in po_lines.item_id; no cross-DB reads are performed.
     pub item_id: Option<Uuid>,
     /// Human-readable line description. Required when item_id is absent.
     pub description: Option<String>,
@@ -247,11 +248,11 @@ impl CreatePoLineRequest {
         Ok(())
     }
 
-    /// Resolve the effective description for DB storage.
+    /// Resolve the description for DB storage.
+    /// item_id is persisted in its own column; it is never folded into description.
     pub fn effective_description(&self) -> String {
-        match (&self.description, &self.item_id) {
-            (Some(d), _) if !d.trim().is_empty() => d.trim().to_string(),
-            (_, Some(id)) => format!("item:{}", id),
+        match &self.description {
+            Some(d) if !d.trim().is_empty() => d.trim().to_string(),
             _ => String::new(),
         }
     }
@@ -439,7 +440,8 @@ mod tests {
     }
 
     #[test]
-    fn line_effective_description_uses_item_id() {
+    fn line_effective_description_is_empty_when_only_item_id() {
+        // item_id is now persisted in its own column — not encoded into description.
         let id = Uuid::new_v4();
         let line = CreatePoLineRequest {
             item_id: Some(id),
@@ -449,7 +451,7 @@ mod tests {
             unit_price_minor: 1_000,
             gl_account_code: String::new(),
         };
-        assert_eq!(line.effective_description(), format!("item:{}", id));
+        assert_eq!(line.effective_description(), "");
     }
 
     #[test]

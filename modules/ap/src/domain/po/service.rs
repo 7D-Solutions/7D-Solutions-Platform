@@ -236,12 +236,12 @@ async fn insert_lines(
         let line: PoLineRecord = sqlx::query_as(
             r#"
             INSERT INTO po_lines (
-                line_id, po_id, description, quantity, unit_of_measure,
+                line_id, po_id, item_id, description, quantity, unit_of_measure,
                 unit_price_minor, line_total_minor, gl_account_code, created_at
             )
-            VALUES ($1, $2, $3, $4::NUMERIC, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5::NUMERIC, $6, $7, $8, $9, $10)
             RETURNING
-                line_id, po_id, description,
+                line_id, po_id, item_id, description,
                 quantity::FLOAT8 AS quantity,
                 unit_of_measure, unit_price_minor, line_total_minor,
                 gl_account_code, created_at
@@ -249,6 +249,7 @@ async fn insert_lines(
         )
         .bind(line_id)
         .bind(po_id)
+        .bind(line_req.item_id)
         .bind(&description)
         .bind(line_req.quantity)
         .bind(&line_req.unit_of_measure)
@@ -261,6 +262,7 @@ async fn insert_lines(
 
         event_lines.push(EventPoLine {
             line_id,
+            item_id: line_req.item_id,
             description: description.clone(),
             quantity: line_req.quantity,
             unit_of_measure: line_req.unit_of_measure.clone(),

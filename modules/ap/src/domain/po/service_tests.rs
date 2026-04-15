@@ -128,8 +128,16 @@ async fn test_create_po_draft_with_lines() {
     assert_eq!(result.lines.len(), 2);
     assert!(result.po.po_number.starts_with("PO-"));
 
-    // second line stored as item:{uuid}
-    assert!(result.lines[1].description.starts_with("item:"));
+    // first line: description-only, item_id absent
+    assert_eq!(result.lines[0].description, "Office chairs");
+    assert!(result.lines[0].item_id.is_none());
+
+    // second line: item_id present, description is empty (not encoded into description)
+    assert!(result.lines[1].item_id.is_some());
+    assert!(
+        !result.lines[1].description.starts_with("item:"),
+        "item_id must not be encoded into description"
+    );
 
     cleanup(&pool).await;
 }
@@ -286,6 +294,94 @@ async fn test_update_po_lines_rejected_for_non_draft() {
         matches!(result, Err(PoError::NotDraft(_))),
         "expected NotDraft, got {:?}",
         result
+    );
+
+    cleanup(&pool).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_po_item_id_roundtrip() {
+    let pool = test_pool().await;
+    cleanup(&pool).await;
+    let vendor_id = create_test_vendor(&pool).await;
+
+    let known_item_id = Uuid::new_v4();
+    let req = CreatePoRequest {
+        vendor_id,
+        currency: "USD".to_string(),
+        created_by: "user-ap".to_string(),
+        expected_delivery_date: None,
+        lines: vec![
+            // Line with item_id and no description
+            CreatePoLineRequest {
+                item_id: Some(known_item_id),
+                description: None,
+                quantity: 3.0,
+                unit_of_measure: "ea".to_string(),
+                unit_price_minor: 5_000,
+                gl_account_code: "6100".to_string(),
+            },
+            // Line with both item_id and description — description kept, item_id persisted
+            CreatePoLineRequest {
+                item_id: Some(Uuid::new_v4()),
+                description: Some("Custom probe".to_string()),
+                quantity: 1.0,
+                unit_of_measure: "ea".to_string(),
+                unit_price_minor: 2_000,
+                gl_account_code: "6200".to_string(),
+            },
+            // Description-only line — item_id stays None
+            CreatePoLineRequest {
+                item_id: None,
+                description: Some("Misc supplies".to_string()),
+                quantity: 10.0,
+                unit_of_measure: "ea".to_string(),
+                unit_price_minor: 100,
+                gl_account_code: "6300".to_string(),
+            },
+        ],
+    };
+
+    let result = create_po(&pool, TEST_TENANT, &req, "corr-rt".to_string())
+        .await
+        .expect("create_po failed");
+
+    // Line 0: item_id round-trips; description is empty (not "item:{uuid}")
+    assert_eq!(result.lines[0].item_id, Some(known_item_id));
+    assert!(
+        !result.lines[0].description.starts_with("item:"),
+        "item_id must not be encoded into description"
+    );
+
+    // Line 1: both item_id and description preserved
+    assert!(result.lines[1].item_id.is_some());
+    assert_eq!(result.lines[1].description, "Custom probe");
+
+    // Line 2: description-only path unaffected
+    assert!(result.lines[2].item_id.is_none());
+    assert_eq!(result.lines[2].description, "Misc supplies");
+
+    // Verify item_id also present in outbox event payload
+    let row: (serde_json::Value,) = sqlx::query_as(
+        "SELECT payload FROM events_outbox WHERE aggregate_type = 'po' AND aggregate_id = $1",
+    )
+    .bind(result.po.po_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("outbox query failed");
+
+    let event_lines = &row.0["payload"]["lines"];
+    assert_eq!(
+        event_lines[0]["item_id"]
+            .as_str()
+            .and_then(|s| s.parse::<Uuid>().ok()),
+        Some(known_item_id),
+        "ap.po_created event must carry item_id on each line"
+    );
+    assert!(
+        event_lines[2]["item_id"].is_null(),
+        "description-only line must have null item_id in event"
     );
 
     cleanup(&pool).await;

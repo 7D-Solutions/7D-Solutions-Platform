@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,7 +77,7 @@ pub struct ApTaxReportResponse {
 }
 
 /// Persisted tax snapshot for an AP vendor bill.
-/// 
+///
 /// Records the full quote -> commit -> void lifecycle with provider references
 /// and a deterministic quote hash for idempotency.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,7 +116,7 @@ pub struct ApTaxSummaryRow {
 }
 
 /// Request body to approve a vendor bill.
-/// 
+///
 /// Match policy is enforced unless `override_reason` is provided:
 ///   - Bills in 'open' status (never matched) require an override.
 ///   - Bills in 'matched' status with tolerance violations require an override.
@@ -411,6 +411,10 @@ pub struct PoLineRecord {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub description: String,
     pub gl_account_code: String,
+    /// Inventory item reference — opaque UUID echoed from the create request.
+    /// None for description-only lines.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_id: Option<uuid::Uuid>,
     pub line_id: uuid::Uuid,
     pub line_total_minor: i64,
     pub po_id: uuid::Uuid,
@@ -446,4 +450,3 @@ pub struct PurchaseOrderWithLines {
     #[serde(flatten)]
     pub purchase_order: PurchaseOrder,
 }
-
