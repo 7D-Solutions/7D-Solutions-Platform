@@ -88,8 +88,7 @@ fn require_claims(cli: &Cli) -> Result<VerifiedClaims> {
         .as_deref()
         .context("--token <JWT> or CLI_AUTH_TOKEN env var required for this operation")?;
 
-    let verifier = JwtVerifier::from_env()
-        .or_else(JwtVerifier::from_env_with_overlap)
+    let verifier = JwtVerifier::from_env_with_overlap()
         .context("JWT_PUBLIC_KEY environment variable not set — cannot verify token")?;
 
     verifier

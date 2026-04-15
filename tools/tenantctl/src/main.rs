@@ -172,11 +172,9 @@ enum FleetOperation {
 
 /// Verify the JWT token and return claims, or exit with an error.
 fn verify_token(token_str: &str) -> Result<VerifiedClaims> {
-    let verifier = JwtVerifier::from_env()
-        .or_else(|| {
-            // Fallback: try JWT_PUBLIC_KEY_PREV for rotation overlap
-            JwtVerifier::from_env_with_overlap()
-        })
+    // Always use overlap: `from_env()` alone never loads JWT_PUBLIC_KEY_PREV, so
+    // tokens signed with the previous key would fail during rotation windows.
+    let verifier = JwtVerifier::from_env_with_overlap()
         .context("JWT_PUBLIC_KEY environment variable not set — cannot verify token")?;
 
     verifier
