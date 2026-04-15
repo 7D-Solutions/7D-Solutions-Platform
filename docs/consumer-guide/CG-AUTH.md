@@ -190,7 +190,8 @@ use std::sync::Arc;
 
 // Option A: From environment variable (recommended for production)
 // Reads JWT_PUBLIC_KEY env var. Returns None if not set (dev mode).
-let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+// Use `_with_overlap` so JWT_PUBLIC_KEY_PREV is honored during key rotation.
+let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
 // Option B: From PEM string (for tests)
 let verifier = Arc::new(JwtVerifier::from_public_pem(&pem_string).unwrap());
@@ -230,7 +231,8 @@ use security::authz_middleware::{ClaimsLayer, RequirePermissionsLayer, optional_
 use security::claims::JwtVerifier;
 use std::sync::Arc;
 
-let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+// Use `_with_overlap` so JWT_PUBLIC_KEY_PREV is honored during key rotation.
+let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
 let app = Router::new()
     // Mutation routes — require specific permissions

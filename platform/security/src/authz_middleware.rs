@@ -199,7 +199,8 @@ fn extract_bearer(req: &Request) -> Option<&str> {
 /// use security::{JwtVerifier, optional_claims_mw};
 /// use std::sync::Arc;
 ///
-/// let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+/// // Use `_with_overlap` so JWT_PUBLIC_KEY_PREV is honored during key rotation.
+/// let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env_with_overlap().map(Arc::new);
 ///
 /// let app = Router::new()
 ///     .route("/api/x", post(create))

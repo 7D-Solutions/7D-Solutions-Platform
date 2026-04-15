@@ -64,7 +64,7 @@ INVENTORY_BASE_URL=http://7d-inventory:8092
 RUST_LOG=info
 ```
 
-**JwtVerifier::from_env() reads `JWT_PUBLIC_KEY`.** If that env var is absent, `from_env()` returns `None` — **this does NOT bypass auth**. When the verifier is `None`, `optional_claims_mw` extracts no claims, and `RequirePermissionsLayer` returns `401 Unauthorized` on every mutation route. You cannot call mutation endpoints without a valid JWT, even locally.
+**`JwtVerifier::from_env_with_overlap()` reads `JWT_PUBLIC_KEY` (and `JWT_PUBLIC_KEY_PREV` during key rotation).** If `JWT_PUBLIC_KEY` is absent, it returns `None` — **this does NOT bypass auth**. When the verifier is `None`, `optional_claims_mw` extracts no claims, and `RequirePermissionsLayer` returns `401 Unauthorized` on every mutation route. You cannot call mutation endpoints without a valid JWT, even locally.
 
 **Always set `JWT_PUBLIC_KEY` — including in local development.** Use a test RSA key pair:
 ```bash
