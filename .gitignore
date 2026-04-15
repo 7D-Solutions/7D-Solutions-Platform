@@ -7,7 +7,9 @@
 # QuickBooks Online tokens and test artifacts
 .qbo-tokens.json
 .qbo-shipping-test-result.json
-.env.qbo-sandbox
+
+# Sandbox env files for all vendors (sendgrid, qbo, etc.) — never commit real keys
+.env.*-sandbox
 
 # Backup files
 *.bak
