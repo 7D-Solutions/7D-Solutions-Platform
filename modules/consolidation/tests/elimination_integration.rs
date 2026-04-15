@@ -383,13 +383,13 @@ async fn test_tenant_isolation_elimination_rules() {
             .await
             .unwrap();
 
-    // Tenant B cannot delete tenant A's rule (group ownership check)
+    // Tenant B cannot delete tenant A's rule — tenant-scoped fetch returns RuleNotFound (404)
     let err = service_rules::delete_elimination_rule(&pool, &tid_b, rule_a.id)
         .await
         .unwrap_err();
     assert!(
-        matches!(err, ConfigError::GroupNotFound(_)),
-        "cross-tenant delete should fail: {:?}",
+        matches!(err, ConfigError::RuleNotFound(_)),
+        "cross-tenant delete should fail with RuleNotFound, got: {:?}",
         err
     );
 

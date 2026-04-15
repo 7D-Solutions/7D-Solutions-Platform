@@ -138,8 +138,12 @@ pub async fn list_entities(
     Ok(repo::fetch_entities(pool, tenant_id, group_id, include_inactive).await?)
 }
 
-pub async fn get_entity(pool: &PgPool, id: Uuid) -> Result<GroupEntity, ConfigError> {
-    repo::fetch_entity(pool, id)
+pub async fn get_entity(
+    pool: &PgPool,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<GroupEntity, ConfigError> {
+    repo::fetch_entity(pool, tenant_id, id)
         .await?
         .ok_or(ConfigError::EntityNotFound(id))
 }
@@ -150,7 +154,7 @@ pub async fn update_entity(
     id: Uuid,
     req: &UpdateEntityRequest,
 ) -> Result<GroupEntity, ConfigError> {
-    let existing = get_entity(pool, id).await?;
+    let existing = get_entity(pool, tenant_id, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
 
     if let Some(ref name) = req.entity_name {
@@ -171,7 +175,7 @@ pub async fn update_entity(
 }
 
 pub async fn delete_entity(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
-    let existing = get_entity(pool, id).await?;
+    let existing = get_entity(pool, tenant_id, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
     repo::delete_entity_row(pool, id).await?;
     Ok(())

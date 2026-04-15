@@ -222,10 +222,15 @@ pub async fn list_entities(
 )]
 pub async fn get_entity(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match service::get_entity(&state.pool, id).await {
+    let tid = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
+    match service::get_entity(&state.pool, &tid, id).await {
         Ok(e) => Json(e).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }
@@ -419,10 +424,15 @@ pub async fn list_elimination_rules(
 )]
 pub async fn get_elimination_rule(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     ctx: Option<Extension<TracingContext>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match service_rules::get_elimination_rule(&state.pool, id).await {
+    let tid = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(e) => return with_request_id(e, &ctx).into_response(),
+    };
+    match service_rules::get_elimination_rule(&state.pool, &tid, id).await {
         Ok(r) => Json(r).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &ctx).into_response(),
     }

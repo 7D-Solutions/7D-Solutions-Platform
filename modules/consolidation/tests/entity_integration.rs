@@ -373,13 +373,13 @@ async fn test_tenant_isolation_entities() {
         .unwrap();
     assert!(list_b.is_empty());
 
-    // Tenant B cannot delete tenant A's entity (group ownership check)
+    // Tenant B cannot delete tenant A's entity — tenant-scoped fetch returns EntityNotFound (404)
     let err = service::delete_entity(&pool, &tid_b, entity_a.id)
         .await
         .unwrap_err();
     assert!(
-        matches!(err, ConfigError::GroupNotFound(_)),
-        "cross-tenant delete should fail: {:?}",
+        matches!(err, ConfigError::EntityNotFound(_)),
+        "cross-tenant delete should fail with EntityNotFound, got: {:?}",
         err
     );
 }

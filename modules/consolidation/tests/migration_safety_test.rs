@@ -77,5 +77,7 @@ async fn forward_fix_rollback_and_reapply() {
 async fn tenant_isolation_enforced() {
     let pool = connect().await;
     sqlx::migrate!("db/migrations").run(&pool).await.expect("apply migrations");
-    mst::assert_min_tables_with_tenant_id(&pool, 2).await;
+    // Consolidation uses group-level tenant scoping: csl_groups.tenant_id is the
+    // single isolation anchor; other tables scope via group_id → csl_groups.
+    mst::assert_min_tables_with_tenant_id(&pool, 1).await;
 }

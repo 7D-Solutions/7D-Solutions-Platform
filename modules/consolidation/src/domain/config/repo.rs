@@ -158,11 +158,19 @@ pub async fn fetch_entities(
     }
 }
 
-pub async fn fetch_entity(pool: &PgPool, id: Uuid) -> Result<Option<GroupEntity>, sqlx::Error> {
-    sqlx::query_as::<_, GroupEntity>("SELECT * FROM csl_group_entities WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
-        .await
+pub async fn fetch_entity(
+    pool: &PgPool,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<Option<GroupEntity>, sqlx::Error> {
+    sqlx::query_as::<_, GroupEntity>(
+        "SELECT * FROM csl_group_entities \
+         WHERE id = $1 AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2)",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn update_entity_row(
@@ -338,12 +346,17 @@ pub async fn fetch_elimination_rules(
 
 pub async fn fetch_elimination_rule(
     pool: &PgPool,
+    tenant_id: &str,
     id: Uuid,
 ) -> Result<Option<EliminationRule>, sqlx::Error> {
-    sqlx::query_as::<_, EliminationRule>("SELECT * FROM csl_elimination_rules WHERE id = $1")
-        .bind(id)
-        .fetch_optional(pool)
-        .await
+    sqlx::query_as::<_, EliminationRule>(
+        "SELECT * FROM csl_elimination_rules \
+         WHERE id = $1 AND group_id IN (SELECT id FROM csl_groups WHERE tenant_id = $2)",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn update_elimination_rule_row(

@@ -55,8 +55,12 @@ pub async fn list_elimination_rules(
     Ok(repo::fetch_elimination_rules(pool, tenant_id, group_id, include_inactive).await?)
 }
 
-pub async fn get_elimination_rule(pool: &PgPool, id: Uuid) -> Result<EliminationRule, ConfigError> {
-    repo::fetch_elimination_rule(pool, id)
+pub async fn get_elimination_rule(
+    pool: &PgPool,
+    tenant_id: &str,
+    id: Uuid,
+) -> Result<EliminationRule, ConfigError> {
+    repo::fetch_elimination_rule(pool, tenant_id, id)
         .await?
         .ok_or(ConfigError::RuleNotFound(id))
 }
@@ -67,7 +71,7 @@ pub async fn update_elimination_rule(
     id: Uuid,
     req: &UpdateEliminationRuleRequest,
 ) -> Result<EliminationRule, ConfigError> {
-    let existing = get_elimination_rule(pool, id).await?;
+    let existing = get_elimination_rule(pool, tenant_id, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
 
     if let Some(ref name) = req.rule_name {
@@ -92,7 +96,7 @@ pub async fn delete_elimination_rule(
     tenant_id: &str,
     id: Uuid,
 ) -> Result<(), ConfigError> {
-    let existing = get_elimination_rule(pool, id).await?;
+    let existing = get_elimination_rule(pool, tenant_id, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
     repo::delete_elimination_rule_row(pool, id).await?;
     Ok(())
