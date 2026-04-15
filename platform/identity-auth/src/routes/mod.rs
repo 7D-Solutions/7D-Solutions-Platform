@@ -27,6 +27,8 @@ use utoipa::OpenApi;
         crate::auth::handlers_password_reset::reset_password,
         // Users
         crate::auth::handlers::get_user_by_email,
+        // Admin
+        crate::auth::handlers::list_users_admin,
         // RBAC
         crate::auth::handlers::list_roles,
         crate::auth::handlers::list_permissions,
@@ -48,6 +50,7 @@ use utoipa::OpenApi;
         crate::auth::handlers::SodPolicyUpsertReq,
         crate::auth::handlers::SodEvaluateReq,
         crate::auth::handlers::UserLookupResponse,
+        crate::auth::handlers::PlatformUserDetail,
         crate::auth::session::RefreshReq,
         crate::auth::session::LogoutReq,
         crate::auth::handlers_password_reset::ForgotPasswordRequest,

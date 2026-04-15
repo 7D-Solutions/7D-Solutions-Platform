@@ -5,7 +5,6 @@ use crate::{
     middleware::tracing::get_trace_id_from_extensions,
     rate_limit::KeyedLimiters,
 };
-use event_bus::EventEnvelope;
 use axum::{
     extract::{Path, State},
     http::{Extensions, HeaderMap, HeaderValue, StatusCode},
@@ -13,6 +12,7 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use event_bus::EventEnvelope;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::sync::Arc;
@@ -417,7 +417,12 @@ pub async fn delete_sod_policy(
     })?;
 
     if result.idempotent_replay || result.deleted {
-        Ok((StatusCode::OK, Json(serde_json::json!({"ok": true, "deleted": result.deleted, "idempotent_replay": result.idempotent_replay}))))
+        Ok((
+            StatusCode::OK,
+            Json(
+                serde_json::json!({"ok": true, "deleted": result.deleted, "idempotent_replay": result.idempotent_replay}),
+            ),
+        ))
     } else {
         Err(err(StatusCode::NOT_FOUND, "policy not found"))
     }
@@ -636,11 +641,7 @@ pub async fn register(
 
             if state
                 .events
-                .publish(
-                    "auth.user_registered",
-                    "auth.user.registered.v1.json",
-                    &env,
-                )
+                .publish("auth.user_registered", "auth.user.registered.v1.json", &env)
                 .await
                 .is_err()
             {
@@ -857,6 +858,7 @@ pub async fn login(
         UPDATE credentials
         SET failed_login_count = 0,
             lock_until = NULL,
+            last_login_at = NOW(),
             updated_at = NOW()
         WHERE tenant_id = $1 AND email = $2
         "#,
@@ -1146,11 +1148,7 @@ pub async fn login(
 
     if state
         .events
-        .publish(
-            "auth.user_logged_in",
-            "auth.user.logged_in.v1.json",
-            &env,
-        )
+        .publish("auth.user_logged_in", "auth.user.logged_in.v1.json", &env)
         .await
         .is_err()
     {
@@ -1269,4 +1267,93 @@ pub async fn list_permissions(
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
     Ok((StatusCode::OK, Json(perms)))
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/auth/admin/users — list users within a tenant (admin only)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+pub struct ListUsersAdminQuery {
+    pub tenant_id: Uuid,
+    pub search: Option<String>,
+    pub include_inactive: Option<bool>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow, utoipa::ToSchema)]
+pub struct PlatformUserDetail {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub email: String,
+    pub is_active: bool,
+    /// Role names the user holds via active role bindings.
+    pub roles: Vec<String>,
+    /// Permission keys the user holds via their active roles.
+    pub permissions: Vec<String>,
+    pub created_at: chrono::DateTime<Utc>,
+    pub last_login_at: Option<chrono::DateTime<Utc>>,
+}
+
+#[utoipa::path(get, path = "/api/auth/admin/users", tag = "Admin",
+    params(ListUsersAdminQuery),
+    responses(
+        (status = 200, description = "Users in tenant", body = Vec<PlatformUserDetail>),
+        (status = 401, description = "Unauthenticated"),
+        (status = 403, description = "Forbidden — missing admin.users.read permission"),
+        (status = 500, description = "Internal error"),
+    ),
+    security(("bearer" = [])))]
+pub async fn list_users_admin(
+    State(state): State<Arc<AuthState>>,
+    _auth: crate::auth::authz::AdminUsersRead,
+    axum::extract::Query(q): axum::extract::Query<ListUsersAdminQuery>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let include_inactive = q.include_inactive.unwrap_or(false);
+    let search_opt: Option<String> = q
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    let users = sqlx::query_as::<_, PlatformUserDetail>(
+        r#"
+        SELECT
+            c.user_id   AS id,
+            c.tenant_id,
+            c.email,
+            c.is_active,
+            c.created_at,
+            c.last_login_at,
+            COALESCE(
+                array_agg(DISTINCT r.name) FILTER (WHERE r.name IS NOT NULL),
+                '{}'
+            )::TEXT[] AS roles,
+            COALESCE(
+                array_agg(DISTINCT p.key)  FILTER (WHERE p.key  IS NOT NULL),
+                '{}'
+            )::TEXT[] AS permissions
+        FROM credentials c
+        LEFT JOIN user_role_bindings urb
+               ON urb.tenant_id = c.tenant_id
+              AND urb.user_id   = c.user_id
+              AND urb.revoked_at IS NULL
+        LEFT JOIN roles r ON r.id = urb.role_id AND r.tenant_id = c.tenant_id
+        LEFT JOIN role_permissions rp ON rp.role_id = r.id
+        LEFT JOIN permissions p ON p.id = rp.permission_id
+        WHERE c.tenant_id = $1
+          AND ($2 OR c.is_active)
+          AND ($3::TEXT IS NULL OR c.email ILIKE '%' || $3 || '%')
+        GROUP BY c.user_id, c.tenant_id, c.email, c.is_active, c.created_at, c.last_login_at
+        ORDER BY c.email
+        "#,
+    )
+    .bind(q.tenant_id)
+    .bind(include_inactive)
+    .bind(search_opt)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))?;
+
+    Ok((StatusCode::OK, Json(users)))
 }

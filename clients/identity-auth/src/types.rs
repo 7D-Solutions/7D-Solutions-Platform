@@ -4,9 +4,9 @@
 
 #![allow(unused_imports)]
 
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use crate::*;
 
 /// Pagination metadata for list endpoints.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -219,3 +219,15 @@ pub struct UserLookupResponse {
     pub tenant_id: uuid::Uuid,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlatformUserDetail {
+    pub id: uuid::Uuid,
+    pub tenant_id: uuid::Uuid,
+    pub email: String,
+    pub is_active: bool,
+    pub roles: Vec<String>,
+    pub permissions: Vec<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_login_at: Option<chrono::DateTime<chrono::Utc>>,
+}

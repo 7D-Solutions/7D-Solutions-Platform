@@ -1,3 +1,4 @@
+pub mod authz;
 pub mod concurrency;
 pub mod handlers;
 pub mod handlers_password_reset;

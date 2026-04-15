@@ -1,0 +1,1 @@
+ALTER TABLE credentials ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
