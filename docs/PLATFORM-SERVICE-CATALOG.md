@@ -35,7 +35,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 | party | party-rs | 3.2.6 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [Revisions](modules/party/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | payments | payments-rs | 5.1.7 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 2.2.1 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md), [Revisions](modules/pdf-editor/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| production | production-rs | 3.6.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| production | production-rs | 3.7.0 | 8108 | 5461 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows | [Revisions](modules/production/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | quality-inspection | quality-inspection-rs | 3.1.2 | 8106 | 5459 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking | [Revisions](modules/quality-inspection/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | reporting | reporting | 3.0.3 | 8096 | 5463 | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md), [Revisions](modules/reporting/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | shipping-receiving | shipping-receiving-rs | 3.4.4 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md), [Revisions](modules/shipping-receiving/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -53,6 +53,7 @@ No version bump discipline required yet.
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
 | crm-pipeline | crm-pipeline-rs | 0.1.0 | 8112 | 5465 | CRM Pipeline: leads, opportunities, pipeline stages, activities, and sales handoff |  |
+| customer-complaints | customer-complaints-rs | 0.1.0 |  | 5468 | Customer Complaints: intake, triage, investigation, resolution, and closure lifecycle |  |
 | outside-processing | outside-processing-rs | 0.1.0 |  | 5466 | Outside processing: send-out to external vendors, track round-trip, and record vendor review outcomes |  |
 | sales-orders | sales-orders-rs | 0.1.0 | 8109 | 5467 | Sales order lifecycle: draft, blanket orders, releases, reservation and shipment coordination |  |
 | shop-floor-gates | shop-floor-gates-rs | 0.1.0 |  |  | Shop floor gates: traveler holds, operation handoffs, start verifications, signoffs |  |
