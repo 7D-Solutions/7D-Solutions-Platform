@@ -1,0 +1,47 @@
+[module]
+name = "outside-processing"
+version = "0.1.0"
+description = "Outside processing: send-out to external vendors, track round-trip, vendor reviews, and re-identification"
+
+[server]
+host = "0.0.0.0"
+port = 8109
+
+[database]
+migrations = "./db/migrations"
+auto_migrate = true
+pool_min = 2
+pool_max = 20
+pool_acquire_timeout_secs = 5
+pool_idle_timeout_secs = 300
+
+[bus]
+type = "nats"
+stream_class = "operational"
+
+[events.publish]
+outbox_table = "op_outbox"
+
+[sdk]
+min_version = "0.1.0"
+
+[rate_limit.tiers.write]
+requests_per_window = 100
+window_seconds = 60
+routes = ["/api/"]
+methods = ["POST", "PUT", "PATCH", "DELETE"]
+
+[rate_limit.tiers.read]
+requests_per_window = 500
+window_seconds = 60
+routes = ["/api/"]
+methods = ["GET"]
+
+[rate_limit.tiers.auth]
+requests_per_window = 10
+window_seconds = 60
+routes = ["/api/auth", "/api/admin"]
+strategy = "ip_only"
+
+[cors]
+origins = []

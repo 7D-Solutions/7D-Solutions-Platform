@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/outside-processing-order-created.v1.json",
+  "title": "outside_processing.order_created",
+  "description": "Emitted when a new OP order is created in draft status",
+  "type": "object",
+  "required": ["event_id","event_type","occurred_at","tenant_id","source_module","source_version","schema_version","replay_safe","mutation_class","payload"],
+  "properties": {
+    "event_id": {"type":"string","format":"uuid"},
+    "event_type": {"type":"string","const":"outside_processing.order_created"},
+    "occurred_at": {"type":"string","format":"date-time"},
+    "tenant_id": {"type":"string"},
+    "source_module": {"type":"string","const":"outside-processing"},
+    "source_version": {"type":"string","pattern":"^\\d+\\.\\d+\\.\\d+$"},
+    "schema_version": {"type":"string","minLength":1},
+    "replay_safe": {"type":"boolean"},
+    "mutation_class": {"type":"string","enum":["DATA_MUTATION","REVERSAL","CORRECTION","SIDE_EFFECT","QUERY","LIFECYCLE","ADMINISTRATIVE"]},
+    "correlation_id": {"type":"string"},
+    "causation_id": {"type":"string"},
+    "payload": {
+      "type":"object",
+      "required":["op_order_id","op_order_number","tenant_id","created_at"],
+      "properties": {
+        "op_order_id": {"type":"string","format":"uuid"},
+        "op_order_number": {"type":"string"},
+        "tenant_id": {"type":"string"},
+        "vendor_id": {"type":["string","null"],"format":"uuid"},
+        "service_type": {"type":["string","null"]},
+        "work_order_id": {"type":["string","null"],"format":"uuid"},
+        "created_at": {"type":"string","format":"date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

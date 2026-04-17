@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/outside-processing-order-cancelled.v1.json",
+  "title": "outside_processing.order_cancelled",
+  "type": "object",
+  "required": ["event_id","event_type","occurred_at","tenant_id","source_module","source_version","schema_version","replay_safe","mutation_class","payload"],
+  "properties": {
+    "event_id": {"type":"string","format":"uuid"},
+    "event_type": {"type":"string","const":"outside_processing.order_cancelled"},
+    "occurred_at": {"type":"string","format":"date-time"},
+    "tenant_id": {"type":"string"},
+    "source_module": {"type":"string","const":"outside-processing"},
+    "source_version": {"type":"string"},
+    "schema_version": {"type":"string"},
+    "replay_safe": {"type":"boolean"},
+    "mutation_class": {"type":"string"},
+    "payload": {
+      "type":"object",
+      "required":["op_order_id","tenant_id","cancelled_at"],
+      "properties": {
+        "op_order_id": {"type":"string","format":"uuid"},
+        "tenant_id": {"type":"string"},
+        "reason": {"type":["string","null"]},
+        "cancelled_at": {"type":"string","format":"date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

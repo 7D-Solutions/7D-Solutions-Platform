@@ -52,9 +52,10 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| crm-pipeline | crm-pipeline-rs | 0.1.0 |  |  | CRM Pipeline: leads, opportunities, pipeline stages, activities, and sales handoff |  |
-| outside-processing | outside-processing-rs | 0.1.0 |  |  | Outside processing: send-out to external vendors, track round-trip, and record vendor review outcomes |  |
+| crm-pipeline | crm-pipeline-rs | 0.1.0 | 8112 | 5465 | CRM Pipeline: leads, opportunities, pipeline stages, activities, and sales handoff |  |
+| outside-processing | outside-processing-rs | 0.1.0 |  | 5466 | Outside processing: send-out to external vendors, track round-trip, and record vendor review outcomes |  |
 | sales-orders | sales-orders-rs | 0.1.0 |  |  | Sales order lifecycle: draft, blanket orders, releases, reservation and shipment coordination |  |
+| shop-floor-gates | shop-floor-gates-rs | 0.1.0 |  |  | Shop floor gates: traveler holds, operation handoffs, start verifications, signoffs |  |
 | smoke-test | smoke-test-rs | 0.1.0 |  |  | Minimal greenfield module — proves plug-and-play SDK works from scratch |  |
 | vertical-proof | vertical-proof | 0.1.0 |  |  | Proof vertical — proves a vertical can call ALL platform modules via SDK |  |
 

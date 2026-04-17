@@ -1,0 +1,301 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Outside Processing Service",
+    "version": "0.1.0",
+    "description": "Outside processing: send-out to external vendors, track round-trip, vendor reviews, and re-identification"
+  },
+  "paths": {
+    "/api/outside-processing/orders": {
+      "post": {
+        "summary": "Create OP order (draft)",
+        "operationId": "createOpOrder",
+        "tags": ["Orders"],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateOpOrderRequest"}}}},
+        "responses": {"201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/OpOrder"}}}}}
+      },
+      "get": {
+        "summary": "List OP orders",
+        "operationId": "listOpOrders",
+        "tags": ["Orders"],
+        "parameters": [
+          {"name": "status", "in": "query", "schema": {"type": "string"}},
+          {"name": "vendor_id", "in": "query", "schema": {"type": "string", "format": "uuid"}},
+          {"name": "work_order_id", "in": "query", "schema": {"type": "string", "format": "uuid"}},
+          {"name": "service_type", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}}
+        ],
+        "responses": {"200": {"description": "List of OP orders"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}": {
+      "get": {
+        "summary": "Get OP order detail",
+        "operationId": "getOpOrder",
+        "tags": ["Orders"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "OP order with sub-resources"}}
+      },
+      "put": {
+        "summary": "Update OP order header (draft/issued only)",
+        "operationId": "updateOpOrder",
+        "tags": ["Orders"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateOpOrderRequest"}}}},
+        "responses": {"200": {"description": "Updated order"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/issue": {
+      "post": {
+        "summary": "Issue OP order (draft → issued)",
+        "operationId": "issueOpOrder",
+        "tags": ["Orders"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueOpOrderRequest"}}}},
+        "responses": {"200": {"description": "Issued order"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/cancel": {
+      "post": {
+        "summary": "Cancel OP order",
+        "operationId": "cancelOpOrder",
+        "tags": ["Orders"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CancelOpOrderRequest"}}}},
+        "responses": {"200": {"description": "Cancelled order"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/close": {
+      "post": {
+        "summary": "Close OP order",
+        "operationId": "closeOpOrder",
+        "tags": ["Orders"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "Closed order"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/ship-events": {
+      "post": {
+        "summary": "Record ship event",
+        "operationId": "createShipEvent",
+        "tags": ["Ship/Return Events"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateShipEventRequest"}}}},
+        "responses": {"201": {"description": "Ship event recorded"}}
+      },
+      "get": {
+        "summary": "List ship events",
+        "operationId": "listShipEvents",
+        "tags": ["Ship/Return Events"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "List of ship events"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/return-events": {
+      "post": {
+        "summary": "Record return event",
+        "operationId": "createReturnEvent",
+        "tags": ["Ship/Return Events"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateReturnEventRequest"}}}},
+        "responses": {"201": {"description": "Return event recorded"}}
+      },
+      "get": {
+        "summary": "List return events",
+        "operationId": "listReturnEvents",
+        "tags": ["Ship/Return Events"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "List of return events"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/reviews": {
+      "post": {
+        "summary": "Record vendor review (append-only)",
+        "operationId": "createReview",
+        "tags": ["Reviews & Re-ID"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateReviewRequest"}}}},
+        "responses": {"201": {"description": "Review recorded"}}
+      },
+      "get": {
+        "summary": "List reviews",
+        "operationId": "listReviews",
+        "tags": ["Reviews & Re-ID"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "List of reviews"}}
+      }
+    },
+    "/api/outside-processing/orders/{id}/re-identifications": {
+      "post": {
+        "summary": "Record material re-identification",
+        "operationId": "createReIdentification",
+        "tags": ["Reviews & Re-ID"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateReIdentificationRequest"}}}},
+        "responses": {"201": {"description": "Re-identification recorded"}}
+      },
+      "get": {
+        "summary": "List re-identifications",
+        "operationId": "listReIdentifications",
+        "tags": ["Reviews & Re-ID"],
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {"200": {"description": "List of re-identifications"}}
+      }
+    },
+    "/api/outside-processing/status-labels": {
+      "get": {
+        "summary": "List tenant status labels",
+        "operationId": "listStatusLabels",
+        "tags": ["Labels"],
+        "responses": {"200": {"description": "List of status labels"}}
+      }
+    },
+    "/api/outside-processing/status-labels/{canonical}": {
+      "put": {
+        "summary": "Upsert status label for canonical status",
+        "operationId": "upsertStatusLabel",
+        "tags": ["Labels"],
+        "parameters": [{"name": "canonical", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpsertStatusLabelRequest"}}}},
+        "responses": {"200": {"description": "Updated label"}}
+      }
+    },
+    "/api/outside-processing/service-type-labels": {
+      "get": {
+        "summary": "List tenant service-type labels",
+        "operationId": "listServiceTypeLabels",
+        "tags": ["Labels"],
+        "responses": {"200": {"description": "List of service type labels"}}
+      }
+    },
+    "/api/outside-processing/service-type-labels/{code}": {
+      "put": {
+        "summary": "Register/update service-type code and display label",
+        "operationId": "upsertServiceTypeLabel",
+        "tags": ["Labels"],
+        "parameters": [{"name": "code", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpsertServiceTypeLabelRequest"}}}},
+        "responses": {"200": {"description": "Updated service type label"}}
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateOpOrderRequest": {
+        "type": "object",
+        "required": ["quantity_sent", "created_by"],
+        "properties": {
+          "vendor_id": {"type": "string", "format": "uuid"},
+          "service_type": {"type": "string"},
+          "service_description": {"type": "string"},
+          "process_spec_ref": {"type": "string"},
+          "part_number": {"type": "string"},
+          "part_revision": {"type": "string"},
+          "quantity_sent": {"type": "integer", "minimum": 1},
+          "unit_of_measure": {"type": "string"},
+          "work_order_id": {"type": "string", "format": "uuid"},
+          "operation_id": {"type": "string", "format": "uuid"},
+          "lot_id": {"type": "string", "format": "uuid"},
+          "serial_numbers": {"type": "array", "items": {"type": "string"}},
+          "expected_ship_date": {"type": "string", "format": "date"},
+          "expected_return_date": {"type": "string", "format": "date"},
+          "estimated_cost_cents": {"type": "integer"},
+          "notes": {"type": "string"},
+          "created_by": {"type": "string"}
+        }
+      },
+      "UpdateOpOrderRequest": {"type": "object", "properties": {}},
+      "IssueOpOrderRequest": {"type": "object", "properties": {"purchase_order_id": {"type": "string", "format": "uuid"}}},
+      "CancelOpOrderRequest": {"type": "object", "properties": {"reason": {"type": "string"}}},
+      "CreateShipEventRequest": {
+        "type": "object",
+        "required": ["ship_date", "quantity_shipped", "shipped_by"],
+        "properties": {
+          "ship_date": {"type": "string", "format": "date"},
+          "quantity_shipped": {"type": "integer", "minimum": 1},
+          "unit_of_measure": {"type": "string"},
+          "lot_number": {"type": "string"},
+          "carrier_name": {"type": "string"},
+          "tracking_number": {"type": "string"},
+          "packing_slip_number": {"type": "string"},
+          "shipped_by": {"type": "string"}
+        }
+      },
+      "CreateReturnEventRequest": {
+        "type": "object",
+        "required": ["received_date", "quantity_received", "condition", "received_by"],
+        "properties": {
+          "received_date": {"type": "string", "format": "date"},
+          "quantity_received": {"type": "integer", "minimum": 0},
+          "condition": {"type": "string", "enum": ["good", "damaged", "discrepancy"]},
+          "discrepancy_notes": {"type": "string"},
+          "received_by": {"type": "string"}
+        }
+      },
+      "CreateReviewRequest": {
+        "type": "object",
+        "required": ["return_event_id", "outcome", "reviewed_by", "reviewed_at"],
+        "properties": {
+          "return_event_id": {"type": "string", "format": "uuid"},
+          "outcome": {"type": "string", "enum": ["accepted", "rejected", "conditional"]},
+          "conditions": {"type": "string"},
+          "rejection_reason": {"type": "string"},
+          "rework": {"type": "boolean"},
+          "reviewed_by": {"type": "string"},
+          "reviewed_at": {"type": "string", "format": "date-time"},
+          "notes": {"type": "string"}
+        }
+      },
+      "CreateReIdentificationRequest": {
+        "type": "object",
+        "required": ["return_event_id", "old_part_number", "new_part_number", "reason", "performed_by", "performed_at"],
+        "properties": {
+          "return_event_id": {"type": "string", "format": "uuid"},
+          "old_part_number": {"type": "string"},
+          "new_part_number": {"type": "string"},
+          "reason": {"type": "string"},
+          "performed_by": {"type": "string"},
+          "performed_at": {"type": "string", "format": "date-time"}
+        }
+      },
+      "UpsertStatusLabelRequest": {
+        "type": "object",
+        "required": ["display_label", "updated_by"],
+        "properties": {
+          "display_label": {"type": "string"},
+          "description": {"type": "string"},
+          "updated_by": {"type": "string"}
+        }
+      },
+      "UpsertServiceTypeLabelRequest": {
+        "type": "object",
+        "required": ["display_label", "updated_by"],
+        "properties": {
+          "display_label": {"type": "string"},
+          "description": {"type": "string"},
+          "updated_by": {"type": "string"}
+        }
+      },
+      "OpOrder": {
+        "type": "object",
+        "properties": {
+          "op_order_id": {"type": "string", "format": "uuid"},
+          "tenant_id": {"type": "string"},
+          "op_order_number": {"type": "string"},
+          "status": {"type": "string", "enum": ["draft","issued","shipped_to_vendor","at_vendor","returned","review_in_progress","closed","cancelled"]},
+          "vendor_id": {"type": ["string","null"], "format": "uuid"},
+          "service_type": {"type": ["string","null"]},
+          "quantity_sent": {"type": "integer"},
+          "unit_of_measure": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+    }
+  },
+  "security": [{"bearer": []}]
+}
