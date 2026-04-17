@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/shop-floor-gates-handoff-cancelled.v1.json",
+  "title": "shop_floor_gates.handoff_cancelled",
+  "description": "Event emitted when an operation handoff is cancelled",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "shop_floor_gates.handoff_cancelled" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "shop-floor-gates" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"] },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["tenant_id", "handoff_id", "handoff_number", "work_order_id", "cancelled_by", "cancelled_at"],
+      "properties": {
+        "tenant_id": { "type": "string" },
+        "handoff_id": { "type": "string", "format": "uuid" },
+        "handoff_number": { "type": "string" },
+        "work_order_id": { "type": "string", "format": "uuid" },
+        "cancelled_by": { "type": "string", "format": "uuid" },
+        "cancelled_at": { "type": "string", "format": "date-time" },
+        "cancel_reason": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

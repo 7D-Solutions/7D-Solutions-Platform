@@ -1,0 +1,517 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Shop Floor Gates Service",
+    "description": "Shop floor gates: traveler holds, operation handoffs, operation start verifications, and signoffs.",
+    "license": { "name": "" },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/sfg/holds": {
+      "get": {
+        "tags": ["Holds"],
+        "summary": "List holds",
+        "operationId": "list_holds",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "hold_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "work_order_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "operation_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "List of holds", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/TravelerHold" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Holds"],
+        "summary": "Place a traveler hold",
+        "operationId": "place_hold",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlaceHoldRequest" } } } },
+        "responses": {
+          "201": { "description": "Hold placed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TravelerHold" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/holds/{id}": {
+      "get": {
+        "tags": ["Holds"],
+        "summary": "Get a hold",
+        "operationId": "get_hold",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Hold detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TravelerHold" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/holds/{id}/release": {
+      "post": {
+        "tags": ["Holds"],
+        "summary": "Release a hold",
+        "operationId": "release_hold",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReleaseHoldRequest" } } } },
+        "responses": {
+          "200": { "description": "Hold released", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TravelerHold" } } } },
+          "403": { "description": "Insufficient release authority" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/holds/{id}/cancel": {
+      "post": {
+        "tags": ["Holds"],
+        "summary": "Cancel a hold",
+        "operationId": "cancel_hold",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CancelHoldRequest" } } } },
+        "responses": {
+          "200": { "description": "Hold cancelled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TravelerHold" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/holds/active-count": {
+      "get": {
+        "tags": ["Holds"],
+        "summary": "Count active holds for a work order",
+        "operationId": "active_hold_count",
+        "parameters": [
+          { "name": "work_order_id", "in": "query", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Active hold count", "content": { "application/json": { "schema": { "type": "object", "properties": { "count": { "type": "integer" } } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/handoffs": {
+      "get": {
+        "tags": ["Handoffs"],
+        "summary": "List handoffs",
+        "operationId": "list_handoffs",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "work_order_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "source_operation_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "dest_operation_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "List of handoffs", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OperationHandoff" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Initiate a handoff",
+        "operationId": "initiate_handoff",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InitiateHandoffRequest" } } } },
+        "responses": {
+          "201": { "description": "Handoff initiated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationHandoff" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/handoffs/{id}": {
+      "get": {
+        "tags": ["Handoffs"],
+        "summary": "Get a handoff",
+        "operationId": "get_handoff",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Handoff detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationHandoff" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/handoffs/{id}/accept": {
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Accept a handoff",
+        "operationId": "accept_handoff",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AcceptHandoffRequest" } } } },
+        "responses": {
+          "200": { "description": "Handoff accepted" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/handoffs/{id}/reject": {
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Reject a handoff",
+        "operationId": "reject_handoff",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RejectHandoffRequest" } } } },
+        "responses": {
+          "200": { "description": "Handoff rejected" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/handoffs/{id}/cancel": {
+      "post": {
+        "tags": ["Handoffs"],
+        "summary": "Cancel a handoff",
+        "operationId": "cancel_handoff",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CancelHandoffRequest" } } } },
+        "responses": {
+          "200": { "description": "Handoff cancelled" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/verifications": {
+      "get": {
+        "tags": ["Verifications"],
+        "summary": "List verifications",
+        "operationId": "list_verifications",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "work_order_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "operation_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "List of verifications", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OperationStartVerification" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Verifications"],
+        "summary": "Create a start verification",
+        "operationId": "create_verification",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateVerificationRequest" } } } },
+        "responses": {
+          "201": { "description": "Verification created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationStartVerification" } } } },
+          "409": { "description": "Verification already exists for this operation" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/verifications/{id}": {
+      "get": {
+        "tags": ["Verifications"],
+        "summary": "Get a verification",
+        "operationId": "get_verification",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Verification detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperationStartVerification" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/verifications/{id}/operator-confirm": {
+      "post": {
+        "tags": ["Verifications"],
+        "summary": "Operator confirms setup checks",
+        "operationId": "operator_confirm",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OperatorConfirmRequest" } } } },
+        "responses": {
+          "200": { "description": "Operator confirmation recorded" },
+          "403": { "description": "Only the assigned operator can confirm" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/verifications/{id}/verify": {
+      "post": {
+        "tags": ["Verifications"],
+        "summary": "Verifier signs off on the operation start",
+        "operationId": "verify",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VerifyRequest" } } } },
+        "responses": {
+          "200": { "description": "Verification completed" },
+          "400": { "description": "Operator must confirm first or checkboxes not all true" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/verifications/{id}/skip": {
+      "post": {
+        "tags": ["Verifications"],
+        "summary": "Skip a verification (supervisor override)",
+        "operationId": "skip_verification",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SkipVerificationRequest" } } } },
+        "responses": {
+          "200": { "description": "Verification skipped" },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/signoffs": {
+      "get": {
+        "tags": ["Signoffs"],
+        "summary": "List signoffs",
+        "operationId": "list_signoffs",
+        "parameters": [
+          { "name": "entity_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "entity_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "role", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "List of signoffs", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Signoff" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Signoffs"],
+        "summary": "Record a signoff",
+        "operationId": "record_signoff",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecordSignoffRequest" } } } },
+        "responses": {
+          "201": { "description": "Signoff recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Signoff" } } } },
+          "400": { "description": "Invalid entity_type or missing signature_text" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/sfg/signoffs/{id}": {
+      "get": {
+        "tags": ["Signoffs"],
+        "summary": "Get a signoff",
+        "operationId": "get_signoff",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Signoff detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Signoff" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "TravelerHold": {
+        "type": "object",
+        "required": ["id", "tenant_id", "hold_number", "hold_type", "scope", "work_order_id", "reason", "status", "release_authority", "placed_by", "placed_at", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "hold_number": { "type": "string" },
+          "hold_type": { "type": "string", "enum": ["quality", "engineering", "material", "customer", "other"] },
+          "scope": { "type": "string", "enum": ["work_order", "operation"] },
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "operation_id": { "type": ["string", "null"], "format": "uuid" },
+          "reason": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "released", "cancelled"] },
+          "release_authority": { "type": "string" },
+          "placed_by": { "type": "string", "format": "uuid" },
+          "placed_at": { "type": "string", "format": "date-time" },
+          "released_by": { "type": ["string", "null"], "format": "uuid" },
+          "released_at": { "type": ["string", "null"], "format": "date-time" },
+          "release_notes": { "type": ["string", "null"] },
+          "cancelled_by": { "type": ["string", "null"], "format": "uuid" },
+          "cancelled_at": { "type": ["string", "null"], "format": "date-time" },
+          "cancel_reason": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PlaceHoldRequest": {
+        "type": "object",
+        "required": ["hold_type", "scope", "work_order_id", "reason"],
+        "properties": {
+          "hold_type": { "type": "string" },
+          "scope": { "type": "string" },
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "operation_id": { "type": ["string", "null"], "format": "uuid" },
+          "reason": { "type": "string" },
+          "release_authority": { "type": ["string", "null"] }
+        }
+      },
+      "ReleaseHoldRequest": {
+        "type": "object",
+        "properties": {
+          "release_notes": { "type": ["string", "null"] }
+        }
+      },
+      "CancelHoldRequest": {
+        "type": "object",
+        "properties": {
+          "cancel_reason": { "type": ["string", "null"] }
+        }
+      },
+      "OperationHandoff": {
+        "type": "object",
+        "required": ["id", "tenant_id", "handoff_number", "work_order_id", "source_operation_id", "dest_operation_id", "initiation_type", "status", "quantity", "unit_of_measure", "initiated_by", "initiated_at", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "handoff_number": { "type": "string" },
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "source_operation_id": { "type": "string", "format": "uuid" },
+          "dest_operation_id": { "type": "string", "format": "uuid" },
+          "initiation_type": { "type": "string", "enum": ["push", "pull"] },
+          "status": { "type": "string", "enum": ["initiated", "accepted", "rejected", "cancelled"] },
+          "quantity": { "type": "number" },
+          "unit_of_measure": { "type": "string" },
+          "lot_number": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] },
+          "initiated_by": { "type": "string", "format": "uuid" },
+          "initiated_at": { "type": "string", "format": "date-time" },
+          "accepted_by": { "type": ["string", "null"], "format": "uuid" },
+          "accepted_at": { "type": ["string", "null"], "format": "date-time" },
+          "rejected_by": { "type": ["string", "null"], "format": "uuid" },
+          "rejected_at": { "type": ["string", "null"], "format": "date-time" },
+          "rejection_reason": { "type": ["string", "null"] },
+          "cancelled_by": { "type": ["string", "null"], "format": "uuid" },
+          "cancelled_at": { "type": ["string", "null"], "format": "date-time" },
+          "cancel_reason": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "InitiateHandoffRequest": {
+        "type": "object",
+        "required": ["work_order_id", "source_operation_id", "dest_operation_id", "quantity", "unit_of_measure"],
+        "properties": {
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "source_operation_id": { "type": "string", "format": "uuid" },
+          "dest_operation_id": { "type": "string", "format": "uuid" },
+          "initiation_type": { "type": ["string", "null"] },
+          "quantity": { "type": "number" },
+          "unit_of_measure": { "type": "string" },
+          "lot_number": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "AcceptHandoffRequest": {
+        "type": "object",
+        "properties": {
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "RejectHandoffRequest": {
+        "type": "object",
+        "properties": {
+          "rejection_reason": { "type": ["string", "null"] }
+        }
+      },
+      "CancelHandoffRequest": {
+        "type": "object",
+        "properties": {
+          "cancel_reason": { "type": ["string", "null"] }
+        }
+      },
+      "OperationStartVerification": {
+        "type": "object",
+        "required": ["id", "tenant_id", "work_order_id", "operation_id", "status", "drawing_verified", "material_verified", "instruction_verified", "operator_id", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "operation_id": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["pending", "verified", "skipped"] },
+          "drawing_verified": { "type": "boolean" },
+          "material_verified": { "type": "boolean" },
+          "instruction_verified": { "type": "boolean" },
+          "operator_id": { "type": "string", "format": "uuid" },
+          "operator_confirmed_at": { "type": ["string", "null"], "format": "date-time" },
+          "verifier_id": { "type": ["string", "null"], "format": "uuid" },
+          "verified_at": { "type": ["string", "null"], "format": "date-time" },
+          "skipped_by": { "type": ["string", "null"], "format": "uuid" },
+          "skipped_at": { "type": ["string", "null"], "format": "date-time" },
+          "skip_reason": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateVerificationRequest": {
+        "type": "object",
+        "required": ["work_order_id", "operation_id"],
+        "properties": {
+          "work_order_id": { "type": "string", "format": "uuid" },
+          "operation_id": { "type": "string", "format": "uuid" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "OperatorConfirmRequest": {
+        "type": "object",
+        "required": ["drawing_verified", "material_verified", "instruction_verified"],
+        "properties": {
+          "drawing_verified": { "type": "boolean" },
+          "material_verified": { "type": "boolean" },
+          "instruction_verified": { "type": "boolean" }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "SkipVerificationRequest": {
+        "type": "object",
+        "properties": {
+          "skip_reason": { "type": ["string", "null"] }
+        }
+      },
+      "Signoff": {
+        "type": "object",
+        "required": ["id", "tenant_id", "entity_type", "entity_id", "role", "signoff_number", "signed_by", "signed_at", "signature_text", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "entity_type": { "type": "string", "enum": ["work_order", "operation", "operation_handoff", "operation_start_verification", "traveler_hold"] },
+          "entity_id": { "type": "string", "format": "uuid" },
+          "role": { "type": "string" },
+          "signoff_number": { "type": "string" },
+          "signed_by": { "type": "string", "format": "uuid" },
+          "signed_at": { "type": "string", "format": "date-time" },
+          "signature_text": { "type": "string" },
+          "notes": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RecordSignoffRequest": {
+        "type": "object",
+        "required": ["entity_type", "entity_id", "role", "signature_text"],
+        "properties": {
+          "entity_type": { "type": "string" },
+          "entity_id": { "type": "string", "format": "uuid" },
+          "role": { "type": "string" },
+          "signature_text": { "type": "string" },
+          "notes": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/shop-floor-gates-handoff-initiated.v1.json",
+  "title": "shop_floor_gates.handoff_initiated",
+  "description": "Event emitted when an operation handoff is initiated",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "shop_floor_gates.handoff_initiated" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "shop-floor-gates" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"] },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["tenant_id", "handoff_id", "handoff_number", "work_order_id", "source_operation_id", "dest_operation_id", "initiation_type", "quantity", "unit_of_measure", "initiated_by", "initiated_at"],
+      "properties": {
+        "tenant_id": { "type": "string" },
+        "handoff_id": { "type": "string", "format": "uuid" },
+        "handoff_number": { "type": "string" },
+        "work_order_id": { "type": "string", "format": "uuid" },
+        "source_operation_id": { "type": "string", "format": "uuid" },
+        "dest_operation_id": { "type": "string", "format": "uuid" },
+        "initiation_type": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit_of_measure": { "type": "string" },
+        "initiated_by": { "type": "string", "format": "uuid" },
+        "initiated_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

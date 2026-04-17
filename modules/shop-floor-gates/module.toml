@@ -1,0 +1,8 @@
+[module]
+name = "shop-floor-gates"
+version = "0.1.0"
+port = 8201
+stream_class = "operational"
+
+[bus]
+enabled = true

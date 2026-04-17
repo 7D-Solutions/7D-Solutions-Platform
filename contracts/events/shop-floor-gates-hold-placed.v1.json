@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/shop-floor-gates-hold-placed.v1.json",
+  "title": "shop_floor_gates.hold_placed",
+  "description": "Event emitted when a traveler hold is placed on a work order or operation",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "shop_floor_gates.hold_placed" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "shop-floor-gates" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"] },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["tenant_id", "hold_id", "hold_number", "hold_type", "scope", "work_order_id", "placed_by", "placed_at"],
+      "properties": {
+        "tenant_id": { "type": "string" },
+        "hold_id": { "type": "string", "format": "uuid" },
+        "hold_number": { "type": "string" },
+        "hold_type": { "type": "string" },
+        "scope": { "type": "string" },
+        "work_order_id": { "type": "string", "format": "uuid" },
+        "operation_id": { "type": ["string", "null"], "format": "uuid" },
+        "placed_by": { "type": "string", "format": "uuid" },
+        "placed_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
