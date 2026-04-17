@@ -21,6 +21,7 @@ pub enum BomEventType {
     RevisionSuperseded,
     RevisionReleased,
     MrpExploded,
+    KitReadinessChecked,
 }
 
 impl BomEventType {
@@ -40,6 +41,7 @@ impl BomEventType {
             Self::RevisionSuperseded => "bom.revision_superseded",
             Self::RevisionReleased => "bom.revision_released",
             Self::MrpExploded => "bom.mrp_exploded",
+            Self::KitReadinessChecked => "bom.kit_readiness_checked",
         }
     }
 }
@@ -451,6 +453,39 @@ pub struct MrpExplodedPayload {
     pub demand_quantity: f64,
     pub line_count: i64,
     pub net_shortage_count: i64,
+}
+
+// ============================================================================
+// Kit Readiness event payload + envelope builder
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KitReadinessCheckedPayload {
+    pub snapshot_id: Uuid,
+    pub bom_id: Uuid,
+    pub overall_status: String,
+}
+
+pub fn build_kit_readiness_checked_envelope(
+    snapshot_id: Uuid,
+    bom_id: Uuid,
+    overall_status: String,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<KitReadinessCheckedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::KitReadinessChecked.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        KitReadinessCheckedPayload {
+            snapshot_id,
+            bom_id,
+            overall_status,
+        },
+    )
 }
 
 pub fn build_mrp_exploded_envelope(

@@ -19,4 +19,7 @@ pub enum BomError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("Inventory service unavailable: {0}")]
+    InventoryUnavailable(String),
 }

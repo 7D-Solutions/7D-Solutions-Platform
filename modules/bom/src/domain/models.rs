@@ -225,6 +225,49 @@ pub struct BomLineEnriched {
     pub item: Option<ItemDetails>,
 }
 
+// ============================================================================
+// Kit Readiness models
+// ============================================================================
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct KitReadinessCheckRequest {
+    pub bom_id: Uuid,
+    pub required_quantity: f64,
+    pub check_date: DateTime<Utc>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
+pub struct KitReadinessSnapshot {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub bom_id: Uuid,
+    pub required_quantity: f64,
+    pub check_date: DateTime<Utc>,
+    pub overall_status: String,
+    #[schema(value_type = Object)]
+    pub issue_summary: serde_json::Value,
+    pub created_by: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct KitReadinessLine {
+    pub component_item_id: Uuid,
+    pub required_qty: f64,
+    pub on_hand_qty: i64,
+    pub expired_qty: i64,
+    pub available_qty: i64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct KitReadinessResult {
+    #[serde(flatten)]
+    pub snapshot: KitReadinessSnapshot,
+    pub lines: Vec<KitReadinessLine>,
+}
+
 /// Query parameters for the `GET /api/bom/revisions/{revision_id}/lines` endpoint.
 ///
 /// Extends pagination with an optional `include` flag.

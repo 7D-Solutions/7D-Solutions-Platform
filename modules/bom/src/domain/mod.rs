@@ -4,6 +4,7 @@ pub mod eco_models;
 pub mod eco_service;
 pub mod guards;
 pub mod inventory_client;
+pub mod kit_readiness_engine;
 pub mod models;
 pub mod mrp_engine;
 pub mod numbering_client;

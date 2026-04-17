@@ -51,6 +51,10 @@ pub fn into_api_error(err: BomError) -> ApiError {
             tracing::error!(error = %e, "database error");
             ApiError::internal("Database error").with_request_id(request_id())
         }
+        BomError::InventoryUnavailable(msg) => {
+            tracing::warn!(error = %msg, "inventory service unavailable");
+            ApiError::new(503, "inventory_unavailable", msg).with_request_id(request_id())
+        }
     }
 }
 

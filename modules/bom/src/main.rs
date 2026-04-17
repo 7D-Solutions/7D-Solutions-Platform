@@ -11,8 +11,9 @@ use bom_rs::{
         },
         models::{
             AddLineRequest, BomHeader, BomLine, BomLineEnriched, BomRevision, CreateBomRequest,
-            CreateRevisionRequest, ExplosionRow, ItemDetails, MrpExplodeRequest, MrpRequirementLine,
-            MrpSnapshot, MrpSnapshotWithLines, OnHandEntry,
+            CreateRevisionRequest, ExplosionRow, ItemDetails, KitReadinessCheckRequest,
+            KitReadinessLine, KitReadinessResult, KitReadinessSnapshot, MrpExplodeRequest,
+            MrpRequirementLine, MrpSnapshot, MrpSnapshotWithLines, OnHandEntry,
             SetEffectivityRequest, UpdateLineRequest, WhereUsedRow,
         },
     },
@@ -27,6 +28,7 @@ use bom_rs::{
             get_eco_history_for_part, post_apply, post_approve, post_eco, post_link_bom_revision,
             post_link_doc_revision, post_reject, post_submit,
         },
+        kit_readiness_routes::{get_kit_readiness_snapshot, post_kit_readiness_check},
         mrp_routes::{get_mrp_snapshot, list_mrp_snapshots, post_mrp_explode},
     },
     metrics::BomMetrics,
@@ -75,6 +77,10 @@ use platform_sdk::ModuleBuilder;
         bom_rs::http::mrp_routes::get_mrp_snapshot,
         bom_rs::http::mrp_routes::list_mrp_snapshots,
 
+        // Kit Readiness
+        bom_rs::http::kit_readiness_routes::post_kit_readiness_check,
+        bom_rs::http::kit_readiness_routes::get_kit_readiness_snapshot,
+
         // ECO
         bom_rs::http::eco_routes::post_eco,
         bom_rs::http::eco_routes::get_eco,
@@ -96,6 +102,7 @@ use platform_sdk::ModuleBuilder;
         CreateBomRequest, CreateRevisionRequest, SetEffectivityRequest,
         AddLineRequest, UpdateLineRequest,
         MrpSnapshot, MrpRequirementLine, MrpSnapshotWithLines, OnHandEntry, MrpExplodeRequest,
+        KitReadinessCheckRequest, KitReadinessResult, KitReadinessSnapshot, KitReadinessLine,
         Eco, EcoAuditEntry, EcoBomRevision, EcoDocRevision,
         CreateEcoRequest, LinkBomRevisionRequest, LinkDocRevisionRequest,
         EcoActionRequest, ApplyEcoRequest,
@@ -159,6 +166,22 @@ async fn main() {
                 .route(
                     "/api/bom/mrp/snapshots/{snapshot_id}",
                     axum::routing::get(get_mrp_snapshot),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_READ]))
+                .with_state(app_state.clone());
+
+            let kit_readiness_mutations = Router::new()
+                .route(
+                    "/api/bom/kit-readiness/check",
+                    axum::routing::post(post_kit_readiness_check),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_MUTATE]))
+                .with_state(app_state.clone());
+
+            let kit_readiness_reads = Router::new()
+                .route(
+                    "/api/bom/kit-readiness/snapshots/{snapshot_id}",
+                    axum::routing::get(get_kit_readiness_snapshot),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_READ]))
                 .with_state(app_state.clone());
@@ -251,6 +274,8 @@ async fn main() {
                 .merge(bom_mutations)
                 .merge(mrp_reads)
                 .merge(mrp_mutations)
+                .merge(kit_readiness_reads)
+                .merge(kit_readiness_mutations)
                 .route("/api/openapi.json", get(openapi_json))
         })
         .run()

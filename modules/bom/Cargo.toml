@@ -1,6 +1,6 @@
 [package]
 name = "bom-rs"
-version = "2.6.0"
+version = "2.7.0"
 edition = "2021"
 description = "Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used"
 
