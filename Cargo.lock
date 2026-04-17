@@ -132,7 +132,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ap"
-version = "3.6.3"
+version = "3.7.0"
 dependencies = [
  "async-nats",
  "audit",
@@ -1095,7 +1095,7 @@ dependencies = [
 
 [[package]]
 name = "bom-rs"
-version = "2.6.0"
+version = "2.7.0"
 dependencies = [
  "axum",
  "chrono",
@@ -3334,7 +3334,7 @@ dependencies = [
 
 [[package]]
 name = "inventory-rs"
-version = "2.7.3"
+version = "2.8.0"
 dependencies = [
  "axum",
  "chrono",
@@ -3348,6 +3348,7 @@ dependencies = [
  "platform-sdk",
  "projections",
  "prometheus",
+ "regex",
  "security",
  "serde",
  "serde_json",
@@ -4484,6 +4485,18 @@ dependencies = [
 
 [[package]]
 name = "platform-client-crm-pipeline"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "platform-http-contracts",
+ "platform-sdk",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "platform-client-customer-complaints"
 version = "0.1.0"
 dependencies = [
  "chrono",
@@ -5923,7 +5936,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.9.0"
+version = "1.10.1"
 dependencies = [
  "axum",
  "base64",
@@ -8331,7 +8344,7 @@ dependencies = [
 
 [[package]]
 name = "workforce-competence-rs"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "axum",
  "chrono",

@@ -21,7 +21,7 @@ impl BlanketsClient {
     ) -> Result<BlanketOrder, ClientError> {
         let resp = self
             .client
-            .post("/api/so/blankets", claims, body)
+            .post("/api/so/blankets", body, claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -51,7 +51,7 @@ impl BlanketsClient {
         let path = format!("/api/so/blankets/{}/activate", blanket_id);
         let resp = self
             .client
-            .post(&path, claims, &serde_json::json!({}))
+            .post(&path, &serde_json::json!({}), claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -67,7 +67,7 @@ impl BlanketsClient {
         let path = format!("/api/so/blankets/{}/releases", blanket_id);
         let resp = self
             .client
-            .post(&path, claims, body)
+            .post(&path, body, claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await

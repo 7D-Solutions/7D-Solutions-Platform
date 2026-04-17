@@ -21,7 +21,7 @@ impl SalesOrdersClient {
     ) -> Result<SalesOrder, ClientError> {
         let resp = self
             .client
-            .post("/api/so/orders", claims, body)
+            .post("/api/so/orders", body, claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -67,7 +67,7 @@ impl SalesOrdersClient {
         let path = format!("/api/so/orders/{}", order_id);
         let resp = self
             .client
-            .put(&path, claims, body)
+            .put(&path, body, claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -82,7 +82,7 @@ impl SalesOrdersClient {
         let path = format!("/api/so/orders/{}/book", order_id);
         let resp = self
             .client
-            .post(&path, claims, &serde_json::json!({}))
+            .post(&path, &serde_json::json!({}), claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -97,7 +97,7 @@ impl SalesOrdersClient {
         let path = format!("/api/so/orders/{}/cancel", order_id);
         let resp = self
             .client
-            .post(&path, claims, &serde_json::json!({}))
+            .post(&path, &serde_json::json!({}), claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await
@@ -113,7 +113,7 @@ impl SalesOrdersClient {
         let path = format!("/api/so/orders/{}/lines", order_id);
         let resp = self
             .client
-            .post(&path, claims, body)
+            .post(&path, body, claims)
             .await
             .map_err(ClientError::Network)?;
         parse_response(resp).await

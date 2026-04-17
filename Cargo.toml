@@ -86,6 +86,7 @@ members = [
   "clients/workforce-competence",
   "clients/outside-processing",
   "clients/crm-pipeline",
+  "clients/customer-complaints",
   "modules/sales-orders",
   "clients/sales-orders",
   "modules/shop-floor-gates",

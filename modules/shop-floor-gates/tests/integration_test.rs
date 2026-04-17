@@ -365,7 +365,7 @@ async fn signoff_invalid_entity_type_rejected() {
         &t,
         signed_by,
         RecordSignoffRequest {
-            entity_type: "ncr".to_string(),
+            entity_type: "unknown_type".to_string(),
             entity_id: Uuid::new_v4(),
             role: "quality".to_string(),
             signature_text: "Signed".to_string(),
