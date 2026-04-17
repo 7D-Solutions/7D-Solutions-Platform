@@ -19,7 +19,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 3.6.3 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [Revisions](modules/ap/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | ar | ar-rs | 6.6.4 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| bom | bom-rs | 2.5.1 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| bom | bom-rs | 2.6.0 | 8107 | 5450 | Bill of Materials: multi-level BOM structure with revisions, effectivity, explosion, and where-used | [Revisions](modules/bom/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 2.3.3 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md), [Revisions](modules/consolidation/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.6.4 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
 | customer-portal | customer-portal | 2.3.3 | 8111 | 5464 | External customer portal auth boundary service | [Revisions](modules/customer-portal/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
@@ -54,7 +54,7 @@ No version bump discipline required yet.
 |--------|-------|---------|------|---------|-------------|------|
 | crm-pipeline | crm-pipeline-rs | 0.1.0 | 8112 | 5465 | CRM Pipeline: leads, opportunities, pipeline stages, activities, and sales handoff |  |
 | outside-processing | outside-processing-rs | 0.1.0 |  | 5466 | Outside processing: send-out to external vendors, track round-trip, and record vendor review outcomes |  |
-| sales-orders | sales-orders-rs | 0.1.0 |  |  | Sales order lifecycle: draft, blanket orders, releases, reservation and shipment coordination |  |
+| sales-orders | sales-orders-rs | 0.1.0 | 8109 | 5467 | Sales order lifecycle: draft, blanket orders, releases, reservation and shipment coordination |  |
 | shop-floor-gates | shop-floor-gates-rs | 0.1.0 |  |  | Shop floor gates: traveler holds, operation handoffs, start verifications, signoffs |  |
 | smoke-test | smoke-test-rs | 0.1.0 |  |  | Minimal greenfield module — proves plug-and-play SDK works from scratch |  |
 | vertical-proof | vertical-proof | 0.1.0 |  |  | Proof vertical — proves a vertical can call ALL platform modules via SDK |  |

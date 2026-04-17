@@ -5,5 +5,6 @@ pub mod eco_service;
 pub mod guards;
 pub mod inventory_client;
 pub mod models;
+pub mod mrp_engine;
 pub mod numbering_client;
 pub mod outbox;

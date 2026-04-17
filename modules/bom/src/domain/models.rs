@@ -116,6 +116,71 @@ pub struct WhereUsedQuery {
     pub date: Option<DateTime<Utc>>,
 }
 
+// ============================================================================
+// MRP (Net Requirements) models
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct MrpSnapshot {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub bom_id: Uuid,
+    pub demand_quantity: f64,
+    pub effectivity_date: DateTime<Utc>,
+    #[schema(value_type = Object)]
+    pub on_hand_snapshot: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct MrpRequirementLine {
+    pub id: i64,
+    pub snapshot_id: Uuid,
+    pub level: i32,
+    pub parent_part_id: Uuid,
+    pub component_item_id: Uuid,
+    pub gross_quantity: f64,
+    pub scrap_factor: f64,
+    pub scrap_adjusted_quantity: f64,
+    pub on_hand_quantity: f64,
+    pub net_quantity: f64,
+    pub uom: Option<String>,
+    pub revision_id: Uuid,
+    pub revision_label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct MrpSnapshotWithLines {
+    #[serde(flatten)]
+    pub snapshot: MrpSnapshot,
+    pub lines: Vec<MrpRequirementLine>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct OnHandEntry {
+    pub item_id: Uuid,
+    pub quantity: f64,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct MrpExplodeRequest {
+    pub bom_id: Uuid,
+    pub demand_quantity: f64,
+    pub effectivity_date: DateTime<Utc>,
+    pub on_hand: Vec<OnHandEntry>,
+    pub created_by: String,
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct MrpSnapshotListQuery {
+    pub bom_id: Option<Uuid>,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
+}
+
 fn default_page() -> i64 {
     1
 }

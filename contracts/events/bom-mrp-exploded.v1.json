@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/bom-mrp-exploded.v1.json",
+  "title": "bom.mrp_exploded",
+  "description": "Event emitted when a BOM MRP net-requirements explosion is computed and persisted",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "bom.mrp_exploded",
+      "description": "Event type following entity.action convention"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "bom",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ],
+      "description": "Classification of the mutation"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "snapshot_id",
+        "bom_id",
+        "demand_quantity",
+        "line_count",
+        "net_shortage_count"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "MRP snapshot ID (primary audit record)"
+        },
+        "bom_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "BOM header that was exploded"
+        },
+        "demand_quantity": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Top-level demand quantity that was exploded"
+        },
+        "line_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of requirement lines produced"
+        },
+        "net_shortage_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of lines with net_quantity > 0 (actual shortages)"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

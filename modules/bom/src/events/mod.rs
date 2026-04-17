@@ -20,6 +20,7 @@ pub enum BomEventType {
     EcoApplied,
     RevisionSuperseded,
     RevisionReleased,
+    MrpExploded,
 }
 
 impl BomEventType {
@@ -38,6 +39,7 @@ impl BomEventType {
             Self::EcoApplied => "eco.applied",
             Self::RevisionSuperseded => "bom.revision_superseded",
             Self::RevisionReleased => "bom.revision_released",
+            Self::MrpExploded => "bom.mrp_exploded",
         }
     }
 }
@@ -434,6 +436,45 @@ pub fn build_revision_released_envelope(
             eco_id,
             effective_from,
             effective_to,
+        },
+    )
+}
+
+// ============================================================================
+// MRP event payload + envelope builder
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MrpExplodedPayload {
+    pub snapshot_id: Uuid,
+    pub bom_id: Uuid,
+    pub demand_quantity: f64,
+    pub line_count: i64,
+    pub net_shortage_count: i64,
+}
+
+pub fn build_mrp_exploded_envelope(
+    snapshot_id: Uuid,
+    bom_id: Uuid,
+    demand_quantity: f64,
+    line_count: i64,
+    net_shortage_count: i64,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<MrpExplodedPayload> {
+    create_bom_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        BomEventType::MrpExploded.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        MrpExplodedPayload {
+            snapshot_id,
+            bom_id,
+            demand_quantity,
+            line_count,
+            net_shortage_count,
         },
     )
 }

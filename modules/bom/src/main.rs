@@ -11,8 +11,9 @@ use bom_rs::{
         },
         models::{
             AddLineRequest, BomHeader, BomLine, BomLineEnriched, BomRevision, CreateBomRequest,
-            CreateRevisionRequest, ExplosionRow, ItemDetails, SetEffectivityRequest,
-            UpdateLineRequest, WhereUsedRow,
+            CreateRevisionRequest, ExplosionRow, ItemDetails, MrpExplodeRequest, MrpRequirementLine,
+            MrpSnapshot, MrpSnapshotWithLines, OnHandEntry,
+            SetEffectivityRequest, UpdateLineRequest, WhereUsedRow,
         },
     },
     http::{
@@ -26,6 +27,7 @@ use bom_rs::{
             get_eco_history_for_part, post_apply, post_approve, post_eco, post_link_bom_revision,
             post_link_doc_revision, post_reject, post_submit,
         },
+        mrp_routes::{get_mrp_snapshot, list_mrp_snapshots, post_mrp_explode},
     },
     metrics::BomMetrics,
     AppState, InventoryClient, NumberingClient,
@@ -68,6 +70,11 @@ use platform_sdk::ModuleBuilder;
         bom_rs::http::bom_routes::get_explosion,
         bom_rs::http::bom_routes::get_where_used,
 
+        // MRP
+        bom_rs::http::mrp_routes::post_mrp_explode,
+        bom_rs::http::mrp_routes::get_mrp_snapshot,
+        bom_rs::http::mrp_routes::list_mrp_snapshots,
+
         // ECO
         bom_rs::http::eco_routes::post_eco,
         bom_rs::http::eco_routes::get_eco,
@@ -88,13 +95,14 @@ use platform_sdk::ModuleBuilder;
         BomHeader, BomRevision, BomLine, BomLineEnriched, ItemDetails, ExplosionRow, WhereUsedRow,
         CreateBomRequest, CreateRevisionRequest, SetEffectivityRequest,
         AddLineRequest, UpdateLineRequest,
+        MrpSnapshot, MrpRequirementLine, MrpSnapshotWithLines, OnHandEntry, MrpExplodeRequest,
         Eco, EcoAuditEntry, EcoBomRevision, EcoDocRevision,
         CreateEcoRequest, LinkBomRevisionRequest, LinkDocRevisionRequest,
         EcoActionRequest, ApplyEcoRequest,
         ApiError, PaginatedResponse<BomHeader>, PaginatedResponse<BomRevision>,
         PaginatedResponse<BomLine>, PaginatedResponse<Eco>,
         PaginatedResponse<EcoAuditEntry>, PaginatedResponse<EcoBomRevision>,
-        PaginatedResponse<EcoDocRevision>, PaginationMeta,
+        PaginatedResponse<EcoDocRevision>, PaginatedResponse<MrpSnapshot>, PaginationMeta,
     )),
     security(
         ("bearer" = [])
@@ -140,6 +148,20 @@ async fn main() {
                 numbering,
                 inventory,
             });
+
+            let mrp_mutations = Router::new()
+                .route("/api/bom/mrp/explode", axum::routing::post(post_mrp_explode))
+                .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_MUTATE]))
+                .with_state(app_state.clone());
+
+            let mrp_reads = Router::new()
+                .route("/api/bom/mrp/snapshots", axum::routing::get(list_mrp_snapshots))
+                .route(
+                    "/api/bom/mrp/snapshots/{snapshot_id}",
+                    axum::routing::get(get_mrp_snapshot),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[permissions::BOM_READ]))
+                .with_state(app_state.clone());
 
             let bom_mutations = Router::new()
                 .route("/api/bom", axum::routing::post(post_bom))
@@ -227,6 +249,8 @@ async fn main() {
             Router::new()
                 .merge(bom_reads)
                 .merge(bom_mutations)
+                .merge(mrp_reads)
+                .merge(mrp_mutations)
                 .route("/api/openapi.json", get(openapi_json))
         })
         .run()
