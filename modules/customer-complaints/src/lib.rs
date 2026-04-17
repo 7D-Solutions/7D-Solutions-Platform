@@ -4,6 +4,7 @@ pub mod domain;
 pub mod events;
 pub mod http;
 pub mod metrics;
+pub mod outbox;
 
 pub use config::Config;
 

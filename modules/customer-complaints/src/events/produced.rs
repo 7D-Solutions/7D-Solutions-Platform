@@ -8,14 +8,14 @@ use uuid::Uuid;
 use super::envelope::{create_cc_envelope, EventEnvelope};
 use super::{MUTATION_DATA, MUTATION_LIFECYCLE};
 
-pub const EVENT_COMPLAINT_RECEIVED: &str = "customer_complaints.complaint.received";
-pub const EVENT_COMPLAINT_TRIAGED: &str = "customer_complaints.complaint.triaged";
-pub const EVENT_COMPLAINT_STATUS_CHANGED: &str = "customer_complaints.complaint.status_changed";
-pub const EVENT_COMPLAINT_ASSIGNED: &str = "customer_complaints.complaint.assigned";
-pub const EVENT_COMPLAINT_CUSTOMER_COMMUNICATED: &str = "customer_complaints.complaint.customer_communicated";
-pub const EVENT_COMPLAINT_RESOLVED: &str = "customer_complaints.complaint.resolved";
-pub const EVENT_COMPLAINT_CLOSED: &str = "customer_complaints.complaint.closed";
-pub const EVENT_COMPLAINT_OVERDUE: &str = "customer_complaints.complaint.overdue";
+pub const EVENT_COMPLAINT_RECEIVED: &str = "customer_complaints.complaint_received";
+pub const EVENT_COMPLAINT_TRIAGED: &str = "customer_complaints.complaint_triaged";
+pub const EVENT_COMPLAINT_STATUS_CHANGED: &str = "customer_complaints.status_changed";
+pub const EVENT_COMPLAINT_ASSIGNED: &str = "customer_complaints.assigned";
+pub const EVENT_COMPLAINT_CUSTOMER_COMMUNICATED: &str = "customer_complaints.customer_communicated";
+pub const EVENT_COMPLAINT_RESOLVED: &str = "customer_complaints.resolved";
+pub const EVENT_COMPLAINT_CLOSED: &str = "customer_complaints.closed";
+pub const EVENT_COMPLAINT_OVERDUE: &str = "customer_complaints.complaint_overdue";
 
 // ── complaint.received ────────────────────────────────────────────────────────
 

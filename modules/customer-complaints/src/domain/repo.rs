@@ -233,7 +233,7 @@ pub async fn respond_complaint(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &str,
     complaint_id: Uuid,
-    req: &RespondComplaintRequest,
+    _req: &RespondComplaintRequest,
 ) -> Result<Complaint, ComplaintError> {
     let current = fetch_for_update(tx, tenant_id, complaint_id).await?;
     let next = state_machine::transition_respond(&current.status)?;
@@ -713,6 +713,19 @@ pub async fn list_source_labels(
     .fetch_all(pool)
     .await?;
     Ok(rows)
+}
+
+// ── Numbering ─────────────────────────────────────────────────────────────────
+
+pub async fn next_complaint_number(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: &str,
+) -> Result<String, ComplaintError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM complaints WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(&mut *conn)
+        .await?;
+    Ok(format!("CC-{:05}", count + 1))
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────

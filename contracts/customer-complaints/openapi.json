@@ -1,0 +1,606 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Customer Complaints Service",
+    "description": "Customer complaint lifecycle: intake, triage, investigation, resolution, and closure.",
+    "license": { "name": "" },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/customer-complaints/complaints": {
+      "get": {
+        "tags": ["Complaints"],
+        "summary": "List complaints",
+        "operationId": "list_complaints",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "severity", "in": "query", "schema": { "type": "string" } },
+          { "name": "category_code", "in": "query", "schema": { "type": "string" } },
+          { "name": "party_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "assigned_to", "in": "query", "schema": { "type": "string" } },
+          { "name": "source_entity_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "from_date", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to_date", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated list of complaints", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Complaint" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Create a complaint",
+        "operationId": "create_complaint",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateComplaintRequest" } } } },
+        "responses": {
+          "201": { "description": "Complaint created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}": {
+      "get": {
+        "tags": ["Complaints"],
+        "summary": "Get complaint detail",
+        "operationId": "get_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Complaint detail with activity log and resolution", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintDetail" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "put": {
+        "tags": ["Complaints"],
+        "summary": "Update complaint header",
+        "operationId": "update_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated complaint", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/triage": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Triage complaint (intake → triaged)",
+        "operationId": "triage_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TriageComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Triaged complaint", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "403": { "description": "Missing complaint.triage permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "422": { "description": "Invalid state transition", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/start-investigation": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Start investigation (triaged → investigating)",
+        "operationId": "start_investigation",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StartInvestigationRequest" } } } },
+        "responses": {
+          "200": { "description": "Complaint under investigation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "422": { "description": "Invalid state transition", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/respond": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Mark as responded (investigating → responded)",
+        "operationId": "respond_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RespondComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Complaint marked as responded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "422": { "description": "Invalid state transition or missing customer communication", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/close": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Close complaint (responded → closed)",
+        "operationId": "close_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CloseComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Closed complaint", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "403": { "description": "Missing complaint.close permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "422": { "description": "Invalid state transition or missing resolution record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/cancel": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Cancel complaint",
+        "operationId": "cancel_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CancelComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Cancelled complaint", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "403": { "description": "Missing complaint.cancel permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "422": { "description": "Already in terminal state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/assign": {
+      "post": {
+        "tags": ["Complaints"],
+        "summary": "Assign or reassign complaint",
+        "operationId": "assign_complaint",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssignComplaintRequest" } } } },
+        "responses": {
+          "200": { "description": "Complaint assigned", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Complaint" } } } },
+          "422": { "description": "Cannot assign terminal complaint", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/notes": {
+      "post": {
+        "tags": ["Activity"],
+        "summary": "Add investigation note",
+        "operationId": "add_note",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateActivityLogRequest" } } } },
+        "responses": {
+          "201": { "description": "Note added", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintActivityLog" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/customer-communication": {
+      "post": {
+        "tags": ["Activity"],
+        "summary": "Record customer communication",
+        "operationId": "add_customer_communication",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateActivityLogRequest" } } } },
+        "responses": {
+          "201": { "description": "Communication recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintActivityLog" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/activity-log": {
+      "get": {
+        "tags": ["Activity"],
+        "summary": "List activity log (append-only)",
+        "operationId": "list_activity_log",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Activity log entries", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ComplaintActivityLog" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/complaints/{id}/resolution": {
+      "post": {
+        "tags": ["Activity"],
+        "summary": "Record resolution (prereq for close)",
+        "operationId": "create_resolution",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateResolutionRequest" } } } },
+        "responses": {
+          "201": { "description": "Resolution recorded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintResolution" } } } },
+          "409": { "description": "Resolution already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "get": {
+        "tags": ["Activity"],
+        "summary": "Get most recent resolution",
+        "operationId": "get_resolution",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Resolution record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintResolution" } } } },
+          "404": { "description": "No resolution found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/categories": {
+      "get": {
+        "tags": ["Taxonomy"],
+        "summary": "List tenant category codes",
+        "operationId": "list_categories",
+        "parameters": [{ "name": "include_inactive", "in": "query", "schema": { "type": "boolean", "default": false } }],
+        "responses": {
+          "200": { "description": "Category codes", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ComplaintCategoryCode" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Taxonomy"],
+        "summary": "Create category code",
+        "operationId": "create_category",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateCategoryCodeRequest" } } } },
+        "responses": {
+          "201": { "description": "Category code created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintCategoryCode" } } } },
+          "403": { "description": "Missing category.manage permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/categories/{code}": {
+      "put": {
+        "tags": ["Taxonomy"],
+        "summary": "Update category code",
+        "operationId": "update_category",
+        "parameters": [{ "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateCategoryCodeRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated category code", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ComplaintCategoryCode" } } } },
+          "403": { "description": "Missing category.manage permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/status-labels": {
+      "get": {
+        "tags": ["Taxonomy"],
+        "summary": "List status display labels",
+        "operationId": "list_status_labels",
+        "responses": {
+          "200": { "description": "Status labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CcStatusLabel" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/status-labels/{canonical}": {
+      "put": {
+        "tags": ["Taxonomy"],
+        "summary": "Set status display label",
+        "operationId": "set_status_label",
+        "parameters": [{ "name": "canonical", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpsertLabelRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated label", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CcStatusLabel" } } } },
+          "403": { "description": "Missing labels.edit permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/severity-labels": {
+      "get": {
+        "tags": ["Taxonomy"],
+        "summary": "List severity display labels",
+        "operationId": "list_severity_labels",
+        "responses": {
+          "200": { "description": "Severity labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CcSeverityLabel" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/severity-labels/{canonical}": {
+      "put": {
+        "tags": ["Taxonomy"],
+        "summary": "Set severity display label",
+        "operationId": "set_severity_label",
+        "parameters": [{ "name": "canonical", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpsertLabelRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated label", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CcSeverityLabel" } } } },
+          "403": { "description": "Missing labels.edit permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/source-labels": {
+      "get": {
+        "tags": ["Taxonomy"],
+        "summary": "List source display labels",
+        "operationId": "list_source_labels",
+        "responses": {
+          "200": { "description": "Source labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/CcSourceLabel" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/customer-complaints/source-labels/{canonical}": {
+      "put": {
+        "tags": ["Taxonomy"],
+        "summary": "Set source display label",
+        "operationId": "set_source_label",
+        "parameters": [{ "name": "canonical", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpsertLabelRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated label", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CcSourceLabel" } } } },
+          "403": { "description": "Missing labels.edit permission", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "integer" },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "request_id": { "type": "string" }
+        }
+      },
+      "Complaint": {
+        "type": "object",
+        "required": ["id", "tenant_id", "complaint_number", "status", "party_id", "source", "title", "created_by", "received_at", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "complaint_number": { "type": "string" },
+          "status": { "type": "string", "enum": ["intake", "triaged", "investigating", "responded", "closed", "cancelled"] },
+          "party_id": { "type": "string", "format": "uuid" },
+          "customer_contact_id": { "type": "string", "format": "uuid", "nullable": true },
+          "source": { "type": "string", "enum": ["phone", "email", "portal", "survey", "service_ticket", "walk_in", "letter", "other"] },
+          "source_ref": { "type": "string", "nullable": true },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "nullable": true },
+          "category_code": { "type": "string", "nullable": true },
+          "title": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "source_entity_type": { "type": "string", "nullable": true },
+          "source_entity_id": { "type": "string", "format": "uuid", "nullable": true },
+          "assigned_to": { "type": "string", "nullable": true },
+          "assigned_at": { "type": "string", "format": "date-time", "nullable": true },
+          "due_date": { "type": "string", "format": "date-time", "nullable": true },
+          "received_at": { "type": "string", "format": "date-time" },
+          "responded_at": { "type": "string", "format": "date-time", "nullable": true },
+          "closed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "outcome": { "type": "string", "enum": ["resolved", "unresolvable", "customer_withdrew", "duplicate"], "nullable": true },
+          "created_by": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ComplaintDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Complaint" },
+          {
+            "type": "object",
+            "properties": {
+              "activity_log": { "type": "array", "items": { "$ref": "#/components/schemas/ComplaintActivityLog" } },
+              "resolution": { "$ref": "#/components/schemas/ComplaintResolution", "nullable": true }
+            }
+          }
+        ]
+      },
+      "CreateComplaintRequest": {
+        "type": "object",
+        "required": ["party_id", "source", "title", "created_by"],
+        "properties": {
+          "party_id": { "type": "string", "format": "uuid" },
+          "customer_contact_id": { "type": "string", "format": "uuid", "nullable": true },
+          "source": { "type": "string", "enum": ["phone", "email", "portal", "survey", "service_ticket", "walk_in", "letter", "other"] },
+          "source_ref": { "type": "string", "nullable": true },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"], "nullable": true },
+          "category_code": { "type": "string", "nullable": true },
+          "title": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "source_entity_type": { "type": "string", "nullable": true },
+          "source_entity_id": { "type": "string", "format": "uuid", "nullable": true },
+          "due_date": { "type": "string", "format": "date-time", "nullable": true },
+          "created_by": { "type": "string" }
+        }
+      },
+      "UpdateComplaintRequest": {
+        "type": "object",
+        "properties": {
+          "customer_contact_id": { "type": "string", "format": "uuid", "nullable": true },
+          "source_ref": { "type": "string", "nullable": true },
+          "title": { "type": "string", "nullable": true },
+          "description": { "type": "string", "nullable": true },
+          "source_entity_type": { "type": "string", "nullable": true },
+          "source_entity_id": { "type": "string", "format": "uuid", "nullable": true },
+          "due_date": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "TriageComplaintRequest": {
+        "type": "object",
+        "required": ["category_code", "severity", "assigned_to", "triaged_by"],
+        "properties": {
+          "category_code": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "assigned_to": { "type": "string" },
+          "due_date": { "type": "string", "format": "date-time", "nullable": true },
+          "triaged_by": { "type": "string" }
+        }
+      },
+      "StartInvestigationRequest": {
+        "type": "object",
+        "required": ["started_by"],
+        "properties": { "started_by": { "type": "string" } }
+      },
+      "RespondComplaintRequest": {
+        "type": "object",
+        "required": ["responded_by"],
+        "properties": { "responded_by": { "type": "string" } }
+      },
+      "CloseComplaintRequest": {
+        "type": "object",
+        "required": ["outcome", "closed_by"],
+        "properties": {
+          "outcome": { "type": "string", "enum": ["resolved", "unresolvable", "customer_withdrew", "duplicate"] },
+          "closed_by": { "type": "string" }
+        }
+      },
+      "CancelComplaintRequest": {
+        "type": "object",
+        "required": ["cancelled_by"],
+        "properties": {
+          "reason": { "type": "string", "nullable": true },
+          "cancelled_by": { "type": "string" }
+        }
+      },
+      "AssignComplaintRequest": {
+        "type": "object",
+        "required": ["assigned_to", "assigned_by"],
+        "properties": {
+          "assigned_to": { "type": "string" },
+          "assigned_by": { "type": "string" }
+        }
+      },
+      "ComplaintActivityLog": {
+        "type": "object",
+        "required": ["id", "tenant_id", "complaint_id", "activity_type", "visible_to_customer", "recorded_by", "recorded_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "complaint_id": { "type": "string", "format": "uuid" },
+          "activity_type": { "type": "string", "enum": ["status_change", "note", "customer_communication", "internal_communication", "attachment_added", "assignment_change"] },
+          "from_value": { "type": "string", "nullable": true },
+          "to_value": { "type": "string", "nullable": true },
+          "content": { "type": "string", "nullable": true },
+          "visible_to_customer": { "type": "boolean" },
+          "recorded_by": { "type": "string" },
+          "recorded_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateActivityLogRequest": {
+        "type": "object",
+        "required": ["recorded_by"],
+        "properties": {
+          "activity_type": { "type": "string" },
+          "from_value": { "type": "string", "nullable": true },
+          "to_value": { "type": "string", "nullable": true },
+          "content": { "type": "string", "nullable": true },
+          "visible_to_customer": { "type": "boolean", "nullable": true },
+          "recorded_by": { "type": "string" }
+        }
+      },
+      "ComplaintResolution": {
+        "type": "object",
+        "required": ["id", "tenant_id", "complaint_id", "action_taken", "customer_acceptance", "resolved_by", "resolved_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "complaint_id": { "type": "string", "format": "uuid" },
+          "action_taken": { "type": "string" },
+          "root_cause_summary": { "type": "string", "nullable": true },
+          "customer_acceptance": { "type": "string", "enum": ["accepted", "rejected", "no_response", "n_a"] },
+          "customer_response_at": { "type": "string", "format": "date-time", "nullable": true },
+          "resolved_by": { "type": "string" },
+          "resolved_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateResolutionRequest": {
+        "type": "object",
+        "required": ["action_taken", "customer_acceptance", "resolved_by"],
+        "properties": {
+          "action_taken": { "type": "string" },
+          "root_cause_summary": { "type": "string", "nullable": true },
+          "customer_acceptance": { "type": "string", "enum": ["accepted", "rejected", "no_response", "n_a"] },
+          "customer_response_at": { "type": "string", "format": "date-time", "nullable": true },
+          "resolved_by": { "type": "string" }
+        }
+      },
+      "ComplaintCategoryCode": {
+        "type": "object",
+        "required": ["id", "tenant_id", "category_code", "display_label", "active", "created_at", "updated_at", "updated_by"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "category_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "updated_by": { "type": "string" }
+        }
+      },
+      "CreateCategoryCodeRequest": {
+        "type": "object",
+        "required": ["category_code", "display_label", "created_by"],
+        "properties": {
+          "category_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "created_by": { "type": "string" }
+        }
+      },
+      "UpdateCategoryCodeRequest": {
+        "type": "object",
+        "required": ["updated_by"],
+        "properties": {
+          "display_label": { "type": "string", "nullable": true },
+          "description": { "type": "string", "nullable": true },
+          "active": { "type": "boolean", "nullable": true },
+          "updated_by": { "type": "string" }
+        }
+      },
+      "CcStatusLabel": {
+        "type": "object",
+        "required": ["id", "tenant_id", "canonical_status", "display_label", "updated_by", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "canonical_status": { "type": "string" },
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "updated_by": { "type": "string" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CcSeverityLabel": {
+        "type": "object",
+        "required": ["id", "tenant_id", "canonical_severity", "display_label", "updated_by", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "canonical_severity": { "type": "string" },
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "updated_by": { "type": "string" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CcSourceLabel": {
+        "type": "object",
+        "required": ["id", "tenant_id", "canonical_source", "display_label", "updated_by", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "canonical_source": { "type": "string" },
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "updated_by": { "type": "string" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpsertLabelRequest": {
+        "type": "object",
+        "required": ["display_label", "updated_by"],
+        "properties": {
+          "display_label": { "type": "string" },
+          "description": { "type": "string", "nullable": true },
+          "updated_by": { "type": "string" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
