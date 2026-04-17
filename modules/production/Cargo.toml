@@ -1,6 +1,6 @@
 [package]
 name = "production-rs"
-version = "3.6.0"
+version = "3.7.0"
 edition = "2021"
 description = "Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows"
 
@@ -27,6 +27,8 @@ config-validator = { path = "../../platform/config-validator" }
 event-bus = { path = "../../platform/event-bus" }
 platform-sdk = { path = "../../platform/platform-sdk" }
 platform-client-numbering = { path = "../../clients/numbering" }
+platform-client-outside-processing = { path = "../../clients/outside-processing" }
+futures = "0.3"
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 
 [dev-dependencies]

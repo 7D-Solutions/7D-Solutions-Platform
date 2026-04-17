@@ -1,5 +1,6 @@
 pub mod bom_client;
 pub mod component_issue;
+pub mod cost_tracking;
 pub mod downtime;
 pub mod error_conversions;
 pub mod fg_receipt;

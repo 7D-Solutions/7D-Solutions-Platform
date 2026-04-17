@@ -9,7 +9,8 @@ use http_body_util::BodyExt;
 use production_rs::domain::bom_client::BomRevisionClient;
 use production_rs::domain::numbering_client::NumberingClient;
 use production_rs::metrics::ProductionMetrics;
-use production_rs::AppState;
+use production_rs::{AppState, OutsideProcessingClient};
+use platform_sdk::PlatformClient;
 use security::{ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -122,11 +123,15 @@ fn build_app(
     let metrics = METRICS
         .get_or_init(|| Arc::new(ProductionMetrics::new().expect("metrics init")))
         .clone();
+    let op_client = Arc::new(OutsideProcessingClient::new(
+        PlatformClient::new("http://localhost:1".to_string()),
+    ));
     let state = Arc::new(AppState {
         pool: prod_pool,
         metrics,
         numbering: Arc::new(numbering),
         bom: Arc::new(bom),
+        op_client,
     });
     production_rs::http::router(state).layer(middleware::from_fn(inject_claims))
 }

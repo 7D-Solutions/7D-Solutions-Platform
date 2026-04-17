@@ -4,6 +4,16 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 3.7.0 — 2026-04-17 — bd-3z1m9
+- feat: direct cost accumulation for work orders
+  - New DB tables: `work_order_cost_postings`, `work_order_cost_summaries`
+  - `CostRepo::post_cost` — atomic posting + summary upsert in single transaction; idempotent on `source_event_id`
+  - Three event consumers: `production.time_entry_approved` → labor cost (rate-based formula), `inventory.item_issued` → material cost, `outside_processing.order_closed` → OSP cost (with proration for partial acceptance)
+  - Two new events: `production.cost_posted`, `production.work_order_cost_finalized` (emitted on WO close)
+  - HTTP routes: POST `/work-orders/{id}/cost-postings`, GET `/work-orders/{id}/cost-summary`, GET `/work-orders/{id}/cost-postings`
+  - Workcenter `cost_rate_minor` NULL → warn and skip labor posting (never zero)
+  - 8 integration tests pass against real Postgres
+
 ## 3.5.3
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 

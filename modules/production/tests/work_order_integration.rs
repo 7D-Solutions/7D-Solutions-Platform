@@ -16,7 +16,8 @@ use production_rs::domain::work_orders::{
 };
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
 use production_rs::metrics::ProductionMetrics;
-use production_rs::AppState;
+use production_rs::{AppState, OutsideProcessingClient};
+use platform_sdk::PlatformClient;
 use security::{ActorType, VerifiedClaims};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -189,6 +190,7 @@ async fn work_order_events_emitted_for_each_transition() {
             "production.work_order_created",
             "production.work_order_released",
             "production.work_order_closed",
+            "production.work_order_cost_finalized",
         ]
     );
 }
@@ -321,7 +323,7 @@ async fn correlation_id_chains_across_events() {
     .await
     .expect("fetch outbox");
 
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 4);
     for (event_type, row_corr) in &rows {
         assert_eq!(
             row_corr.as_deref(),
@@ -689,11 +691,15 @@ fn build_test_app_with_bom(
     let metrics = METRICS
         .get_or_init(|| Arc::new(ProductionMetrics::new().expect("metrics init")))
         .clone();
+    let op_client = Arc::new(OutsideProcessingClient::new(
+        PlatformClient::new("http://localhost:1".to_string()),
+    ));
     let state = Arc::new(AppState {
         pool,
         metrics,
         numbering: Arc::new(numbering),
         bom: Arc::new(bom),
+        op_client,
     });
     production_rs::http::router(state).layer(middleware::from_fn(inject_production_claims))
 }

@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::domain::cost_tracking::PostingCategory;
+
 pub const PRODUCTION_EVENT_SCHEMA_VERSION: &str = "1.0.0";
 pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 
@@ -26,6 +28,8 @@ pub enum ProductionEventType {
     TimeEntryApproved,
     DowntimeStarted,
     DowntimeEnded,
+    CostPosted,
+    WorkOrderCostFinalized,
 }
 
 impl ProductionEventType {
@@ -51,6 +55,8 @@ impl ProductionEventType {
             Self::TimeEntryApproved => "production.time_entry_approved",
             Self::DowntimeStarted => "production.downtime.started",
             Self::DowntimeEnded => "production.downtime.ended",
+            Self::CostPosted => "production.cost_posted",
+            Self::WorkOrderCostFinalized => "production.work_order_cost_finalized",
         }
     }
 }
@@ -747,6 +753,104 @@ pub fn build_downtime_ended_envelope(
             started_at,
             ended_at,
             ended_by,
+        },
+    )
+}
+
+// ============================================================================
+// Cost event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CostPostedPayload {
+    pub posting_id: Uuid,
+    pub work_order_id: Uuid,
+    pub operation_id: Option<Uuid>,
+    pub tenant_id: String,
+    pub posting_category: String,
+    pub amount_cents: i64,
+    pub source_event_id: Option<Uuid>,
+    pub posted_by: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkOrderCostFinalizedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub total_cost_cents: i64,
+    pub labor_cost_cents: i64,
+    pub material_cost_cents: i64,
+    pub osp_cost_cents: i64,
+    pub scrap_cost_cents: i64,
+    pub overhead_cost_cents: i64,
+    pub other_cost_cents: i64,
+    pub posting_count: i32,
+}
+
+// ============================================================================
+// Cost envelope builders
+// ============================================================================
+
+pub fn build_cost_posted_envelope(
+    posting_id: Uuid,
+    work_order_id: Uuid,
+    operation_id: Option<Uuid>,
+    tenant_id: String,
+    posting_category: PostingCategory,
+    amount_cents: i64,
+    source_event_id: Option<Uuid>,
+    posted_by: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<CostPostedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::CostPosted.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        CostPostedPayload {
+            posting_id,
+            work_order_id,
+            operation_id,
+            tenant_id,
+            posting_category: posting_category.as_str().to_string(),
+            amount_cents,
+            source_event_id,
+            posted_by,
+        },
+    )
+}
+
+pub fn build_work_order_cost_finalized_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    total_cost_cents: i64,
+    labor_cost_cents: i64,
+    material_cost_cents: i64,
+    osp_cost_cents: i64,
+    scrap_cost_cents: i64,
+    overhead_cost_cents: i64,
+    other_cost_cents: i64,
+    posting_count: i32,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<WorkOrderCostFinalizedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::WorkOrderCostFinalized.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        WorkOrderCostFinalizedPayload {
+            work_order_id,
+            tenant_id,
+            total_cost_cents,
+            labor_cost_cents,
+            material_cost_cents,
+            osp_cost_cents,
+            scrap_cost_cents,
+            overhead_cost_cents,
+            other_cost_cents,
+            posting_count,
         },
     )
 }

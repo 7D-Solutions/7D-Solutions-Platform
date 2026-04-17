@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::AppState;
 
 pub mod component_issue;
+pub mod cost_tracking;
 pub mod downtime;
 pub mod fg_receipt;
 pub mod operations;
@@ -106,6 +107,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/production/downtime/{id}/end",
             post(downtime::end_downtime),
         )
+        .route(
+            "/api/production/work-orders/{id}/cost-postings",
+            post(cost_tracking::post_cost_posting),
+        )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::PRODUCTION_MUTATE,
         ]))
@@ -171,6 +176,14 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/production/downtime/active",
             get(downtime::list_active_downtime),
+        )
+        .route(
+            "/api/production/work-orders/{id}/cost-summary",
+            get(cost_tracking::get_cost_summary),
+        )
+        .route(
+            "/api/production/work-orders/{id}/cost-postings",
+            get(cost_tracking::list_cost_postings),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::PRODUCTION_READ,

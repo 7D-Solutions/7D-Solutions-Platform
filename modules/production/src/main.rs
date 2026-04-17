@@ -25,9 +25,13 @@ use production_rs::domain::work_orders::{
 use production_rs::domain::workcenters::{
     CreateWorkcenterRequest, UpdateWorkcenterRequest, Workcenter,
 };
+use production_rs::domain::cost_tracking::{CostPosting, CostSummary, PostingCategory};
+use production_rs::http::cost_tracking::ManualPostCostRequest;
 use production_rs::http::pagination::PaginationQuery;
 use production_rs::http::routings::ItemDateQuery;
-use production_rs::{http, metrics, AppState, BomRevisionClient, NumberingClient};
+use production_rs::{
+    consumers, http, metrics, AppState, BomRevisionClient, NumberingClient, OutsideProcessingClient,
+};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -79,6 +83,9 @@ use production_rs::{http, metrics, AppState, BomRevisionClient, NumberingClient}
         production_rs::http::downtime::list_workcenter_downtime,
         production_rs::http::component_issue::post_component_issue,
         production_rs::http::fg_receipt::post_fg_receipt,
+        production_rs::http::cost_tracking::post_cost_posting,
+        production_rs::http::cost_tracking::get_cost_summary,
+        production_rs::http::cost_tracking::list_cost_postings,
     ),
     components(schemas(
         Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest,
@@ -91,6 +98,7 @@ use production_rs::{http, metrics, AppState, BomRevisionClient, NumberingClient}
         AddRoutingStepRequest,
         RequestComponentIssueRequest, ComponentIssueItemInput,
         RequestFgReceiptRequest,
+        CostPosting, CostSummary, PostingCategory, ManualPostCostRequest,
         ApiError, PaginatedResponse<Workcenter>, PaginatedResponse<RoutingTemplate>,
         PaginatedResponse<WorkcenterDowntime>, PaginationMeta, PaginationQuery,
         ItemDateQuery,
@@ -135,12 +143,29 @@ async fn main() {
             );
             let numbering = ctx.platform_client::<NumberingClient>();
             let bom = ctx.platform_client::<BomRevisionClient>();
+            let op_client = Arc::new(ctx.platform_client::<OutsideProcessingClient>());
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: prod_metrics,
                 numbering: std::sync::Arc::new(numbering),
                 bom: std::sync::Arc::new(bom),
+                op_client: op_client.clone(),
             });
+
+            if let Ok(bus) = ctx.bus_arc() {
+                let pool = ctx.pool().clone();
+                consumers::time_entry_approved::start_time_entry_approved_consumer(
+                    bus.clone(),
+                    pool.clone(),
+                );
+                consumers::item_issued::start_item_issued_consumer(bus.clone(), pool.clone());
+                consumers::order_closed::start_order_closed_consumer(
+                    bus.clone(),
+                    pool.clone(),
+                    op_client.clone(),
+                );
+            }
+
             http::router(app_state).route("/api/openapi.json", get(openapi_json))
         })
         .run()

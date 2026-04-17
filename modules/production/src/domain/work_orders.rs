@@ -540,6 +540,55 @@ impl WorkOrderRepo {
         )
         .await?;
 
+        // Emit cost_finalized snapshot for GL downstream.
+        // Query summary inside same transaction so cost reflects everything committed before close.
+        let summary = sqlx::query_as::<_, crate::domain::cost_tracking::CostSummary>(
+            "SELECT * FROM work_order_cost_summaries WHERE work_order_id = $1 AND tenant_id = $2",
+        )
+        .bind(work_order_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let (total, labor, material, osp, scrap, overhead, other, count) =
+            summary.map_or((0, 0, 0, 0, 0, 0, 0, 0), |s| {
+                (
+                    s.total_cost_cents,
+                    s.labor_cost_cents,
+                    s.material_cost_cents,
+                    s.osp_cost_cents,
+                    s.scrap_cost_cents,
+                    s.overhead_cost_cents,
+                    s.other_cost_cents,
+                    s.posting_count,
+                )
+            });
+
+        enqueue_event(
+            &mut tx,
+            tenant_id,
+            ProductionEventType::WorkOrderCostFinalized,
+            "work_order",
+            &work_order_id.to_string(),
+            &events::build_work_order_cost_finalized_envelope(
+                work_order_id,
+                tenant_id.to_string(),
+                total,
+                labor,
+                material,
+                osp,
+                scrap,
+                overhead,
+                other,
+                count,
+                correlation_id.to_string(),
+                causation_id.map(String::from),
+            ),
+            correlation_id,
+            causation_id,
+        )
+        .await?;
+
         // Audit: record work order close inside the same transaction
         let audit_req = WriteAuditRequest::new(
             Uuid::nil(),
