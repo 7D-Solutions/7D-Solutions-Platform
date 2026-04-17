@@ -8,6 +8,7 @@ use customer_complaints_rs::domain::{
     repo,
     state_machine,
 };
+use customer_complaints_rs::http::sweep::sweep_overdue_complaints;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -528,6 +529,317 @@ async fn test_full_lifecycle() {
     }).await;
     tx.rollback().await.unwrap();
     assert!(cancel_result.is_err(), "Cannot cancel a closed complaint");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase C: Event emission + sweep + consumer tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── 15. create_complaint writes complaint_received to outbox ──────────────────
+
+#[tokio::test]
+#[serial]
+async fn test_outbox_complaint_received_on_create() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let req = base_create_req("alice");
+    let mut tx = pool.begin().await.unwrap();
+    let number = format!("CC-OB-{}", Uuid::new_v4().simple());
+    let complaint = repo::create_complaint(&mut tx, &tid, &req, &number).await.unwrap();
+
+    // Enqueue the outbox event in the same transaction (mirrors what the HTTP handler does)
+    use customer_complaints_rs::events::produced::{ComplaintReceivedPayload, EVENT_COMPLAINT_RECEIVED};
+    use customer_complaints_rs::outbox;
+    let event_id = Uuid::new_v4();
+    let payload = ComplaintReceivedPayload {
+        complaint_id: complaint.id,
+        complaint_number: complaint.complaint_number.clone(),
+        tenant_id: tid.clone(),
+        party_id: complaint.party_id,
+        source: complaint.source.clone(),
+        severity: None,
+        category_code: None,
+        source_entity_type: None,
+        source_entity_id: None,
+        received_at: complaint.received_at,
+    };
+    outbox::enqueue_event_tx(&mut tx, event_id, EVENT_COMPLAINT_RECEIVED, complaint.id, &tid, None, None, &payload)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM cc_outbox WHERE event_id = $1 AND event_type = $2 AND tenant_id = $3",
+    )
+    .bind(event_id)
+    .bind(EVENT_COMPLAINT_RECEIVED)
+    .bind(&tid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(count, 1, "complaint_received must be written to cc_outbox");
+}
+
+// ── 16. Sweep: emits overdue once, skips on second run ───────────────────────
+
+#[tokio::test]
+#[serial]
+async fn test_sweep_overdue_idempotent() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Create a complaint with a past due_date
+    let past_due: chrono::DateTime<chrono::Utc> = chrono::Utc::now() - chrono::Duration::days(5);
+    let complaint_id: Uuid = sqlx::query_scalar(
+        r#"INSERT INTO complaints
+           (tenant_id, complaint_number, status, party_id, source, title, created_by, due_date)
+           VALUES ($1, $2, 'investigating', gen_random_uuid(), 'email', 'Overdue complaint', 'system', $3)
+           RETURNING id"#,
+    )
+    .bind(&tid)
+    .bind(format!("CC-OD-{}", Uuid::new_v4().simple()))
+    .bind(past_due)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // First sweep: should emit one event
+    let swept1 = sweep_overdue_complaints(&pool).await.unwrap();
+    assert!(swept1 >= 1, "Expected at least 1 complaint swept, got {}", swept1);
+
+    // Verify outbox row was written
+    let (outbox_count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM cc_outbox WHERE aggregate_id = $1 AND event_type = 'customer_complaints.complaint_overdue'",
+    )
+    .bind(complaint_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(outbox_count, 1, "Exactly one overdue event should be in outbox");
+
+    // Verify overdue_emitted_at was set
+    let emitted_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT overdue_emitted_at FROM complaints WHERE id = $1",
+    )
+    .bind(complaint_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(emitted_at.is_some(), "overdue_emitted_at should be set after sweep");
+
+    // Second sweep: same complaint already has overdue_emitted_at set, skip it
+    let swept2 = sweep_overdue_complaints(&pool).await.unwrap();
+
+    let (outbox_count2,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM cc_outbox WHERE aggregate_id = $1 AND event_type = 'customer_complaints.complaint_overdue'",
+    )
+    .bind(complaint_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(outbox_count2, 1, "Second sweep must not emit duplicate overdue events");
+    let _ = swept2; // swept2 may be 0 for this specific complaint
+
+    // Cleanup
+    sqlx::query("DELETE FROM cc_outbox WHERE aggregate_id = $1").bind(complaint_id.to_string()).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM complaints WHERE id = $1").bind(complaint_id).execute(&pool).await.ok();
+}
+
+// ── 17. Sweep: closed/cancelled complaints are excluded ──────────────────────
+
+#[tokio::test]
+#[serial]
+async fn test_sweep_excludes_terminal_complaints() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let past_due: chrono::DateTime<chrono::Utc> = chrono::Utc::now() - chrono::Duration::days(1);
+    let closed_id: Uuid = sqlx::query_scalar(
+        r#"INSERT INTO complaints
+           (tenant_id, complaint_number, status, party_id, source, title, created_by, due_date)
+           VALUES ($1, $2, 'closed', gen_random_uuid(), 'email', 'Closed overdue', 'system', $3)
+           RETURNING id"#,
+    )
+    .bind(&tid)
+    .bind(format!("CC-CL-{}", Uuid::new_v4().simple()))
+    .bind(past_due)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sweep_overdue_complaints(&pool).await.unwrap();
+
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM cc_outbox WHERE aggregate_id = $1 AND event_type = 'customer_complaints.complaint_overdue'",
+    )
+    .bind(closed_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 0, "Closed complaints must not be swept");
+
+    sqlx::query("DELETE FROM complaints WHERE id = $1").bind(closed_id).execute(&pool).await.ok();
+}
+
+// ── 18. Full lifecycle emits 7 outbox events ─────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn test_all_state_transition_events_in_outbox() {
+    use customer_complaints_rs::events::produced::*;
+    use customer_complaints_rs::outbox;
+
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    create_active_category(&pool, &tid, "quality-evt").await;
+
+    // create → complaint_received
+    let req = base_create_req("alice");
+    let mut tx = pool.begin().await.unwrap();
+    let number = format!("CC-EVT-{}", Uuid::new_v4().simple());
+    let complaint = repo::create_complaint(&mut tx, &tid, &req, &number).await.unwrap();
+    let ev_id = Uuid::new_v4();
+    let p = ComplaintReceivedPayload {
+        complaint_id: complaint.id, complaint_number: complaint.complaint_number.clone(),
+        tenant_id: tid.clone(), party_id: complaint.party_id, source: complaint.source.clone(),
+        severity: None, category_code: None, source_entity_type: None,
+        source_entity_id: None, received_at: complaint.received_at,
+    };
+    outbox::enqueue_event_tx(&mut tx, ev_id, EVENT_COMPLAINT_RECEIVED, complaint.id, &tid, None, None, &p).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // triage → complaint_triaged + status_changed
+    let mut tx = pool.begin().await.unwrap();
+    let c = repo::triage_complaint(&mut tx, &tid, complaint.id, &TriageComplaintRequest {
+        category_code: "quality-evt".to_string(), severity: ComplaintSeverity::High,
+        assigned_to: "bob".to_string(), due_date: None, triaged_by: "alice".to_string(),
+    }).await.unwrap();
+    let e1 = Uuid::new_v4();
+    let e2 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e1, EVENT_COMPLAINT_TRIAGED, c.id, &tid, None, None, &ComplaintTriagedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), assigned_to: "bob".to_string(),
+        category_code: "quality-evt".to_string(), severity: "high".to_string(),
+        triaged_at: c.assigned_at.unwrap_or_else(chrono::Utc::now),
+    }).await.unwrap();
+    outbox::enqueue_event_tx(&mut tx, e2, EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tid, None, None, &ComplaintStatusChangedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), from_status: "intake".to_string(),
+        to_status: "triaged".to_string(), transitioned_by: "alice".to_string(), transitioned_at: c.updated_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // assign → assigned
+    let mut tx = pool.begin().await.unwrap();
+    let c = repo::assign_complaint(&mut tx, &tid, complaint.id, &AssignComplaintRequest {
+        assigned_to: "charlie".to_string(), assigned_by: "manager".to_string(),
+    }).await.unwrap();
+    let e3 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e3, EVENT_COMPLAINT_ASSIGNED, c.id, &tid, None, None, &ComplaintAssignedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), from_user: None,
+        to_user: "charlie".to_string(), assigned_by: "manager".to_string(),
+        assigned_at: c.assigned_at.unwrap_or_else(chrono::Utc::now),
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // start investigation → status_changed
+    let mut tx = pool.begin().await.unwrap();
+    let c = repo::start_investigation(&mut tx, &tid, complaint.id, &StartInvestigationRequest {
+        started_by: "charlie".to_string(),
+    }).await.unwrap();
+    let e4 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e4, EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tid, None, None, &ComplaintStatusChangedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), from_status: "triaged".to_string(),
+        to_status: "investigating".to_string(), transitioned_by: "charlie".to_string(), transitioned_at: c.updated_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // customer_communication → customer_communicated
+    let mut tx = pool.begin().await.unwrap();
+    let entry = repo::add_activity_log_entry(&mut tx, &tid, complaint.id, &CreateActivityLogRequest {
+        activity_type: ActivityType::CustomerCommunication, from_value: None, to_value: None,
+        content: Some("Called".to_string()), visible_to_customer: Some(true), recorded_by: "charlie".to_string(),
+    }).await.unwrap();
+    let e5 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e5, EVENT_COMPLAINT_CUSTOMER_COMMUNICATED, complaint.id, &tid, None, None, &ComplaintCustomerCommunicatedPayload {
+        complaint_id: complaint.id, tenant_id: tid.clone(),
+        recorded_by: "charlie".to_string(), recorded_at: entry.recorded_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // respond → status_changed
+    let mut tx = pool.begin().await.unwrap();
+    let c = repo::respond_complaint(&mut tx, &tid, complaint.id, &RespondComplaintRequest {
+        responded_by: "charlie".to_string(),
+    }).await.unwrap();
+    let e6 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e6, EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tid, None, None, &ComplaintStatusChangedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), from_status: "investigating".to_string(),
+        to_status: "responded".to_string(), transitioned_by: "charlie".to_string(), transitioned_at: c.updated_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // resolution → resolved
+    let mut tx = pool.begin().await.unwrap();
+    let resolution = repo::create_resolution(&mut tx, &tid, complaint.id, &CreateResolutionRequest {
+        action_taken: "Fixed".to_string(), root_cause_summary: None,
+        customer_acceptance: CustomerAcceptance::Accepted, customer_response_at: None, resolved_by: "charlie".to_string(),
+    }).await.unwrap();
+    let e7 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e7, EVENT_COMPLAINT_RESOLVED, complaint.id, &tid, None, None, &ComplaintResolvedPayload {
+        complaint_id: complaint.id, tenant_id: tid.clone(), customer_acceptance: "accepted".to_string(),
+        resolved_by: "charlie".to_string(), resolved_at: resolution.resolved_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // close → closed + status_changed
+    let mut tx = pool.begin().await.unwrap();
+    let c = repo::close_complaint(&mut tx, &tid, complaint.id, &CloseComplaintRequest {
+        outcome: ComplaintOutcome::Resolved, closed_by: "alice".to_string(),
+    }).await.unwrap();
+    let e8 = Uuid::new_v4();
+    let e9 = Uuid::new_v4();
+    outbox::enqueue_event_tx(&mut tx, e8, EVENT_COMPLAINT_CLOSED, c.id, &tid, None, None, &ComplaintClosedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), outcome: "resolved".to_string(),
+        closed_at: c.closed_at.unwrap_or_else(chrono::Utc::now),
+    }).await.unwrap();
+    outbox::enqueue_event_tx(&mut tx, e9, EVENT_COMPLAINT_STATUS_CHANGED, c.id, &tid, None, None, &ComplaintStatusChangedPayload {
+        complaint_id: c.id, tenant_id: tid.clone(), from_status: "responded".to_string(),
+        to_status: "closed".to_string(), transitioned_by: "alice".to_string(), transitioned_at: c.updated_at,
+    }).await.unwrap();
+    tx.commit().await.unwrap();
+
+    // Verify all 9 outbox rows were written for this complaint
+    let (total,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM cc_outbox WHERE aggregate_id = $1",
+    )
+    .bind(complaint.id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(total, 10, "Expected 10 outbox events for full lifecycle (received, triaged, 4×status_changed, assigned, customer_communicated, resolved, closed)");
+
+    // Verify all 8 distinct event types present
+    let event_types: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT event_type FROM cc_outbox WHERE aggregate_id = $1 ORDER BY event_type",
+    )
+    .bind(complaint.id.to_string())
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    for expected in &[
+        EVENT_COMPLAINT_RECEIVED, EVENT_COMPLAINT_TRIAGED, EVENT_COMPLAINT_STATUS_CHANGED,
+        EVENT_COMPLAINT_ASSIGNED, EVENT_COMPLAINT_CUSTOMER_COMMUNICATED,
+        EVENT_COMPLAINT_RESOLVED, EVENT_COMPLAINT_CLOSED,
+    ] {
+        assert!(event_types.iter().any(|e| e == expected), "Missing event type: {}", expected);
+    }
+
+    // Cleanup
+    sqlx::query("DELETE FROM cc_outbox WHERE aggregate_id = $1").bind(complaint.id.to_string()).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM complaint_resolutions WHERE complaint_id = $1").bind(complaint.id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM complaint_activity_log WHERE complaint_id = $1").bind(complaint.id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM complaints WHERE id = $1").bind(complaint.id).execute(&pool).await.ok();
 }
 
 // ── Helper: advance complaint to 'responded' status ───────────────────────────

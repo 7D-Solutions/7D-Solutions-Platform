@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/customer-complaints-complaint-triaged.v1.json",
+  "title": "customer_complaints.complaint_triaged",
+  "description": "Event emitted when a complaint is triaged (assigned, categorised, and severity set)",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "customer_complaints.complaint_triaged"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "customer-complaints"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "replay_safe": {
+      "type": "boolean"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ]
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "causation_id": {
+      "type": "string"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "complaint_id",
+        "tenant_id",
+        "assigned_to",
+        "category_code",
+        "severity",
+        "triaged_at"
+      ],
+      "properties": {
+        "complaint_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Complaint identifier"
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Tenant identifier"
+        },
+        "assigned_to": {
+          "type": "string",
+          "description": "User assigned to handle the complaint"
+        },
+        "category_code": {
+          "type": "string",
+          "description": "Category assigned during triage"
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity level set during triage"
+        },
+        "triaged_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when triage was completed"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

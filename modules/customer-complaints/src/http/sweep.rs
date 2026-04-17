@@ -67,7 +67,9 @@ pub async fn sweep_overdue_complaints(pool: &PgPool) -> Result<i64, sqlx::Error>
         let mut tx = pool.begin().await?;
 
         // Re-check inside transaction (FOR UPDATE) to prevent double-emit under concurrent sweep runs.
-        let already_emitted: Option<chrono::DateTime<Utc>> = sqlx::query_scalar(
+        // fetch_optional returns Option<Option<T>> for nullable columns: outer None = no row,
+        // inner None = column is NULL (not yet emitted), inner Some = already emitted.
+        let already_emitted: Option<Option<chrono::DateTime<Utc>>> = sqlx::query_scalar(
             "SELECT overdue_emitted_at FROM complaints WHERE id = $1 FOR UPDATE",
         )
         .bind(c.id)

@@ -2,7 +2,7 @@ use axum::{routing::{get, post, put}, Json, Router};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
-use customer_complaints_rs::{http, metrics, AppState};
+use customer_complaints_rs::{consumers, http, metrics, AppState};
 use platform_sdk::ModuleBuilder;
 use security::{permissions, RequirePermissionsLayer};
 
@@ -24,6 +24,12 @@ async fn main() {
                 pool: ctx.pool().clone(),
                 metrics: cc_metrics,
             });
+
+            if let Ok(bus) = ctx.bus_arc() {
+                consumers::party_deactivated::start_party_deactivated_consumer(bus.clone(), ctx.pool().clone());
+                consumers::order_shipped::start_order_shipped_consumer(bus.clone(), ctx.pool().clone());
+                consumers::shipment_received::start_shipment_received_consumer(bus, ctx.pool().clone());
+            }
 
             // Read routes — require customer_complaints.read
             let cc_reads = Router::new()
@@ -82,6 +88,12 @@ async fn main() {
                 .route("/api/customer-complaints/severity-labels/{canonical}", put(http::taxonomy::set_severity_label))
                 .route("/api/customer-complaints/source-labels/{canonical}", put(http::taxonomy::set_source_label))
                 .route_layer(RequirePermissionsLayer::new(&[permissions::CC_LABELS_EDIT]))
+                .with_state(app_state.clone());
+
+            // Admin — requires admin.sweep permission
+            let cc_admin = Router::new()
+                .route("/api/customer-complaints/admin/sweep-overdue", post(http::sweep::sweep_overdue))
+                .route_layer(RequirePermissionsLayer::new(&[permissions::CC_ADMIN_SWEEP]))
                 .with_state(app_state);
 
             Router::new()
@@ -93,6 +105,7 @@ async fn main() {
                 .merge(cc_cancel)
                 .merge(cc_category_manage)
                 .merge(cc_labels_edit)
+                .merge(cc_admin)
         })
         .run()
         .await
