@@ -2,7 +2,8 @@ use chrono::Utc;
 use production_rs::domain::operations::OperationRepo;
 use production_rs::domain::routings::{AddRoutingStepRequest, CreateRoutingRequest, RoutingRepo};
 use production_rs::domain::time_entries::{
-    ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntryError, TimeEntryRepo,
+    ApproveTimeEntryRequest, ManualEntryRequest, RejectTimeEntryRequest, StartTimerRequest,
+    StopTimerRequest, TimeEntryError, TimeEntryRepo, TimeEntryStatus,
 };
 use production_rs::domain::work_orders::{CreateWorkOrderRequest, WorkOrderRepo};
 use production_rs::domain::workcenters::{CreateWorkcenterRequest, WorkcenterRepo};
@@ -526,6 +527,396 @@ async fn start_timer_rejects_invalid_operation() {
     assert!(
         matches!(err, TimeEntryError::OperationNotFound),
         "Expected OperationNotFound, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// Approve running timer → 422 StillRunning
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn approve_running_entry_rejected() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, _) = setup_wo_with_ops(&pool, &tenant).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: None,
+            actor_id: "operator-a1".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start timer");
+
+    assert!(entry.end_ts.is_none(), "timer should still be running");
+
+    let err = TimeEntryRepo::approve_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &ApproveTimeEntryRequest {
+            approved_by: "supervisor-1".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect_err("should reject running entry");
+
+    assert!(
+        matches!(err, TimeEntryError::StillRunning),
+        "Expected StillRunning, got: {:?}",
+        err
+    );
+
+    // Verify status unchanged
+    let entries = TimeEntryRepo::list_by_work_order(&pool, wo_id, &tenant)
+        .await
+        .expect("list");
+    let e = entries.iter().find(|e| e.time_entry_id == entry.time_entry_id).unwrap();
+    assert_eq!(e.status, TimeEntryStatus::Pending);
+}
+
+// ============================================================================
+// Approve stopped entry → status=approved, event in outbox (atomicity)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn approve_stopped_entry_emits_event() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, op_id) = setup_wo_with_ops(&pool, &tenant).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: Some(op_id),
+            actor_id: "operator-a2".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start");
+
+    TimeEntryRepo::stop_timer(
+        &pool,
+        entry.time_entry_id,
+        &StopTimerRequest { end_ts: None },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("stop");
+
+    let approved = TimeEntryRepo::approve_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &ApproveTimeEntryRequest {
+            approved_by: "supervisor-2".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("approve");
+
+    assert_eq!(approved.status, TimeEntryStatus::Approved);
+    assert_eq!(approved.approved_by.as_deref(), Some("supervisor-2"));
+    assert!(approved.approved_at.is_some());
+
+    // Verify approval event in outbox (atomicity: both status and event committed together)
+    let events = sqlx::query_as::<_, (String,)>(
+        "SELECT event_type FROM production_outbox WHERE aggregate_id = $1 ORDER BY created_at",
+    )
+    .bind(entry.time_entry_id.to_string())
+    .fetch_all(&pool)
+    .await
+    .expect("fetch events");
+
+    let types: Vec<&str> = events.iter().map(|r| r.0.as_str()).collect();
+    assert!(
+        types.contains(&"production.time_entry_approved"),
+        "Expected approval event in outbox, got: {:?}",
+        types
+    );
+}
+
+// ============================================================================
+// Approve already-approved entry → 409 AlreadyApproved
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn approve_already_approved_entry_rejected() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, _) = setup_wo_with_ops(&pool, &tenant).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: None,
+            actor_id: "operator-a3".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start");
+
+    TimeEntryRepo::stop_timer(
+        &pool,
+        entry.time_entry_id,
+        &StopTimerRequest { end_ts: None },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("stop");
+
+    TimeEntryRepo::approve_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &ApproveTimeEntryRequest {
+            approved_by: "supervisor-3".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("first approve");
+
+    let err = TimeEntryRepo::approve_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &ApproveTimeEntryRequest {
+            approved_by: "supervisor-3".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect_err("double approve");
+
+    assert!(
+        matches!(err, TimeEntryError::AlreadyApproved),
+        "Expected AlreadyApproved, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// Reject entry → status=rejected, no approval event emitted
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn reject_entry_stores_reason_no_event() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, _) = setup_wo_with_ops(&pool, &tenant).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: None,
+            actor_id: "operator-a4".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start");
+
+    let rejected = TimeEntryRepo::reject_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &RejectTimeEntryRequest {
+            rejected_by: "supervisor-4".to_string(),
+            rejection_reason: "Incorrect work order".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("reject");
+
+    assert_eq!(rejected.status, TimeEntryStatus::Rejected);
+    assert_eq!(rejected.rejected_by.as_deref(), Some("supervisor-4"));
+    assert_eq!(rejected.rejected_reason.as_deref(), Some("Incorrect work order"));
+
+    // Verify no approval event was emitted
+    let approval_events = sqlx::query_as::<_, (i64,)>(
+        "SELECT COUNT(*) FROM production_outbox WHERE aggregate_id = $1 AND event_type = 'production.time_entry_approved'",
+    )
+    .bind(entry.time_entry_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("count");
+
+    assert_eq!(approval_events.0, 0, "No approval event should be emitted on rejection");
+}
+
+// ============================================================================
+// Double-reject → 409 AlreadyRejected
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn reject_already_rejected_entry_rejected() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, _) = setup_wo_with_ops(&pool, &tenant).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: None,
+            actor_id: "operator-a5".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start");
+
+    TimeEntryRepo::reject_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &RejectTimeEntryRequest {
+            rejected_by: "supervisor-5".to_string(),
+            rejection_reason: "Wrong entry".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect("first reject");
+
+    let err = TimeEntryRepo::reject_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &RejectTimeEntryRequest {
+            rejected_by: "supervisor-5".to_string(),
+            rejection_reason: "Wrong entry again".to_string(),
+        },
+        &tenant,
+        &corr,
+        None,
+    )
+    .await
+    .expect_err("double reject");
+
+    assert!(
+        matches!(err, TimeEntryError::AlreadyRejected),
+        "Expected AlreadyRejected, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// Cross-tenant: tenant A approver cannot approve tenant B entry
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn cross_tenant_approve_blocked() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let (wo_id, _) = setup_wo_with_ops(&pool, &tenant_a).await;
+
+    let entry = TimeEntryRepo::start_timer(
+        &pool,
+        &StartTimerRequest {
+            work_order_id: wo_id,
+            operation_id: None,
+            actor_id: "operator-a6".to_string(),
+            notes: None,
+            idempotency_key: None,
+        },
+        &tenant_a,
+        &corr,
+        None,
+    )
+    .await
+    .expect("start");
+
+    TimeEntryRepo::stop_timer(
+        &pool,
+        entry.time_entry_id,
+        &StopTimerRequest { end_ts: None },
+        &tenant_a,
+        &corr,
+        None,
+    )
+    .await
+    .expect("stop");
+
+    // Attempt approval from tenant_b — must fail with NotFound (entry invisible cross-tenant)
+    let err = TimeEntryRepo::approve_time_entry(
+        &pool,
+        entry.time_entry_id,
+        &ApproveTimeEntryRequest {
+            approved_by: "supervisor-b".to_string(),
+        },
+        &tenant_b,
+        &corr,
+        None,
+    )
+    .await
+    .expect_err("cross-tenant approve must fail");
+
+    assert!(
+        matches!(err, TimeEntryError::NotFound),
+        "Expected NotFound for cross-tenant approve, got: {:?}",
         err
     );
 }

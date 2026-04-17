@@ -18,7 +18,8 @@ use production_rs::domain::routings::{
     AddRoutingStepRequest, CreateRoutingRequest, RoutingStep, RoutingTemplate, UpdateRoutingRequest,
 };
 use production_rs::domain::time_entries::{
-    ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntry,
+    ApproveTimeEntryRequest, ManualEntryRequest, RejectTimeEntryRequest, StartTimerRequest,
+    StopTimerRequest, TimeEntry, TimeEntryStatus,
 };
 use production_rs::domain::work_orders::{
     CreateWorkOrderRequest, DerivedStatus, WorkOrder, WorkOrderResponse, WorkOrderStatus,
@@ -61,6 +62,8 @@ use production_rs::http::routings::ItemDateQuery;
         production_rs::http::time_entries::stop_timer,
         production_rs::http::time_entries::manual_entry,
         production_rs::http::time_entries::list_time_entries,
+        production_rs::http::time_entries::approve_time_entry,
+        production_rs::http::time_entries::reject_time_entry,
         production_rs::http::routings::create_routing,
         production_rs::http::routings::get_routing,
         production_rs::http::routings::list_routings,
@@ -82,7 +85,8 @@ use production_rs::http::routings::ItemDateQuery;
         Workcenter, CreateWorkcenterRequest, UpdateWorkcenterRequest,
         WorkOrder, WorkOrderStatus, WorkOrderResponse, DerivedStatus, CreateWorkOrderRequest,
         OperationInstance,
-        TimeEntry, StartTimerRequest, StopTimerRequest, ManualEntryRequest,
+        TimeEntry, TimeEntryStatus, StartTimerRequest, StopTimerRequest, ManualEntryRequest,
+        ApproveTimeEntryRequest, RejectTimeEntryRequest,
         WorkcenterDowntime, StartDowntimeRequest, EndDowntimeRequest,
         RoutingTemplate, RoutingStep, CreateRoutingRequest, UpdateRoutingRequest,
         AddRoutingStepRequest,

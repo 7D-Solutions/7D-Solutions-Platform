@@ -13,6 +13,15 @@ use crate::events::{self, ProductionEventType};
 // Model
 // ============================================================================
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum TimeEntryStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
 pub struct TimeEntry {
     pub time_entry_id: Uuid,
@@ -24,6 +33,11 @@ pub struct TimeEntry {
     pub end_ts: Option<DateTime<Utc>>,
     pub minutes: Option<i32>,
     pub notes: Option<String>,
+    pub status: TimeEntryStatus,
+    pub approved_by: Option<String>,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub rejected_by: Option<String>,
+    pub rejected_reason: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -43,6 +57,17 @@ pub struct StartTimerRequest {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct StopTimerRequest {
     pub end_ts: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct ApproveTimeEntryRequest {
+    pub approved_by: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, ToSchema)]
+pub struct RejectTimeEntryRequest {
+    pub rejected_by: String,
+    pub rejection_reason: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -80,6 +105,15 @@ pub enum TimeEntryError {
 
     #[error("Conflicting idempotency key")]
     ConflictingIdempotencyKey,
+
+    #[error("Time entry is still running; stop it before approving")]
+    StillRunning,
+
+    #[error("Time entry has already been approved")]
+    AlreadyApproved,
+
+    #[error("Time entry has already been rejected")]
+    AlreadyRejected,
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -429,5 +463,120 @@ impl TimeEntryRepo {
         .fetch_all(pool)
         .await
         .map_err(TimeEntryError::Database)
+    }
+
+    /// Approve a stopped time entry: flip status→approved, enqueue approval event.
+    /// Invariant: end_ts must be non-null (timer stopped) and status must be pending.
+    /// The status update and outbox enqueue occur in a single transaction.
+    pub async fn approve_time_entry(
+        pool: &PgPool,
+        time_entry_id: Uuid,
+        req: &ApproveTimeEntryRequest,
+        tenant_id: &str,
+        correlation_id: &str,
+        causation_id: Option<&str>,
+    ) -> Result<TimeEntry, TimeEntryError> {
+        let mut tx = pool.begin().await?;
+
+        let entry = sqlx::query_as::<_, TimeEntry>(
+            "SELECT * FROM time_entries WHERE time_entry_id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(time_entry_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(TimeEntryError::NotFound)?;
+
+        if entry.end_ts.is_none() {
+            return Err(TimeEntryError::StillRunning);
+        }
+
+        if entry.status == TimeEntryStatus::Approved {
+            return Err(TimeEntryError::AlreadyApproved);
+        }
+
+        let approved_at = Utc::now();
+        let updated = sqlx::query_as::<_, TimeEntry>(
+            r#"
+            UPDATE time_entries
+            SET status = 'approved', approved_by = $1, approved_at = $2
+            WHERE time_entry_id = $3
+            RETURNING *
+            "#,
+        )
+        .bind(&req.approved_by)
+        .bind(approved_at)
+        .bind(time_entry_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let minutes = entry.minutes.unwrap_or(0);
+        enqueue_event(
+            &mut tx,
+            tenant_id,
+            ProductionEventType::TimeEntryApproved,
+            "time_entry",
+            &time_entry_id.to_string(),
+            &events::build_time_entry_approved_envelope(
+                time_entry_id,
+                entry.work_order_id,
+                entry.operation_id,
+                tenant_id.to_string(),
+                entry.actor_id.clone(),
+                minutes,
+                req.approved_by.clone(),
+                approved_at,
+                correlation_id.to_string(),
+                causation_id.map(String::from),
+            ),
+            correlation_id,
+            causation_id,
+        )
+        .await?;
+
+        tx.commit().await?;
+        Ok(updated)
+    }
+
+    /// Reject a time entry with a reason. No event is emitted.
+    pub async fn reject_time_entry(
+        pool: &PgPool,
+        time_entry_id: Uuid,
+        req: &RejectTimeEntryRequest,
+        tenant_id: &str,
+        _correlation_id: &str,
+        _causation_id: Option<&str>,
+    ) -> Result<TimeEntry, TimeEntryError> {
+        let mut tx = pool.begin().await?;
+
+        let entry = sqlx::query_as::<_, TimeEntry>(
+            "SELECT * FROM time_entries WHERE time_entry_id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(time_entry_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(TimeEntryError::NotFound)?;
+
+        if entry.status == TimeEntryStatus::Rejected {
+            return Err(TimeEntryError::AlreadyRejected);
+        }
+
+        let updated = sqlx::query_as::<_, TimeEntry>(
+            r#"
+            UPDATE time_entries
+            SET status = 'rejected', rejected_by = $1, rejected_reason = $2
+            WHERE time_entry_id = $3
+            RETURNING *
+            "#,
+        )
+        .bind(&req.rejected_by)
+        .bind(&req.rejection_reason)
+        .bind(time_entry_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(updated)
     }
 }

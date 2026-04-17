@@ -111,6 +111,20 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
+    let approvals = Router::new()
+        .route(
+            "/api/production/time-entries/{id}/approve",
+            post(time_entries::approve_time_entry),
+        )
+        .route(
+            "/api/production/time-entries/{id}/reject",
+            post(time_entries::reject_time_entry),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::PRODUCTION_TIME_ENTRY_APPROVE,
+        ]))
+        .with_state(state.clone());
+
     let reads = Router::new()
         .route(
             "/api/production/workcenters",
@@ -163,5 +177,5 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
-    Router::new().merge(mutations).merge(reads)
+    Router::new().merge(mutations).merge(approvals).merge(reads)
 }

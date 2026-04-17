@@ -137,6 +137,17 @@ pub const QUALITY_INSPECTION_READ: &str = "quality_inspection.read";
 
 pub const PRODUCTION_MUTATE: &str = "production.mutate";
 pub const PRODUCTION_READ: &str = "production.read";
+pub const PRODUCTION_TIME_ENTRY_APPROVE: &str = "production.time_entry.approve";
+
+// ── Outside Processing ──────────────────────────────────────────
+
+pub const OUTSIDE_PROCESSING_MUTATE: &str = "outside_processing.mutate";
+pub const OUTSIDE_PROCESSING_READ: &str = "outside_processing.read";
+
+// ── Sales Orders ────────────────────────────────────────────────
+
+pub const SALES_ORDERS_MUTATE: &str = "sales_orders.mutate";
+pub const SALES_ORDERS_READ: &str = "sales_orders.read";
 
 // ── Customer Portal ─────────────────────────────────────────────
 
@@ -275,6 +286,9 @@ mod tests {
             BOM_MUTATE,
             QUALITY_INSPECTION_MUTATE,
             PRODUCTION_MUTATE,
+            PRODUCTION_TIME_ENTRY_APPROVE,
+            OUTSIDE_PROCESSING_MUTATE,
+            SALES_ORDERS_MUTATE,
             PLATFORM_TENANTS_CREATE,
         ];
         for perm in &mutate_perms {
@@ -326,12 +340,20 @@ mod tests {
         assert_ne!(BOM_MUTATE, BOM_READ);
         assert_ne!(QUALITY_INSPECTION_MUTATE, QUALITY_INSPECTION_READ);
         assert_ne!(PRODUCTION_MUTATE, PRODUCTION_READ);
+        assert_ne!(SALES_ORDERS_MUTATE, SALES_ORDERS_READ);
+    }
+
+    #[test]
+    fn test_permissions_sales_orders_constants_are_non_empty() {
+        assert!(!SALES_ORDERS_MUTATE.is_empty());
+        assert!(!SALES_ORDERS_READ.is_empty());
     }
 
     #[test]
     fn test_permissions_production_constants_are_non_empty() {
         assert!(!PRODUCTION_MUTATE.is_empty());
         assert!(!PRODUCTION_READ.is_empty());
+        assert!(!PRODUCTION_TIME_ENTRY_APPROVE.is_empty());
     }
 
     #[test]

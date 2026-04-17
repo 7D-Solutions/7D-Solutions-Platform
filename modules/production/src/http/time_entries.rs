@@ -13,7 +13,8 @@ use uuid::Uuid;
 use super::tenant::with_request_id;
 use crate::{
     domain::time_entries::{
-        ManualEntryRequest, StartTimerRequest, StopTimerRequest, TimeEntry, TimeEntryRepo,
+        ApproveTimeEntryRequest, ManualEntryRequest, RejectTimeEntryRequest, StartTimerRequest,
+        StopTimerRequest, TimeEntry, TimeEntryRepo,
     },
     AppState,
 };
@@ -114,6 +115,77 @@ pub async fn manual_entry(
     let corr = Uuid::new_v4().to_string();
     match TimeEntryRepo::manual_entry(&state.pool, &req, &tenant_id, &corr, None).await {
         Ok(entry) => (StatusCode::CREATED, Json(entry)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}
+
+/// POST /api/production/time-entries/:id/approve
+#[utoipa::path(
+    post,
+    path = "/api/production/time-entries/{id}/approve",
+    tag = "Time Entries",
+    params(("id" = Uuid, Path, description = "Time entry ID")),
+    request_body = ApproveTimeEntryRequest,
+    responses(
+        (status = 200, description = "Time entry approved", body = TimeEntry),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Already approved", body = ApiError),
+        (status = 422, description = "Timer still running", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn approve_time_entry(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Json(req): Json<ApproveTimeEntryRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let corr = Uuid::new_v4().to_string();
+    match TimeEntryRepo::approve_time_entry(&state.pool, id, &req, &tenant_id, &corr, None).await {
+        Ok(entry) => (StatusCode::OK, Json(entry)).into_response(),
+        Err(e) => {
+            let api_err: ApiError = e.into();
+            with_request_id(api_err, &tracing_ctx).into_response()
+        }
+    }
+}
+
+/// POST /api/production/time-entries/:id/reject
+#[utoipa::path(
+    post,
+    path = "/api/production/time-entries/{id}/reject",
+    tag = "Time Entries",
+    params(("id" = Uuid, Path, description = "Time entry ID")),
+    request_body = RejectTimeEntryRequest,
+    responses(
+        (status = 200, description = "Time entry rejected", body = TimeEntry),
+        (status = 404, description = "Not found", body = ApiError),
+        (status = 409, description = "Already rejected", body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn reject_time_entry(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(id): Path<Uuid>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Json(req): Json<RejectTimeEntryRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let corr = Uuid::new_v4().to_string();
+    match TimeEntryRepo::reject_time_entry(&state.pool, id, &req, &tenant_id, &corr, None).await {
+        Ok(entry) => (StatusCode::OK, Json(entry)).into_response(),
         Err(e) => {
             let api_err: ApiError = e.into();
             with_request_id(api_err, &tracing_ctx).into_response()

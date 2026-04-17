@@ -23,6 +23,7 @@ pub enum ProductionEventType {
     RoutingReleased,
     TimeEntryCreated,
     TimeEntryStopped,
+    TimeEntryApproved,
     DowntimeStarted,
     DowntimeEnded,
 }
@@ -47,6 +48,7 @@ impl ProductionEventType {
             Self::RoutingReleased => "production.routing_released",
             Self::TimeEntryCreated => "production.time_entry_created",
             Self::TimeEntryStopped => "production.time_entry_stopped",
+            Self::TimeEntryApproved => "production.time_entry_approved",
             Self::DowntimeStarted => "production.downtime.started",
             Self::DowntimeEnded => "production.downtime.ended",
         }
@@ -616,6 +618,52 @@ pub fn build_time_entry_stopped_envelope(
             start_ts,
             end_ts,
             minutes,
+        },
+    )
+}
+
+// ============================================================================
+// Time entry approved event payload
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TimeEntryApprovedPayload {
+    pub time_entry_id: Uuid,
+    pub work_order_id: Uuid,
+    pub operation_id: Option<Uuid>,
+    pub tenant_id: String,
+    pub actor_id: String,
+    pub minutes: i32,
+    pub approved_by: String,
+    pub approved_at: chrono::DateTime<chrono::Utc>,
+}
+
+pub fn build_time_entry_approved_envelope(
+    time_entry_id: Uuid,
+    work_order_id: Uuid,
+    operation_id: Option<Uuid>,
+    tenant_id: String,
+    actor_id: String,
+    minutes: i32,
+    approved_by: String,
+    approved_at: chrono::DateTime<chrono::Utc>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<TimeEntryApprovedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::TimeEntryApproved.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        TimeEntryApprovedPayload {
+            time_entry_id,
+            work_order_id,
+            operation_id,
+            tenant_id,
+            actor_id,
+            minutes,
+            approved_by,
+            approved_at,
         },
     )
 }
