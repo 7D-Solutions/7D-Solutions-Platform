@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/crm-pipeline-lead-created.v1.json",
+  "title": "crm_pipeline.lead_created",
+  "description": "Event emitted when a new CRM lead is created",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "crm_pipeline.lead_created" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "crm-pipeline" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"] },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["lead_id", "tenant_id", "lead_number", "source", "company_name", "created_at"],
+      "properties": {
+        "lead_id": { "type": "string", "format": "uuid" },
+        "tenant_id": { "type": "string" },
+        "lead_number": { "type": "string" },
+        "source": { "type": "string" },
+        "company_name": { "type": "string" },
+        "estimated_value_cents": { "type": ["integer", "null"] },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

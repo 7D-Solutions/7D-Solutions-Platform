@@ -1,0 +1,794 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CRM Pipeline Service",
+    "description": "CRM Pipeline: leads, opportunities, pipeline stages, activities, and sales handoff.",
+    "license": { "name": "" },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/crm-pipeline/leads": {
+      "get": {
+        "tags": ["Leads"],
+        "summary": "List leads",
+        "operationId": "list_leads",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "assigned_user_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated list of leads", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Lead" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Create a lead",
+        "operationId": "create_lead",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateLeadRequest" } } } },
+        "responses": {
+          "201": { "description": "Lead created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lead" } } } },
+          "422": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}": {
+      "get": {
+        "tags": ["Leads"],
+        "summary": "Get a lead",
+        "operationId": "get_lead",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Lead detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lead" } } } },
+          "404": { "description": "Not found" }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "put": {
+        "tags": ["Leads"],
+        "summary": "Update a lead",
+        "operationId": "update_lead",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateLeadRequest" } } } },
+        "responses": {
+          "200": { "description": "Lead updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Lead" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/contact": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Mark lead as contacted",
+        "operationId": "mark_contacted",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Lead updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/qualify": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Mark lead as qualifying",
+        "operationId": "mark_qualifying",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Lead updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/mark-qualified": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Mark lead as qualified",
+        "operationId": "mark_qualified",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Lead updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/convert": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Convert lead to opportunity",
+        "operationId": "convert_lead",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConvertLeadRequest" } } } },
+        "responses": {
+          "200": { "description": "Lead converted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConvertLeadResponse" } } } },
+          "422": { "description": "Validation error — party_id required" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/disqualify": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Disqualify a lead",
+        "operationId": "disqualify_lead",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DisqualifyLeadRequest" } } } },
+        "responses": { "200": { "description": "Lead disqualified" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/leads/{id}/mark-dead": {
+      "post": {
+        "tags": ["Leads"],
+        "summary": "Mark lead as dead",
+        "operationId": "mark_dead",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Lead updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities": {
+      "get": {
+        "tags": ["Opportunities"],
+        "summary": "List opportunities",
+        "operationId": "list_opportunities",
+        "parameters": [
+          { "name": "stage_code", "in": "query", "schema": { "type": "string" } },
+          { "name": "assigned_user_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "Paginated list of opportunities", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Opportunity" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Opportunities"],
+        "summary": "Create an opportunity",
+        "operationId": "create_opportunity",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateOpportunityRequest" } } } },
+        "responses": {
+          "201": { "description": "Opportunity created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Opportunity" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities/{id}": {
+      "get": {
+        "tags": ["Opportunities"],
+        "summary": "Get an opportunity",
+        "operationId": "get_opportunity",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Opportunity detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Opportunity" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "put": {
+        "tags": ["Opportunities"],
+        "summary": "Update an opportunity",
+        "operationId": "update_opportunity",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateOpportunityRequest" } } } },
+        "responses": { "200": { "description": "Opportunity updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities/{id}/advance-stage": {
+      "post": {
+        "tags": ["Opportunities"],
+        "summary": "Advance opportunity to next stage",
+        "operationId": "advance_stage",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdvanceStageRequest" } } } },
+        "responses": {
+          "200": { "description": "Stage advanced" },
+          "422": { "description": "Target stage is terminal or does not exist" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities/{id}/close-won": {
+      "post": {
+        "tags": ["Opportunities"],
+        "summary": "Close opportunity as won",
+        "operationId": "close_won",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CloseWonRequest" } } } },
+        "responses": { "200": { "description": "Opportunity closed won" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities/{id}/close-lost": {
+      "post": {
+        "tags": ["Opportunities"],
+        "summary": "Close opportunity as lost",
+        "operationId": "close_lost",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CloseLostRequest" } } } },
+        "responses": { "200": { "description": "Opportunity closed lost" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/opportunities/{id}/stage-history": {
+      "get": {
+        "tags": ["Opportunities"],
+        "summary": "Get stage history for an opportunity",
+        "operationId": "stage_history",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Stage history", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OpportunityStageHistory" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/pipeline/summary": {
+      "get": {
+        "tags": ["Opportunities"],
+        "summary": "Pipeline summary by stage",
+        "operationId": "pipeline_summary",
+        "responses": {
+          "200": { "description": "Pipeline summary", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PipelineSummaryItem" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/stages": {
+      "get": {
+        "tags": ["PipelineStages"],
+        "summary": "List pipeline stages",
+        "operationId": "list_stages",
+        "responses": {
+          "200": { "description": "Pipeline stages", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PipelineStage" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["PipelineStages"],
+        "summary": "Create a pipeline stage",
+        "operationId": "create_stage",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateStageRequest" } } } },
+        "responses": {
+          "201": { "description": "Stage created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PipelineStage" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/stages/{code}": {
+      "put": {
+        "tags": ["PipelineStages"],
+        "summary": "Update a pipeline stage",
+        "operationId": "update_stage",
+        "parameters": [{ "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateStageRequest" } } } },
+        "responses": { "200": { "description": "Stage updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/stages/{code}/deactivate": {
+      "post": {
+        "tags": ["PipelineStages"],
+        "summary": "Deactivate a pipeline stage",
+        "operationId": "deactivate_stage",
+        "parameters": [{ "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Stage deactivated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/stages/reorder": {
+      "post": {
+        "tags": ["PipelineStages"],
+        "summary": "Reorder pipeline stages",
+        "operationId": "reorder_stages",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReorderStagesRequest" } } } },
+        "responses": { "200": { "description": "Stages reordered" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/activities": {
+      "get": {
+        "tags": ["Activities"],
+        "summary": "List activities",
+        "operationId": "list_activities",
+        "parameters": [
+          { "name": "lead_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "opportunity_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": { "description": "List of activities", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Activity" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Activities"],
+        "summary": "Log an activity",
+        "operationId": "log_activity",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateActivityRequest" } } } },
+        "responses": {
+          "201": { "description": "Activity logged", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Activity" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/activities/{id}": {
+      "get": {
+        "tags": ["Activities"],
+        "summary": "Get an activity",
+        "operationId": "get_activity",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Activity detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Activity" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "put": {
+        "tags": ["Activities"],
+        "summary": "Update an activity",
+        "operationId": "update_activity",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateActivityRequest" } } } },
+        "responses": { "200": { "description": "Activity updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/activities/{id}/complete": {
+      "post": {
+        "tags": ["Activities"],
+        "summary": "Complete an activity",
+        "operationId": "complete_activity",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Activity completed" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/activity-types": {
+      "get": {
+        "tags": ["Activities"],
+        "summary": "List activity types",
+        "operationId": "list_activity_types",
+        "responses": {
+          "200": { "description": "Activity types", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ActivityType" } } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "post": {
+        "tags": ["Activities"],
+        "summary": "Create an activity type",
+        "operationId": "create_activity_type",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateActivityTypeRequest" } } } },
+        "responses": {
+          "201": { "description": "Activity type created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActivityType" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/activity-types/{code}": {
+      "put": {
+        "tags": ["Activities"],
+        "summary": "Update an activity type",
+        "operationId": "update_activity_type",
+        "parameters": [{ "name": "code", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateActivityTypeRequest" } } } },
+        "responses": { "200": { "description": "Activity type updated" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/contacts/{party_contact_id}/attributes": {
+      "get": {
+        "tags": ["ContactRoles"],
+        "summary": "Get contact role attributes",
+        "operationId": "get_contact_attributes",
+        "parameters": [{ "name": "party_contact_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Contact role attributes", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContactRoleAttributes" } } } }
+        },
+        "security": [{ "bearer": [] }]
+      },
+      "put": {
+        "tags": ["ContactRoles"],
+        "summary": "Set contact role attributes",
+        "operationId": "set_contact_attributes",
+        "parameters": [{ "name": "party_contact_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpsertContactRoleRequest" } } } },
+        "responses": { "200": { "description": "Attributes upserted" } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/status-labels": {
+      "get": {
+        "tags": ["Labels"],
+        "summary": "List lead status labels",
+        "operationId": "list_status_labels",
+        "responses": { "200": { "description": "Labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Label" } } } } } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/source-labels": {
+      "get": {
+        "tags": ["Labels"],
+        "summary": "List lead source labels",
+        "operationId": "list_source_labels",
+        "responses": { "200": { "description": "Labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Label" } } } } } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/type-labels": {
+      "get": {
+        "tags": ["Labels"],
+        "summary": "List opportunity type labels",
+        "operationId": "list_type_labels",
+        "responses": { "200": { "description": "Labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Label" } } } } } },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/crm-pipeline/priority-labels": {
+      "get": {
+        "tags": ["Labels"],
+        "summary": "List opportunity priority labels",
+        "operationId": "list_priority_labels",
+        "responses": { "200": { "description": "Labels", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Label" } } } } } },
+        "security": [{ "bearer": [] }]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Lead": {
+        "type": "object",
+        "required": ["id", "tenant_id", "lead_number", "title", "status", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "lead_number": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "source": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] },
+          "disqualify_reason": { "type": ["string", "null"] },
+          "converted_opportunity_id": { "type": ["string", "null"], "format": "uuid" },
+          "converted_at": { "type": ["string", "null"], "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateLeadRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string" },
+          "source": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "UpdateLeadRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": ["string", "null"] },
+          "source": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "ConvertLeadRequest": {
+        "type": "object",
+        "required": ["party_id"],
+        "properties": {
+          "party_id": { "type": "string", "format": "uuid" },
+          "opportunity_title": { "type": ["string", "null"] }
+        }
+      },
+      "ConvertLeadResponse": {
+        "type": "object",
+        "required": ["lead_id", "opportunity_id"],
+        "properties": {
+          "lead_id": { "type": "string", "format": "uuid" },
+          "opportunity_id": { "type": "string", "format": "uuid" }
+        }
+      },
+      "DisqualifyLeadRequest": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": { "type": "string" }
+        }
+      },
+      "Opportunity": {
+        "type": "object",
+        "required": ["id", "tenant_id", "opp_number", "title", "stage_code", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "opp_number": { "type": "string" },
+          "title": { "type": "string" },
+          "stage_code": { "type": "string" },
+          "opp_type": { "type": ["string", "null"] },
+          "priority": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "primary_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "expected_close_date": { "type": ["string", "null"], "format": "date" },
+          "close_reason": { "type": ["string", "null"] },
+          "source_lead_id": { "type": ["string", "null"], "format": "uuid" },
+          "sales_order_id": { "type": ["string", "null"], "format": "uuid" },
+          "notes": { "type": ["string", "null"] },
+          "closed_at": { "type": ["string", "null"], "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OpportunityStageHistory": {
+        "type": "object",
+        "required": ["id", "opportunity_id", "stage_code", "entered_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "opportunity_id": { "type": "string", "format": "uuid" },
+          "stage_code": { "type": "string" },
+          "entered_at": { "type": "string", "format": "date-time" },
+          "entered_by_user_id": { "type": ["string", "null"], "format": "uuid" }
+        }
+      },
+      "PipelineSummaryItem": {
+        "type": "object",
+        "required": ["stage_code", "display_label", "order_rank", "count", "total_value_cents"],
+        "properties": {
+          "stage_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "order_rank": { "type": "integer" },
+          "count": { "type": "integer" },
+          "total_value_cents": { "type": "integer" }
+        }
+      },
+      "CreateOpportunityRequest": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string" },
+          "stage_code": { "type": ["string", "null"] },
+          "opp_type": { "type": ["string", "null"] },
+          "priority": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "primary_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "expected_close_date": { "type": ["string", "null"], "format": "date" },
+          "source_lead_id": { "type": ["string", "null"], "format": "uuid" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "UpdateOpportunityRequest": {
+        "type": "object",
+        "properties": {
+          "title": { "type": ["string", "null"] },
+          "opp_type": { "type": ["string", "null"] },
+          "priority": { "type": ["string", "null"] },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "primary_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "estimated_value_cents": { "type": ["integer", "null"] },
+          "currency_code": { "type": ["string", "null"] },
+          "expected_close_date": { "type": ["string", "null"], "format": "date" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "AdvanceStageRequest": {
+        "type": "object",
+        "required": ["stage_code"],
+        "properties": {
+          "stage_code": { "type": "string" }
+        }
+      },
+      "CloseWonRequest": {
+        "type": "object",
+        "properties": {
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "CloseLostRequest": {
+        "type": "object",
+        "required": ["close_reason"],
+        "properties": {
+          "close_reason": { "type": "string" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "PipelineStage": {
+        "type": "object",
+        "required": ["id", "tenant_id", "stage_code", "display_label", "order_rank", "is_terminal", "is_win", "active", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "stage_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "order_rank": { "type": "integer" },
+          "is_terminal": { "type": "boolean" },
+          "is_win": { "type": "boolean" },
+          "probability_default_pct": { "type": ["integer", "null"] },
+          "active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateStageRequest": {
+        "type": "object",
+        "required": ["stage_code", "display_label", "order_rank", "is_terminal", "is_win"],
+        "properties": {
+          "stage_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "order_rank": { "type": "integer" },
+          "is_terminal": { "type": "boolean" },
+          "is_win": { "type": "boolean" },
+          "probability_default_pct": { "type": ["integer", "null"] }
+        }
+      },
+      "UpdateStageRequest": {
+        "type": "object",
+        "properties": {
+          "display_label": { "type": ["string", "null"] },
+          "order_rank": { "type": ["integer", "null"] },
+          "probability_default_pct": { "type": ["integer", "null"] }
+        }
+      },
+      "ReorderStagesRequest": {
+        "type": "object",
+        "required": ["stages"],
+        "properties": {
+          "stages": { "type": "array", "items": { "$ref": "#/components/schemas/StageReorderItem" } }
+        }
+      },
+      "StageReorderItem": {
+        "type": "object",
+        "required": ["stage_code", "order_rank"],
+        "properties": {
+          "stage_code": { "type": "string" },
+          "order_rank": { "type": "integer" }
+        }
+      },
+      "Activity": {
+        "type": "object",
+        "required": ["id", "tenant_id", "activity_type_code", "subject", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "activity_type_code": { "type": "string" },
+          "subject": { "type": "string" },
+          "lead_id": { "type": ["string", "null"], "format": "uuid" },
+          "opportunity_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "due_at": { "type": ["string", "null"], "format": "date-time" },
+          "completed_at": { "type": ["string", "null"], "format": "date-time" },
+          "notes": { "type": ["string", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateActivityRequest": {
+        "type": "object",
+        "required": ["activity_type_code", "subject"],
+        "properties": {
+          "activity_type_code": { "type": "string" },
+          "subject": { "type": "string" },
+          "lead_id": { "type": ["string", "null"], "format": "uuid" },
+          "opportunity_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_id": { "type": ["string", "null"], "format": "uuid" },
+          "party_contact_id": { "type": ["string", "null"], "format": "uuid" },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "due_at": { "type": ["string", "null"], "format": "date-time" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "UpdateActivityRequest": {
+        "type": "object",
+        "properties": {
+          "subject": { "type": ["string", "null"] },
+          "assigned_user_id": { "type": ["string", "null"], "format": "uuid" },
+          "due_at": { "type": ["string", "null"], "format": "date-time" },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "ActivityType": {
+        "type": "object",
+        "required": ["id", "tenant_id", "type_code", "display_label", "is_active", "created_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "type_code": { "type": "string" },
+          "display_label": { "type": "string" },
+          "is_active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateActivityTypeRequest": {
+        "type": "object",
+        "required": ["type_code", "display_label"],
+        "properties": {
+          "type_code": { "type": "string" },
+          "display_label": { "type": "string" }
+        }
+      },
+      "UpdateActivityTypeRequest": {
+        "type": "object",
+        "properties": {
+          "display_label": { "type": ["string", "null"] },
+          "is_active": { "type": ["boolean", "null"] }
+        }
+      },
+      "ContactRoleAttributes": {
+        "type": "object",
+        "required": ["id", "tenant_id", "party_contact_id", "is_decision_maker", "is_active", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string" },
+          "party_contact_id": { "type": "string", "format": "uuid" },
+          "sales_role": { "type": ["string", "null"] },
+          "influence_level": { "type": ["string", "null"] },
+          "is_decision_maker": { "type": "boolean" },
+          "notes": { "type": ["string", "null"] },
+          "is_active": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UpsertContactRoleRequest": {
+        "type": "object",
+        "properties": {
+          "sales_role": { "type": ["string", "null"] },
+          "influence_level": { "type": ["string", "null"] },
+          "is_decision_maker": { "type": ["boolean", "null"] },
+          "notes": { "type": ["string", "null"] }
+        }
+      },
+      "Label": {
+        "type": "object",
+        "required": ["canonical_value", "display_label", "sort_order", "is_active"],
+        "properties": {
+          "canonical_value": { "type": "string" },
+          "display_label": { "type": "string" },
+          "sort_order": { "type": "integer" },
+          "is_active": { "type": "boolean" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "field": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "tags": [
+    { "name": "Leads", "description": "Lead lifecycle management" },
+    { "name": "Opportunities", "description": "Opportunity pipeline management" },
+    { "name": "PipelineStages", "description": "Tenant pipeline stage configuration" },
+    { "name": "Activities", "description": "Sales activity logging" },
+    { "name": "ContactRoles", "description": "CRM contact role attributes" },
+    { "name": "Labels", "description": "Per-tenant display labels" }
+  ]
+}

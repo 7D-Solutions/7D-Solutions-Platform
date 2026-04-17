@@ -1215,6 +1215,54 @@ services:
       com.agentcore.service: production
 
   # =========================
+  # SALES ORDERS MODULE
+  # =========================
+  sales-orders:
+    container_name: 7d-sales-orders
+    image: flywheel/rust-dev-runtime:2026-04
+    environment:
+      DATABASE_URL: postgres://${SO_POSTGRES_USER:-so_user}:${SO_POSTGRES_PASSWORD:?SO_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-sales-orders-postgres:5432/${SO_POSTGRES_DB:-so_db}?sslmode=require
+      HOST: 0.0.0.0
+      PORT: 8109
+      BUS_TYPE: nats
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      INVENTORY_BASE_URL: http://7d-inventory:8092
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/sales-orders-rs:/app/service:ro
+      - ./modules/sales-orders/module.toml:/app/module.toml:ro
+      - ./modules/sales-orders/db/migrations:/app/db/migrations:ro
+    ports:
+      - "127.0.0.1:8109:8109"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8109/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "sales-orders"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.agentcore.project: "platform"
+      com.agentcore.container-role: app
+      com.agentcore.service: sales-orders
+
+  # =========================
   # WORKFLOW MODULE
   # =========================
   workflow:
@@ -1446,6 +1494,53 @@ services:
       com.agentcore.project: "platform"
       com.agentcore.container-role: app
       com.agentcore.service: doc-mgmt
+
+  # =========================
+  # CRM PIPELINE MODULE
+  # =========================
+  crm-pipeline:
+    container_name: 7d-crm-pipeline
+    image: flywheel/rust-dev-runtime:2026-04
+    environment:
+      DATABASE_URL: postgres://${CRM_PIPELINE_POSTGRES_USER:-crm_pipeline_user}:${CRM_PIPELINE_POSTGRES_PASSWORD:?CRM_PIPELINE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-crm-pipeline-postgres:5432/${CRM_PIPELINE_POSTGRES_DB:-crm_pipeline_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8112
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/crm-pipeline-rs:/app/service:ro
+      - ./modules/crm-pipeline/module.toml:/app/module.toml:ro
+      - ./modules/crm-pipeline/db/migrations:/app/db/migrations:ro
+    ports:
+      - "127.0.0.1:8112:8112"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8112/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "crm-pipeline"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.agentcore.project: "platform"
+      com.agentcore.container-role: app
+      com.agentcore.service: crm-pipeline
 
   # =========================
   # REPORTING MODULE

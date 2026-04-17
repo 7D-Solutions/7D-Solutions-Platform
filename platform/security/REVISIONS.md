@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.10.0 | 2026-04-17 | bd-1a57w | Add `CRM_PIPELINE_MUTATE` and `CRM_PIPELINE_READ` permission constants for the new crm-pipeline platform module (leads, opportunities, activities). | New platform module needs its own RBAC scope distinct from party or sales_orders. | No |
 | 1.9.0 | 2026-04-17 | bd-ixnbs.1 | Add `PRODUCTION_TIME_ENTRY_APPROVE` permission constant to gate time-entry approval/rejection endpoints in Production. | Production introduced a time-entry approval flow requiring a supervisor-scoped role distinct from generic mutate. Needed by bd-ixnbs.1. | No |
 | 1.8.4 | 2026-04-15 | bd-jwhsp | Apply rustfmt across platform/security (claims.rs, audit_log.rs, lib.rs, middleware.rs, ratelimit.rs, rbac.rs, webhook_verify.rs, and three test files). Pure formatting reflow; no behavior change. | UBS multi-pass sweep left the tree with uncommitted fmt changes from AgentCursor session on 2026-04-14. | No |
 | 1.8.3 | 2026-04-15 | bd-bhtxq | Fix stale JwtVerifier::from_env() doc example in authz_middleware.rs (and 2 occurrences in docs/consumer-guide/). Replaced with from_env_with_overlap() so copy-paste preserves JWT_PUBLIC_KEY_PREV rotation support. | Docs drift from an earlier API before key rotation was added. Copy-paste into a new binary silently dropped rotation. | No |

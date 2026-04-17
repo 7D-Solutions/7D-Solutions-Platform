@@ -254,6 +254,16 @@ services:
       - ./modules/customer-portal/module.toml:/app/module.toml:ro
       - ./modules/customer-portal/db/migrations:/app/db/migrations:ro
 
+  crm-pipeline:
+    image: 7d-runtime
+    working_dir: /app
+    environment:
+      SERVICE_BINARY: /usr/local/bin/crm-pipeline-rs
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/crm-pipeline-rs:/usr/local/bin/crm-pipeline-rs:ro
+      - ./modules/crm-pipeline/module.toml:/app/module.toml:ro
+      - ./modules/crm-pipeline/db/migrations:/app/db/migrations:ro
+
   reporting:
     image: 7d-runtime
     working_dir: /app

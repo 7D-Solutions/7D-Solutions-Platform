@@ -968,6 +968,139 @@ services:
       com.7dsolutions.env: "dev"
 
   # =========================
+  # CRM PIPELINE MODULE
+  # =========================
+  crm-pipeline-postgres:
+    container_name: 7d-crm-pipeline-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5465:5432"
+    environment:
+      POSTGRES_DB: ${CRM_PIPELINE_POSTGRES_DB:-crm_pipeline_db}
+      POSTGRES_USER: ${CRM_PIPELINE_POSTGRES_USER:-crm_pipeline_user}
+      POSTGRES_PASSWORD: ${CRM_PIPELINE_POSTGRES_PASSWORD:?CRM_PIPELINE_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
+    volumes:
+      - crm_pipeline_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CRM_PIPELINE_POSTGRES_USER:-crm_pipeline_user} -d ${CRM_PIPELINE_POSTGRES_DB:-crm_pipeline_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "crm-pipeline-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # OUTSIDE PROCESSING MODULE
+  # =========================
+  outside-processing-postgres:
+    container_name: 7d-outside-processing-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5466:5432"
+    environment:
+      POSTGRES_DB: ${OP_POSTGRES_DB:-op_db}
+      POSTGRES_USER: ${OP_POSTGRES_USER:-op_user}
+      POSTGRES_PASSWORD: ${OP_POSTGRES_PASSWORD:?OP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
+    volumes:
+      - op_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${OP_POSTGRES_USER:-op_user} -d ${OP_POSTGRES_DB:-op_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "outside-processing-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # SALES ORDERS MODULE
+  # =========================
+  sales-orders-postgres:
+    container_name: 7d-sales-orders-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5467:5432"
+    environment:
+      POSTGRES_DB: ${SO_POSTGRES_DB:-so_db}
+      POSTGRES_USER: ${SO_POSTGRES_USER:-so_user}
+      POSTGRES_PASSWORD: ${SO_POSTGRES_PASSWORD:?SO_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
+    volumes:
+      - so_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SO_POSTGRES_USER:-so_user} -d ${SO_POSTGRES_DB:-so_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "sales-orders-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  customer-complaints-postgres:
+    container_name: 7d-customer-complaints-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5468:5432"
+    environment:
+      POSTGRES_DB: ${CC_POSTGRES_DB:-cc_db}
+      POSTGRES_USER: ${CC_POSTGRES_USER:-cc_user}
+      POSTGRES_PASSWORD: ${CC_POSTGRES_PASSWORD:?CC_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
+    volumes:
+      - cc_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CC_POSTGRES_USER:-cc_user} -d ${CC_POSTGRES_DB:-cc_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "customer-complaints-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  # =========================
   # BLOB STORAGE
   # =========================
   minio:
@@ -1117,6 +1250,18 @@ volumes:
     external: true
   reporting_pgdata:
     name: 7d-reporting-pgdata
+    external: true
+  crm_pipeline_pgdata:
+    name: 7d-crm-pipeline-pgdata
+    external: true
+  op_pgdata:
+    name: 7d-op-pgdata
+    external: true
+  so_pgdata:
+    name: 7d-so-pgdata
+    external: true
+  cc_pgdata:
+    name: 7d-cc-pgdata
     external: true
   minio_data:
     name: 7d-minio-data

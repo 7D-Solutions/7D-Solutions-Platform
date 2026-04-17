@@ -149,6 +149,21 @@ pub const OUTSIDE_PROCESSING_READ: &str = "outside_processing.read";
 pub const SALES_ORDERS_MUTATE: &str = "sales_orders.mutate";
 pub const SALES_ORDERS_READ: &str = "sales_orders.read";
 
+// ── CRM Pipeline ────────────────────────────────────────────────
+
+pub const CRM_PIPELINE_MUTATE: &str = "crm_pipeline.mutate";
+pub const CRM_PIPELINE_READ: &str = "crm_pipeline.read";
+
+// ── Customer Complaints ──────────────────────────────────────────────────────
+
+pub const CUSTOMER_COMPLAINTS_MUTATE: &str = "customer_complaints.mutate";
+pub const CUSTOMER_COMPLAINTS_READ: &str = "customer_complaints.read";
+
+// ── Shop Floor Gates ─────────────────────────────────────────────────────────
+
+pub const SHOP_FLOOR_GATES_MUTATE: &str = "shop_floor_gates.mutate";
+pub const SHOP_FLOOR_GATES_READ: &str = "shop_floor_gates.read";
+
 // ── Customer Portal ─────────────────────────────────────────────
 
 /// Administer customer portal users/docs — distinct from party record management.
@@ -289,6 +304,7 @@ mod tests {
             PRODUCTION_TIME_ENTRY_APPROVE,
             OUTSIDE_PROCESSING_MUTATE,
             SALES_ORDERS_MUTATE,
+            CRM_PIPELINE_MUTATE,
             PLATFORM_TENANTS_CREATE,
         ];
         for perm in &mutate_perms {
@@ -378,5 +394,27 @@ mod tests {
     fn test_permissions_workflow_constants_are_non_empty() {
         assert!(!WORKFLOW_MUTATE.is_empty());
         assert!(!WORKFLOW_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_crm_pipeline_constants_are_non_empty() {
+        assert!(!CRM_PIPELINE_MUTATE.is_empty());
+        assert!(!CRM_PIPELINE_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_crm_pipeline_mutate_distinct_from_read() {
+        assert_ne!(CRM_PIPELINE_MUTATE, CRM_PIPELINE_READ);
+    }
+
+    #[test]
+    fn test_permissions_customer_complaints_constants_are_non_empty() {
+        assert!(!CUSTOMER_COMPLAINTS_MUTATE.is_empty());
+        assert!(!CUSTOMER_COMPLAINTS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_customer_complaints_mutate_distinct_from_read() {
+        assert_ne!(CUSTOMER_COMPLAINTS_MUTATE, CUSTOMER_COMPLAINTS_READ);
     }
 }

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/crm-pipeline-opportunity-stage-advanced.v1.json",
+  "title": "crm_pipeline.opportunity_stage_advanced",
+  "description": "Event emitted when an opportunity advances to a new pipeline stage",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "crm_pipeline.opportunity_stage_advanced" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "crm-pipeline" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"] },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["opportunity_id", "tenant_id", "from_stage_code", "to_stage_code", "probability_pct"],
+      "properties": {
+        "opportunity_id": { "type": "string", "format": "uuid" },
+        "tenant_id": { "type": "string" },
+        "from_stage_code": { "type": "string" },
+        "to_stage_code": { "type": "string" },
+        "probability_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "days_in_previous_stage": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
