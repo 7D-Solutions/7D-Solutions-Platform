@@ -1,6 +1,6 @@
 [package]
 name = "inventory-rs"
-version = "2.7.3"
+version = "2.8.0"
 edition = "2021"
 description = "Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts"
 
@@ -27,6 +27,7 @@ projections = { path = "../../platform/projections" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 utoipa = { version = "5", features = ["chrono", "uuid"] }
 platform-sdk = { path = "../../platform/platform-sdk" }
+regex = "1"
 
 [[bin]]
 name = "bench"

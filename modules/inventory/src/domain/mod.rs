@@ -1,5 +1,7 @@
 #[path = "adjust/mod.rs"]
 pub mod adjust_service;
+pub mod barcode_resolver;
+pub mod barcode_resolver_repo;
 pub mod classifications;
 pub mod cycle_count;
 mod error_conversions;

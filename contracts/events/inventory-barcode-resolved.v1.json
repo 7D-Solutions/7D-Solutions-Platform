@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "inventory.barcode_resolved",
+  "description": "Emitted when a barcode is evaluated against tenant format rules. Observability event — resolved=false is a valid outcome (no matching rule or entity not found).",
+  "type": "object",
+  "required": ["event_id", "event_type", "tenant_id", "source_module", "schema_version", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "inventory.barcode_resolved" },
+    "tenant_id": { "type": "string" },
+    "source_module": { "type": "string", "const": "inventory" },
+    "schema_version": { "type": "string" },
+    "correlation_id": { "type": ["string", "null"] },
+    "causation_id": { "type": ["string", "null"] },
+    "payload": {
+      "type": "object",
+      "required": ["barcode_raw", "resolved", "resolved_at"],
+      "properties": {
+        "barcode_raw": {
+          "type": "string",
+          "description": "The raw scanned barcode string"
+        },
+        "entity_type": {
+          "type": ["string", "null"],
+          "enum": ["work_order", "operation", "item", "lot", "serial", "badge", "other", null],
+          "description": "The matched entity type, or null if no rule matched"
+        },
+        "resolved": {
+          "type": "boolean",
+          "description": "True if a rule matched AND (for Inventory-native types) the entity record was found"
+        },
+        "matched_rule_id": {
+          "type": ["string", "null"],
+          "format": "uuid",
+          "description": "The rule that matched the barcode, if any"
+        },
+        "resolved_by": {
+          "type": ["string", "null"],
+          "description": "The principal that initiated the resolution (e.g. operator badge ID)"
+        },
+        "resolved_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

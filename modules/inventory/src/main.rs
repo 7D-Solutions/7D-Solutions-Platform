@@ -2,6 +2,10 @@ use axum::{routing::get, Json, Router};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
+use inventory_rs::domain::barcode_resolver::{
+    BatchResolveRequest, CreateRuleRequest, ResolveRequest, TestRuleRequest, UpdateRuleRequest,
+};
+use inventory_rs::domain::barcode_resolver_repo::BarcodeFormatRule;
 use inventory_rs::domain::genealogy::GenealogyEdge;
 use inventory_rs::domain::items::ListItemsQuery;
 use inventory_rs::domain::status::models::InvItemStatus;
@@ -61,6 +65,11 @@ use inventory_rs::{
         uom::{create_conversion, create_uom, list_conversions, list_uoms},
     },
     http::{
+        barcode::{
+            get_list_barcode_rules, post_create_barcode_rule, put_update_barcode_rule,
+            post_deactivate_barcode_rule, post_resolve_barcode, post_resolve_barcode_batch,
+            post_test_barcode_rule,
+        },
         cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
         expiry::{post_expiry_alert_scan, put_lot_expiry},
         genealogy::{get_lot_children, get_lot_parents, post_lot_merge, post_lot_split},
@@ -159,6 +168,13 @@ use security::{permissions, RequirePermissionsLayer};
         inventory_rs::http::admin::consistency_check,
         inventory_rs::http::admin::list_projections,
         inventory_rs::http::batch_receipts::post_batch_receipts,
+        inventory_rs::http::barcode::get_list_barcode_rules,
+        inventory_rs::http::barcode::post_create_barcode_rule,
+        inventory_rs::http::barcode::put_update_barcode_rule,
+        inventory_rs::http::barcode::post_deactivate_barcode_rule,
+        inventory_rs::http::barcode::post_resolve_barcode,
+        inventory_rs::http::barcode::post_resolve_barcode_batch,
+        inventory_rs::http::barcode::post_test_barcode_rule,
     ),
     components(schemas(
         Item, TrackingMode, CreateItemRequest, UpdateItemRequest, ListItemsQuery,
@@ -186,6 +202,8 @@ use security::{permissions, RequirePermissionsLayer};
         MovementEntry,
         InvItemStatus, StatusTransferRequest, StatusTransferResult,
         BatchReceiptRequest, BatchReceiptResponse, BatchReceiptItemResult,
+        BarcodeFormatRule, CreateRuleRequest, UpdateRuleRequest,
+        ResolveRequest, BatchResolveRequest, TestRuleRequest,
         ApiError, PaginatedResponse<Item>, PaginatedResponse<Location>,
         PaginatedResponse<Label>, PaginatedResponse<InventoryLot>,
         PaginatedResponse<ReorderPolicy>, PaginatedResponse<ItemRevision>,
@@ -368,6 +386,30 @@ async fn main() {
                     "/api/inventory/locations/{id}/deactivate",
                     axum::routing::post(deactivate_location),
                 )
+                .route(
+                    "/api/inventory/barcode/rules",
+                    axum::routing::post(post_create_barcode_rule),
+                )
+                .route(
+                    "/api/inventory/barcode/rules/{id}",
+                    axum::routing::put(put_update_barcode_rule),
+                )
+                .route(
+                    "/api/inventory/barcode/rules/{id}/deactivate",
+                    axum::routing::post(post_deactivate_barcode_rule),
+                )
+                .route(
+                    "/api/inventory/barcode/resolve",
+                    axum::routing::post(post_resolve_barcode),
+                )
+                .route(
+                    "/api/inventory/barcode/resolve/batch",
+                    axum::routing::post(post_resolve_barcode_batch),
+                )
+                .route(
+                    "/api/inventory/barcode/rules/test",
+                    axum::routing::post(post_test_barcode_rule),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::INVENTORY_MUTATE,
                 ]))
@@ -448,6 +490,10 @@ async fn main() {
                 .route(
                     "/api/inventory/warehouses/{warehouse_id}/locations",
                     axum::routing::get(list_locations),
+                )
+                .route(
+                    "/api/inventory/barcode/rules",
+                    axum::routing::get(get_list_barcode_rules),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[permissions::INVENTORY_READ]))
                 .with_state(app_state.clone());

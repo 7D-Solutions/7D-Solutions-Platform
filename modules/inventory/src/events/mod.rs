@@ -45,6 +45,7 @@
 //! assert_eq!(envelope.source_module, "inventory");
 //! ```
 
+pub mod barcode_resolved;
 pub mod classification_assigned;
 pub mod contracts;
 pub mod cycle_count_approved;
@@ -155,6 +156,10 @@ pub use classification_assigned::{
 
 pub use make_buy_changed::{
     build_make_buy_changed_envelope, MakeBuyChangedPayload, EVENT_TYPE_MAKE_BUY_CHANGED,
+};
+
+pub use barcode_resolved::{
+    build_barcode_resolved_envelope, BarcodeResolvedPayload, EVENT_TYPE_BARCODE_RESOLVED,
 };
 
 // ============================================================================

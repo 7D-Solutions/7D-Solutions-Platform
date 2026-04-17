@@ -1,4 +1,5 @@
 pub mod adjustments;
+pub mod barcode;
 pub mod admin;
 pub mod admin_types;
 pub mod batch_receipts;

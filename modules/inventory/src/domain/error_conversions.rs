@@ -7,6 +7,7 @@
 use platform_http_contracts::ApiError;
 
 use super::adjust_service::AdjustError;
+use super::barcode_resolver::BarcodeError;
 use super::classifications::ClassificationError;
 use super::cycle_count::approve_service::ApproveError;
 use super::cycle_count::submit_service::SubmitError;
@@ -492,6 +493,26 @@ impl From<ChangeHistoryError> for ApiError {
             }
             ChangeHistoryError::Database(e) => {
                 tracing::error!(error = %e, "database error in change history");
+                ApiError::internal("Database error")
+            }
+        }
+    }
+}
+
+// ── BarcodeError ──────────────────────────────────────────────────────────
+
+impl From<BarcodeError> for ApiError {
+    fn from(err: BarcodeError) -> Self {
+        match err {
+            BarcodeError::Validation(msg) => ApiError::new(422, "validation_error", msg),
+            BarcodeError::InvalidRegex(msg) => ApiError::new(422, "invalid_regex", msg),
+            BarcodeError::RuleNotFound => ApiError::not_found("Barcode rule not found"),
+            BarcodeError::Serialization(e) => {
+                tracing::error!(error = %e, "barcode resolver serialization error");
+                ApiError::internal("Serialization error")
+            }
+            BarcodeError::Database(e) => {
+                tracing::error!(error = %e, "barcode resolver database error");
                 ApiError::internal("Database error")
             }
         }
