@@ -124,17 +124,22 @@ mod tests {
     }
 
     async fn test_pool() -> PgPool {
-        PgPool::connect(&test_db_url())
+        let pool = PgPool::connect(&test_db_url())
             .await
-            .expect("Failed to connect to AP test database")
+            .expect("Failed to connect to AP test database");
+        sqlx::migrate!("db/migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run AP migrations in approve tests");
+        pool
     }
 
     async fn create_test_vendor(pool: &PgPool) -> Uuid {
         let vendor_id = Uuid::new_v4();
         sqlx::query(
             r#"INSERT INTO vendors (vendor_id, tenant_id, name, currency, payment_terms_days,
-               is_active, created_at, updated_at)
-               VALUES ($1, $2, $3, 'USD', 30, TRUE, NOW(), NOW())"#,
+               is_active, qualification_status, created_at, updated_at)
+               VALUES ($1, $2, $3, 'USD', 30, TRUE, 'qualified', NOW(), NOW())"#,
         )
         .bind(vendor_id)
         .bind(TEST_TENANT)

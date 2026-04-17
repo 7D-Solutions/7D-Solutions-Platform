@@ -57,6 +57,18 @@ async fn main() {
                     "/api/ap/vendors/{vendor_id}/deactivate",
                     post(http::vendors::deactivate_vendor),
                 )
+                .route(
+                    "/api/ap/vendors/{vendor_id}/qualify",
+                    post(http::vendors::qualify_vendor),
+                )
+                .route(
+                    "/api/ap/vendors/{vendor_id}/prefer",
+                    post(http::vendors::mark_vendor_preferred),
+                )
+                .route(
+                    "/api/ap/vendors/{vendor_id}/unprefer",
+                    post(http::vendors::unmark_vendor_preferred),
+                )
                 .route("/api/ap/pos", post(http::purchase_orders::create_po))
                 .route(
                     "/api/ap/pos/{po_id}/lines",
@@ -109,6 +121,10 @@ async fn main() {
                 .route(
                     "/api/ap/vendors/{vendor_id}",
                     get(http::vendors::get_vendor),
+                )
+                .route(
+                    "/api/ap/vendors/{vendor_id}/qualification-history",
+                    get(http::vendors::get_vendor_qualification_history),
                 )
                 .route("/api/ap/pos", get(http::purchase_orders::list_pos))
                 .route("/api/ap/pos/{po_id}", get(http::purchase_orders::get_po))

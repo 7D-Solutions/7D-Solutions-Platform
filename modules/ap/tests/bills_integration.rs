@@ -22,8 +22,9 @@ use ap::domain::po::{CreatePoLineRequest, CreatePoRequest};
 use ap::domain::r#match::service::run_match;
 use ap::domain::r#match::{MatchError, RunMatchRequest};
 use ap::domain::tax::{quote_bill_tax, TaxAddress, ZeroTaxProvider};
+use ap::domain::vendors::qualification::change_qualification;
 use ap::domain::vendors::service::create_vendor;
-use ap::domain::vendors::CreateVendorRequest;
+use ap::domain::vendors::{ChangeQualificationRequest, CreateVendorRequest, QualificationStatus};
 use chrono::Utc;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -55,7 +56,7 @@ fn corr() -> String {
 }
 
 async fn make_vendor(pool: &sqlx::PgPool, tid: &str) -> Uuid {
-    create_vendor(
+    let vendor_id = create_vendor(
         pool,
         tid,
         &CreateVendorRequest {
@@ -71,7 +72,21 @@ async fn make_vendor(pool: &sqlx::PgPool, tid: &str) -> Uuid {
     )
     .await
     .unwrap()
-    .vendor_id
+    .vendor_id;
+
+    change_qualification(
+        pool, tid, vendor_id,
+        &ChangeQualificationRequest {
+            status: QualificationStatus::Qualified,
+            notes: None,
+            changed_by: "test-setup".to_string(),
+        },
+        Uuid::new_v4().to_string(),
+    )
+    .await
+    .unwrap();
+
+    vendor_id
 }
 
 fn make_bill_req(vendor_id: Uuid, ref_num: &str) -> CreateBillRequest {

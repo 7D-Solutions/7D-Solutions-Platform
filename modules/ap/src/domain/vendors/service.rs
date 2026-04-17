@@ -308,9 +308,14 @@ mod tests {
     }
 
     async fn test_pool() -> PgPool {
-        sqlx::PgPool::connect(&test_db_url())
+        let pool = sqlx::PgPool::connect(&test_db_url())
             .await
-            .expect("Failed to connect to AP test database")
+            .expect("Failed to connect to AP test database");
+        sqlx::migrate!("db/migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to run AP migrations in vendor service tests");
+        pool
     }
 
     async fn cleanup(pool: &PgPool) {

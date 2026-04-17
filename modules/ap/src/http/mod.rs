@@ -33,6 +33,10 @@ use utoipa::OpenApi;
         vendors::get_vendor,
         vendors::update_vendor,
         vendors::deactivate_vendor,
+        vendors::qualify_vendor,
+        vendors::mark_vendor_preferred,
+        vendors::unmark_vendor_preferred,
+        vendors::get_vendor_qualification_history,
         // Purchase Orders
         purchase_orders::create_po,
         purchase_orders::get_po,

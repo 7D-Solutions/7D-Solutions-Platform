@@ -1,4 +1,5 @@
-//! Vendor event contracts: ap.vendor_created, ap.vendor_updated
+//! Vendor event contracts: ap.vendor_created, ap.vendor_updated,
+//! ap.vendor_qualified, ap.vendor_disqualified, ap.vendor_qualification_changed
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -107,6 +108,115 @@ pub fn build_vendor_updated_envelope(
         event_id,
         tenant_id,
         EVENT_TYPE_VENDOR_UPDATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AP_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Event Type Constants (qualification)
+// ============================================================================
+
+pub const EVENT_TYPE_VENDOR_QUALIFIED: &str = "ap.vendor_qualified";
+pub const EVENT_TYPE_VENDOR_DISQUALIFIED: &str = "ap.vendor_disqualified";
+pub const EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED: &str = "ap.vendor_qualification_changed";
+
+// ============================================================================
+// Payload: ap.vendor_qualified
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VendorQualifiedPayload {
+    pub vendor_id: Uuid,
+    pub tenant_id: String,
+    /// Previous qualification status before this change
+    pub from_status: String,
+    pub notes: Option<String>,
+    pub qualified_by: String,
+    pub qualified_at: DateTime<Utc>,
+}
+
+pub fn build_vendor_qualified_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: VendorQualifiedPayload,
+) -> EventEnvelope<VendorQualifiedPayload> {
+    create_ap_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_VENDOR_QUALIFIED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AP_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ap.vendor_disqualified
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VendorDisqualifiedPayload {
+    pub vendor_id: Uuid,
+    pub tenant_id: String,
+    pub from_status: String,
+    pub reason: Option<String>,
+    pub disqualified_by: String,
+    pub disqualified_at: DateTime<Utc>,
+}
+
+pub fn build_vendor_disqualified_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: VendorDisqualifiedPayload,
+) -> EventEnvelope<VendorDisqualifiedPayload> {
+    create_ap_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_VENDOR_DISQUALIFIED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AP_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ap.vendor_qualification_changed
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VendorQualificationChangedPayload {
+    pub vendor_id: Uuid,
+    pub tenant_id: String,
+    pub from_status: String,
+    pub to_status: String,
+    pub notes: Option<String>,
+    pub changed_by: String,
+    pub changed_at: DateTime<Utc>,
+}
+
+pub fn build_vendor_qualification_changed_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: VendorQualificationChangedPayload,
+) -> EventEnvelope<VendorQualificationChangedPayload> {
+    create_ap_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED.to_string(),
         correlation_id,
         causation_id,
         MUTATION_CLASS_DATA_MUTATION.to_string(),

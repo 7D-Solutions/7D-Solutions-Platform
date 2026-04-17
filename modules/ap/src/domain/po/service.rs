@@ -14,6 +14,8 @@ use crate::events::{
 };
 use crate::outbox::enqueue_event_tx;
 
+use crate::domain::vendors::QualificationStatus;
+
 use super::{
     CreatePoLineRequest, CreatePoRequest, PoError, PoLineRecord, PurchaseOrder,
     PurchaseOrderWithLines, UpdatePoLinesRequest,
@@ -36,17 +38,25 @@ pub async fn create_po(
 ) -> Result<PurchaseOrderWithLines, PoError> {
     req.validate()?;
 
-    // Guard: vendor must exist and be active
-    let vendor_exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT vendor_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2 AND is_active = TRUE",
+    // Guard: vendor must exist, be active, and be qualification-eligible
+    let vendor_row: Option<(Uuid, String)> = sqlx::query_as(
+        "SELECT vendor_id, qualification_status FROM vendors \
+         WHERE vendor_id = $1 AND tenant_id = $2 AND is_active = TRUE",
     )
     .bind(req.vendor_id)
     .bind(tenant_id)
     .fetch_optional(pool)
     .await?;
 
-    if vendor_exists.is_none() {
-        return Err(PoError::VendorNotFound(req.vendor_id));
+    match vendor_row {
+        None => return Err(PoError::VendorNotFound(req.vendor_id)),
+        Some((_, ref status_str)) => {
+            let status = QualificationStatus::from_str(status_str)
+                .unwrap_or(QualificationStatus::Unqualified);
+            if !status.allows_po() {
+                return Err(PoError::VendorNotEligible(req.vendor_id, status_str.clone()));
+            }
+        }
     }
 
     let po_id = Uuid::new_v4();

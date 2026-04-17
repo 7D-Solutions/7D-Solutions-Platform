@@ -11,8 +11,9 @@ use ap::domain::bills::service::create_bill;
 use ap::domain::bills::{CreateBillLineRequest, CreateBillRequest};
 use ap::domain::po::service::create_po;
 use ap::domain::po::{CreatePoLineRequest, CreatePoRequest};
+use ap::domain::vendors::qualification::change_qualification;
 use ap::domain::vendors::service::create_vendor;
-use ap::domain::vendors::CreateVendorRequest;
+use ap::domain::vendors::{ChangeQualificationRequest, CreateVendorRequest, QualificationStatus};
 use chrono::Utc;
 use serial_test::serial;
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -47,7 +48,7 @@ fn corr() -> String {
 }
 
 async fn make_vendor(pool: &PgPool, tid: &str) -> Uuid {
-    create_vendor(
+    let vendor_id = create_vendor(
         pool,
         tid,
         &CreateVendorRequest {
@@ -63,7 +64,21 @@ async fn make_vendor(pool: &PgPool, tid: &str) -> Uuid {
     )
     .await
     .unwrap()
-    .vendor_id
+    .vendor_id;
+
+    change_qualification(
+        pool, tid, vendor_id,
+        &ChangeQualificationRequest {
+            status: QualificationStatus::Qualified,
+            notes: None,
+            changed_by: "test-setup".to_string(),
+        },
+        corr(),
+    )
+    .await
+    .unwrap();
+
+    vendor_id
 }
 
 // ============================================================================

@@ -26,7 +26,8 @@ pub async fn fetch_vendor(
         r#"
         SELECT vendor_id, tenant_id, name, tax_id, currency,
                payment_terms_days, payment_method, remittance_email,
-               is_active, party_id, created_at, updated_at
+               is_active, party_id, created_at, updated_at,
+               qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
         FROM vendors
         WHERE vendor_id = $1 AND tenant_id = $2
         "#,
@@ -50,7 +51,8 @@ pub async fn list_vendors(
             r#"
             SELECT vendor_id, tenant_id, name, tax_id, currency,
                    payment_terms_days, payment_method, remittance_email,
-                   is_active, party_id, created_at, updated_at
+                   is_active, party_id, created_at, updated_at,
+                   qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
             FROM vendors
             WHERE tenant_id = $1
             ORDER BY name ASC
@@ -64,7 +66,8 @@ pub async fn list_vendors(
             r#"
             SELECT vendor_id, tenant_id, name, tax_id, currency,
                    payment_terms_days, payment_method, remittance_email,
-                   is_active, party_id, created_at, updated_at
+                   is_active, party_id, created_at, updated_at,
+                   qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
             FROM vendors
             WHERE tenant_id = $1 AND is_active = TRUE
             ORDER BY name ASC
@@ -125,7 +128,8 @@ pub async fn insert_vendor(
         RETURNING
             vendor_id, tenant_id, name, tax_id, currency,
             payment_terms_days, payment_method, remittance_email,
-            is_active, party_id, created_at, updated_at
+            is_active, party_id, created_at, updated_at,
+            qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
         "#,
     )
     .bind(vendor_id)
@@ -161,7 +165,8 @@ pub async fn lock_vendor_for_update(
         r#"
         SELECT vendor_id, tenant_id, name, tax_id, currency,
                payment_terms_days, payment_method, remittance_email,
-               is_active, party_id, created_at, updated_at
+               is_active, party_id, created_at, updated_at,
+               qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
         FROM vendors
         WHERE vendor_id = $1 AND tenant_id = $2
         FOR UPDATE
@@ -198,7 +203,8 @@ pub async fn update_vendor_row(
         RETURNING
             vendor_id, tenant_id, name, tax_id, currency,
             payment_terms_days, payment_method, remittance_email,
-            is_active, party_id, created_at, updated_at
+            is_active, party_id, created_at, updated_at,
+            qualification_status, qualification_notes, qualified_by, qualified_at, preferred_vendor
         "#,
     )
     .bind(name)

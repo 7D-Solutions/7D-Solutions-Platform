@@ -43,8 +43,14 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 // ============================================================================
 
 pub use vendor::{
-    build_vendor_created_envelope, build_vendor_updated_envelope, VendorCreatedPayload,
-    VendorUpdatedPayload, EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_UPDATED,
+    build_vendor_created_envelope, build_vendor_updated_envelope,
+    build_vendor_qualified_envelope, build_vendor_disqualified_envelope,
+    build_vendor_qualification_changed_envelope,
+    VendorCreatedPayload, VendorUpdatedPayload,
+    VendorQualifiedPayload, VendorDisqualifiedPayload, VendorQualificationChangedPayload,
+    EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_UPDATED,
+    EVENT_TYPE_VENDOR_QUALIFIED, EVENT_TYPE_VENDOR_DISQUALIFIED,
+    EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED,
 };
 
 pub use po::{
@@ -101,5 +107,8 @@ mod tests {
         assert!(EVENT_TYPE_AP_PAYMENT_RUN_CREATED.starts_with("ap."));
         assert!(EVENT_TYPE_AP_PAYMENT_EXECUTED.starts_with("ap."));
         assert!(EVENT_TYPE_PAYMENT_TERMS_CREATED.starts_with("ap."));
+        assert!(EVENT_TYPE_VENDOR_QUALIFIED.starts_with("ap."));
+        assert!(EVENT_TYPE_VENDOR_DISQUALIFIED.starts_with("ap."));
+        assert!(EVENT_TYPE_VENDOR_QUALIFICATION_CHANGED.starts_with("ap."));
     }
 }

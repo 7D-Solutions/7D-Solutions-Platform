@@ -16,10 +16,14 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::vendors::{service, CreateVendorRequest, UpdateVendorRequest};
+use crate::domain::vendors::{
+    qualification, service, ChangeQualificationRequest, CreateVendorRequest,
+    SetPreferredRequest, UpdateVendorRequest,
+};
 use crate::http::tenant::with_request_id;
 use crate::AppState;
 use platform_sdk::extract_tenant;
+use serde_json::json;
 
 // ============================================================================
 // Shared helpers
@@ -42,6 +46,11 @@ pub struct ListVendorsQuery {
     /// Include deactivated vendors (default: false)
     #[serde(default)]
     pub include_inactive: bool,
+    /// Filter by qualification status (e.g. "qualified", "disqualified")
+    pub qualification_status: Option<String>,
+    /// Show only preferred vendors
+    #[serde(default)]
+    pub preferred_only: bool,
 }
 
 // ============================================================================
@@ -90,7 +99,13 @@ pub async fn list_vendors(
     };
 
     match service::list_vendors(&state.pool, &tenant_id, query.include_inactive).await {
-        Ok(vendors) => {
+        Ok(mut vendors) => {
+            if let Some(ref status_filter) = query.qualification_status {
+                vendors.retain(|v| &v.qualification_status == status_filter);
+            }
+            if query.preferred_only {
+                vendors.retain(|v| v.preferred_vendor);
+            }
             let total = vendors.len() as i64;
             let resp = PaginatedResponse::new(vendors, 1, total, total);
             Json(resp).into_response()
@@ -181,6 +196,123 @@ pub async fn deactivate_vendor(
         .await
     {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+// ============================================================================
+// Qualification handlers
+// ============================================================================
+
+#[utoipa::path(
+    post, path = "/api/ap/vendors/{vendor_id}/qualify", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    request_body = ChangeQualificationRequest,
+    responses(
+        (status = 200, description = "Qualification updated", body = crate::domain::vendors::Vendor),
+        (status = 403, body = ApiError),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn qualify_vendor(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    headers: HeaderMap,
+    Path(vendor_id): Path<Uuid>,
+    Json(req): Json<ChangeQualificationRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+    let correlation_id = correlation_from_headers(&headers);
+
+    match qualification::change_qualification(&state.pool, &tenant_id, vendor_id, &req, correlation_id).await {
+        Ok(vendor) => Json(vendor).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+#[utoipa::path(
+    post, path = "/api/ap/vendors/{vendor_id}/prefer", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    request_body = SetPreferredRequest,
+    responses(
+        (status = 200, description = "Vendor marked as preferred", body = crate::domain::vendors::Vendor),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn mark_vendor_preferred(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Path(vendor_id): Path<Uuid>,
+    Json(req): Json<SetPreferredRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+
+    match qualification::mark_preferred(&state.pool, &tenant_id, vendor_id, &req.changed_by).await {
+        Ok(vendor) => Json(vendor).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+#[utoipa::path(
+    post, path = "/api/ap/vendors/{vendor_id}/unprefer", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    request_body = SetPreferredRequest,
+    responses(
+        (status = 200, description = "Vendor unmarked as preferred", body = crate::domain::vendors::Vendor),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn unmark_vendor_preferred(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Path(vendor_id): Path<Uuid>,
+    Json(req): Json<SetPreferredRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+
+    match qualification::unmark_preferred(&state.pool, &tenant_id, vendor_id, &req.changed_by).await {
+        Ok(vendor) => Json(vendor).into_response(),
+        Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
+    }
+}
+
+#[utoipa::path(
+    get, path = "/api/ap/vendors/{vendor_id}/qualification-history", tag = "Vendors",
+    params(("vendor_id" = Uuid, Path, description = "Vendor ID")),
+    responses(
+        (status = 200, description = "Qualification history"),
+        (status = 404, body = ApiError),
+    ),
+    security(("bearer" = [])),
+)]
+pub async fn get_vendor_qualification_history(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
+    Path(vendor_id): Path<Uuid>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
+    };
+
+    match qualification::get_qualification_history(&state.pool, &tenant_id, vendor_id).await {
+        Ok(history) => Json(json!({ "data": history })).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }
 }

@@ -5,6 +5,7 @@
 //! Payment method metadata is stored (method type, remittance pointers) but
 //! NO secret credentials are ever persisted here.
 
+pub mod qualification;
 pub mod repo;
 pub mod service;
 
@@ -29,6 +30,9 @@ pub enum VendorError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Vendor {0} is not eligible to receive purchase orders (status: {1})")]
+    NotEligible(Uuid, String),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -42,11 +46,59 @@ impl From<VendorError> for platform_http_contracts::ApiError {
                 name
             )),
             VendorError::Validation(msg) => Self::new(422, "validation_error", msg),
+            VendorError::NotEligible(id, status) => Self::new(
+                403,
+                "VENDOR_NOT_ELIGIBLE",
+                format!("Vendor {} cannot receive POs in status '{}'", id, status),
+            ),
             VendorError::Database(e) => {
                 tracing::error!("AP vendors DB error: {}", e);
                 Self::internal("Internal database error")
             }
         }
+    }
+}
+
+// ============================================================================
+// Qualification Status
+// ============================================================================
+
+/// Canonical qualification states for a vendor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum QualificationStatus {
+    Unqualified,
+    PendingReview,
+    Qualified,
+    Restricted,
+    Disqualified,
+}
+
+impl QualificationStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            QualificationStatus::Unqualified => "unqualified",
+            QualificationStatus::PendingReview => "pending_review",
+            QualificationStatus::Qualified => "qualified",
+            QualificationStatus::Restricted => "restricted",
+            QualificationStatus::Disqualified => "disqualified",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "unqualified" => Some(QualificationStatus::Unqualified),
+            "pending_review" => Some(QualificationStatus::PendingReview),
+            "qualified" => Some(QualificationStatus::Qualified),
+            "restricted" => Some(QualificationStatus::Restricted),
+            "disqualified" => Some(QualificationStatus::Disqualified),
+            _ => None,
+        }
+    }
+
+    /// Returns true if the vendor can receive purchase orders.
+    pub fn allows_po(&self) -> bool {
+        matches!(self, QualificationStatus::Qualified | QualificationStatus::Restricted)
     }
 }
 
@@ -130,6 +182,45 @@ pub struct Vendor {
     /// Optional link to a Party record in the party-master service.
     #[sqlx(default)]
     pub party_id: Option<Uuid>,
+    /// Supplier eligibility status (default: unqualified for new vendors)
+    #[sqlx(default)]
+    pub qualification_status: String,
+    pub qualification_notes: Option<String>,
+    pub qualified_by: Option<String>,
+    pub qualified_at: Option<DateTime<Utc>>,
+    /// Preferred vendor flag (preferred suppliers get priority in sourcing)
+    #[sqlx(default)]
+    pub preferred_vendor: bool,
+}
+
+/// Audit event row from vendor_qualification_events
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow, ToSchema)]
+pub struct VendorQualificationEvent {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub vendor_id: Uuid,
+    pub from_status: Option<String>,
+    pub to_status: String,
+    pub reason: Option<String>,
+    pub changed_by: String,
+    pub changed_at: DateTime<Utc>,
+}
+
+/// Request body to change a vendor's qualification status.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ChangeQualificationRequest {
+    /// New qualification status
+    pub status: QualificationStatus,
+    pub notes: Option<String>,
+    /// Actor performing the change (for audit)
+    pub changed_by: String,
+}
+
+/// Request body to mark/unmark a vendor as preferred.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SetPreferredRequest {
+    /// Actor performing the change (for audit)
+    pub changed_by: String,
 }
 
 /// Request body to create a new vendor.

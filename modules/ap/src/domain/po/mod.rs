@@ -39,6 +39,9 @@ pub enum PoError {
     #[error("Vendor not found or inactive: {0}")]
     VendorNotFound(Uuid),
 
+    #[error("Vendor {0} is not eligible to receive POs (qualification status: {1})")]
+    VendorNotEligible(Uuid, String),
+
     #[error("PO cannot be edited; current status: {0}")]
     NotDraft(String),
 
@@ -63,6 +66,11 @@ impl From<PoError> for platform_http_contracts::ApiError {
                 422,
                 "vendor_not_found",
                 format!("Vendor {} not found or inactive", id),
+            ),
+            PoError::VendorNotEligible(id, status) => Self::new(
+                403,
+                "VENDOR_NOT_ELIGIBLE",
+                format!("Vendor {} cannot receive POs in qualification status '{}'", id, status),
             ),
             PoError::NotDraft(status) => Self::new(
                 422,

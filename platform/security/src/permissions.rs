@@ -57,6 +57,7 @@ pub const TREASURY_READ: &str = "treasury.read";
 
 pub const AP_MUTATE: &str = "ap.mutate";
 pub const AP_READ: &str = "ap.read";
+pub const AP_QUALIFY_VENDOR: &str = "ap.qualify_vendor";
 
 // ── Consolidation ─────────────────────────────────────────────────────────────
 
@@ -158,6 +159,12 @@ pub const CRM_PIPELINE_READ: &str = "crm_pipeline.read";
 
 pub const CUSTOMER_COMPLAINTS_MUTATE: &str = "customer_complaints.mutate";
 pub const CUSTOMER_COMPLAINTS_READ: &str = "customer_complaints.read";
+pub const CC_COMPLAINT_TRIAGE: &str = "customer_complaints.complaint.triage";
+pub const CC_COMPLAINT_CLOSE: &str = "customer_complaints.complaint.close";
+pub const CC_COMPLAINT_CANCEL: &str = "customer_complaints.complaint.cancel";
+pub const CC_CATEGORY_MANAGE: &str = "customer_complaints.category.manage";
+pub const CC_LABELS_EDIT: &str = "customer_complaints.labels.edit";
+pub const CC_ADMIN_SWEEP: &str = "customer_complaints.admin.sweep";
 
 // ── Shop Floor Gates ─────────────────────────────────────────────────────────
 
@@ -416,5 +423,23 @@ mod tests {
     #[test]
     fn test_permissions_customer_complaints_mutate_distinct_from_read() {
         assert_ne!(CUSTOMER_COMPLAINTS_MUTATE, CUSTOMER_COMPLAINTS_READ);
+    }
+
+    #[test]
+    fn test_permissions_cc_fine_grained_are_non_empty() {
+        assert!(!CC_COMPLAINT_TRIAGE.is_empty());
+        assert!(!CC_COMPLAINT_CLOSE.is_empty());
+        assert!(!CC_COMPLAINT_CANCEL.is_empty());
+        assert!(!CC_CATEGORY_MANAGE.is_empty());
+        assert!(!CC_LABELS_EDIT.is_empty());
+        assert!(!CC_ADMIN_SWEEP.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_cc_fine_grained_contain_dot() {
+        for perm in &[CC_COMPLAINT_TRIAGE, CC_COMPLAINT_CLOSE, CC_COMPLAINT_CANCEL,
+                      CC_CATEGORY_MANAGE, CC_LABELS_EDIT, CC_ADMIN_SWEEP] {
+            assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
+        }
     }
 }
