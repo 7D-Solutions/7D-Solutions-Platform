@@ -8,6 +8,10 @@ pub const EVENT_TYPE_COMPETENCE_ASSIGNED: &str = "workforce_competence.competenc
 pub const EVENT_TYPE_AUTHORITY_GRANTED: &str = "workforce_competence.acceptance_authority_granted";
 pub const EVENT_TYPE_AUTHORITY_REVOKED: &str = "workforce_competence.acceptance_authority_revoked";
 
+pub const EVENT_TYPE_TRAINING_PLANNED: &str = "workforce_competence.training_planned";
+pub const EVENT_TYPE_TRAINING_ASSIGNED: &str = "workforce_competence.training_assigned";
+pub const EVENT_TYPE_TRAINING_COMPLETED: &str = "workforce_competence.training_completed";
+
 /// Create a workforce-competence-scoped EventEnvelope.
 ///
 /// Sets `source_module = "workforce_competence"` and `replay_safe = true`.

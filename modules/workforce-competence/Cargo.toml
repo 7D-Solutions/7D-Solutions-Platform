@@ -1,6 +1,6 @@
 [package]
 name = "workforce-competence-rs"
-version = "2.2.1"
+version = "2.3.0"
 edition = "2021"
 description = "Workforce competence registry: skills, certifications, training records, and authorization queries"
 

@@ -34,6 +34,11 @@ use crate::{
             OperatorCompetence, RegisterArtifactRequest,
         },
         service,
+        training::{
+            self as training_domain, CreateTrainingAssignmentRequest, CreateTrainingPlanRequest,
+            RecordCompletionRequest, TrainingAssignment, TrainingCompletion, TrainingPlan,
+            TransitionAssignmentRequest,
+        },
     },
     AppState,
 };
@@ -298,4 +303,302 @@ pub async fn get_acceptance_authority_check(
         .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
 
     Ok((StatusCode::OK, Json(result)))
+}
+
+// ============================================================================
+// Training delivery handlers
+// ============================================================================
+
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/training-plans",
+    tag = "Training",
+    request_body = CreateTrainingPlanRequest,
+    responses(
+        (status = 201, description = "Training plan created", body = TrainingPlan),
+        (status = 200, description = "Idempotent replay", body = TrainingPlan),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
+pub async fn post_training_plan(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Json(mut req): Json<CreateTrainingPlanRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    req.tenant_id = tenant_id;
+
+    let (result, is_replay) = training_domain::create_training_plan(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    Ok((status, Json(result)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/training-plans/{id}",
+    tag = "Training",
+    params(("id" = Uuid, Path, description = "Training plan ID")),
+    responses(
+        (status = 200, description = "Training plan", body = TrainingPlan),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
+pub async fn get_training_plan(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Path(plan_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let plan = training_domain::get_training_plan(&state.pool, &tenant_id, plan_id)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?
+        .ok_or_else(|| with_request_id(ApiError::not_found("Training plan not found"), &ctx))?;
+
+    Ok((StatusCode::OK, Json(plan)))
+}
+
+/// GET /api/workforce-competence/training-plans
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListTrainingPlansParams {
+    // No filters for now; lists all active plans for the tenant
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/training-plans",
+    tag = "Training",
+    responses(
+        (status = 200, description = "List of training plans", body = Vec<TrainingPlan>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
+pub async fn list_training_plans(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let plans = training_domain::list_training_plans(&state.pool, &tenant_id)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok((StatusCode::OK, Json(plans)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/training-assignments",
+    tag = "Training",
+    request_body = CreateTrainingAssignmentRequest,
+    responses(
+        (status = 201, description = "Assignment created", body = TrainingAssignment),
+        (status = 200, description = "Idempotent replay", body = TrainingAssignment),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
+pub async fn post_training_assignment(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Json(mut req): Json<CreateTrainingAssignmentRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    req.tenant_id = tenant_id;
+
+    let (result, is_replay) = training_domain::create_training_assignment(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    Ok((status, Json(result)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/training-assignments/{id}",
+    tag = "Training",
+    params(("id" = Uuid, Path, description = "Assignment ID")),
+    responses(
+        (status = 200, description = "Training assignment", body = TrainingAssignment),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Not found", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
+pub async fn get_training_assignment(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Path(assignment_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let assignment =
+        training_domain::get_training_assignment(&state.pool, &tenant_id, assignment_id)
+            .await
+            .map_err(|e| with_request_id(ApiError::from(e), &ctx))?
+            .ok_or_else(|| {
+                with_request_id(ApiError::not_found("Training assignment not found"), &ctx)
+            })?;
+
+    Ok((StatusCode::OK, Json(assignment)))
+}
+
+/// PATCH /api/workforce-competence/training-assignments/{id}/status
+#[utoipa::path(
+    patch,
+    path = "/api/workforce-competence/training-assignments/{id}/status",
+    tag = "Training",
+    params(("id" = Uuid, Path, description = "Assignment ID")),
+    request_body = TransitionAssignmentRequest,
+    responses(
+        (status = 200, description = "Status updated", body = TrainingAssignment),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
+pub async fn patch_assignment_status(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Path(assignment_id): Path<Uuid>,
+    Json(mut req): Json<TransitionAssignmentRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    req.tenant_id = tenant_id;
+    req.assignment_id = assignment_id;
+
+    let result = training_domain::transition_assignment_status(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok((StatusCode::OK, Json(result)))
+}
+
+/// GET /api/workforce-competence/training-assignments
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListAssignmentsParams {
+    pub plan_id: Option<Uuid>,
+    pub operator_id: Option<Uuid>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/training-assignments",
+    tag = "Training",
+    params(ListAssignmentsParams),
+    responses(
+        (status = 200, description = "List of assignments", body = Vec<TrainingAssignment>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
+pub async fn list_training_assignments(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Query(params): Query<ListAssignmentsParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let assignments = training_domain::list_training_assignments(
+        &state.pool,
+        &tenant_id,
+        params.plan_id,
+        params.operator_id,
+    )
+    .await
+    .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok((StatusCode::OK, Json(assignments)))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/workforce-competence/training-completions",
+    tag = "Training",
+    request_body = RecordCompletionRequest,
+    responses(
+        (status = 201, description = "Completion recorded", body = TrainingCompletion),
+        (status = 200, description = "Idempotent replay", body = TrainingCompletion),
+        (status = 401, description = "Unauthorized"),
+        (status = 422, description = "Validation error", body = ApiError),
+        (status = 500, description = "Internal error", body = ApiError),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_MUTATE"]))
+)]
+pub async fn post_training_completion(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Json(mut req): Json<RecordCompletionRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+    req.tenant_id = tenant_id;
+
+    let (result, is_replay) = training_domain::record_training_completion(&state.pool, &req)
+        .await
+        .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+    Ok((status, Json(result)))
+}
+
+/// GET /api/workforce-competence/training-completions
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListCompletionsParams {
+    pub plan_id: Option<Uuid>,
+    pub operator_id: Option<Uuid>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/workforce-competence/training-completions",
+    tag = "Training",
+    params(ListCompletionsParams),
+    responses(
+        (status = 200, description = "List of completions", body = Vec<TrainingCompletion>),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer" = ["WORKFORCE_COMPETENCE_READ"]))
+)]
+pub async fn list_training_completions(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    ctx: Option<Extension<TracingContext>>,
+    Query(params): Query<ListCompletionsParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = extract_tenant(&claims).map_err(|e| with_request_id(e, &ctx))?;
+
+    let completions = training_domain::list_training_completions(
+        &state.pool,
+        &tenant_id,
+        params.plan_id,
+        params.operator_id,
+    )
+    .await
+    .map_err(|e| with_request_id(ApiError::from(e), &ctx))?;
+
+    Ok((StatusCode::OK, Json(completions)))
 }

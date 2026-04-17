@@ -5,8 +5,11 @@ use std::sync::Arc;
 use platform_sdk::ModuleBuilder;
 use workforce_competence_rs::{
     http::handlers::{
-        get_acceptance_authority_check, get_artifact, get_authorization, post_artifact,
-        post_assignment, post_grant_authority, post_revoke_authority,
+        get_acceptance_authority_check, get_artifact, get_authorization, get_training_assignment,
+        get_training_plan, list_training_assignments, list_training_completions,
+        list_training_plans, patch_assignment_status, post_artifact, post_assignment,
+        post_grant_authority, post_revoke_authority, post_training_assignment,
+        post_training_completion, post_training_plan,
     },
     metrics::WcMetrics,
     AppState,
@@ -42,6 +45,22 @@ async fn main() {
                     "/api/workforce-competence/acceptance-authorities/{id}/revoke",
                     axum::routing::post(post_revoke_authority),
                 )
+                .route(
+                    "/api/workforce-competence/training-plans",
+                    axum::routing::post(post_training_plan),
+                )
+                .route(
+                    "/api/workforce-competence/training-assignments",
+                    axum::routing::post(post_training_assignment),
+                )
+                .route(
+                    "/api/workforce-competence/training-assignments/{id}/status",
+                    axum::routing::patch(patch_assignment_status),
+                )
+                .route(
+                    "/api/workforce-competence/training-completions",
+                    axum::routing::post(post_training_completion),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::WORKFORCE_COMPETENCE_MUTATE,
                 ]))
@@ -59,6 +78,26 @@ async fn main() {
                 .route(
                     "/api/workforce-competence/acceptance-authority-check",
                     axum::routing::get(get_acceptance_authority_check),
+                )
+                .route(
+                    "/api/workforce-competence/training-plans",
+                    axum::routing::get(list_training_plans),
+                )
+                .route(
+                    "/api/workforce-competence/training-plans/{id}",
+                    axum::routing::get(get_training_plan),
+                )
+                .route(
+                    "/api/workforce-competence/training-assignments",
+                    axum::routing::get(list_training_assignments),
+                )
+                .route(
+                    "/api/workforce-competence/training-assignments/{id}",
+                    axum::routing::get(get_training_assignment),
+                )
+                .route(
+                    "/api/workforce-competence/training-completions",
+                    axum::routing::get(list_training_completions),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::WORKFORCE_COMPETENCE_READ,
