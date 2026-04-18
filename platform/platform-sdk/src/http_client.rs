@@ -13,6 +13,70 @@ use uuid::Uuid;
 use chrono::Utc;
 use security::claims::VerifiedClaims;
 
+// ── Service-token source ──────────────────────────────────────────────────────
+
+/// Internal state for a lazily-minted, auto-refreshing service token.
+struct ServiceMintedState {
+    tenant_id: Option<uuid::Uuid>,
+    actor_id: Option<uuid::Uuid>,
+    /// Cached token + refresh serialization in one lock.
+    /// Never held across an `.await` — mint operations are synchronous RSA/HMAC.
+    cached: Mutex<Option<String>>,
+}
+
+impl ServiceMintedState {
+    fn get_cached(&self) -> Option<String> {
+        self.cached.lock().expect("service token cache poisoned").clone()
+    }
+
+    /// Re-mint only when `expired` matches the current cached value, ensuring
+    /// at-most-one concurrent re-mint per PlatformClient instance.
+    ///
+    /// Callers that arrive after another task has refreshed (guard differs from
+    /// `expired`) receive the new token without triggering a second mint.
+    fn refresh_if_stale(&self, expired: Option<&str>) -> Option<String> {
+        let mut guard = self.cached.lock().expect("service token cache poisoned");
+        if guard.as_deref() != expired {
+            return guard.clone();
+        }
+        let result = match (self.tenant_id, self.actor_id) {
+            (Some(tid), Some(aid)) => {
+                security::service_auth::mint_service_jwt_with_context(tid, aid)
+            }
+            _ => security::service_auth::get_service_token(),
+        };
+        match result {
+            Ok(token) => {
+                tracing::info!("service token re-minted after 401");
+                *guard = Some(token.clone());
+                Some(token)
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "service token re-mint failed — 401 will propagate");
+                None
+            }
+        }
+    }
+}
+
+/// Determines how the `Authorization` bearer token is sourced for outbound requests.
+#[derive(Clone)]
+enum TokenSource {
+    /// A static token set once at construction time (no auto-refresh on 401).
+    Static(Option<String>),
+    /// A lazily-minted service token that is re-minted on 401.
+    ServiceMinted(Arc<ServiceMintedState>),
+}
+
+impl TokenSource {
+    fn fallback_token(&self) -> Option<String> {
+        match self {
+            TokenSource::Static(t) => t.clone(),
+            TokenSource::ServiceMinted(s) => s.get_cached(),
+        }
+    }
+}
+
 // ── Timeout config ────────────────────────────────────────────────────────────
 
 /// Timeout configuration for outbound HTTP requests.
@@ -294,7 +358,7 @@ fn is_dns_error(err: &reqwest::Error) -> bool {
 pub struct PlatformClient {
     client: Client,
     base_url: String,
-    bearer_token: Option<String>,
+    token_source: TokenSource,
     /// Shared circuit breaker state — all clones of this client share one breaker.
     cb: Arc<CircuitBreaker>,
     /// Bulkhead semaphore — caps concurrent outbound requests per target service.
@@ -303,9 +367,14 @@ pub struct PlatformClient {
 
 impl std::fmt::Debug for PlatformClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let token_label = match &self.token_source {
+            TokenSource::Static(None) => "static(none)",
+            TokenSource::Static(Some(_)) => "static(***)",
+            TokenSource::ServiceMinted(_) => "service_minted",
+        };
         f.debug_struct("PlatformClient")
             .field("base_url", &self.base_url)
-            .field("bearer_token", &self.bearer_token.as_ref().map(|_| "***"))
+            .field("token_source", &token_label)
             .finish()
     }
 }
@@ -331,7 +400,7 @@ impl PlatformClient {
         Self {
             client,
             base_url,
-            bearer_token: None,
+            token_source: TokenSource::Static(None),
             cb,
             bulkhead,
         }
@@ -351,9 +420,37 @@ impl PlatformClient {
         }
     }
 
-    /// Set a bearer token for the Authorization header (e.g. a service token).
+    /// Set a static bearer token for the Authorization header.
+    ///
+    /// Static tokens are never auto-refreshed; a 401 from the upstream service
+    /// bubbles up to the caller unchanged. Use [`with_service_token`] for
+    /// service-to-service calls that require auto-refresh on expiry.
     pub fn with_bearer_token(mut self, token: String) -> Self {
-        self.bearer_token = Some(token);
+        self.token_source = TokenSource::Static(Some(token));
+        self
+    }
+
+    /// Configure the client to use a lazily-minted service token with auto-refresh.
+    ///
+    /// On the first request where the per-request JWT fallback is needed, the
+    /// client calls `get_service_token()` (or `mint_service_jwt_with_context` when
+    /// tenant/actor IDs are provided) and caches the result. On a 401 response the
+    /// token is re-minted and the request is retried exactly once. Concurrent 401s
+    /// share a single re-mint — at most one `get_service_token()` call is in flight
+    /// per client instance at any time.
+    ///
+    /// Pass `None` for both arguments when the service context is not known at
+    /// construction time (the common case for clients built from `module.toml`).
+    pub fn with_service_token(
+        mut self,
+        tenant_id: Option<uuid::Uuid>,
+        actor_id: Option<uuid::Uuid>,
+    ) -> Self {
+        self.token_source = TokenSource::ServiceMinted(Arc::new(ServiceMintedState {
+            tenant_id,
+            actor_id,
+            cached: Mutex::new(None),
+        }));
         self
     }
 
@@ -416,9 +513,16 @@ impl PlatformClient {
             Ok(p) => p,
             Err(resp) => return Ok(resp),
         };
+        let snapshot = self.service_token_snapshot();
         let result = self
             .send_with_retry(self.client.get(self.url(path)), claims)
             .await;
+        let result = if self.should_service_token_retry(&result, &snapshot) {
+            self.send_with_retry(self.client.get(self.url(path)), claims)
+                .await
+        } else {
+            result
+        };
         self.record_circuit_outcome(&result);
         result
     }
@@ -437,9 +541,16 @@ impl PlatformClient {
             Ok(p) => p,
             Err(resp) => return Ok(resp),
         };
+        let snapshot = self.service_token_snapshot();
         let result = self
             .send_once(self.client.post(self.url(path)).json(body), claims)
             .await;
+        let result = if self.should_service_token_retry(&result, &snapshot) {
+            self.send_once(self.client.post(self.url(path)).json(body), claims)
+                .await
+        } else {
+            result
+        };
         self.record_circuit_outcome(&result);
         result
     }
@@ -458,9 +569,16 @@ impl PlatformClient {
             Ok(p) => p,
             Err(resp) => return Ok(resp),
         };
+        let snapshot = self.service_token_snapshot();
         let result = self
             .send_once(self.client.put(self.url(path)).json(body), claims)
             .await;
+        let result = if self.should_service_token_retry(&result, &snapshot) {
+            self.send_once(self.client.put(self.url(path)).json(body), claims)
+                .await
+        } else {
+            result
+        };
         self.record_circuit_outcome(&result);
         result
     }
@@ -479,9 +597,16 @@ impl PlatformClient {
             Ok(p) => p,
             Err(resp) => return Ok(resp),
         };
+        let snapshot = self.service_token_snapshot();
         let result = self
             .send_once(self.client.patch(self.url(path)).json(body), claims)
             .await;
+        let result = if self.should_service_token_retry(&result, &snapshot) {
+            self.send_once(self.client.patch(self.url(path)).json(body), claims)
+                .await
+        } else {
+            result
+        };
         self.record_circuit_outcome(&result);
         result
     }
@@ -499,9 +624,16 @@ impl PlatformClient {
             Ok(p) => p,
             Err(resp) => return Ok(resp),
         };
+        let snapshot = self.service_token_snapshot();
         let result = self
             .send_once(self.client.delete(self.url(path)), claims)
             .await;
+        let result = if self.should_service_token_retry(&result, &snapshot) {
+            self.send_once(self.client.delete(self.url(path)), claims)
+                .await
+        } else {
+            result
+        };
         self.record_circuit_outcome(&result);
         result
     }
@@ -606,6 +738,37 @@ impl PlatformClient {
         format!("{}{}", self.base_url, path)
     }
 
+    /// Snapshot the current cached service token before a request so we can
+    /// detect staleness if a 401 arrives later. Returns `None` for Static sources.
+    fn service_token_snapshot(&self) -> Option<Option<String>> {
+        match &self.token_source {
+            TokenSource::ServiceMinted(s) => Some(s.get_cached()),
+            TokenSource::Static(_) => None,
+        }
+    }
+
+    /// Attempt a service-token refresh and return `true` if a retry should be sent.
+    ///
+    /// Returns `false` immediately when:
+    /// - The response is not 401
+    /// - The token source is Static (no auto-refresh)
+    /// - Re-minting failed (error already logged inside `refresh_if_stale`)
+    fn should_service_token_retry(
+        &self,
+        result: &Result<Response, reqwest::Error>,
+        snapshot: &Option<Option<String>>,
+    ) -> bool {
+        if !result
+            .as_ref()
+            .map_or(false, |r| r.status() == StatusCode::UNAUTHORIZED)
+        {
+            return false;
+        }
+        let Some(expired) = snapshot else { return false };
+        let TokenSource::ServiceMinted(state) = &self.token_source else { return false };
+        state.refresh_if_stale(expired.as_deref()).is_some()
+    }
+
     /// Check the circuit breaker gate. Returns `Some(503)` if rejected, `None` if allowed.
     fn circuit_gate(&self) -> Option<Response> {
         let mut inner = self.cb.inner.lock().expect("circuit breaker lock poisoned");
@@ -662,8 +825,8 @@ impl PlatformClient {
 
         // Prefer a per-request service JWT so the receiving service sees the
         // caller's real tenant_id and actor_id rather than the nil UUIDs that
-        // the startup bearer token carries.  Fall back to the static bearer
-        // token only when JWT minting is unavailable (e.g. no private key).
+        // a cached startup token carries.  Fall back to the token_source value
+        // only when JWT minting is unavailable (e.g. no private key in dev).
         let token = security::service_auth::mint_service_jwt_with_context(
             claims.tenant_id,
             claims.user_id,
@@ -672,7 +835,7 @@ impl PlatformClient {
             |e| tracing::warn!(error = %e, "failed to mint service JWT for cross-service call"),
         )
         .ok()
-        .or_else(|| self.bearer_token.clone());
+        .or_else(|| self.token_source.fallback_token());
 
         if let Some(token) = token {
             req = req.header("authorization", format!("Bearer {token}"));
@@ -688,7 +851,7 @@ impl PlatformClient {
     ) -> reqwest::RequestBuilder {
         req = self.inject_trace_headers(req, correlation_id);
         req = req.header("x-correlation-id", correlation_id.to_string());
-        if let Some(token) = &self.bearer_token {
+        if let Some(token) = self.token_source.fallback_token() {
             req = req.header("authorization", format!("Bearer {token}"));
         }
         req

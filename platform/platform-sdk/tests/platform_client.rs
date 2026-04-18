@@ -272,3 +272,153 @@ async fn retries_on_request_timeout() {
     // First 2 attempts timed out, third succeeded.
     assert_eq!(call_count.load(Ordering::SeqCst), 3);
 }
+
+// ── Service-token auto-refresh tests ─────────────────────────────────────────
+
+fn setup_dev_service_auth() {
+    std::env::set_var("ENV", "development");
+    std::env::set_var("SERVICE_AUTH_SECRET", "platform-client-test-secret");
+    std::env::set_var("SERVICE_NAME", "platform-sdk-test");
+}
+
+#[tokio::test]
+async fn service_token_retries_once_on_401() {
+    setup_dev_service_auth();
+    let call_count = Arc::new(AtomicU32::new(0));
+    let counter = call_count.clone();
+
+    let app = Router::new().route(
+        "/api/svc",
+        get(move || {
+            let counter = counter.clone();
+            async move {
+                let n = counter.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    StatusCode::UNAUTHORIZED
+                } else {
+                    StatusCode::OK
+                }
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = PlatformClient::new(base).with_service_token(None, None);
+    let resp = client.get("/api/svc", &test_claims()).await.unwrap();
+    assert_eq!(resp.status(), 200);
+    assert_eq!(call_count.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn service_token_does_not_retry_on_403() {
+    setup_dev_service_auth();
+    let call_count = Arc::new(AtomicU32::new(0));
+    let counter = call_count.clone();
+
+    let app = Router::new().route(
+        "/api/forbidden",
+        get(move || {
+            let counter = counter.clone();
+            async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                StatusCode::FORBIDDEN
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = PlatformClient::new(base).with_service_token(None, None);
+    let resp = client.get("/api/forbidden", &test_claims()).await.unwrap();
+    assert_eq!(resp.status(), 403);
+    assert_eq!(call_count.load(Ordering::SeqCst), 1, "403 must not trigger a service-token retry");
+}
+
+#[tokio::test]
+async fn static_token_does_not_retry_on_401() {
+    let call_count = Arc::new(AtomicU32::new(0));
+    let counter = call_count.clone();
+
+    let app = Router::new().route(
+        "/api/static-auth",
+        get(move || {
+            let counter = counter.clone();
+            async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                StatusCode::UNAUTHORIZED
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = PlatformClient::new(base).with_bearer_token("stale-token".into());
+    let resp = client.get("/api/static-auth", &test_claims()).await.unwrap();
+    assert_eq!(resp.status(), 401);
+    assert_eq!(call_count.load(Ordering::SeqCst), 1, "static token must never auto-retry on 401");
+}
+
+#[tokio::test]
+async fn service_token_propagates_second_401_without_third_attempt() {
+    setup_dev_service_auth();
+    let call_count = Arc::new(AtomicU32::new(0));
+    let counter = call_count.clone();
+
+    let app = Router::new().route(
+        "/api/always-401",
+        get(move || {
+            let counter = counter.clone();
+            async move {
+                counter.fetch_add(1, Ordering::SeqCst);
+                StatusCode::UNAUTHORIZED
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = PlatformClient::new(base).with_service_token(None, None);
+    let resp = client.get("/api/always-401", &test_claims()).await.unwrap();
+    assert_eq!(resp.status(), 401);
+    // Original + one retry — no third attempt even though the retry also got 401.
+    assert_eq!(call_count.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn service_token_concurrent_401s_all_succeed() {
+    // Ensure JWT_PRIVATE_KEY_PEM is absent so inject_headers falls back to the
+    // ServiceMinted cache (the path under test).
+    std::env::remove_var("JWT_PRIVATE_KEY_PEM");
+    setup_dev_service_auth();
+
+    const N: u32 = 20;
+
+    // The server uses the Authorization header as the signal: no header → 401
+    // (token not yet minted), header present → 200 (token was re-minted and
+    // attached by inject_headers).  This is timing-independent: concurrent
+    // initial calls all lack auth (cache is None) and all retries carry the
+    // freshly minted token regardless of scheduling order.
+    let app = Router::new().route(
+        "/api/concurrent-svc",
+        get(|req: Request| async move {
+            if req.headers().contains_key("authorization") {
+                StatusCode::OK
+            } else {
+                StatusCode::UNAUTHORIZED
+            }
+        }),
+    );
+
+    let base = start_server(app).await;
+    let client = Arc::new(PlatformClient::new(base).with_service_token(None, None));
+
+    let handles: Vec<_> = (0..N)
+        .map(|_| {
+            let client = client.clone();
+            let claims = test_claims();
+            tokio::spawn(async move { client.get("/api/concurrent-svc", &claims).await.unwrap() })
+        })
+        .collect();
+
+    for handle in handles {
+        let resp = handle.await.unwrap();
+        assert_eq!(resp.status(), 200, "every concurrent task must succeed after token refresh");
+    }
+}

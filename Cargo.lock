@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.11.2"
+version = "1.12.0"
 dependencies = [
  "argon2",
  "async-nats",
