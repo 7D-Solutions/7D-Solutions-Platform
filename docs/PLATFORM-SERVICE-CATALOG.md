@@ -56,7 +56,7 @@ No version bump discipline required yet.
 | customer-complaints | customer-complaints-rs | 0.1.0 |  | 5468 | Customer Complaints: intake, triage, investigation, resolution, and closure lifecycle |  |
 | outside-processing | outside-processing-rs | 0.1.0 |  | 5466 | Outside processing: send-out to external vendors, track round-trip, and record vendor review outcomes |  |
 | sales-orders | sales-orders-rs | 0.1.0 | 8109 | 5467 | Sales order lifecycle: draft, blanket orders, releases, reservation and shipment coordination |  |
-| shop-floor-gates | shop-floor-gates-rs | 0.1.0 |  |  | Shop floor gates: traveler holds, operation handoffs, start verifications, signoffs |  |
+| shop-floor-gates | shop-floor-gates-rs | 0.1.0 |  | 5469 | Shop floor gates: traveler holds, operation handoffs, start verifications, signoffs |  |
 | smoke-test | smoke-test-rs | 0.1.0 |  |  | Minimal greenfield module — proves plug-and-play SDK works from scratch |  |
 | vertical-proof | vertical-proof | 0.1.0 |  |  | Proof vertical — proves a vertical can call ALL platform modules via SDK |  |
 

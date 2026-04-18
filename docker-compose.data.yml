@@ -1101,6 +1101,40 @@ services:
       com.7dsolutions.env: "dev"
 
   # =========================
+  # SHOP FLOOR GATES MODULE
+  # =========================
+  shop-floor-gates-postgres:
+    container_name: 7d-shop-floor-gates-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5469:5432"
+    environment:
+      POSTGRES_DB: ${SFG_POSTGRES_DB:-sfg_db}
+      POSTGRES_USER: ${SFG_POSTGRES_USER:-sfg_user}
+      POSTGRES_PASSWORD: ${SFG_POSTGRES_PASSWORD:?SFG_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}
+    volumes:
+      - sfg_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SFG_POSTGRES_USER:-sfg_user} -d ${SFG_POSTGRES_DB:-sfg_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "shop-floor-gates-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  # =========================
   # BLOB STORAGE
   # =========================
   minio:
@@ -1262,6 +1296,9 @@ volumes:
     external: true
   cc_pgdata:
     name: 7d-cc-pgdata
+    external: true
+  sfg_pgdata:
+    name: 7d-sfg-pgdata
     external: true
   minio_data:
     name: 7d-minio-data
