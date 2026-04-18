@@ -1,0 +1,24 @@
+{
+  "name": "@7d/auth-axios",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Axios interceptors for 7D auth — Bearer attach + silent refresh + dedupe",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --env-file=../../.env node_modules/.bin/vitest run"
+  },
+  "dependencies": {
+    "@7d/auth-client": "file:../auth-client"
+  },
+  "peerDependencies": {
+    "axios": "^1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "axios": "^1.7.0",
+    "jose": "^6.2.2",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
