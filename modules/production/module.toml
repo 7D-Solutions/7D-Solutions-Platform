@@ -25,7 +25,7 @@ outbox_table = "production_outbox"
 [platform.services]
 numbering          = { enabled = true, criticality = "critical", default_url = "http://7d-numbering:8120" }
 bom                = { enabled = true, criticality = "critical", default_url = "http://7d-bom:8107" }
-outside-processing = { enabled = true, criticality = "optional", default_url = "http://7d-outside-processing:8109" }
+outside-processing = { enabled = true, criticality = "best-effort", default_url = "http://7d-outside-processing:8109" }
 
 [sdk]
 min_version = "0.1.0"
