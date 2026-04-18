@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "identity_auth.session.created.v1",
+  "type": "object",
+  "required": ["event_id","event_type","schema_version","occurred_at","source_module","tenant_id","payload"],
+  "properties": {
+    "event_id": {"type":"string"},
+    "event_type": {"const":"identity_auth.session_created"},
+    "schema_version": {"const":"1.0.0"},
+    "occurred_at": {"type":"string"},
+    "source_module": {"type":"string"},
+    "source_version": {"type":"string"},
+    "tenant_id": {"type":"string"},
+    "trace_id": {"type":["string","null"]},
+    "correlation_id": {"type":["string","null"]},
+    "causation_id": {"type":["string","null"]},
+    "replay_safe": {"type":"boolean"},
+    "mutation_class": {"type":["string","null"]},
+    "actor_id": {"type":["string","null"]},
+    "actor_type": {"type":["string","null"]},
+    "payload": {
+      "type":"object",
+      "required":["session_id","user_id"],
+      "properties":{
+        "session_id":{"type":"string"},
+        "user_id":{"type":"string"},
+        "issued_at":{"type":"string"},
+        "expires_at":{"type":"string"},
+        "absolute_expires_at":{"type":"string"}
+      }
+    }
+  }
+}

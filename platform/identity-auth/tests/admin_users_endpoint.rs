@@ -124,8 +124,11 @@ async fn admin_users_returns_roles_and_permissions() {
 
     insert_credential(&pool, tenant_id, user_id, &email, true).await;
 
-    // Create permission and role, then bind
-    let perm = rbac::create_permission(&pool, "test.view", "test permission")
+    // Create permission and role, then bind. Permission.key has a global UNIQUE
+    // constraint, so scope the test fixture to this run's tenant to avoid
+    // colliding with artifacts from prior test runs.
+    let perm_key = format!("test.view.{}", &tenant_id.to_string()[..8]);
+    let perm = rbac::create_permission(&pool, &perm_key, "test permission")
         .await
         .expect("create permission");
     let role = rbac::create_role(&pool, tenant_id, "test_viewer", "Viewer", false)
@@ -158,7 +161,7 @@ async fn admin_users_returns_roles_and_permissions() {
         "role should be returned"
     );
     assert!(
-        user.4.contains(&"test.view".to_string()),
+        user.4.contains(&perm_key),
         "permission should be returned"
     );
 }

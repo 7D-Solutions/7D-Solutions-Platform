@@ -7,5 +7,7 @@ pub mod password;
 pub mod password_policy;
 pub mod password_reset_repo;
 pub mod password_reset_tokens;
+pub mod cookies;
 pub mod refresh;
+pub mod refresh_sessions;
 pub mod session;

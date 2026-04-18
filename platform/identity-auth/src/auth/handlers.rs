@@ -20,10 +20,12 @@ use uuid::Uuid;
 
 use super::{
     concurrency::HashConcurrencyLimiter,
+    cookies,
     jwt::{self, JwtKeys},
     password::{hash_password, verify_password, PasswordPolicy},
     password_policy::{validate_password, PasswordRules},
     refresh::{generate_refresh_token, hash_refresh_token},
+    refresh_sessions,
 };
 
 #[derive(Clone)]
@@ -33,6 +35,14 @@ pub struct AuthState {
     pub pwd: PasswordPolicy,
     pub access_ttl_minutes: i64,
     pub refresh_ttl_days: i64,
+
+    // Sliding-expiry refresh sessions (cookie flow)
+    pub refresh_idle_minutes: i64,
+    pub refresh_absolute_max_days: i64,
+
+    /// True when running in production-like environments where Set-Cookie must
+    /// be `Secure` (HTTPS-only). False in development / integration tests.
+    pub cookie_secure: bool,
     pub events: EventPublisher,
     pub producer: String,
 
@@ -1079,6 +1089,43 @@ pub async fn login(
     })?
     .get("id");
 
+    // Sliding-expiry refresh_session (HttpOnly cookie flow) created alongside the
+    // legacy refresh_tokens row so apps can opt in to silent refresh without
+    // breaking consumers that still read refresh_token from the body.
+    let device_info = {
+        let client = crate::middleware::client_ip::get_client_meta(&extensions);
+        let mut m = serde_json::Map::new();
+        if let Some(c) = client {
+            m.insert("ip".to_string(), serde_json::Value::String(c.ip));
+            if let Some(ua) = c.user_agent {
+                m.insert("user_agent".to_string(), serde_json::Value::String(ua));
+            }
+        }
+        serde_json::Value::Object(m)
+    };
+
+    let (session_id, session_raw_token, session_expires_at, session_absolute_expires_at) =
+        refresh_sessions::create_session(
+            &mut tx,
+            req.tenant_id,
+            user_id,
+            device_info,
+            state.refresh_idle_minutes,
+            state.refresh_absolute_max_days,
+        )
+        .await
+        .map_err(|e| {
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("session create: {e}"),
+            )
+        })?;
+
     super::concurrency::create_lease_in_tx(&mut tx, req.tenant_id, user_id, new_token_id)
         .await
         .map_err(|e| {
@@ -1142,7 +1189,7 @@ pub async fn login(
         },
     )
     .with_schema_version("1.0.0".to_string())
-    .with_trace_id(Some(trace_id))
+    .with_trace_id(Some(trace_id.clone()))
     .with_actor(user_id, "User".to_string())
     .with_mutation_class(Some("user-data".to_string()));
 
@@ -1159,8 +1206,63 @@ pub async fn login(
             .inc();
     }
 
+    // Emit identity_auth.session_created for the sliding-expiry session.
+    #[derive(Serialize)]
+    struct SessionCreatedData {
+        session_id: String,
+        user_id: String,
+        issued_at: String,
+        expires_at: String,
+        absolute_expires_at: String,
+    }
+    let session_env = EventEnvelope::new(
+        req.tenant_id.to_string(),
+        state.producer.clone(),
+        "identity_auth.session_created".to_string(),
+        SessionCreatedData {
+            session_id: session_id.to_string(),
+            user_id: user_id.to_string(),
+            issued_at: Utc::now().to_rfc3339(),
+            expires_at: session_expires_at.to_rfc3339(),
+            absolute_expires_at: session_absolute_expires_at.to_rfc3339(),
+        },
+    )
+    .with_schema_version("1.0.0".to_string())
+    .with_trace_id(Some(trace_id))
+    .with_actor(user_id, "User".to_string())
+    .with_mutation_class(Some("user-data".to_string()));
+    if state
+        .events
+        .publish(
+            "identity_auth.session_created",
+            "identity_auth.session.created.v1.json",
+            &session_env,
+        )
+        .await
+        .is_err()
+    {
+        state
+            .metrics
+            .auth_nats_publish_fail_total
+            .with_label_values(&["identity_auth.session_created"])
+            .inc();
+    }
+
+    let cookie_max_age = (session_expires_at - Utc::now()).num_seconds().max(0);
+    let cookie_value = cookies::build_set_cookie(
+        &session_raw_token,
+        cookie_max_age,
+        state.cookie_secure,
+    );
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(
+        axum::http::header::SET_COOKIE,
+        HeaderValue::from_str(&cookie_value).unwrap_or_else(|_| HeaderValue::from_static("")),
+    );
+
     Ok((
         StatusCode::OK,
+        resp_headers,
         Json(TokenResponse {
             token_type: "Bearer",
             access_token: access,

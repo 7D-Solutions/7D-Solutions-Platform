@@ -20,6 +20,10 @@ pub struct Config {
     pub access_token_ttl_minutes: i64,
     pub refresh_token_ttl_days: i64,
 
+    // Sliding-expiry refresh sessions (cookie flow)
+    pub refresh_idle_minutes: i64,
+    pub refresh_absolute_max_days: i64,
+
     pub argon_memory_kb: u32,
     pub argon_iterations: u32,
     pub argon_parallelism: u32,
@@ -90,6 +94,13 @@ impl Config {
                 .parse()?,
             refresh_token_ttl_days: env::var("REFRESH_TOKEN_TTL_DAYS")
                 .unwrap_or_else(|_| "14".to_string())
+                .parse()?,
+
+            refresh_idle_minutes: env::var("REFRESH_IDLE_MINUTES")
+                .unwrap_or_else(|_| "480".to_string())
+                .parse()?,
+            refresh_absolute_max_days: env::var("REFRESH_ABSOLUTE_MAX_DAYS")
+                .unwrap_or_else(|_| "30".to_string())
                 .parse()?,
 
             argon_memory_kb: env::var("ARGON_MEMORY_KB")

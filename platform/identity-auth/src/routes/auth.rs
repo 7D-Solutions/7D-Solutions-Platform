@@ -14,6 +14,11 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
         .route("/api/auth/login", post(handlers::login))
         .route("/api/auth/refresh", post(session::refresh))
         .route("/api/auth/logout", post(session::logout))
+        .route("/api/auth/sessions", get(session::list_sessions))
+        .route(
+            "/api/auth/sessions/{session_id}/revoke",
+            post(session::revoke_session),
+        )
         .route(
             "/api/auth/access-review",
             post(handlers::record_access_review),
