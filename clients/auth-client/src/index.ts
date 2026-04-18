@@ -79,7 +79,7 @@ export function createAuthClient(opts: AuthClientOptions): AuthClient {
     const res = await authFetch("/api/auth/refresh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenant_id: tenantId, refresh_token: storedRefreshToken }),
+      body: JSON.stringify({ refresh_token: storedRefreshToken }),
     });
     if (!res.ok) {
       clearTokens();

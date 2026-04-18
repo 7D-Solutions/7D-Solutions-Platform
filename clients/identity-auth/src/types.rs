@@ -107,7 +107,10 @@ pub struct Permission {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshReq {
     pub refresh_token: String,
-    pub tenant_id: uuid::Uuid,
+    /// Deprecated: server looks up tenant_id from the session row.
+    /// Pass `None`; field is accepted for back-compat but ignored by the server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<uuid::Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

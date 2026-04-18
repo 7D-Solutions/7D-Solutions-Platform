@@ -1,6 +1,6 @@
 [package]
 name = "auth-rs"
-version = "1.12.0"
+version = "1.12.1"
 edition = "2021"
 description = "JWT authentication, session management, password reset, and rate limiting"
 publish = ["7d-platform"]

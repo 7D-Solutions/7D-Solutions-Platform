@@ -21,7 +21,10 @@ use super::refresh_sessions::{self, RefreshSession, SessionValidationError};
 
 #[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct RefreshReq {
-    pub tenant_id: Uuid,
+    /// Deprecated: the server looks this up from the session row.
+    /// Field is accepted for back-compat but ignored; server row is authoritative.
+    #[serde(default)]
+    pub tenant_id: Option<Uuid>,
     pub refresh_token: String,
 }
 
@@ -81,7 +84,7 @@ pub async fn refresh(
     }
 
     let Json(req) = body.ok_or_else(|| err(StatusCode::BAD_REQUEST, "refresh token required"))?;
-    refresh_via_body(state, extensions, req).await
+    refresh_via_body(state, extensions, &headers, req).await
 }
 
 async fn refresh_via_cookie(
@@ -361,34 +364,13 @@ async fn refresh_via_cookie(
 async fn refresh_via_body(
     state: Arc<AuthState>,
     extensions: Extensions,
+    headers: &HeaderMap,
     req: RefreshReq,
 ) -> Result<axum::response::Response, ApiErr> {
     let trace_id = get_trace_id_from_extensions(&extensions);
 
     let old_hash = hash_refresh_token(&req.refresh_token);
     let hash_prefix: String = old_hash.chars().take(12).collect();
-
-    if let Err(wait) = state.keyed_limits.check_refresh(
-        &req.tenant_id.to_string(),
-        &hash_prefix,
-        state.refresh_per_min_per_token,
-    ) {
-        state
-            .metrics
-            .auth_rate_limited_total
-            .with_label_values(&["refresh"])
-            .inc();
-        state
-            .metrics
-            .auth_refresh_total
-            .with_label_values(&["failure", "rate_limited"])
-            .inc();
-        return Err(err_retry_after(
-            StatusCode::TOO_MANY_REQUESTS,
-            wait,
-            "rate limited",
-        ));
-    }
 
     let mut tx = state.db.begin().await.map_err(|e| {
         state
@@ -399,14 +381,15 @@ async fn refresh_via_body(
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
+    // Look up by token_hash alone — the row's tenant_id is authoritative.
+    // Any tenant_id supplied by the client is ignored (back-compat window).
     let row = sqlx::query(
         r#"
-        SELECT id, user_id, expires_at, revoked_at
+        SELECT id, tenant_id, user_id, expires_at, revoked_at
         FROM refresh_tokens
-        WHERE tenant_id = $1 AND token_hash = $2
+        WHERE token_hash = $1
         "#,
     )
-    .bind(req.tenant_id)
     .bind(&old_hash)
     .fetch_optional(&mut *tx)
     .await
@@ -432,9 +415,30 @@ async fn refresh_via_body(
     };
 
     let token_id: Uuid = row.get("id");
+    let tenant_id: Uuid = row.get("tenant_id");
     let user_id: Uuid = row.get("user_id");
     let expires_at: chrono::DateTime<Utc> = row.get("expires_at");
     let revoked_at: Option<chrono::DateTime<Utc>> = row.get("revoked_at");
+
+    // Emit a structured deprecation log when the client still sends tenant_id.
+    // The field is accepted but ignored; the DB row is the sole authority.
+    if req.tenant_id.is_some() {
+        let user_agent = headers
+            .get(axum::http::header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        let client_ip = headers
+            .get("x-forwarded-for")
+            .or_else(|| headers.get("x-real-ip"))
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        tracing::info!(
+            deprecated_field = "tenant_id",
+            user_agent = %user_agent,
+            client_ip = %client_ip,
+            "refresh.deprecated_field: tenant_id in body is ignored; server row is authoritative"
+        );
+    }
 
     if revoked_at.is_some() {
         state
@@ -445,10 +449,10 @@ async fn refresh_via_body(
         state
             .metrics
             .auth_refresh_replay_total
-            .with_label_values(&[&req.tenant_id.to_string()])
+            .with_label_values(&[&tenant_id.to_string()])
             .inc();
         tracing::warn!(
-            tenant_id = %req.tenant_id,
+            tenant_id = %tenant_id,
             user_id = %user_id,
             trace_id = %trace_id,
             token_hash_prefix = %hash_prefix,
@@ -466,8 +470,32 @@ async fn refresh_via_body(
         return Err(err(StatusCode::UNAUTHORIZED, "refresh token expired"));
     }
 
+    // Rate limit using the authoritative tenant_id from the DB row.
+    if let Err(wait) = state.keyed_limits.check_refresh(
+        &tenant_id.to_string(),
+        &hash_prefix,
+        state.refresh_per_min_per_token,
+    ) {
+        let _ = tx.rollback().await;
+        state
+            .metrics
+            .auth_rate_limited_total
+            .with_label_values(&["refresh"])
+            .inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "rate_limited"])
+            .inc();
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
+    }
+
     if let Some(client) = &state.tenant_registry {
-        match client.get_tenant_gate(req.tenant_id, &state.metrics).await {
+        match client.get_tenant_gate(tenant_id, &state.metrics).await {
             Ok(TenantGate::Allow) | Ok(TenantGate::DenyNewLogin { .. }) => {}
             Ok(TenantGate::Deny { status }) => {
                 state
@@ -516,7 +544,7 @@ async fn refresh_via_body(
         RETURNING id
         "#,
     )
-    .bind(req.tenant_id)
+    .bind(tenant_id)
     .bind(user_id)
     .bind(&new_hash)
     .bind(new_expires_at)
@@ -538,13 +566,13 @@ async fn refresh_via_body(
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
-    let roles = crate::db::rbac::list_roles_for_user(&state.db, req.tenant_id, user_id)
+    let roles = crate::db::rbac::list_roles_for_user(&state.db, tenant_id, user_id)
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}")))?
         .into_iter()
         .map(|r| r.name)
         .collect::<Vec<_>>();
-    let perms = crate::db::rbac::effective_permissions_for_user(&state.db, req.tenant_id, user_id)
+    let perms = crate::db::rbac::effective_permissions_for_user(&state.db, tenant_id, user_id)
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}")))?;
     let role_snapshot_id = super::jwt::compute_role_snapshot_id(&roles);
@@ -552,7 +580,7 @@ async fn refresh_via_body(
     let access = state
         .jwt
         .sign_access_token_enriched(
-            req.tenant_id,
+            tenant_id,
             user_id,
             roles,
             perms,
@@ -574,7 +602,7 @@ async fn refresh_via_body(
         user_id: String,
     }
     let env = EventEnvelope::new(
-        req.tenant_id.to_string(),
+        tenant_id.to_string(),
         state.producer.clone(),
         "auth.token_refreshed".to_string(),
         Data {
