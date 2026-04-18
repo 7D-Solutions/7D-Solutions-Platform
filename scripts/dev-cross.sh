@@ -24,6 +24,9 @@ cd "$PROJECT_ROOT"
 TARGET="aarch64-unknown-linux-musl"
 CROSS_DIR="target/$TARGET/debug"
 
+# Tracks containers restarted in the current invocation (used by stale-mount audit).
+RESTARTED_THIS_CYCLE=()
+
 # ── Service registry ──────────────────────────────────────────────
 # Format: service|crate_name|container|service_port|bin_name
 # Same services as dev-native.sh but only the fields needed for cross-compile.
@@ -137,14 +140,16 @@ cross_build_and_restart() {
   IFS=',' read -ra _CONTAINERS <<< "$CONTAINER"
   for _c in "${_CONTAINERS[@]}"; do
     echo "Restarting container $_c..."
-    docker restart "$_c" 2>/dev/null || {
+    if docker restart "$_c" 2>/dev/null; then
+      RESTARTED_THIS_CYCLE+=("$_c")
+    else
       echo "Warning: container $_c not running." >&2
-    }
+    fi
   done
 
   # Wait for health check
   echo -n "Waiting for health..."
-  for i in $(seq 1 15); do
+  for _i in $(seq 1 15); do
     if curl -sf "http://127.0.0.1:${PORT}${HEALTH_PATH}" >/dev/null 2>&1; then
       echo " healthy!"
       curl -sf "http://127.0.0.1:${PORT}${HEALTH_PATH}"
@@ -155,6 +160,99 @@ cross_build_and_restart() {
     sleep 2
   done
   echo " timeout (service may still be starting)"
+}
+
+stale_mount_audit() {
+  # Skip in CI environments — this is a dev-loop tool only.
+  if [[ -n "${CI:-}" ]]; then
+    return 0
+  fi
+
+  local log_file="$PROJECT_ROOT/logs/watcher-override.log"
+  local max_stale=10
+  local stale_count=0
+
+  echo ""
+  echo "Stale-mount audit..."
+
+  local containers
+  containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^7d-' || true)
+  if [[ -z "$containers" ]]; then
+    echo "  No running 7d-* containers, skipping."
+    return 0
+  fi
+
+  while IFS= read -r ctr; do
+    # Find bind-mount source for /app/service (empty if not bind-mounted).
+    local host_path
+    host_path=$(docker inspect "$ctr" \
+      --format '{{range .Mounts}}{{if and (eq .Type "bind") (eq .Destination "/app/service")}}{{.Source}}{{end}}{{end}}' \
+      2>/dev/null || true)
+
+    [[ -z "$host_path" ]] && continue
+    [[ ! -f "$host_path" ]] && {
+      echo "  ANOMALY $ctr: bind-mount source not found on host: $host_path" >&2
+      continue
+    }
+
+    # macOS host stat vs Linux container stat.
+    local host_mtime ctr_mtime
+    host_mtime=$(stat -f %m "$host_path" 2>/dev/null || echo "0")
+    ctr_mtime=$(docker exec "$ctr" stat -c %Y /app/service 2>/dev/null || echo "0")
+
+    if [[ "$host_mtime" == "0" || "$ctr_mtime" == "0" ]]; then
+      echo "  SKIP $ctr: stat failed (host=$host_mtime ctr=$ctr_mtime)" >&2
+      continue
+    fi
+
+    local delta=$(( host_mtime - ctr_mtime ))
+
+    # Host older than container → build artifact issue, not a stale mount.
+    if [[ $delta -lt 0 ]]; then
+      echo "  ANOMALY $ctr: host binary older than container view (delta=${delta}s) — skipping" >&2
+      echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") ANOMALY ctr=$ctr host_mtime=$host_mtime ctr_mtime=$ctr_mtime delta=${delta}s source=stale-mount-detector" \
+        >> "$log_file"
+      continue
+    fi
+
+    # Within virtiofs lag tolerance.
+    [[ $delta -le 2 ]] && continue
+
+    stale_count=$(( stale_count + 1 ))
+    if [[ $stale_count -gt $max_stale ]]; then
+      echo "  WARNING: $stale_count stale containers exceed threshold ($max_stale) — stopping audit. Investigate bind-mount configuration." >&2
+      echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") WARNING stale_count=$stale_count threshold=$max_stale source=stale-mount-detector" \
+        >> "$log_file"
+      return 0
+    fi
+
+    # Double-restart guard: this container should not have been restarted already.
+    local already=0
+    for r in "${RESTARTED_THIS_CYCLE[@]+"${RESTARTED_THIS_CYCLE[@]}"}"; do
+      [[ "$r" == "$ctr" ]] && { already=1; break; }
+    done
+    if [[ $already -eq 1 ]]; then
+      echo "  ERROR: $ctr would be restarted twice in this cycle — stopping. Check cargo-slot target dir for bind-mount permission issues." >&2
+      echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") ERROR double-restart-guard ctr=$ctr source=stale-mount-detector" \
+        >> "$log_file"
+      return 1
+    fi
+
+    echo "  Stale: $ctr (host=$host_mtime ctr=$ctr_mtime delta=${delta}s) — restarting..."
+    if AGENTCORE_WATCHER_OVERRIDE=1 docker restart "$ctr" 2>/dev/null; then
+      RESTARTED_THIS_CYCLE+=("$ctr")
+      echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") RESTART ctr=$ctr host_mtime=$host_mtime ctr_mtime=$ctr_mtime delta=${delta}s source=stale-mount-detector" \
+        >> "$log_file"
+    else
+      echo "  WARNING: failed to restart $ctr" >&2
+    fi
+  done <<< "$containers"
+
+  if [[ $stale_count -eq 0 ]]; then
+    echo "  All containers in sync."
+  else
+    echo "  Stale-mount audit complete: $stale_count container(s) restarted."
+  fi
 }
 
 echo ""
@@ -168,4 +266,5 @@ if [ "$MODE" = "--watch" ]; then
   cargo watch -s "$PROJECT_ROOT/scripts/cargo-slot.sh build --target $TARGET -p $CRATE --bin $BIN_NAME && for c in ${CONTAINER//,/ }; do docker restart \$c; done"
 else
   cross_build_and_restart
+  stale_mount_audit
 fi
