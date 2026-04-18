@@ -94,13 +94,14 @@ import { createBomClient } from "@7d/bom-client";
 import type { paths as BomPathsImport } from "@7d/bom-client";
 import { createPartyClient } from "@7d/party-client";
 import type { paths as PartyPathsImport } from "@7d/party-client";
+import type { AuthClient } from "@7d/auth-client";
 
-export interface ApiClientOptions {
-  /** Bearer JWT for authentication. */
-  token: string;
-  /** Base URL shared by all services (e.g. API gateway). */
-  baseUrl: string;
-}
+export type { AuthClient } from "@7d/auth-client";
+export { createAuthMiddleware } from "@7d/auth-client";
+
+export type ApiClientOptions =
+  | { baseUrl: string; token: string }
+  | { baseUrl: string; authClient: AuthClient };
 
 export interface ApiClient {
   inventory: Client<InvPaths>;

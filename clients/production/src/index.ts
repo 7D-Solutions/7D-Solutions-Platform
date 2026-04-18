@@ -1,5 +1,7 @@
 // @generated — do not edit by hand. Re-run ts-codegen.mjs to regenerate.
 import createClient from "openapi-fetch";
+import { createAuthMiddleware } from "@7d/auth-client";
+import type { AuthClient } from "@7d/auth-client";
 import type { paths, components } from "./production.d.ts";
 
 export type { paths, components } from "./production.d.ts";
@@ -39,12 +41,19 @@ export type WorkOrderStatus = components["schemas"]["WorkOrderStatus"];
 export type Workcenter = components["schemas"]["Workcenter"];
 export type WorkcenterDowntime = components["schemas"]["WorkcenterDowntime"];
 
-export interface ProductionClientOptions {
-  baseUrl: string;
-  token: string;
-}
+export type { AuthClient } from "@7d/auth-client";
+export { createAuthMiddleware } from "@7d/auth-client";
+
+export type ProductionClientOptions =
+  | { baseUrl: string; token: string }
+  | { baseUrl: string; authClient: AuthClient };
 
 export function createProductionClient(opts: ProductionClientOptions) {
+  if ("authClient" in opts) {
+    const client = createClient<paths>({ baseUrl: opts.baseUrl });
+    client.use(createAuthMiddleware(opts.authClient));
+    return client;
+  }
   return createClient<paths>({
     baseUrl: opts.baseUrl,
     headers: {

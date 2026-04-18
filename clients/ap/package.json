@@ -6,14 +6,18 @@
   "main": "src/index.ts",
   "scripts": {
     "generate:file": "openapi-typescript openapi.json -o src/ap.d.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --env-file=../../.env ./node_modules/.bin/vitest run"
   },
   "dependencies": {
+    "@7d/auth-client": "file:../auth-client",
     "openapi-fetch": "^0.13.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
+    "jose": "^6.2.2",
     "openapi-typescript": "^7.6.1",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@7d/auth-client": "file:../auth-client",
     "openapi-fetch": "^0.13.0"
   },
   "devDependencies": {

@@ -7,9 +7,11 @@
   "scripts": {
     "generate": "openapi-typescript http://localhost:8098/api/openapi.json -o src/party.d.ts",
     "generate:file": "openapi-typescript openapi.json -o src/party.d.ts",
+    "typecheck": "tsc --noEmit",
     "proof": "npx tsx tests/consumer-proof.ts"
   },
   "dependencies": {
+    "@7d/auth-client": "file:../auth-client",
     "dotenv": "^17.3.1",
     "openapi-fetch": "^0.13.0"
   },

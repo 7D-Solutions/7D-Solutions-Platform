@@ -9,6 +9,7 @@
     "proof": "npx tsx tests/consumer-proof.ts"
   },
   "dependencies": {
+    "@7d/auth-client": "file:../auth-client",
     "@7d/bom-client": "file:../bom",
     "@7d/inventory-client": "file:../inventory",
     "@7d/party-client": "file:../party",
