@@ -81,6 +81,7 @@ Shared crates used by services. Not independently deployed.
 | security | security | 1.10.1 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth | [Revisions](platform/security/REVISIONS.md) |
 | tax-core | tax-core | 1.0.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules | [Revisions](platform/tax-core/REVISIONS.md) |
 | tenant-registry | tenant-registry | 1.2.3 | Tenant CRUD, lifecycle management, plan tiers, and fleet summary | [Revisions](platform/tenant-registry/REVISIONS.md) |
+| web-auth | platform-web-auth | 0.1.0 | BFF cookie auth proxy: login/logout/me/refresh handlers + access-cookie-to-claims middleware |  |
 
 ## Tools
 

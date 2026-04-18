@@ -14,6 +14,7 @@ members = [
   "platform/http-contracts",
   "platform/platform-sdk",
   "platform/auth-kit",
+  "platform/web-auth",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

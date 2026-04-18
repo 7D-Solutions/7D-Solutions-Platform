@@ -1,0 +1,33 @@
+[package]
+name = "platform-web-auth"
+version = "0.1.0"
+edition = "2021"
+description = "BFF cookie auth proxy: login/logout/me/refresh handlers + access-cookie-to-claims middleware"
+
+[dependencies]
+axum = "0.8"
+tower = "0.5"
+http = "1"
+security = { path = "../security" }
+platform-http-contracts = { path = "../http-contracts", features = ["axum"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+jsonwebtoken = "9"
+uuid = { version = "1", features = ["v4", "serde"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "cookies"] }
+axum = { version = "0.8" }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+serde_json = "1"
+
+[lints]
+workspace = true
