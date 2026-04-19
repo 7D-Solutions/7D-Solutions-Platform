@@ -442,7 +442,7 @@ pub async fn set_party_status_tx(
     updated_at: DateTime<Utc>,
 ) -> Result<(), PartyError> {
     sqlx::query(
-        "UPDATE party_parties SET status = $1, updated_at = $2 WHERE id = $3 AND app_id = $4",
+        "UPDATE party_parties SET status = $1::party_status, updated_at = $2 WHERE id = $3 AND app_id = $4",
     )
     .bind(status)
     .bind(updated_at)
@@ -470,7 +470,7 @@ pub async fn insert_party_tx(
             address_line1, address_line2, city, state, postal_code, country,
             metadata, created_at, updated_at
         )
-        VALUES ($1, $2, $3, 'active', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+        VALUES ($1, $2, $3::party_type, 'active'::party_status, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
         RETURNING id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                   display_name, email, phone, website,
                   address_line1, address_line2, city, state, postal_code, country,
