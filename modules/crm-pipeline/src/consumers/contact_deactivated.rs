@@ -1,4 +1,4 @@
-//! Consumer for party.contact.deactivated.v1 events.
+//! Consumer for party.events.contact.deactivated events.
 //!
 //! Behavior:
 //! 1. Set contact_role_attributes.is_active = false
@@ -46,7 +46,7 @@ pub async fn handle_contact_deactivated(pool: &PgPool, payload: &ContactDeactiva
 
 pub fn start_contact_deactivated_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        let subject = "party.contact.deactivated.v1";
+        let subject = "party.events.contact.deactivated";
         let mut sub = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

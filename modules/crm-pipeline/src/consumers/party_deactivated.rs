@@ -1,4 +1,4 @@
-//! Consumer for party.party.deactivated.v1 events.
+//! Consumer for party.deactivated events.
 //!
 //! Behavior: log a warning on open opportunities linked to the party.
 //! Does not auto-close opportunities per spec.
@@ -45,7 +45,7 @@ pub async fn handle_party_deactivated(pool: &PgPool, payload: &PartyDeactivatedP
 
 pub fn start_party_deactivated_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        let subject = "party.party.deactivated.v1";
+        let subject = "party.deactivated";
         let mut sub = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

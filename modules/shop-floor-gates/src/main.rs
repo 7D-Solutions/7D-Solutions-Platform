@@ -24,11 +24,7 @@ async fn main() {
             });
 
             if let Ok(bus) = ctx.bus_arc() {
-                consumers::work_order_cancelled::start_work_order_cancelled_consumer(
-                    bus.clone(),
-                    ctx.pool().clone(),
-                );
-                consumers::work_order_completed::start_work_order_completed_consumer(
+                consumers::work_order_closed::start_work_order_closed_consumer(
                     bus.clone(),
                     ctx.pool().clone(),
                 );

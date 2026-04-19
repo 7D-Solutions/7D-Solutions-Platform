@@ -540,11 +540,11 @@ async fn active_hold_count_tracks_state() {
     assert_eq!(count_after, 2);
 }
 
-// ── Consumer: auto-release all active holds on work_order_cancelled ───────────
+// ── Consumer: auto-release all active holds on work_order_closed ──────────────
 
 #[tokio::test]
 #[serial]
-async fn auto_release_holds_on_work_order_cancelled() {
+async fn auto_release_holds_on_work_order_closed() {
     let pool = setup_db().await;
     let t = tenant();
     let placed_by = user();
@@ -589,7 +589,7 @@ async fn auto_release_holds_on_work_order_cancelled() {
         wo_id,
         &t,
         shop_floor_gates_rs::domain::holds::service::SYSTEM_ACTOR,
-        Some("Auto-released: work order cancelled"),
+        Some("Auto-released: work order closed"),
     )
     .await
     .expect("release_all_active_for_work_order failed");

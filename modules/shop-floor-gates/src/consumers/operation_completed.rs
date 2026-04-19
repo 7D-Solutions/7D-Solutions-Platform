@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::domain::holds::service::SYSTEM_ACTOR;
 
-const SUBJECT: &str = "production.operation_completed.v1";
+const SUBJECT: &str = "production.operation_completed";
 
 #[derive(Debug, Deserialize)]
 struct OperationCompletedPayload {

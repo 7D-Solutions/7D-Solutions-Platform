@@ -1,4 +1,4 @@
-//! Consumer for sales_orders.order.booked.v1 events.
+//! Consumer for sales_orders.order_booked events.
 //!
 //! Behavior: if the SO references an opportunity via soft linkage,
 //! update opportunities.sales_order_id. No state change per spec.
@@ -50,7 +50,7 @@ pub async fn handle_order_booked(pool: &PgPool, payload: &OrderBookedPayload) {
 
 pub fn start_order_booked_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        let subject = "sales_orders.order.booked.v1";
+        let subject = "sales_orders.order_booked";
         let mut sub = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
