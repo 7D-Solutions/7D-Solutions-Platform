@@ -1,3 +1,4 @@
+// Outbox events are enqueued via `repo::enqueue_outbox` (no separate outbox/ module — pattern is inline here).
 use sqlx::PgPool;
 use uuid::Uuid;
 
