@@ -1591,6 +1591,147 @@ services:
       com.agentcore.container-role: app
       com.agentcore.service: reporting
 
+  # =========================
+  # CUSTOMER COMPLAINTS MODULE
+  # =========================
+  customer-complaints:
+    container_name: 7d-customer-complaints
+    image: flywheel/rust-dev-runtime:2026-04
+    environment:
+      DATABASE_URL: postgres://${CC_POSTGRES_USER:-cc_user}:${CC_POSTGRES_PASSWORD:?CC_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-customer-complaints-postgres:5432/${CC_POSTGRES_DB:-cc_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8113
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/customer-complaints-rs:/app/service:ro
+      - ./modules/customer-complaints/module.toml:/app/module.toml:ro
+      - ./modules/customer-complaints/db/migrations:/app/db/migrations:ro
+    ports:
+      - "127.0.0.1:8113:8113"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8113/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "customer-complaints"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.agentcore.project: "platform"
+      com.agentcore.container-role: app
+      com.agentcore.service: customer-complaints
+
+  # =========================
+  # OUTSIDE PROCESSING MODULE
+  # =========================
+  outside-processing:
+    container_name: 7d-outside-processing
+    image: flywheel/rust-dev-runtime:2026-04
+    environment:
+      DATABASE_URL: postgres://${OP_POSTGRES_USER:-op_user}:${OP_POSTGRES_PASSWORD:?OP_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-outside-processing-postgres:5432/${OP_POSTGRES_DB:-op_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8114
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/outside-processing-rs:/app/service:ro
+      - ./modules/outside-processing/module.toml:/app/module.toml:ro
+      - ./modules/outside-processing/db/migrations:/app/db/migrations:ro
+    ports:
+      - "127.0.0.1:8114:8114"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8114/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "outside-processing"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.agentcore.project: "platform"
+      com.agentcore.container-role: app
+      com.agentcore.service: outside-processing
+
+  # =========================
+  # SHOP FLOOR GATES MODULE
+  # =========================
+  shop-floor-gates:
+    container_name: 7d-shop-floor-gates
+    image: flywheel/rust-dev-runtime:2026-04
+    environment:
+      DATABASE_URL: postgres://${SFG_POSTGRES_USER:-sfg_user}:${SFG_POSTGRES_PASSWORD:?SFG_POSTGRES_PASSWORD must be set at deploy time; see docs/security/vuln-triage.md}@7d-shop-floor-gates-postgres:5432/${SFG_POSTGRES_DB:-sfg_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8201
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
+      SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ./target/aarch64-unknown-linux-musl/debug/shop-floor-gates-rs:/app/service:ro
+      - ./modules/shop-floor-gates/module.toml:/app/module.toml:ro
+      - ./modules/shop-floor-gates/db/migrations:/app/db/migrations:ro
+    ports:
+      - "127.0.0.1:8201:8201"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8201/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "shop-floor-gates"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.agentcore.project: "platform"
+      com.agentcore.container-role: app
+      com.agentcore.service: shop-floor-gates
+
 networks:
   7d-platform:
     name: 7d-platform
