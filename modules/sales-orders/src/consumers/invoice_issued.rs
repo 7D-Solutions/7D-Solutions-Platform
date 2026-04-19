@@ -1,33 +1,25 @@
-//! Consumer for ar.invoice_issued events.
-//! Updates the SO status to closed when all lines have been invoiced.
+//! Consumer for ar.invoice_opened events.
+//! Logs receipt of AR invoice opened notifications.
+//! SO order close is handled within the shipment_shipped consumer once
+//! all lines are marked invoiced — AR's invoice_opened payload carries no
+//! sales-order IDs.
 
 use event_bus::EventBus;
 use futures::StreamExt;
-use serde::Deserialize;
 use sqlx::PgPool;
 use std::sync::Arc;
-use uuid::Uuid;
 
-use crate::domain::orders::{repo, SoStatus};
-
-const SUBJECT: &str = "ar.invoice_issued.v1";
+const SUBJECT: &str = "ar.events.ar.invoice_opened";
 #[allow(dead_code)]
-const QUEUE_GROUP: &str = "sales-orders-invoice-issued";
+const QUEUE_GROUP: &str = "sales-orders-invoice-opened";
 
-#[derive(Debug, Deserialize)]
-struct InvoiceIssuedPayload {
-    pub tenant_id: String,
-    pub so_line_id: Option<Uuid>,
-    pub sales_order_id: Option<Uuid>,
-}
-
-pub fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+pub fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, _pool: PgPool) {
     tokio::spawn(async move {
-        consume(bus, pool).await;
+        consume(bus).await;
     });
 }
 
-async fn consume(bus: Arc<dyn EventBus>, pool: PgPool) {
+async fn consume(bus: Arc<dyn EventBus>) {
     let mut stream = match bus.subscribe(SUBJECT).await {
         Ok(s) => s,
         Err(e) => {
@@ -37,33 +29,11 @@ async fn consume(bus: Arc<dyn EventBus>, pool: PgPool) {
     };
 
     while let Some(msg) = stream.next().await {
-        if let Err(e) = process_message(&msg, &pool).await {
-            tracing::error!("SO: invoice_issued processing error: {}", e);
-        }
+        let invoice_id = serde_json::from_slice::<serde_json::Value>(&msg.payload)
+            .ok()
+            .and_then(|v| v.get("payload").and_then(|p| p.get("invoice_id")).cloned())
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "unknown".to_owned());
+        tracing::debug!(invoice_id = %invoice_id, "SO: ar.invoice_opened received");
     }
-}
-
-async fn process_message(msg: &event_bus::BusMessage, pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    let payload: InvoiceIssuedPayload = serde_json::from_slice(&msg.payload)?;
-
-    let (Some(order_id), Some(line_id)) = (payload.sales_order_id, payload.so_line_id) else {
-        return Ok(());
-    };
-
-    // Check if all lines are invoiced; if so, close the order
-    let lines = repo::fetch_lines_for_order(pool, order_id, &payload.tenant_id).await?;
-    let all_invoiced = !lines.is_empty() && lines.iter().all(|l| l.invoiced_at.is_some());
-
-    if all_invoiced {
-        let order = repo::fetch_order_for_mutation(pool, order_id, &payload.tenant_id).await?;
-        if let Some(order) = order {
-            let current = SoStatus::from_str(&order.status).unwrap_or(SoStatus::Shipped);
-            if current.can_transition_to(SoStatus::Closed) {
-                repo::update_order_status(pool, order_id, &payload.tenant_id, SoStatus::Closed.as_str()).await?;
-            }
-        }
-    }
-
-    tracing::debug!(order_id = %order_id, line_id = %line_id, "SO: invoice_issued processed");
-    Ok(())
 }
