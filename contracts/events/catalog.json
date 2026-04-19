@@ -3069,6 +3069,202 @@
       "description": "",
       "payload_fields": [],
       "schema_file": ""
+    },
+    {
+      "subject": "sales_orders.order_created",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.order_created",
+      "description": "Event emitted when a new sales order is created",
+      "payload_fields": [
+        "sales_order_id",
+        "order_number",
+        "customer_id",
+        "currency",
+        "tenant_id",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-order-created.v1.json"
+    },
+    {
+      "subject": "sales_orders.order_booked",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [
+        "inventory"
+      ],
+      "event_type": "sales_orders.order_booked",
+      "description": "Event emitted when a sales order is confirmed and booked",
+      "payload_fields": [
+        "sales_order_id",
+        "order_number",
+        "customer_id",
+        "total_cents",
+        "currency",
+        "tenant_id",
+        "lines",
+        "booked_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-order-booked.v1.json"
+    },
+    {
+      "subject": "sales_orders.order_cancelled",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.order_cancelled",
+      "description": "Event emitted when a sales order is cancelled",
+      "payload_fields": [
+        "sales_order_id",
+        "order_number",
+        "tenant_id",
+        "reason",
+        "cancelled_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-order-cancelled.v1.json"
+    },
+    {
+      "subject": "sales_orders.order_shipped",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.order_shipped",
+      "description": "Event emitted when a sales order is shipped",
+      "payload_fields": [
+        "sales_order_id",
+        "order_number",
+        "tenant_id",
+        "shipped_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-order-shipped.v1.json"
+    },
+    {
+      "subject": "sales_orders.order_closed",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.order_closed",
+      "description": "Event emitted when a sales order lifecycle is complete",
+      "payload_fields": [
+        "sales_order_id",
+        "order_number",
+        "tenant_id",
+        "closed_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-order-closed.v1.json"
+    },
+    {
+      "subject": "sales_orders.blanket_activated",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.blanket_activated",
+      "description": "Event emitted when a blanket order is activated",
+      "payload_fields": [
+        "blanket_order_id",
+        "blanket_order_number",
+        "customer_id",
+        "total_committed_value_cents",
+        "valid_until",
+        "tenant_id",
+        "activated_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-blanket-activated.v1.json"
+    },
+    {
+      "subject": "sales_orders.blanket_expired",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.blanket_expired",
+      "description": "Event emitted when a blanket order expires",
+      "payload_fields": [
+        "blanket_order_id",
+        "blanket_order_number",
+        "tenant_id",
+        "expired_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-blanket-expired.v1.json"
+    },
+    {
+      "subject": "sales_orders.blanket_cancelled",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.blanket_cancelled",
+      "description": "Event emitted when a blanket order is explicitly cancelled",
+      "payload_fields": [
+        "blanket_order_id",
+        "blanket_order_number",
+        "tenant_id",
+        "cancelled_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-blanket-cancelled.v1.json"
+    },
+    {
+      "subject": "sales_orders.release_created",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [],
+      "event_type": "sales_orders.release_created",
+      "description": "Event emitted when a release is drawn against a blanket order line",
+      "payload_fields": [
+        "release_id",
+        "blanket_order_id",
+        "blanket_order_line_id",
+        "release_qty",
+        "sales_order_id",
+        "tenant_id",
+        "created_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-release-created.v1.json"
+    },
+    {
+      "subject": "sales_orders.reservation_requested",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [
+        "inventory"
+      ],
+      "event_type": "sales_orders.reservation_requested",
+      "description": "Emitted per SO line on booking; Inventory holds stock in response",
+      "payload_fields": [
+        "sales_order_id",
+        "line_id",
+        "item_id",
+        "quantity",
+        "required_date",
+        "tenant_id"
+      ],
+      "schema_file": "contracts/events/sales-orders-reservation-requested.v1.json"
+    },
+    {
+      "subject": "sales_orders.shipment_requested",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [
+        "shipping-receiving"
+      ],
+      "event_type": "sales_orders.shipment_requested",
+      "description": "Emitted to trigger shipment document creation in Shipping-Receiving",
+      "payload_fields": [
+        "sales_order_id",
+        "line_id",
+        "item_id",
+        "quantity",
+        "ship_to_address_id",
+        "tenant_id"
+      ],
+      "schema_file": "contracts/events/sales-orders-shipment-requested.v1.json"
+    },
+    {
+      "subject": "sales_orders.invoice_requested",
+      "publisher_module": "sales-orders",
+      "consumer_modules": [
+        "ar"
+      ],
+      "event_type": "sales_orders.invoice_requested",
+      "description": "Emitted per SO line when shipped; AR creates an invoice in response",
+      "payload_fields": [
+        "sales_order_id",
+        "line_id",
+        "customer_id",
+        "amount_cents",
+        "currency",
+        "tenant_id",
+        "requested_at"
+      ],
+      "schema_file": "contracts/events/sales-orders-invoice-requested.v1.json"
     }
   ]
 }

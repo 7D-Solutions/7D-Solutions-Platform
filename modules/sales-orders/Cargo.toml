@@ -36,6 +36,7 @@ fastrand = "2"
 migration-safety-test = { path = "../../tools/migration-safety-test" }
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
+jsonschema = "0.18"
 
 [lints]
 workspace = true
