@@ -4,6 +4,8 @@
 //! All state mutations use a transaction to atomically update rows + enqueue events.
 
 use chrono::Utc;
+use platform_client_party::{CreateCompanyRequest, PartiesClient};
+use platform_sdk::PlatformClient;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -150,12 +152,15 @@ pub async fn mark_qualified(
 
 /// Convert a qualified lead.
 ///
-/// Invariant: party_id must be set (either from request or previously on the lead).
+/// When `party_id` is absent from the request (and not pre-set on the lead),
+/// `parties_client` is used to auto-create a Party company from `lead.company_name`.
+/// Pass `None` to keep the previous behaviour (error if no party_id).
 pub async fn convert_lead(
     pool: &PgPool,
     tenant_id: &str,
     id: Uuid,
     req: &ConvertLeadRequest,
+    parties_client: Option<&PartiesClient>,
 ) -> Result<ConvertLeadResponse, LeadError> {
     let lead = get_lead(pool, tenant_id, id).await?;
     let current = LeadStatus::from_str(&lead.status)
@@ -170,7 +175,21 @@ pub async fn convert_lead(
 
     let effective_party_id = match req.party_id.or(lead.party_id) {
         Some(pid) => pid,
-        None => return Err(LeadError::ConversionRequiresParty),
+        None => match parties_client {
+            Some(client) => {
+                let claims = PlatformClient::service_claims_from_str(tenant_id)
+                    .map_err(|e| LeadError::PartyApiError(format!("invalid tenant_id: {e}")))?;
+                let body = CreateCompanyRequest {
+                    display_name: lead.company_name.clone(),
+                    legal_name: lead.company_name.clone(),
+                    ..Default::default()
+                };
+                let party_view = client.create_company(&claims, &body).await
+                    .map_err(|e| LeadError::PartyApiError(e.to_string()))?;
+                party_view.party.id
+            }
+            None => return Err(LeadError::ConversionRequiresParty),
+        },
     };
 
     let mut tx = pool.begin().await?;

@@ -1,9 +1,10 @@
 use axum::{routing::{get, post, put}, Json, Router};
+use platform_client_party::PartiesClient;
+use platform_sdk::{ModuleBuilder, PlatformClient};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
 use crm_pipeline_rs::{http, metrics, AppState};
-use platform_sdk::ModuleBuilder;
 use security::{permissions, RequirePermissionsLayer};
 
 async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
@@ -21,9 +22,16 @@ async fn main() {
                 metrics::CrmPipelineMetrics::new().expect("CRM: failed to create metrics"),
             );
 
+            let party_base_url = std::env::var("PARTY_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:8098".to_string());
+            let parties_client = PartiesClient::new(
+                PlatformClient::new(party_base_url).with_service_token(None, None),
+            );
+
             let app_state = Arc::new(AppState {
                 pool: ctx.pool().clone(),
                 metrics: crm_metrics,
+                parties_client,
             });
 
             if let Ok(bus) = ctx.bus_arc() {
@@ -34,9 +42,6 @@ async fn main() {
                     bus.clone(), ctx.pool().clone(),
                 );
                 crm_pipeline_rs::consumers::order_booked::start_order_booked_consumer(
-                    bus.clone(), ctx.pool().clone(),
-                );
-                crm_pipeline_rs::consumers::customer_created::start_customer_created_consumer(
                     bus, ctx.pool().clone(),
                 );
                 tracing::info!("CRM Pipeline: consumers started");

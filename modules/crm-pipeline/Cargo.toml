@@ -36,6 +36,7 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
 platform-http-contracts = { path = "../../platform/http-contracts", features = ["axum"] }
 platform-audit = { package = "audit", path = "../../platform/audit" }
+platform-client-party = { path = "../../clients/party" }
 utoipa = { version = "5", features = ["uuid", "chrono"] }
 async-nats = "0.38"
 futures = "0.3"
@@ -48,6 +49,8 @@ uuid = { version = "1", features = ["v4"] }
 http-body-util = "0.1"
 security = { path = "../../platform/security" }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "migrate", "uuid"] }
+platform-client-party = { path = "../../clients/party" }
+platform-sdk = { path = "../../platform/platform-sdk" }
 
 [lints]
 workspace = true

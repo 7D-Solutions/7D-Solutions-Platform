@@ -196,7 +196,7 @@ pub async fn convert_lead(
         Ok(id) => id,
         Err(e) => return with_request_id(e, &tracing_ctx).into_response(),
     };
-    match service::convert_lead(&state.pool, &tenant_id, id, &req).await {
+    match service::convert_lead(&state.pool, &tenant_id, id, &req, Some(&state.parties_client)).await {
         Ok(resp) => Json(resp).into_response(),
         Err(e) => with_request_id(ApiError::from(e), &tracing_ctx).into_response(),
     }

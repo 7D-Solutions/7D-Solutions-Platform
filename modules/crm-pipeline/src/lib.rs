@@ -12,4 +12,5 @@ pub use config::Config;
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub metrics: std::sync::Arc<metrics::CrmPipelineMetrics>,
+    pub parties_client: platform_client_party::PartiesClient,
 }

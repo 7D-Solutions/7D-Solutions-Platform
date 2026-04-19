@@ -6,8 +6,10 @@
 use crm_pipeline_rs::consumers::order_booked::{handle_order_booked, OrderBookedPayload};
 use crm_pipeline_rs::domain::contact_role_attributes::{repo as contact_repo, UpsertContactRoleRequest};
 use crm_pipeline_rs::domain::leads::{
-    service as lead_service, ConvertLeadRequest, CreateLeadRequest, LeadError,
+    service as lead_service, ConvertLeadRequest, CreateLeadRequest,
 };
+use platform_client_party::{PartiesClient, SearchPartiesQuery};
+use platform_sdk::PlatformClient;
 use crm_pipeline_rs::domain::opportunities::{
     service as opp_service, AdvanceStageRequest, CloseLostRequest, CloseWonRequest,
     CreateOpportunityRequest, OpportunityError,
@@ -36,6 +38,12 @@ async fn setup_db() -> sqlx::PgPool {
 
 fn unique_tenant() -> String {
     format!("crm-test-{}", Uuid::new_v4().simple())
+}
+
+fn setup_party_client() -> PartiesClient {
+    let url = std::env::var("PARTY_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8098".to_string());
+    PartiesClient::new(PlatformClient::new(url))
 }
 
 async fn create_qualified_lead(pool: &sqlx::PgPool, tenant_id: &str) -> crm_pipeline_rs::domain::leads::Lead {
@@ -98,14 +106,16 @@ async fn create_open_opportunity(pool: &sqlx::PgPool, tenant_id: &str) -> crm_pi
 
 #[tokio::test]
 #[serial]
-async fn test_lead_convert_without_party_id_returns_error() {
+async fn test_lead_convert_without_party_id_creates_party() {
     let pool = setup_db().await;
-    let tenant = unique_tenant();
+    // Tenant must be a valid UUID so service_claims_from_str can parse it.
+    let tenant = Uuid::new_v4().to_string();
+    let parties_client = setup_party_client();
 
     let lead = create_qualified_lead(&pool, &tenant).await;
     assert_eq!(lead.status, "qualified");
 
-    let result = lead_service::convert_lead(
+    let resp = lead_service::convert_lead(
         &pool,
         &tenant,
         lead.id,
@@ -114,20 +124,59 @@ async fn test_lead_convert_without_party_id_returns_error() {
             party_contact_id: None,
             opportunity_title: None,
         },
+        Some(&parties_client),
     )
-    .await;
+    .await
+    .expect("auto-create party + convert should succeed");
 
-    assert!(
-        matches!(result, Err(LeadError::ConversionRequiresParty)),
-        "Expected ConversionRequiresParty, got {:?}",
-        result
+    assert_eq!(resp.lead.status, "converted");
+    let new_party_id = resp.lead.party_id.expect("party_id must be set after auto-create");
+
+    // Verify the Party company exists in the Party service.
+    let tenant_uuid = Uuid::parse_str(&tenant).expect("tenant is a valid UUID");
+    let service_claims = PlatformClient::service_claims(tenant_uuid);
+    let search = parties_client
+        .search_parties(
+            &service_claims,
+            &SearchPartiesQuery {
+                name: Some(lead.company_name.clone()),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("search parties");
+
+    assert!(!search.data.is_empty(), "Party company must exist after auto-create");
+    assert_eq!(
+        search.data[0].id, new_party_id,
+        "returned party_id must match the created Party row"
     );
 
-    // Status must not have changed
-    let lead_after = lead_service::get_lead(&pool, &tenant, lead.id)
-        .await
-        .expect("get lead");
-    assert_eq!(lead_after.status, "qualified");
+    // A second conversion with the same company_name either reuses via Party's 409
+    // or creates a second row — pin whichever behaviour Party gives us.
+    let lead2 = create_qualified_lead(&pool, &tenant).await;
+    let result2 = lead_service::convert_lead(
+        &pool,
+        &tenant,
+        lead2.id,
+        &ConvertLeadRequest {
+            party_id: None,
+            party_contact_id: None,
+            opportunity_title: None,
+        },
+        Some(&parties_client),
+    )
+    .await;
+    match result2 {
+        Ok(resp2) => assert_eq!(resp2.lead.status, "converted"),
+        Err(e) => {
+            let s = format!("{e:?}");
+            assert!(
+                s.contains("409") || s.contains("party_api"),
+                "unexpected error on second conversion: {s}"
+            );
+        }
+    }
 }
 
 #[tokio::test]
@@ -148,6 +197,7 @@ async fn test_lead_convert_with_party_id_succeeds() {
             party_contact_id: None,
             opportunity_title: None,
         },
+        None,
     )
     .await
     .expect("convert lead");

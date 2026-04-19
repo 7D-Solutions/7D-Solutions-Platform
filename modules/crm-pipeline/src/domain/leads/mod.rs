@@ -33,6 +33,8 @@ pub enum LeadError {
     DisqualifyRequiresReason,
     #[error("Validation error: {0}")]
     Validation(String),
+    #[error("party auto-create failed: {0}")]
+    PartyApiError(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -54,6 +56,7 @@ impl From<LeadError> for platform_http_contracts::ApiError {
                 Self::new(422, "disqualify_requires_reason", "disqualify_reason is required")
             }
             LeadError::Validation(msg) => Self::new(422, "validation_error", msg),
+            LeadError::PartyApiError(msg) => Self::new(502, "party_api_error", msg),
             LeadError::Database(e) => {
                 tracing::error!("CRM leads DB error: {}", e);
                 Self::internal("Internal database error")
