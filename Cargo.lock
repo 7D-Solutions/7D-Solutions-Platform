@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.12.0"
+version = "1.12.1"
 dependencies = [
  "argon2",
  "async-nats",
@@ -1689,6 +1689,7 @@ dependencies = [
  "health",
  "http-body-util",
  "migration-safety-test",
+ "platform-client-party",
  "platform-http-contracts",
  "platform-sdk",
  "prometheus",
@@ -4203,7 +4204,7 @@ dependencies = [
 
 [[package]]
 name = "party-rs"
-version = "3.2.6"
+version = "3.2.7"
 dependencies = [
  "async-nats",
  "axum",
@@ -5917,6 +5918,7 @@ dependencies = [
  "fastrand",
  "futures",
  "health",
+ "jsonschema",
  "migration-safety-test",
  "platform-client-inventory",
  "platform-http-contracts",
