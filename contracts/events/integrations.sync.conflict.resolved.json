@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/integrations.sync.conflict.resolved.json",
+  "title": "sync.conflict.resolved",
+  "description": "Event emitted when a previously detected sync conflict is resolved via the conflict resolution API or automated policy. Closes the conflict lifecycle for downstream consumers.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id":       { "type": "string", "format": "uuid" },
+    "event_type":     { "type": "string", "const": "sync.conflict.resolved" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "tenant_id":      { "type": "string", "minLength": 1 },
+    "source_module":  { "type": "string", "const": "integrations" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe":    { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "LIFECYCLE" },
+    "correlation_id": { "type": "string" },
+    "causation_id":   { "type": "string" },
+    "trace_id":       { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "conflict_id",
+        "app_id",
+        "connector_id",
+        "entity_type",
+        "entity_id",
+        "resolution",
+        "resolved_by"
+      ],
+      "properties": {
+        "conflict_id":   { "type": "string", "format": "uuid", "description": "Identifier of the conflict being resolved — matches conflict_id from sync.conflict.detected" },
+        "app_id":        { "type": "string", "minLength": 1, "description": "Tenant application identifier" },
+        "connector_id":  { "type": "string", "format": "uuid", "description": "Connector for which the conflict was resolved" },
+        "entity_type":   { "type": "string", "minLength": 1, "description": "Type of entity whose conflict was resolved" },
+        "entity_id":     { "type": "string", "minLength": 1, "description": "Platform-side identifier of the resolved entity" },
+        "resolution":    {
+          "type": "string",
+          "enum": ["platform_wins", "external_wins", "manual"],
+          "description": "How the conflict was resolved: platform_wins applies platform state, external_wins pulls external state, manual indicates operator action"
+        },
+        "resolved_by":   { "type": "string", "minLength": 1, "description": "User ID or 'system' that resolved the conflict" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/integrations.sync.push.failed.json",
+  "title": "sync.push.failed",
+  "description": "Event emitted when a push of a platform entity to an external system fails. Consumers use this to trigger retry scheduling, DLQ routing, or operator alerts.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id":       { "type": "string", "format": "uuid" },
+    "event_type":     { "type": "string", "const": "sync.push.failed" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "tenant_id":      { "type": "string", "minLength": 1 },
+    "source_module":  { "type": "string", "const": "integrations" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe":    { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "SIDE_EFFECT" },
+    "correlation_id": { "type": "string" },
+    "causation_id":   { "type": "string" },
+    "trace_id":       { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "app_id",
+        "connector_id",
+        "entity_type",
+        "entity_id",
+        "attempt_number",
+        "failure_reason",
+        "failure_code",
+        "retryable"
+      ],
+      "properties": {
+        "app_id":          { "type": "string", "minLength": 1, "description": "Tenant application identifier" },
+        "connector_id":    { "type": "string", "format": "uuid", "description": "Connector through which the push was attempted" },
+        "entity_type":     { "type": "string", "minLength": 1, "description": "Type of entity that failed to push (e.g. invoice, customer)" },
+        "entity_id":       { "type": "string", "minLength": 1, "description": "Platform-side identifier of the entity" },
+        "attempt_number":  { "type": "integer", "minimum": 1, "description": "Ordinal attempt number (1-based)" },
+        "failure_reason":  { "type": "string", "minLength": 1, "description": "Human-readable explanation of why the push failed" },
+        "failure_code":    { "type": "string", "minLength": 1, "description": "Machine-readable failure code (e.g. rate_limited, auth_expired, validation_error)" },
+        "retryable":       { "type": "boolean", "description": "Whether the failure is transient and eligible for automatic retry" },
+        "external_error":  { "type": ["string", "null"], "description": "Raw error message returned by the external system, if available" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

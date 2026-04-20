@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/integrations.sync.conflict.detected.json",
+  "title": "sync.conflict.detected",
+  "description": "Event emitted when the sync detector identifies a divergence between platform state and an external system's state for a specific entity. Triggers manual or automatic resolution flow.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id":       { "type": "string", "format": "uuid" },
+    "event_type":     { "type": "string", "const": "sync.conflict.detected" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "tenant_id":      { "type": "string", "minLength": 1 },
+    "source_module":  { "type": "string", "const": "integrations" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe":    { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "SIDE_EFFECT" },
+    "correlation_id": { "type": "string" },
+    "causation_id":   { "type": "string" },
+    "trace_id":       { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "conflict_id",
+        "app_id",
+        "connector_id",
+        "entity_type",
+        "entity_id",
+        "platform_fingerprint",
+        "external_fingerprint"
+      ],
+      "properties": {
+        "conflict_id":            { "type": "string", "format": "uuid", "description": "Stable identifier for this conflict instance — referenced by resolved event" },
+        "app_id":                 { "type": "string", "minLength": 1, "description": "Tenant application identifier" },
+        "connector_id":           { "type": "string", "format": "uuid", "description": "Connector for which the conflict was detected" },
+        "entity_type":            { "type": "string", "minLength": 1, "description": "Type of entity in conflict (e.g. invoice, customer)" },
+        "entity_id":              { "type": "string", "minLength": 1, "description": "Platform-side identifier of the conflicting entity" },
+        "platform_fingerprint":   { "type": "string", "minLength": 1, "description": "Hash or summary of platform state at detection time" },
+        "external_fingerprint":   { "type": "string", "minLength": 1, "description": "Hash or summary of external system state at detection time" },
+        "external_entity_id":     { "type": ["string", "null"], "description": "External system identifier for the entity, if known" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

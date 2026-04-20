@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/integrations.sync.authority.changed.json",
+  "title": "sync.authority.changed",
+  "description": "Event emitted when sync authority flips between platform and an external system for a connector or entity scope. Financially sensitive — triggers downstream re-reconciliation.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id":       { "type": "string", "format": "uuid" },
+    "event_type":     { "type": "string", "const": "sync.authority.changed" },
+    "occurred_at":    { "type": "string", "format": "date-time" },
+    "tenant_id":      { "type": "string", "minLength": 1 },
+    "source_module":  { "type": "string", "const": "integrations" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe":    { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "LIFECYCLE" },
+    "correlation_id": { "type": "string" },
+    "causation_id":   { "type": "string" },
+    "trace_id":       { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "app_id",
+        "connector_id",
+        "entity_type",
+        "previous_authority",
+        "new_authority",
+        "flipped_by"
+      ],
+      "properties": {
+        "app_id":              { "type": "string", "minLength": 1, "description": "Tenant application identifier" },
+        "connector_id":        { "type": "string", "format": "uuid", "description": "Connector whose authority scope changed" },
+        "entity_type":         { "type": "string", "minLength": 1, "description": "Entity type governed by this authority (e.g. invoice, customer)" },
+        "entity_id":           { "type": ["string", "null"], "description": "Specific entity ID, or null when authority applies to all entities of this type" },
+        "previous_authority":  { "type": "string", "enum": ["platform", "external"], "description": "Which party held authority before this flip" },
+        "new_authority":       { "type": "string", "enum": ["platform", "external"], "description": "Which party now holds authority" },
+        "flipped_by":          { "type": "string", "minLength": 1, "description": "User ID or 'system' that performed the flip" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
