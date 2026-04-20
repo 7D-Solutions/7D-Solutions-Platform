@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.7.7
+- feat: scaffold /api/integrations/sync/* route tree with 501 stubs and wire dedicated sync sub-capabilities from platform/security ([bd-n68o6] / Stream D Phase 1)
+
 ## 2.7.6
 - fix: OAuth reconnect upsert on (app_id, provider), partial unique on (provider, realm_id) scoped to connected rows, and mandatory `state` CSRF guard on callback ([bd-apj1n] / Stream D Phase 0)
 

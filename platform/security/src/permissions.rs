@@ -84,6 +84,14 @@ pub const PARTY_READ: &str = "party.read";
 pub const INTEGRATIONS_MUTATE: &str = "integrations.mutate";
 pub const INTEGRATIONS_READ: &str = "integrations.read";
 
+// Sync sub-capabilities — each endpoint requires its own explicit permission.
+// Never accept the coarse INTEGRATIONS_MUTATE for these; authority flip in
+// particular touches financially sensitive sync-ownership state.
+pub const INTEGRATIONS_SYNC_AUTHORITY_FLIP: &str = "integrations.sync.authority.flip";
+pub const INTEGRATIONS_SYNC_CONFLICT_RESOLVE: &str = "integrations.sync.conflict.resolve";
+pub const INTEGRATIONS_SYNC_PUSH: &str = "integrations.sync.push";
+pub const INTEGRATIONS_SYNC_READ: &str = "integrations.sync.read";
+
 // ── TTP (Third-Party Processing) ─────────────────────────────────────────────
 
 pub const TTP_MUTATE: &str = "ttp.mutate";
@@ -250,6 +258,56 @@ mod tests {
     fn test_permissions_integrations_constants_are_non_empty() {
         assert!(!INTEGRATIONS_MUTATE.is_empty());
         assert!(!INTEGRATIONS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_integrations_sync_constants_are_non_empty() {
+        assert!(!INTEGRATIONS_SYNC_AUTHORITY_FLIP.is_empty());
+        assert!(!INTEGRATIONS_SYNC_CONFLICT_RESOLVE.is_empty());
+        assert!(!INTEGRATIONS_SYNC_PUSH.is_empty());
+        assert!(!INTEGRATIONS_SYNC_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_integrations_sync_distinct_from_coarse() {
+        // Sync caps must NOT equal the coarse mutate/read permissions —
+        // guards must reject a broad token for sync endpoints.
+        assert_ne!(INTEGRATIONS_SYNC_AUTHORITY_FLIP, INTEGRATIONS_MUTATE);
+        assert_ne!(INTEGRATIONS_SYNC_CONFLICT_RESOLVE, INTEGRATIONS_MUTATE);
+        assert_ne!(INTEGRATIONS_SYNC_PUSH, INTEGRATIONS_MUTATE);
+        assert_ne!(INTEGRATIONS_SYNC_READ, INTEGRATIONS_READ);
+    }
+
+    #[test]
+    fn test_permissions_integrations_sync_all_distinct() {
+        let caps = [
+            INTEGRATIONS_SYNC_AUTHORITY_FLIP,
+            INTEGRATIONS_SYNC_CONFLICT_RESOLVE,
+            INTEGRATIONS_SYNC_PUSH,
+            INTEGRATIONS_SYNC_READ,
+        ];
+        for i in 0..caps.len() {
+            for j in (i + 1)..caps.len() {
+                assert_ne!(caps[i], caps[j], "sync permissions must all be distinct");
+            }
+        }
+    }
+
+    #[test]
+    fn test_permissions_integrations_sync_follow_dot_convention() {
+        for perm in &[
+            INTEGRATIONS_SYNC_AUTHORITY_FLIP,
+            INTEGRATIONS_SYNC_CONFLICT_RESOLVE,
+            INTEGRATIONS_SYNC_PUSH,
+            INTEGRATIONS_SYNC_READ,
+        ] {
+            assert!(perm.contains('.'), "sync permission '{}' must contain a dot", perm);
+            assert!(
+                perm.starts_with("integrations.sync."),
+                "sync permission '{}' must start with 'integrations.sync.'",
+                perm
+            );
+        }
     }
 
     #[test]

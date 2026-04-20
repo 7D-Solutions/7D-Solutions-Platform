@@ -3,6 +3,7 @@ pub mod external_refs;
 pub mod internal;
 pub mod oauth;
 pub mod qbo_invoice;
+pub mod sync;
 pub mod webhooks;
 
 use axum::{
@@ -113,6 +114,56 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
+    // Sync — authority flip (financially sensitive; requires dedicated permission)
+    let sync_authority = Router::new()
+        .route(
+            "/api/integrations/sync/authority",
+            post(sync::flip_authority),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_SYNC_AUTHORITY_FLIP,
+        ]))
+        .with_state(state.clone());
+
+    // Sync — conflict resolution
+    let sync_conflict_resolve = Router::new()
+        .route(
+            "/api/integrations/sync/conflicts/{id}/resolve",
+            post(sync::resolve_conflict),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_SYNC_CONFLICT_RESOLVE,
+        ]))
+        .with_state(state.clone());
+
+    // Sync — push
+    let sync_push = Router::new()
+        .route(
+            "/api/integrations/sync/push/{entity_type}",
+            post(sync::push_entity),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_SYNC_PUSH,
+        ]))
+        .with_state(state.clone());
+
+    // Sync — reads (conflicts, dlq, push-attempts, jobs)
+    let sync_reads = Router::new()
+        .route(
+            "/api/integrations/sync/conflicts",
+            get(sync::list_conflicts),
+        )
+        .route("/api/integrations/sync/dlq", get(sync::list_dlq))
+        .route(
+            "/api/integrations/sync/push-attempts",
+            get(sync::list_push_attempts),
+        )
+        .route("/api/integrations/sync/jobs", get(sync::list_jobs))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_SYNC_READ,
+        ]))
+        .with_state(state.clone());
+
     // Internal platform-to-platform endpoints — no auth layer, network-gated only
     let internal_routes = Router::new()
         .route(
@@ -124,6 +175,10 @@ pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .merge(mutations)
         .merge(reads)
+        .merge(sync_authority)
+        .merge(sync_conflict_resolve)
+        .merge(sync_push)
+        .merge(sync_reads)
         .merge(webhook_inbound)
         .merge(oauth_callback)
         .merge(internal_routes)

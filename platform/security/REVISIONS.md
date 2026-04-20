@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.11.0 | 2026-04-20 | bd-n68o6 | Add four sync sub-capability permission constants: `INTEGRATIONS_SYNC_AUTHORITY_FLIP` (`integrations.sync.authority.flip`), `INTEGRATIONS_SYNC_CONFLICT_RESOLVE` (`integrations.sync.conflict.resolve`), `INTEGRATIONS_SYNC_PUSH` (`integrations.sync.push`), and `INTEGRATIONS_SYNC_READ` (`integrations.sync.read`). | Stream D Phase 1: sync endpoints (authority flip, conflict resolution, push, read) must be gated by dedicated permissions rather than the coarse `integrations.mutate`, since authority flip is financially sensitive. | No |
 | 1.10.1 | 2026-04-17 | bd-vf7mt | Add `AP_QUALIFY_VENDOR` permission constant (`ap.qualify_vendor`). Gates vendor qualification routes in AP module (qualify, prefer, unprefer). | Vendor Qualification Gate (bd-vf7mt) requires a dedicated RBAC scope for qualification actions distinct from general AP mutate. | No |
 | 1.10.0 | 2026-04-17 | bd-1a57w | Add `CRM_PIPELINE_MUTATE` and `CRM_PIPELINE_READ` permission constants for the new crm-pipeline platform module (leads, opportunities, activities). | New platform module needs its own RBAC scope distinct from party or sales_orders. | No |
 | 1.9.0 | 2026-04-17 | bd-ixnbs.1 | Add `PRODUCTION_TIME_ENTRY_APPROVE` permission constant to gate time-entry approval/rejection endpoints in Production. | Production introduced a time-entry approval flow requiring a supervisor-scoped role distinct from generic mutate. Needed by bd-ixnbs.1. | No |
