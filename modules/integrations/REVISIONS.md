@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.27.0
+- feat: `POST /sync/conflicts/bulk-resolve` (cap 100) with server-computed deterministic idempotency key (`conflict_id+action+authority_version`), caller-key aliasing, per-item best-effort outcomes, and replay-safe retries; migration adds resolution idempotency key column ([bd-tzizs] / Stream D Phase 1.5)
+
 ## 2.26.1
 - fix: enforce explicit duplicate-customer remap policy — block fuzzy name-similarity auto-remap; stale external ref + new external customer raises `creation` conflict with deterministic candidate hints (exact email/phone/tax id); remap requires explicit action that tombstones old mapping before relink ([bd-5cn7z] / Stream D Phase 1.5)
 

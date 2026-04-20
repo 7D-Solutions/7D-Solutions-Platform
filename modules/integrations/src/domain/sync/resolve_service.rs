@@ -27,7 +27,8 @@ use crate::events::{
 use crate::outbox::enqueue_event_tx;
 use super::authority_repo;
 use super::conflicts::{ConflictError, ConflictStatus};
-use super::conflicts_repo::{get_conflict, resolve_conflict_tx};
+use super::conflicts_repo::{close_conflict_with_key, get_conflict, resolve_conflict_tx, resolve_conflict_with_key_tx};
+use super::dedupe::compute_resolve_det_key;
 use super::dedupe::{compute_fingerprint, truncate_to_millis};
 use super::push_attempts::{self, PreCallOutcome, ReconcileOutcome};
 
@@ -205,6 +206,303 @@ pub async fn resolve_conflict_transactional(
     tx.commit().await.map_err(ResolveConflictError::Database)?;
 
     Ok(resolved)
+}
+
+// ── Bulk resolve ──────────────────────────────────────────────────────────────
+
+/// Maximum items allowed in a single bulk-resolve call.
+pub const BULK_RESOLVE_CAP: usize = 100;
+
+/// Input for one item in a bulk-resolve request.
+#[derive(Debug)]
+pub struct BulkResolveItem {
+    pub conflict_id: Uuid,
+    /// "resolve" | "ignore" | "unresolvable"
+    pub action: String,
+    /// Caller's believed authority version — used in deterministic key only.
+    pub authority_version: i64,
+    /// Required when action = "resolve".
+    pub internal_id: Option<String>,
+    pub resolution_note: Option<String>,
+    /// Caller-supplied alias stored for tracking; never drives server dedupe.
+    pub caller_idempotency_key: Option<String>,
+}
+
+/// Per-item outcome from a bulk-resolve operation.
+///
+/// Serialises with `"outcome"` as the tag so callers can always branch on one field.
+#[derive(Debug, Serialize)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum BulkResolveOutcome {
+    /// Conflict newly resolved in this call.
+    Resolved {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Idempotent replay — same deterministic key already applied; conflict already resolved.
+    AlreadyResolved {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Conflict newly set to ignored in this call.
+    Ignored {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Idempotent replay — conflict already ignored by same deterministic key.
+    AlreadyIgnored {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Conflict newly marked unresolvable in this call.
+    MarkedUnresolvable {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Idempotent replay — conflict already marked unresolvable by same deterministic key.
+    AlreadyUnresolvable {
+        conflict_id: Uuid,
+        deterministic_key: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        caller_idempotency_key: Option<String>,
+    },
+    /// Conflict is already in a terminal state reached by a different operation.
+    TerminalByOther {
+        conflict_id: Uuid,
+        current_status: String,
+    },
+    /// Conflict not found or belongs to a different tenant.
+    NotFound { conflict_id: Uuid },
+    /// Entity type is not supported for conflict resolution.
+    UnsupportedEntityType {
+        conflict_id: Uuid,
+        entity_type: String,
+    },
+    /// action string is not one of resolve / ignore / unresolvable.
+    InvalidAction {
+        conflict_id: Uuid,
+        action: String,
+    },
+    /// action = resolve but internal_id is absent or empty.
+    MissingInternalId { conflict_id: Uuid },
+    /// Unexpected error processing this item.
+    Error {
+        conflict_id: Uuid,
+        message: String,
+    },
+}
+
+/// Top-level error from `bulk_resolve_conflicts` (not per-item).
+#[derive(Debug, thiserror::Error)]
+pub enum BulkResolveError {
+    #[error("items count {0} exceeds maximum of 100")]
+    ExceedsCapacity(usize),
+}
+
+/// Resolve, ignore, or mark-unresolvable up to `BULK_RESOLVE_CAP` conflicts in
+/// best-effort fashion.  Each item is processed independently; the operation is
+/// not transactional across items.  Items are processed in submission order and
+/// outcomes are returned in the same order.
+pub async fn bulk_resolve_conflicts(
+    pool: &PgPool,
+    app_id: &str,
+    resolved_by: &str,
+    items: Vec<BulkResolveItem>,
+) -> Result<Vec<BulkResolveOutcome>, BulkResolveError> {
+    if items.len() > BULK_RESOLVE_CAP {
+        return Err(BulkResolveError::ExceedsCapacity(items.len()));
+    }
+    let mut outcomes = Vec::with_capacity(items.len());
+    for item in items {
+        let det_key = compute_resolve_det_key(item.conflict_id, &item.action, item.authority_version);
+        outcomes.push(process_bulk_item(pool, app_id, resolved_by, &item, &det_key).await);
+    }
+    Ok(outcomes)
+}
+
+async fn process_bulk_item(
+    pool: &PgPool,
+    app_id: &str,
+    resolved_by: &str,
+    item: &BulkResolveItem,
+    det_key: &str,
+) -> BulkResolveOutcome {
+    let cid = item.conflict_id;
+
+    // Validate action.
+    if !matches!(item.action.as_str(), "resolve" | "ignore" | "unresolvable") {
+        return BulkResolveOutcome::InvalidAction { conflict_id: cid, action: item.action.clone() };
+    }
+    if item.action == "resolve" && item.internal_id.as_ref().map_or(true, |s| s.is_empty()) {
+        return BulkResolveOutcome::MissingInternalId { conflict_id: cid };
+    }
+
+    // Load conflict — tenant-scoped.
+    let conflict = match get_conflict(pool, app_id, cid).await {
+        Ok(Some(c)) => c,
+        Ok(None) => return BulkResolveOutcome::NotFound { conflict_id: cid },
+        Err(e) => {
+            tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: DB error loading conflict");
+            return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+        }
+    };
+
+    // Explicit (entity_type, conflict_class) dispatch — same surface as single-item resolve.
+    match (conflict.entity_type.as_str(), conflict.conflict_class.as_str()) {
+        ("customer" | "invoice" | "payment", "edit" | "creation" | "deletion") => {}
+        _ => return BulkResolveOutcome::UnsupportedEntityType {
+            conflict_id: cid,
+            entity_type: conflict.entity_type.clone(),
+        },
+    }
+
+    let current_status = ConflictStatus::from_str(&conflict.status).unwrap_or(ConflictStatus::Pending);
+
+    // Already terminal: idempotent replay if same det_key; TerminalByOther otherwise.
+    if current_status.is_terminal() {
+        let same_key = conflict.resolution_idempotency_key.as_deref() == Some(det_key);
+        return if same_key {
+            match current_status {
+                ConflictStatus::Resolved => BulkResolveOutcome::AlreadyResolved {
+                    conflict_id: cid,
+                    deterministic_key: det_key.to_string(),
+                    caller_idempotency_key: item.caller_idempotency_key.clone(),
+                },
+                ConflictStatus::Ignored => BulkResolveOutcome::AlreadyIgnored {
+                    conflict_id: cid,
+                    deterministic_key: det_key.to_string(),
+                    caller_idempotency_key: item.caller_idempotency_key.clone(),
+                },
+                ConflictStatus::Unresolvable => BulkResolveOutcome::AlreadyUnresolvable {
+                    conflict_id: cid,
+                    deterministic_key: det_key.to_string(),
+                    caller_idempotency_key: item.caller_idempotency_key.clone(),
+                },
+                ConflictStatus::Pending => unreachable!(),
+            }
+        } else {
+            BulkResolveOutcome::TerminalByOther { conflict_id: cid, current_status: conflict.status }
+        };
+    }
+
+    match item.action.as_str() {
+        "resolve" => {
+            let internal_id = match item.internal_id.as_deref() {
+                Some(id) => id,
+                None => {
+                    return BulkResolveOutcome::Error { conflict_id: cid, message: "internal_id required for resolve action".to_string() };
+                }
+            };
+            let mut tx = match pool.begin().await {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: begin tx failed");
+                    return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                }
+            };
+            let resolved = match resolve_conflict_with_key_tx(
+                &mut tx, app_id, cid, internal_id, resolved_by,
+                item.resolution_note.as_deref(), det_key,
+            ).await {
+                Ok(Some(r)) => r,
+                Ok(None) => {
+                    let _ = tx.rollback().await;
+                    return BulkResolveOutcome::TerminalByOther {
+                        conflict_id: cid,
+                        current_status: "unknown".to_string(),
+                    };
+                }
+                Err(e) => {
+                    let _ = tx.rollback().await;
+                    tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: resolve_tx failed");
+                    return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+                }
+            };
+            let event_id = Uuid::new_v4();
+            let payload = SyncConflictResolvedPayload {
+                app_id: app_id.to_string(),
+                conflict_id: cid,
+                provider: resolved.provider.clone(),
+                entity_type: resolved.entity_type.clone(),
+                entity_id: resolved.entity_id.clone(),
+                conflict_class: resolved.conflict_class.clone(),
+                resolved_by: resolved_by.to_string(),
+                internal_id: internal_id.to_string(),
+                resolution_note: item.resolution_note.clone(),
+            };
+            let envelope = build_sync_conflict_resolved_envelope(
+                event_id, app_id.to_string(), event_id.to_string(), None, payload,
+            );
+            if let Err(e) = enqueue_event_tx(
+                &mut tx, event_id, EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
+                "sync_conflict", &cid.to_string(), app_id, &envelope,
+            ).await {
+                let _ = tx.rollback().await;
+                tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: enqueue event failed");
+                return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+            }
+            if let Err(e) = tx.commit().await {
+                tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: commit failed");
+                return BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() };
+            }
+            BulkResolveOutcome::Resolved {
+                conflict_id: cid,
+                deterministic_key: det_key.to_string(),
+                caller_idempotency_key: item.caller_idempotency_key.clone(),
+            }
+        }
+        "ignore" => {
+            match close_conflict_with_key(
+                pool, app_id, cid, ConflictStatus::Ignored,
+                resolved_by, item.resolution_note.as_deref(), det_key,
+            ).await {
+                Ok(Some(_)) => BulkResolveOutcome::Ignored {
+                    conflict_id: cid,
+                    deterministic_key: det_key.to_string(),
+                    caller_idempotency_key: item.caller_idempotency_key.clone(),
+                },
+                Ok(None) => BulkResolveOutcome::TerminalByOther {
+                    conflict_id: cid,
+                    current_status: "unknown".to_string(),
+                },
+                Err(e) => {
+                    tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: close ignore failed");
+                    BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() }
+                }
+            }
+        }
+        "unresolvable" => {
+            match close_conflict_with_key(
+                pool, app_id, cid, ConflictStatus::Unresolvable,
+                resolved_by, item.resolution_note.as_deref(), det_key,
+            ).await {
+                Ok(Some(_)) => BulkResolveOutcome::MarkedUnresolvable {
+                    conflict_id: cid,
+                    deterministic_key: det_key.to_string(),
+                    caller_idempotency_key: item.caller_idempotency_key.clone(),
+                },
+                Ok(None) => BulkResolveOutcome::TerminalByOther {
+                    conflict_id: cid,
+                    current_status: "unknown".to_string(),
+                },
+                Err(e) => {
+                    tracing::error!(error = %e, conflict_id = %cid, "bulk_resolve: close unresolvable failed");
+                    BulkResolveOutcome::Error { conflict_id: cid, message: "database error".to_string() }
+                }
+            }
+        }
+        _ => unreachable!("action validated at top of process_bulk_item"),
+    }
 }
 
 // ── Push error ────────────────────────────────────────────────────────────────

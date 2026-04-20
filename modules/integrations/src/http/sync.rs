@@ -28,7 +28,8 @@ use crate::domain::oauth::service as oauth_service;
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
 use crate::domain::sync::conflicts_repo::list_conflicts_paged;
 use crate::domain::sync::resolve_service::{
-    resolve_conflict_transactional, PushError, ResolveConflictError, ResolveService,
+    bulk_resolve_conflicts, resolve_conflict_transactional, BulkResolveError, BulkResolveItem,
+    BulkResolveOutcome, PushError, ResolveConflictError, ResolveService,
 };
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
 use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
@@ -313,6 +314,91 @@ pub async fn resolve_conflict(
             tracing::error!(error = %e, conflict_id = %id, "resolve_conflict error");
             ApiError::internal("Internal database error").into_response()
         }
+    }
+}
+
+// ============================================================================
+// bulk_resolve_conflicts
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct BulkResolveItemRequest {
+    pub conflict_id: Uuid,
+    /// "resolve" | "ignore" | "unresolvable"
+    pub action: String,
+    /// Caller's believed authority version — factored into the server deterministic key.
+    pub authority_version: i64,
+    pub internal_id: Option<String>,
+    pub resolution_note: Option<String>,
+    /// Caller-supplied alias.  Stored per-item but never drives server-side dedupe.
+    pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkResolveBody {
+    pub items: Vec<BulkResolveItemRequest>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BulkResolveResponse {
+    pub processed: usize,
+    pub outcomes: Vec<BulkResolveOutcome>,
+}
+
+/// POST /api/integrations/sync/conflicts/bulk-resolve
+///
+/// Resolves, ignores, or marks-unresolvable up to 100 conflicts in best-effort
+/// bulk fashion.  Each item is processed independently (not transactional across
+/// items).  The server always computes the deterministic idempotency key from
+/// `conflict_id + action + authority_version`; the caller-supplied `idempotency_key`
+/// is stored as a tracking alias only.
+pub async fn bulk_resolve_conflicts_handler(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(body): Json<BulkResolveBody>,
+) -> impl IntoResponse {
+    if body.items.len() > 100 {
+        return ApiError::new(
+            422,
+            "items_exceed_cap",
+            format!("bulk-resolve accepts at most 100 items; got {}", body.items.len()),
+        )
+        .into_response();
+    }
+
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    let resolved_by = match &claims {
+        Some(Extension(c)) => c.user_id.to_string(),
+        None => "unknown".to_string(),
+    };
+
+    let items: Vec<BulkResolveItem> = body
+        .items
+        .into_iter()
+        .map(|i| BulkResolveItem {
+            conflict_id: i.conflict_id,
+            action: i.action,
+            authority_version: i.authority_version,
+            internal_id: i.internal_id,
+            resolution_note: i.resolution_note,
+            caller_idempotency_key: i.idempotency_key,
+        })
+        .collect();
+
+    match bulk_resolve_conflicts(&state.pool, &app_id, &resolved_by, items).await {
+        Ok(outcomes) => {
+            let processed = outcomes.len();
+            (StatusCode::OK, Json(BulkResolveResponse { processed, outcomes })).into_response()
+        }
+        Err(BulkResolveError::ExceedsCapacity(n)) => ApiError::new(
+            422,
+            "items_exceed_cap",
+            format!("bulk-resolve accepts at most 100 items; got {n}"),
+        )
+        .into_response(),
     }
 }
 

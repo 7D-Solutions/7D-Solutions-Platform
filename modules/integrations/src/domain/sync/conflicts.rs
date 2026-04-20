@@ -82,6 +82,10 @@ pub struct ConflictRow {
     pub resolved_by: Option<String>,
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolution_note: Option<String>,
+    /// Server-computed deterministic key (sha256 of conflict_id:action:authority_version).
+    /// Set only for items resolved via the bulk-resolve endpoint; NULL otherwise.
+    #[sqlx(default)]
+    pub resolution_idempotency_key: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

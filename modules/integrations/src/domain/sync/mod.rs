@@ -16,7 +16,7 @@ pub mod resolve_service;
 pub use authority::{AuthorityRow, AuthoritySide};
 pub use authority_service::{flip_authority, FlipError, FlipResult};
 pub use conflicts::{ConflictClass, ConflictError, ConflictRow, ConflictStatus, MAX_VALUE_BYTES};
-pub use dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+pub use dedupe::{compute_comparable_hash, compute_fingerprint, compute_resolve_det_key, truncate_to_millis};
 pub use detector::{run_detector, DetectorError, DetectorOutcome};
 pub use observations::ObservationRow;
 pub use push_attempts::{

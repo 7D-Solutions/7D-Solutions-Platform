@@ -1,6 +1,7 @@
 use chrono::{DateTime, TimeZone, Utc};
 use sha2::{Digest, Sha256};
 use serde_json::Value;
+use uuid::Uuid;
 
 /// Truncate a timestamp to millisecond precision.
 ///
@@ -93,6 +94,15 @@ fn sort_keys(value: &Value) -> Value {
         Value::Array(arr) => Value::Array(arr.iter().map(sort_keys).collect()),
         other => other.clone(),
     }
+}
+
+/// Compute the server-side deterministic idempotency key for a conflict resolution item.
+///
+/// Key is `sha256("{conflict_id}:{action}:{authority_version}")` as a hex string.
+/// The server always computes this — caller-supplied keys are stored as aliases only.
+pub fn compute_resolve_det_key(conflict_id: Uuid, action: &str, authority_version: i64) -> String {
+    let input = format!("{conflict_id}:{action}:{authority_version}");
+    hex::encode(Sha256::digest(input.as_bytes()))
 }
 
 #[cfg(test)]

@@ -125,11 +125,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
-    // Sync — conflict resolution
+    // Sync — conflict resolution (single-item and bulk)
     let sync_conflict_resolve = Router::new()
         .route(
             "/api/integrations/sync/conflicts/{id}/resolve",
             post(sync::resolve_conflict),
+        )
+        .route(
+            "/api/integrations/sync/conflicts/bulk-resolve",
+            post(sync::bulk_resolve_conflicts_handler),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::INTEGRATIONS_SYNC_CONFLICT_RESOLVE,

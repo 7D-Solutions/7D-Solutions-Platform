@@ -178,6 +178,100 @@ pub async fn close_conflict(
     .ok_or(ConflictError::NotFound(conflict_id))
 }
 
+/// Transition a pending conflict to `resolved` within a caller-supplied transaction,
+/// also recording the server-computed deterministic idempotency key.
+///
+/// Used by the bulk-resolve path.  The caller is responsible for committing.
+/// Does NOT pre-check status — the caller guards before starting the tx.
+pub async fn resolve_conflict_with_key_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_id: &str,
+    conflict_id: Uuid,
+    internal_id: &str,
+    resolved_by: &str,
+    resolution_note: Option<&str>,
+    idempotency_key: &str,
+) -> Result<Option<ConflictRow>, sqlx::Error> {
+    sqlx::query_as::<_, ConflictRow>(
+        r#"
+        UPDATE integrations_sync_conflicts
+        SET status                     = 'resolved',
+            internal_id                = $3,
+            resolved_by                = $4,
+            resolved_at                = NOW(),
+            resolution_note            = $5,
+            resolution_idempotency_key = $6,
+            updated_at                 = NOW()
+        WHERE id = $1 AND app_id = $2 AND status = 'pending'
+        RETURNING
+            id, app_id, provider, entity_type, entity_id,
+            conflict_class, status, detected_by, detected_at,
+            internal_value, external_value, internal_id,
+            resolved_by, resolved_at, resolution_note,
+            resolution_idempotency_key,
+            created_at, updated_at
+        "#,
+    )
+    .bind(conflict_id)
+    .bind(app_id)
+    .bind(internal_id)
+    .bind(resolved_by)
+    .bind(resolution_note)
+    .bind(idempotency_key)
+    .fetch_optional(&mut **tx)
+    .await
+}
+
+/// Transition a pending conflict to `ignored` or `unresolvable`, storing the
+/// server-computed deterministic idempotency key.
+///
+/// Used by the bulk-resolve path.  Returns `None` if no pending row matched
+/// (concurrent resolution race — caller should treat as TerminalByOther).
+pub async fn close_conflict_with_key(
+    pool: &PgPool,
+    app_id: &str,
+    conflict_id: Uuid,
+    new_status: ConflictStatus,
+    closed_by: &str,
+    note: Option<&str>,
+    idempotency_key: &str,
+) -> Result<Option<ConflictRow>, ConflictError> {
+    if !matches!(new_status, ConflictStatus::Ignored | ConflictStatus::Unresolvable) {
+        return Err(ConflictError::InvalidTransition(
+            "pending".to_string(),
+            new_status.as_str().to_string(),
+        ));
+    }
+    sqlx::query_as::<_, ConflictRow>(
+        r#"
+        UPDATE integrations_sync_conflicts
+        SET status                     = $3,
+            resolved_by                = $4,
+            resolved_at                = NOW(),
+            resolution_note            = $5,
+            resolution_idempotency_key = $6,
+            updated_at                 = NOW()
+        WHERE id = $1 AND app_id = $2 AND status = 'pending'
+        RETURNING
+            id, app_id, provider, entity_type, entity_id,
+            conflict_class, status, detected_by, detected_at,
+            internal_value, external_value, internal_id,
+            resolved_by, resolved_at, resolution_note,
+            resolution_idempotency_key,
+            created_at, updated_at
+        "#,
+    )
+    .bind(conflict_id)
+    .bind(app_id)
+    .bind(new_status.as_str())
+    .bind(closed_by)
+    .bind(note)
+    .bind(idempotency_key)
+    .fetch_optional(pool)
+    .await
+    .map_err(ConflictError::Database)
+}
+
 /// Transition a pending conflict to `resolved` within a caller-supplied transaction.
 ///
 /// The caller is responsible for committing the transaction.  This function does
@@ -232,6 +326,7 @@ pub async fn get_conflict(
             conflict_class, status, detected_by, detected_at,
             internal_value, external_value, internal_id,
             resolved_by, resolved_at, resolution_note,
+            resolution_idempotency_key,
             created_at, updated_at
         FROM integrations_sync_conflicts
         WHERE id = $1 AND app_id = $2
