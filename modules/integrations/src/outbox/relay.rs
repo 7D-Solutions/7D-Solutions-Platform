@@ -92,6 +92,10 @@ async fn record_publish_failure(
             failed_at = CASE
                 WHEN retry_count + 1 >= $3 THEN NOW()
                 ELSE failed_at
+            END,
+            failure_reason = CASE
+                WHEN retry_count + 1 >= $3 THEN 'retry_exhausted'
+                ELSE 'bus_publish_failed'
             END
         WHERE event_id = $1
         RETURNING retry_count, failed_at IS NOT NULL

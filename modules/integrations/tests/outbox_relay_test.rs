@@ -176,9 +176,9 @@ async fn test_outbox_relay_moves_exhausted_rows_to_failed_events() {
         assert_eq!(published, 0);
     }
 
-    let outbox_row: (i32, bool, bool, Option<String>) = sqlx::query_as(
+    let outbox_row: (i32, bool, bool, Option<String>, Option<String>) = sqlx::query_as(
         r#"
-        SELECT retry_count, published_at IS NOT NULL, failed_at IS NOT NULL, error_message
+        SELECT retry_count, published_at IS NOT NULL, failed_at IS NOT NULL, error_message, failure_reason
         FROM integrations_outbox
         WHERE event_id = $1
         "#,
@@ -194,6 +194,11 @@ async fn test_outbox_relay_moves_exhausted_rows_to_failed_events() {
     assert_eq!(
         outbox_row.3.as_deref(),
         Some("failed to publish message: boom")
+    );
+    assert_eq!(
+        outbox_row.4.as_deref(),
+        Some("retry_exhausted"),
+        "exhausted row must have failure_reason = retry_exhausted"
     );
 
     let failed_row: (String, String, i32, serde_json::Value) = sqlx::query_as(
@@ -212,6 +217,53 @@ async fn test_outbox_relay_moves_exhausted_rows_to_failed_events() {
     assert_eq!(failed_row.1, app_id);
     assert_eq!(failed_row.2, DEFAULT_MAX_RETRIES);
     assert_eq!(failed_row.3, payload);
+
+    cleanup(&pool, &app_id).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_outbox_relay_failure_reason_bus_publish_failed_intermediate() {
+    let pool = setup_db().await;
+    let app_id = unique_app();
+    let event_id = Uuid::new_v4();
+
+    cleanup(&pool, &app_id).await;
+    insert_outbox_row(
+        &pool,
+        &app_id,
+        event_id,
+        "relay.test.intermediate",
+        serde_json::json!({}),
+    )
+    .await;
+
+    let bus: Arc<dyn EventBus> = Arc::new(FailingBus);
+
+    // One failed attempt — not yet exhausted (DEFAULT_MAX_RETRIES > 1)
+    publish_batch(&pool, &bus, DEFAULT_MAX_RETRIES)
+        .await
+        .expect("first failure attempt");
+
+    let row: (i32, bool, Option<String>) = sqlx::query_as(
+        r#"
+        SELECT retry_count, failed_at IS NOT NULL, failure_reason
+        FROM integrations_outbox
+        WHERE event_id = $1
+        "#,
+    )
+    .bind(event_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch intermediate failure row");
+
+    assert_eq!(row.0, 1, "retry_count should be 1 after first failure");
+    assert!(!row.1, "failed_at must be null — retries not yet exhausted");
+    assert_eq!(
+        row.2.as_deref(),
+        Some("bus_publish_failed"),
+        "intermediate failure must have failure_reason = bus_publish_failed"
+    );
 
     cleanup(&pool, &app_id).await;
 }

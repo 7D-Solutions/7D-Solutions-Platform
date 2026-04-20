@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.8.0
+- feat: add `failure_reason` column to `integrations_outbox` (enum: `bus_publish_failed` | `retry_exhausted` | `needs_reauth` | `authority_superseded`) with partial index; relay now records the reason on publish failure so `/sync/dlq` filters deterministically ([bd-y5zol] / Stream D Phase 1)
+
 ## 2.7.7
 - feat: scaffold /api/integrations/sync/* route tree with 501 stubs and wire dedicated sync sub-capabilities from platform/security ([bd-n68o6] / Stream D Phase 1)
 
