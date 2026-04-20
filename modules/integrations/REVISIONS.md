@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.12.0
+- feat: add `integrations_sync_push_attempts` ledger migration (partial unique index on `(app_id, provider, entity_type, entity_id, operation, authority_version, request_fingerprint) WHERE status IN ('accepted','inflight','succeeded')`, result-marker columns for detector correlation, scan-friendly indexes) and `domain/sync/push_attempts` repo primitives with typed `PushAttemptRow` / `PushStatus` ([bd-bh65z] / Stream D Phase 1.5)
+
 ## 2.11.0
 - feat: gate legacy QBO outbound consumers behind `QBO_LEGACY_CONSUMERS_ENABLED=1` feature flag (default OFF) so `spawn_outbound_consumer` and `spawn_order_ingested_consumer` cannot race with the new authority-gated sync path during cutover ([bd-c3ghe] / Stream D Phase 1)
 
