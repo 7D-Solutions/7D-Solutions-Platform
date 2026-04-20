@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.19.0
+- feat: add `resolve_payment` handler module dispatching accept/reject resolution strategies for payment conflicts through `resolve_service`; integration tests against real Postgres ([bd-whva2] / Stream D Phase 1.5)
+
 ## 2.18.0
 - feat: add `resolve_customer` handler module dispatching accept/reject/remap resolution strategies through `resolve_service`, with per-entity handler trait and customer-specific duplicate-remap validation; integration tests against real Postgres ([bd-6tb53] / Stream D Phase 1.5)
 
