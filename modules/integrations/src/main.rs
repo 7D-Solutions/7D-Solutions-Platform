@@ -201,6 +201,11 @@ async fn main() {
             );
             tracing::info!("Integrations: eBay fulfillment consumer started");
 
+            tokio::spawn(integrations_rs::domain::sync::push_attempts::run_watchdog_task(
+                ctx.pool().clone(),
+            ));
+            tracing::info!("Integrations: push-attempt watchdog started (60s poll, 10min timeout)");
+
             let integrations_metrics = Arc::new(
                 metrics::IntegrationsMetrics::new()
                     .expect("Integrations: failed to create metrics"),

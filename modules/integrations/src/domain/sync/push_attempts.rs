@@ -1,3 +1,4 @@
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -294,3 +295,34 @@ pub async fn list_attempts(
     Ok((rows, total.0))
 }
 
+const WATCHDOG_INTERVAL_SECS: u64 = 60;
+const INFLIGHT_TIMEOUT_MINUTES: i64 = 10;
+
+/// Background task that periodically times out stale inflight push attempts.
+/// Runs every 60 seconds; transitions rows with `started_at < NOW() - 10min` to `failed`.
+pub async fn run_watchdog_task(pool: PgPool) {
+    tracing::info!(
+        interval_secs = WATCHDOG_INTERVAL_SECS,
+        timeout_minutes = INFLIGHT_TIMEOUT_MINUTES,
+        "Integrations: push-attempt watchdog started"
+    );
+
+    let mut interval = tokio::time::interval(Duration::from_secs(WATCHDOG_INTERVAL_SECS));
+    loop {
+        interval.tick().await;
+
+        let threshold =
+            Utc::now() - chrono::Duration::minutes(INFLIGHT_TIMEOUT_MINUTES);
+        match timeout_stale_inflight(&pool, threshold).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(
+                count = n,
+                "Integrations: watchdog timed out stale inflight push attempts"
+            ),
+            Err(e) => tracing::error!(
+                error = %e,
+                "Integrations: push-attempt watchdog error"
+            ),
+        }
+    }
+}
