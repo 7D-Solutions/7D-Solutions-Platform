@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.17.0
+- feat: add `integrations_sync_observations` schema with comparable projection columns (`projected_hash`, `observed_at_millis`), `dedupe` module for fingerprint computation and millisecond timestamp normalization, and `observations` repo with insert/upsert/list primitives; migration creates table with `(app_id, provider, entity_type, entity_id)` unique index ([bd-fc7xl] / Stream D Phase 1.5)
+
 ## 2.16.0
 - feat: extend QBO client with `create_customer`, `update_customer`, `create_payment`, `update_payment` operations, rate-limit response header parsing (`X-RateLimit-Remaining`, `Retry-After`), and deterministic `RequestId` propagation from platform request fingerprints; updates existing tests and adds idempotency coverage ([bd-hv1e2] / Stream D Phase 1.5)
 
