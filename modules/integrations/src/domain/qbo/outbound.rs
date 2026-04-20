@@ -636,6 +636,21 @@ async fn emit_sync_failed(
 }
 
 // ============================================================================
+// Feature flag
+// ============================================================================
+
+/// Returns true only when `QBO_LEGACY_CONSUMERS_ENABLED=1` is explicitly set.
+///
+/// Default is OFF so legacy outbound consumers never run concurrently with
+/// the authority-gated sync path during cutover.  Set the env var to `1`
+/// to restore legacy behaviour when the new path is not yet active.
+pub fn legacy_consumers_enabled() -> bool {
+    std::env::var("QBO_LEGACY_CONSUMERS_ENABLED")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
+// ============================================================================
 // Consumer worker
 // ============================================================================
 
@@ -703,6 +718,7 @@ pub fn spawn_outbound_consumer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn nats_subject_constant() {
@@ -710,6 +726,33 @@ mod tests {
             NATS_SUBJECT_AR_INVOICE_OPENED,
             "ar.events.ar.invoice_opened"
         );
+    }
+
+    #[test]
+    #[serial]
+    fn legacy_consumers_flag_off_by_default() {
+        std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+        assert!(!super::legacy_consumers_enabled());
+    }
+
+    #[test]
+    #[serial]
+    fn legacy_consumers_flag_on_when_set_to_1() {
+        std::env::set_var("QBO_LEGACY_CONSUMERS_ENABLED", "1");
+        let result = super::legacy_consumers_enabled();
+        std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+        assert!(result);
+    }
+
+    #[test]
+    #[serial]
+    fn legacy_consumers_flag_off_for_non_1_values() {
+        for val in &["0", "true", "yes", "on", ""] {
+            std::env::set_var("QBO_LEGACY_CONSUMERS_ENABLED", val);
+            let result = super::legacy_consumers_enabled();
+            std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+            assert!(!result, "expected OFF for value {:?}", val);
+        }
     }
 
     #[test]

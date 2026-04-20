@@ -169,23 +169,30 @@ async fn main() {
                     "Integrations: QBO CDC polling worker started"
                 );
 
-                let (_outbound_shutdown_tx, outbound_shutdown_rx) =
-                    tokio::sync::watch::channel(false);
-                integrations_rs::domain::qbo::outbound::spawn_outbound_consumer(
-                    ctx.pool().clone(),
-                    bus.clone(),
-                    outbound_shutdown_rx,
-                );
-                tracing::info!("Integrations: QBO outbound consumer started");
+                if integrations_rs::domain::qbo::outbound::legacy_consumers_enabled() {
+                    let (_outbound_shutdown_tx, outbound_shutdown_rx) =
+                        tokio::sync::watch::channel(false);
+                    integrations_rs::domain::qbo::outbound::spawn_outbound_consumer(
+                        ctx.pool().clone(),
+                        bus.clone(),
+                        outbound_shutdown_rx,
+                    );
+                    tracing::info!("Integrations: QBO outbound consumer started");
 
-                let (_order_ingested_shutdown_tx, order_ingested_shutdown_rx) =
-                    tokio::sync::watch::channel(false);
-                integrations_rs::domain::qbo::outbound::spawn_order_ingested_consumer(
-                    ctx.pool().clone(),
-                    bus.clone(),
-                    order_ingested_shutdown_rx,
-                );
-                tracing::info!("Integrations: QBO order-ingested consumer started");
+                    let (_order_ingested_shutdown_tx, order_ingested_shutdown_rx) =
+                        tokio::sync::watch::channel(false);
+                    integrations_rs::domain::qbo::outbound::spawn_order_ingested_consumer(
+                        ctx.pool().clone(),
+                        bus.clone(),
+                        order_ingested_shutdown_rx,
+                    );
+                    tracing::info!("Integrations: QBO order-ingested consumer started");
+                } else {
+                    tracing::info!(
+                        "Integrations: QBO legacy outbound consumers disabled \
+                         (QBO_LEGACY_CONSUMERS_ENABLED != 1) — set to 1 to re-enable"
+                    );
+                }
             }
 
             integrations_rs::domain::file_jobs::ebay_fulfillment::start_ebay_fulfillment_consumer(

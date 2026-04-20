@@ -15,8 +15,8 @@ use tokio::sync::RwLock;
 
 use event_bus::BusMessage;
 use integrations_rs::domain::qbo::outbound::{
-    process_ar_invoice_opened, process_order_ingested, EVENT_TYPE_QBO_INVOICE_CREATED,
-    EVENT_TYPE_QBO_INVOICE_SYNC_FAILED,
+    legacy_consumers_enabled, process_ar_invoice_opened, process_order_ingested,
+    EVENT_TYPE_QBO_INVOICE_CREATED, EVENT_TYPE_QBO_INVOICE_SYNC_FAILED,
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -1011,4 +1011,41 @@ async fn qbo_outbound_order_ingested_missing_customer_emits_error_event() {
     );
 
     cleanup_tenant(&pool, &app_id).await;
+}
+
+// ============================================================================
+// Test 10 — cutover feature flag: legacy consumers default OFF
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn qbo_legacy_consumers_flag_is_off_by_default() {
+    std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+    assert!(
+        !legacy_consumers_enabled(),
+        "legacy consumers must be OFF when QBO_LEGACY_CONSUMERS_ENABLED is unset"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn qbo_legacy_consumers_flag_on_when_set_to_1() {
+    std::env::set_var("QBO_LEGACY_CONSUMERS_ENABLED", "1");
+    let enabled = legacy_consumers_enabled();
+    std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+    assert!(enabled, "legacy consumers must be ON when QBO_LEGACY_CONSUMERS_ENABLED=1");
+}
+
+#[tokio::test]
+#[serial]
+async fn qbo_legacy_consumers_flag_off_when_flag_is_not_1() {
+    for val in &["0", "true", "yes"] {
+        std::env::set_var("QBO_LEGACY_CONSUMERS_ENABLED", val);
+        let enabled = legacy_consumers_enabled();
+        std::env::remove_var("QBO_LEGACY_CONSUMERS_ENABLED");
+        assert!(
+            !enabled,
+            "legacy consumers must be OFF for QBO_LEGACY_CONSUMERS_ENABLED={val}"
+        );
+    }
 }

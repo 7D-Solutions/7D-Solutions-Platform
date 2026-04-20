@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.11.0
+- feat: gate legacy QBO outbound consumers behind `QBO_LEGACY_CONSUMERS_ENABLED=1` feature flag (default OFF) so `spawn_outbound_consumer` and `spawn_order_ingested_consumer` cannot race with the new authority-gated sync path during cutover ([bd-c3ghe] / Stream D Phase 1)
+
 ## 2.10.0
 - feat: add `integrations_sync_conflicts` migration (per-tenant drift rows with `external_value`/`internal_value` jsonb, 256 KB cap, class/status enums) and `domain/sync/{conflicts,conflicts_repo}` persistence layer with `ConflictRow`, `ConflictClass`, `ConflictStatus`, `ConflictError` types and re-exports ([bd-bnvqs] / Stream D Phase 1)
 
