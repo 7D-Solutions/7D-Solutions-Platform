@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.10.0
+- feat: add `integrations_sync_conflicts` migration (per-tenant drift rows with `external_value`/`internal_value` jsonb, 256 KB cap, class/status enums) and `domain/sync/{conflicts,conflicts_repo}` persistence layer with `ConflictRow`, `ConflictClass`, `ConflictStatus`, `ConflictError` types and re-exports ([bd-bnvqs] / Stream D Phase 1)
+
 ## 2.9.0
 - feat: add `integrations_sync_authority` migration (unique `(app_id, provider, entity_type)`, monotonic `authority_version BIGINT`, flip audit columns) and `domain/sync/{authority,authority_repo}` module primitives with typed repository operations ([bd-txdkm] / Stream D Phase 1)
 
