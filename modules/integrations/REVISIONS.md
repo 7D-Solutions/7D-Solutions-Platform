@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.26.1
+- fix: enforce explicit duplicate-customer remap policy — block fuzzy name-similarity auto-remap; stale external ref + new external customer raises `creation` conflict with deterministic candidate hints (exact email/phone/tax id); remap requires explicit action that tombstones old mapping before relink ([bd-5cn7z] / Stream D Phase 1.5)
+
 ## 2.26.0
 - feat: `POST /sync/conflicts/{id}/resolve` with explicit `(entity_type, action)` handler dispatch, transactional conflict status transitions, `conflict.resolved` event producer; extend resolve_customer with duplicate-remap and external_refs repo with conflict-aware lookups ([bd-meaqw] / Stream D Phase 1.5)
 

@@ -489,6 +489,7 @@ pub struct CustomerRemapRequest {
     pub resolution_note: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct CustomerRemapOutcome {
     pub resolved_conflict: ConflictRow,
     /// The new external_ref row created for the remapped entity.

@@ -13,10 +13,9 @@ use std::time::Duration;
 use integrations_rs::domain::sync::resolve_customer::{
     normalize_email, normalize_phone, normalize_tax_id,
     raise_creation_conflict, execute_customer_remap,
-    CandidateHint, CustomerCreationConflictRequest, CustomerRemapRequest,
+    CustomerCreationConflictRequest, CustomerRemapRequest,
     CustomerRemapError,
 };
-use integrations_rs::domain::sync::conflicts::ConflictStatus;
 use integrations_rs::domain::sync::conflicts_repo::get_conflict;
 use serial_test::serial;
 use serde_json::json;
