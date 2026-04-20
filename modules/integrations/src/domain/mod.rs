@@ -7,4 +7,5 @@ pub mod file_jobs;
 pub mod oauth;
 pub mod outbound_webhooks;
 pub mod qbo;
+pub mod sync;
 pub mod webhooks;

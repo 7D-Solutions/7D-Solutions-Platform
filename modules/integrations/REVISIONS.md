@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.9.0
+- feat: add `integrations_sync_authority` migration (unique `(app_id, provider, entity_type)`, monotonic `authority_version BIGINT`, flip audit columns) and `domain/sync/{authority,authority_repo}` module primitives with typed repository operations ([bd-txdkm] / Stream D Phase 1)
+
 ## 2.8.1
 - feat: normalize QBO env contract (`QBO_BASE_URL` canonical; empty values treated as missing), add `validate_qbo_env()` fail-fast startup check when `QBO_CLIENT_ID` is set, wire 5 QBO vars through `docker-compose.services.yml`, and retire `QBO_API_BASE` in favor of `qbo_base_url()` ([bd-t0ach] / Stream D Phase 1)
 
