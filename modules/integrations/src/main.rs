@@ -124,6 +124,26 @@ fn validate_qbo_env() {
             redirect_uri
         );
     }
+
+    // Production requires a real NATS bus — in-memory bus silently drops sync events.
+    let env_name = std::env::var("ENV").unwrap_or_default();
+    if env_name == "production" {
+        let bus_type = std::env::var("BUS_TYPE").unwrap_or_default().to_lowercase();
+        if bus_type == "inmemory" || bus_type.is_empty() {
+            panic!(
+                "Startup validation failed: BUS_TYPE=inmemory is not allowed in production. \
+                 Set BUS_TYPE=nats and NATS_URL to a reachable NATS server. \
+                 Sync events (authority changes, conflict notifications) would be silently dropped."
+            );
+        }
+        let nats_url = std::env::var("NATS_URL").unwrap_or_default();
+        if nats_url.is_empty() {
+            panic!(
+                "Startup validation failed: NATS_URL is required in production when QBO is enabled. \
+                 Sync events cannot be delivered without a NATS connection."
+            );
+        }
+    }
 }
 
 #[tokio::main]

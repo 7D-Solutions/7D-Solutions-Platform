@@ -211,6 +211,54 @@ else
   info "DATABASE_URL not available — skipping database state checks"
 fi
 
+# ── Section 7: Event bus / NATS ───────────────────────────────────────────────
+#
+# Sync events (authority changes, conflict notifications, push failures) are
+# published via NATS. In-memory bus silently drops events in production.
+
+echo ""
+echo "=== Section 7: Event bus / NATS ==="
+
+bus_type_val="$(secret_value bus_type)"
+if [ -z "$bus_type_val" ]; then
+  bus_type_val="${BUS_TYPE:-}"
+fi
+bus_type_lower="$(echo "$bus_type_val" | tr '[:upper:]' '[:lower:]')"
+
+if [ "$ALLOW_SANDBOX" = "1" ]; then
+  info "Event bus checks skipped (--allow-sandbox passed)"
+else
+  if [ -z "$bus_type_lower" ] || [ "$bus_type_lower" = "inmemory" ]; then
+    fail "BUS_TYPE is '${bus_type_val:-unset}' — production requires BUS_TYPE=nats. \
+Sync events would be silently dropped with in-memory bus."
+  else
+    pass "BUS_TYPE=$bus_type_val (not inmemory)"
+  fi
+
+  nats_url_val="$(secret_value nats_url)"
+  if [ -z "$nats_url_val" ]; then
+    nats_url_val="${NATS_URL:-}"
+  fi
+
+  if [ -z "$nats_url_val" ]; then
+    fail "NATS_URL is not set — required for sync event delivery in production"
+  else
+    pass "NATS_URL is set"
+
+    # Extract host:port from NATS URL (strip scheme and credentials)
+    nats_host_port="$(echo "$nats_url_val" | sed 's|^nats://||; s|^[^@]*@||; s|/.*||')"
+    nats_host="$(echo "$nats_host_port" | cut -d: -f1)"
+    nats_port="$(echo "$nats_host_port" | cut -d: -f2)"
+    nats_port="${nats_port:-4222}"
+
+    if nc -z -w 3 "$nats_host" "$nats_port" 2>/dev/null; then
+      pass "NATS server reachable at $nats_host:$nats_port"
+    else
+      fail "Cannot reach NATS server at $nats_host:$nats_port — check NATS_URL and network"
+    fi
+  fi
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""

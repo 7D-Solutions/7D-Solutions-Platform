@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.28.0
+- feat: wire production sync env config into main.rs startup; add full-loop smoke runbook test (OAuth connect → push → CDC tick → detector → conflict resolution → bulk resolve → DLQ → jobs health) against real Intuit sandbox; extend cutover preflight script with connectivity checks ([bd-r2l8z] / Stream D Phase 1.5)
+
 ## 2.27.0
 - feat: `POST /sync/conflicts/bulk-resolve` (cap 100) with server-computed deterministic idempotency key (`conflict_id+action+authority_version`), caller-key aliasing, per-item best-effort outcomes, and replay-safe retries; migration adds resolution idempotency key column ([bd-tzizs] / Stream D Phase 1.5)
 
