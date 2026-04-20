@@ -19,6 +19,8 @@ pub struct ObservationRow {
     pub comparable_hash: String,
     pub projection_version: i32,
     pub raw_payload: Value,
+    pub source_channel: String,
+    pub is_tombstone: bool,
     pub observed_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -29,18 +31,19 @@ pub struct ObservationRow {
 const SELECT_COLS: &str = r#"
     id, app_id, provider, entity_type, entity_id, fingerprint,
     last_updated_time, comparable_hash, projection_version, raw_payload,
-    observed_at, created_at, updated_at
+    source_channel, is_tombstone, observed_at, created_at, updated_at
 "#;
 
 /// Record an observation, deduplicating on (app_id, provider, entity_type, entity_id, fingerprint).
 ///
-/// On conflict the row is updated if `projection_version` or `comparable_hash` changed,
-/// or if the raw_payload differs.  `observed_at` is always refreshed so callers can
-/// distinguish re-observations from the first time a fingerprint was seen.
+/// On conflict the row is updated if `projection_version`, `comparable_hash`, `source_channel`,
+/// or `is_tombstone` changed.  `observed_at` is always refreshed so callers can distinguish
+/// re-observations from the first time a fingerprint was seen.
 ///
 /// `last_updated_time` MUST already be millisecond-truncated by the caller via
 /// `dedupe::truncate_to_millis`.  The DB CHECK constraint will reject non-truncated
 /// timestamps with a clear error.
+#[allow(clippy::too_many_arguments)]
 pub async fn upsert_observation(
     pool: &PgPool,
     app_id: &str,
@@ -52,6 +55,8 @@ pub async fn upsert_observation(
     comparable_hash: &str,
     projection_version: i32,
     raw_payload: &Value,
+    source_channel: &str,
+    is_tombstone: bool,
 ) -> Result<ObservationRow, sqlx::Error> {
     // Belt-and-suspenders: enforce truncation before hitting the DB check constraint.
     let lut = truncate_to_millis(last_updated_time);
@@ -60,12 +65,15 @@ pub async fn upsert_observation(
         r#"
         INSERT INTO integrations_sync_observations
             (app_id, provider, entity_type, entity_id, fingerprint,
-             last_updated_time, comparable_hash, projection_version, raw_payload)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             last_updated_time, comparable_hash, projection_version, raw_payload,
+             source_channel, is_tombstone)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT ON CONSTRAINT integrations_sync_observations_unique DO UPDATE
             SET comparable_hash    = EXCLUDED.comparable_hash,
                 projection_version = EXCLUDED.projection_version,
                 raw_payload        = EXCLUDED.raw_payload,
+                source_channel     = EXCLUDED.source_channel,
+                is_tombstone       = EXCLUDED.is_tombstone,
                 observed_at        = NOW(),
                 updated_at         = NOW()
         RETURNING {SELECT_COLS}
@@ -80,6 +88,8 @@ pub async fn upsert_observation(
     .bind(comparable_hash)
     .bind(projection_version)
     .bind(raw_payload)
+    .bind(source_channel)
+    .bind(is_tombstone)
     .fetch_one(pool)
     .await
 }

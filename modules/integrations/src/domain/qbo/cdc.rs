@@ -1,23 +1,21 @@
 //! QBO CDC (Change Data Capture) polling worker.
 //!
-//! Polls the QBO CDC endpoint for each connected tenant, publishing changed
-//! entities to the outbox for relay to NATS. Acts as the reliable backup to
-//! QBO webhooks, which have 5-25 minute delivery latency and can be lost.
+//! Polls the QBO CDC endpoint for each connected tenant, writing canonical
+//! observation rows to `integrations_sync_observations`.  Acts as the reliable
+//! backup to QBO webhooks, which have 5–25 minute delivery latency and can be
+//! lost.
 
 use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::watch;
-use uuid::Uuid;
 
 use super::client::QboClient;
 use super::repo;
 use super::{QboError, TokenProvider};
+use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
 use crate::domain::sync::health;
-use crate::events::envelope::create_integrations_envelope;
-use crate::events::MUTATION_CLASS_DATA_MUTATION;
-use crate::outbox::enqueue_event_tx;
+use crate::domain::sync::observations;
 
 /// Entities included in CDC queries.
 pub const CDC_ENTITIES: &[&str] = &["Customer", "Invoice", "Payment", "Item"];
@@ -27,24 +25,6 @@ pub const DEFAULT_CDC_POLL_INTERVAL_SECS: u64 = 900;
 
 /// Days before the 30-day CDC cliff to trigger full resync (5-day buffer).
 pub const WATERMARK_STALE_DAYS: i64 = 25;
-
-/// Event type for CDC-synced entities.
-pub const EVENT_TYPE_QBO_ENTITY_SYNCED: &str = "qbo.entity.synced";
-
-// ============================================================================
-// Event payload
-// ============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QboCdcEntityPayload {
-    pub entity_type: String,
-    pub entity_id: String,
-    pub realm_id: String,
-    /// "cdc" or "full_resync"
-    pub source: String,
-    pub entity_data: serde_json::Value,
-    pub synced_at: DateTime<Utc>,
-}
 
 // ============================================================================
 // DB-backed TokenProvider
@@ -197,7 +177,7 @@ async fn check_resync_needed(
     Ok(needs_resync)
 }
 
-/// Poll the CDC endpoint for a single tenant and enqueue changed entities.
+/// Poll the CDC endpoint for a single tenant and write observation rows.
 async fn poll_cdc(
     pool: &PgPool,
     base_url: &str,
@@ -214,33 +194,34 @@ async fn poll_cdc(
     let entity_refs: Vec<&str> = CDC_ENTITIES.to_vec();
     let response = client.cdc(&entity_refs, watermark).await?;
 
+    let (count, max_lut) = process_cdc_entities(pool, &response, app_id, realm_id).await?;
+
+    // Advance watermark to the max provider-confirmed LastUpdatedTime.
+    // If no entities were observed, fall back to Utc::now() so the window
+    // doesn't stay pinned to an empty interval on subsequent polls.
+    let new_watermark = max_lut.unwrap_or_else(Utc::now);
     let mut tx = pool.begin().await?;
-    let count = process_cdc_entities(&mut tx, &response, app_id, realm_id, "cdc").await?;
-
-    // Advance watermark
-    let now = Utc::now();
-    repo::advance_cdc_watermark(&mut tx, app_id, now).await?;
-
+    repo::advance_cdc_watermark(&mut tx, app_id, new_watermark).await?;
     tx.commit().await?;
+
     Ok(count)
 }
 
-/// Parse a CDC response and enqueue each entity into the outbox.
+/// Parse a CDC response and write each entity as a canonical observation row.
 ///
 /// CDC response structure:
 /// ```json
 /// { "CDCResponse": [{ "QueryResponse": [{ "Customer": [...], ... }] }] }
 /// ```
-pub(crate) async fn process_cdc_entities(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+///
+/// Returns `(count, max_last_updated_time)`.  `max_last_updated_time` is `None`
+/// when the response contains no entities.
+pub async fn process_cdc_entities(
+    pool: &PgPool,
     response: &serde_json::Value,
     app_id: &str,
     realm_id: &str,
-    source: &str,
-) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
-    let now = Utc::now();
-    let correlation_id = Uuid::new_v4().to_string();
-
+) -> Result<(u32, Option<DateTime<Utc>>), Box<dyn std::error::Error + Send + Sync>> {
     let qr = response
         .get("CDCResponse")
         .and_then(|v| v.as_array())
@@ -251,16 +232,11 @@ pub(crate) async fn process_cdc_entities(
 
     let qr = match qr {
         Some(v) => v,
-        None => return Ok(0),
+        None => return Ok((0, None)),
     };
 
     let mut count = 0u32;
-
-    let realm_id_str = realm_id.to_string();
-    let source_str = source.to_string();
-    let app_id_str = app_id.to_string();
-    let event_type_str = EVENT_TYPE_QBO_ENTITY_SYNCED.to_string();
-    let mutation_class_str = MUTATION_CLASS_DATA_MUTATION.to_string();
+    let mut max_lut: Option<DateTime<Utc>> = None;
 
     for entity_type in CDC_ENTITIES {
         let entities = match qr.get(*entity_type).and_then(|v| v.as_array()) {
@@ -268,8 +244,7 @@ pub(crate) async fn process_cdc_entities(
             None => continue,
         };
 
-        let entity_type_str = entity_type.to_string();
-        let aggregate_type = format!("qbo_{}", entity_type.to_lowercase());
+        let entity_type_lower = entity_type.to_lowercase();
 
         for entity in entities {
             let entity_id = entity
@@ -277,42 +252,91 @@ pub(crate) async fn process_cdc_entities(
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
 
-            let event_id = Uuid::new_v4();
-            let payload = QboCdcEntityPayload {
-                entity_type: entity_type_str.clone(),
-                entity_id: entity_id.to_string(),
-                realm_id: realm_id_str.clone(),
-                source: source_str.clone(),
-                entity_data: entity.clone(),
-                synced_at: now,
-            };
+            let is_tombstone = entity
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|s| s.eq_ignore_ascii_case("Deleted"))
+                .unwrap_or(false);
 
-            let envelope = create_integrations_envelope(
-                event_id,
-                app_id_str.clone(),
-                event_type_str.clone(),
-                correlation_id.clone(),
-                None,
-                mutation_class_str.clone(),
-                payload,
-            );
+            let lut = parse_last_updated_time(entity);
+            let lut_truncated = truncate_to_millis(lut);
 
-            enqueue_event_tx(
-                tx,
-                event_id,
-                EVENT_TYPE_QBO_ENTITY_SYNCED,
-                &aggregate_type,
-                entity_id,
+            // Track max provider-confirmed timestamp for watermark advance.
+            max_lut = Some(match max_lut {
+                None => lut_truncated,
+                Some(prev) => prev.max(lut_truncated),
+            });
+
+            let sync_token = entity.get("SyncToken").and_then(|v| v.as_str());
+            let comparable = comparable_fields(entity);
+            let fingerprint = compute_fingerprint(sync_token, Some(lut_truncated), entity);
+            let comparable_hash = compute_comparable_hash(&comparable, lut_truncated);
+
+            observations::upsert_observation(
+                pool,
                 app_id,
-                &envelope,
+                "quickbooks",
+                &entity_type_lower,
+                entity_id,
+                &fingerprint,
+                lut_truncated,
+                &comparable_hash,
+                1,
+                entity,
+                "cdc",
+                is_tombstone,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    app_id, entity_type, entity_id,
+                    error = %e, "Failed to upsert CDC observation"
+                );
+                e
+            })?;
 
             count += 1;
+
+            let _ = realm_id; // realm_id stored in the entity payload itself
         }
     }
 
-    Ok(count)
+    Ok((count, max_lut))
+}
+
+/// Extract `MetaData.LastUpdatedTime` from a QBO entity, falling back through
+/// `MetaData.CreateTime` and then the current wall clock.
+pub(crate) fn parse_last_updated_time(entity: &serde_json::Value) -> DateTime<Utc> {
+    let meta = entity.get("MetaData");
+    if let Some(ts_str) = meta.and_then(|m| m.get("LastUpdatedTime")).and_then(|v| v.as_str()) {
+        if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
+            return ts;
+        }
+    }
+    if let Some(ts_str) = meta.and_then(|m| m.get("CreateTime")).and_then(|v| v.as_str()) {
+        if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
+            return ts;
+        }
+    }
+    Utc::now()
+}
+
+/// Build the comparable projection by stripping ephemeral metadata fields.
+///
+/// Excludes `MetaData` (timestamps, internal provider IDs) and `SyncToken`
+/// so that two observations for the same logical entity state always produce
+/// the same `comparable_hash`.
+pub(crate) fn comparable_fields(entity: &serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = entity.as_object() {
+        let mut stripped = obj.clone();
+        stripped.remove("MetaData");
+        stripped.remove("SyncToken");
+        stripped.remove("domain");
+        stripped.remove("sparse");
+        serde_json::Value::Object(stripped)
+    } else {
+        entity.clone()
+    }
 }
 
 // ============================================================================
@@ -374,7 +398,6 @@ mod tests {
 
     #[test]
     fn qbo_base_url_defaults_to_production() {
-        // Clear env vars that could interfere
         std::env::remove_var("QBO_BASE_URL");
         std::env::remove_var("QBO_SANDBOX");
         let url = qbo_base_url();
@@ -390,11 +413,77 @@ mod tests {
         assert!(CDC_ENTITIES.contains(&"Item"));
     }
 
-    #[tokio::test]
-    async fn process_cdc_entities_empty_response() {
-        // In-memory pool not possible without real DB — test parsing logic
+    #[test]
+    fn parse_last_updated_time_uses_metadata() {
+        let entity = json!({
+            "Id": "1",
+            "MetaData": {
+                "LastUpdatedTime": "2024-01-15T10:30:00Z",
+                "CreateTime": "2024-01-01T00:00:00Z"
+            }
+        });
+        let ts = parse_last_updated_time(&entity);
+        assert_eq!(ts.timestamp(), 1705314600);
+    }
+
+    #[test]
+    fn parse_last_updated_time_falls_back_to_create_time() {
+        let entity = json!({
+            "Id": "1",
+            "MetaData": {
+                "CreateTime": "2024-01-10T08:00:00Z"
+            }
+        });
+        let ts = parse_last_updated_time(&entity);
+        assert_eq!(ts.timestamp(), 1704873600);
+    }
+
+    #[test]
+    fn parse_last_updated_time_falls_back_to_now_on_missing_metadata() {
+        let before = Utc::now();
+        let ts = parse_last_updated_time(&json!({"Id": "1"}));
+        let after = Utc::now();
+        assert!(ts >= before && ts <= after);
+    }
+
+    #[test]
+    fn comparable_fields_strips_metadata_and_sync_token() {
+        let entity = json!({
+            "Id": "1",
+            "DisplayName": "Acme Corp",
+            "SyncToken": "5",
+            "domain": "QBO",
+            "sparse": false,
+            "MetaData": {"LastUpdatedTime": "2024-01-15T10:30:00Z"}
+        });
+        let cf = comparable_fields(&entity);
+        assert!(cf.get("MetaData").is_none(), "MetaData must be stripped");
+        assert!(cf.get("SyncToken").is_none(), "SyncToken must be stripped");
+        assert!(cf.get("domain").is_none(), "domain must be stripped");
+        assert!(cf.get("sparse").is_none(), "sparse must be stripped");
+        assert_eq!(cf["Id"], "1");
+        assert_eq!(cf["DisplayName"], "Acme Corp");
+    }
+
+    #[test]
+    fn is_tombstone_detected_on_deleted_status() {
+        let deleted = json!({"Id": "1", "status": "Deleted"});
+        let active = json!({"Id": "2", "Active": true});
+
+        assert!(
+            deleted["status"].as_str().map(|s| s.eq_ignore_ascii_case("Deleted")).unwrap_or(false),
+            "Deleted status must be detected"
+        );
+        assert!(
+            !active.get("status").and_then(|v| v.as_str())
+                .map(|s| s.eq_ignore_ascii_case("Deleted")).unwrap_or(false),
+            "Active entity must not be a tombstone"
+        );
+    }
+
+    #[test]
+    fn process_cdc_entities_empty_response_returns_zero() {
         let response = json!({});
-        // Just verify the JSON parsing returns 0 without a DB
         let qr = response
             .get("CDCResponse")
             .and_then(|v| v.as_array())
@@ -402,8 +491,8 @@ mod tests {
         assert!(qr.is_none());
     }
 
-    #[tokio::test]
-    async fn process_cdc_entities_parses_structure() {
+    #[test]
+    fn cdc_response_parses_structure() {
         let response = json!({
             "CDCResponse": [{
                 "QueryResponse": [{

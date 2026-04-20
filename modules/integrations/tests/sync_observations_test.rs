@@ -126,7 +126,7 @@ async fn test_upsert_observation_inserts_new_row() {
 
     let row = observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-001",
-        &fp, ts, &ch, 1, &payload,
+        &fp, ts, &ch, 1, &payload, "test", false,
     )
     .await
     .expect("upsert");
@@ -155,7 +155,7 @@ async fn test_upsert_deduplicates_on_unique_key() {
     // First insert
     let r1 = observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-002",
-        &fp, ts, &ch, 1, &payload,
+        &fp, ts, &ch, 1, &payload, "test", false,
     )
     .await
     .expect("first upsert");
@@ -163,7 +163,7 @@ async fn test_upsert_deduplicates_on_unique_key() {
     // Second upsert with same key — same payload, should return the existing row
     let r2 = observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-002",
-        &fp, ts, &ch, 1, &payload,
+        &fp, ts, &ch, 1, &payload, "test", false,
     )
     .await
     .expect("second upsert");
@@ -200,7 +200,7 @@ async fn test_different_fingerprints_create_separate_rows() {
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-003",
         &compute_fingerprint(None, Some(ts1), &p1), ts1,
-        &compute_comparable_hash(&p1, ts1), 1, &p1,
+        &compute_comparable_hash(&p1, ts1), 1, &p1, "test", false,
     )
     .await
     .expect("first");
@@ -208,7 +208,7 @@ async fn test_different_fingerprints_create_separate_rows() {
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-003",
         &compute_fingerprint(None, Some(ts2), &p2), ts2,
-        &compute_comparable_hash(&p2, ts2), 1, &p2,
+        &compute_comparable_hash(&p2, ts2), 1, &p2, "test", false,
     )
     .await
     .expect("second");
@@ -244,7 +244,7 @@ async fn test_last_updated_time_stored_as_millisecond_precision() {
 
     let row = observations::upsert_observation(
         &pool, &app_id, "quickbooks", "customer", "cust-004",
-        &fp, truncated_ts, &ch, 1, &payload,
+        &fp, truncated_ts, &ch, 1, &payload, "test", false,
     )
     .await
     .expect("upsert");
@@ -279,7 +279,7 @@ async fn test_get_latest_for_entity_returns_highest_timestamp() {
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "invoice", "inv-001",
         &compute_fingerprint(None, Some(ts_old), &p_old), ts_old,
-        &compute_comparable_hash(&p_old, ts_old), 1, &p_old,
+        &compute_comparable_hash(&p_old, ts_old), 1, &p_old, "test", false,
     )
     .await
     .expect("old");
@@ -287,7 +287,7 @@ async fn test_get_latest_for_entity_returns_highest_timestamp() {
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "invoice", "inv-001",
         &compute_fingerprint(None, Some(ts_new), &p_new), ts_new,
-        &compute_comparable_hash(&p_new, ts_new), 1, &p_new,
+        &compute_comparable_hash(&p_new, ts_new), 1, &p_new, "test", false,
     )
     .await
     .expect("new");
@@ -320,7 +320,7 @@ async fn test_list_since_watermark() {
         let ch = compute_comparable_hash(&payload, ts);
         observations::upsert_observation(
             &pool, &app_id, "quickbooks", "item", &format!("item-{i}"),
-            &fp, ts, &ch, 1, &payload,
+            &fp, ts, &ch, 1, &payload, "test", false,
         )
         .await
         .expect("upsert");
@@ -357,7 +357,7 @@ async fn test_find_by_comparable_hash() {
 
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "payment", "pay-001",
-        &fp, ts, &ch, 1, &payload,
+        &fp, ts, &ch, 1, &payload, "test", false,
     )
     .await
     .expect("upsert");
@@ -393,14 +393,14 @@ async fn test_payload_hash_fingerprint_prevents_key_collapse_on_distinct_payload
 
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "vendor", "v-001",
-        &fp1, ts, &compute_comparable_hash(&p1, ts), 1, &p1,
+        &fp1, ts, &compute_comparable_hash(&p1, ts), 1, &p1, "test", false,
     )
     .await
     .expect("first");
 
     observations::upsert_observation(
         &pool, &app_id, "quickbooks", "vendor", "v-001",
-        &fp2, ts, &compute_comparable_hash(&p2, ts), 1, &p2,
+        &fp2, ts, &compute_comparable_hash(&p2, ts), 1, &p2, "test", false,
     )
     .await
     .expect("second");

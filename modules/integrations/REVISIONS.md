@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.20.0
+- feat: route CDC and full-resync flows into observations with high-watermark tracking, tombstone handling for deleted entities, and `source_channel` column; migration adds columns to observations table ([bd-5uf61] / Stream D Phase 1.5)
+
 ## 2.19.0
 - feat: add `resolve_payment` handler module dispatching accept/reject resolution strategies for payment conflicts through `resolve_service`; integration tests against real Postgres ([bd-whva2] / Stream D Phase 1.5)
 
