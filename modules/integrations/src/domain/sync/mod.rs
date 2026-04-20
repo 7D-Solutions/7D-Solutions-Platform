@@ -8,4 +8,7 @@ pub mod push_attempts;
 pub use authority::{AuthorityRow, AuthoritySide};
 pub use authority_service::{flip_authority, FlipError, FlipResult};
 pub use conflicts::{ConflictClass, ConflictError, ConflictRow, ConflictStatus, MAX_VALUE_BYTES};
-pub use push_attempts::{PushAttemptRow, PushStatus};
+pub use push_attempts::{
+    post_call_reconcile, pre_call_version_check, PreCallOutcome, PushAttemptRow, PushStatus,
+    ReconcileError, ReconcileOutcome,
+};

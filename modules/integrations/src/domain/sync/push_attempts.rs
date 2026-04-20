@@ -1,8 +1,11 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use super::conflicts::{ConflictClass, ConflictRow, MAX_VALUE_BYTES};
 
 // ── List filter ───────────────────────────────────────────────────────────────
 
@@ -26,6 +29,11 @@ pub enum PushStatus {
     Succeeded,
     Failed,
     UnknownFailure,
+    /// Pre-call: authority version advanced before dispatch; no write was sent.
+    Superseded,
+    /// Post-call: write completed but authority changed while inflight;
+    /// reconciliation has been run and either auto-closed or opened a conflict.
+    CompletedUnderStaleAuthority,
 }
 
 impl PushStatus {
@@ -36,6 +44,8 @@ impl PushStatus {
             PushStatus::Succeeded => "succeeded",
             PushStatus::Failed => "failed",
             PushStatus::UnknownFailure => "unknown_failure",
+            PushStatus::Superseded => "superseded",
+            PushStatus::CompletedUnderStaleAuthority => "completed_under_stale_authority",
         }
     }
 
@@ -46,6 +56,8 @@ impl PushStatus {
             "succeeded" => Some(PushStatus::Succeeded),
             "failed" => Some(PushStatus::Failed),
             "unknown_failure" => Some(PushStatus::UnknownFailure),
+            "superseded" => Some(PushStatus::Superseded),
+            "completed_under_stale_authority" => Some(PushStatus::CompletedUnderStaleAuthority),
             _ => None,
         }
     }
@@ -294,6 +306,173 @@ pub async fn list_attempts(
 
     Ok((rows, total.0))
 }
+
+// ── Pre-call authority version check ─────────────────────────────────────────
+
+/// Outcome of `pre_call_version_check`.
+#[derive(Debug)]
+pub enum PreCallOutcome {
+    /// Authority advanced since the attempt was accepted; the attempt is now
+    /// `superseded` and no external call should be dispatched.
+    Superseded(PushAttemptRow),
+    /// Versions match; caller should proceed to `transition_to_inflight`.
+    ReadyForInflight,
+}
+
+/// Check whether authority changed since the attempt was accepted.
+///
+/// If `current_authority_version` differs from `attempt.authority_version`,
+/// the attempt is transitioned to `superseded` atomically.  The external call
+/// must NOT be dispatched in that case.  Returns `ReadyForInflight` when
+/// versions match and the caller should proceed to `transition_to_inflight`.
+pub async fn pre_call_version_check(
+    pool: &PgPool,
+    attempt_id: Uuid,
+    current_authority_version: i64,
+) -> Result<PreCallOutcome, sqlx::Error> {
+    let row = match get_attempt(pool, attempt_id).await? {
+        Some(r) => r,
+        None => return Ok(PreCallOutcome::ReadyForInflight),
+    };
+
+    if row.authority_version == current_authority_version {
+        return Ok(PreCallOutcome::ReadyForInflight);
+    }
+
+    // Authority has advanced: supersede the attempt so dispatch is prevented.
+    let superseded = sqlx::query_as::<_, PushAttemptRow>(&format!(
+        r#"
+        UPDATE integrations_sync_push_attempts
+        SET status       = 'superseded',
+            completed_at = NOW(),
+            updated_at   = NOW()
+        WHERE id = $1 AND status = 'accepted'
+        RETURNING {SELECT_COLS}
+        "#
+    ))
+    .bind(attempt_id)
+    .fetch_optional(pool)
+    .await?;
+
+    match superseded {
+        Some(r) => Ok(PreCallOutcome::Superseded(r)),
+        // Attempt already left 'accepted' (concurrent transition); caller re-checks state.
+        None => Ok(PreCallOutcome::ReadyForInflight),
+    }
+}
+
+// ── Post-call stale-authority reconciliation ──────────────────────────────────
+
+/// Outcome of `post_call_reconcile`.
+#[derive(Debug)]
+pub enum ReconcileOutcome {
+    /// Values were JSON-equal; no conflict row was created.
+    AutoClosed,
+    /// Values differed; a conflict row was created and is returned.
+    ConflictOpened(ConflictRow),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ReconcileError {
+    #[error("conflict value blob exceeds 256 KB limit")]
+    ValueTooLarge,
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
+
+/// Atomically record that a push completed under stale authority and reconcile.
+///
+/// 1. Transitions the attempt from `inflight` → `completed_under_stale_authority`.
+/// 2. Compares `internal_value` (current platform state) with `external_value`
+///    (current provider state) using JSON equality.
+/// 3. Equivalent → returns `AutoClosed`; no conflict row is created.
+/// 4. Divergent → inserts a conflict row inside the same transaction and
+///    returns `ConflictOpened`.
+///
+/// Steps 1 and 4 are committed atomically: a divergent reconciliation never
+/// leaves the attempt `inflight` or a conflict row orphaned.
+pub async fn post_call_reconcile(
+    pool: &PgPool,
+    attempt_id: Uuid,
+    app_id: &str,
+    provider: &str,
+    entity_type: &str,
+    entity_id: &str,
+    internal_value: Option<Value>,
+    external_value: Option<Value>,
+) -> Result<ReconcileOutcome, ReconcileError> {
+    // Guard: validate blob sizes before touching the database.
+    if let Some(v) = &internal_value {
+        if v.to_string().len() > MAX_VALUE_BYTES {
+            return Err(ReconcileError::ValueTooLarge);
+        }
+    }
+    if let Some(v) = &external_value {
+        if v.to_string().len() > MAX_VALUE_BYTES {
+            return Err(ReconcileError::ValueTooLarge);
+        }
+    }
+
+    let mut tx = pool.begin().await?;
+
+    // 1. Transition inflight → completed_under_stale_authority.
+    sqlx::query(&format!(
+        r#"
+        UPDATE integrations_sync_push_attempts
+        SET status       = 'completed_under_stale_authority',
+            completed_at = NOW(),
+            updated_at   = NOW()
+        WHERE id = $1 AND status = 'inflight'
+        "#
+    ))
+    .bind(attempt_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // 2. Compare values.
+    if internal_value == external_value {
+        tx.commit().await?;
+        return Ok(ReconcileOutcome::AutoClosed);
+    }
+
+    // 3. Divergent: determine conflict class and insert conflict row atomically.
+    let conflict_class = match (&internal_value, &external_value) {
+        (Some(_), Some(_)) => ConflictClass::Edit,
+        _ => ConflictClass::Deletion,
+    };
+
+    let conflict = sqlx::query_as::<_, ConflictRow>(
+        r#"
+        INSERT INTO integrations_sync_conflicts (
+            app_id, provider, entity_type, entity_id,
+            conflict_class, detected_by,
+            internal_value, external_value
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING
+            id, app_id, provider, entity_type, entity_id,
+            conflict_class, status, detected_by, detected_at,
+            internal_value, external_value, internal_id,
+            resolved_by, resolved_at, resolution_note,
+            created_at, updated_at
+        "#,
+    )
+    .bind(app_id)
+    .bind(provider)
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(conflict_class.as_str())
+    .bind(format!("push_attempt:{attempt_id}"))
+    .bind(&internal_value)
+    .bind(&external_value)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(ReconcileOutcome::ConflictOpened(conflict))
+}
+
+// ── Watchdog ──────────────────────────────────────────────────────────────────
 
 const WATCHDOG_INTERVAL_SECS: u64 = 60;
 const INFLIGHT_TIMEOUT_MINUTES: i64 = 10;

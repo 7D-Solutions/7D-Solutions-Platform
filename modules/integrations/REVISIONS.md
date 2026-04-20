@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.14.0
+- feat: add pre-call authority version check (`pre_call_version_check`) that short-circuits to `superseded` when authority advances before dispatch, and post-call stale-authority reconciliation (`post_call_reconcile`) that atomically transitions inflight attempts to `completed_under_stale_authority` then auto-closes equivalent values or opens a conflict row for divergent ones; migration adds both terminal statuses to the push_attempts status check constraint ([bd-w6e21] / Stream D Phase 1.5)
+
 ## 2.13.0
 - feat: implement authority flip service with Postgres advisory lock on `(app_id, provider, entity_type)`, atomic `authority_version` bump, `integrations.sync.authority.changed` event emission via outbox, and real `POST /api/integrations/sync/authority` handler ([bd-y7np7] / Stream D Phase 1.5)
 - feat: add `GET /api/integrations/sync/dlq` (failed outbox rows filtered by `failure_reason` + app/time bounds + pagination) and `GET /api/integrations/sync/push-attempts` (ledger reader with provider/entity/status/request_id/time filters) + supporting `outbox::list_failed` primitive ([bd-xvdvh] / Stream D Phase 1.5)

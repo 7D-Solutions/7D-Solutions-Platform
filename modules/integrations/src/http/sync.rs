@@ -237,6 +237,8 @@ const PUSH_VALID_STATUSES: &[&str] = &[
     "succeeded",
     "failed",
     "unknown_failure",
+    "superseded",
+    "completed_under_stale_authority",
 ];
 
 /// Response item for a push attempt — omits no sensitive fields (error_message
