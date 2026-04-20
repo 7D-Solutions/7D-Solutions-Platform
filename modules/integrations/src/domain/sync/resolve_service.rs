@@ -8,16 +8,23 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use chrono::Utc;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::domain::oauth::repo as oauth_repo;
 use crate::domain::qbo::client::{
     QboClient, QboCustomerPayload, QboInvoicePayload, QboPaymentPayload,
 };
 use crate::domain::qbo::QboError;
+use crate::events::{
+    build_sync_push_failed_envelope, SyncPushFailedPayload, EVENT_TYPE_SYNC_PUSH_FAILED,
+};
+use crate::outbox::enqueue_event_tx;
 use super::authority_repo;
+use super::dedupe::{compute_fingerprint, truncate_to_millis};
 use super::push_attempts::{self, PreCallOutcome, ReconcileOutcome};
 
 // ── Public outcome taxonomy ───────────────────────────────────────────────────
@@ -133,6 +140,53 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
         e,
         sqlx::Error::Database(db) if db.code().map_or(false, |c| c == "23505")
     )
+}
+
+/// Extract result markers from a QBO provider response.
+///
+/// Tries both the unwrapped entity shape (create responses) and the entity-type-wrapped
+/// shape (update responses).  All fields are optional; callers should handle None gracefully.
+fn extract_qbo_markers(
+    external_value: &serde_json::Value,
+) -> (Option<String>, Option<chrono::DateTime<Utc>>, String) {
+    // SyncToken: try top-level first (create shape), then first nested object (update shape).
+    let sync_token = external_value["SyncToken"]
+        .as_str()
+        .or_else(|| {
+            external_value
+                .as_object()
+                .and_then(|m| m.values().find_map(|v| v["SyncToken"].as_str()))
+        })
+        .map(|s| s.to_string());
+
+    // MetaData.LastUpdatedTime: same two-shape strategy.
+    let lut_str = external_value["MetaData"]["LastUpdatedTime"]
+        .as_str()
+        .or_else(|| {
+            external_value
+                .as_object()
+                .and_then(|m| m.values().find_map(|v| v["MetaData"]["LastUpdatedTime"].as_str()))
+        });
+
+    let last_updated_time = lut_str.and_then(|s| {
+        chrono::DateTime::parse_from_rfc3339(s)
+            .ok()
+            .map(|dt| truncate_to_millis(dt.with_timezone(&Utc)))
+    });
+
+    // Projection hash: stable fingerprint of the external state for drift correlation.
+    let projection_hash = compute_fingerprint(
+        sync_token.as_deref(),
+        last_updated_time,
+        external_value,
+    );
+
+    (sync_token, last_updated_time, projection_hash)
+}
+
+/// Whether a failure code is eligible for automatic retry.
+fn is_retryable(code: &str) -> bool {
+    matches!(code, "rate_limited" | "token_error" | "inflight_timeout")
 }
 
 // ── Core orchestration ────────────────────────────────────────────────────────
@@ -259,9 +313,18 @@ where
                     }
                 }
             } else {
-                push_attempts::complete_attempt(pool, attempt.id, "succeeded", None)
-                    .await
-                    .map_err(PushError::Database)?;
+                // Extract and normalize result markers from the provider response.
+                let (result_sync_token, result_last_updated_time, projection_hash) =
+                    extract_qbo_markers(&external_value);
+                push_attempts::complete_attempt_with_markers(
+                    pool,
+                    attempt.id,
+                    result_sync_token.as_deref(),
+                    result_last_updated_time,
+                    Some(&projection_hash),
+                )
+                .await
+                .map_err(PushError::Database)?;
                 Ok(PushOutcome::Succeeded {
                     attempt_id: attempt.id,
                     entity_id: entity_id.to_string(),
@@ -270,8 +333,49 @@ where
             }
         }
         QboCallResult::Fault { code, message } => {
-            let _ = push_attempts::complete_attempt(pool, attempt.id, "failed", Some(&message))
+            let connector_id = oauth_repo::get_connection(pool, app_id, provider)
+                .await
+                .ok()
+                .flatten()
+                .map(|c| c.id)
+                .unwrap_or_else(Uuid::nil);
+
+            let retryable = is_retryable(&code);
+            let event_id = Uuid::new_v4();
+            let payload = SyncPushFailedPayload {
+                app_id: app_id.to_string(),
+                connector_id,
+                entity_type: entity_type.to_string(),
+                entity_id: entity_id.to_string(),
+                attempt_number: 1,
+                failure_reason: message.clone(),
+                failure_code: code.clone(),
+                retryable,
+                external_error: Some(message.clone()),
+            };
+            let envelope = build_sync_push_failed_envelope(
+                event_id,
+                app_id.to_string(),
+                event_id.to_string(),
+                None,
+                payload,
+            );
+
+            let mut tx = pool.begin().await.map_err(PushError::Database)?;
+            let _ = push_attempts::fail_attempt_tx(&mut tx, attempt.id, "failed", Some(&message))
                 .await;
+            let _ = enqueue_event_tx(
+                &mut tx,
+                event_id,
+                EVENT_TYPE_SYNC_PUSH_FAILED,
+                "sync_push_attempt",
+                &attempt.id.to_string(),
+                app_id,
+                &envelope,
+            )
+            .await;
+            tx.commit().await.map_err(PushError::Database)?;
+
             Ok(PushOutcome::Failed {
                 attempt_id: attempt.id,
                 entity_id: entity_id.to_string(),
@@ -280,9 +384,53 @@ where
             })
         }
         QboCallResult::Unknown { message } => {
-            let _ =
-                push_attempts::complete_attempt(pool, attempt.id, "unknown_failure", Some(&message))
-                    .await;
+            let connector_id = oauth_repo::get_connection(pool, app_id, provider)
+                .await
+                .ok()
+                .flatten()
+                .map(|c| c.id)
+                .unwrap_or_else(Uuid::nil);
+
+            let event_id = Uuid::new_v4();
+            let payload = SyncPushFailedPayload {
+                app_id: app_id.to_string(),
+                connector_id,
+                entity_type: entity_type.to_string(),
+                entity_id: entity_id.to_string(),
+                attempt_number: 1,
+                failure_reason: message.clone(),
+                failure_code: "unknown_failure".to_string(),
+                retryable: true,
+                external_error: Some(message.clone()),
+            };
+            let envelope = build_sync_push_failed_envelope(
+                event_id,
+                app_id.to_string(),
+                event_id.to_string(),
+                None,
+                payload,
+            );
+
+            let mut tx = pool.begin().await.map_err(PushError::Database)?;
+            let _ = push_attempts::fail_attempt_tx(
+                &mut tx,
+                attempt.id,
+                "unknown_failure",
+                Some(&message),
+            )
+            .await;
+            let _ = enqueue_event_tx(
+                &mut tx,
+                event_id,
+                EVENT_TYPE_SYNC_PUSH_FAILED,
+                "sync_push_attempt",
+                &attempt.id.to_string(),
+                app_id,
+                &envelope,
+            )
+            .await;
+            tx.commit().await.map_err(PushError::Database)?;
+
             Ok(PushOutcome::UnknownFailure {
                 attempt_id: attempt.id,
                 entity_id: entity_id.to_string(),

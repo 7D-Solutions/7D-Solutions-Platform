@@ -1010,6 +1010,7 @@ mod tests {
             currency_ref: Some("USD".into()),
             payment_method_ref: Some("2".into()),
             deposit_to_account_ref: Some("35".into()),
+            line_applications: vec![],
         };
         let j = p.to_qbo_json();
         assert_eq!(j["CustomerRef"]["value"].as_str(), Some("7"));
@@ -1328,6 +1329,7 @@ mod tests {
             currency_ref: None,
             payment_method_ref: None,
             deposit_to_account_ref: None,
+            line_applications: vec![],
         };
         let result = client
             .create_payment(&payload, Uuid::new_v4())

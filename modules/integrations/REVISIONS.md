@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.23.0
+- feat: add explicit `resolve_invoice` handler module with create/update/void semantics, closed-period and stale-object mapping to deterministic taxonomy output; wire invoice dispatch into `resolve_service`; extend QBO client for invoice operations ([bd-hzaar] / Stream D Phase 1.5)
+
 ## 2.22.0
 - feat: persist normalized push result markers (result_sync_token, result_last_updated_time as ms-truncated UTC, result_projection_hash) to push-attempts ledger; emit `integrations.sync.push.failed` event with taxonomy code in envelope for downstream conflict detection ([bd-lhlrq] / Stream D Phase 1.5)
 
