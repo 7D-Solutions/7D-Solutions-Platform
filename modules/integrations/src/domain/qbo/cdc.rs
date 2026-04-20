@@ -73,9 +73,12 @@ impl TokenProvider for DbTokenProvider {
 // ============================================================================
 
 /// Resolve the QBO API base URL from environment.
+///
+/// Precedence: `QBO_BASE_URL` (if non-empty) → `QBO_SANDBOX` flag → production default.
 pub fn qbo_base_url() -> String {
-    if let Ok(url) = std::env::var("QBO_BASE_URL") {
-        return url;
+    let explicit = std::env::var("QBO_BASE_URL").unwrap_or_default();
+    if !explicit.is_empty() {
+        return explicit;
     }
     if std::env::var("QBO_SANDBOX").is_ok() {
         "https://sandbox-quickbooks.api.intuit.com/v3".to_string()

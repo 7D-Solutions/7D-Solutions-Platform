@@ -851,6 +851,12 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       SERVICE_AUTH_SECRET: ${SERVICE_AUTH_SECRET:-dev-service-auth-secret-do-not-use-in-prod}
       JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      # QBO / OAuth — set QBO_CLIENT_ID to enable QBO integration; all five vars must be present.
+      QBO_CLIENT_ID: ${QBO_CLIENT_ID:-}
+      QBO_CLIENT_SECRET: ${QBO_CLIENT_SECRET:-}
+      QBO_REDIRECT_URI: ${QBO_REDIRECT_URI:-}
+      QBO_BASE_URL: ${QBO_BASE_URL:-}
+      OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-}
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/integrations:/app/service:ro
       - ./modules/integrations/module.toml:/app/module.toml:ro

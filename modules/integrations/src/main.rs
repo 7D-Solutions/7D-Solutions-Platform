@@ -85,6 +85,47 @@ async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
+/// Validate the QBO env contract before any worker starts.
+///
+/// Called only when QBO_CLIENT_ID is present (i.e. QBO integration is enabled).
+/// Panics with an actionable message listing every missing or invalid var so ops
+/// never gets a silent misconfiguration.
+fn validate_qbo_env() {
+    const REQUIRED: &[&str] = &[
+        "QBO_CLIENT_ID",
+        "QBO_CLIENT_SECRET",
+        "QBO_REDIRECT_URI",
+        "OAUTH_ENCRYPTION_KEY",
+    ];
+
+    let missing: Vec<&str> = REQUIRED
+        .iter()
+        .filter(|var| {
+            std::env::var(var)
+                .map_or(true, |v| v.is_empty())
+        })
+        .copied()
+        .collect();
+
+    if !missing.is_empty() {
+        panic!(
+            "Startup validation failed: QBO is enabled (QBO_CLIENT_ID is set) but required \
+             env vars are missing or empty: {}",
+            missing.join(", ")
+        );
+    }
+
+    let redirect_uri = std::env::var("QBO_REDIRECT_URI")
+        .expect("QBO_REDIRECT_URI presence already validated above");
+    if !redirect_uri.starts_with("https://") && !redirect_uri.starts_with("http://localhost") {
+        panic!(
+            "Startup validation failed: QBO_REDIRECT_URI '{}' is invalid — must start with \
+             https:// (or http://localhost for dev)",
+            redirect_uri
+        );
+    }
+}
+
 #[tokio::main]
 async fn main() {
     ModuleBuilder::from_manifest("module.toml")
@@ -94,6 +135,7 @@ async fn main() {
 
             // Spawn conditional background workers
             if std::env::var("QBO_CLIENT_ID").is_ok() {
+                validate_qbo_env();
                 let refresher: Arc<dyn refresh::TokenRefresher> =
                     Arc::new(refresh::HttpTokenRefresher {
                         client: reqwest::Client::new(),

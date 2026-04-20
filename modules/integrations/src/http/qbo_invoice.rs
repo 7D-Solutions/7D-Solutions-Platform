@@ -197,8 +197,7 @@ pub async fn update_invoice(
     }
 
     // 5. Create QBO client with DB-backed token provider
-    let base_url = std::env::var("QBO_API_BASE")
-        .unwrap_or_else(|_| "https://quickbooks.api.intuit.com/v3".to_string());
+    let base_url = crate::domain::qbo::cdc::qbo_base_url();
 
     let tokens: Arc<dyn TokenProvider> = Arc::new(DbTokenProvider {
         pool: state.pool.clone(),

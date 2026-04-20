@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.8.1
+- feat: normalize QBO env contract (`QBO_BASE_URL` canonical; empty values treated as missing), add `validate_qbo_env()` fail-fast startup check when `QBO_CLIENT_ID` is set, wire 5 QBO vars through `docker-compose.services.yml`, and retire `QBO_API_BASE` in favor of `qbo_base_url()` ([bd-t0ach] / Stream D Phase 1)
+
 ## 2.8.0
 - feat: add `failure_reason` column to `integrations_outbox` (enum: `bus_publish_failed` | `retry_exhausted` | `needs_reauth` | `authority_superseded`) with partial index; relay now records the reason on publish failure so `/sync/dlq` filters deterministically ([bd-y5zol] / Stream D Phase 1)
 
