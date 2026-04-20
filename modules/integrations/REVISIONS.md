@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.25.0
+- feat: detector marker-correlation with orphaned-write recovery — auto-advances `failed`/`unknown_failure` push-attempts to `succeeded` when observation markers match, suppressing false conflicts from transport timeouts; `conflict.detected` event producer; `GET /sync/conflicts` read API with filtering ([bd-poz7r] / Stream D Phase 1.5)
+
 ## 2.24.0
 - feat: wire webhook normalization to fetch-and-observe flow with delete mappings; webhook triggers now schedule immediate fetch → canonical observation writes with deterministic dedupe; existing two-level webhook dedupe (body hash + CloudEvent id) preserved ([bd-smz9j] / Stream D Phase 1.5)
 

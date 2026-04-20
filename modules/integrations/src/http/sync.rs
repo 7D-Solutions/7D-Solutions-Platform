@@ -26,6 +26,8 @@ use uuid::Uuid;
 
 use crate::domain::oauth::service as oauth_service;
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
+use crate::domain::sync::conflicts::{ConflictError, ResolveConflictRequest};
+use crate::domain::sync::conflicts_repo::{list_conflicts_paged, resolve_conflict as repo_resolve_conflict};
 use crate::domain::sync::resolve_service::{PushError, ResolveService};
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
 use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
@@ -135,15 +137,173 @@ pub async fn flip_authority(
 }
 
 // ============================================================================
-// Stubs — implemented in downstream beads
+// list_conflicts
 // ============================================================================
 
-pub async fn resolve_conflict(Path(_id): Path<uuid::Uuid>) -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+const CONFLICT_VALID_STATUSES: &[&str] = &["pending", "resolved", "ignored", "unresolvable"];
+
+#[derive(Debug, Deserialize)]
+pub struct ConflictsQuery {
+    pub provider: Option<String>,
+    pub entity_type: Option<String>,
+    pub status: Option<String>,
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
 }
 
-pub async fn list_conflicts() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+/// Response item for a single conflict row.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ConflictItem {
+    pub id: Uuid,
+    pub provider: String,
+    pub entity_type: String,
+    pub entity_id: String,
+    pub conflict_class: String,
+    pub status: String,
+    pub detected_by: String,
+    pub detected_at: DateTime<Utc>,
+    pub internal_value: Option<Value>,
+    pub external_value: Option<Value>,
+    pub internal_id: Option<String>,
+    pub resolved_by: Option<String>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub resolution_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<crate::domain::sync::ConflictRow> for ConflictItem {
+    fn from(r: crate::domain::sync::ConflictRow) -> Self {
+        Self {
+            id: r.id,
+            provider: r.provider,
+            entity_type: r.entity_type,
+            entity_id: r.entity_id,
+            conflict_class: r.conflict_class,
+            status: r.status,
+            detected_by: r.detected_by,
+            detected_at: r.detected_at,
+            internal_value: r.internal_value,
+            external_value: r.external_value,
+            internal_id: r.internal_id,
+            resolved_by: r.resolved_by,
+            resolved_at: r.resolved_at,
+            resolution_note: r.resolution_note,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }
+    }
+}
+
+/// GET /api/integrations/sync/conflicts
+///
+/// Returns app-scoped paginated conflict rows with optional filters.
+pub async fn list_conflicts(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<ConflictsQuery>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    if let Some(ref s) = q.status {
+        if !CONFLICT_VALID_STATUSES.contains(&s.as_str()) {
+            return ApiError::new(
+                422,
+                "invalid_status",
+                format!(
+                    "status must be one of: {}",
+                    CONFLICT_VALID_STATUSES.join(", ")
+                ),
+            )
+            .into_response();
+        }
+    }
+
+    let page = q.page.max(1);
+    let page_size = q.page_size.clamp(1, 200);
+    let offset = (page - 1) * page_size;
+
+    match list_conflicts_paged(
+        &state.pool,
+        &app_id,
+        q.provider.as_deref(),
+        q.entity_type.as_deref(),
+        q.status.as_deref(),
+        page_size,
+        offset,
+    )
+    .await
+    {
+        Ok((rows, total)) => {
+            let items: Vec<ConflictItem> = rows.into_iter().map(Into::into).collect();
+            Json(PaginatedResponse::new(items, page, page_size, total)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "list_conflicts DB error");
+            ApiError::internal("Internal database error").into_response()
+        }
+    }
+}
+
+// ============================================================================
+// resolve_conflict
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveConflictBody {
+    pub internal_id: String,
+    pub resolution_note: Option<String>,
+}
+
+/// POST /api/integrations/sync/conflicts/{id}/resolve
+pub async fn resolve_conflict(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ResolveConflictBody>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    let resolved_by = match &claims {
+        Some(Extension(c)) => c.user_id.to_string(),
+        None => "unknown".to_string(),
+    };
+
+    let req = ResolveConflictRequest {
+        internal_id: body.internal_id,
+        resolved_by,
+        resolution_note: body.resolution_note,
+    };
+
+    match repo_resolve_conflict(&state.pool, &app_id, id, &req).await {
+        Ok(row) => (StatusCode::OK, Json(ConflictItem::from(row))).into_response(),
+        Err(ConflictError::NotFound(_)) => {
+            ApiError::not_found(format!("Conflict {} not found", id)).into_response()
+        }
+        Err(ConflictError::InvalidTransition(from, to)) => ApiError::new(
+            409,
+            "invalid_transition",
+            format!("Cannot transition conflict from '{}' to '{}'", from, to),
+        )
+        .into_response(),
+        Err(ConflictError::MissingInternalId) => ApiError::new(
+            422,
+            "missing_internal_id",
+            "internal_id is required to resolve a conflict",
+        )
+        .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, conflict_id = %id, "resolve_conflict DB error");
+            ApiError::internal("Internal database error").into_response()
+        }
+    }
 }
 
 // ============================================================================

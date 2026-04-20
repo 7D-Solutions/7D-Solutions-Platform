@@ -543,6 +543,85 @@ pub async fn post_call_reconcile(
     Ok(ReconcileOutcome::ConflictOpened(conflict))
 }
 
+// ── Marker-correlation helpers ────────────────────────────────────────────────
+
+/// Find the most recent terminal push attempt for an entity that has at least
+/// one result marker matching the caller's observation.
+///
+/// Matches ANY of: `result_sync_token`, `result_last_updated_time`, `result_projection_hash`.
+/// Covers `succeeded`, `failed`, and `unknown_failure` so orphaned writes
+/// (QBO applied the change but our success transition never ran) can be detected.
+pub async fn find_attempt_by_markers(
+    pool: &PgPool,
+    app_id: &str,
+    provider: &str,
+    entity_type: &str,
+    entity_id: &str,
+    sync_token: Option<&str>,
+    last_updated_time: Option<DateTime<Utc>>,
+    projection_hash: Option<&str>,
+) -> Result<Option<PushAttemptRow>, sqlx::Error> {
+    // If the caller provides no markers at all there is nothing to correlate.
+    if sync_token.is_none() && last_updated_time.is_none() && projection_hash.is_none() {
+        return Ok(None);
+    }
+
+    let lut = last_updated_time.map(truncate_to_millis);
+
+    sqlx::query_as::<_, PushAttemptRow>(&format!(
+        r#"
+        SELECT {SELECT_COLS}
+        FROM integrations_sync_push_attempts
+        WHERE app_id      = $1
+          AND provider    = $2
+          AND entity_type = $3
+          AND entity_id   = $4
+          AND status IN ('succeeded', 'failed', 'unknown_failure')
+          AND (
+               ($5::text        IS NOT NULL AND result_sync_token        = $5)
+            OR ($6::timestamptz IS NOT NULL AND result_last_updated_time = $6)
+            OR ($7::text        IS NOT NULL AND result_projection_hash   = $7)
+          )
+        ORDER BY started_at DESC
+        LIMIT 1
+        "#
+    ))
+    .bind(app_id)
+    .bind(provider)
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(sync_token)
+    .bind(lut)
+    .bind(projection_hash)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Promote a `failed` or `unknown_failure` attempt to `succeeded` within a
+/// caller-supplied transaction.
+///
+/// Used by the detector when marker-equality confirms an orphaned write: QBO
+/// applied the write but the local success transition did not complete.
+/// `completed_at` is preserved if already set; otherwise stamped to NOW().
+pub async fn promote_orphaned_write_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    attempt_id: Uuid,
+) -> Result<Option<PushAttemptRow>, sqlx::Error> {
+    sqlx::query_as::<_, PushAttemptRow>(&format!(
+        r#"
+        UPDATE integrations_sync_push_attempts
+        SET status       = 'succeeded',
+            completed_at = COALESCE(completed_at, NOW()),
+            updated_at   = NOW()
+        WHERE id = $1 AND status IN ('failed', 'unknown_failure')
+        RETURNING {SELECT_COLS}
+        "#
+    ))
+    .bind(attempt_id)
+    .fetch_optional(&mut **tx)
+    .await
+}
+
 // ── Watchdog ──────────────────────────────────────────────────────────────────
 
 const WATCHDOG_INTERVAL_SECS: u64 = 60;

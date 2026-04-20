@@ -239,6 +239,69 @@ pub async fn list_pending(
     .map_err(ConflictError::Database)
 }
 
+/// List conflicts with full filter support and total-count pagination.
+///
+/// Returns `(rows, total_count)`. All filter fields are optional.
+pub async fn list_conflicts_paged(
+    pool: &PgPool,
+    app_id: &str,
+    provider: Option<&str>,
+    entity_type: Option<&str>,
+    status_filter: Option<&str>,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<ConflictRow>, i64), ConflictError> {
+    const COLS: &str = r#"
+        id, app_id, provider, entity_type, entity_id,
+        conflict_class, status, detected_by, detected_at,
+        internal_value, external_value, internal_id,
+        resolved_by, resolved_at, resolution_note,
+        created_at, updated_at
+    "#;
+
+    let rows = sqlx::query_as::<_, ConflictRow>(&format!(
+        r#"
+        SELECT {COLS}
+        FROM integrations_sync_conflicts
+        WHERE app_id = $1
+          AND ($2::text IS NULL OR provider    = $2)
+          AND ($3::text IS NULL OR entity_type = $3)
+          AND ($4::text IS NULL OR status      = $4)
+        ORDER BY created_at DESC
+        LIMIT $5 OFFSET $6
+        "#
+    ))
+    .bind(app_id)
+    .bind(provider)
+    .bind(entity_type)
+    .bind(status_filter)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .map_err(ConflictError::Database)?;
+
+    let total: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*)
+        FROM integrations_sync_conflicts
+        WHERE app_id = $1
+          AND ($2::text IS NULL OR provider    = $2)
+          AND ($3::text IS NULL OR entity_type = $3)
+          AND ($4::text IS NULL OR status      = $4)
+        "#,
+    )
+    .bind(app_id)
+    .bind(provider)
+    .bind(entity_type)
+    .bind(status_filter)
+    .fetch_one(pool)
+    .await
+    .map_err(ConflictError::Database)?;
+
+    Ok((rows, total.0))
+}
+
 /// List all conflicts for an app_id, filtered by optional status, paged.
 pub async fn list_conflicts(
     pool: &PgPool,
