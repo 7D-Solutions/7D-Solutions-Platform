@@ -87,6 +87,9 @@ fn qbo_error(e: QboError) -> ApiError {
         }
         QboError::Http(e) => ApiError::new(502, "network_error", e.to_string()),
         QboError::Deserialize(msg) => ApiError::new(502, "parse_error", msg),
+        QboError::ConflictDetected { .. } => {
+            ApiError::conflict("Invoice was modified concurrently — retry the request")
+        }
     }
 }
 

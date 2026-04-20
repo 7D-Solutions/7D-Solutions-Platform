@@ -192,6 +192,7 @@ pub async fn process_ar_invoice_opened(
         }],
         due_date,
         doc_number: Some(invoice_id.to_string()),
+        currency_ref: None,
     };
 
     let qbo_invoice = qbo
@@ -410,6 +411,7 @@ pub async fn process_order_ingested(
         line_items,
         due_date: None,
         doc_number: Some(format!("{source}-{order_id}")),
+        currency_ref: None,
     };
 
     let qbo_invoice = qbo.create_invoice(&invoice_payload, Uuid::new_v4()).await.map_err(|e| {

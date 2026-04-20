@@ -148,6 +148,7 @@ async fn create_invoice_same_requestid_is_idempotent() {
         }],
         due_date: None,
         doc_number: Some(format!("IDEM-{}", &rid.to_string()[..8])),
+        currency_ref: None,
     };
 
     // First call

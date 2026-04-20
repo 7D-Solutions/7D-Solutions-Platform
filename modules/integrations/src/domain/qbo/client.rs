@@ -33,10 +33,16 @@ pub struct QboInvoicePayload {
     pub due_date: Option<String>,
     /// AR invoice ID placed in QBO DocNumber for cross-reference.
     pub doc_number: Option<String>,
+    /// ISO-4217 currency code. Required for multi-currency realms; omit for
+    /// single-currency companies (defaults to realm currency).
+    pub currency_ref: Option<String>,
 }
 
 impl QboInvoicePayload {
     /// Serialize to QBO REST API wire format.
+    ///
+    /// Line-item amounts are forwarded as f64 without truncation to preserve
+    /// precision specified by the caller.
     pub(crate) fn to_qbo_json(&self) -> Value {
         let lines: Vec<Value> = self
             .line_items
@@ -66,6 +72,9 @@ impl QboInvoicePayload {
         }
         if let Some(ref dn) = self.doc_number {
             body["DocNumber"] = Value::String(dn.clone());
+        }
+        if let Some(ref currency) = self.currency_ref {
+            body["CurrencyRef"] = serde_json::json!({"value": currency});
         }
         body
     }
@@ -105,6 +114,14 @@ impl QboCustomerPayload {
 // Payment creation types
 // ============================================================================
 
+/// Links a payment amount to a specific invoice for allocation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentLineApplication {
+    /// QBO Invoice TxnId.
+    pub invoice_id: String,
+    pub amount: f64,
+}
+
 /// Payload for creating a QBO payment via POST /v3/company/{realm}/payment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QboPaymentPayload {
@@ -119,6 +136,10 @@ pub struct QboPaymentPayload {
     pub payment_method_ref: Option<String>,
     /// QBO Account.Id to deposit the payment into.
     pub deposit_to_account_ref: Option<String>,
+    /// Invoice allocation lines. Empty = unapplied payment.
+    /// All allocations are written in a single QBO call to prevent partial-apply.
+    #[serde(default)]
+    pub line_applications: Vec<PaymentLineApplication>,
 }
 
 impl QboPaymentPayload {
@@ -138,6 +159,19 @@ impl QboPaymentPayload {
         }
         if let Some(ref acct) = self.deposit_to_account_ref {
             body["DepositToAccountRef"] = serde_json::json!({"value": acct});
+        }
+        if !self.line_applications.is_empty() {
+            let lines: Vec<Value> = self
+                .line_applications
+                .iter()
+                .map(|la| {
+                    serde_json::json!({
+                        "Amount": la.amount,
+                        "LinkedTxn": [{"TxnId": la.invoice_id, "TxnType": "Invoice"}]
+                    })
+                })
+                .collect();
+            body["Line"] = serde_json::json!(lines);
         }
         body
     }
@@ -574,6 +608,111 @@ impl QboClient {
     ) -> Result<Value, QboError> {
         let url = self.write_url("payment", request_id);
         let body = payload.to_qbo_json();
+        let token = self.tokens.get_token().await?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
+        let resp_body = resp.text().await?;
+
+        if status == 200 {
+            let val = parse_json(&resp_body)?;
+            return Ok(val["Payment"].clone());
+        }
+
+        match classify_error(status, &resp_body) {
+            QboApiAction::RefreshToken => {
+                let new_token = self.tokens.refresh_token().await?;
+                let val = self.post_json(&url, &body, &new_token).await?;
+                Ok(val["Payment"].clone())
+            }
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
+            _ => Err(parse_api_error(&resp_body)),
+        }
+    }
+
+    /// Void an invoice in QBO.
+    ///
+    /// QBO does not support hard-deleting invoices. The canonical operation is
+    /// void: POST with `?operation=void` sets Balance=0 and locks the invoice.
+    ///
+    /// `request_id` must come from the ledger row for idempotency.
+    pub async fn void_invoice(
+        &self,
+        qbo_id: &str,
+        sync_token: &str,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        let url = format!(
+            "{}/invoice?operation=void&minorversion={}&requestid={}",
+            self.company_url(),
+            self.minor_version,
+            request_id
+        );
+        let body = serde_json::json!({
+            "Id": qbo_id,
+            "SyncToken": sync_token,
+        });
+        let token = self.tokens.get_token().await?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
+        let resp_body = resp.text().await?;
+
+        if status == 200 {
+            let val = parse_json(&resp_body)?;
+            return Ok(val["Invoice"].clone());
+        }
+
+        match classify_error(status, &resp_body) {
+            QboApiAction::RefreshToken => {
+                let new_token = self.tokens.refresh_token().await?;
+                let val = self.post_json(&url, &body, &new_token).await?;
+                Ok(val["Invoice"].clone())
+            }
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
+            _ => Err(parse_api_error(&resp_body)),
+        }
+    }
+
+    /// Delete a payment in QBO.
+    ///
+    /// QBO uses POST with `?operation=delete` (not Active=false like customers).
+    ///
+    /// `request_id` must come from the ledger row for idempotency.
+    pub async fn delete_payment(
+        &self,
+        qbo_id: &str,
+        sync_token: &str,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        let url = format!(
+            "{}/payment?operation=delete&minorversion={}&requestid={}",
+            self.company_url(),
+            self.minor_version,
+            request_id
+        );
+        let body = serde_json::json!({
+            "Id": qbo_id,
+            "SyncToken": sync_token,
+        });
         let token = self.tokens.get_token().await?;
 
         let resp = self
@@ -1109,6 +1248,7 @@ mod tests {
             }],
             due_date: Some("2026-05-01".to_string()),
             doc_number: Some("INV-001".to_string()),
+            currency_ref: None,
         };
 
         let result = client
@@ -1208,11 +1348,13 @@ mod tests {
             }],
             due_date: Some("2026-06-15".to_string()),
             doc_number: Some("DOC-999".to_string()),
+            currency_ref: None,
         };
         let json = payload.to_qbo_json();
         assert_eq!(json["CustomerRef"]["value"].as_str(), Some("5"));
         assert_eq!(json["DueDate"].as_str(), Some("2026-06-15"));
         assert_eq!(json["DocNumber"].as_str(), Some("DOC-999"));
+        assert!(json.get("CurrencyRef").is_none(), "absent currency_ref must not emit field");
         let lines = json["Line"].as_array().expect("Line must be array");
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0]["Amount"].as_f64(), Some(500.00));
@@ -1220,6 +1362,50 @@ mod tests {
             lines[0]["SalesItemLineDetail"]["ItemRef"]["value"].as_str(),
             Some("1")
         );
+    }
+
+    #[test]
+    fn qbo_invoice_payload_currency_ref_serializes() {
+        let payload = QboInvoicePayload {
+            customer_ref: "3".to_string(),
+            line_items: vec![],
+            due_date: None,
+            doc_number: None,
+            currency_ref: Some("EUR".to_string()),
+        };
+        let json = payload.to_qbo_json();
+        assert_eq!(json["CurrencyRef"]["value"].as_str(), Some("EUR"));
+    }
+
+    #[tokio::test]
+    async fn void_invoice_url_contains_operation_void() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let count = call_count.clone();
+        let app = axum::Router::new().route(
+            "/v3/company/{realm}/invoice",
+            axum::routing::post(move |uri: axum::http::Uri| {
+                let c = count.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    let q = uri.query().unwrap_or("");
+                    assert!(q.contains("operation=void"), "missing operation=void in {q}");
+                    assert!(q.contains("minorversion=75"), "missing minorversion in {q}");
+                    (
+                        axum::http::StatusCode::OK,
+                        r#"{"Invoice":{"Id":"10","SyncToken":"1","Balance":0.0}}"#,
+                    )
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("server") });
+
+        let client = test_client(&format!("http://{}/v3", addr));
+        let result = client.void_invoice("10", "0", Uuid::new_v4()).await.expect("void_invoice");
+        assert_eq!(result["Id"].as_str(), Some("10"));
+        assert_eq!(result["Balance"].as_f64(), Some(0.0));
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
     }
 
     // ── has_business_fields unit tests ────────────────────────────────────────

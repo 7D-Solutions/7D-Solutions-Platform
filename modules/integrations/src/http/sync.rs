@@ -19,10 +19,14 @@ use chrono::{DateTime, Utc};
 use platform_http_contracts::{ApiError, PaginatedResponse};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+use crate::domain::oauth::service as oauth_service;
+use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
+use crate::domain::sync::resolve_service::{PushError, ResolveService};
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
 use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
 use crate::domain::sync::push_attempts::{list_attempts, ListAttemptsFilter, PushAttemptRow};
@@ -138,12 +142,155 @@ pub async fn resolve_conflict(Path(_id): Path<uuid::Uuid>) -> StatusCode {
     StatusCode::NOT_IMPLEMENTED
 }
 
-pub async fn push_entity(Path(_entity_type): Path<String>) -> StatusCode {
+pub async fn list_conflicts() -> StatusCode {
     StatusCode::NOT_IMPLEMENTED
 }
 
-pub async fn list_conflicts() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+// ============================================================================
+// push_entity
+// ============================================================================
+
+/// DB-backed QBO token provider — defers refresh to the background worker.
+struct DbTokenProvider {
+    pool: sqlx::PgPool,
+    app_id: String,
+}
+
+#[async_trait::async_trait]
+impl TokenProvider for DbTokenProvider {
+    async fn get_token(&self) -> Result<String, QboError> {
+        oauth_service::get_access_token(&self.pool, &self.app_id, "quickbooks")
+            .await
+            .map_err(|e| QboError::TokenError(e.to_string()))
+    }
+
+    async fn refresh_token(&self) -> Result<String, QboError> {
+        Err(QboError::AuthFailed)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PushEntityRequest {
+    pub entity_id: String,
+    pub operation: String,
+    pub authority_version: i64,
+    pub request_fingerprint: String,
+    pub payload: Value,
+}
+
+/// POST /api/integrations/sync/push/{entity_type}
+///
+/// Supported entity types: customer, invoice, payment.
+/// Returns the full push taxonomy variant as JSON with `"outcome"` discriminant.
+pub async fn push_entity(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(entity_type): Path<String>,
+    Json(req): Json<PushEntityRequest>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    if !matches!(entity_type.as_str(), "customer" | "invoice" | "payment") {
+        return ApiError::new(
+            422,
+            "invalid_entity_type",
+            format!(
+                "entity_type must be one of: customer, invoice, payment; got '{}'",
+                entity_type
+            ),
+        )
+        .into_response();
+    }
+
+    let connection =
+        match oauth_service::get_connection_status(&state.pool, &app_id, "quickbooks").await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                return ApiError::not_found("No QuickBooks connection found for this tenant")
+                    .into_response()
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "push_entity: OAuth lookup error");
+                return ApiError::internal("Internal database error").into_response();
+            }
+        };
+
+    if connection.connection_status != "connected" {
+        return ApiError::new(
+            412,
+            "not_connected",
+            format!(
+                "QuickBooks connection is '{}' — reconnection required",
+                connection.connection_status
+            ),
+        )
+        .into_response();
+    }
+
+    let base_url = crate::domain::qbo::cdc::qbo_base_url();
+    let tokens: Arc<dyn TokenProvider> = Arc::new(DbTokenProvider {
+        pool: state.pool.clone(),
+        app_id: app_id.clone(),
+    });
+    let qbo = Arc::new(QboClient::new(&base_url, &connection.realm_id, tokens));
+    let svc = ResolveService::new(qbo);
+
+    let result = match entity_type.as_str() {
+        "customer" => {
+            svc.push_customer(
+                &state.pool,
+                &app_id,
+                &req.entity_id,
+                &req.operation,
+                req.authority_version,
+                &req.request_fingerprint,
+                &req.payload,
+            )
+            .await
+        }
+        "invoice" => {
+            svc.push_invoice(
+                &state.pool,
+                &app_id,
+                &req.entity_id,
+                &req.operation,
+                req.authority_version,
+                &req.request_fingerprint,
+                &req.payload,
+            )
+            .await
+        }
+        "payment" => {
+            svc.push_payment(
+                &state.pool,
+                &app_id,
+                &req.entity_id,
+                &req.operation,
+                req.authority_version,
+                &req.request_fingerprint,
+                &req.payload,
+            )
+            .await
+        }
+        _ => unreachable!("entity_type validated above"),
+    };
+
+    match result {
+        Ok(outcome) => (StatusCode::OK, Json(outcome)).into_response(),
+        Err(PushError::DuplicateIntent) => ApiError::new(
+            409,
+            "duplicate_intent",
+            "An equivalent push attempt is already pending for this entity",
+        )
+        .into_response(),
+        Err(PushError::Database(e)) => {
+            tracing::error!(error = %e, entity_type = %entity_type, "push_entity: DB error");
+            ApiError::internal("Internal database error").into_response()
+        }
+    }
 }
 
 // ============================================================================

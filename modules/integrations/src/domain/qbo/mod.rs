@@ -34,6 +34,15 @@ pub enum QboError {
     TokenError(String),
     #[error("Deserialization error: {0}")]
     Deserialize(String),
+    /// A touched business field changed in QBO between our read and stale retry.
+    ///
+    /// Indicates a concurrent edit conflict. The caller should record a conflict
+    /// row and stop retrying.
+    #[error("concurrent edit conflict on entity {entity_id}: touched field changed in QBO")]
+    ConflictDetected {
+        entity_id: String,
+        fresh_entity: serde_json::Value,
+    },
 }
 
 /// What action to take based on a QBO error response.

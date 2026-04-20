@@ -409,6 +409,7 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
         }],
         due_date: Some("2026-12-31".to_string()),
         doc_number: Some("AR-001".to_string()),
+        currency_ref: None,
     };
 
     let result = client.create_invoice(&payload, Uuid::new_v4()).await;

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.21.0
+- feat: implement `POST /api/integrations/sync/push/{entity_type}` routing with response taxonomy envelope (success/conflict/error), wire push dispatch through QBO sync domain layer with entity-type routing and per-push ledger integration; refine invoice/payment payload types with currency_ref and line_applications ([bd-ws2qn] / Stream D Phase 1.5)
+
 ## 2.20.0
 - feat: route CDC and full-resync flows into observations with high-watermark tracking, tombstone handling for deleted entities, and `source_channel` column; migration adds columns to observations table ([bd-5uf61] / Stream D Phase 1.5)
 
