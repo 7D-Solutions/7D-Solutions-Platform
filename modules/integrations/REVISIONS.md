@@ -4,6 +4,10 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.13.0
+- feat: implement authority flip service with Postgres advisory lock on `(app_id, provider, entity_type)`, atomic `authority_version` bump, `integrations.sync.authority.changed` event emission via outbox, and real `POST /api/integrations/sync/authority` handler ([bd-y7np7] / Stream D Phase 1.5)
+- feat: add `GET /api/integrations/sync/dlq` (failed outbox rows filtered by `failure_reason` + app/time bounds + pagination) and `GET /api/integrations/sync/push-attempts` (ledger reader with provider/entity/status/request_id/time filters) + supporting `outbox::list_failed` primitive ([bd-xvdvh] / Stream D Phase 1.5)
+
 ## 2.12.1
 - feat: add push-attempt watchdog worker (`run_watchdog_task`) spawned from `main`, running every 60s and transitioning `inflight` rows older than 10 minutes to `failed` with `error_code='inflight_timeout'` so the partial unique index cannot be permanently blocked by a stuck row ([bd-nmvd6] / Stream D Phase 1.5)
 

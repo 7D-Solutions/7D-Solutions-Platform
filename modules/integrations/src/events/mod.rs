@@ -18,6 +18,7 @@ pub mod order_ingested;
 pub mod outbound_webhook_created;
 pub mod outbound_webhook_deleted;
 pub mod outbound_webhook_updated;
+pub mod sync_authority_changed;
 pub mod webhook_received;
 pub mod webhook_routed;
 
@@ -72,6 +73,10 @@ pub use outbound_webhook_deleted::{
 pub use outbound_webhook_updated::{
     build_outbound_webhook_updated_envelope, OutboundWebhookUpdatedPayload,
     EVENT_TYPE_OUTBOUND_WEBHOOK_UPDATED,
+};
+pub use sync_authority_changed::{
+    build_sync_authority_changed_envelope, SyncAuthorityChangedPayload,
+    EVENT_TYPE_SYNC_AUTHORITY_CHANGED,
 };
 pub use webhook_received::{
     build_webhook_received_envelope, WebhookReceivedPayload, EVENT_TYPE_WEBHOOK_RECEIVED,

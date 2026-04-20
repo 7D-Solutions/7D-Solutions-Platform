@@ -6,8 +6,10 @@ mod relay;
 
 pub use relay::{publish_batch, run_publisher_task, DEFAULT_MAX_RETRIES};
 
-use serde::Serialize;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 #[derive(Debug, FromRow)]
@@ -79,6 +81,89 @@ pub async fn fetch_unpublished(
     .bind(limit)
     .fetch_all(&mut **tx)
     .await
+}
+
+/// A failed outbox row exposed via the DLQ read API.
+/// `payload` is intentionally omitted — it may contain secrets.
+#[derive(Debug, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct DlqEntry {
+    pub event_id: Uuid,
+    pub event_type: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub app_id: String,
+    pub retry_count: i32,
+    pub error_message: Option<String>,
+    pub failure_reason: Option<String>,
+    pub failed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// List failed outbox rows for a tenant, optionally filtered by `failure_reason`.
+///
+/// Returns at most `page_size` rows ordered by `failed_at DESC`.
+pub async fn list_failed(
+    pool: &sqlx::PgPool,
+    app_id: &str,
+    failure_reason: Option<&str>,
+    page: i64,
+    page_size: i64,
+) -> Result<(Vec<DlqEntry>, i64), sqlx::Error> {
+    let offset = (page - 1).max(0) * page_size;
+
+    let rows = if let Some(reason) = failure_reason {
+        sqlx::query_as::<_, DlqEntry>(
+            r#"
+            SELECT event_id, event_type, aggregate_type, aggregate_id, app_id,
+                   retry_count, error_message, failure_reason, failed_at, created_at
+            FROM integrations_outbox
+            WHERE app_id = $1 AND failed_at IS NOT NULL AND failure_reason = $2
+            ORDER BY failed_at DESC
+            LIMIT $3 OFFSET $4
+            "#,
+        )
+        .bind(app_id)
+        .bind(reason)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?
+    } else {
+        sqlx::query_as::<_, DlqEntry>(
+            r#"
+            SELECT event_id, event_type, aggregate_type, aggregate_id, app_id,
+                   retry_count, error_message, failure_reason, failed_at, created_at
+            FROM integrations_outbox
+            WHERE app_id = $1 AND failed_at IS NOT NULL
+            ORDER BY failed_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(app_id)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?
+    };
+
+    let total: (i64,) = if let Some(reason) = failure_reason {
+        sqlx::query_as(
+            "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1 AND failed_at IS NOT NULL AND failure_reason = $2",
+        )
+        .bind(app_id)
+        .bind(reason)
+        .fetch_one(pool)
+        .await?
+    } else {
+        sqlx::query_as(
+            "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1 AND failed_at IS NOT NULL",
+        )
+        .bind(app_id)
+        .fetch_one(pool)
+        .await?
+    };
+
+    Ok((rows, total.0))
 }
 
 pub async fn mark_published(
