@@ -7,6 +7,9 @@ pub mod dedupe;
 pub mod health;
 pub mod observations;
 pub mod push_attempts;
+pub mod resolve_customer;
+pub mod resolve_invoice;
+pub mod resolve_payment;
 pub mod resolve_service;
 
 pub use authority::{AuthorityRow, AuthoritySide};

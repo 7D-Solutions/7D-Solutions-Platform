@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.18.0
+- feat: add `resolve_customer` handler module dispatching accept/reject/remap resolution strategies through `resolve_service`, with per-entity handler trait and customer-specific duplicate-remap validation; integration tests against real Postgres ([bd-6tb53] / Stream D Phase 1.5)
+
 ## 2.17.1
 - fix: add field-level intent guard (`update_entity_with_guard`) that detects third-party edits during stale SyncToken retries by comparing touched business fields against a pre-read baseline; raises `ConflictDetected` when another party changed a field the caller intends to write, preventing silent overwrites ([bd-dd2x6] / Stream D Phase 1.5)
 
