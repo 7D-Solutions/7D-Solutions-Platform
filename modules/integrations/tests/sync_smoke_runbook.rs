@@ -297,19 +297,21 @@ async fn sync_smoke_runbook() {
     )
     .await;
 
-    match &flip2 {
+    let current_authority_version = match &flip2 {
         Ok(r) => {
             assert_eq!(r.row.authoritative_side, "platform");
             eprintln!(
                 "  PASS  flip external→platform: version={}",
                 r.row.authority_version
             );
+            r.row.authority_version
         }
         Err(e) => {
             failures.push(format!("Phase 1 flip external→platform: {e}"));
             eprintln!("  FAIL  flip external→platform: {e}");
+            1
         }
-    }
+    };
 
     // ── Phase 2: Push (QBO sandbox only) ─────────────────────────────────────
 
@@ -344,7 +346,7 @@ async fn sync_smoke_runbook() {
         let fp = format!("smoke-fp-{}", Uuid::new_v4().simple());
 
         match svc
-            .push_customer(&pool, &app_id, &entity_id, "create", 1, &fp, &payload)
+            .push_customer(&pool, &app_id, &entity_id, "create", current_authority_version, &fp, &payload)
             .await
         {
             Ok(PushOutcome::Succeeded { provider_entity_id, .. }) => {
