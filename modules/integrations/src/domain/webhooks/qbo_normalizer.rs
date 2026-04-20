@@ -11,12 +11,20 @@
 //! - **Per-event**: The CloudEvent `id` field prevents duplicate outbox entries
 //!   even when the same event appears in different POST deliveries.
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::domain::qbo::cdc::{
+    comparable_fields, parse_last_updated_time, qbo_base_url, DbTokenProvider,
+};
+use crate::domain::qbo::client::QboClient;
+use crate::domain::qbo::TokenProvider;
+use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::observations;
 use crate::events::{
     build_webhook_received_envelope, build_webhook_routed_envelope, WebhookReceivedPayload,
     WebhookRoutedPayload, EVENT_TYPE_WEBHOOK_RECEIVED, EVENT_TYPE_WEBHOOK_ROUTED,
@@ -25,7 +33,7 @@ use crate::outbox::enqueue_event_tx;
 
 use super::models::WebhookError;
 use super::repo;
-use super::routing::map_to_domain_event;
+use super::routing::{map_to_domain_event, qbo_entity_info};
 
 // ============================================================================
 // Types
@@ -68,11 +76,19 @@ pub struct QboNormalizeResult {
 
 pub struct QboNormalizer {
     pool: PgPool,
+    base_url: String,
 }
 
 impl QboNormalizer {
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            base_url: qbo_base_url(),
+        }
+    }
+
+    pub fn new_with_base_url(pool: PgPool, base_url: String) -> Self {
+        Self { pool, base_url }
     }
 
     /// Parse a batched QBO webhook, resolve each event to a tenant, and fan out
@@ -134,13 +150,24 @@ impl QboNormalizer {
         let mut processed = 0u32;
         let mut skipped = 0u32;
         let correlation_id = Uuid::new_v4().to_string();
+        // Collect successfully-processed events for fetch-and-observe after commit.
+        let mut to_observe: Vec<(QboCloudEvent, String, String)> = Vec::new();
 
         for event in &events {
             match self
                 .process_single_event(&mut tx, event, &correlation_id, &realm_to_app)
                 .await
             {
-                Ok(true) => processed += 1,
+                Ok(true) => {
+                    processed += 1;
+                    if let Some(app_id) = realm_to_app.get(&event.intuit_account_id) {
+                        to_observe.push((
+                            event.clone(),
+                            app_id.clone(),
+                            event.intuit_account_id.clone(),
+                        ));
+                    }
+                }
                 Ok(false) => skipped += 1,
                 Err(e) => {
                     tracing::warn!(
@@ -157,6 +184,20 @@ impl QboNormalizer {
         repo::mark_ingest_processed(&mut tx, batch_ingest_id, Utc::now()).await?;
 
         tx.commit().await?;
+
+        // 5. Fetch-and-observe: write canonical observation rows outside the transaction.
+        //    Failures are logged as warnings — the CDC poll will catch up if this fails.
+        for (event, app_id, realm_id) in &to_observe {
+            if let Err(e) = self.fetch_and_observe(event, app_id, realm_id).await {
+                tracing::warn!(
+                    event_id = %event.id,
+                    event_type = %event.event_type,
+                    app_id = %app_id,
+                    error = %e,
+                    "Webhook fetch-and-observe failed — CDC will cover"
+                );
+            }
+        }
 
         Ok(QboNormalizeResult {
             batch_ingest_id,
@@ -270,11 +311,120 @@ impl QboNormalizer {
 
         Ok(true)
     }
+
+    /// Fetch the fresh entity from QBO (or build a synthetic tombstone payload for deletes)
+    /// and write a canonical observation row.
+    ///
+    /// For delete events no API call is made — a tombstone observation is written using the
+    /// event's `time` field as `last_updated_time`.  For all other events the entity is
+    /// fetched via `GET /v3/company/{realm}/{entity}/{id}` and the response processed with
+    /// the same fingerprint/comparable-hash logic used by CDC.
+    ///
+    /// A failure here is non-fatal: the outbox events are already committed and the CDC
+    /// poll will eventually write the observation anyway.
+    async fn fetch_and_observe(
+        &self,
+        event: &QboCloudEvent,
+        app_id: &str,
+        realm_id: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let (qbo_entity_type, obs_entity_type, is_delete) =
+            match qbo_entity_info(&event.event_type) {
+                Some(v) => v,
+                None => return Ok(()),
+            };
+
+        let entity_id = match &event.intuit_entity_id {
+            Some(id) if !id.is_empty() => id.clone(),
+            _ => {
+                tracing::warn!(
+                    event_id = %event.id,
+                    event_type = %event.event_type,
+                    "QBO webhook missing intuitentityid — skipping observe"
+                );
+                return Ok(());
+            }
+        };
+
+        if is_delete {
+            let lut = truncate_to_millis(parse_event_time(&event.time));
+            let tombstone = serde_json::json!({ "Id": &entity_id, "status": "Deleted" });
+            let comparable = comparable_fields(&tombstone);
+            let fingerprint = compute_fingerprint(None, Some(lut), &tombstone);
+            let comparable_hash = compute_comparable_hash(&comparable, lut);
+
+            observations::upsert_observation(
+                &self.pool,
+                app_id,
+                "quickbooks",
+                obs_entity_type,
+                &entity_id,
+                &fingerprint,
+                lut,
+                &comparable_hash,
+                1,
+                &tombstone,
+                "webhook",
+                true,
+            )
+            .await?;
+        } else {
+            let tokens: Arc<dyn TokenProvider> = Arc::new(DbTokenProvider {
+                pool: self.pool.clone(),
+                app_id: app_id.to_string(),
+            });
+            let client = QboClient::new(&self.base_url, realm_id, tokens);
+            let response = client.get_entity(qbo_entity_type, &entity_id).await?;
+
+            let entity = &response[qbo_entity_type];
+            if entity.is_null() {
+                tracing::warn!(
+                    entity_type = obs_entity_type,
+                    entity_id = %entity_id,
+                    "QBO GET response missing entity key — skipping observe"
+                );
+                return Ok(());
+            }
+
+            let lut = truncate_to_millis(parse_last_updated_time(entity));
+            let sync_token = entity.get("SyncToken").and_then(|v| v.as_str());
+            let comparable = comparable_fields(entity);
+            let fingerprint = compute_fingerprint(sync_token, Some(lut), entity);
+            let comparable_hash = compute_comparable_hash(&comparable, lut);
+
+            observations::upsert_observation(
+                &self.pool,
+                app_id,
+                "quickbooks",
+                obs_entity_type,
+                &entity_id,
+                &fingerprint,
+                lut,
+                &comparable_hash,
+                1,
+                entity,
+                "webhook",
+                false,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
 }
 
 // ============================================================================
 // Helpers
 // ============================================================================
+
+fn parse_event_time(time: &Option<String>) -> DateTime<Utc> {
+    if let Some(ts_str) = time {
+        if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
+            return ts;
+        }
+    }
+    Utc::now()
+}
 
 fn compute_body_hash(raw_body: &[u8]) -> String {
     let hash = Sha256::digest(raw_body);

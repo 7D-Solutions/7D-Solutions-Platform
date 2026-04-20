@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.24.0
+- feat: wire webhook normalization to fetch-and-observe flow with delete mappings; webhook triggers now schedule immediate fetch → canonical observation writes with deterministic dedupe; existing two-level webhook dedupe (body hash + CloudEvent id) preserved ([bd-smz9j] / Stream D Phase 1.5)
+
 ## 2.23.0
 - feat: add explicit `resolve_invoice` handler module with create/update/void semantics, closed-period and stale-object mapping to deterministic taxonomy output; wire invoice dispatch into `resolve_service`; extend QBO client for invoice operations ([bd-hzaar] / Stream D Phase 1.5)
 
