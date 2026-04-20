@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use super::{classify_error, parse_api_error, QboApiAction, QboError, TokenProvider};
@@ -70,6 +71,78 @@ impl QboInvoicePayload {
     }
 }
 
+// ============================================================================
+// Customer creation types
+// ============================================================================
+
+/// Payload for creating a QBO customer via POST /v3/company/{realm}/customer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboCustomerPayload {
+    pub display_name: String,
+    pub email: Option<String>,
+    pub company_name: Option<String>,
+    /// ISO-4217 currency code. Defaults to realm currency when absent.
+    pub currency_ref: Option<String>,
+}
+
+impl QboCustomerPayload {
+    pub(crate) fn to_qbo_json(&self) -> Value {
+        let mut body = serde_json::json!({"DisplayName": &self.display_name});
+        if let Some(ref email) = self.email {
+            body["PrimaryEmailAddr"] = serde_json::json!({"Address": email});
+        }
+        if let Some(ref company) = self.company_name {
+            body["CompanyName"] = Value::String(company.clone());
+        }
+        if let Some(ref currency) = self.currency_ref {
+            body["CurrencyRef"] = serde_json::json!({"value": currency});
+        }
+        body
+    }
+}
+
+// ============================================================================
+// Payment creation types
+// ============================================================================
+
+/// Payload for creating a QBO payment via POST /v3/company/{realm}/payment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QboPaymentPayload {
+    /// QBO Customer.Id.
+    pub customer_ref: String,
+    pub total_amount: f64,
+    /// Transaction date in YYYY-MM-DD format.
+    pub txn_date: Option<String>,
+    /// ISO-4217 currency code.
+    pub currency_ref: Option<String>,
+    /// QBO PaymentMethod.Id.
+    pub payment_method_ref: Option<String>,
+    /// QBO Account.Id to deposit the payment into.
+    pub deposit_to_account_ref: Option<String>,
+}
+
+impl QboPaymentPayload {
+    pub(crate) fn to_qbo_json(&self) -> Value {
+        let mut body = serde_json::json!({
+            "CustomerRef": {"value": &self.customer_ref},
+            "TotalAmt": self.total_amount,
+        });
+        if let Some(ref date) = self.txn_date {
+            body["TxnDate"] = Value::String(date.clone());
+        }
+        if let Some(ref currency) = self.currency_ref {
+            body["CurrencyRef"] = serde_json::json!({"value": currency});
+        }
+        if let Some(ref method) = self.payment_method_ref {
+            body["PaymentMethodRef"] = serde_json::json!({"value": method});
+        }
+        if let Some(ref acct) = self.deposit_to_account_ref {
+            body["DepositToAccountRef"] = serde_json::json!({"value": acct});
+        }
+        body
+    }
+}
+
 /// Minor version appended to all QBO API requests.
 pub const MINOR_VERSION: u32 = 75;
 /// Max results per query page.
@@ -111,14 +184,17 @@ impl QboClient {
         )
     }
 
-    /// Build a write URL. Appends `?minorversion=N&requestid=UUID`.
-    pub(crate) fn write_url(&self, path: &str) -> String {
+    /// Build a write URL. Appends `?minorversion=N&requestid=<caller-provided UUID>`.
+    ///
+    /// The caller must supply `request_id` from the ledger so that retries for
+    /// the same ledger row reuse the same QBO idempotency key.
+    pub(crate) fn write_url(&self, path: &str, request_id: Uuid) -> String {
         format!(
             "{}/{}?minorversion={}&requestid={}",
             self.company_url(),
             path,
             self.minor_version,
-            Uuid::new_v4()
+            request_id
         )
     }
 
@@ -175,6 +251,7 @@ impl QboClient {
             .await?;
 
         let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
         let body = resp.text().await?;
 
         if status == 200 {
@@ -186,7 +263,7 @@ impl QboClient {
                 let new_token = self.tokens.refresh_token().await?;
                 self.post_text(&url, statement, &new_token).await
             }
-            QboApiAction::Backoff => Err(QboError::RateLimited),
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
             _ => Err(parse_api_error(&body)),
         }
     }
@@ -226,18 +303,24 @@ impl QboClient {
     ///
     /// On SyncToken stale (QBO error 5010), re-fetches the entity to get a
     /// fresh SyncToken and retries, up to [`SYNC_TOKEN_MAX_RETRIES`] times.
+    ///
+    /// `request_id` must come from the ledger row so that retries for the same
+    /// ledger operation reuse the same QBO idempotency key.
     pub async fn update_entity(
         &self,
         entity_type: &str,
         mut body: Value,
+        request_id: Uuid,
     ) -> Result<Value, QboError> {
         let entity_id = body["Id"]
             .as_str()
             .ok_or_else(|| QboError::Deserialize("update body missing Id".into()))?
             .to_string();
 
+        // URL computed once so all retry attempts carry the same requestid.
+        let url = self.write_url(&entity_type.to_lowercase(), request_id);
+
         for attempt in 0..=SYNC_TOKEN_MAX_RETRIES {
-            let url = self.write_url(&entity_type.to_lowercase());
             let token = self.tokens.get_token().await?;
 
             let resp = self
@@ -250,6 +333,7 @@ impl QboClient {
                 .await?;
 
             let status = resp.status().as_u16();
+            let retry_after = extract_retry_after(resp.headers());
             let resp_body = resp.text().await?;
 
             if status == 200 {
@@ -277,10 +361,9 @@ impl QboClient {
                 }
                 QboApiAction::RefreshToken => {
                     let new_token = self.tokens.refresh_token().await?;
-                    let url = self.write_url(&entity_type.to_lowercase());
                     return self.post_json(&url, &body, &new_token).await;
                 }
-                QboApiAction::Backoff => return Err(QboError::RateLimited),
+                QboApiAction::Backoff => return Err(QboError::RateLimited { retry_after }),
                 QboApiAction::Fail => return Err(parse_api_error(&resp_body)),
             }
         }
@@ -290,10 +373,15 @@ impl QboClient {
 
     /// Create a new invoice in QBO.
     ///
-    /// Uses `write_url()` which appends `?requestid=UUID` for idempotency.
-    /// Returns the `Invoice` object from the QBO response.
-    pub async fn create_invoice(&self, payload: &QboInvoicePayload) -> Result<Value, QboError> {
-        let url = self.write_url("invoice");
+    /// `request_id` must come from the ledger row so that transport-timeout
+    /// retries reuse the same QBO idempotency key and never create duplicates.
+    pub async fn create_invoice(
+        &self,
+        payload: &QboInvoicePayload,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        // URL computed once so token-expiry retries carry the same requestid.
+        let url = self.write_url("invoice", request_id);
         let body = payload.to_qbo_json();
         let token = self.tokens.get_token().await?;
 
@@ -307,6 +395,7 @@ impl QboClient {
             .await?;
 
         let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
         let resp_body = resp.text().await?;
 
         if status == 200 {
@@ -317,12 +406,92 @@ impl QboClient {
         match classify_error(status, &resp_body) {
             QboApiAction::RefreshToken => {
                 let new_token = self.tokens.refresh_token().await?;
-                // Generate a fresh write_url so requestid changes on retry
-                let retry_url = self.write_url("invoice");
-                let val = self.post_json(&retry_url, &body, &new_token).await?;
+                let val = self.post_json(&url, &body, &new_token).await?;
                 Ok(val["Invoice"].clone())
             }
-            QboApiAction::Backoff => Err(QboError::RateLimited),
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
+            _ => Err(parse_api_error(&resp_body)),
+        }
+    }
+
+    /// Create a new customer in QBO.
+    ///
+    /// `request_id` must come from the ledger row for idempotency.
+    pub async fn create_customer(
+        &self,
+        payload: &QboCustomerPayload,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        let url = self.write_url("customer", request_id);
+        let body = payload.to_qbo_json();
+        let token = self.tokens.get_token().await?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
+        let resp_body = resp.text().await?;
+
+        if status == 200 {
+            let val = parse_json(&resp_body)?;
+            return Ok(val["Customer"].clone());
+        }
+
+        match classify_error(status, &resp_body) {
+            QboApiAction::RefreshToken => {
+                let new_token = self.tokens.refresh_token().await?;
+                let val = self.post_json(&url, &body, &new_token).await?;
+                Ok(val["Customer"].clone())
+            }
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
+            _ => Err(parse_api_error(&resp_body)),
+        }
+    }
+
+    /// Create a new payment in QBO.
+    ///
+    /// `request_id` must come from the ledger row for idempotency.
+    pub async fn create_payment(
+        &self,
+        payload: &QboPaymentPayload,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        let url = self.write_url("payment", request_id);
+        let body = payload.to_qbo_json();
+        let token = self.tokens.get_token().await?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .header("Accept", "application/json")
+            .json(&body)
+            .send()
+            .await?;
+
+        let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
+        let resp_body = resp.text().await?;
+
+        if status == 200 {
+            let val = parse_json(&resp_body)?;
+            return Ok(val["Payment"].clone());
+        }
+
+        match classify_error(status, &resp_body) {
+            QboApiAction::RefreshToken => {
+                let new_token = self.tokens.refresh_token().await?;
+                let val = self.post_json(&url, &body, &new_token).await?;
+                Ok(val["Payment"].clone())
+            }
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
             _ => Err(parse_api_error(&resp_body)),
         }
     }
@@ -352,6 +521,7 @@ impl QboClient {
             .await?;
 
         let status = resp.status().as_u16();
+        let retry_after = extract_retry_after(resp.headers());
         let body = resp.text().await?;
 
         if status == 200 {
@@ -376,7 +546,7 @@ impl QboClient {
                     Err(parse_api_error(&body))
                 }
             }
-            QboApiAction::Backoff => Err(QboError::RateLimited),
+            QboApiAction::Backoff => Err(QboError::RateLimited { retry_after }),
             _ => Err(parse_api_error(&body)),
         }
     }
@@ -421,6 +591,15 @@ impl QboClient {
     }
 }
 
+/// Extract the `Retry-After` value (seconds) from response headers.
+fn extract_retry_after(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+    headers
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+}
+
 fn parse_json(body: &str) -> Result<Value, QboError> {
     serde_json::from_str(body).map_err(|e| QboError::Deserialize(e.to_string()))
 }
@@ -437,6 +616,7 @@ fn capitalize(s: &str) -> String {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Mutex;
 
     struct FixedTokenProvider;
 
@@ -464,13 +644,13 @@ mod tests {
     }
 
     #[test]
-    fn write_url_has_minorversion_and_requestid() {
+    fn write_url_encodes_caller_requestid() {
         let c = test_client("https://sandbox-quickbooks.api.intuit.com/v3");
-        let url = c.write_url("invoice");
+        let id = Uuid::new_v4();
+        let url = c.write_url("invoice", id);
         assert!(url.contains("minorversion=75"), "missing minorversion");
-        assert!(url.contains("requestid="), "missing requestid");
         let rid = url.split("requestid=").nth(1).expect("requestid param");
-        assert_eq!(rid.len(), 36, "requestid must be UUID: {}", rid);
+        assert_eq!(rid, id.to_string().as_str(), "requestid must equal caller-provided UUID");
     }
 
     #[test]
@@ -511,8 +691,57 @@ mod tests {
         assert!(url.contains("minorversion=75"));
     }
 
-    // These retry tests stay on a local axum server because the sandbox does
-    // not provide a deterministic way to force the same 5xx sequence on demand.
+    #[test]
+    fn extract_retry_after_parses_seconds() {
+        let mut map = reqwest::header::HeaderMap::new();
+        map.insert(
+            "retry-after",
+            reqwest::header::HeaderValue::from_static("42"),
+        );
+        assert_eq!(extract_retry_after(&map), Some(Duration::from_secs(42)));
+    }
+
+    #[test]
+    fn extract_retry_after_missing_returns_none() {
+        assert_eq!(extract_retry_after(&reqwest::header::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn qbo_customer_payload_serializes_correctly() {
+        let p = QboCustomerPayload {
+            display_name: "Acme Corp".into(),
+            email: Some("billing@acme.com".into()),
+            company_name: Some("Acme Corporation".into()),
+            currency_ref: Some("USD".into()),
+        };
+        let j = p.to_qbo_json();
+        assert_eq!(j["DisplayName"].as_str(), Some("Acme Corp"));
+        assert_eq!(j["PrimaryEmailAddr"]["Address"].as_str(), Some("billing@acme.com"));
+        assert_eq!(j["CompanyName"].as_str(), Some("Acme Corporation"));
+        assert_eq!(j["CurrencyRef"]["value"].as_str(), Some("USD"));
+    }
+
+    #[test]
+    fn qbo_payment_payload_serializes_correctly() {
+        let p = QboPaymentPayload {
+            customer_ref: "7".into(),
+            total_amount: 250.00,
+            txn_date: Some("2026-04-20".into()),
+            currency_ref: Some("USD".into()),
+            payment_method_ref: Some("2".into()),
+            deposit_to_account_ref: Some("35".into()),
+        };
+        let j = p.to_qbo_json();
+        assert_eq!(j["CustomerRef"]["value"].as_str(), Some("7"));
+        assert_eq!(j["TotalAmt"].as_f64(), Some(250.00));
+        assert_eq!(j["TxnDate"].as_str(), Some("2026-04-20"));
+        assert_eq!(j["CurrencyRef"]["value"].as_str(), Some("USD"));
+        assert_eq!(j["PaymentMethodRef"]["value"].as_str(), Some("2"));
+        assert_eq!(j["DepositToAccountRef"]["value"].as_str(), Some("35"));
+    }
+
+    // These retry tests use a local axum server because the sandbox cannot
+    // force the same 5xx sequence on demand.
 
     struct SyncTestState {
         get_count: AtomicU32,
@@ -582,7 +811,7 @@ mod tests {
         let client = test_client(&base_url);
         let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true});
 
-        let result = client.update_entity("Invoice", body).await;
+        let result = client.update_entity("Invoice", body, Uuid::new_v4()).await;
         assert!(result.is_ok(), "expected success: {:?}", result);
         assert_eq!(state.get_count.load(Ordering::SeqCst), 3, "3 re-fetches");
         assert_eq!(
@@ -598,7 +827,7 @@ mod tests {
         let client = test_client(&base_url);
         let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true});
 
-        let result = client.update_entity("Invoice", body).await;
+        let result = client.update_entity("Invoice", body, Uuid::new_v4()).await;
         assert!(
             matches!(result, Err(QboError::SyncTokenExhausted(3))),
             "expected SyncTokenExhausted: {:?}",
@@ -608,6 +837,93 @@ mod tests {
             state.post_count.load(Ordering::SeqCst),
             4,
             "should attempt 4 POSTs then give up"
+        );
+    }
+
+    // -- requestid determinism test --
+
+    #[derive(Clone)]
+    struct RecordingState {
+        recorded_ids: Arc<Mutex<Vec<String>>>,
+        post_count: Arc<AtomicU32>,
+        max_failures: u32,
+    }
+
+    async fn recording_get(
+        axum::extract::State(_): axum::extract::State<RecordingState>,
+    ) -> (axum::http::StatusCode, String) {
+        (
+            axum::http::StatusCode::OK,
+            r#"{"Invoice":{"Id":"1","SyncToken":"99"}}"#.into(),
+        )
+    }
+
+    async fn recording_post(
+        axum::extract::State(s): axum::extract::State<RecordingState>,
+        uri: axum::http::Uri,
+    ) -> (axum::http::StatusCode, String) {
+        let n = s.post_count.fetch_add(1, Ordering::SeqCst);
+        if let Some(query) = uri.query() {
+            for part in query.split('&') {
+                if let Some(id) = part.strip_prefix("requestid=") {
+                    s.recorded_ids.lock().expect("test mutex").push(id.to_string());
+                    break;
+                }
+            }
+        }
+        if n < s.max_failures {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                r#"{"Fault":{"Error":[{"Message":"Stale Object Error","Detail":"SyncToken mismatch","code":"5010"}],"type":"ValidationFault"}}"#.into(),
+            )
+        } else {
+            (
+                axum::http::StatusCode::OK,
+                r#"{"Invoice":{"Id":"1","SyncToken":"100"}}"#.into(),
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn update_entity_same_requestid_on_retry() {
+        let state = RecordingState {
+            recorded_ids: Arc::new(Mutex::new(Vec::new())),
+            post_count: Arc::new(AtomicU32::new(0)),
+            max_failures: 1,
+        };
+        let app = axum::Router::new()
+            .route(
+                "/v3/company/{realm}/invoice/{id}",
+                axum::routing::get(recording_get),
+            )
+            .route(
+                "/v3/company/{realm}/invoice",
+                axum::routing::post(recording_post),
+            )
+            .with_state(state.clone());
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let addr = listener.local_addr().expect("test local addr");
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
+
+        let client = test_client(&format!("http://{}/v3", addr));
+        let rid = Uuid::new_v4();
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true});
+
+        let result = client.update_entity("Invoice", body, rid).await;
+        assert!(result.is_ok(), "expected success: {:?}", result);
+
+        let ids = state.recorded_ids.lock().expect("test mutex");
+        assert_eq!(ids.len(), 2, "expected 2 POST attempts");
+        assert_eq!(
+            ids[0], ids[1],
+            "requestid must be identical across retries, got: {:?}",
+            &*ids
+        );
+        assert_eq!(
+            ids[0],
+            rid.to_string(),
+            "requestid must match caller-provided UUID"
         );
     }
 
@@ -655,7 +971,7 @@ mod tests {
         };
 
         let result = client
-            .create_invoice(&payload)
+            .create_invoice(&payload, Uuid::new_v4())
             .await
             .expect("create_invoice failed");
         assert_eq!(
@@ -664,6 +980,80 @@ mod tests {
             "returned invoice must have Id=42"
         );
         assert_eq!(call_count.load(Ordering::SeqCst), 1, "one POST to QBO");
+    }
+
+    #[tokio::test]
+    async fn create_customer_returns_customer_id() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let count = call_count.clone();
+        let app = axum::Router::new().route(
+            "/v3/company/{realm}/customer",
+            axum::routing::post(move || {
+                let c = count.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    (
+                        axum::http::StatusCode::OK,
+                        r#"{"Customer":{"Id":"99","SyncToken":"0","DisplayName":"Acme Corp"}}"#,
+                    )
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let addr = listener.local_addr().expect("test local addr");
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
+
+        let client = test_client(&format!("http://{}/v3", addr));
+        let payload = QboCustomerPayload {
+            display_name: "Acme Corp".into(),
+            email: Some("billing@acme.com".into()),
+            company_name: None,
+            currency_ref: None,
+        };
+        let result = client
+            .create_customer(&payload, Uuid::new_v4())
+            .await
+            .expect("create_customer failed");
+        assert_eq!(result["Id"].as_str(), Some("99"));
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn create_payment_returns_payment_id() {
+        let call_count = Arc::new(AtomicU32::new(0));
+        let count = call_count.clone();
+        let app = axum::Router::new().route(
+            "/v3/company/{realm}/payment",
+            axum::routing::post(move || {
+                let c = count.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    (
+                        axum::http::StatusCode::OK,
+                        r#"{"Payment":{"Id":"55","SyncToken":"0","TotalAmt":250.0}}"#,
+                    )
+                }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let addr = listener.local_addr().expect("test local addr");
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
+
+        let client = test_client(&format!("http://{}/v3", addr));
+        let payload = QboPaymentPayload {
+            customer_ref: "7".into(),
+            total_amount: 250.00,
+            txn_date: Some("2026-04-20".into()),
+            currency_ref: None,
+            payment_method_ref: None,
+            deposit_to_account_ref: None,
+        };
+        let result = client
+            .create_payment(&payload, Uuid::new_v4())
+            .await
+            .expect("create_payment failed");
+        assert_eq!(result["Id"].as_str(), Some("55"));
+        assert_eq!(call_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

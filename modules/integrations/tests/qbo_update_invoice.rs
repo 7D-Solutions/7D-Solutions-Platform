@@ -11,6 +11,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 struct SandboxTokenProvider {
     access_token: RwLock<String>,
@@ -181,7 +182,7 @@ async fn qbo_update_invoice_shipping_fields() {
 
     // 4. Call update_entity (same flow as HTTP handler)
     let result = client
-        .update_entity("Invoice", update_body)
+        .update_entity("Invoice", update_body, Uuid::new_v4())
         .await
         .expect("sparse update failed");
 
@@ -277,7 +278,7 @@ async fn qbo_update_invoice_partial_fields() {
     });
 
     let result = client
-        .update_entity("Invoice", update_body)
+        .update_entity("Invoice", update_body, Uuid::new_v4())
         .await
         .expect("partial update failed");
 

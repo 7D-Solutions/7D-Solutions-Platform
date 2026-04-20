@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.16.0
+- feat: extend QBO client with `create_customer`, `update_customer`, `create_payment`, `update_payment` operations, rate-limit response header parsing (`X-RateLimit-Remaining`, `Retry-After`), and deterministic `RequestId` propagation from platform request fingerprints; updates existing tests and adds idempotency coverage ([bd-hv1e2] / Stream D Phase 1.5)
+
 ## 2.15.0
 - feat: add `integrations_sync_jobs` operational health table with `upsert_job_success` / `upsert_job_failure` repo primitives, `GET /api/integrations/sync/jobs` paginated endpoint, and health instrumentation in the OAuth token refresh loop; migration creates the jobs table with `(app_id, provider, job_name)` unique constraint and failure streak tracking ([bd-cjdst] / Stream D Phase 1.5)
 

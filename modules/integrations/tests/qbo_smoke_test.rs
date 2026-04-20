@@ -5,11 +5,15 @@
 //!
 //! Run: QBO_SANDBOX=1 ./scripts/cargo-slot.sh test -p integrations-rs -- qbo_smoke_test --nocapture
 
-use integrations_rs::domain::qbo::{client::QboClient, QboError, TokenProvider};
+use integrations_rs::domain::qbo::{
+    client::{QboClient, QboCustomerPayload},
+    QboError, TokenProvider,
+};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 // ============================================================================
 // Token provider (same as qbo_sandbox.rs but self-contained)
@@ -271,7 +275,7 @@ async fn qbo_smoke_test() {
                     "ShipMethodRef": {"value": "UPS Ground"}
                 });
 
-                match client.update_entity("Invoice", update).await {
+                match client.update_entity("Invoice", update, Uuid::new_v4()).await {
                     Ok(_) => {
                         eprintln!(
                             "  PASS  Sparse update invoice {} with shipping fields",
@@ -336,7 +340,7 @@ async fn qbo_smoke_test() {
                     "ShipDate": "2026-01-01"
                 });
 
-                match client.update_entity("Invoice", stale_update).await {
+                match client.update_entity("Invoice", stale_update, Uuid::new_v4()).await {
                     Ok(_) => {
                         // SyncToken retry logic should have recovered
                         eprintln!("  PASS  Stale SyncToken recovered via retry");
@@ -492,7 +496,7 @@ async fn qbo_smoke_test() {
 
     // Missing required fields in update
     match client
-        .update_entity("Invoice", json!({"sparse": true}))
+        .update_entity("Invoice", json!({"sparse": true}), Uuid::new_v4())
         .await
     {
         Err(e) => eprintln!("  PASS  Update missing Id → {}", e),
@@ -591,19 +595,15 @@ async fn qbo_smoke_test() {
     eprintln!("\n▸ Create test data");
 
     // Create a customer
-    match client
-        .update_entity(
-            "Customer",
-            json!({
-                "DisplayName": format!("Smoke Test Customer {}", chrono::Utc::now().timestamp()),
-                "PrimaryEmailAddr": {"Address": "smoke@test.example.com"},
-                "CompanyName": "Smoke Test Corp"
-            }),
-        )
-        .await
-    {
+    let cust_payload = QboCustomerPayload {
+        display_name: format!("Smoke Test Customer {}", chrono::Utc::now().timestamp()),
+        email: Some("smoke@test.example.com".into()),
+        company_name: Some("Smoke Test Corp".into()),
+        currency_ref: None,
+    };
+    match client.create_customer(&cust_payload, Uuid::new_v4()).await {
         Ok(resp) => {
-            let cust_id = resp["Customer"]["Id"].as_str().unwrap_or("?");
+            let cust_id = resp["Id"].as_str().unwrap_or("?");
             eprintln!("  PASS  Created customer ID {}", cust_id);
 
             // Read it back
@@ -617,11 +617,6 @@ async fn qbo_smoke_test() {
                     eprintln!("  FAIL  Read back — {}", e);
                 }
             }
-        }
-        Err(QboError::Deserialize(msg)) if msg.contains("missing Id") => {
-            // Create requires POST to /customer without Id — our client needs Id for updates.
-            // Test the raw create flow differently.
-            eprintln!("  SKIP  Create requires Id-less POST (client designed for updates)");
         }
         Err(e) => {
             failures.push(format!("Create customer: {}", e));

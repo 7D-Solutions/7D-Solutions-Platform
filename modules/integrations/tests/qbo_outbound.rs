@@ -411,7 +411,7 @@ async fn qbo_outbound_create_invoice_returns_valid_id() {
         doc_number: Some("AR-001".to_string()),
     };
 
-    let result = client.create_invoice(&payload).await;
+    let result = client.create_invoice(&payload, Uuid::new_v4()).await;
     assert!(result.is_ok(), "create_invoice failed: {:?}", result);
 
     let invoice = result.unwrap();

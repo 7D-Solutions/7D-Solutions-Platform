@@ -11,6 +11,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 struct SandboxTokenProvider {
     access_token: RwLock<String>,
@@ -213,7 +214,7 @@ async fn qbo_sandbox_integration() {
         "ShipMethodRef": {"value": "FedEx"}
     });
     client
-        .update_entity("Invoice", update_body)
+        .update_entity("Invoice", update_body, Uuid::new_v4())
         .await
         .expect("sparse update failed");
     eprintln!("Sparse updated invoice {} with shipping fields", inv_id);

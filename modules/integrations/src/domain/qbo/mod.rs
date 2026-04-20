@@ -26,8 +26,8 @@ pub enum QboError {
     },
     #[error("SyncToken stale after {0} retries")]
     SyncTokenExhausted(u32),
-    #[error("Rate limited")]
-    RateLimited,
+    #[error("Rate limited — retry after {retry_after:?}")]
+    RateLimited { retry_after: Option<std::time::Duration> },
     #[error("Authentication failed — token needs refresh")]
     AuthFailed,
     #[error("Token provider error: {0}")]

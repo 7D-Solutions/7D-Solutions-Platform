@@ -195,7 +195,7 @@ pub async fn process_ar_invoice_opened(
     };
 
     let qbo_invoice = qbo
-        .create_invoice(&invoice_payload)
+        .create_invoice(&invoice_payload, Uuid::new_v4())
         .await
         .map_err(|e| format!("qbo_outbound: QBO create_invoice failed for {invoice_id}: {e}"))?;
 
@@ -412,7 +412,7 @@ pub async fn process_order_ingested(
         doc_number: Some(format!("{source}-{order_id}")),
     };
 
-    let qbo_invoice = qbo.create_invoice(&invoice_payload).await.map_err(|e| {
+    let qbo_invoice = qbo.create_invoice(&invoice_payload, Uuid::new_v4()).await.map_err(|e| {
         format!("qbo_outbound: QBO create_invoice failed for order {order_id}: {e}")
     })?;
 

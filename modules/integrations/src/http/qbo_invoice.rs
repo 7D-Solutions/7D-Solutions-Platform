@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 use crate::domain::oauth::{service as oauth_service, OAuthError};
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
@@ -60,7 +61,7 @@ fn qbo_error(e: QboError) -> ApiError {
         QboError::SyncTokenExhausted(_) => {
             ApiError::conflict("Invoice was modified concurrently — retry the request")
         }
-        QboError::RateLimited => ApiError::new(429, "rate_limited", "QBO rate limit exceeded"),
+        QboError::RateLimited { .. } => ApiError::new(429, "rate_limited", "QBO rate limit exceeded"),
         QboError::AuthFailed => ApiError::new(
             502,
             "auth_failed",
@@ -250,7 +251,7 @@ pub async fn update_invoice(
     }
 
     // 8. Call QBO update (handles SyncToken retry internally)
-    let result = match client.update_entity("Invoice", body).await {
+    let result = match client.update_entity("Invoice", body, Uuid::new_v4()).await {
         Ok(r) => r,
         Err(e) => return qbo_error(e).into_response(),
     };
