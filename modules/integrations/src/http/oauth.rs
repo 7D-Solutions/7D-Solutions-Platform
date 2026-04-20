@@ -182,13 +182,19 @@ pub async fn callback(
         return e.into_response();
     }
 
+    // state carries the app_id set during connect — validate before any env/token work (CSRF guard)
+    let app_id = match params.state.as_deref() {
+        Some(s) if !s.is_empty() => s.to_string(),
+        _ => {
+            tracing::warn!("OAuth callback rejected: missing or empty state — possible CSRF");
+            return ApiError::new(400, "invalid_state", "Missing OAuth state parameter").into_response();
+        }
+    };
+
     let config = match QboConfig::from_env() {
         Ok(c) => c,
         Err(e) => return e.into_response(),
     };
-
-    // The state parameter carries the app_id set during connect
-    let app_id = params.state.as_deref().unwrap_or("default");
 
     // Exchange authorization code for tokens
     let client = reqwest::Client::new();
@@ -238,7 +244,7 @@ pub async fn callback(
 
     match service::create_connection(
         &state.pool,
-        app_id,
+        &app_id,
         &provider,
         &params.realm_id,
         scopes,

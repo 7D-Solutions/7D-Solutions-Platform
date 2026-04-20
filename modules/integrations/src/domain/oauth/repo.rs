@@ -49,7 +49,7 @@ pub async fn get_decrypted_access_token(
     .await
 }
 
-pub async fn insert_connection(
+pub async fn upsert_connection(
     pool: &PgPool,
     app_id: &str,
     provider: &str,
@@ -77,6 +77,15 @@ pub async fn insert_connection(
             $9, 'connected',
             NOW(), NOW()
         )
+        ON CONFLICT (app_id, provider) DO UPDATE SET
+            realm_id                 = EXCLUDED.realm_id,
+            access_token             = EXCLUDED.access_token,
+            refresh_token            = EXCLUDED.refresh_token,
+            access_token_expires_at  = EXCLUDED.access_token_expires_at,
+            refresh_token_expires_at = EXCLUDED.refresh_token_expires_at,
+            scopes_granted           = EXCLUDED.scopes_granted,
+            connection_status        = 'connected',
+            updated_at               = NOW()
         RETURNING id, app_id, provider, realm_id,
                   access_token_expires_at, refresh_token_expires_at,
                   scopes_granted, connection_status,

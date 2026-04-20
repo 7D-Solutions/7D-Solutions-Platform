@@ -142,20 +142,19 @@ async fn test_unique_provider_realm_rejects_duplicate() {
 }
 
 // ============================================================================
-// 2. UNIQUE(app_id, provider) rejects duplicate provider per tenant
+// 2. Same tenant, different realm: second connect upserts the existing row
 // ============================================================================
 
 #[tokio::test]
 #[serial]
-async fn test_unique_app_provider_rejects_duplicate() {
+async fn test_same_tenant_second_connect_upserts_realm() {
     let pool = setup_db().await;
     set_encryption_key();
     let tenant = unique_tenant();
     let realm_a = unique_realm();
     let realm_b = unique_realm();
 
-    // First connection
-    service::create_connection(
+    let first = service::create_connection(
         &pool,
         &tenant,
         "quickbooks",
@@ -166,8 +165,8 @@ async fn test_unique_app_provider_rejects_duplicate() {
     .await
     .expect("First connection should succeed");
 
-    // Second connection with different realm but same tenant+provider — should fail
-    let err = service::create_connection(
+    // Second connect with a different realm upserts the existing row (same UUID)
+    let second = service::create_connection(
         &pool,
         &tenant,
         "quickbooks",
@@ -175,15 +174,12 @@ async fn test_unique_app_provider_rejects_duplicate() {
         "com.intuit.quickbooks.accounting",
         &test_tokens(),
     )
-    .await;
+    .await
+    .expect("Second connect for same tenant must succeed via upsert");
 
-    assert!(err.is_err(), "duplicate provider per tenant must fail");
-    let msg = format!("{}", err.unwrap_err());
-    assert!(
-        msg.contains("already has"),
-        "error should mention already has: {}",
-        msg
-    );
+    assert_eq!(first.id, second.id, "upsert must preserve row identity");
+    assert_eq!(second.realm_id, realm_b, "realm must be updated to realm_b");
+    assert_eq!(second.connection_status, "connected");
 }
 
 // ============================================================================
@@ -532,4 +528,160 @@ async fn test_refresh_failure_marks_needs_reauth() {
         .expect("get_connection_status failed")
         .expect("connection should exist");
     assert_eq!(info.connection_status, "needs_reauth");
+}
+
+// ============================================================================
+// 9. Cross-tenant reconnect: disconnected realm no longer blocks another tenant
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_cross_tenant_reconnect_after_disconnect() {
+    let pool = setup_db().await;
+    set_encryption_key();
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+    let realm = unique_realm();
+
+    // Tenant A connects the realm
+    service::create_connection(
+        &pool,
+        &tenant_a,
+        "quickbooks",
+        &realm,
+        "com.intuit.quickbooks.accounting",
+        &test_tokens(),
+    )
+    .await
+    .expect("Tenant A connect should succeed");
+
+    // While A is still connected, B cannot claim the same realm
+    let blocked = service::create_connection(
+        &pool,
+        &tenant_b,
+        "quickbooks",
+        &realm,
+        "com.intuit.quickbooks.accounting",
+        &test_tokens(),
+    )
+    .await;
+    assert!(blocked.is_err(), "B must not steal a connected realm from A");
+
+    // Tenant A disconnects
+    service::disconnect(&pool, &tenant_a, "quickbooks")
+        .await
+        .expect("Tenant A disconnect should succeed");
+
+    // Now tenant B can connect to the same realm
+    let b_conn = service::create_connection(
+        &pool,
+        &tenant_b,
+        "quickbooks",
+        &realm,
+        "com.intuit.quickbooks.accounting",
+        &test_tokens(),
+    )
+    .await
+    .expect("Tenant B must be able to connect after Tenant A disconnects");
+
+    assert_eq!(b_conn.realm_id, realm);
+    assert_eq!(b_conn.connection_status, "connected");
+
+    // Tenant A's row still exists but is disconnected
+    let a_info = service::get_connection_status(&pool, &tenant_a, "quickbooks")
+        .await
+        .expect("get_connection_status failed")
+        .expect("A row must still exist");
+    assert_eq!(a_info.connection_status, "disconnected");
+}
+
+// ============================================================================
+// 10. Same-tenant reconnect preserves row identity
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_same_tenant_reconnect_preserves_row_id() {
+    let pool = setup_db().await;
+    set_encryption_key();
+    let tenant = unique_tenant();
+    let realm = unique_realm();
+
+    let original = service::create_connection(
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        "com.intuit.quickbooks.accounting",
+        &test_tokens(),
+    )
+    .await
+    .expect("initial connect");
+
+    service::disconnect(&pool, &tenant, "quickbooks")
+        .await
+        .expect("disconnect");
+
+    let reconnected = service::create_connection(
+        &pool,
+        &tenant,
+        "quickbooks",
+        &realm,
+        "com.intuit.quickbooks.accounting",
+        &test_tokens(),
+    )
+    .await
+    .expect("reconnect must succeed");
+
+    assert_eq!(original.id, reconnected.id, "row UUID must be preserved on reconnect");
+    assert_eq!(reconnected.connection_status, "connected");
+    assert_eq!(reconnected.realm_id, realm);
+}
+
+// ============================================================================
+// 11. Callback rejects missing state (CSRF guard)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_callback_rejects_missing_state() {
+    // Hit the real running integrations service.  No state → 400 before any QBO call.
+    let base = std::env::var("INTEGRATIONS_BASE_URL")
+        .unwrap_or_else(|_| "http://localhost:8099".to_string());
+
+    let client = reqwest::Client::new();
+
+    // Missing state entirely
+    let resp = client
+        .get(format!(
+            "{}/api/integrations/oauth/callback/quickbooks?code=dummy&realmId=dummy-realm",
+            base
+        ))
+        .send()
+        .await
+        .expect("request to integrations service failed");
+
+    assert_eq!(
+        resp.status().as_u16(),
+        400,
+        "missing state must return 400, got {}",
+        resp.status()
+    );
+
+    // Empty state
+    let resp2 = client
+        .get(format!(
+            "{}/api/integrations/oauth/callback/quickbooks?code=dummy&realmId=dummy-realm&state=",
+            base
+        ))
+        .send()
+        .await
+        .expect("request to integrations service failed");
+
+    assert_eq!(
+        resp2.status().as_u16(),
+        400,
+        "empty state must return 400, got {}",
+        resp2.status()
+    );
 }

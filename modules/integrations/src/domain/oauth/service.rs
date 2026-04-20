@@ -64,7 +64,7 @@ pub async fn create_connection(
         now + Duration::days(100)
     };
 
-    let row = repo::insert_connection(
+    let row = repo::upsert_connection(
         pool,
         app_id,
         provider,
@@ -79,15 +79,10 @@ pub async fn create_connection(
     .await
     .map_err(|e| {
         let msg = e.to_string();
-        if msg.contains("integrations_oauth_connections_provider_realm_unique") {
+        if msg.contains("integrations_oauth_connections_provider_realm_connected") {
             OAuthError::DuplicateConnection(format!(
                 "Provider '{}' realm '{}' is already connected to another tenant",
                 provider, realm_id
-            ))
-        } else if msg.contains("integrations_oauth_connections_app_provider_unique") {
-            OAuthError::DuplicateConnection(format!(
-                "Tenant already has an active '{}' connection",
-                provider
             ))
         } else {
             OAuthError::Database(e)

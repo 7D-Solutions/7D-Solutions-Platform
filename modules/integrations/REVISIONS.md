@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.7.6
+- fix: OAuth reconnect upsert on (app_id, provider), partial unique on (provider, realm_id) scoped to connected rows, and mandatory `state` CSRF guard on callback ([bd-apj1n] / Stream D Phase 0)
+
 ## 2.7.5
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 
