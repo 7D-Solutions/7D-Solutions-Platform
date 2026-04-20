@@ -24,6 +24,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
+use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
 use crate::domain::sync::push_attempts::{list_attempts, ListAttemptsFilter, PushAttemptRow};
 use crate::outbox::list_failed;
 use crate::AppState;
@@ -330,6 +331,68 @@ pub async fn list_push_attempts(
 fn default_page() -> i64 { 1 }
 fn default_page_size() -> i64 { 50 }
 
-pub async fn list_jobs() -> StatusCode {
-    StatusCode::NOT_IMPLEMENTED
+// ============================================================================
+// list_jobs
+// ============================================================================
+
+/// Response item for a sync job health row.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SyncJobItem {
+    pub id: Uuid,
+    pub provider: String,
+    pub job_name: String,
+    pub last_success_at: Option<DateTime<Utc>>,
+    pub last_failure_at: Option<DateTime<Utc>>,
+    pub failure_streak: i32,
+    pub last_error: Option<String>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<SyncJobRow> for SyncJobItem {
+    fn from(r: SyncJobRow) -> Self {
+        Self {
+            id: r.id,
+            provider: r.provider,
+            job_name: r.job_name,
+            last_success_at: r.last_success_at,
+            last_failure_at: r.last_failure_at,
+            failure_streak: r.failure_streak,
+            last_error: r.last_error,
+            updated_at: r.updated_at,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JobsQuery {
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_page_size")]
+    pub page_size: i64,
+}
+
+/// GET /api/integrations/sync/jobs
+pub async fn list_jobs(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(q): Query<JobsQuery>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    let page = q.page.max(1);
+    let page_size = q.page_size.clamp(1, 200);
+
+    match repo_list_jobs(&state.pool, &app_id, page, page_size).await {
+        Ok((rows, total)) => {
+            let items: Vec<SyncJobItem> = rows.into_iter().map(Into::into).collect();
+            Json(PaginatedResponse::new(items, page, page_size, total)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "list_jobs DB error");
+            ApiError::internal("Internal database error").into_response()
+        }
+    }
 }

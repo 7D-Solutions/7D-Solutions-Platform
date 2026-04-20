@@ -14,6 +14,7 @@ use uuid::Uuid;
 use super::client::QboClient;
 use super::repo;
 use super::{QboError, TokenProvider};
+use crate::domain::sync::health;
 use crate::events::envelope::create_integrations_envelope;
 use crate::events::MUTATION_CLASS_DATA_MUTATION;
 use crate::outbox::enqueue_event_tx;
@@ -117,6 +118,11 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         "Full resync completed"
                     );
                     processed += count;
+                    if let Err(e) = health::upsert_job_success(
+                        pool, &conn.app_id, "quickbooks", "cdc_poll",
+                    ).await {
+                        tracing::warn!(error = %e, "Failed to record cdc_poll health");
+                    }
                 }
                 Err(e) => {
                     tracing::error!(
@@ -125,6 +131,11 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         error = %e,
                         "Full resync failed"
                     );
+                    if let Err(he) = health::upsert_job_failure(
+                        pool, &conn.app_id, "quickbooks", "cdc_poll", &e.to_string(),
+                    ).await {
+                        tracing::warn!(error = %he, "Failed to record cdc_poll health");
+                    }
                 }
             }
         } else if let Some(watermark) = conn.cdc_watermark {
@@ -139,6 +150,11 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         );
                     }
                     processed += count;
+                    if let Err(e) = health::upsert_job_success(
+                        pool, &conn.app_id, "quickbooks", "cdc_poll",
+                    ).await {
+                        tracing::warn!(error = %e, "Failed to record cdc_poll health");
+                    }
                 }
                 Err(e) => {
                     tracing::error!(
@@ -147,6 +163,11 @@ pub async fn cdc_tick(pool: &PgPool) -> Result<u32, sqlx::Error> {
                         error = %e,
                         "CDC poll failed"
                     );
+                    if let Err(he) = health::upsert_job_failure(
+                        pool, &conn.app_id, "quickbooks", "cdc_poll", &e.to_string(),
+                    ).await {
+                        tracing::warn!(error = %he, "Failed to record cdc_poll health");
+                    }
                 }
             }
         }

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.15.0
+- feat: add `integrations_sync_jobs` operational health table with `upsert_job_success` / `upsert_job_failure` repo primitives, `GET /api/integrations/sync/jobs` paginated endpoint, and health instrumentation in the OAuth token refresh loop; migration creates the jobs table with `(app_id, provider, job_name)` unique constraint and failure streak tracking ([bd-cjdst] / Stream D Phase 1.5)
+
 ## 2.14.0
 - feat: add pre-call authority version check (`pre_call_version_check`) that short-circuits to `superseded` when authority advances before dispatch, and post-call stale-authority reconciliation (`post_call_reconcile`) that atomically transitions inflight attempts to `completed_under_stale_authority` then auto-closes equivalent values or opens a conflict row for divergent ones; migration adds both terminal statuses to the push_attempts status check constraint ([bd-w6e21] / Stream D Phase 1.5)
 

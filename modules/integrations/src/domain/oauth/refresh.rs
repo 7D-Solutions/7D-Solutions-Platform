@@ -14,6 +14,7 @@ use tokio::sync::watch;
 use super::repo;
 use super::service::encryption_key;
 use super::TokenResponse;
+use crate::domain::sync::health;
 
 /// Trait for HTTP token exchange — allows injecting test implementations.
 #[async_trait::async_trait]
@@ -121,6 +122,16 @@ pub async fn refresh_tick(
                             provider = %candidate.provider,
                             "Token refreshed successfully"
                         );
+                        if let Err(e) = health::upsert_job_success(
+                            pool,
+                            &candidate.app_id,
+                            &candidate.provider,
+                            "token_refresh",
+                        )
+                        .await
+                        {
+                            tracing::warn!(error = %e, "Failed to record token_refresh health");
+                        }
                         refreshed += 1;
                     }
                     Err(e) => {
@@ -129,6 +140,17 @@ pub async fn refresh_tick(
                             error = %e,
                             "Failed to persist refreshed tokens"
                         );
+                        if let Err(he) = health::upsert_job_failure(
+                            pool,
+                            &candidate.app_id,
+                            &candidate.provider,
+                            "token_refresh",
+                            &e.to_string(),
+                        )
+                        .await
+                        {
+                            tracing::warn!(error = %he, "Failed to record token_refresh health");
+                        }
                     }
                 }
             }
@@ -141,6 +163,17 @@ pub async fn refresh_tick(
                 );
 
                 let _ = repo::mark_needs_reauth(pool, candidate.id).await;
+                if let Err(he) = health::upsert_job_failure(
+                    pool,
+                    &candidate.app_id,
+                    &candidate.provider,
+                    "token_refresh",
+                    &err,
+                )
+                .await
+                {
+                    tracing::warn!(error = %he, "Failed to record token_refresh health");
+                }
             }
         }
     }

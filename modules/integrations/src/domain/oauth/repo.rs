@@ -135,6 +135,7 @@ pub async fn set_disconnected(
 #[derive(Debug, sqlx::FromRow)]
 pub struct RefreshCandidate {
     pub id: Uuid,
+    pub app_id: String,
     pub provider: String,
     pub refresh_token_plaintext: String,
 }
@@ -145,7 +146,7 @@ pub async fn get_refresh_candidates(
 ) -> Result<Vec<RefreshCandidate>, sqlx::Error> {
     sqlx::query_as::<_, RefreshCandidate>(
         r#"
-        SELECT id, provider,
+        SELECT id, app_id, provider,
                pgp_sym_decrypt(refresh_token, $1) AS refresh_token_plaintext
         FROM integrations_oauth_connections
         WHERE connection_status = 'connected'
