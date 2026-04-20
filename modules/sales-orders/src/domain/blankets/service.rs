@@ -186,7 +186,7 @@ pub async fn create_release(
     // Over-draw check with row-level lock
     let mut tx = pool.begin().await?;
 
-    let line = repo::fetch_blanket_line_for_update(pool, req.blanket_line_id, tenant_id)
+    let line = repo::fetch_blanket_line_for_update(&mut *tx, req.blanket_line_id, tenant_id)
         .await?
         .ok_or(BlanketError::NotFound(req.blanket_line_id))?;
 

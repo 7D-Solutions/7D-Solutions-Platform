@@ -1,7 +1,7 @@
 //! Blanket order repository — all SQL operations.
 
 use chrono::NaiveDate;
-use sqlx::{PgExecutor, PgPool};
+use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use super::{BlanketOrder, BlanketOrderLine, BlanketOrderRelease};
@@ -79,8 +79,8 @@ pub async fn fetch_blanket_lines<'e>(
 }
 
 /// Fetch blanket line with row-level lock for over-draw protection.
-pub async fn fetch_blanket_line_for_update(
-    pool: &PgPool,
+pub async fn fetch_blanket_line_for_update<'e>(
+    executor: impl PgExecutor<'e>,
     line_id: Uuid,
     tenant_id: &str,
 ) -> Result<Option<BlanketOrderLine>, sqlx::Error> {
@@ -95,7 +95,7 @@ pub async fn fetch_blanket_line_for_update(
     )
     .bind(line_id)
     .bind(tenant_id)
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
 }
 
