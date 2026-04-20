@@ -180,3 +180,84 @@ pub async fn delete(
         .execute(&mut **tx)
         .await
 }
+
+/// Mark an external ref as tombstoned within a transaction.
+///
+/// Sets `metadata["tombstoned"] = true`, `metadata["remapped_to"] = new_external_id`,
+/// and `label = "tombstoned"`.  The row is retained for audit — no delete.
+/// Callers that list active refs must filter `(metadata->>'tombstoned') IS DISTINCT FROM 'true'`.
+pub async fn tombstone_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    ref_id: i64,
+    app_id: &str,
+    new_external_id: &str,
+) -> Result<ExternalRef, sqlx::Error> {
+    sqlx::query_as(
+        r#"
+        UPDATE integrations_external_refs
+        SET metadata   = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                            'tombstoned',   true,
+                            'tombstoned_at', NOW()::text,
+                            'remapped_to',  $3
+                         ),
+            label      = 'tombstoned',
+            updated_at = NOW()
+        WHERE id = $1 AND app_id = $2
+        RETURNING id, app_id, entity_type, entity_id, system, external_id,
+                  label, metadata, created_at, updated_at
+        "#,
+    )
+    .bind(ref_id)
+    .bind(app_id)
+    .bind(new_external_id)
+    .fetch_one(&mut **tx)
+    .await
+}
+
+/// Find external refs for a given entity_type + system where metadata contains
+/// at least one exact normalized field match (email, phone, or tax_id).
+///
+/// Used exclusively to build deterministic candidate hints for creation conflicts.
+/// Tombstoned refs are excluded.  At least one of the three field arguments must
+/// be `Some`; if all are `None` the query returns an empty vec.
+pub async fn find_candidates_by_normalized_fields(
+    pool: &PgPool,
+    app_id: &str,
+    entity_type: &str,
+    system: &str,
+    normalized_email: Option<&str>,
+    normalized_phone: Option<&str>,
+    normalized_tax_id: Option<&str>,
+    limit: i64,
+) -> Result<Vec<ExternalRef>, sqlx::Error> {
+    if normalized_email.is_none() && normalized_phone.is_none() && normalized_tax_id.is_none() {
+        return Ok(vec![]);
+    }
+    sqlx::query_as::<_, ExternalRef>(
+        r#"
+        SELECT id, app_id, entity_type, entity_id, system, external_id,
+               label, metadata, created_at, updated_at
+        FROM integrations_external_refs
+        WHERE app_id = $1
+          AND entity_type = $2
+          AND system = $3
+          AND (metadata->>'tombstoned') IS DISTINCT FROM 'true'
+          AND (
+                ($4::text IS NOT NULL AND metadata->>'normalized_email'  = $4)
+             OR ($5::text IS NOT NULL AND metadata->>'normalized_phone'  = $5)
+             OR ($6::text IS NOT NULL AND metadata->>'normalized_tax_id' = $6)
+          )
+        ORDER BY updated_at DESC
+        LIMIT $7
+        "#,
+    )
+    .bind(app_id)
+    .bind(entity_type)
+    .bind(system)
+    .bind(normalized_email)
+    .bind(normalized_phone)
+    .bind(normalized_tax_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+}

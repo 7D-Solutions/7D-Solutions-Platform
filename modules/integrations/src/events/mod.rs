@@ -20,6 +20,7 @@ pub mod outbound_webhook_deleted;
 pub mod outbound_webhook_updated;
 pub mod sync_authority_changed;
 pub mod sync_conflict_detected;
+pub mod sync_conflict_resolved;
 pub mod sync_push_failed;
 pub mod webhook_received;
 pub mod webhook_routed;
@@ -84,6 +85,10 @@ pub use sync_authority_changed::{
 pub use sync_conflict_detected::{
     build_sync_conflict_detected_envelope, SyncConflictDetectedPayload,
     EVENT_TYPE_SYNC_CONFLICT_DETECTED,
+};
+pub use sync_conflict_resolved::{
+    build_sync_conflict_resolved_envelope, SyncConflictResolvedPayload,
+    EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
 };
 pub use sync_push_failed::{
     build_sync_push_failed_envelope, SyncPushFailedPayload, EVENT_TYPE_SYNC_PUSH_FAILED,

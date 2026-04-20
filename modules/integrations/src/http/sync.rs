@@ -26,9 +26,10 @@ use uuid::Uuid;
 
 use crate::domain::oauth::service as oauth_service;
 use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
-use crate::domain::sync::conflicts::{ConflictError, ResolveConflictRequest};
-use crate::domain::sync::conflicts_repo::{list_conflicts_paged, resolve_conflict as repo_resolve_conflict};
-use crate::domain::sync::resolve_service::{PushError, ResolveService};
+use crate::domain::sync::conflicts_repo::list_conflicts_paged;
+use crate::domain::sync::resolve_service::{
+    resolve_conflict_transactional, PushError, ResolveConflictError, ResolveService,
+};
 use crate::domain::sync::{flip_authority as svc_flip_authority, FlipError};
 use crate::domain::sync::health::{list_jobs as repo_list_jobs, SyncJobRow};
 use crate::domain::sync::push_attempts::{list_attempts, ListAttemptsFilter, PushAttemptRow};
@@ -276,31 +277,40 @@ pub async fn resolve_conflict(
         None => "unknown".to_string(),
     };
 
-    let req = ResolveConflictRequest {
-        internal_id: body.internal_id,
-        resolved_by,
-        resolution_note: body.resolution_note,
-    };
-
-    match repo_resolve_conflict(&state.pool, &app_id, id, &req).await {
+    match resolve_conflict_transactional(
+        &state.pool,
+        &app_id,
+        id,
+        &resolved_by,
+        &body.internal_id,
+        body.resolution_note.as_deref(),
+    )
+    .await
+    {
         Ok(row) => (StatusCode::OK, Json(ConflictItem::from(row))).into_response(),
-        Err(ConflictError::NotFound(_)) => {
+        Err(ResolveConflictError::NotFound(_)) => {
             ApiError::not_found(format!("Conflict {} not found", id)).into_response()
         }
-        Err(ConflictError::InvalidTransition(from, to)) => ApiError::new(
+        Err(ResolveConflictError::InvalidTransition(from, to)) => ApiError::new(
             409,
             "invalid_transition",
             format!("Cannot transition conflict from '{}' to '{}'", from, to),
         )
         .into_response(),
-        Err(ConflictError::MissingInternalId) => ApiError::new(
+        Err(ResolveConflictError::MissingInternalId) => ApiError::new(
             422,
             "missing_internal_id",
             "internal_id is required to resolve a conflict",
         )
         .into_response(),
+        Err(ResolveConflictError::UnsupportedEntityType(et)) => ApiError::new(
+            422,
+            "unsupported_entity_type",
+            format!("entity_type '{}' is not supported for conflict resolution", et),
+        )
+        .into_response(),
         Err(e) => {
-            tracing::error!(error = %e, conflict_id = %id, "resolve_conflict DB error");
+            tracing::error!(error = %e, conflict_id = %id, "resolve_conflict error");
             ApiError::internal("Internal database error").into_response()
         }
     }

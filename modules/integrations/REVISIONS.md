@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.26.0
+- feat: `POST /sync/conflicts/{id}/resolve` with explicit `(entity_type, action)` handler dispatch, transactional conflict status transitions, `conflict.resolved` event producer; extend resolve_customer with duplicate-remap and external_refs repo with conflict-aware lookups ([bd-meaqw] / Stream D Phase 1.5)
+
 ## 2.25.0
 - feat: detector marker-correlation with orphaned-write recovery — auto-advances `failed`/`unknown_failure` push-attempts to `succeeded` when observation markers match, suppressing false conflicts from transport timeouts; `conflict.detected` event producer; `GET /sync/conflicts` read API with filtering ([bd-poz7r] / Stream D Phase 1.5)
 

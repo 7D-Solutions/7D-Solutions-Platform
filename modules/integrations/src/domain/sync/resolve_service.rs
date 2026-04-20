@@ -20,10 +20,14 @@ use crate::domain::qbo::client::{
 };
 use crate::domain::qbo::QboError;
 use crate::events::{
+    build_sync_conflict_resolved_envelope, SyncConflictResolvedPayload,
+    EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
     build_sync_push_failed_envelope, SyncPushFailedPayload, EVENT_TYPE_SYNC_PUSH_FAILED,
 };
 use crate::outbox::enqueue_event_tx;
 use super::authority_repo;
+use super::conflicts::{ConflictError, ConflictStatus};
+use super::conflicts_repo::{get_conflict, resolve_conflict_tx};
 use super::dedupe::{compute_fingerprint, truncate_to_millis};
 use super::push_attempts::{self, PreCallOutcome, ReconcileOutcome};
 
@@ -74,6 +78,133 @@ pub enum PushOutcome {
         entity_id: String,
         conflict_id: Uuid,
     },
+}
+
+// ── Conflict resolve error ────────────────────────────────────────────────────
+
+#[derive(Debug, thiserror::Error)]
+pub enum ResolveConflictError {
+    #[error("conflict not found: {0}")]
+    NotFound(Uuid),
+    #[error("invalid status transition: {0} → {1}")]
+    InvalidTransition(String, String),
+    #[error("resolved status requires a non-empty internal_id")]
+    MissingInternalId,
+    #[error("unsupported entity type for conflict resolution: {0}")]
+    UnsupportedEntityType(String),
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
+
+impl From<ConflictError> for ResolveConflictError {
+    fn from(e: ConflictError) -> Self {
+        match e {
+            ConflictError::NotFound(id) => ResolveConflictError::NotFound(id),
+            ConflictError::InvalidTransition(from, to) => {
+                ResolveConflictError::InvalidTransition(from, to)
+            }
+            ConflictError::Database(db) => ResolveConflictError::Database(db),
+            other => ResolveConflictError::Database(sqlx::Error::Protocol(other.to_string())),
+        }
+    }
+}
+
+/// Resolve a single conflict: explicit (entity_type, conflict_class) dispatch,
+/// transactional DB update, and `integrations.sync.conflict.resolved` outbox
+/// enqueue in the same commit.
+///
+/// The outbox relay fires AFTER the commit, so the event never precedes the
+/// ledger transition.
+pub async fn resolve_conflict_transactional(
+    pool: &PgPool,
+    app_id: &str,
+    conflict_id: Uuid,
+    resolved_by: &str,
+    internal_id: &str,
+    resolution_note: Option<&str>,
+) -> Result<crate::domain::sync::conflicts::ConflictRow, ResolveConflictError> {
+    if internal_id.is_empty() {
+        return Err(ResolveConflictError::MissingInternalId);
+    }
+
+    // Pre-tx guard: load current row and validate the status transition.
+    let conflict = get_conflict(pool, app_id, conflict_id)
+        .await
+        .map_err(ResolveConflictError::from)?
+        .ok_or(ResolveConflictError::NotFound(conflict_id))?;
+
+    let current_status = ConflictStatus::from_str(&conflict.status)
+        .unwrap_or(ConflictStatus::Pending);
+    if current_status != ConflictStatus::Pending {
+        return Err(ResolveConflictError::InvalidTransition(
+            conflict.status.clone(),
+            "resolved".to_string(),
+        ));
+    }
+
+    // Explicit (entity_type, conflict_class) dispatch — all arms currently
+    // share the same DB path; the match makes routing explicit and extensible
+    // per-entity without trait dispatch.
+    match (conflict.entity_type.as_str(), conflict.conflict_class.as_str()) {
+        ("customer", "edit") | ("customer", "creation") | ("customer", "deletion") => {}
+        ("invoice",  "edit") | ("invoice",  "creation") | ("invoice",  "deletion") => {}
+        ("payment",  "edit") | ("payment",  "creation") | ("payment",  "deletion") => {}
+        _ => {
+            return Err(ResolveConflictError::UnsupportedEntityType(
+                conflict.entity_type.clone(),
+            ));
+        }
+    }
+
+    // Atomic: DB status transition + outbox event enqueue.
+    let mut tx = pool.begin().await.map_err(ResolveConflictError::Database)?;
+
+    let resolved = resolve_conflict_tx(
+        &mut tx,
+        app_id,
+        conflict_id,
+        internal_id,
+        resolved_by,
+        resolution_note,
+    )
+    .await
+    .map_err(ResolveConflictError::Database)?
+    .ok_or(ResolveConflictError::NotFound(conflict_id))?;
+
+    let event_id = Uuid::new_v4();
+    let payload = SyncConflictResolvedPayload {
+        app_id: app_id.to_string(),
+        conflict_id,
+        provider: resolved.provider.clone(),
+        entity_type: resolved.entity_type.clone(),
+        entity_id: resolved.entity_id.clone(),
+        conflict_class: resolved.conflict_class.clone(),
+        resolved_by: resolved_by.to_string(),
+        internal_id: internal_id.to_string(),
+        resolution_note: resolution_note.map(str::to_string),
+    };
+    let envelope = build_sync_conflict_resolved_envelope(
+        event_id,
+        app_id.to_string(),
+        event_id.to_string(),
+        None,
+        payload,
+    );
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_SYNC_CONFLICT_RESOLVED,
+        "sync_conflict",
+        &conflict_id.to_string(),
+        app_id,
+        &envelope,
+    )
+    .await
+    .map_err(ResolveConflictError::Database)?;
+
+    tx.commit().await.map_err(ResolveConflictError::Database)?;
+
+    Ok(resolved)
 }
 
 // ── Push error ────────────────────────────────────────────────────────────────

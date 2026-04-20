@@ -178,6 +178,46 @@ pub async fn close_conflict(
     .ok_or(ConflictError::NotFound(conflict_id))
 }
 
+/// Transition a pending conflict to `resolved` within a caller-supplied transaction.
+///
+/// The caller is responsible for committing the transaction.  This function does
+/// NOT check the current status — the caller must perform that guard before
+/// starting the transaction to avoid a round-trip inside the tx.
+pub async fn resolve_conflict_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_id: &str,
+    conflict_id: Uuid,
+    internal_id: &str,
+    resolved_by: &str,
+    resolution_note: Option<&str>,
+) -> Result<Option<ConflictRow>, sqlx::Error> {
+    sqlx::query_as::<_, ConflictRow>(
+        r#"
+        UPDATE integrations_sync_conflicts
+        SET status          = 'resolved',
+            internal_id     = $3,
+            resolved_by     = $4,
+            resolved_at     = NOW(),
+            resolution_note = $5,
+            updated_at      = NOW()
+        WHERE id = $1 AND app_id = $2 AND status = 'pending'
+        RETURNING
+            id, app_id, provider, entity_type, entity_id,
+            conflict_class, status, detected_by, detected_at,
+            internal_value, external_value, internal_id,
+            resolved_by, resolved_at, resolution_note,
+            created_at, updated_at
+        "#,
+    )
+    .bind(conflict_id)
+    .bind(app_id)
+    .bind(internal_id)
+    .bind(resolved_by)
+    .bind(resolution_note)
+    .fetch_optional(&mut **tx)
+    .await
+}
+
 // ── Read operations ───────────────────────────────────────────────────────────
 
 pub async fn get_conflict(
