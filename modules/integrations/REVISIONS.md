@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.22.0
+- feat: persist normalized push result markers (result_sync_token, result_last_updated_time as ms-truncated UTC, result_projection_hash) to push-attempts ledger; emit `integrations.sync.push.failed` event with taxonomy code in envelope for downstream conflict detection ([bd-lhlrq] / Stream D Phase 1.5)
+
 ## 2.21.0
 - feat: implement `POST /api/integrations/sync/push/{entity_type}` routing with response taxonomy envelope (success/conflict/error), wire push dispatch through QBO sync domain layer with entity-type routing and per-push ledger integration; refine invoice/payment payload types with currency_ref and line_applications ([bd-ws2qn] / Stream D Phase 1.5)
 

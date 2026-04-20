@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::conflicts::{ConflictClass, ConflictRow, MAX_VALUE_BYTES};
+use super::dedupe::truncate_to_millis;
 
 // ── List filter ───────────────────────────────────────────────────────────────
 
@@ -79,6 +80,12 @@ pub struct PushAttemptRow {
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// QBO SyncToken from the provider response (succeeded only).
+    pub result_sync_token: Option<String>,
+    /// Millisecond-truncated UTC timestamp from provider MetaData.LastUpdatedTime (succeeded only).
+    pub result_last_updated_time: Option<DateTime<Utc>>,
+    /// Canonical fingerprint of the external response body (succeeded only).
+    pub result_projection_hash: Option<String>,
 }
 
 // ── Repository ────────────────────────────────────────────────────────────────
@@ -86,7 +93,8 @@ pub struct PushAttemptRow {
 const SELECT_COLS: &str = r#"
     id, app_id, provider, entity_type, entity_id, operation,
     authority_version, request_fingerprint, status, error_message,
-    started_at, completed_at, created_at, updated_at
+    started_at, completed_at, created_at, updated_at,
+    result_sync_token, result_last_updated_time, result_projection_hash
 "#;
 
 /// Record a new push intent in 'accepted' state.
@@ -161,6 +169,69 @@ pub async fn complete_attempt(
     .bind(new_status)
     .bind(error_message)
     .fetch_optional(pool)
+    .await
+}
+
+/// Transition an 'inflight' attempt to 'succeeded' and write normalized result markers.
+///
+/// `result_last_updated_time` is truncated to millisecond precision before storage so that
+/// equality comparisons with CDC observations are stable regardless of sub-millisecond
+/// differences in the provider response.
+pub async fn complete_attempt_with_markers(
+    pool: &PgPool,
+    attempt_id: Uuid,
+    result_sync_token: Option<&str>,
+    result_last_updated_time: Option<DateTime<Utc>>,
+    result_projection_hash: Option<&str>,
+) -> Result<Option<PushAttemptRow>, sqlx::Error> {
+    let lut = result_last_updated_time.map(truncate_to_millis);
+    sqlx::query_as::<_, PushAttemptRow>(&format!(
+        r#"
+        UPDATE integrations_sync_push_attempts
+        SET status                   = 'succeeded',
+            result_sync_token        = $2,
+            result_last_updated_time = $3,
+            result_projection_hash   = $4,
+            completed_at             = NOW(),
+            updated_at               = NOW()
+        WHERE id = $1 AND status = 'inflight'
+        RETURNING {SELECT_COLS}
+        "#
+    ))
+    .bind(attempt_id)
+    .bind(result_sync_token)
+    .bind(lut)
+    .bind(result_projection_hash)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Transition an 'inflight' attempt to a terminal failure status within a caller transaction.
+///
+/// `new_status` must be one of: 'failed', 'unknown_failure'.
+/// Used with `enqueue_event_tx` to atomically complete the attempt and enqueue a
+/// `integrations.sync.push.failed` event in the same transaction.
+pub async fn fail_attempt_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    attempt_id: Uuid,
+    new_status: &str,
+    error_message: Option<&str>,
+) -> Result<Option<PushAttemptRow>, sqlx::Error> {
+    sqlx::query_as::<_, PushAttemptRow>(&format!(
+        r#"
+        UPDATE integrations_sync_push_attempts
+        SET status        = $2,
+            error_message = $3,
+            completed_at  = NOW(),
+            updated_at    = NOW()
+        WHERE id = $1 AND status = 'inflight'
+        RETURNING {SELECT_COLS}
+        "#
+    ))
+    .bind(attempt_id)
+    .bind(new_status)
+    .bind(error_message)
+    .fetch_optional(&mut **tx)
     .await
 }
 

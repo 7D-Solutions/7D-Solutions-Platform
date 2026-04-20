@@ -238,6 +238,7 @@ async fn create_payment_returns_real_id() {
         currency_ref: None,
         payment_method_ref: None,
         deposit_to_account_ref: None,
+        line_applications: vec![],
     };
 
     let rid = Uuid::new_v4();

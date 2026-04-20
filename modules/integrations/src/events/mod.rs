@@ -19,6 +19,7 @@ pub mod outbound_webhook_created;
 pub mod outbound_webhook_deleted;
 pub mod outbound_webhook_updated;
 pub mod sync_authority_changed;
+pub mod sync_push_failed;
 pub mod webhook_received;
 pub mod webhook_routed;
 
@@ -29,6 +30,7 @@ pub mod webhook_routed;
 pub const INTEGRATIONS_EVENT_SCHEMA_VERSION: &str = "1.0.0";
 pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
+pub const MUTATION_CLASS_SIDE_EFFECT: &str = "SIDE_EFFECT";
 
 // ============================================================================
 // Re-exports
@@ -77,6 +79,9 @@ pub use outbound_webhook_updated::{
 pub use sync_authority_changed::{
     build_sync_authority_changed_envelope, SyncAuthorityChangedPayload,
     EVENT_TYPE_SYNC_AUTHORITY_CHANGED,
+};
+pub use sync_push_failed::{
+    build_sync_push_failed_envelope, SyncPushFailedPayload, EVENT_TYPE_SYNC_PUSH_FAILED,
 };
 pub use webhook_received::{
     build_webhook_received_envelope, WebhookReceivedPayload, EVENT_TYPE_WEBHOOK_RECEIVED,
