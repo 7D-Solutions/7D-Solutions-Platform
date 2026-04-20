@@ -150,6 +150,13 @@ pub const MAX_RESULTS: u32 = 1000;
 /// Max SyncToken retry attempts before giving up.
 pub const SYNC_TOKEN_MAX_RETRIES: u32 = 3;
 
+/// Fields excluded from the touched-field intent guard.
+///
+/// These are QBO system fields (SyncToken, MetaData) or local update hints
+/// (sparse) that must never be treated as caller-touched business fields.
+const SYSTEM_FIELDS_EXCLUDED: &[&str] =
+    &["SyncToken", "MetaData", "sparse", "Id", "domain", "status"];
+
 /// Async client for the QuickBooks Online REST API.
 pub struct QboClient {
     http: reqwest::Client,
@@ -352,6 +359,108 @@ impl QboClient {
                     let fresh = self.get_entity(entity_type, &entity_id).await?;
                     let key = capitalize(entity_type);
                     if let Some(st) = fresh[&key]["SyncToken"].as_str() {
+                        body["SyncToken"] = Value::String(st.to_string());
+                    }
+                    continue;
+                }
+                QboApiAction::RetryWithFreshSyncToken => {
+                    return Err(QboError::SyncTokenExhausted(SYNC_TOKEN_MAX_RETRIES));
+                }
+                QboApiAction::RefreshToken => {
+                    let new_token = self.tokens.refresh_token().await?;
+                    return self.post_json(&url, &body, &new_token).await;
+                }
+                QboApiAction::Backoff => return Err(QboError::RateLimited { retry_after }),
+                QboApiAction::Fail => return Err(parse_api_error(&resp_body)),
+            }
+        }
+
+        Err(QboError::SyncTokenExhausted(SYNC_TOKEN_MAX_RETRIES))
+    }
+
+    /// Update an entity with field-level intent guard on stale SyncToken retry.
+    ///
+    /// Like [`update_entity`] but adds a safety check on each stale retry:
+    ///
+    /// - `baseline`: the entity snapshot read **before** building the update body
+    ///   (i.e. `get_entity` response at the entity key level, e.g. `response["Invoice"]`).
+    ///   Pass `None` when no prior read is available.
+    ///
+    /// Guard behaviour on stale (5010):
+    /// 1. Re-fetch the entity from QBO.
+    /// 2. For each business field in `body` (excluding [`SYSTEM_FIELDS_EXCLUDED`]):
+    ///    - If `baseline` is `Some(b)`: compare `b[field]` vs `fresh[field]`.
+    ///      Any difference → [`QboError::ConflictDetected`] (someone else changed it).
+    ///    - If `baseline` is `None` and the body contains any business field →
+    ///      [`QboError::ConflictDetected`] (fail conservatively; can't verify safety).
+    ///    - If no business fields present (only system fields) → safe to retry.
+    /// 3. If no conflict is detected, update SyncToken and retry as normal.
+    ///
+    /// `request_id` must come from the ledger row for idempotency.
+    pub async fn update_entity_with_guard(
+        &self,
+        entity_type: &str,
+        mut body: Value,
+        baseline: Option<&Value>,
+        request_id: Uuid,
+    ) -> Result<Value, QboError> {
+        let entity_id = body["Id"]
+            .as_str()
+            .ok_or_else(|| QboError::Deserialize("update body missing Id".into()))?
+            .to_string();
+
+        let url = self.write_url(&entity_type.to_lowercase(), request_id);
+        let entity_key = capitalize(entity_type);
+
+        for attempt in 0..=SYNC_TOKEN_MAX_RETRIES {
+            let token = self.tokens.get_token().await?;
+
+            let resp = self
+                .http
+                .post(&url)
+                .bearer_auth(&token)
+                .header("Accept", "application/json")
+                .json(&body)
+                .send()
+                .await?;
+
+            let status = resp.status().as_u16();
+            let retry_after = extract_retry_after(resp.headers());
+            let resp_body = resp.text().await?;
+
+            if status == 200 {
+                return parse_json(&resp_body);
+            }
+
+            match classify_error(status, &resp_body) {
+                QboApiAction::RetryWithFreshSyncToken if attempt < SYNC_TOKEN_MAX_RETRIES => {
+                    tracing::warn!(
+                        attempt = attempt + 1,
+                        max = SYNC_TOKEN_MAX_RETRIES,
+                        entity_type,
+                        entity_id = %entity_id,
+                        "SyncToken stale — running intent guard check"
+                    );
+                    let fresh = self.get_entity(entity_type, &entity_id).await?;
+                    let fresh_entity = &fresh[&entity_key];
+
+                    match baseline {
+                        None if has_business_fields(&body) => {
+                            return Err(QboError::ConflictDetected {
+                                entity_id: entity_id.clone(),
+                                fresh_entity: fresh_entity.clone(),
+                            });
+                        }
+                        Some(bl) if touched_field_drifted(&body, bl, fresh_entity) => {
+                            return Err(QboError::ConflictDetected {
+                                entity_id: entity_id.clone(),
+                                fresh_entity: fresh_entity.clone(),
+                            });
+                        }
+                        _ => {}
+                    }
+
+                    if let Some(st) = fresh_entity["SyncToken"].as_str() {
                         body["SyncToken"] = Value::String(st.to_string());
                     }
                     continue;
@@ -610,6 +719,38 @@ fn capitalize(s: &str) -> String {
         None => String::new(),
         Some(c) => c.to_uppercase().chain(chars).collect(),
     }
+}
+
+/// Returns true when `body` contains at least one key that is not a system field.
+fn has_business_fields(body: &Value) -> bool {
+    body.as_object()
+        .map(|o| {
+            o.keys()
+                .any(|k| !SYSTEM_FIELDS_EXCLUDED.contains(&k.as_str()))
+        })
+        .unwrap_or(false)
+}
+
+/// Returns true when any touched business field in `body` has a different value
+/// in `fresh_entity` than in `baseline_entity`.
+///
+/// Touched fields = keys present in `body` that are not in [`SYSTEM_FIELDS_EXCLUDED`].
+/// A difference between baseline and fresh means a concurrent writer changed that
+/// field after our last read.
+fn touched_field_drifted(body: &Value, baseline_entity: &Value, fresh_entity: &Value) -> bool {
+    let body_obj = match body.as_object() {
+        Some(o) => o,
+        None => return false,
+    };
+    for field in body_obj.keys() {
+        if SYSTEM_FIELDS_EXCLUDED.contains(&field.as_str()) {
+            continue;
+        }
+        if baseline_entity[field] != fresh_entity[field] {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -1079,5 +1220,179 @@ mod tests {
             lines[0]["SalesItemLineDetail"]["ItemRef"]["value"].as_str(),
             Some("1")
         );
+    }
+
+    // ── has_business_fields unit tests ────────────────────────────────────────
+
+    #[test]
+    fn has_business_fields_only_system_fields_is_false() {
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true});
+        assert!(!has_business_fields(&body));
+    }
+
+    #[test]
+    fn has_business_fields_with_ship_date_is_true() {
+        let body =
+            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        assert!(has_business_fields(&body));
+    }
+
+    #[test]
+    fn touched_field_drifted_returns_false_when_no_drift() {
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
+        let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
+        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 100.0});
+        // ShipDate unchanged between baseline and fresh → no drift
+        assert!(!touched_field_drifted(&body, &baseline, &fresh));
+    }
+
+    #[test]
+    fn touched_field_drifted_returns_true_when_touched_field_changed() {
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
+        let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
+        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-25", "Amount": 100.0});
+        // ShipDate changed between baseline and fresh while we're touching it → drift
+        assert!(touched_field_drifted(&body, &baseline, &fresh));
+    }
+
+    #[test]
+    fn touched_field_drifted_ignores_untouched_fields() {
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "ShipDate": "2026-04-20"});
+        let baseline = serde_json::json!({"ShipDate": "2026-04-01", "Amount": 100.0});
+        // Amount changed (not in body) → should not trigger drift
+        let fresh = serde_json::json!({"SyncToken": "7", "ShipDate": "2026-04-01", "Amount": 200.0});
+        assert!(!touched_field_drifted(&body, &baseline, &fresh));
+    }
+
+    // ── update_entity_with_guard integration tests (local axum server) ────────
+
+    #[derive(Clone)]
+    struct GuardTestState {
+        post_count: Arc<AtomicU32>,
+        get_count: Arc<AtomicU32>,
+        /// If true the GET response returns a changed ShipDate vs baseline.
+        ship_date_drifted: bool,
+        max_failures: u32,
+    }
+
+    async fn guard_post(
+        axum::extract::State(s): axum::extract::State<GuardTestState>,
+    ) -> (axum::http::StatusCode, String) {
+        let n = s.post_count.fetch_add(1, Ordering::SeqCst);
+        if n < s.max_failures {
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                r#"{"Fault":{"Error":[{"Message":"Stale Object Error","Detail":"SyncToken mismatch","code":"5010"}],"type":"ValidationFault"}}"#.into(),
+            )
+        } else {
+            (
+                axum::http::StatusCode::OK,
+                r#"{"Invoice":{"Id":"1","SyncToken":"10","ShipDate":"2026-04-20"}}"#.into(),
+            )
+        }
+    }
+
+    async fn guard_get(
+        axum::extract::State(s): axum::extract::State<GuardTestState>,
+    ) -> (axum::http::StatusCode, String) {
+        s.get_count.fetch_add(1, Ordering::SeqCst);
+        let ship_date = if s.ship_date_drifted {
+            "2026-04-25" // someone else changed it
+        } else {
+            "2026-04-01" // unchanged from baseline
+        };
+        let body = format!(
+            r#"{{"Invoice":{{"Id":"1","SyncToken":"9","ShipDate":"{}"}}}}"#,
+            ship_date
+        );
+        (axum::http::StatusCode::OK, body)
+    }
+
+    async fn start_guard_server(
+        ship_date_drifted: bool,
+        max_failures: u32,
+    ) -> (String, GuardTestState) {
+        let state = GuardTestState {
+            post_count: Arc::new(AtomicU32::new(0)),
+            get_count: Arc::new(AtomicU32::new(0)),
+            ship_date_drifted,
+            max_failures,
+        };
+        let app = axum::Router::new()
+            .route("/v3/company/{realm}/invoice/{id}", axum::routing::get(guard_get))
+            .route("/v3/company/{realm}/invoice", axum::routing::post(guard_post))
+            .with_state(state.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind test server");
+        let addr = listener.local_addr().expect("test local addr");
+        tokio::spawn(async move { axum::serve(listener, app).await.expect("test server") });
+        (format!("http://{}/v3", addr), state)
+    }
+
+    #[tokio::test]
+    async fn guard_no_drift_retries_successfully() {
+        // Baseline ShipDate == fresh ShipDate → no conflict → retry succeeds
+        let (base_url, state) = start_guard_server(false, 1).await;
+        let client = test_client(&base_url);
+        let body =
+            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let baseline = serde_json::json!({"ShipDate": "2026-04-01", "SyncToken": "5"});
+
+        let result = client
+            .update_entity_with_guard("Invoice", body, Some(&baseline), Uuid::new_v4())
+            .await;
+        assert!(result.is_ok(), "expected success: {:?}", result);
+        assert_eq!(state.post_count.load(Ordering::SeqCst), 2, "2 POST attempts");
+        assert_eq!(state.get_count.load(Ordering::SeqCst), 1, "1 GET re-fetch");
+    }
+
+    #[tokio::test]
+    async fn guard_touched_field_drift_returns_conflict_detected() {
+        // Fresh entity has different ShipDate from baseline → ConflictDetected
+        let (base_url, _state) = start_guard_server(true, 1).await;
+        let client = test_client(&base_url);
+        let body =
+            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+        let baseline = serde_json::json!({"ShipDate": "2026-04-01", "SyncToken": "5"});
+
+        let result = client
+            .update_entity_with_guard("Invoice", body, Some(&baseline), Uuid::new_v4())
+            .await;
+        assert!(
+            matches!(result, Err(QboError::ConflictDetected { .. })),
+            "expected ConflictDetected: {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn guard_no_baseline_business_fields_fails_conservatively() {
+        // No baseline + body has business fields → fail conservatively
+        let (base_url, _state) = start_guard_server(false, 1).await;
+        let client = test_client(&base_url);
+        let body =
+            serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true, "ShipDate": "2026-04-20"});
+
+        let result = client
+            .update_entity_with_guard("Invoice", body, None, Uuid::new_v4())
+            .await;
+        assert!(
+            matches!(result, Err(QboError::ConflictDetected { .. })),
+            "expected ConflictDetected: {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn guard_no_baseline_only_system_fields_retries_safely() {
+        // No baseline + body has ONLY system fields → safe retry
+        let (base_url, state) = start_guard_server(false, 1).await;
+        let client = test_client(&base_url);
+        let body = serde_json::json!({"Id": "1", "SyncToken": "5", "sparse": true});
+
+        let result = client
+            .update_entity_with_guard("Invoice", body, None, Uuid::new_v4())
+            .await;
+        assert!(result.is_ok(), "expected success: {:?}", result);
+        assert_eq!(state.post_count.load(Ordering::SeqCst), 2);
     }
 }

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.17.1
+- fix: add field-level intent guard (`update_entity_with_guard`) that detects third-party edits during stale SyncToken retries by comparing touched business fields against a pre-read baseline; raises `ConflictDetected` when another party changed a field the caller intends to write, preventing silent overwrites ([bd-dd2x6] / Stream D Phase 1.5)
+
 ## 2.17.0
 - feat: add `integrations_sync_observations` schema with comparable projection columns (`projected_hash`, `observed_at_millis`), `dedupe` module for fingerprint computation and millisecond timestamp normalization, and `observations` repo with insert/upsert/list primitives; migration creates table with `(app_id, provider, entity_type, entity_id)` unique index ([bd-fc7xl] / Stream D Phase 1.5)
 
