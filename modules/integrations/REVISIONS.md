@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.29.1
+- fix: `POST /sync/push/{entity_type}` with invalid operation (e.g. 'deletifyall') now returns 422 `invalid_operation` instead of 500; validation at HTTP layer before domain dispatch ([bd-aw8rk])
+
 ## 2.29.0
 - feat: `POST /api/integrations/oauth/import` — admin-guarded, dev-only endpoint for seeding OAuth tokens without browser consent; gated by `integrations.oauth.admin` permission + `OAUTH_IMPORT_ENABLED=1` runtime flag; encrypts tokens identically to the callback path ([bd-iskkg])
 

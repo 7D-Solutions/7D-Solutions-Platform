@@ -3314,7 +3314,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.28.0"
+version = "2.29.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -6011,7 +6011,7 @@ dependencies = [
 
 [[package]]
 name = "security"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "axum",
  "base64",

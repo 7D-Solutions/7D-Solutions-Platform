@@ -461,6 +461,18 @@ pub async fn push_entity(
         .into_response();
     }
 
+    if !matches!(req.operation.as_str(), "create" | "update" | "delete") {
+        return ApiError::new(
+            422,
+            "invalid_operation",
+            format!(
+                "operation must be one of: create, update, delete; got '{}'",
+                req.operation
+            ),
+        )
+        .into_response();
+    }
+
     let connection =
         match oauth_service::get_connection_status(&state.pool, &app_id, "quickbooks").await {
             Ok(Some(c)) => c,

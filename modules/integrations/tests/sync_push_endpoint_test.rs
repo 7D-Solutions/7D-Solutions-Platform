@@ -222,6 +222,29 @@ async fn test_invalid_entity_type_returns_422() {
     assert_eq!(body["error"], "invalid_entity_type");
 }
 
+/// Unknown operations are rejected before any DB or QBO interaction.
+#[tokio::test]
+#[serial]
+async fn test_invalid_operation_returns_422() {
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let app = build_test_app(pool.clone(), tenant_id);
+
+    let req = push_request(
+        "customer",
+        "e-1",
+        "deletifyall",
+        1,
+        "fp-1",
+        serde_json::json!({}),
+    );
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = response_json(resp).await;
+    assert_eq!(body["error"], "invalid_operation");
+}
+
 /// When no QBO OAuth connection exists for the tenant, handler returns 404.
 #[tokio::test]
 #[serial]

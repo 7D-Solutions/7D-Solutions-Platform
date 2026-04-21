@@ -857,6 +857,7 @@ services:
       QBO_REDIRECT_URI: ${QBO_REDIRECT_URI:-}
       QBO_BASE_URL: ${QBO_BASE_URL:-}
       OAUTH_ENCRYPTION_KEY: ${OAUTH_ENCRYPTION_KEY:-}
+      OAUTH_IMPORT_ENABLED: ${OAUTH_IMPORT_ENABLED:-}
     volumes:
       - ./target/aarch64-unknown-linux-musl/debug/integrations:/app/service:ro
       - ./modules/integrations/module.toml:/app/module.toml:ro
