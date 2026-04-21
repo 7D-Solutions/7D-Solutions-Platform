@@ -54,6 +54,26 @@ pub async fn ensure_authority(
     .await
 }
 
+/// List all authority rows for a tenant, ordered by provider + entity_type.
+pub async fn list_authority(
+    pool: &PgPool,
+    app_id: &str,
+) -> Result<Vec<AuthorityRow>, sqlx::Error> {
+    sqlx::query_as::<_, AuthorityRow>(
+        r#"
+        SELECT id, app_id, provider, entity_type, authoritative_side,
+               authority_version, last_flipped_by, last_flipped_at,
+               created_at, updated_at
+        FROM integrations_sync_authority
+        WHERE app_id = $1
+        ORDER BY provider, entity_type
+        "#,
+    )
+    .bind(app_id)
+    .fetch_all(pool)
+    .await
+}
+
 /// Increment authority_version and switch authoritative_side.
 /// Caller is responsible for holding an advisory lock before calling this
 /// to prevent concurrent flips from producing out-of-order versions.

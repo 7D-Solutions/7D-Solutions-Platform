@@ -87,6 +87,27 @@ async fn openapi_json() -> Json<utoipa::openapi::OpenApi> {
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./db/migrations");
 
+/// Refuse to start in non-dev-local environments when INTUIT_WEBHOOK_VERIFIER_TOKEN is unset.
+///
+/// Called unconditionally — every environment that is not `dev-local` must supply the token.
+/// The token is read at request time by `verify::resolve_verifier`, but checking it at startup
+/// ensures the misconfiguration is caught immediately rather than when the first webhook arrives.
+fn validate_webhook_env() {
+    let profile = std::env::var("APP_PROFILE").unwrap_or_default();
+    if profile == "dev-local" {
+        return;
+    }
+    let token = std::env::var("INTUIT_WEBHOOK_VERIFIER_TOKEN").unwrap_or_default();
+    if token.is_empty() {
+        panic!(
+            "Startup validation failed: INTUIT_WEBHOOK_VERIFIER_TOKEN is not set or empty. \
+             The service would silently accept unsigned Intuit webhooks. \
+             Set INTUIT_WEBHOOK_VERIFIER_TOKEN to the verifier token from the Intuit Developer \
+             Portal. To bypass this check in local development set APP_PROFILE=dev-local."
+        );
+    }
+}
+
 /// Validate the QBO env contract before any worker starts.
 ///
 /// Called only when QBO_CLIENT_ID is present (i.e. QBO integration is enabled).
@@ -153,6 +174,8 @@ async fn main() {
     ModuleBuilder::from_manifest("module.toml")
         .migrator(&MIGRATOR)
         .routes(|ctx| {
+            validate_webhook_env();
+
             let bus = ctx.bus_arc().expect("Integrations requires event bus");
 
             // Spawn conditional background workers
@@ -244,4 +267,103 @@ async fn main() {
         .run()
         .await
         .expect("integrations module failed");
+}
+
+#[cfg(test)]
+mod startup_guard_tests {
+    use super::validate_webhook_env;
+    use serial_test::serial;
+    use std::sync::Mutex;
+
+    // Env vars are process-global — serialize all tests that touch them.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn with_env<F: FnOnce()>(vars: &[(&str, &str)], f: F) {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        for (k, v) in vars {
+            std::env::set_var(k, v);
+        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        for (k, _) in vars {
+            std::env::remove_var(k);
+        }
+        if let Err(e) = result {
+            std::panic::resume_unwind(e);
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn dev_local_profile_allows_empty_token() {
+        with_env(
+            &[
+                ("APP_PROFILE", "dev-local"),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", ""),
+            ],
+            || validate_webhook_env(),
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn staging_with_token_set_passes() {
+        with_env(
+            &[
+                ("APP_PROFILE", "staging"),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", "a-real-token"),
+            ],
+            || validate_webhook_env(),
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn production_with_token_set_passes() {
+        with_env(
+            &[
+                ("APP_PROFILE", "production"),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", "a-real-token"),
+            ],
+            || validate_webhook_env(),
+        );
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
+    fn staging_without_token_panics() {
+        with_env(
+            &[
+                ("APP_PROFILE", "staging"),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", ""),
+            ],
+            || validate_webhook_env(),
+        );
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
+    fn production_without_token_panics() {
+        with_env(
+            &[
+                ("APP_PROFILE", "production"),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", ""),
+            ],
+            || validate_webhook_env(),
+        );
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "INTUIT_WEBHOOK_VERIFIER_TOKEN")]
+    fn no_profile_without_token_panics() {
+        with_env(
+            &[
+                ("APP_PROFILE", ""),
+                ("INTUIT_WEBHOOK_VERIFIER_TOKEN", ""),
+            ],
+            || validate_webhook_env(),
+        );
+    }
 }

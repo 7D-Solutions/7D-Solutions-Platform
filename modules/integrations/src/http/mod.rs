@@ -151,8 +151,12 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
-    // Sync — reads (conflicts, dlq, push-attempts, jobs)
+    // Sync — reads (authority state, conflicts, dlq, push-attempts, jobs)
     let sync_reads = Router::new()
+        .route(
+            "/api/integrations/sync/authority",
+            get(sync::get_authority_state),
+        )
         .route(
             "/api/integrations/sync/conflicts",
             get(sync::list_conflicts),
@@ -179,6 +183,17 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
+    // Sync admin — CDC trigger (dev-local only; handler enforces APP_PROFILE guard)
+    let sync_admin = Router::new()
+        .route(
+            "/api/integrations/sync/cdc/trigger",
+            post(sync::trigger_cdc),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_OAUTH_ADMIN,
+        ]))
+        .with_state(state.clone());
+
     // Internal platform-to-platform endpoints — no auth layer, network-gated only
     let internal_routes = Router::new()
         .route(
@@ -197,5 +212,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(webhook_inbound)
         .merge(oauth_callback)
         .merge(oauth_admin)
+        .merge(sync_admin)
         .merge(internal_routes)
 }

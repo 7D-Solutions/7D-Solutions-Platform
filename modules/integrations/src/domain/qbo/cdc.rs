@@ -364,6 +364,70 @@ pub(crate) fn comparable_fields(entity: &serde_json::Value) -> serde_json::Value
 // Worker
 // ============================================================================
 
+/// Run one CDC poll tick scoped to a single tenant.
+///
+/// Identical logic to [`cdc_tick`] — same code paths, same workers — but
+/// filtered to `app_id` only. Used by the test-only `/sync/cdc/trigger`
+/// endpoint so integration tests can force a deterministic CDC cycle without
+/// waiting for the 15-minute background worker.
+pub async fn cdc_tick_for_tenant(pool: &PgPool, app_id: &str) -> Result<u32, sqlx::Error> {
+    let connections = repo::get_connected_qbo_connections(pool).await?;
+    let base_url = qbo_base_url();
+    let mut processed = 0u32;
+
+    for conn in connections.iter().filter(|c| c.app_id == app_id) {
+        let needs_resync = check_resync_needed(pool, conn).await?;
+
+        if needs_resync {
+            match super::sync::full_resync(pool, &base_url, &conn.app_id, &conn.realm_id).await {
+                Ok(count) => {
+                    tracing::info!(
+                        app_id = %conn.app_id,
+                        realm_id = %conn.realm_id,
+                        entities = count,
+                        "CDC trigger: full resync completed"
+                    );
+                    processed += count;
+                    if let Err(e) =
+                        health::upsert_job_success(pool, &conn.app_id, "quickbooks", "cdc_poll")
+                            .await
+                    {
+                        tracing::warn!(error = %e, "Failed to record cdc_poll health");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        app_id = %conn.app_id,
+                        error = %e,
+                        "CDC trigger: full resync failed"
+                    );
+                }
+            }
+        } else if let Some(watermark) = conn.cdc_watermark {
+            match poll_cdc(pool, &base_url, &conn.app_id, &conn.realm_id, &watermark).await {
+                Ok(count) => {
+                    processed += count;
+                    if let Err(e) =
+                        health::upsert_job_success(pool, &conn.app_id, "quickbooks", "cdc_poll")
+                            .await
+                    {
+                        tracing::warn!(error = %e, "Failed to record cdc_poll health");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        app_id = %conn.app_id,
+                        error = %e,
+                        "CDC trigger: poll failed"
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(processed)
+}
+
 /// Spawn the CDC polling worker as a tokio background task.
 pub fn spawn_cdc_worker(
     pool: PgPool,

@@ -4,10 +4,12 @@
 //!   POST /api/integrations/sync/authority              → integrations.sync.authority.flip
 //!   POST /api/integrations/sync/conflicts/{id}/resolve → integrations.sync.conflict.resolve
 //!   POST /api/integrations/sync/push/{entity_type}     → integrations.sync.push
+//!   GET  /api/integrations/sync/authority              → integrations.sync.read
 //!   GET  /api/integrations/sync/conflicts              → integrations.sync.read
 //!   GET  /api/integrations/sync/dlq                    → integrations.sync.read
 //!   GET  /api/integrations/sync/push-attempts          → integrations.sync.read
 //!   GET  /api/integrations/sync/jobs                   → integrations.sync.read
+//!   POST /api/integrations/sync/cdc/trigger            → integrations.oauth.admin (dev-local only)
 
 use axum::{
     extract::{Path, Query, State},
@@ -25,7 +27,8 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::domain::oauth::service as oauth_service;
-use crate::domain::qbo::{client::QboClient, QboError, TokenProvider};
+use crate::domain::qbo::{cdc as qbo_cdc, client::QboClient, QboError, TokenProvider};
+use crate::domain::sync::authority_repo::list_authority;
 use crate::domain::sync::conflicts_repo::list_conflicts_paged;
 use crate::domain::sync::resolve_service::{
     bulk_resolve_conflicts, resolve_conflict_transactional, BulkResolveError, BulkResolveItem,
@@ -135,6 +138,58 @@ pub async fn flip_authority(
             (StatusCode::OK, Json(resp)).into_response()
         }
         Err(e) => flip_error(e).into_response(),
+    }
+}
+
+// ============================================================================
+// get_authority_state
+// ============================================================================
+
+/// Response item for a single authority row.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AuthorityItem {
+    pub provider: String,
+    pub entity_type: String,
+    pub authoritative_side: String,
+    pub authority_version: i64,
+    pub last_flipped_by: Option<String>,
+    pub last_flipped_at: Option<DateTime<Utc>>,
+}
+
+impl From<crate::domain::sync::AuthorityRow> for AuthorityItem {
+    fn from(r: crate::domain::sync::AuthorityRow) -> Self {
+        Self {
+            provider: r.provider,
+            entity_type: r.entity_type,
+            authoritative_side: r.authoritative_side,
+            authority_version: r.authority_version,
+            last_flipped_by: r.last_flipped_by,
+            last_flipped_at: r.last_flipped_at,
+        }
+    }
+}
+
+/// GET /api/integrations/sync/authority
+///
+/// Returns all authority rows owned by the caller's tenant. Permission: integrations.sync.read.
+pub async fn get_authority_state(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    match list_authority(&state.pool, &app_id).await {
+        Ok(rows) => {
+            let items: Vec<AuthorityItem> = rows.into_iter().map(Into::into).collect();
+            (StatusCode::OK, Json(items)).into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "get_authority_state DB error");
+            ApiError::internal("Internal database error").into_response()
+        }
     }
 }
 
@@ -810,4 +865,68 @@ pub async fn list_jobs(
             ApiError::internal("Internal database error").into_response()
         }
     }
+}
+
+// ============================================================================
+// trigger_cdc — dev-local only, admin-guarded
+// ============================================================================
+
+/// POST /api/integrations/sync/cdc/trigger
+///
+/// Force one CDC poll cycle for the caller's QBO tenant. Returns the number of
+/// observations processed and conflicts automatically opened by the detector.
+///
+/// **Dev-local only** — returns `403 Forbidden` when `APP_PROFILE != "dev-local"`.
+/// Guards against accidental use in staging/production.
+pub async fn trigger_cdc(
+    State(state): State<Arc<AppState>>,
+    Extension(claims): Extension<VerifiedClaims>,
+) -> impl IntoResponse {
+    let profile = std::env::var("APP_PROFILE").unwrap_or_default();
+    if profile != "dev-local" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "CDC trigger endpoint is only available in dev-local profile (APP_PROFILE=dev-local)"
+            })),
+        )
+            .into_response();
+    }
+
+    let app_id = claims.tenant_id.to_string();
+
+    // Snapshot conflict count before the tick so we can report new conflicts opened.
+    let before: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1",
+    )
+    .bind(&app_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or((0,));
+
+    let obs_count =
+        match qbo_cdc::cdc_tick_for_tenant(&state.pool, &app_id).await {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::error!(app_id = %app_id, error = %e, "CDC trigger failed");
+                return ApiError::internal("CDC tick failed").into_response();
+            }
+        };
+
+    let after: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM integrations_sync_conflicts WHERE app_id = $1",
+    )
+    .bind(&app_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or((0,));
+
+    let conflicts_opened = (after.0 - before.0).max(0) as u32;
+
+    Json(serde_json::json!({
+        "provider": "quickbooks",
+        "observations_processed": obs_count,
+        "conflicts_opened": conflicts_opened,
+    }))
+    .into_response()
 }

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.31.0
+- feat: `POST /api/integrations/sync/cdc/trigger` — admin-guarded, dev-profile-only endpoint that runs one CDC cycle for the caller's tenant + provider; reuses the worker's observation+detector wiring for deterministic E2E testing ([bd-b9qyp])
+
 ## 2.30.0
 - fix: wire run_detector into webhook normalizer and CDC poller after every upsert_observation — conflicts are now opened automatically on drift instead of requiring manual detector invocation; fixes silent drift swallowing in production ([bd-f3bmv])
 
