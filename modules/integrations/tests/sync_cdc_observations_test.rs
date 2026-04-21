@@ -50,6 +50,21 @@ async fn cleanup(pool: &sqlx::PgPool, app_id: &str) {
         .execute(pool)
         .await
         .ok();
+    sqlx::query("DELETE FROM integrations_sync_conflicts WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_sync_push_attempts WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ── CDC observation tests ─────────────────────────────────────────────────────
@@ -417,6 +432,62 @@ async fn cdc_observation_source_channel_and_tombstone_fields_present() {
 
     assert_eq!(row.source_channel, "cdc");
     assert!(!row.is_tombstone);
+
+    cleanup(&pool, &app_id).await;
+}
+
+// ── Detector wiring test ──────────────────────────────────────────────────────
+
+/// Verify that process_cdc_entities automatically calls run_detector after each
+/// upsert_observation, opening a conflict row when no push attempt marker matches.
+#[tokio::test]
+#[serial]
+async fn cdc_observation_auto_opens_conflict_when_no_marker_match() {
+    let pool = setup_db().await;
+    let app_id = unique_app();
+    cleanup(&pool, &app_id).await;
+
+    let entity_id = "cust-cdc-conflict";
+    let sync_token = "tok-cdc-drift-55";
+
+    let response = json!({
+        "CDCResponse": [{
+            "QueryResponse": [{
+                "Customer": [{
+                    "Id": entity_id,
+                    "DisplayName": "CDC Drift Corp",
+                    "SyncToken": sync_token,
+                    "MetaData": {
+                        "LastUpdatedTime": "2026-04-21T12:00:00Z",
+                        "CreateTime": "2026-04-01T00:00:00Z"
+                    }
+                }]
+            }]
+        }]
+    });
+
+    // No push attempt seeded — any observation is genuine drift.
+    let (count, _) = cdc::process_cdc_entities(&pool, &response, &app_id, "realm-ignored")
+        .await
+        .expect("process_cdc_entities must succeed");
+
+    assert_eq!(count, 1, "one entity must be processed");
+
+    let conflict_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM integrations_sync_conflicts \
+         WHERE app_id = $1 AND provider = 'quickbooks' \
+           AND entity_type = 'customer' AND entity_id = $2",
+    )
+    .bind(&app_id)
+    .bind(entity_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count conflicts");
+
+    assert_eq!(
+        conflict_count.0, 1,
+        "CDC observation with no marker match must auto-open a conflict row"
+    );
 
     cleanup(&pool, &app_id).await;
 }

@@ -99,6 +99,16 @@ async fn cleanup(pool: &sqlx::PgPool, app_id: &str, _realm_id: &str) {
         .execute(pool)
         .await
         .ok();
+    sqlx::query("DELETE FROM integrations_sync_conflicts WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM integrations_sync_push_attempts WHERE app_id = $1")
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
         .bind(app_id)
         .execute(pool)
@@ -577,4 +587,148 @@ fn delete_event_types_map_to_deleted_domain_events() {
         map_to_domain_event("quickbooks", Some("qbo.item.deleted.v1")),
         Some("inventory.item.deleted".to_string())
     );
+}
+
+// ── Detector wiring tests ─────────────────────────────────────────────────────
+
+/// Verify that a webhook observation automatically opens a conflict row when no
+/// push attempt marker matches — i.e. run_detector is called by the normalizer
+/// and genuine drift is detected without manual invocation.
+#[tokio::test]
+#[serial]
+async fn webhook_observation_auto_opens_conflict_when_no_marker_match() {
+    let pool = setup_db().await;
+    let app_id = unique_app();
+    let realm_id = unique_realm();
+    cleanup(&pool, &app_id, &realm_id).await;
+    seed_connection(&pool, &app_id, &realm_id).await;
+
+    let entity_id = "cust-detector-auto";
+    let sync_token = "tok-no-marker-99";
+
+    let mut responses = HashMap::new();
+    responses.insert(
+        ("customer".to_string(), entity_id.to_string()),
+        json!({
+            "Id": entity_id,
+            "DisplayName": "Drift Corp",
+            "SyncToken": sync_token,
+            "MetaData": {
+                "LastUpdatedTime": "2026-04-21T10:00:00Z",
+                "CreateTime": "2026-04-01T00:00:00Z"
+            }
+        }),
+    );
+
+    let (base_url, _srv) = start_mock_qbo(responses).await;
+    let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
+
+    let events = json!([cloud_event("ev-det-auto", "qbo.customer.updated.v1", entity_id, &realm_id)]);
+    let body = serde_json::to_vec(&events).expect("serialize");
+    normalizer
+        .normalize(&body, &events, &HashMap::new())
+        .await
+        .expect("normalize");
+
+    // Allow async fetch-and-observe + detector to run.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    let conflict_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM integrations_sync_conflicts \
+         WHERE app_id = $1 AND provider = 'quickbooks' \
+           AND entity_type = 'customer' AND entity_id = $2",
+    )
+    .bind(&app_id)
+    .bind(entity_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count conflicts");
+
+    assert_eq!(
+        conflict_count.0, 1,
+        "webhook observation with no marker match must auto-open a conflict row"
+    );
+
+    cleanup(&pool, &app_id, &realm_id).await;
+}
+
+/// Verify that a webhook observation suppresses the conflict (self-echo) when a
+/// succeeded push attempt with a matching sync token exists — the detector is
+/// called by the normalizer and correctly recognises the self-echo.
+#[tokio::test]
+#[serial]
+async fn webhook_observation_suppresses_self_echo_when_marker_matches() {
+    let pool = setup_db().await;
+    let app_id = unique_app();
+    let realm_id = unique_realm();
+    cleanup(&pool, &app_id, &realm_id).await;
+    seed_connection(&pool, &app_id, &realm_id).await;
+
+    let entity_id = "cust-self-echo";
+    let sync_token = "tok-echo-matched-7";
+
+    // Seed a succeeded push attempt with the sync token that the webhook will carry.
+    sqlx::query(
+        r#"
+        INSERT INTO integrations_sync_push_attempts (
+            app_id, provider, entity_type, entity_id, operation,
+            authority_version, request_fingerprint, status,
+            result_sync_token, completed_at
+        )
+        VALUES ($1, 'quickbooks', 'customer', $2, 'update',
+                1, 'fp-echo', 'succeeded',
+                $3, NOW())
+        "#,
+    )
+    .bind(&app_id)
+    .bind(entity_id)
+    .bind(sync_token)
+    .execute(&pool)
+    .await
+    .expect("seed succeeded push attempt");
+
+    let mut responses = HashMap::new();
+    responses.insert(
+        ("customer".to_string(), entity_id.to_string()),
+        json!({
+            "Id": entity_id,
+            "DisplayName": "Echo Corp",
+            "SyncToken": sync_token,
+            "MetaData": {
+                "LastUpdatedTime": "2026-04-21T11:00:00Z",
+                "CreateTime": "2026-04-01T00:00:00Z"
+            }
+        }),
+    );
+
+    let (base_url, _srv) = start_mock_qbo(responses).await;
+    let normalizer = QboNormalizer::new_with_base_url(pool.clone(), base_url);
+
+    let events = json!([cloud_event("ev-echo-match", "qbo.customer.updated.v1", entity_id, &realm_id)]);
+    let body = serde_json::to_vec(&events).expect("serialize");
+    normalizer
+        .normalize(&body, &events, &HashMap::new())
+        .await
+        .expect("normalize");
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // Self-echo: no conflict row must have been created.
+    let conflict_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM integrations_sync_conflicts \
+         WHERE app_id = $1 AND provider = 'quickbooks' \
+           AND entity_type = 'customer' AND entity_id = $2",
+    )
+    .bind(&app_id)
+    .bind(entity_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count conflicts");
+
+    assert_eq!(
+        conflict_count.0, 0,
+        "self-echo must not open a conflict row when a succeeded marker matches"
+    );
+
+    cleanup(&pool, &app_id, &realm_id).await;
 }

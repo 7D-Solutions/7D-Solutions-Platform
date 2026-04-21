@@ -24,6 +24,7 @@ use crate::domain::qbo::cdc::{
 use crate::domain::qbo::client::QboClient;
 use crate::domain::qbo::TokenProvider;
 use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::detector;
 use crate::domain::sync::observations;
 use crate::events::{
     build_webhook_received_envelope, build_webhook_routed_envelope, WebhookReceivedPayload,
@@ -353,7 +354,7 @@ impl QboNormalizer {
             let fingerprint = compute_fingerprint(None, Some(lut), &tombstone);
             let comparable_hash = compute_comparable_hash(&comparable, lut);
 
-            observations::upsert_observation(
+            let obs = observations::upsert_observation(
                 &self.pool,
                 app_id,
                 "quickbooks",
@@ -368,6 +369,27 @@ impl QboNormalizer {
                 true,
             )
             .await?;
+
+            if let Err(e) = detector::run_detector(
+                &self.pool,
+                app_id,
+                "quickbooks",
+                obs_entity_type,
+                &entity_id,
+                &obs.fingerprint,
+                &obs.comparable_hash,
+                None,
+                Some(tombstone.clone()),
+            )
+            .await
+            {
+                tracing::warn!(
+                    entity_type = obs_entity_type,
+                    entity_id = %entity_id,
+                    error = %e,
+                    "Detector error after webhook tombstone observation — conflict may be lost"
+                );
+            }
         } else {
             let tokens: Arc<dyn TokenProvider> = Arc::new(DbTokenProvider {
                 pool: self.pool.clone(),
@@ -392,7 +414,7 @@ impl QboNormalizer {
             let fingerprint = compute_fingerprint(sync_token, Some(lut), entity);
             let comparable_hash = compute_comparable_hash(&comparable, lut);
 
-            observations::upsert_observation(
+            let obs = observations::upsert_observation(
                 &self.pool,
                 app_id,
                 "quickbooks",
@@ -407,6 +429,27 @@ impl QboNormalizer {
                 false,
             )
             .await?;
+
+            if let Err(e) = detector::run_detector(
+                &self.pool,
+                app_id,
+                "quickbooks",
+                obs_entity_type,
+                &entity_id,
+                &obs.fingerprint,
+                &obs.comparable_hash,
+                None,
+                Some(entity.clone()),
+            )
+            .await
+            {
+                tracing::warn!(
+                    entity_type = obs_entity_type,
+                    entity_id = %entity_id,
+                    error = %e,
+                    "Detector error after webhook observation — conflict may be lost"
+                );
+            }
         }
 
         Ok(())

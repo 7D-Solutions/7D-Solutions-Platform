@@ -3314,7 +3314,7 @@ dependencies = [
 
 [[package]]
 name = "integrations-rs"
-version = "2.29.0"
+version = "2.29.1"
 dependencies = [
  "async-nats",
  "async-trait",

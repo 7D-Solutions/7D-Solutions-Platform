@@ -14,6 +14,7 @@ use super::client::QboClient;
 use super::repo;
 use super::{QboError, TokenProvider};
 use crate::domain::sync::dedupe::{compute_comparable_hash, compute_fingerprint, truncate_to_millis};
+use crate::domain::sync::detector;
 use crate::domain::sync::health;
 use crate::domain::sync::observations;
 
@@ -272,7 +273,7 @@ pub async fn process_cdc_entities(
             let fingerprint = compute_fingerprint(sync_token, Some(lut_truncated), entity);
             let comparable_hash = compute_comparable_hash(&comparable, lut_truncated);
 
-            observations::upsert_observation(
+            let obs = observations::upsert_observation(
                 pool,
                 app_id,
                 "quickbooks",
@@ -294,6 +295,26 @@ pub async fn process_cdc_entities(
                 );
                 e
             })?;
+
+            if let Err(e) = detector::run_detector(
+                pool,
+                app_id,
+                "quickbooks",
+                &entity_type_lower,
+                entity_id,
+                &obs.fingerprint,
+                &obs.comparable_hash,
+                None,
+                Some(entity.clone()),
+            )
+            .await
+            {
+                tracing::warn!(
+                    app_id, entity_type = entity_type_lower, entity_id,
+                    error = %e,
+                    "Detector error after CDC observation — conflict may be lost"
+                );
+            }
 
             count += 1;
 

@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.30.0
+- fix: wire run_detector into webhook normalizer and CDC poller after every upsert_observation — conflicts are now opened automatically on drift instead of requiring manual detector invocation; fixes silent drift swallowing in production ([bd-f3bmv])
+
 ## 2.29.1
 - fix: `POST /sync/push/{entity_type}` with invalid operation (e.g. 'deletifyall') now returns 422 `invalid_operation` instead of 500; validation at HTTP layer before domain dispatch ([bd-aw8rk])
 
