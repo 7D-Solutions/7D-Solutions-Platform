@@ -5,6 +5,7 @@
 //!   GET  /api/integrations/oauth/callback/{provider}    — handle provider redirect
 //!   GET  /api/integrations/oauth/status/{provider}      — connection status
 //!   POST /api/integrations/oauth/disconnect/{provider}  — disconnect
+//!   POST /api/integrations/oauth/import                 — seed tokens directly (admin + env gate)
 
 use axum::{
     extract::{Path, Query, State},
@@ -321,6 +322,99 @@ pub async fn disconnect(
 
     match service::disconnect(&state.pool, &app_id, &provider).await {
         Ok(info) => Json(info).into_response(),
+        Err(e) => oauth_error(e).into_response(),
+    }
+}
+
+// ============================================================================
+// Token import (dev/CI seeding, admin-gated)
+// ============================================================================
+
+/// Runtime gate: allow import when OAUTH_IMPORT_ENABLED=1 OR ENV is not production.
+///
+/// Both conditions are checked so a misconfigured production deployment without
+/// the env flag can never be reached via this endpoint.
+pub fn is_import_enabled() -> bool {
+    if std::env::var("OAUTH_IMPORT_ENABLED")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let env = std::env::var("ENV").unwrap_or_default();
+    env != "production"
+}
+
+/// Request body for the token import endpoint.
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct ImportTokensRequest {
+    pub provider: String,
+    pub realm_id: String,
+    pub access_token: String,
+    pub refresh_token: String,
+    /// Seconds until the access token expires.
+    pub expires_in: i64,
+    /// Seconds until the refresh token expires (0 → default 100 days).
+    pub refresh_token_expires_in: i64,
+    pub scopes: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/integrations/oauth/import",
+    request_body = ImportTokensRequest,
+    responses(
+        (status = 201, description = "Connection created or updated", body = OAuthConnectionInfo),
+        (status = 403, description = "Import disabled or caller lacks integrations.oauth.admin"),
+        (status = 422, description = "Unsupported provider"),
+    ),
+    security(("bearer" = [])),
+    tag = "OAuth"
+)]
+/// POST /api/integrations/oauth/import
+///
+/// Seed OAuth tokens directly — skips the browser consent flow.
+/// Requires the `integrations.oauth.admin` permission AND
+/// either `OAUTH_IMPORT_ENABLED=1` or a non-production environment.
+///
+/// Tokens are encrypted with `pgp_sym_encrypt` via `OAUTH_ENCRYPTION_KEY`,
+/// identical to the callback path.
+pub async fn import_tokens(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(body): Json<ImportTokensRequest>,
+) -> impl IntoResponse {
+    if !is_import_enabled() {
+        return ApiError::new(
+            403,
+            "import_disabled",
+            "OAuth token import is not enabled in this environment",
+        )
+        .into_response();
+    }
+
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    if let Err(e) = validate_provider(&body.provider) {
+        return e.into_response();
+    }
+
+    match service::import_connection(
+        &state.pool,
+        &app_id,
+        &body.provider,
+        &body.realm_id,
+        &body.access_token,
+        &body.refresh_token,
+        body.expires_in,
+        body.refresh_token_expires_in,
+        &body.scopes,
+    )
+    .await
+    {
+        Ok(connection) => (StatusCode::CREATED, Json(connection)).into_response(),
         Err(e) => oauth_error(e).into_response(),
     }
 }

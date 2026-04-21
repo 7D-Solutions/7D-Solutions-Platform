@@ -92,6 +92,60 @@ pub async fn create_connection(
     Ok(OAuthConnectionInfo::from(row))
 }
 
+/// Import pre-existing OAuth tokens directly (dev/CI seeding path).
+///
+/// Uses the same `pgp_sym_encrypt` path as `create_connection`, ensuring
+/// imported tokens are encrypted identically to callback-issued tokens.
+/// The caller supplies raw expiry durations; the function computes absolute
+/// timestamps from `Utc::now()` identically to `create_connection`.
+pub async fn import_connection(
+    pool: &PgPool,
+    app_id: &str,
+    provider: &str,
+    realm_id: &str,
+    access_token: &str,
+    refresh_token: &str,
+    expires_in: i64,
+    refresh_token_expires_in: i64,
+    scopes: &str,
+) -> Result<OAuthConnectionInfo, OAuthError> {
+    let key = encryption_key()?;
+    let now = Utc::now();
+    let access_expires = now + Duration::seconds(expires_in);
+    let refresh_expires = if refresh_token_expires_in > 0 {
+        now + Duration::seconds(refresh_token_expires_in)
+    } else {
+        now + Duration::days(100)
+    };
+
+    let row = repo::upsert_connection(
+        pool,
+        app_id,
+        provider,
+        realm_id,
+        access_token,
+        &key,
+        refresh_token,
+        access_expires,
+        refresh_expires,
+        scopes,
+    )
+    .await
+    .map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("integrations_oauth_connections_provider_realm_connected") {
+            OAuthError::DuplicateConnection(format!(
+                "Provider '{}' realm '{}' is already connected to another tenant",
+                provider, realm_id
+            ))
+        } else {
+            OAuthError::Database(e)
+        }
+    })?;
+
+    Ok(OAuthConnectionInfo::from(row))
+}
+
 /// Mark a connection as disconnected.
 pub async fn disconnect(
     pool: &PgPool,

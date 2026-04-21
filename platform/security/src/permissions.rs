@@ -84,6 +84,10 @@ pub const PARTY_READ: &str = "party.read";
 pub const INTEGRATIONS_MUTATE: &str = "integrations.mutate";
 pub const INTEGRATIONS_READ: &str = "integrations.read";
 
+// OAuth admin — dev-only token import. Requires env gate (OAUTH_IMPORT_ENABLED=1
+// or non-production ENV) in addition to this permission.
+pub const INTEGRATIONS_OAUTH_ADMIN: &str = "integrations.oauth.admin";
+
 // Sync sub-capabilities — each endpoint requires its own explicit permission.
 // Never accept the coarse INTEGRATIONS_MUTATE for these; authority flip in
 // particular touches financially sensitive sync-ownership state.

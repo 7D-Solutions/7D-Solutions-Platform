@@ -168,6 +168,17 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
+    // OAuth admin — token import (dev/CI seeding; admin permission + env gate)
+    let oauth_admin = Router::new()
+        .route(
+            "/api/integrations/oauth/import",
+            post(oauth::import_tokens),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_OAUTH_ADMIN,
+        ]))
+        .with_state(state.clone());
+
     // Internal platform-to-platform endpoints — no auth layer, network-gated only
     let internal_routes = Router::new()
         .route(
@@ -185,5 +196,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(sync_reads)
         .merge(webhook_inbound)
         .merge(oauth_callback)
+        .merge(oauth_admin)
         .merge(internal_routes)
 }

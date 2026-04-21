@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.29.0
+- feat: `POST /api/integrations/oauth/import` — admin-guarded, dev-only endpoint for seeding OAuth tokens without browser consent; gated by `integrations.oauth.admin` permission + `OAUTH_IMPORT_ENABLED=1` runtime flag; encrypts tokens identically to the callback path ([bd-iskkg])
+
 ## 2.28.0
 - feat: wire production sync env config into main.rs startup; add full-loop smoke runbook test (OAuth connect → push → CDC tick → detector → conflict resolution → bulk resolve → DLQ → jobs health) against real Intuit sandbox; extend cutover preflight script with connectivity checks ([bd-r2l8z] / Stream D Phase 1.5)
 
