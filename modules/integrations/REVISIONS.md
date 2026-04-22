@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.34.0
+- feat: test-only QBO 429 rate-limit fixture — `QBO_FORCE_RATE_LIMIT=1` env var forces next push to return `rate_limited` PushOutcome with retry_after; dev-local profile gated; unblocks deterministic rate-limit E2E testing ([bd-ushjt])
+
 ## 2.33.1
 - chore: commit missing migration 20260421000025 (void operation constraint on push_attempts) that was applied to DB but never tracked in git; fixes sqlx startup panic ([bd-5uzgy])
 

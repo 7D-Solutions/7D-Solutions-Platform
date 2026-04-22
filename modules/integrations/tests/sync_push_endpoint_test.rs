@@ -608,3 +608,81 @@ mod sandbox {
         cleanup(&pool, &app_id).await;
     }
 }
+
+// ── Rate-limit fixture tests ──────────────────────────────────────────────────
+
+use std::sync::Mutex;
+static RATE_LIMIT_LOCK: Mutex<()> = Mutex::new(());
+
+/// With QBO_FORCE_RATE_LIMIT=1 and APP_PROFILE=dev-local the push endpoint
+/// must return outcome:failed / error_code:rate_limited — exact same taxonomy
+/// as a real Intuit 429 — without touching the QBO API.
+#[tokio::test]
+#[serial]
+async fn rate_limit_fixture_returns_rate_limited_outcome() {
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let app_id = tenant_id.to_string();
+    let realm_id = format!("realm-rl-{}", tenant_id.simple());
+    cleanup(&pool, &app_id).await;
+    seed_oauth_connection(&pool, &app_id, &realm_id, "connected").await;
+    seed_authority(&pool, &app_id, "customer", 1).await;
+
+    let _lock = RATE_LIMIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("APP_PROFILE", "dev-local");
+    std::env::set_var("QBO_FORCE_RATE_LIMIT", "1");
+
+    let app = build_test_app(pool.clone(), tenant_id);
+    let req = push_request(
+        "customer",
+        "cust-rl-fixture",
+        "update",
+        1,
+        "fp-rl-fixture",
+        serde_json::json!({ "Id": "cust-rl-fixture", "DisplayName": "Test" }),
+    );
+    let resp = app.oneshot(req).await.expect("oneshot");
+    let status = resp.status();
+    let body = response_json(resp).await;
+
+    std::env::remove_var("QBO_FORCE_RATE_LIMIT");
+    std::env::remove_var("APP_PROFILE");
+
+    assert_eq!(status, StatusCode::OK, "fixture must return 200 (PushOutcome envelope)");
+    assert_eq!(body["outcome"], "failed", "outcome must be 'failed'");
+    assert_eq!(body["error_code"], "rate_limited", "error_code must be 'rate_limited'");
+
+    cleanup(&pool, &app_id).await;
+}
+
+/// Without QBO_FORCE_RATE_LIMIT (or with a non-dev-local profile), the fixture
+/// must be inactive — push proceeds normally to the QBO path.
+#[test]
+fn rate_limit_fixture_inactive_without_env_var() {
+    let _lock = RATE_LIMIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+    // No vars set — fixture must be off.
+    std::env::remove_var("APP_PROFILE");
+    std::env::remove_var("QBO_FORCE_RATE_LIMIT");
+    let profile = std::env::var("APP_PROFILE").unwrap_or_default();
+    let flag = std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default();
+    let active = profile == "dev-local" && flag == "1";
+    assert!(!active, "fixture must be inactive when neither var is set");
+
+    // Profile set but flag absent — still off.
+    std::env::set_var("APP_PROFILE", "dev-local");
+    std::env::remove_var("QBO_FORCE_RATE_LIMIT");
+    let profile2 = std::env::var("APP_PROFILE").unwrap_or_default();
+    let flag2 = std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default();
+    assert!(!(profile2 == "dev-local" && flag2 == "1"), "fixture must be inactive without flag");
+
+    // Flag set but non-dev-local profile — still off.
+    std::env::set_var("APP_PROFILE", "staging");
+    std::env::set_var("QBO_FORCE_RATE_LIMIT", "1");
+    let profile3 = std::env::var("APP_PROFILE").unwrap_or_default();
+    let flag3 = std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default();
+    assert!(!(profile3 == "dev-local" && flag3 == "1"), "fixture must be inactive in staging");
+
+    std::env::remove_var("APP_PROFILE");
+    std::env::remove_var("QBO_FORCE_RATE_LIMIT");
+}

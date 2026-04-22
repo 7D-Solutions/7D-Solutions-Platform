@@ -618,6 +618,20 @@ fn is_retryable(code: &str) -> bool {
     matches!(code, "rate_limited" | "token_error" | "inflight_timeout")
 }
 
+// ── Dev-local rate-limit fixture ─────────────────────────────────────────────
+
+/// Returns true when both `APP_PROFILE=dev-local` and `QBO_FORCE_RATE_LIMIT=1`
+/// are set.  Used to short-circuit `orchestrate_push` with an exact replica of
+/// the `rate_limited` fault taxonomy, enabling deterministic E2E testing of
+/// retry/backoff logic without hitting Intuit's sandbox.
+///
+/// The double-gate (profile + flag) ensures the fixture can never fire in
+/// staging or production even if `QBO_FORCE_RATE_LIMIT` is accidentally set.
+fn is_rate_limit_fixture_active() -> bool {
+    std::env::var("APP_PROFILE").unwrap_or_default() == "dev-local"
+        && std::env::var("QBO_FORCE_RATE_LIMIT").unwrap_or_default() == "1"
+}
+
 // ── Core orchestration ────────────────────────────────────────────────────────
 
 /// Run the full push state machine for one entity write.
@@ -690,8 +704,15 @@ where
         .await
         .map_err(PushError::Database)?;
 
-    // 5. Execute the QBO call.
-    let qbo_result = qbo_fn(attempt.id).await;
+    // 5. Execute the QBO call — or inject rate-limit fixture in dev-local.
+    let qbo_result = if is_rate_limit_fixture_active() {
+        QboCallResult::Fault {
+            code: "rate_limited".into(),
+            message: "Forced 429 (QBO_FORCE_RATE_LIMIT=1, APP_PROFILE=dev-local)".into(),
+        }
+    } else {
+        qbo_fn(attempt.id).await
+    };
 
     // 6. Re-read authority version for post-call stale detection.
     let post_auth = authority_repo::get_authority(pool, app_id, provider, entity_type)
