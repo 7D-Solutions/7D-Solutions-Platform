@@ -5,7 +5,7 @@
 
 
 ## 2.3.0
-- fix: switch pdfium-render to static linking (`static` feature) — eliminates LoadLibraryError panic in Linux containers where libpdfium.so was missing; no shared library needed at runtime ([bd-sek3l])
+- fix: add Linux aarch64 libpdfium.so (musl, from bblanchon/pdfium-binaries chromium/7802); mount into container at /app/libpdfium.so with PDFIUM_LIB_PATH env var; fixes LoadLibraryError panic in Linux containers ([bd-sek3l])
 
 ## 2.2.1
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
