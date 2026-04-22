@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.2
+- fix: add `dynamic` feature to pdfium-render — enables `bind_to_library()` / `Pdfium::default()` dlopen path; without this feature the binary panics with "Dynamic loading not supported" even when libpdfium.so is present ([bd-ro834])
+
 ## 2.3.1
 - chore: trigger cross-watcher rebuild to pick up libpdfium.so mount + PDFIUM_LIB_PATH wiring ([bd-sek3l])
 

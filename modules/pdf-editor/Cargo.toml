@@ -1,6 +1,6 @@
 [package]
 name = "pdf-editor-rs"
-version = "2.3.1"
+version = "2.3.2"
 edition = "2021"
 description = "PDF template management, form submissions, annotations, and document generation"
 
@@ -42,7 +42,7 @@ futures = "0.3"
 prometheus = "0.13"
 lazy_static = "1.4"
 http = "1"
-pdfium-render = { version = "0.8", features = ["thread_safe"] }
+pdfium-render = { version = "0.8", features = ["thread_safe", "dynamic"] }
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 regex = "1"
