@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.3
+- fix: revert invalid `dynamic` feature flag (doesn't exist in pdfium-render 0.8.37); pdfium dynamic loading is the default behavior without the `static` feature; musl-static binaries cannot dlopen — pdfium render path works on glibc containers (production) but not musl-static dev containers ([bd-didjp])
+
 ## 2.3.2
 - fix: add `dynamic` feature to pdfium-render — enables `bind_to_library()` / `Pdfium::default()` dlopen path; without this feature the binary panics with "Dynamic loading not supported" even when libpdfium.so is present ([bd-ro834])
 
