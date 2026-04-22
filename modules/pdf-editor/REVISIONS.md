@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.1
+- chore: trigger cross-watcher rebuild to pick up libpdfium.so mount + PDFIUM_LIB_PATH wiring ([bd-sek3l])
+
 ## 2.3.0
 - fix: add Linux aarch64 libpdfium.so (musl, from bblanchon/pdfium-binaries chromium/7802); mount into container at /app/libpdfium.so with PDFIUM_LIB_PATH env var; fixes LoadLibraryError panic in Linux containers ([bd-sek3l])
 
