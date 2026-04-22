@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.33.0
+- fix: self-echo suppression on CREATE — store provider_entity_id on push_attempts at success time; find_attempt_by_markers now matches (entity_id OR provider_entity_id) so webhook/CDC echoes of pushed CREATEs are suppressed instead of opening spurious conflicts ([bd-fv7jc])
+
 ## 2.32.0
 - fix: CDC process_cdc_entities now iterates ALL QueryResponse array elements instead of only the first; Intuit returns one element per entity type, so the prior `.first()` silently dropped all entity types except whichever appeared at index 0 ([bd-qnpbz])
 

@@ -86,6 +86,9 @@ pub struct PushAttemptRow {
     pub result_last_updated_time: Option<DateTime<Utc>>,
     /// Canonical fingerprint of the external response body (succeeded only).
     pub result_projection_hash: Option<String>,
+    /// Provider-assigned entity id from a successful CREATE response (e.g. QBO Customer.Id).
+    /// NULL for UPDATE operations where both sides share the same entity id.
+    pub provider_entity_id: Option<String>,
 }
 
 // ── Repository ────────────────────────────────────────────────────────────────
@@ -94,7 +97,8 @@ const SELECT_COLS: &str = r#"
     id, app_id, provider, entity_type, entity_id, operation,
     authority_version, request_fingerprint, status, error_message,
     started_at, completed_at, created_at, updated_at,
-    result_sync_token, result_last_updated_time, result_projection_hash
+    result_sync_token, result_last_updated_time, result_projection_hash,
+    provider_entity_id
 "#;
 
 /// Record a new push intent in 'accepted' state.
@@ -183,6 +187,7 @@ pub async fn complete_attempt_with_markers(
     result_sync_token: Option<&str>,
     result_last_updated_time: Option<DateTime<Utc>>,
     result_projection_hash: Option<&str>,
+    provider_entity_id: Option<&str>,
 ) -> Result<Option<PushAttemptRow>, sqlx::Error> {
     let lut = result_last_updated_time.map(truncate_to_millis);
     sqlx::query_as::<_, PushAttemptRow>(&format!(
@@ -192,6 +197,7 @@ pub async fn complete_attempt_with_markers(
             result_sync_token        = $2,
             result_last_updated_time = $3,
             result_projection_hash   = $4,
+            provider_entity_id       = $5,
             completed_at             = NOW(),
             updated_at               = NOW()
         WHERE id = $1 AND status = 'inflight'
@@ -202,6 +208,7 @@ pub async fn complete_attempt_with_markers(
     .bind(result_sync_token)
     .bind(lut)
     .bind(result_projection_hash)
+    .bind(provider_entity_id)
     .fetch_optional(pool)
     .await
 }
@@ -575,7 +582,7 @@ pub async fn find_attempt_by_markers(
         WHERE app_id      = $1
           AND provider    = $2
           AND entity_type = $3
-          AND entity_id   = $4
+          AND (entity_id = $4 OR provider_entity_id = $4)
           AND status IN ('succeeded', 'failed', 'unknown_failure')
           AND (
                ($5::text        IS NOT NULL AND result_sync_token        = $5)

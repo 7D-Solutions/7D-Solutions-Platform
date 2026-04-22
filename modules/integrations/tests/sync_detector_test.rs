@@ -523,6 +523,96 @@ async fn value_too_large_rejected_before_db() {
     );
 }
 
+// ── 10. Self-echo suppression for CREATE pushes (provider_entity_id correlation) ──
+
+/// Seed a push attempt that has both a platform entity_id and a provider_entity_id.
+/// Used to simulate a completed CREATE push where the platform uses an internal id
+/// ('platform-ent-XXX') but QBO assigned its own id ('qbo-ent-YYY').
+async fn seed_create_attempt_with_provider_entity_id(
+    pool: &sqlx::PgPool,
+    app_id: &str,
+    platform_entity_id: &str,
+    provider_entity_id: &str,
+    sync_token: &str,
+) -> Uuid {
+    let id = Uuid::new_v4();
+    sqlx::query(
+        r#"
+        INSERT INTO integrations_sync_push_attempts (
+            id, app_id, provider, entity_type, entity_id, operation,
+            authority_version, request_fingerprint, status,
+            result_sync_token, provider_entity_id,
+            completed_at
+        )
+        VALUES ($1, $2, 'quickbooks', 'customer', $3, 'create',
+                1, 'fp-create', 'succeeded',
+                $4, $5,
+                NOW())
+        "#,
+    )
+    .bind(id)
+    .bind(app_id)
+    .bind(platform_entity_id)
+    .bind(sync_token)
+    .bind(provider_entity_id)
+    .execute(pool)
+    .await
+    .expect("seed_create_attempt_with_provider_entity_id");
+    id
+}
+
+#[tokio::test]
+#[serial]
+async fn self_echo_create_suppressed_via_provider_entity_id() {
+    let pool = setup_db().await;
+    let app_id = tenant();
+    let platform_eid = format!("plat-cust-{}", Uuid::new_v4().simple());
+    let provider_eid = format!("qbo-{}", Uuid::new_v4().simple());
+    cleanup(&pool, &app_id).await;
+
+    let sync_token = "tok-create-echo-1";
+    let attempt_id = seed_create_attempt_with_provider_entity_id(
+        &pool,
+        &app_id,
+        &platform_eid,
+        &provider_eid,
+        sync_token,
+    )
+    .await;
+
+    // The CDC observation arrives using the QBO-assigned entity id, not the platform id.
+    let fingerprint = format!("st:{}", sync_token);
+    let comparable_hash = compute_comparable_hash(&serde_json::json!({"Id": &provider_eid}), Utc::now());
+
+    let outcome = run_detector(
+        &pool,
+        &app_id,
+        "quickbooks",
+        "customer",
+        &provider_eid,  // observation uses QBO id
+        &fingerprint,
+        &comparable_hash,
+        Some(serde_json::json!({"Id": &provider_eid, "DisplayName": "Acme"})),
+        Some(serde_json::json!({"Id": &provider_eid, "DisplayName": "Acme"})),
+    )
+    .await
+    .expect("run_detector must not fail");
+
+    assert!(
+        matches!(outcome, DetectorOutcome::SelfEchoSuppressed { attempt_id: aid } if aid == attempt_id),
+        "CREATE self-echo must be suppressed via provider_entity_id correlation, got: {:?}",
+        outcome
+    );
+
+    // No conflict row.
+    let all = list_conflicts(&pool, &app_id, None, 100, 0)
+        .await
+        .expect("list_conflicts");
+    assert_eq!(all.len(), 0, "CREATE self-echo must not open a conflict");
+
+    cleanup(&pool, &app_id).await;
+}
+
 // ── 9. Orphaned-write via projection_hash (comparable_hash correlation) ───────
 
 #[tokio::test]

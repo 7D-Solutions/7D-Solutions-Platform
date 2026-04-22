@@ -751,6 +751,7 @@ where
                     result_sync_token.as_deref(),
                     result_last_updated_time,
                     Some(&projection_hash),
+                    provider_entity_id.as_deref(),
                 )
                 .await
                 .map_err(PushError::Database)?;
