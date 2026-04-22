@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.3.0
+- fix: switch pdfium-render to static linking (`static` feature) — eliminates LoadLibraryError panic in Linux containers where libpdfium.so was missing; no shared library needed at runtime ([bd-sek3l])
+
 ## 2.2.1
 - chore: rustfmt reflow + regenerate typed clients (no behavior change)
 
