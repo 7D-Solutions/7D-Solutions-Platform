@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.31.1
+- fix: per-entity-type operation whitelist — invoice push now accepts 'void' operation; customer/payment remain restricted to create/update/delete ([bd-5uzgy])
+
 ## 2.31.0
 - feat: `POST /api/integrations/sync/cdc/trigger` — admin-guarded, dev-profile-only endpoint that runs one CDC cycle for the caller's tenant + provider; reuses the worker's observation+detector wiring for deterministic E2E testing ([bd-b9qyp])
 - feat: `GET /api/integrations/sync/authority` — tenant-scoped authority state read returning provider, entity_type, authoritative_side, authority_version, last_flipped_by, last_flipped_at; permission integrations.sync.read ([bd-bczyp])

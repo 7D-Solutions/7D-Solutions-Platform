@@ -375,6 +375,51 @@ async fn test_duplicate_intent_returns_409() {
     cleanup(&pool, &app_id).await;
 }
 
+/// invoice + void is accepted by the validator; superseded path proves no 422.
+#[tokio::test]
+#[serial]
+async fn test_invoice_void_returns_200_not_422() {
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let app_id = tenant_id.to_string();
+    cleanup(&pool, &app_id).await;
+
+    seed_oauth_connection(&pool, &app_id, &format!("realm-void-{}", tenant_id.simple()), "connected").await;
+    // Authority at 5; request at 1 → superseded before any QBO call.
+    seed_authority(&pool, &app_id, "invoice", 5).await;
+
+    let app = build_test_app(pool.clone(), tenant_id);
+    let req = push_request("invoice", "inv-void-1", "void", 1, "fp-void-inv", serde_json::json!({}));
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "void on invoice must pass validation and resolve as superseded"
+    );
+
+    let body = response_json(resp).await;
+    assert_ne!(body["error"], "invalid_operation", "void must not be rejected as invalid_operation for invoice");
+    assert_eq!(body["outcome"], "superseded");
+
+    cleanup(&pool, &app_id).await;
+}
+
+/// customer + void is rejected at the validator with 422.
+#[tokio::test]
+#[serial]
+async fn test_customer_void_returns_422() {
+    let pool = setup_db().await;
+    let tenant_id = Uuid::new_v4();
+    let app = build_test_app(pool.clone(), tenant_id);
+
+    let req = push_request("customer", "cust-1", "void", 1, "fp-void-cust", serde_json::json!({}));
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = response_json(resp).await;
+    assert_eq!(body["error"], "invalid_operation");
+}
+
 // ── QBO sandbox tests ─────────────────────────────────────────────────────────
 
 #[cfg(test)]

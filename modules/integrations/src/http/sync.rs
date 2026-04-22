@@ -516,12 +516,17 @@ pub async fn push_entity(
         .into_response();
     }
 
-    if !matches!(req.operation.as_str(), "create" | "update" | "delete") {
+    let valid_ops: &[&str] = match entity_type.as_str() {
+        "invoice" => &["create", "update", "delete", "void"],
+        _ => &["create", "update", "delete"],
+    };
+    if !valid_ops.contains(&req.operation.as_str()) {
         return ApiError::new(
             422,
             "invalid_operation",
             format!(
-                "operation must be one of: create, update, delete; got '{}'",
+                "operation must be one of: {}; got '{}'",
+                valid_ops.join(", "),
                 req.operation
             ),
         )
