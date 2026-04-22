@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.33.1
+- chore: commit missing migration 20260421000025 (void operation constraint on push_attempts) that was applied to DB but never tracked in git; fixes sqlx startup panic ([bd-5uzgy])
+
 ## 2.33.0
 - fix: self-echo suppression on CREATE — store provider_entity_id on push_attempts at success time; find_attempt_by_markers now matches (entity_id OR provider_entity_id) so webhook/CDC echoes of pushed CREATEs are suppressed instead of opening spurious conflicts ([bd-fv7jc])
 
