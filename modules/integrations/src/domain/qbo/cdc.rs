@@ -223,31 +223,31 @@ pub async fn process_cdc_entities(
     app_id: &str,
     realm_id: &str,
 ) -> Result<(u32, Option<DateTime<Utc>>), Box<dyn std::error::Error + Send + Sync>> {
-    let qr = response
+    let query_responses = response
         .get("CDCResponse")
         .and_then(|v| v.as_array())
         .and_then(|arr| arr.first())
         .and_then(|v| v.get("QueryResponse"))
-        .and_then(|v| v.as_array())
-        .and_then(|arr| arr.first());
+        .and_then(|v| v.as_array());
 
-    let qr = match qr {
-        Some(v) => v,
+    let query_responses = match query_responses {
+        Some(arr) => arr,
         None => return Ok((0, None)),
     };
 
     let mut count = 0u32;
     let mut max_lut: Option<DateTime<Utc>> = None;
 
-    for entity_type in CDC_ENTITIES {
-        let entities = match qr.get(*entity_type).and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => continue,
-        };
+    for qr in query_responses {
+        for entity_type in CDC_ENTITIES {
+            let entities = match qr.get(*entity_type).and_then(|v| v.as_array()) {
+                Some(arr) => arr,
+                None => continue,
+            };
 
-        let entity_type_lower = entity_type.to_lowercase();
+            let entity_type_lower = entity_type.to_lowercase();
 
-        for entity in entities {
+            for entity in entities {
             let entity_id = entity
                 .get("Id")
                 .and_then(|v| v.as_str())
@@ -319,6 +319,7 @@ pub async fn process_cdc_entities(
             count += 1;
 
             let _ = realm_id; // realm_id stored in the entity payload itself
+        }
         }
     }
 

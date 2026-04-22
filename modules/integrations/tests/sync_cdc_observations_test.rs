@@ -436,6 +436,57 @@ async fn cdc_observation_source_channel_and_tombstone_fields_present() {
     cleanup(&pool, &app_id).await;
 }
 
+// ── Multi-QueryResponse format (Intuit actual format) ────────────────────────
+
+/// Intuit's CDC API returns one QueryResponse array element per entity type,
+/// not all entity types in a single element.  This test uses the real format
+/// and verifies that all entity types are visited.
+#[tokio::test]
+#[serial]
+async fn cdc_response_multi_qr() {
+    let pool = setup_db().await;
+    let app_id = unique_app();
+    cleanup(&pool, &app_id).await;
+
+    // Each entity type is in its own QueryResponse element — the actual Intuit format.
+    let response = json!({
+        "CDCResponse": [{
+            "QueryResponse": [
+                { "Customer": [{"Id": "c1", "SyncToken": "1", "MetaData": {"LastUpdatedTime": "2024-06-01T10:00:00Z"}}] },
+                { "Invoice":  [{"Id": "i1", "SyncToken": "2", "MetaData": {"LastUpdatedTime": "2024-06-01T10:01:00Z"}}] },
+                { "Payment":  [{"Id": "p1", "SyncToken": "3", "MetaData": {"LastUpdatedTime": "2024-06-01T10:02:00Z"}}] },
+                { "Item":     [{"Id": "t1", "SyncToken": "4", "MetaData": {"LastUpdatedTime": "2024-06-01T10:03:00Z"}}] }
+            ]
+        }]
+    });
+
+    let (count, max_lut) = cdc::process_cdc_entities(&pool, &response, &app_id, "realm-1")
+        .await
+        .expect("process_cdc_entities must succeed with multi-element QueryResponse");
+
+    assert_eq!(count, 4, "all four entity types across separate QueryResponse elements must be processed");
+    assert!(max_lut.is_some(), "max_lut must be set");
+
+    let types: Vec<(String,)> = sqlx::query_as(
+        "SELECT entity_type FROM integrations_sync_observations \
+         WHERE app_id = $1 ORDER BY entity_type",
+    )
+    .bind(&app_id)
+    .fetch_all(&pool)
+    .await
+    .expect("fetch entity types");
+
+    let type_set: std::collections::HashSet<&str> =
+        types.iter().map(|(t,)| t.as_str()).collect();
+
+    assert!(type_set.contains("customer"), "customer must be present");
+    assert!(type_set.contains("invoice"),  "invoice must be present");
+    assert!(type_set.contains("payment"),  "payment must be present");
+    assert!(type_set.contains("item"),     "item must be present");
+
+    cleanup(&pool, &app_id).await;
+}
+
 // ── Detector wiring test ──────────────────────────────────────────────────────
 
 /// Verify that process_cdc_entities automatically calls run_detector after each

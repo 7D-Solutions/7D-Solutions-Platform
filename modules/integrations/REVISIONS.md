@@ -4,6 +4,9 @@
 > **Standard:** See `docs/VERSIONING.md` for the rules governing this file.
 
 
+## 2.32.0
+- fix: CDC process_cdc_entities now iterates ALL QueryResponse array elements instead of only the first; Intuit returns one element per entity type, so the prior `.first()` silently dropped all entity types except whichever appeared at index 0 ([bd-qnpbz])
+
 ## 2.31.1
 - fix: per-entity-type operation whitelist — invoice push now accepts 'void' operation; customer/payment remain restricted to create/update/delete ([bd-5uzgy])
 
