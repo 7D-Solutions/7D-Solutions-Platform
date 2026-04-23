@@ -81,6 +81,19 @@ pub struct BomLine {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Resolved item details embedded in enriched BOM line responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemDetails {
+    pub item_id: uuid::Uuid,
+    pub sku: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Standard or last-known unit cost in minor currency units (e.g. cents).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit_cost_minor: Option<i64>,
+}
+
 /// BOM line with optional embedded item details (returned when `?include=item_details`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BomLineEnriched {
