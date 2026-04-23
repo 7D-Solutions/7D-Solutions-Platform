@@ -17,3 +17,7 @@
 # [[allowlists]]
 #   description = "Test fixture RSA keys — bd-xxxxx"
 #   paths = ['''e2e-tests/tests/fixtures/.*\.pem''']
+
+[[allowlists]]
+  description = "Publish gate bypass token is a public escape-hatch marker, not a secret — bd-91xyd"
+  regexes = ['''BR_PUBLISH_GATE_BYPASS=1''']

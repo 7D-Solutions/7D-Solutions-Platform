@@ -224,3 +224,5 @@ flywheel_tools
 sweep.timestamp
 SDK_AUDIT.md
 target
+.rehearsal/
+.ntm/
