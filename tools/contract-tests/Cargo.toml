@@ -15,6 +15,10 @@ path = "tests/event_schema_tests.rs"
 name = "openapi_tests"
 path = "tests/openapi_tests.rs"
 
+[[test]]
+name = "consumer_tests"
+path = "tests/consumer_tests.rs"
+
 [dependencies]
 jsonschema = "0.18"
 serde = { version = "1.0", features = ["derive"] }

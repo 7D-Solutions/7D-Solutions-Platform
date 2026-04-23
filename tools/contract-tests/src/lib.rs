@@ -1,5 +1,7 @@
 use jsonschema::JSONSchema;
+use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
@@ -169,6 +171,117 @@ pub fn check_required_paths(
             "OpenAPI spec '{}' missing required paths: {:?}",
             spec_name, missing
         )));
+    }
+
+    Ok(())
+}
+
+/// A single property entry in a consumer schema file
+#[derive(Deserialize)]
+pub struct ConsumerProperty {
+    #[serde(rename = "type")]
+    pub type_: String,
+}
+
+/// Deserialised consumer contract — one JSON file per endpoint expectation
+#[derive(Deserialize)]
+pub struct ConsumerSchema {
+    pub endpoint: String,
+    pub method: String,
+    pub required: Vec<String>,
+    pub properties: HashMap<String, ConsumerProperty>,
+}
+
+/// Validate a consumer's declared expectations against a loaded platform OpenAPI spec.
+///
+/// Checks:
+/// 1. The endpoint+method exists and has a 200 JSON response schema.
+/// 2. Every field in `consumer.required` is present in the resolved spec schema's `properties`.
+/// 3. Every field in `consumer.properties` has the same `type` string in the spec (ignoring
+///    `nullable`). Returns `Err` if the spec uses a nested `$ref` instead of a `type` keyword.
+pub fn validate_consumer_schema(
+    platform_spec: &Value,
+    consumer: &ConsumerSchema,
+) -> Result<(), ContractError> {
+    let response_schema = platform_spec
+        .get("paths")
+        .and_then(|p| p.get(&consumer.endpoint))
+        .and_then(|e| e.get(&consumer.method))
+        .and_then(|m| m.get("responses"))
+        .and_then(|r| r.get("200"))
+        .and_then(|r| r.get("content"))
+        .and_then(|c| c.get("application/json"))
+        .and_then(|j| j.get("schema"))
+        .ok_or_else(|| {
+            ContractError::ValidationError(format!(
+                "Cannot find 200 response schema for {} {}",
+                consumer.method, consumer.endpoint
+            ))
+        })?;
+
+    let resolved_schema =
+        if let Some(ref_str) = response_schema.get("$ref").and_then(|v| v.as_str()) {
+            let schema_name = ref_str
+                .strip_prefix("#/components/schemas/")
+                .ok_or_else(|| {
+                    ContractError::ValidationError(format!(
+                        "Unsupported $ref format: {}",
+                        ref_str
+                    ))
+                })?;
+            platform_spec
+                .get("components")
+                .and_then(|c| c.get("schemas"))
+                .and_then(|s| s.get(schema_name))
+                .ok_or_else(|| {
+                    ContractError::ValidationError(format!("Cannot resolve $ref: {}", ref_str))
+                })?
+        } else {
+            response_schema
+        };
+
+    let spec_properties = resolved_schema
+        .get("properties")
+        .and_then(|p| p.as_object())
+        .ok_or_else(|| {
+            ContractError::ValidationError(
+                "Resolved schema has no 'properties' object".to_string(),
+            )
+        })?;
+
+    for field in &consumer.required {
+        if !spec_properties.contains_key(field.as_str()) {
+            return Err(ContractError::ValidationError(format!(
+                "Required field '{}' not found in spec schema for {} {}",
+                field, consumer.method, consumer.endpoint
+            )));
+        }
+    }
+
+    for (field, consumer_prop) in &consumer.properties {
+        if let Some(spec_prop) = spec_properties.get(field.as_str()) {
+            if spec_prop.get("$ref").is_some() {
+                return Err(ContractError::ValidationError(format!(
+                    "Field '{}' in spec uses $ref which is unsupported for type checking",
+                    field
+                )));
+            }
+            let spec_type = spec_prop
+                .get("type")
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| {
+                    ContractError::ValidationError(format!(
+                        "Field '{}' in spec has no 'type' keyword",
+                        field
+                    ))
+                })?;
+            if spec_type != consumer_prop.type_ {
+                return Err(ContractError::ValidationError(format!(
+                    "Field '{}' type mismatch: consumer expects '{}', spec has '{}'",
+                    field, consumer_prop.type_, spec_type
+                )));
+            }
+        }
     }
 
     Ok(())
