@@ -1,0 +1,278 @@
+<mxfile host="Electron" version="29.5.2">
+  <diagram id="bd-3j1ri-vitals" name="Platform Vitals API — bd-3j1ri">
+    <mxGraphModel dx="1600" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="3300" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" parent="1" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fillColor=#1a1a2e;strokeColor=none;rounded=1;" value="&lt;font color=&quot;#FFFFFF&quot; style=&quot;font-size:22px&quot;&gt;&lt;b&gt;Platform Contract Verification + Operational Vitals API&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#CCCCCC&quot; style=&quot;font-size:13px&quot;&gt;bd-3j1ri — Two-tier composable design — no new tables, no cross-module DB reads&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="800" x="200" y="20" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d2d3d;strokeColor=#555555;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="150" width="260" x="1550" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" parent="1" style="text;html=1;align=left;fillColor=none;strokeColor=none;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Legend&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="20" width="100" x="1570" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-g" parent="1" style="rounded=1;fillColor=#2e7d32;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="18" width="18" x="1570" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-g-t" parent="1" style="text;html=1;align=left;fillColor=none;strokeColor=none;" value="&lt;font color=&quot;#AAAAAA&quot;&gt;Already exists&lt;/font&gt;" vertex="1">
+          <mxGeometry height="18" width="180" x="1596" y="58" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-a" parent="1" style="rounded=1;fillColor=#f57f17;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="18" width="18" x="1570" y="84" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-a-t" parent="1" style="text;html=1;align=left;fillColor=none;strokeColor=none;" value="&lt;font color=&quot;#AAAAAA&quot;&gt;New in this plan&lt;/font&gt;" vertex="1">
+          <mxGeometry height="18" width="180" x="1596" y="84" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-b" parent="1" style="rounded=1;fillColor=#1565c0;strokeColor=none;" value="" vertex="1">
+          <mxGeometry height="18" width="18" x="1570" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-b-t" parent="1" style="text;html=1;align=left;fillColor=none;strokeColor=none;" value="&lt;font color=&quot;#AAAAAA&quot;&gt;Extended (integrations)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="18" width="180" x="1596" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#37474f;strokeColor=#78909C;" value="" vertex="1">
+          <mxGeometry height="18" width="18" x="1570" y="136" as="geometry" />
+        </mxCell>
+        <mxCell id="leg-db-t" parent="1" style="text;html=1;align=left;fillColor=none;strokeColor=none;" value="&lt;font color=&quot;#AAAAAA&quot;&gt;Existing DB table&lt;/font&gt;" vertex="1">
+          <mxGeometry height="18" width="180" x="1596" y="136" as="geometry" />
+        </mxCell>
+
+        <!-- ======================
+             LANE 1: Caller
+             ====================== -->
+        <mxCell id="lane-caller" parent="1" style="shape=mxgraph.basic.rect;fillColor=#1a1a2e;strokeColor=#555555;strokeWidth=2;rounded=1;arcSize=4;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;html=1;" value="&lt;font color=&quot;#CCCCCC&quot; style=&quot;font-size:13px&quot;&gt;&lt;b&gt;Caller (Vertical / Operator)&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="1450" x="40" y="105" as="geometry" />
+        </mxCell>
+
+        <mxCell id="caller-req" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;GET /api/control/&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;tenants/{id}/vitals&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;New control-plane endpoint&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="80" y="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="caller-resp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;TenantVitalsResponse&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;overall_healthy, provisioning,&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;per-module vitals&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="1230" y="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e-caller-in" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" source="caller-req" target="caller-resp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ======================
+             LANE 2: Control-Plane Aggregator
+             ====================== -->
+        <mxCell id="lane-cp" parent="1" style="shape=mxgraph.basic.rect;fillColor=#0d1b2a;strokeColor=#1565c0;strokeWidth=2;rounded=1;arcSize=4;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;html=1;" value="&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:13px&quot;&gt;&lt;b&gt;Control-Plane Aggregator (platform/control-plane)&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="280" width="1450" x="40" y="230" as="geometry" />
+        </mxCell>
+
+        <!-- Step 1: Read provisioning from DB -->
+        <mxCell id="cp-prov" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e7d32;strokeColor=#4CAF50;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;1. Read Provisioning&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;provisioning_steps&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;cp_tenant_module_status&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="175" x="80" y="270" as="geometry" />
+        </mxCell>
+
+        <!-- Step 2: Load bundle modules -->
+        <mxCell id="cp-bundle" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e7d32;strokeColor=#4CAF50;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;2. Load Bundle Modules&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;cp_bundle_modules&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;cp_service_catalog&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="175" x="300" y="270" as="geometry" />
+        </mxCell>
+
+        <!-- Step 3: Fan out -->
+        <mxCell id="cp-fanout" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;3. Parallel HTTP&lt;br&gt;Fanout&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;2s timeout each&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="150" x="540" y="263" as="geometry" />
+        </mxCell>
+
+        <!-- Step 4: Aggregate -->
+        <mxCell id="cp-agg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;4. Aggregate&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;overall_healthy rule:&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;all steps done + tenant_ready&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;+ DLQ=0 + outbox=0&lt;/font&gt;" vertex="1">
+          <mxGeometry height="85" width="175" x="760" y="266" as="geometry" />
+        </mxCell>
+
+        <!-- Control-plane DB -->
+        <mxCell id="cp-db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#37474f;strokeColor=#78909C;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Control-Plane DB&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;provisioning_steps&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;cp_tenant_module_status&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;cp_service_catalog&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="175" x="190" y="390" as="geometry" />
+        </mxCell>
+
+        <!-- Edges in CP lane -->
+        <mxCell id="e-cp1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#4CAF50;" edge="1" source="cp-prov" target="cp-bundle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cp2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#4CAF50;" edge="1" source="cp-bundle" target="cp-fanout">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cp3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="cp-fanout" target="cp-agg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cpdb1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="cp-db" target="cp-prov">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-cpdb2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="cp-db" target="cp-bundle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Caller to CP entry -->
+        <mxCell id="e-top-down" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="caller-req" target="cp-prov">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ======================
+             LANE 3: SDK Vitals Handler (per-module)
+             ====================== -->
+        <mxCell id="lane-sdk" parent="1" style="shape=mxgraph.basic.rect;fillColor=#0a1628;strokeColor=#f57f17;strokeWidth=2;rounded=1;arcSize=4;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;html=1;" value="&lt;font color=&quot;#FFB74D&quot; style=&quot;font-size:13px&quot;&gt;&lt;b&gt;SDK Vitals Handler — per-module GET /api/vitals (platform/platform-sdk)&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="240" width="1450" x="40" y="545" as="geometry" />
+        </mxCell>
+
+        <!-- SDK receive -->
+        <mxCell id="sdk-recv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;GET /api/vitals&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;?tenant_id= (optional)&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;JWT-gated (platform_admin)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="165" x="80" y="580" as="geometry" />
+        </mxCell>
+
+        <!-- DLQ query -->
+        <mxCell id="sdk-dlq" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;DLQ Depth&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;COUNT by failure_kind&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="145" x="300" y="570" as="geometry" />
+        </mxCell>
+
+        <!-- Outbox query -->
+        <mxCell id="sdk-outbox" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Outbox Health&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;pending count&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;oldest pending age&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="145" x="480" y="570" as="geometry" />
+        </mxCell>
+
+        <!-- Projection query -->
+        <mxCell id="sdk-proj" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Projection Freshness&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;lag_ms, age_seconds&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;from projection_cursors&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="155" x="660" y="570" as="geometry" />
+        </mxCell>
+
+        <!-- Consumer health -->
+        <mxCell id="sdk-cons" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Consumer Health&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;JetStreamConsumer.health()&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;in-process atomics&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="155" x="850" y="570" as="geometry" />
+        </mxCell>
+
+        <!-- Tenant ready -->
+        <mxCell id="sdk-tr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e7d32;strokeColor=#4CAF50;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Tenant Ready?&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;TenantReadinessRegistry&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;.is_ready(tenant_id)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="155" x="1040" y="570" as="geometry" />
+        </mxCell>
+
+        <!-- VitalsResponse builder -->
+        <mxCell id="sdk-build" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f57f17;strokeColor=#FF9800;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Build VitalsResponse&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFE082&quot; style=&quot;font-size:10px&quot;&gt;+ extended (optional)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="160" x="300" y="680" as="geometry" />
+        </mxCell>
+
+        <!-- Per-module DB -->
+        <mxCell id="sdk-db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#37474f;strokeColor=#78909C;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Module DB&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;event_dlq&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;events_outbox&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;projection_cursors&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="155" x="750" y="680" as="geometry" />
+        </mxCell>
+
+        <!-- Edges in SDK lane -->
+        <mxCell id="e-sdk1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="sdk-recv" target="sdk-dlq">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdk2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="sdk-recv" target="sdk-outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdk3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="sdk-recv" target="sdk-proj">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdk4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="sdk-recv" target="sdk-cons">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdk5" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#4CAF50;" edge="1" source="sdk-recv" target="sdk-tr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdkbuild" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;" edge="1" source="sdk-dlq" target="sdk-build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdkdb1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="sdk-db" target="sdk-dlq">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdkdb2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="sdk-db" target="sdk-outbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-sdkdb3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="sdk-db" target="sdk-proj">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- CP fanout to SDK -->
+        <mxCell id="e-fanout-sdk" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;dashed=1;" edge="1" source="cp-fanout" target="sdk-recv">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- SDK back to CP agg -->
+        <mxCell id="e-sdk-back" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#FF9800;dashed=1;" edge="1" source="sdk-build" target="cp-agg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ======================
+             LANE 4: Integrations Extended
+             ====================== -->
+        <mxCell id="lane-int" parent="1" style="shape=mxgraph.basic.rect;fillColor=#0d1428;strokeColor=#1565c0;strokeWidth=2;rounded=1;arcSize=4;verticalAlign=top;align=left;spacingLeft=10;spacingTop=5;html=1;" value="&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:13px&quot;&gt;&lt;b&gt;Integrations Extended Vitals (modules/integrations — optional VitalsProvider override)&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="180" width="1450" x="40" y="820" as="geometry" />
+        </mxCell>
+
+        <!-- IntegrationsVitalsProvider -->
+        <mxCell id="int-prov" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1565c0;strokeColor=#42A5F5;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;IntegrationsVitalsProvider&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;implements VitalsProvider&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;collect_extended()&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="200" x="80" y="860" as="geometry" />
+        </mxCell>
+
+        <!-- Sync conflicts -->
+        <mxCell id="int-conf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1565c0;strokeColor=#42A5F5;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Sync Conflicts&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;integrations_sync_conflicts&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;WHERE status=pending&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="340" y="860" as="geometry" />
+        </mxCell>
+
+        <!-- Push attempts -->
+        <mxCell id="int-push" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1565c0;strokeColor=#42A5F5;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;Push Attempts&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;integrations_sync_push_attempts&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;inflight + failures_24h&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="190" x="580" y="860" as="geometry" />
+        </mxCell>
+
+        <!-- Extended JSON -->
+        <mxCell id="int-ext" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1565c0;strokeColor=#42A5F5;arcSize=12;" value="&lt;font color=&quot;#FFFFFF&quot;&gt;&lt;b&gt;extended: JSON&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;sync_conflicts_pending&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:10px&quot;&gt;push_inflight, failures_24h&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="830" y="860" as="geometry" />
+        </mxCell>
+
+        <!-- Integrations DB -->
+        <mxCell id="int-db" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#37474f;strokeColor=#78909C;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Integrations DB&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;sync_conflicts&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;push_attempts&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="155" x="1060" y="860" as="geometry" />
+        </mxCell>
+
+        <!-- Edges in integrations lane -->
+        <mxCell id="e-int1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#42A5F5;" edge="1" source="int-prov" target="int-conf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-int2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#42A5F5;" edge="1" source="int-prov" target="int-push">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-int3" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#42A5F5;" edge="1" source="int-conf" target="int-ext">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-int4" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#42A5F5;" edge="1" source="int-push" target="int-ext">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-intdb1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="int-db" target="int-conf">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-intdb2" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#78909C;dashed=1;" edge="1" source="int-db" target="int-push">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- Integrations flows up to SDK build -->
+        <mxCell id="e-int-up" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#42A5F5;dashed=1;" edge="1" source="int-ext" target="sdk-build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ======================
+             INFO PANEL (right side)
+             ====================== -->
+        <mxCell id="info-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1c2233;strokeColor=#455A64;arcSize=8;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Bead Phases&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:11px&quot;&gt;Phase 0: health crate types&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFB74D&quot; style=&quot;font-size:11px&quot;&gt;Phase 1: SDK vitals handler&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFB74D&quot; style=&quot;font-size:11px&quot;&gt;Phase 2: control-plane aggregator&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#42A5F5&quot; style=&quot;font-size:11px&quot;&gt;Phase 3: integrations extended&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#90CAF9&quot; style=&quot;font-size:11px&quot;&gt;Phase 4: OpenAPI contract&lt;/font&gt;" vertex="1">
+          <mxGeometry height="130" width="230" x="1550" y="210" as="geometry" />
+        </mxCell>
+
+        <mxCell id="key-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1c2233;strokeColor=#455A64;arcSize=8;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Key Invariants&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;No new tables&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;No cross-module DB reads&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#A5D6A7&quot; style=&quot;font-size:10px&quot;&gt;No new crates&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFB74D&quot; style=&quot;font-size:10px&quot;&gt;Backward compat: unavailable&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FFB74D&quot; style=&quot;font-size:10px&quot;&gt; modules don&apos;t fail overall_healthy&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#FF8A80&quot; style=&quot;font-size:10px&quot;&gt;DLQ &gt; 0 or outbox &gt; 0 → unhealthy&lt;/font&gt;" vertex="1">
+          <mxGeometry height="140" width="230" x="1550" y="360" as="geometry" />
+        </mxCell>
+
+        <mxCell id="data-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1c2233;strokeColor=#455A64;arcSize=8;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;" value="&lt;font color=&quot;#ECEFF1&quot;&gt;&lt;b&gt;Data Sources (all existing)&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;provisioning_steps&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;cp_tenant_module_status&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;cp_service_catalog&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;event_dlq&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;events_outbox&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;projection_cursors&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;JetStreamConsumer.health()&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#B0BEC5&quot; style=&quot;font-size:10px&quot;&gt;TenantReadinessRegistry&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="230" x="1550" y="640" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

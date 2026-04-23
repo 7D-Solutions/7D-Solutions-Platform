@@ -699,14 +699,53 @@ Expected post-teardown state: exactly one `mcp_agent_mail.cli` process (the real
 | Field | Value |
 |-------|-------|
 | Repo | github.com/Dicklesworthstone/ntm |
-| Current | v1.10.0 (upgraded 2026-03-29 via `ntm upgrade`) |
+| Current | v1.10.0 + local patches (built from vendored source) |
 | Latest release | v1.10.0 (2026-03-25) |
 | Upstream main | **41 commits ahead of v1.10.0** (as of 2026-03-28) |
-| Binary | /opt/homebrew/bin/ntm (official release binary) |
-| Patched? | **No — stock release binary. spawn-fix.go.patch NOT applied (see below)** |
-| Status | **Current** — upgraded 2026-03-29 |
+| Binary | symlink `/opt/homebrew/bin/ntm` → `ntm/ntm` (locally built) |
+| Patched? | **Yes — see Active Patches below** |
+| Status | **Current** — local build 2026-04-16 |
 
 **Lost patch:** `ntm/spawn-fix.go.patch` reorders Agent Mail registration to happen BEFORE SendKeys during `ntm spawn`, so identity files exist before the agent process starts. This patch was in the dirty local build but is NOT in v1.10.0. The patch file is preserved at `ntm/spawn-fix.go.patch` and the old binary at `ntm/ntm-backup-dirty`. A new bead should be created to either re-apply this patch from source or verify upstream has incorporated it.
+
+### Active Patches (ntm)
+
+#### Patch 3 — env-var brace-group wrap on spawn (br-a6e61, 2026-04-18)
+
+- **Files:** `ntm/internal/cli/agent_command.go` (new), `ntm/internal/cli/agent_command_test.go` (new), `ntm/internal/cli/spawn.go` (envVars+spawn-context merge; health-check warning rephrased), `ntm/internal/cli/add.go` (envVars wrap)
+- **What:** Replaced inline `KEY=VAL command` env-var prefix construction with `composeAgentCommandWithEnv`, which emits `{ export K1=V1; export K2=V2; <agentCmd>; }` — a brace group with explicit `export` statements that parses regardless of how the user's agent template begins.
+- **Why:** Bash and zsh forbid env-var prefixes on shell keywords (`if`, `while`, `for`, `case`, `{`, `[[`, etc.). HuberPower's agent template starts with `if [ -f ./flywheel_tools/scripts/core/agent-runner.sh ]; then ... elif ... fi` to probe for the right runner path across project layouts. Combined with NTM's `CLAUDE_CODE_HOOKS=`/`NTM_SPAWN_*=` env-var prefix, zsh failed with `parse error near 'if'` and the pane sat at a shell prompt — no agent ever launched.
+- **Re-apply:** Reintroduce `agent_command.go`/`agent_command_test.go` and route both `spawn.go` (line ~1655) and `add.go` (line ~530) plugin-env-vars and `spawnCtx.EnvVars()` through `composeAgentCommandWithEnv(mergeEnvVars(envVars, agentSpawnCtx.EnvVars()), agentCmd)`. `EnvVarPrefix()` in `spawn_context.go` is preserved for backward compat but the spawn flow no longer calls it. Tests cover end-to-end pipeline regression with HuberPower-style template and a negative control pinning the pre-fix style as broken.
+
+#### Patch 2 — user pane disabled by default (bd-1jd31, 2026-04-16)
+
+- **File:** `ntm/internal/cli/spawn.go` line 881
+- **What:** Hard-coded `UserPane: false` — no shell pane is reserved when `ntm spawn` creates a session. The `--no-user` flag is now a no-op.
+- **Why:** Swarm sessions spawned by skills/agents don't need a shell pane — no one types there. The shell pane also rendered at awkward sizes in 4-pane grids.
+- **Re-apply:** Change `UserPane: !noUserPane,` to `UserPane: false,` in the `SpawnOptions` literal around line 881. If a user pane is ever needed again, restore the original line and add a separate opt-in flag.
+
+#### Patch 1 — auto-attach iTerm tab on session spawn (bd-1jd31, 2026-04-16)
+
+- **File:** `ntm/internal/cli/spawn.go`
+- **What:** After `ntm spawn` creates a brand-new session, open a new iTerm tab on macOS that runs `tmux attach -t '<session>'`. Mirrors the overflow iTerm-tab pattern in `scripts/visual-session-manager.sh` (bd-590yw).
+- **Why:** Skills and agents spawn detached sessions. The user couldn't see swarm sessions without manually running `ntm attach`. This auto-surfaces them.
+- **Escape hatch:** `NTM_NO_ATTACH=1` suppresses the tab open. JSON-output mode also suppresses.
+- **Re-apply on upstream update:**
+  1. Add `openITermTabForSession(session string)` helper near `appendOllamaAgentSpecs` in `spawn.go` (uses `os`, `os/exec`, `fmt` — all already imported). Function checks `/Applications/iTerm.app`, `NTM_NO_ATTACH`, `osascript` availability, then runs the osascript.
+  2. In `spawnSessionLogic`, just before the final `return nil`, add:
+     ```go
+     if auditSessionCreated && !IsJSONOutput() {
+         openITermTabForSession(opts.Session)
+     }
+     ```
+  3. `cd ntm && make build`
+- **Verify:**
+  ```bash
+  NTM_PROJECTS_BASE=/Users/james/Projects/AgentCore/tmp/ntm-test-base \
+    /Users/james/Projects/AgentCore/ntm/ntm spawn ntm-spawn-test --cod=1
+  # Confirm new iTerm tab appears attached to session
+  yes | ntm kill ntm-spawn-test
+  ```
 
 ### ntm Upstream Changelog: v1.7.0 → v1.10.0+
 
@@ -1074,6 +1113,18 @@ Note: jsm is the CLI binary installed by ACFS. ACFS is the installer/manager fra
 This is the main agent coordination framework: agent-runner.sh, hook scripts, bead management scripts, mail helpers, browser workers, adapters (deepseek, grok). It ships as part of ACFS but we maintain a heavily modified local copy. Changes we make here (like the br upgrade JSON parsing fixes) are local only and would be overwritten by an ACFS update.
 
 **Before any ACFS update:** Diff our flywheel_tools/ against the ACFS version to identify local modifications that need to be preserved.
+
+### Carried local patches
+
+Patches we hold locally that may or may not exist in ACFS upstream. Re-apply if an upstream pull overwrites them.
+
+| Bead | Commit | File | Fix |
+|------|--------|------|-----|
+| bd-nbe07 | c852904d | scripts/core/next-bead.sh | Lock file held until backgrounded tmux-injection subshell completes; previously released via EXIT trap before the subshell finished, allowing concurrent invocations to claim a second bead and race `/clear` + prompt streams into the same pane. |
+| bd-3iif2 | f550d456 | scripts/core/agent-mail-helper.sh | `whoami_agent` auto-register fallback referenced unset `$SCRIPTS_DIR` (typo) — file existence check always failed and auto-register never ran. Renamed to `$SCRIPT_DIR`. Also dropped unused `my_project_slug` declaration. |
+| bd-9ndcu | f0bc8a0e | scripts/core/agent-mail-helper.sh | Broadcast handler used `local subject=...` inside a `case` arm at top level — bash errored on `local` outside a function and silently failed the assignment, sending every broadcast with an empty subject. Dropped `local`. |
+
+Source: multi-pass bug hunt on the idle-notify pipeline diff, 2026-04-18.
 
 ## flywheel_connectors
 

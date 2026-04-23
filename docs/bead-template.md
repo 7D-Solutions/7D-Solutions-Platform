@@ -15,7 +15,9 @@ Standard structure for bead descriptions. Ensures any pool agent can execute wit
 <Files likely involved — paths relative to project root>
 
 ## Verify
-<Commands to confirm it works. Must use real services — no mocks, no stubs.>
+<Commands to confirm it works. Must use real services — no mocks, no stubs.
+Runs from the project root. If a command expects a subdirectory cwd
+(e.g. `npm test` in frontend/), prefix it with `cd <subdir> &&`.>
 
 ## Skills
 <Scan available skills list and include any that apply: /skill-name>
@@ -34,7 +36,7 @@ Standard structure for bead descriptions. Ensures any pool agent can execute wit
 - **What**: Describe the problem, not the solution. Include error messages or symptoms if it's a bug.
 - **Want**: Describe the outcome, not the implementation steps. "Users can log in with SSO" not "Add SAML handler to auth middleware."
 - **Files**: Best-effort list. Agents will discover more, but this saves initial search time.
-- **Verify**: Concrete commands that produce pass/fail results. `cargo test -p foo` or `curl localhost:8080/health`. Not "check that it works."
+- **Verify**: Concrete commands that produce pass/fail results. `cargo test -p foo` or `curl localhost:8080/health`. Not "check that it works." The close hook pins the working directory to the project root (the nearest ancestor containing `.beads/`) before running the block — commands that expect a subdirectory cwd must start with `cd <subdir> &&`. Paths from the project root (e.g. `$PROJECT_ROOT/scripts/foo.sh` or `flywheel_tools/...`) work without any `cd`.
 - **Skills**: Required for P0-P2. Scan the available skills list and include any that match the task. Write `/none` if no skills apply — this confirms you checked rather than forgot.
 
 ## Example (P1)

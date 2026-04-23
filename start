@@ -129,7 +129,7 @@ if command -v ubs &>/dev/null; then
             mkdir -p "$_ubs_dir/.flywheel"
             (
                 cd "$_ubs_dir"
-                ubs --quiet --report-json="$_ubs_report" . >/dev/null 2>&1
+                ubs --quiet --exclude-tests --report-json="$_ubs_report" . >/dev/null 2>&1
                 # Summarize results
                 if [ -f "$_ubs_report" ]; then
                     _c=$(jq -r '.totals.critical // 0' "$_ubs_report" 2>/dev/null)
